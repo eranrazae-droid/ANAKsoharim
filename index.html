@@ -2255,53 +2255,61 @@ function renderUsed() {
   document.getElementById('usedEmpty').style.display = cars.length ? 'none' : 'block';
 
   var cards = '';
-  var cardIdx = 0;
   cars.forEach(function(c) {
     var soldKey2 = 'used_' + c.plate;
     var isSold2 = usedSoldStatus[soldKey2] === 'נמכר';
     var srcColor = c.source.indexOf('ליסינג') !== -1 ? '#1a5c9a' : c.source.indexOf('השכרה') !== -1 ? '#7c3aed' : '#1a6e3c';
     var srcBg = c.source.indexOf('ליסינג') !== -1 ? '#e8f0fe' : c.source.indexOf('השכרה') !== -1 ? '#f3e8ff' : '#e8fef0';
     var waMsg2 = encodeURIComponent('שלום, אני מעוניין ברכב:\n' + c.year + ' | ' + c.brand.split(' ')[0] + '\n' + c.model + '\nק"מ: ' + c.km.toLocaleString() + '\nמקור: ' + c.source + '\nמחירון: ' + c.priceList.toLocaleString() + ' ₪' + '\nמחיר מכירה: ' + c.salePrice.toLocaleString() + ' ₪');
-    var mcBg = isSold2 ? '#f0f0f0' : (cardIdx % 2 === 0) ? '#f2f2f2' : '#fdf3e3';
-    cardIdx++;
-    var cardBorder = cardIdx % 2 === 0 ? '#e8e0cc' : '#e0e4ef';
-    cards += '<div style="padding:14px 16px;border-bottom:2px solid ' + cardBorder + ';background:' + mcBg + ';' + (isSold2 ? 'opacity:0.72;' : '') + '">';
-    /* שורת כותרת: יצרן + badge + שנה */
-    cards += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">';
-    cards += '<div style="display:flex;align-items:center;gap:6px;">';
-    cards += '<span style="font-size:13px;font-weight:900;color:#c9a227;">' + c.brand.split(' ')[0] + '</span>';
-    cards += '<span style="font-size:11px;background:' + srcBg + ';color:' + srcColor + ';padding:2px 7px;border-radius:5px;">' + c.source + '</span>';
+    var hdrBg = isSold2 ? '#555' : '#1a1a2e';
+    cards += '<div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.10);margin:0 12px 14px;">';
+    /* כותרת */
+    cards += '<div style="background:' + hdrBg + ';padding:12px 16px;display:flex;justify-content:space-between;align-items:center;">';
+    cards += '<div style="display:flex;align-items:center;gap:7px;">';
+    cards += '<span style="font-size:16px;font-weight:900;color:#c9a227;">' + c.brand.split(' ')[0] + '</span>';
+    cards += '<span style="font-size:11px;background:' + srcBg + ';color:' + srcColor + ';padding:2px 8px;border-radius:5px;font-weight:700;">' + c.source + '</span>';
     if (isSold2) cards += '<span style="font-size:11px;background:#ef4444;color:#fff;padding:2px 8px;border-radius:5px;font-weight:700;">נמכר</span>';
     cards += '</div>';
-    cards += '<span style="font-size:20px;font-weight:900;color:#1a1a2e;">\'' + c.year + '</span>';
+    cards += '<span style="font-size:24px;font-weight:900;color:#fff;">\'' + c.year + '</span>';
     cards += '</div>';
     /* דגם */
-    cards += '<div style="font-size:16px;font-weight:700;color:#1a1a2e;margin-bottom:2px;">' + c.model + '</div>';
+    cards += '<div style="padding:10px 16px 0;font-size:18px;font-weight:700;color:#1a1a2e;">' + c.model + '</div>';
     /* תת דגם */
-    cards += '<div style="font-size:11px;color:#aaa;margin-bottom:10px;line-height:1.4;">' + (c.submodel||'') + '</div>';
-    /* גריד נתונים 2x2 */
-    cards += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;">';
-    cards += '<div style="background:rgba(0,0,0,0.05);border-radius:8px;padding:7px 8px;text-align:center;"><div style="font-size:9px;color:#999;margin-bottom:2px;">רישוי</div><div style="font-size:13px;font-weight:800;color:#1a1a2e;direction:ltr;">' + (c.plate||'') + '</div></div>';
-    cards += '<div style="background:rgba(0,0,0,0.05);border-radius:8px;padding:7px 8px;text-align:center;"><div style="font-size:9px;color:#999;margin-bottom:2px;">יד</div><div style="font-size:15px;font-weight:800;color:#1a1a2e;">' + (c.hand||'') + '</div></div>';
-    cards += '<div style="background:rgba(0,0,0,0.05);border-radius:8px;padding:7px 8px;text-align:center;"><div style="font-size:9px;color:#999;margin-bottom:2px;">ק"מ</div><div style="font-size:13px;font-weight:800;color:#1a1a2e;">' + c.km.toLocaleString() + '</div></div>';
-    cards += '<div style="background:rgba(0,0,0,0.05);border-radius:8px;padding:7px 8px;text-align:center;"><div style="font-size:9px;color:#999;margin-bottom:2px;">טסט</div><div style="font-size:12px;font-weight:800;color:#555;">' + (c.test||'') + '</div></div>';
+    cards += '<div style="margin:8px 12px;background:#f5f5f5;border-radius:10px;padding:10px 14px;">';
+    cards += '<div style="font-size:10px;color:#999;margin-bottom:3px;">תת דגם</div>';
+    cards += '<div style="font-size:12px;color:#444;line-height:1.5;">' + (c.submodel||'') + '</div>';
     cards += '</div>';
-    /* שורת מחיר + כפתור */
-    cards += '<div style="display:flex;align-items:center;justify-content:space-between;background:' + (isSold2 ? '#f5f5f5' : '#e8fef0') + ';border-radius:10px;padding:10px 14px;">';
-    cards += '<div>';
-    cards += '<div style="font-size:10px;color:#999;margin-bottom:1px;">מחיר מכירה</div>';
-    cards += '<div style="font-size:22px;font-weight:900;color:' + (isSold2 ? '#ef4444' : '#1a6e3c') + ';">' + c.salePrice.toLocaleString() + ' ₪</div>';
+    /* גריד 3x2 */
+    var fBox = 'background:#f5f5f5;border-radius:10px;padding:9px 8px;text-align:center;';
+    var fLbl = 'font-size:10px;color:#999;margin-bottom:3px;';
+    var fVal = 'font-size:14px;font-weight:800;color:#1a1a2e;';
+    cards += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;padding:0 12px;margin-bottom:6px;">';
+    cards += '<div style="' + fBox + '"><div style="' + fLbl + '">רישוי</div><div style="' + fVal + 'font-size:12px;direction:ltr;">' + (c.plate||'') + '</div></div>';
+    cards += '<div style="' + fBox + '"><div style="' + fLbl + '">יד</div><div style="' + fVal + '">' + (c.hand||'') + '</div></div>';
+    cards += '<div style="' + fBox + '"><div style="' + fLbl + '">מקוריות</div><div style="' + fVal + 'font-size:11px;">' + (c.source||'') + '</div></div>';
+    cards += '<div style="' + fBox + '"><div style="' + fLbl + '">ק"מ</div><div style="' + fVal + 'font-size:13px;">' + c.km.toLocaleString() + '</div></div>';
+    cards += '<div style="' + fBox + '"><div style="' + fLbl + '">צבע</div><div style="' + fVal + 'font-size:13px;">' + (c.color||'') + '</div></div>';
+    cards += '<div style="' + fBox + '"><div style="' + fLbl + '">טסט</div><div style="' + fVal + 'font-size:12px;direction:ltr;">' + (c.test||'') + '</div></div>';
     cards += '</div>';
-    cards += '<div style="text-align:left;">';
-    cards += '<div style="font-size:10px;color:#bbb;margin-bottom:1px;">מחירון</div>';
-    cards += '<div style="font-size:13px;color:#bbb;text-decoration:line-through;">' + c.priceList.toLocaleString() + ' ₪</div>';
+    /* גריד מחירים */
+    var pBg = isSold2 ? '#fde8e8' : '#edfaf3';
+    var pColor = isSold2 ? '#ef4444' : '#1a6e3c';
+    cards += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;padding:0 12px;">';
+    cards += '<div style="background:#f5f5f5;border-radius:10px;padding:9px 8px;text-align:center;"><div style="' + fLbl + '">מחירון</div><div style="font-size:12px;font-weight:700;color:#bbb;text-decoration:line-through;">' + c.priceList.toLocaleString() + ' ₪</div></div>';
+    cards += '<div style="background:' + pBg + ';border-radius:10px;padding:9px 8px;text-align:center;"><div style="' + fLbl + '">מחיר מכירה</div><div style="font-size:14px;font-weight:900;color:' + pColor + ';">' + c.salePrice.toLocaleString() + ' ₪</div></div>';
+    cards += '<div style="background:#fff3f3;border-radius:10px;padding:9px 8px;text-align:center;"><div style="' + fLbl + '">הנחה</div><div style="font-size:13px;font-weight:900;color:#e24b4a;">' + (c.discount ? c.discount.toLocaleString() + ' ₪' : '') + '</div></div>';
     cards += '</div>';
+    /* שורת פעולה */
+    cards += '<div style="padding:12px 12px 14px;display:flex;justify-content:space-between;align-items:center;">';
     if (window.isAdmin) {
       cards += '<button class="stock-toggle' + (isSold2 ? ' out' : '') + '" onclick="toggleUsedSold(' + c.plate + ',this)" title="' + (isSold2 ? 'נמכר' : 'זמין') + '"></button>';
-    } else if (!isSold2) {
-      cards += '<a href="https://wa.me/972544214850?text=' + waMsg2 + '" target="_blank" style="background:#25d366;color:#fff;padding:10px 18px;border-radius:10px;font-size:14px;font-weight:700;text-decoration:none;">להזמנה</a>';
     } else {
-      cards += '<span style="color:#ef4444;font-weight:700;font-size:14px;">נמכר</span>';
+      cards += '<span></span>';
+    }
+    if (!isSold2) {
+      cards += '<a href="https://wa.me/972544214850?text=' + waMsg2 + '" target="_blank" style="background:#25d366;color:#fff;padding:10px 22px;border-radius:10px;font-size:14px;font-weight:700;text-decoration:none;">להזמנה</a>';
+    } else {
+      cards += '<span style="background:#ef4444;color:#fff;padding:10px 22px;border-radius:10px;font-size:14px;font-weight:700;">נמכר</span>';
     }
     cards += '</div>';
     cards += '</div>';
