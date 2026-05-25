@@ -722,14 +722,12 @@ tbody td{padding:14px 16px;font-size:14px;vertical-align:middle}
     <button class="brand-btn active" onclick="setUsedBrand('all',this)">כל היצרנים</button>
     <button class="brand-btn" onclick="setUsedBrand('יונדאי',this)">יונדאי</button>
     <button class="brand-btn" onclick="setUsedBrand('מיצובישי',this)">מיצובישי</button>
-    <button class="brand-btn" onclick="setUsedBrand('שברולט',this)">שברולט</button>
   </div>
   <div class="brands" id="usedModelBar" style="margin-top:6px;">
     <button class="brand-btn active" onclick="setUsedModel('all',this)">כל הדגמים</button>
     <button class="brand-btn" onclick="setUsedModel('I-10',this)">I-10</button>
     <button class="brand-btn" onclick="setUsedModel('I-20',this)">I-20</button>
     <button class="brand-btn" onclick="setUsedModel('אלנטרה',this)">אלנטרה</button>
-    <button class="brand-btn" onclick="setUsedModel('אקווינוקס',this)">אקווינוקס</button>
     <button class="brand-btn" onclick="setUsedModel('אקליפס',this)">אקליפס</button>
     <button class="brand-btn" onclick="setUsedModel('באיון',this)">באיון</button>
     <button class="brand-btn" onclick="setUsedModel('טוסון',this)">טוסון</button>
@@ -744,8 +742,8 @@ tbody td{padding:14px 16px;font-size:14px;vertical-align:middle}
     <span class="filter-label" style="margin-right:12px;">מיון לפי</span>
     <select class="sort-dropdown" id="usedSortSelect" onchange="quickSortFromSelect(this.value)">
       <option value="discount:-1">הנחה — מהגבוהה לנמוכה</option>
-      <option value="dealerPrice:1">מחיר — מהזול ליקר</option>
-      <option value="dealerPrice:-1">מחיר — מהיקר לזול</option>
+      <option value="salePrice:1">מחיר — מהזול ליקר</option>
+      <option value="salePrice:-1">מחיר — מהיקר לזול</option>
       <option value="km:1">ק"מ — מהנמוך לגבוה</option>
       <option value="km:-1">ק"מ — מהגבוה לנמוך</option>
       <option value="year:-1">שנתון — מהחדש לישן</option>
@@ -766,9 +764,10 @@ tbody td{padding:14px 16px;font-size:14px;vertical-align:middle}
         <th>רישוי</th>
         <th onclick="sortUsed('brand')">יצרן ↕</th>
         <th onclick="sortUsed('model')">דגם ↕</th>
+        <th>תת דגם</th>
         <th onclick="sortUsed('km')">ק"מ ↕</th>
         <th onclick="sortUsed('priceList')">מחירון ↕</th>
-        <th onclick="sortUsed('dealerPrice')">מחיר לסוחר ↕</th>
+        <th onclick="sortUsed('salePrice')">מחיר מכירה ↕</th>
         <th onclick="sortUsed('discount')">הנחה ↕</th>
         <th onclick="sortUsed('test')">טסט ↕</th>
         <th>צבע</th>
@@ -1100,7 +1099,27 @@ function restoreCars() {
 var carOverrides = {};
 var stockStatus = {};
 
-var USED_CARS = [];
+var USED_CARS = [
+  {plate:42336403,brand:'מיצובישי',model:'ספייס סטאר',submodel:"SUPREME 1200 הצ'בק אוטומטי בנזין 5 דלתות 4*2 5 מושבים",year:2023,hand:1,source:'פרטי',km:26200,color:'שחור',test:'02/05/2027',priceList:67800,salePrice:52000,discount:11800},
+  {plate:47939103,brand:'מיצובישי',model:'ספייס סטאר',submodel:"PREMIUM 1200 הצ'בק אוטומטי בנזין 5 דלתות 4*2 5 מושבים",year:2023,hand:1,source:'פרטי',km:18793,color:'לבן',test:'28/06/2026',priceList:74030,salePrice:61625,discount:8405},
+  {plate:47957603,brand:'מיצובישי',model:'ספייס סטאר',submodel:"SUPREME 1200 הצ'בק אוטומטי בנזין 5 דלתות 4*2 5 מושבים",year:2023,hand:1,source:'פרטי',km:43716,color:'לבן',test:'29/06/2026',priceList:68000,salePrice:56000,discount:8000},
+  {plate:56358602,brand:'יונדאי',model:'טוסון',submodel:'ELITE 1600 פנאי-שטח אוטומטי בנזין 5 דלתות 4*2 5 מושבים',year:2021,hand:1,source:'פרטי',km:108279,color:'לבן',test:'19/06/2027',priceList:134370,salePrice:96500,discount:33870},
+  {plate:62384702,brand:'יונדאי',model:'טוסון',submodel:'ELITE 1600 פנאי-שטח אוטומטי בנזין 5 דלתות 4*2 5 מושבים',year:2021,hand:1,source:'פרטי',km:54020,color:'אפור',test:'29/08/2026',priceList:134970,salePrice:102265,discount:28705},
+  {plate:88263002,brand:'יונדאי',model:'טוסון',submodel:'LUXURY 1600 פנאי-שטח אוטומטי בנזין 5 דלתות 4*2 5 מושבים',year:2022,hand:1,source:'פרטי',km:94750,color:'לבן',test:'27/04/2027',priceList:135900,salePrice:97900,discount:34000},
+  {plate:89593502,brand:'יונדאי',model:'טוסון',submodel:'LUXURY 1600 פנאי-שטח אוטומטי בנזין 5 דלתות 4*2 5 מושבים',year:2022,hand:1,source:'פרטי',km:35500,color:'לבן',test:'31/05/2026',priceList:136500,salePrice:109150,discount:23350},
+  {plate:48013703,brand:'יונדאי',model:'טוסון',submodel:'PRIME 2000 רכב פנאי-שטח אוטומטי בנזין 5 דלתות 4*2 5 מושבים',year:2023,hand:1,source:'פרטי',km:29500,color:'אפור',test:'05/07/2026',priceList:120600,salePrice:94400,discount:22200},
+  {plate:54146903,brand:'יונדאי',model:'באיון',submodel:"PREMIUM 1000 הצ'בק אוטומטי בנזין 5 דלתות 4*2 5 מושבים",year:2023,hand:1,source:'פרטי',km:34172,color:'לבן',test:'04/11/2026',priceList:98000,salePrice:83725,discount:10275},
+  {plate:34248903,brand:'מיצובישי',model:'אקליפס',submodel:'INSTYLE 1500 פנאי-שטח אוטומטי בנזין 5 דלתות 4*4 5 מושבים',year:2023,hand:1,source:'פרטי',km:33000,color:'אפור',test:'23/05/2026',priceList:121800,salePrice:89700,discount:28100},
+  {plate:78616702,brand:'יונדאי',model:'אלנטרה',submodel:'SUPREME 1600 סדאן אוטומטי בנזין 4 דלתות 4*2 5 מושבים היברידי',year:2022,hand:1,source:'פרטי',km:86573,color:'שחור',test:'19/03/2027',priceList:130890,salePrice:97100,discount:29790},
+  {plate:48539303,brand:'יונדאי',model:'אלנטרה',submodel:'SUPREME 1600 סדאן אוטומטי בנזין 4 דלתות 4*2 5 מושבים היברידי',year:2023,hand:1,source:'פרטי',km:79121,color:'לבן',test:'30/07/2026',priceList:139160,salePrice:102500,discount:32660},
+  {plate:48552003,brand:'יונדאי',model:'אלנטרה',submodel:'LUXURY 1600 סדאן אוטומטי בנזין 4 דלתות 4*2 5 מושבים היברידי',year:2023,hand:1,source:'פרטי',km:56000,color:'לבן',test:'12/08/2026',priceList:142180,salePrice:110700,discount:27480},
+  {plate:36027902,brand:'יונדאי',model:'I-20',submodel:"PRESTIGE 1000 הצ'בק אוטומטי בנזין 5 דלתות 4*2 5 מושבים",year:2020,hand:1,source:'פרטי',km:96000,color:'לבן',test:'21/11/2026',priceList:77460,salePrice:59050,discount:14410},
+  {plate:46135502,brand:'יונדאי',model:'I-20',submodel:"INTENSE 1000 הצ'בק אוטומטי בנזין 5 דלתות 4*2 5 מושבים",year:2021,hand:2,source:'ליסינג 0 ק"מ',km:41181,color:'שחור',test:'17/02/2027',priceList:76240,salePrice:56825,discount:15415},
+  {plate:87784002,brand:'יונדאי',model:'I-20',submodel:"SUPREME 1000 הצ'בק אוטומטי בנזין 5 דלתות 4*2 5 מושבים",year:2022,hand:2,source:'פרטי',km:38000,color:'לבן',test:'14/04/2027',priceList:91000,salePrice:70525,discount:16475},
+  {plate:19848402,brand:'יונדאי',model:'I-10',submodel:"SUPREME 1200 הצ'בק אוטומטי בנזין 5 דלתות 4*2 5 מושבים",year:2020,hand:2,source:'פרטי',km:60685,color:'כסף',test:'27/06/2026',priceList:64130,salePrice:47500,discount:12630},
+  {plate:11679103,brand:'יונדאי',model:'I-10',submodel:"PRIME PLUS 1200 הצ'בק אוטומטי בנזין 5 דלתות 4*2 5 מושבים",year:2022,hand:1,source:'פרטי',km:25151,color:'לבן',test:'27/06/2026',priceList:74830,salePrice:58325,discount:12505}
+];
+var usedSoldStatus = {};
 window.isAdmin = false;
 if (sessionStorage.getItem('isAdmin') === '1') {
   window.isAdmin = true;
@@ -1123,6 +1142,21 @@ function toggleStock(key, btn) {
   db.collection('settings').doc('stockStatus').set(stockStatus)
     .then(function() { console.log('saved OK'); filterAndRender(); if(btn){btn.classList.toggle('out',!isOut);btn.title=!isOut?'לא זמין':'זמין';} })
     .catch(function(err) { console.error('save error:', err); alert('שגיאה: ' + err.message); });
+}
+
+function toggleUsedSold(plate, btn) {
+  var key = 'used_' + plate;
+  var isSold = usedSoldStatus[key] === 'נמכר';
+  if (isSold) {
+    delete usedSoldStatus[key];
+  } else {
+    usedSoldStatus[key] = 'נמכר';
+  }
+  var db = window.db;
+  if (!db) { return; }
+  db.collection('settings').doc('usedSoldStatus').set(usedSoldStatus)
+    .then(function() { renderUsed(); if(btn){btn.classList.toggle('out',!isSold);btn.title=!isSold?'נמכר':'זמין';} })
+    .catch(function(err) { alert('שגיאה: ' + err.message); });
 }
 
 function filterAndRender() {
@@ -1395,8 +1429,17 @@ function loadCarOverrides(cb) {
         });
       }
     }).catch(function() {});
+    var p3 = window.db.collection('settings').doc('usedSoldStatus').get().then(function(doc) {
+      if (doc.exists) {
+        var raw = doc.data();
+        usedSoldStatus = {};
+        Object.keys(raw).forEach(function(k) {
+          if (raw[k] === 'נמכר') usedSoldStatus[k] = 'נמכר';
+        });
+      }
+    }).catch(function() {});
     var timeout = new Promise(function(res) { setTimeout(res, 5000); });
-    Promise.race([Promise.all([p1, p2]), timeout]).then(function() { if (cb) cb(); }).catch(function() { if (cb) cb(); });
+    Promise.race([Promise.all([p1, p2, p3]), timeout]).then(function() { if (cb) cb(); }).catch(function() { if (cb) cb(); });
   } else { if (cb) cb(); }
 }
 
@@ -2179,28 +2222,33 @@ function renderUsed() {
   var html = '';
   var rowIdx = 0;
   cars.forEach(function(c) {
+    var soldKey = 'used_' + c.plate;
+    var isSold = usedSoldStatus[soldKey] === 'נמכר';
     var srcBadge = c.source.indexOf('ליסינג') !== -1
       ? '<span style="background:#e8f0fe;color:#1a5c9a;font-size:11px;padding:2px 8px;border-radius:6px;">ליסינג</span>'
       : c.source.indexOf('השכרה') !== -1
         ? '<span style="background:#f3e8ff;color:#7c3aed;font-size:11px;padding:2px 8px;border-radius:6px;">השכרה</span>'
         : '<span style="background:#e8fef0;color:#1a6e3c;font-size:11px;padding:2px 8px;border-radius:6px;">פרטי</span>';
-    var waMsg = encodeURIComponent('שלום, אני מעוניין ברכב:\n' + c.year + ' | ' + c.brand + '\n' + c.model + '\nק"מ: ' + c.km.toLocaleString() + '\nמקור: ' + c.source + '\nמחירון: ' + c.priceList.toLocaleString() + ' ₪' + '\nמחיר לסוחר: ' + c.dealerPrice.toLocaleString() + ' ₪');
-    var rowBg = (rowIdx % 2 === 0) ? '#ffffff' : '#faf7ee';
+    var waMsg = encodeURIComponent('שלום, אני מעוניין ברכב:\n' + c.year + ' | ' + c.brand + '\n' + c.model + '\nק"מ: ' + c.km.toLocaleString() + '\nמקור: ' + c.source + '\nמחירון: ' + c.priceList.toLocaleString() + ' ₪' + '\nמחיר מכירה: ' + c.salePrice.toLocaleString() + ' ₪');
+    var rowBg = isSold ? '#f5f5f5' : (rowIdx % 2 === 0) ? '#ffffff' : '#faf7ee';
+    var soldBadge = isSold ? '<span style="background:#ef4444;color:#fff;font-size:11px;padding:2px 8px;border-radius:6px;font-weight:700;">נמכר</span>' : '';
+    var adminToggle = window.isAdmin ? '<button class="stock-toggle' + (isSold ? ' out' : '') + '" onclick="toggleUsedSold(' + c.plate + ',this)" title="' + (isSold ? 'נמכר' : 'זמין') + '" style="margin-left:4px;"></button>' : '';
     rowIdx++;
-    html += '<tr style="background:' + rowBg + ';">' +
-      '<td><strong>\'' + c.year + '</strong></td>' +
+    html += '<tr style="background:' + rowBg + ';' + (isSold ? 'opacity:0.7;' : '') + '">' +
+      '<td><strong>\'' + c.year + '</strong>' + (isSold ? '<br>' + soldBadge : '') + '</td>' +
       '<td style="font-size:12px;text-align:center;">' + (c.hand||'') + '</td>' +
       '<td style="font-size:11px;color:#888;direction:ltr">' + (c.plate||'') + '</td>' +
       '<td style="color:#7a839a;font-size:12px;">' + c.brand.split(' ')[0] + '</td>' +
       '<td style="font-weight:500;">' + c.model + '</td>' +
+      '<td style="font-size:11px;color:#999;max-width:180px;white-space:normal;">' + (c.submodel||'') + '</td>' +
       '<td style="color:#7a839a;">' + c.km.toLocaleString() + '</td>' +
       '<td style="color:#7a839a;">' + c.priceList.toLocaleString() + ' ₪</td>' +
-      '<td style="font-weight:700;color:#1a6e3c;">' + c.dealerPrice.toLocaleString() + ' ₪</td>' +
-      '<td style="font-size:12px;color:#e24b4a;font-weight:700;">' + (c.discount ? c.discount + '%' : '') + '</td>' +
+      '<td style="font-weight:700;color:#1a6e3c;">' + c.salePrice.toLocaleString() + ' ₪</td>' +
+      '<td style="font-size:12px;color:#e24b4a;font-weight:700;">' + (c.discount ? c.discount.toLocaleString() + ' ₪' : '') + '</td>' +
       '<td style="font-size:12px;color:#555;">' + (c.test||'') + '</td>' +
       '<td style="font-size:12px;">' + (c.color||'') + '</td>' +
       '<td>' + srcBadge + '</td>' +
-      '<td><a href="https://wa.me/972544214850?text=' + waMsg + '" target="_blank" style="background:#25d366;color:#fff;padding:5px 12px;border-radius:8px;font-size:12px;text-decoration:none;white-space:nowrap;">להזמנה</a></td>' +
+      '<td style="white-space:nowrap;">' + adminToggle + (isSold ? '<span style="color:#ef4444;font-weight:700;font-size:12px;">נמכר</span>' : '<a href="https://wa.me/972544214850?text=' + waMsg + '" target="_blank" style="background:#25d366;color:#fff;padding:5px 12px;border-radius:8px;font-size:12px;text-decoration:none;white-space:nowrap;">להזמנה</a>') + '</td>' +
       '</tr>';
   });
   document.getElementById('usedTbody').innerHTML = html;
@@ -2209,15 +2257,18 @@ function renderUsed() {
   var cards = '';
   var cardIdx = 0;
   cars.forEach(function(c) {
+    var soldKey2 = 'used_' + c.plate;
+    var isSold2 = usedSoldStatus[soldKey2] === 'נמכר';
     var srcColor = c.source.indexOf('ליסינג') !== -1 ? '#1a5c9a' : c.source.indexOf('השכרה') !== -1 ? '#7c3aed' : '#1a6e3c';
     var srcBg = c.source.indexOf('ליסינג') !== -1 ? '#e8f0fe' : c.source.indexOf('השכרה') !== -1 ? '#f3e8ff' : '#e8fef0';
-    var waMsg2 = encodeURIComponent('שלום, אני מעוניין ברכב:\n' + c.year + ' | ' + c.brand.split(' ')[0] + '\n' + c.model + '\nק"מ: ' + c.km.toLocaleString() + '\nמקור: ' + c.source + '\nמחירון: ' + c.priceList.toLocaleString() + ' ₪' + '\nמחיר לסוחר: ' + c.dealerPrice.toLocaleString() + ' ₪');
-    var mcBg = (cardIdx % 2 === 0) ? '#f2f2f2' : '#fdf3e3';
+    var waMsg2 = encodeURIComponent('שלום, אני מעוניין ברכב:\n' + c.year + ' | ' + c.brand.split(' ')[0] + '\n' + c.model + '\nק"מ: ' + c.km.toLocaleString() + '\nמקור: ' + c.source + '\nמחירון: ' + c.priceList.toLocaleString() + ' ₪' + '\nמחיר מכירה: ' + c.salePrice.toLocaleString() + ' ₪');
+    var mcBg = isSold2 ? '#f0f0f0' : (cardIdx % 2 === 0) ? '#f2f2f2' : '#fdf3e3';
     cardIdx++;
-    cards += '<div class="mc-card" style="background:' + mcBg + ' !important;border:none;border-radius:0;margin:0;box-shadow:none;">';
+    cards += '<div class="mc-card" style="background:' + mcBg + ' !important;border:none;border-radius:0;margin:0;box-shadow:none;' + (isSold2 ? 'opacity:0.75;' : '') + '">';
     cards += '<div class="mc-top"><div>';
-    cards += '<div class="mc-brand">' + c.brand.split(' ')[0] + ' &nbsp;<span style="font-size:11px;background:' + srcBg + ';color:' + srcColor + ';padding:2px 7px;border-radius:6px;">' + c.source + '</span></div>';
+    cards += '<div class="mc-brand">' + c.brand.split(' ')[0] + ' &nbsp;<span style="font-size:11px;background:' + srcBg + ';color:' + srcColor + ';padding:2px 7px;border-radius:6px;">' + c.source + '</span>' + (isSold2 ? ' &nbsp;<span style="background:#ef4444;color:#fff;font-size:11px;padding:2px 8px;border-radius:6px;font-weight:700;">נמכר</span>' : '') + '</div>';
     cards += '<div class="mc-model" style="font-size:15px;">' + c.model + '</div>';
+    cards += '<div style="font-size:11px;color:#999;margin-top:2px;">' + (c.submodel||'') + '</div>';
     cards += '</div></div>';
     cards += '<div class="mc-boxes">';
     cards += '<div class="mc-box"><div class="mc-box-label">שנה</div><div class="mc-box-val" style="font-size:14px;">' + "'" + c.year + '</div></div>';
@@ -2225,11 +2276,18 @@ function renderUsed() {
     cards += '<div class="mc-box"><div class="mc-box-label">מקוריות</div><div class="mc-box-val" style="font-size:13px;">' + (c.source||'') + '</div></div>';
     cards += '<div class="mc-box"><div class="mc-box-label">ק"מ</div><div class="mc-box-val catalog" style="font-size:14px;">' + c.km.toLocaleString() + '</div></div>';
     cards += '<div class="mc-box"><div class="mc-box-label">מחירון</div><div class="mc-box-val catalog" style="font-size:14px;">' + c.priceList.toLocaleString() + ' ₪</div></div>';
-    cards += '<div class="mc-box"><div class="mc-box-label">מחיר לסוחר</div><div class="mc-box-val" style="color:#1a6e3c;font-size:14px;">' + c.dealerPrice.toLocaleString() + ' ₪</div></div>';
+    cards += '<div class="mc-box"><div class="mc-box-label">מחיר מכירה</div><div class="mc-box-val" style="color:#1a6e3c;font-size:14px;">' + c.salePrice.toLocaleString() + ' ₪</div></div>';
     cards += '</div>';
     cards += '<div style="margin-top:10px;display:flex;gap:8px;align-items:center;">';
     cards += '<span style="font-size:12px;color:#888;">צבע: ' + (c.color||'') + '</span>';
-    cards += '<a href="https://wa.me/972544214850?text=' + waMsg2 + '" target="_blank" style="margin-right:auto;background:#25d366;color:#fff;padding:6px 16px;border-radius:8px;font-size:13px;text-decoration:none;">להזמנה</a>';
+    if (window.isAdmin) {
+      cards += '<button class="stock-toggle' + (isSold2 ? ' out' : '') + '" onclick="toggleUsedSold(' + c.plate + ',this)" title="' + (isSold2 ? 'נמכר' : 'זמין') + '" style="margin-right:4px;flex-shrink:0;"></button>';
+    }
+    if (!isSold2) {
+      cards += '<a href="https://wa.me/972544214850?text=' + waMsg2 + '" target="_blank" style="margin-right:auto;background:#25d366;color:#fff;padding:6px 16px;border-radius:8px;font-size:13px;text-decoration:none;">להזמנה</a>';
+    } else {
+      cards += '<span style="margin-right:auto;color:#ef4444;font-weight:700;font-size:13px;">נמכר</span>';
+    }
     cards += '</div></div>';
   });
   var mc = document.getElementById('usedMobileCards');
