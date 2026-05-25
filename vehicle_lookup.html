@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>בדיקת רכב לפי לוחית רישוי — ענק הרכבים</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Heebo',sans-serif;background:#f4f6fb;color:#1a1a2e}
+.header{background:#1a1a2e;padding:14px 24px;display:flex;align-items:center;justify-content:space-between}
+.logo{font-size:20px;font-weight:900;color:#fff;text-decoration:none}.logo span{color:#c9a227}
+.back-btn{background:#c9a227;color:#000;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;font-family:'Heebo',sans-serif;cursor:pointer;text-decoration:none}
+.body{padding:24px;max-width:680px;margin:0 auto}
+.search-box{background:#fff;border-radius:14px;padding:24px;margin-bottom:24px;box-shadow:0 1px 8px rgba(0,0,0,.06)}
+.search-title{font-size:18px;font-weight:900;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.search-row{display:flex;gap:10px}
+.plate-input{flex:1;padding:14px 18px;border:2px solid #e0e4ef;border-radius:10px;font-size:20px;font-weight:700;font-family:'Heebo',sans-serif;color:#1a1a2e;text-align:center;letter-spacing:3px;outline:none;direction:ltr}
+.plate-input:focus{border-color:#c9a227}
+.plate-input::placeholder{font-size:14px;font-weight:400;letter-spacing:0;color:#bbb}
+.search-btn{background:#c9a227;color:#000;border:none;border-radius:10px;padding:14px 22px;font-size:15px;font-weight:900;font-family:'Heebo',sans-serif;cursor:pointer;white-space:nowrap}
+.search-btn:hover{opacity:.88}
+.result-box{background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 1px 8px rgba(0,0,0,.06)}
+.result-header{background:#1a1a2e;padding:16px 20px}
+.result-plate{font-size:24px;font-weight:900;color:#c9a227;letter-spacing:3px;direction:ltr;margin-bottom:4px}
+.result-name{color:#fff;font-size:15px;font-weight:700}
+.fields{display:grid;grid-template-columns:1fr 1fr}
+.field{padding:14px 18px;border-bottom:1px solid #f0f2fa;border-left:1px solid #f0f2fa}
+.field:nth-child(even){border-left:none}
+.field-label{font-size:10px;color:#7a839a;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+.field-val{font-size:15px;font-weight:700;color:#1a1a2e}
+.field-val.green{color:#065f46}
+.field-val.red{color:#991b1b}
+.empty{text-align:center;padding:48px 20px;color:#aaa}
+.empty-icon{font-size:48px;display:block;margin-bottom:12px}
+.loading{text-align:center;padding:40px;color:#7a839a;font-size:15px}
+@media(max-width:480px){
+  .search-row{flex-direction:column}
+  .fields{grid-template-columns:1fr}
+  .field{border-left:none}
+  .body{padding:16px}
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <a class="logo" href="/">ענק <span>הרכבים</span></a>
+  <a class="back-btn" href="/">← חזור למלאי</a>
+</div>
+
+<div class="body" style="padding-bottom:60px">
+  <div class="search-box">
+    <div class="search-title">🔍 בדיקת רכב לפי לוחית רישוי</div>
+    <div class="search-row">
+      <input class="plate-input" type="tel" id="plateInput" placeholder="הכנס מספר רישוי..." maxlength="8" inputmode="numeric">
+      <button class="search-btn" onclick="lookupPlate()">חפש</button>
+    </div>
+  </div>
+  <div id="result">
+    <div class="empty">
+      <span class="empty-icon">🚗</span>
+      הכנס מספר רישוי לקבלת פרטי הרכב ממשרד התחבורה
+    </div>
+  </div>
+</div>
+
+<script>
+document.getElementById('plateInput').addEventListener('keydown', function(e){
+  if(e.key === 'Enter') lookupPlate();
+});
+
+// Check if plate in URL
+var urlParams = new URLSearchParams(window.location.search);
+var plateParm = urlParams.get('plate');
+if(plateParm){
+  document.getElementById('plateInput').value = plateParm;
+  lookupPlate();
+}
+
+function f(v){ return v && v !== 'None' && v !== '' && v !== null ? v : '—'; }
+
+function field(label, val, cls){
+  return '<div class="field"><div class="field-label">'+label+'</div><div class="field-val '+(cls||'')+'">'+val+'</div></div>';
+}
+
+function lookupPlate(){
+  var plate = document.getElementById('plateInput').value.trim().replace(/[-\s]/g,'');
+  if(!plate || plate.length < 5){ alert('הכנס מספר רישוי תקין'); return; }
+  
+  var result = document.getElementById('result');
+  result.innerHTML = '<div class="loading">⏳ שולף נתונים ממשרד התחבורה...</div>';
+  
+  var url = 'https://data.gov.il/api/3/action/datastore_search?resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3&filters=%7B%22mispar_rechev%22%3A%22'+plate+'%22%7D&limit=1';
+  
+  fetch(url)
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if(!data.success || !data.result.records || data.result.records.length === 0){
+        result.innerHTML = '<div class="empty"><span class="empty-icon">❌</span>לא נמצא רכב עם מספר רישוי זה</div>';
+        return;
+      }
+      var c = data.result.records[0];
+      
+      var tokef = f(c.tokef_dt);
+      var tokefClass = '';
+      if(tokef !== '—'){
+        tokefClass = new Date(tokef) < new Date() ? 'red' : 'green';
+      }
+      
+      result.innerHTML =
+        '<div class="result-box">'+
+        '<div class="result-header">'+
+          '<div class="result-plate">'+plate+'</div>'+
+          '<div class="result-name">'+f(c.tozeret_nm)+' '+f(c.kinuy_mishari)+' '+f(c.shnat_yitzur)+'</div>'+
+        '</div>'+
+        '<div class="fields">'+
+          field('יצרן', f(c.tozeret_nm)) +
+          field('דגם מסחרי', f(c.kinuy_mishari)) +
+          field('שנת ייצור', f(c.shnat_yitzur)) +
+          field('ארץ ייצור', f(c.eretz_yitzur_nm)) +
+          field('צבע', f(c.tzeva_rechev)) +
+          field('סוג דלק', f(c.sug_delek_nm)) +
+          field('נפח מנוע (סמ"ק)', f(c.nefach_manoa)) +
+          field('הספק (כ"ס)', f(c.kosher_neto)) +
+          field('משקל כולל (ק"ג)', f(c.mishkal_kolel)) +
+          field('מספר מושבים', f(c.mispar_moshavim)) +
+          field('תוקף רישיון', tokef, tokefClass) +
+          field('מספר בעלים', f(c.mispar_baalim)) +
+        '</div>'+
+        '</div>';
+    })
+    .catch(function(){
+      result.innerHTML = '<div class="empty"><span class="empty-icon">⚠️</span>שגיאה בחיבור למאגר. נסה שוב.</div>';
+    });
+}
+</script>
+</body>
+</html>
