@@ -3009,15 +3009,27 @@ var _broadcastDealers = [];
 function loadBroadcastList() {
   var listEl = document.getElementById('broadcastList');
   listEl.innerHTML = '<div style="font-size:13px;color:#777;padding:8px 0;">טוען...</div>';
-  window.db.collection('dealers').get().then(function(snap) {
-    _broadcastDealers = [];
+  var phones = {};
+  var p1 = window.db.collection('dealers').get().then(function(snap) {
     snap.forEach(function(doc) {
       var d = doc.data();
-      if (d.blocked || d.active === false) return;
+      if (d.blocked) return;
       var phone = doc.id.replace(/\D/g, '');
       if (phone.length < 9) return;
-      _broadcastDealers.push({ phone: phone, name: d.name || d.dealerName || doc.id });
+      phones[phone] = d.name || d.dealerName || doc.id;
     });
+  });
+  var p2 = window.db.collection('settings').doc('newDealers').get().then(function(doc) {
+    if (!doc.exists) return;
+    var nd = doc.data();
+    Object.keys(nd).forEach(function(phone) {
+      var clean = phone.replace(/\D/g, '');
+      if (clean.length < 9) return;
+      if (!phones[clean]) phones[clean] = nd[phone].name || nd[phone].dealerName || clean;
+    });
+  });
+  Promise.all([p1, p2]).then(function() {
+    _broadcastDealers = Object.keys(phones).map(function(p) { return { phone: p, name: phones[p] }; });
     renderBroadcastList();
   }).catch(function(err) {
     listEl.innerHTML = '<div style="color:#e24b4a;font-size:13px;">שגיאה בטעינה: ' + err.message + '</div>';
