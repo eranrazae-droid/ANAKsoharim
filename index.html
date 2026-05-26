@@ -816,6 +816,7 @@ tbody td{padding:14px 16px;font-size:14px;vertical-align:middle}
         <th onclick="sortDaily('km')">ק"מ ↕</th>
         <th onclick="sortDaily('priceList')">מחירון ↕</th>
         <th onclick="sortDaily('dealerPrice')">מחיר לסוחר ↕</th>
+        <th>הנחה %</th>
         <th>צבע</th>
         <th>מקור</th>
         <th>פעולות</th>
@@ -2759,6 +2760,7 @@ function renderDaily() {
       '<td style="color:#7a839a;">'+c.km.toLocaleString()+'</td>'+
       '<td style="font-weight:700;color:#1a6e3c;">'+c.priceList.toLocaleString()+' ₪</td>'+
       '<td style="font-weight:700;color:#1a5c9a;">'+(c.dealerPrice?c.dealerPrice.toLocaleString()+' ₪':'')+'</td>'+
+      '<td style="font-weight:700;color:#e24b4a;text-align:center;">'+(c.dealerPrice&&c.priceList?Math.round((c.priceList-c.dealerPrice)/c.priceList*100)+'%':'')+'</td>'+
       '<td style="font-size:12px;">'+(c.color||'')+'</td>'+
       '<td>'+srcBadge+'</td>'+
       '<td><a href="https://wa.me/972544214850?text='+waMsg+'" target="_blank" style="background:#25d366;color:#fff;padding:5px 12px;border-radius:8px;font-size:12px;text-decoration:none;white-space:nowrap;">להזמנה</a></td>'+
@@ -2795,12 +2797,16 @@ function renderDaily() {
     cards += '<div style="'+fBox+'"><div style="'+fLbl+'">צבע</div><div style="'+fVal+'font-size:12px;">'+(c.color||'')+'</div></div>';
     cards += '<div style="'+fBox+'"><div style="'+fLbl+'">מקוריות</div><div style="'+fVal+'font-size:11px;">'+(c.source||'')+'</div></div>';
     cards += '</div>';
-    cards += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:0 12px;">';
-    cards += '<div style="background:#edfaf3;border-radius:10px;padding:9px 14px;text-align:center;">';
-    cards += '<div style="'+fLbl+'">מחירון</div><div style="font-size:16px;font-weight:900;color:#1a6e3c;">'+c.priceList.toLocaleString()+' ₪</div>';
+    var discPct = (c.dealerPrice && c.priceList) ? Math.round((c.priceList - c.dealerPrice) / c.priceList * 100) : 0;
+    cards += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;padding:0 12px;">';
+    cards += '<div style="background:#edfaf3;border-radius:10px;padding:9px 8px;text-align:center;">';
+    cards += '<div style="'+fLbl+'">מחירון</div><div style="font-size:14px;font-weight:900;color:#1a6e3c;">'+c.priceList.toLocaleString()+' ₪</div>';
     cards += '</div>';
-    cards += '<div style="background:#e8f0fe;border-radius:10px;padding:9px 14px;text-align:center;">';
-    cards += '<div style="'+fLbl+'">מחיר לסוחר</div><div style="font-size:16px;font-weight:900;color:#1a5c9a;">'+(c.dealerPrice?c.dealerPrice.toLocaleString()+' ₪':'')+'</div>';
+    cards += '<div style="background:#e8f0fe;border-radius:10px;padding:9px 8px;text-align:center;">';
+    cards += '<div style="'+fLbl+'">מחיר לסוחר</div><div style="font-size:14px;font-weight:900;color:#1a5c9a;">'+(c.dealerPrice?c.dealerPrice.toLocaleString()+' ₪':'—')+'</div>';
+    cards += '</div>';
+    cards += '<div style="background:#fff3f3;border-radius:10px;padding:9px 8px;text-align:center;">';
+    cards += '<div style="'+fLbl+'">הנחה</div><div style="font-size:14px;font-weight:900;color:#e24b4a;">'+(discPct?discPct+'%':'—')+'</div>';
     cards += '</div>';
     cards += '</div>';
     cards += '<div style="padding:6px 12px 0;">';
