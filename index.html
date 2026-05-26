@@ -3266,13 +3266,26 @@ function showError(id, msg) {
       <button onclick="openAddCar()" style="background:#1a1a2e;color:#c9a227;border:1.5px solid #c9a227;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;font-family:Heebo,sans-serif;cursor:pointer;">➕ הוסף רכב ידנית</button>
     </div>
     <div style="margin-bottom:16px;padding:14px;background:#e8fef0;border-radius:12px;border:1px solid #b2dfcc;">
-      <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:#1a1a2e;">📢 שליחת הודעה לכל הסוחרים</div>
-      <textarea id="broadcastMsg" placeholder="כתוב כאן את ההודעה לסוחרים..." style="width:100%;height:80px;border:1px solid #b2dfcc;border-radius:8px;padding:10px;font-family:Heebo,sans-serif;font-size:14px;direction:rtl;resize:vertical;box-sizing:border-box;"></textarea>
-      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
-        <button onclick="loadBroadcastList()" style="background:#25d366;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;font-family:Heebo,sans-serif;cursor:pointer;">טען רשימת סוחרים</button>
-        <button onclick="copyAllPhones()" style="background:#1a1a2e;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;font-family:Heebo,sans-serif;cursor:pointer;">העתק את כל המספרים</button>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div style="font-size:13px;font-weight:700;color:#1a1a2e;">📢 רשימת תפוצה</div>
+        <div id="broadcastCountBadge" style="display:none;background:#1a6e3c;color:#fff;font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px;"></div>
       </div>
-      <div id="broadcastList" style="margin-top:10px;max-height:320px;overflow-y:auto;"></div>
+      <textarea id="broadcastMsg" placeholder="כתוב כאן את ההודעה לסוחרים..." style="width:100%;height:80px;border:1px solid #b2dfcc;border-radius:8px;padding:10px;font-family:Heebo,sans-serif;font-size:14px;direction:rtl;resize:vertical;box-sizing:border-box;"></textarea>
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center;">
+        <button onclick="copyAllPhones()" style="background:#1a1a2e;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;font-family:Heebo,sans-serif;cursor:pointer;">📋 העתק מספרים</button>
+        <button onclick="copySelectedPhones()" style="background:#1a5c9a;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;font-family:Heebo,sans-serif;cursor:pointer;">✅ העתק נבחרים</button>
+        <div style="margin-right:auto;display:flex;gap:6px;">
+          <button onclick="setBroadcastFilter('all')" id="bfAll" style="background:#1a1a2e;color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:12px;font-family:Heebo,sans-serif;cursor:pointer;">הכל</button>
+          <button onclick="setBroadcastFilter('active')" id="bfActive" style="background:#f0f0f0;color:#555;border:none;border-radius:6px;padding:5px 12px;font-size:12px;font-family:Heebo,sans-serif;cursor:pointer;">פעילים</button>
+          <button onclick="setBroadcastFilter('blocked')" id="bfBlocked" style="background:#f0f0f0;color:#555;border:none;border-radius:6px;padding:5px 12px;font-size:12px;font-family:Heebo,sans-serif;cursor:pointer;">חסומים</button>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:10px;margin-bottom:6px;padding:0 4px;">
+        <input type="checkbox" id="selectAllDealers" onchange="toggleSelectAll(this.checked)" style="width:16px;height:16px;cursor:pointer;">
+        <label for="selectAllDealers" style="font-size:12px;color:#777;cursor:pointer;">בחר הכל</label>
+        <span id="selectedCount" style="font-size:12px;color:#1a6e3c;font-weight:700;margin-right:auto;"></span>
+      </div>
+      <div id="broadcastList" style="max-height:320px;overflow-y:auto;display:flex;flex-direction:column;gap:5px;"></div>
     </div>
     <div class="add-dealer-box">
       <div class="add-dealer-label">הוספת סוחר חדש</div>
@@ -3657,18 +3670,18 @@ function resetAllStock() {
 }
 
 var _broadcastDealers = [];
+var _broadcastFilter = 'all';
 
 function loadBroadcastList() {
   var listEl = document.getElementById('broadcastList');
   listEl.innerHTML = '<div style="font-size:13px;color:#777;padding:8px 0;">טוען...</div>';
-  var phones = {};
+  var dealers = {};
   var p1 = window.db.collection('dealers').get().then(function(snap) {
     snap.forEach(function(doc) {
       var d = doc.data();
-      if (d.blocked) return;
       var phone = doc.id.replace(/\D/g, '');
       if (phone.length < 9) return;
-      phones[phone] = d.name || d.dealerName || doc.id;
+      dealers[phone] = { name: d.name || d.dealerName || doc.id, blocked: !!d.blocked };
     });
   });
   var p2 = window.db.collection('settings').doc('newDealers').get().then(function(doc) {
@@ -3677,49 +3690,105 @@ function loadBroadcastList() {
     Object.keys(nd).forEach(function(phone) {
       var clean = phone.replace(/\D/g, '');
       if (clean.length < 9) return;
-      if (!phones[clean]) phones[clean] = nd[phone].name || nd[phone].dealerName || clean;
+      if (!dealers[clean]) dealers[clean] = { name: nd[clean] && (nd[clean].name || nd[clean].dealerName) || clean, blocked: false };
     });
   });
   Promise.all([p1, p2]).then(function() {
-    _broadcastDealers = Object.keys(phones).map(function(p) { return { phone: p, name: phones[p] }; });
+    _broadcastDealers = Object.keys(dealers).map(function(p) {
+      return { phone: p, name: dealers[p].name, blocked: dealers[p].blocked, selected: true };
+    });
+    _broadcastDealers.sort(function(a,b) { return a.name.localeCompare(b.name, 'he'); });
+    var badge = document.getElementById('broadcastCountBadge');
+    if (badge) { badge.style.display = 'inline-block'; badge.textContent = _broadcastDealers.length + ' סוחרים'; }
     renderBroadcastList();
   }).catch(function(err) {
     listEl.innerHTML = '<div style="color:#e24b4a;font-size:13px;">שגיאה בטעינה: ' + err.message + '</div>';
   });
 }
 
+function setBroadcastFilter(f) {
+  _broadcastFilter = f;
+  ['all','active','blocked'].forEach(function(k) {
+    var btn = document.getElementById('bf' + k.charAt(0).toUpperCase() + k.slice(1));
+    if (btn) btn.style.background = k === f ? '#1a1a2e' : '#f0f0f0';
+    if (btn) btn.style.color = k === f ? '#fff' : '#555';
+  });
+  renderBroadcastList();
+}
+
+function toggleSelectAll(checked) {
+  var filtered = getFilteredDealers();
+  filtered.forEach(function(d) { d.selected = checked; });
+  renderBroadcastList();
+}
+
+function getFilteredDealers() {
+  return _broadcastDealers.filter(function(d) {
+    if (_broadcastFilter === 'active') return !d.blocked;
+    if (_broadcastFilter === 'blocked') return d.blocked;
+    return true;
+  });
+}
+
 function renderBroadcastList() {
   var listEl = document.getElementById('broadcastList');
   var msg = (document.getElementById('broadcastMsg').value || '').trim();
+  var filtered = getFilteredDealers();
   if (!_broadcastDealers.length) {
-    listEl.innerHTML = '<div style="font-size:13px;color:#777;padding:8px 0;">לא נמצאו סוחרים פעילים.</div>';
+    listEl.innerHTML = '<div style="font-size:13px;color:#777;padding:8px 0;">לא נמצאו סוחרים.</div>';
     return;
   }
-  var html = '<div style="font-size:12px;color:#777;margin-bottom:8px;">נמצאו ' + _broadcastDealers.length + ' סוחרים</div>';
-  html += '<div style="display:flex;flex-direction:column;gap:6px;">';
-  _broadcastDealers.forEach(function(d) {
+  var html = '';
+  filtered.forEach(function(d) {
     var intl = '972' + d.phone.replace(/^0/, '');
     var waLink = 'https://wa.me/' + intl + (msg ? '?text=' + encodeURIComponent(msg) : '');
-    html += '<div style="display:flex;align-items:center;justify-content:space-between;background:#fff;border-radius:8px;padding:8px 12px;border:1px solid #d4edda;">';
-    html += '<div><div style="font-size:13px;font-weight:700;color:#1a1a2e;">' + d.name + '</div><div style="font-size:11px;color:#999;direction:ltr;">' + d.phone + '</div></div>';
-    html += '<a href="' + waLink + '" target="_blank" style="background:#25d366;color:#fff;padding:7px 14px;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;white-space:nowrap;">שלח</a>';
+    var rowBg = d.blocked ? '#fff5f5' : '#fff';
+    var border = d.blocked ? '#fecaca' : '#d4edda';
+    html += '<div style="display:flex;align-items:center;gap:8px;background:'+rowBg+';border-radius:8px;padding:8px 12px;border:1px solid '+border+';">';
+    html += '<input type="checkbox" ' + (d.selected ? 'checked' : '') + ' onchange="toggleDealer(\''+d.phone+'\',this.checked)" style="width:15px;height:15px;cursor:pointer;flex-shrink:0;">';
+    html += '<div style="flex:1;min-width:0;">';
+    html += '<div style="font-size:13px;font-weight:700;color:#1a1a2e;">' + d.name + '</div>';
+    html += '<div style="font-size:11px;color:#999;direction:ltr;">' + d.phone + '</div>';
+    html += '</div>';
+    if (d.blocked) html += '<span style="font-size:10px;background:#fee2e2;color:#dc2626;padding:2px 7px;border-radius:10px;font-weight:700;">חסום</span>';
+    html += '<a href="' + waLink + '" target="_blank" style="background:#25d366;color:#fff;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;white-space:nowrap;flex-shrink:0;">שלח</a>';
     html += '</div>';
   });
-  html += '</div>';
   listEl.innerHTML = html;
+  var sel = filtered.filter(function(d){ return d.selected; }).length;
+  var selEl = document.getElementById('selectedCount');
+  if (selEl) selEl.textContent = sel > 0 ? sel + ' נבחרו' : '';
+  var cb = document.getElementById('selectAllDealers');
+  if (cb) cb.checked = filtered.length > 0 && sel === filtered.length;
+}
+
+function toggleDealer(phone, checked) {
+  var d = _broadcastDealers.find(function(x){ return x.phone === phone; });
+  if (d) d.selected = checked;
+  var filtered = getFilteredDealers();
+  var sel = filtered.filter(function(d){ return d.selected; }).length;
+  var selEl = document.getElementById('selectedCount');
+  if (selEl) selEl.textContent = sel > 0 ? sel + ' נבחרו' : '';
+  var cb = document.getElementById('selectAllDealers');
+  if (cb) cb.checked = filtered.length > 0 && sel === filtered.length;
 }
 
 function copyAllPhones() {
-  if (!_broadcastDealers.length) {
-    alert('טען קודם את רשימת הסוחרים.');
-    return;
-  }
-  var nums = _broadcastDealers.map(function(d) { return d.phone; }).join('\n');
+  var filtered = getFilteredDealers();
+  if (!filtered.length) { alert('אין סוחרים ברשימה.'); return; }
+  var nums = filtered.map(function(d) { return d.phone; }).join('\n');
   navigator.clipboard.writeText(nums).then(function() {
-    alert('הועתקו ' + _broadcastDealers.length + ' מספרים ללוח.');
-  }).catch(function() {
-    prompt('העתק ידנית:', nums);
-  });
+    alert('הועתקו ' + filtered.length + ' מספרים ללוח.');
+  }).catch(function() { prompt('העתק ידנית:', nums); });
+}
+
+function copySelectedPhones() {
+  var sel = _broadcastDealers.filter(function(d){ return d.selected; });
+  if (!sel.length) { alert('לא נבחרו סוחרים.'); return; }
+  var nums = sel.map(function(d) { return d.phone; }).join('\n');
+  navigator.clipboard.writeText(nums).then(function() {
+    alert('הועתקו ' + sel.length + ' מספרים נבחרים ללוח.');
+  }).catch(function() { prompt('העתק ידנית:', nums); });
 }
 
 document.addEventListener('input', function(e) {
@@ -3780,6 +3849,7 @@ function resetDevice(phone) {
 function openAdmin() {
   document.getElementById('adminPanel').style.display = 'block';
   loadAdmin();
+  loadBroadcastList();
 }
 
 function closeAdmin() {
