@@ -668,17 +668,29 @@ tbody td{padding:14px 16px;font-size:14px;vertical-align:middle}
   <div class="sliders-bar" id="slidersBar">
     <div class="slider-group">
       <div class="slider-label">מחירון כולל רישוי עד:</div>
-      <div class="slider-row">
-        <span class="slider-val" id="catalogVal">הכל</span>
-        <input type="range" class="gr" id="catalogRange" min="0" max="400000" step="5000" value="400000" oninput="updateSliders()">
-      </div>
+      <select id="catalogRange" class="sort-dropdown" onchange="updateSliders()" style="min-width:160px;">
+        <option value="400000">הכל</option>
+        <option value="100000">עד 100,000 ₪</option>
+        <option value="120000">עד 120,000 ₪</option>
+        <option value="150000">עד 150,000 ₪</option>
+        <option value="180000">עד 180,000 ₪</option>
+        <option value="200000">עד 200,000 ₪</option>
+        <option value="250000">עד 250,000 ₪</option>
+        <option value="300000">עד 300,000 ₪</option>
+        <option value="350000">עד 350,000 ₪</option>
+      </select>
     </div>
     <div class="slider-group">
       <div class="slider-label">החזר חודשי עד:</div>
-      <div class="slider-row">
-        <span class="slider-val" id="monthlyVal">הכל</span>
-        <input type="range" class="gr" id="monthlyRange" min="500" max="4000" step="100" value="4000" oninput="updateSliders()">
-      </div>
+      <select id="monthlyRange" class="sort-dropdown" onchange="updateSliders()" style="min-width:160px;">
+        <option value="4000">הכל</option>
+        <option value="1000">עד 1,000 ₪</option>
+        <option value="1500">עד 1,500 ₪</option>
+        <option value="2000">עד 2,000 ₪</option>
+        <option value="2500">עד 2,500 ₪</option>
+        <option value="3000">עד 3,000 ₪</option>
+        <option value="3500">עד 3,500 ₪</option>
+      </select>
     </div>
   </div>
   <div style="padding:8px 24px;background:#f4f6fb;border-bottom:1px solid #e0e4ef;display:flex;align-items:center;gap:10px;">
@@ -937,16 +949,7 @@ var maxCatalog = 400000, maxMonthly = 4000;
 function updateSliders() {
   maxCatalog = parseInt(document.getElementById('catalogRange').value);
   maxMonthly = parseInt(document.getElementById('monthlyRange').value);
-  document.getElementById('catalogVal').textContent = maxCatalog >= 400000 ? 'הכל' : maxCatalog.toLocaleString('he-IL') + ' ₪';
-  document.getElementById('monthlyVal').textContent = maxMonthly >= 4000 ? 'הכל' : maxMonthly.toLocaleString('he-IL') + ' ₪';
-  updateSliderFill(document.getElementById('catalogRange'), 0, 400000);
-  updateSliderFill(document.getElementById('monthlyRange'), 500, 4000);
   filterAndRender();
-}
-
-function updateSliderFill(el, min, max) {
-  var pct = ((parseFloat(el.value) - min) / (max - min)) * 100;
-  el.style.background = 'linear-gradient(to right, #c9a227 0%, #c9a227 ' + pct + '%, #e0e4ef ' + pct + '%, #e0e4ef 100%)';
 }
 
 // COMPARE
@@ -1816,8 +1819,6 @@ document.getElementById('searchInput').addEventListener('input', function(e) {
 });
 
 filterAndRender();
-updateSliderFill(document.getElementById('catalogRange'), 0, 400000);
-updateSliderFill(document.getElementById('monthlyRange'), 500, 4000);
 
 function getModelName(c) {
   var keyFull = c.brand + '||' + c.model + '||' + c.dealer;
