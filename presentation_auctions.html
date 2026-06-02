@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ענק הרכבים — מכרזי רכב דיגיטליים</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Heebo',sans-serif;background:#0d0d1a;color:#fff;overflow:hidden;height:100vh}
+
+/* SLIDE ENGINE */
+.deck{width:100%;height:100vh;position:relative}
+.slide{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:60px 80px;opacity:0;pointer-events:none;transition:opacity .5s ease,transform .5s ease;transform:translateY(30px)}
+.slide.active{opacity:1;pointer-events:all;transform:translateY(0)}
+.slide.out{opacity:0;transform:translateY(-30px)}
+
+/* PROGRESS */
+.progress-bar{position:fixed;top:0;left:0;height:4px;background:linear-gradient(90deg,#c9a227,#f0c842);transition:width .4s ease;z-index:100}
+.slide-counter{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);display:flex;gap:10px;z-index:100}
+.dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.25);transition:all .3s;cursor:pointer}
+.dot.active{background:#c9a227;width:24px;border-radius:4px}
+
+/* NAV */
+.nav-btn{position:fixed;bottom:20px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:#fff;padding:10px 28px;border-radius:999px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:700;cursor:pointer;z-index:100;transition:all .2s}
+.nav-btn:hover{background:rgba(201,162,39,.3);border-color:#c9a227}
+.nav-prev{right:calc(50% + 70px)}
+.nav-next{left:calc(50% + 70px)}
+.nav-btn:disabled{opacity:.3;cursor:not-allowed}
+
+/* COMMON */
+.tag{display:inline-block;background:rgba(201,162,39,.2);color:#c9a227;border:1px solid rgba(201,162,39,.4);border-radius:999px;padding:6px 18px;font-size:13px;font-weight:700;letter-spacing:.05em;margin-bottom:20px}
+.gold{color:#c9a227}
+h1{font-size:clamp(32px,5vw,64px);font-weight:900;line-height:1.1;text-align:center}
+h2{font-size:clamp(24px,3.5vw,44px);font-weight:900;line-height:1.2;text-align:center}
+.sub{font-size:clamp(14px,1.8vw,20px);color:rgba(255,255,255,.6);text-align:center;margin-top:16px;line-height:1.6}
+.divider{width:60px;height:4px;background:#c9a227;border-radius:2px;margin:24px auto}
+
+/* SLIDE 1 — COVER */
+.slide-cover{background:radial-gradient(ellipse at 60% 40%,#1e1830 0%,#0d0d1a 70%)}
+.slide-cover::before{content:'';position:absolute;inset:0;background:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23c9a227' fill-opacity='0.04'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");pointer-events:none}
+.logo-big{font-size:clamp(20px,3vw,32px);font-weight:900;color:#fff;margin-bottom:32px;letter-spacing:-.5px}
+.logo-big span{color:#c9a227}
+.cover-title{font-size:clamp(36px,6vw,80px);font-weight:900;line-height:1;text-align:center;margin-bottom:24px}
+.cover-sub{font-size:clamp(16px,2vw,24px);color:rgba(255,255,255,.5);text-align:center}
+.cover-badges{display:flex;gap:16px;margin-top:40px;flex-wrap:wrap;justify-content:center}
+.cover-badge{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:12px 24px;font-size:14px;font-weight:600;color:rgba(255,255,255,.7)}
+.cover-badge strong{color:#c9a227;display:block;font-size:22px;font-weight:900}
+
+/* SLIDE 2 — PROBLEM */
+.problem-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;width:100%;max-width:900px;margin-top:32px}
+.problem-card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:28px;position:relative;overflow:hidden}
+.problem-card::after{content:'';position:absolute;top:0;right:0;width:4px;height:100%;background:#c9a227}
+.problem-icon{font-size:32px;margin-bottom:12px}
+.problem-title{font-size:16px;font-weight:700;margin-bottom:8px}
+.problem-desc{font-size:14px;color:rgba(255,255,255,.55);line-height:1.6}
+
+/* SLIDE 3 — SOLUTION */
+.solution-center{display:flex;flex-direction:column;align-items:center;gap:32px;width:100%;max-width:800px}
+.time-row{display:flex;gap:24px;width:100%}
+.time-card{flex:1;background:linear-gradient(135deg,rgba(201,162,39,.15),rgba(201,162,39,.05));border:2px solid rgba(201,162,39,.4);border-radius:20px;padding:32px 24px;text-align:center;position:relative}
+.time-card .time{font-size:48px;font-weight:900;color:#c9a227;line-height:1}
+.time-card .time-label{font-size:13px;color:rgba(255,255,255,.5);margin-top:6px}
+.time-card .car-type{font-size:15px;font-weight:700;margin-top:16px;color:#fff}
+.vs-badge{display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;color:rgba(255,255,255,.3)}
+.solution-note{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:16px 24px;font-size:14px;color:rgba(255,255,255,.6);text-align:center;width:100%}
+.solution-note strong{color:#c9a227}
+
+/* SLIDE 4 — MARKET */
+.market-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;width:100%;max-width:900px;margin-top:32px}
+.market-stat{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:24px;text-align:center}
+.market-num{font-size:clamp(28px,4vw,48px);font-weight:900;color:#c9a227;line-height:1}
+.market-label{font-size:13px;color:rgba(255,255,255,.5);margin-top:8px;line-height:1.5}
+.market-insight{grid-column:1/-1;background:linear-gradient(135deg,rgba(201,162,39,.1),transparent);border:1px solid rgba(201,162,39,.25);border-radius:12px;padding:20px 28px;font-size:15px;line-height:1.7;color:rgba(255,255,255,.8)}
+.market-insight strong{color:#c9a227}
+
+/* SLIDE 5 — HOW IT WORKS */
+.steps{display:flex;flex-direction:column;gap:0;width:100%;max-width:720px;margin-top:28px}
+.step{display:flex;align-items:flex-start;gap:20px;padding:20px 0;border-bottom:1px solid rgba(255,255,255,.06);position:relative}
+.step:last-child{border-bottom:none}
+.step-num{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#c9a227,#a07a10);color:#000;font-weight:900;font-size:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.step-content .step-title{font-size:16px;font-weight:700;margin-bottom:4px}
+.step-content .step-desc{font-size:13px;color:rgba(255,255,255,.5);line-height:1.5}
+.step-time{margin-right:auto;font-size:12px;color:#c9a227;font-weight:700;background:rgba(201,162,39,.1);padding:3px 10px;border-radius:999px;white-space:nowrap;align-self:center}
+
+/* SLIDE 6 — ADVANTAGES */
+.adv-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;width:100%;max-width:900px;margin-top:28px}
+.adv-card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:20px 22px;display:flex;gap:14px;align-items:flex-start}
+.adv-icon{font-size:28px;flex-shrink:0}
+.adv-title{font-size:15px;font-weight:700;margin-bottom:4px}
+.adv-desc{font-size:13px;color:rgba(255,255,255,.5);line-height:1.5}
+.adv-card.highlight{border-color:rgba(201,162,39,.35);background:rgba(201,162,39,.07)}
+
+/* SLIDE 7 — RISKS */
+.risk-list{width:100%;max-width:780px;margin-top:28px;display:flex;flex-direction:column;gap:16px}
+.risk-item{display:flex;align-items:flex-start;gap:16px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:18px 22px}
+.risk-level{width:8px;border-radius:4px;flex-shrink:0;align-self:stretch;min-height:40px}
+.risk-level.high{background:#ef4444}
+.risk-level.med{background:#f59e0b}
+.risk-level.low{background:#22c55e}
+.risk-body .risk-title{font-size:15px;font-weight:700;margin-bottom:4px}
+.risk-body .risk-solution{font-size:13px;color:rgba(255,255,255,.5);line-height:1.5}
+.risk-body .risk-solution strong{color:#c9a227}
+
+/* SLIDE 8 — TECH */
+.tech-cols{display:grid;grid-template-columns:1fr 1fr;gap:28px;width:100%;max-width:900px;margin-top:28px}
+.tech-box{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:28px}
+.tech-box h3{font-size:17px;font-weight:700;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,.08)}
+.tech-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:14px}
+.tech-item:last-child{border-bottom:none}
+.tech-item .label{color:rgba(255,255,255,.6)}
+.tech-item .val{font-weight:700;color:#c9a227}
+.tech-rec{grid-column:1/-1;background:linear-gradient(135deg,rgba(201,162,39,.1),transparent);border:2px solid rgba(201,162,39,.3);border-radius:14px;padding:20px 28px;text-align:center}
+.tech-rec .rec-title{font-size:18px;font-weight:900;margin-bottom:8px}
+.tech-rec .rec-desc{font-size:14px;color:rgba(255,255,255,.6)}
+
+/* SLIDE 9 — ROADMAP */
+.roadmap{display:flex;gap:0;width:100%;max-width:900px;margin-top:32px;position:relative}
+.roadmap::before{content:'';position:absolute;top:40px;right:10%;left:10%;height:3px;background:linear-gradient(90deg,#c9a227,rgba(201,162,39,.2));border-radius:2px}
+.phase{flex:1;display:flex;flex-direction:column;align-items:center;gap:12px;padding:0 12px}
+.phase-circle{width:80px;height:80px;border-radius:50%;border:3px solid;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;background:#0d0d1a;position:relative;z-index:1}
+.phase-1 .phase-circle{border-color:#c9a227;color:#c9a227}
+.phase-2 .phase-circle{border-color:rgba(201,162,39,.5);color:rgba(201,162,39,.5)}
+.phase-3 .phase-circle{border-color:rgba(201,162,39,.3);color:rgba(201,162,39,.3)}
+.phase-name{font-size:15px;font-weight:700;text-align:center}
+.phase-time{font-size:12px;color:#c9a227;font-weight:600}
+.phase-items{font-size:13px;color:rgba(255,255,255,.5);text-align:center;line-height:1.8}
+
+/* SLIDE 10 — CTA */
+.slide-cta{background:radial-gradient(ellipse at center,#1a1530 0%,#0d0d1a 70%)}
+.cta-big{font-size:clamp(40px,7vw,90px);font-weight:900;line-height:1;text-align:center;margin-bottom:20px}
+.cta-sub{font-size:clamp(16px,2vw,22px);color:rgba(255,255,255,.5);text-align:center;margin-bottom:48px}
+.cta-actions{display:flex;gap:20px;flex-wrap:wrap;justify-content:center}
+.cta-btn{padding:16px 40px;border-radius:999px;font-family:'Heebo',sans-serif;font-size:16px;font-weight:900;cursor:pointer;transition:all .2s}
+.cta-primary{background:linear-gradient(135deg,#c9a227,#a07a10);color:#000;border:none}
+.cta-primary:hover{transform:scale(1.04);box-shadow:0 8px 32px rgba(201,162,39,.4)}
+.cta-secondary{background:transparent;color:#fff;border:2px solid rgba(255,255,255,.25)}
+.cta-secondary:hover{border-color:#c9a227;color:#c9a227}
+
+/* KEYBOARD HINT */
+.key-hint{position:fixed;top:20px;left:50%;transform:translateX(-50%);font-size:12px;color:rgba(255,255,255,.25);z-index:100;transition:opacity .3s}
+</style>
+</head>
+<body>
+
+<div class="progress-bar" id="progress"></div>
+<div class="key-hint" id="keyHint">השתמש בחצים ← → למעבר בין שקופיות</div>
+
+<div class="deck" id="deck">
+
+  <!-- SLIDE 1: COVER -->
+  <div class="slide slide-cover active" data-slide="0">
+    <div class="logo-big">ענק <span>הרכבים</span></div>
+    <div class="tag">רעיון עסקי חדש · 2026</div>
+    <div class="cover-title">מכרזי רכב<br><span class="gold">דיגיטליים יומיים</span></div>
+    <div class="cover-sub">2 רכבים ביום · שקיפות מלאה · כולם יכולים לקנות</div>
+    <div class="cover-badges">
+      <div class="cover-badge"><strong>2</strong>רכבים ביום</div>
+      <div class="cover-badge"><strong>שעתיים</strong>לכל מכרז</div>
+      <div class="cover-badge"><strong>100%</strong>דיגיטלי</div>
+      <div class="cover-badge"><strong>פתוח</strong>לכל אזרח</div>
+    </div>
+  </div>
+
+  <!-- SLIDE 2: PROBLEM -->
+  <div class="slide" data-slide="1">
+    <div class="tag">הבעיה</div>
+    <h2>שוק יד שנייה ישראלי —<br><span class="gold">הזדמנות שלא נוצלה</span></h2>
+    <div class="divider"></div>
+    <div class="problem-grid">
+      <div class="problem-card">
+        <div class="problem-icon">📋</div>
+        <div class="problem-title">אין מכרזים דיגיטליים לציבור</div>
+        <div class="problem-desc">BidSpirit עוסק רק בכינוס נכסים. יד2 היא מודעות קלסיפייד. אין פלטפורמת מכרז אמיתית לרכבים רגילים.</div>
+      </div>
+      <div class="problem-card">
+        <div class="problem-icon">💰</div>
+        <div class="problem-title">מלאי עומד עולה כסף</div>
+        <div class="problem-desc">רכבי גיל, טרייד-אין, פגמים קלים — יושבים בחניון. כל יום שעובר = פחת + עלות אחסון.</div>
+      </div>
+      <div class="problem-card">
+        <div class="problem-icon">🛒</div>
+        <div class="problem-title">הקונה לא מוצא עסקאות</div>
+        <div class="problem-desc">850,000 עסקאות יד שנייה בשנה — הרוב במחיר שוק. אין מנגנון שמאפשר לקונה לגלות "עסקת השבוע".</div>
+      </div>
+      <div class="problem-card">
+        <div class="problem-icon">🔄</div>
+        <div class="problem-title">תהליך מכירה ארוך ולא ודאי</div>
+        <div class="problem-desc">פרסום, משא ומתן, בדיקות — שבועות. מכרז עם deadline יוצר לחץ לקנות ומהר.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 3: SOLUTION -->
+  <div class="slide" data-slide="2">
+    <div class="tag">הפתרון</div>
+    <h2>2 מכרזים ביום.<br><span class="gold">פשוט. ברור. מהיר.</span></h2>
+    <div class="divider"></div>
+    <div class="solution-center">
+      <div class="time-row">
+        <div class="time-card">
+          <div class="time">10:00</div>
+          <div class="time-label">מכרז בוקר</div>
+          <div class="car-type">🚗 רכב גיל / עודף מלאי</div>
+        </div>
+        <div class="vs-badge">—</div>
+        <div class="time-card">
+          <div class="time">12:00</div>
+          <div class="time-label">מכרז צהריים</div>
+          <div class="car-type">🚙 רכב יד שנייה / פגם קל</div>
+        </div>
+      </div>
+      <div class="solution-note">
+        כל מכרז פתוח <strong>שעתיים בדיוק</strong> · אחרי הזמן — המחיר הגבוה ביותר זוכה · ללא מו"מ · ללא עמלת סוחר
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 4: MARKET -->
+  <div class="slide" data-slide="3">
+    <div class="tag">הזדמנות השוק</div>
+    <h2>שוק הרכב בישראל —<br><span class="gold">ענק ובלתי מנוצל</span></h2>
+    <div class="divider"></div>
+    <div class="market-grid">
+      <div class="market-stat">
+        <div class="market-num">850K</div>
+        <div class="market-label">עסקאות יד שנייה<br>בשנה בישראל</div>
+      </div>
+      <div class="market-stat">
+        <div class="market-num">$12.6B</div>
+        <div class="market-label">שוק הרכב הישראלי<br>(2024)</div>
+      </div>
+      <div class="market-stat">
+        <div class="market-num">0</div>
+        <div class="market-label">פלטפורמות מכרז<br>לרכבים רגילים</div>
+      </div>
+      <div class="market-insight">
+        <strong>אנלוגיה עולמית:</strong> ACV Auctions בארה"ב — התחילה עם מלאי עצמי, הגיעה ל-10,000 רכב/חודש והכנסות של $183M תוך כמה שנים. ישראל לא מאוחלת בתחום הזה.
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 5: HOW IT WORKS -->
+  <div class="slide" data-slide="4">
+    <div class="tag">איך זה עובד</div>
+    <h2>חוויית הקונה —<br><span class="gold">פשוטה ושקופה</span></h2>
+    <div class="divider"></div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <div class="step-title">הרכב עולה לאוויר</div>
+          <div class="step-desc">פרטים מלאים, תמונות, דוח בדיקה, היסטוריה — הכל שקוף לפני הצעה</div>
+        </div>
+        <div class="step-time">יום קודם</div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <div class="step-title">המכרז נפתח</div>
+          <div class="step-desc">10:00 או 12:00 — טיימר ספירה לאחור, כל הצעה נראית בזמן אמת</div>
+        </div>
+        <div class="step-time">שעתיים</div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <div class="step-title">הזוכה מקבל הודעה</div>
+          <div class="step-desc">SMS + מייל מיידיים, קישור לאישור עסקה ותשלום מקדמה</div>
+        </div>
+        <div class="step-time">12:00 / 14:00</div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-content">
+          <div class="step-title">איסוף או משלוח</div>
+          <div class="step-desc">הרכב מוכן תוך 48 שעות · ענק הרכבים מטפל בהעברת בעלות</div>
+        </div>
+        <div class="step-time">48 שעות</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 6: ADVANTAGES -->
+  <div class="slide" data-slide="5">
+    <div class="tag">למה ענק הרכבים?</div>
+    <h2>היתרונות שרק <span class="gold">אתם</span> מביאים</h2>
+    <div class="divider"></div>
+    <div class="adv-grid">
+      <div class="adv-card highlight">
+        <div class="adv-icon">🏭</div>
+        <div>
+          <div class="adv-title">מלאי מהיום הראשון</div>
+          <div class="adv-desc">אין צורך לגייס מוכרים. מכרזים יכולים להתחיל מחר עם הרכבים שכבר ברשותכם.</div>
+        </div>
+      </div>
+      <div class="adv-card highlight">
+        <div class="adv-icon">🏆</div>
+        <div>
+          <div class="adv-title">מותג ואמינות מוכחים</div>
+          <div class="adv-desc">קונים סומכים על ענק הרכבים. הפחד מ"רכב בעייתי" נעלם כי היבואן עצמו עומד מאחורי המוצר.</div>
+        </div>
+      </div>
+      <div class="adv-card">
+        <div class="adv-icon">🔧</div>
+        <div>
+          <div class="adv-title">תשתית לוגיסטית קיימת</div>
+          <div class="adv-desc">מוסכים, בדיקות, רישוי, העברת בעלות — כבר יש לכם הכל. מתחרה חדש צריך לבנות את זה מאפס.</div>
+        </div>
+      </div>
+      <div class="adv-card">
+        <div class="adv-icon">💼</div>
+        <div>
+          <div class="adv-title">קהל קונים קיים</div>
+          <div class="adv-desc">לקוחות עסקיים, חברות ליסינג, סוחרים שמכירים אתכם — בסיס ראשוני לפלטפורמה ביום אחד.</div>
+        </div>
+      </div>
+      <div class="adv-card">
+        <div class="adv-icon">💰</div>
+        <div>
+          <div class="adv-title">פינוי מלאי עומד</div>
+          <div class="adv-desc">כל רכב שיושב בחניון עולה כסף. מכרז = מחיר שוק + פינוי מהיר + אפס משא ומתן.</div>
+        </div>
+      </div>
+      <div class="adv-card">
+        <div class="adv-icon">📊</div>
+        <div>
+          <div class="adv-title">נתוני שוק ייחודיים</div>
+          <div class="adv-desc">כל הצעת מחיר = נתון עסקי. אחרי 6 חודשים — מחירון הכי מדויק בישראל ברשותכם.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 7: RISKS -->
+  <div class="slide" data-slide="6">
+    <div class="tag">סיכונים ופתרונות</div>
+    <h2>מה צריך לדעת <span class="gold">לפני שמתחילים</span></h2>
+    <div class="divider"></div>
+    <div class="risk-list">
+      <div class="risk-item">
+        <div class="risk-level high"></div>
+        <div class="risk-body">
+          <div class="risk-title">🔴 ניגוד עניינים — "ענק הרכבים מוכר וגם שולט במכרז"</div>
+          <div class="risk-solution">פתרון: <strong>שקיפות מלאה</strong> — דוח בדיקה עצמאי, מחיר פתיחה פומבי, ללא עתודה נסתרת.</div>
+        </div>
+      </div>
+      <div class="risk-item">
+        <div class="risk-level med"></div>
+        <div class="risk-body">
+          <div class="risk-title">🟡 מה אם אין מספיק מציעים?</div>
+          <div class="risk-solution">פתרון: <strong>שלב פיילוט</strong> — 60 יום ראשונים עם לקוחות מוכרים בלבד, לפני פתיחה לציבור.</div>
+        </div>
+      </div>
+      <div class="risk-item">
+        <div class="risk-level med"></div>
+        <div class="risk-body">
+          <div class="risk-title">🟡 ציפיית הקונה להנחה גדולה</div>
+          <div class="risk-solution">פתרון: <strong>תקשורת ברורה</strong> — "מחיר שוק הוגן, לא מכירת חיסול". להדגיש נוחות ומהירות, לא רק מחיר.</div>
+        </div>
+      </div>
+      <div class="risk-item">
+        <div class="risk-level low"></div>
+        <div class="risk-body">
+          <div class="risk-title">🟢 טכנולוגיה ועלות פיתוח</div>
+          <div class="risk-solution">פתרון: <strong>White-label</strong> מוכן — השקה תוך 4–8 שבועות ב-$30K בלבד. ללא צורך בפיתוח מאפס.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 8: TECH -->
+  <div class="slide" data-slide="7">
+    <div class="tag">טכנולוגיה</div>
+    <h2>Build vs. Buy —<br><span class="gold">ההחלטה הנכונה</span></h2>
+    <div class="divider"></div>
+    <div class="tech-cols">
+      <div class="tech-box">
+        <h3>❌ פיתוח מאפס</h3>
+        <div class="tech-item"><span class="label">עלות</span><span class="val">$150K–$500K</span></div>
+        <div class="tech-item"><span class="label">זמן השקה</span><span class="val">6–12 חודשים</span></div>
+        <div class="tech-item"><span class="label">סיכון</span><span class="val">גבוה</span></div>
+        <div class="tech-item"><span class="label">גמישות</span><span class="val">מלאה</span></div>
+      </div>
+      <div class="tech-box">
+        <h3>✅ White-Label מוכן</h3>
+        <div class="tech-item"><span class="label">עלות</span><span class="val">$27K–$33K</span></div>
+        <div class="tech-item"><span class="label">זמן השקה</span><span class="val">4–8 שבועות</span></div>
+        <div class="tech-item"><span class="label">סיכון</span><span class="val">נמוך</span></div>
+        <div class="tech-item"><span class="label">גמישות</span><span class="val">מספיקה לשלב 1</span></div>
+      </div>
+      <div class="tech-rec">
+        <div class="rec-title">המלצה: <span class="gold">התחילו עם White-Label</span></div>
+        <div class="rec-desc">Bidlogix / BidJS — מוטמע ישירות תחת הדומיין שלכם · ספירה לאחור בזמן אמת · WebSockets · תמיכה בעברית</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 9: ROADMAP -->
+  <div class="slide" data-slide="8">
+    <div class="tag">תוכנית פעולה</div>
+    <h2>3 שלבים ל<span class="gold">פלטפורמה לאומית</span></h2>
+    <div class="divider"></div>
+    <div class="roadmap">
+      <div class="phase phase-1">
+        <div class="phase-circle">01</div>
+        <div class="phase-name">פיילוט סגור</div>
+        <div class="phase-time">0–3 חודשים</div>
+        <div class="phase-items">
+          50–100 רכב<br>
+          מלאי עצמי בלבד<br>
+          לקוחות מוכרים<br>
+          White-label
+        </div>
+      </div>
+      <div class="phase phase-2">
+        <div class="phase-circle">02</div>
+        <div class="phase-name">פתיחה לציבור</div>
+        <div class="phase-time">3–12 חודשים</div>
+        <div class="phase-items">
+          כל אזרח<br>
+          סוחרים נוספים<br>
+          בדיקה סטנדרטית<br>
+          אפליקציה
+        </div>
+      </div>
+      <div class="phase phase-3">
+        <div class="phase-circle">03</div>
+        <div class="phase-name">פלטפורמה לאומית</div>
+        <div class="phase-time">12+ חודשים</div>
+        <div class="phase-items">
+          ה-Manheim של ישראל<br>
+          מימון + ביטוח<br>
+          B2B + B2C<br>
+          פיתוח עצמי
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 10: CTA -->
+  <div class="slide slide-cta" data-slide="9">
+    <div class="tag">הצעד הבא</div>
+    <div class="cta-big">מוכנים<br><span class="gold">להתחיל?</span></div>
+    <div class="cta-sub">ענק הרכבים יש לו את כל מה שנדרש.<br>חסרה רק הפלטפורמה — ואת זה אפשר לבנות תוך 8 שבועות.</div>
+    <div class="cta-actions">
+      <button class="cta-btn cta-primary" onclick="alert('בואו נבנה את זה!')">🚀 בנה לי פרוטוטייפ</button>
+      <button class="cta-btn cta-secondary">📋 חזור להתחלה</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- CONTROLS -->
+<button class="nav-btn nav-prev" id="prevBtn" onclick="navigate(-1)" disabled>→ קודם</button>
+<button class="nav-btn nav-next" id="nextBtn" onclick="navigate(1)">הבא ←</button>
+
+<div class="slide-counter" id="dots"></div>
+
+<script>
+const slides = document.querySelectorAll('.slide');
+const total = slides.length;
+let current = 0;
+
+// Build dots
+const dotsEl = document.getElementById('dots');
+for(let i=0;i<total;i++){
+  const d = document.createElement('div');
+  d.className = 'dot' + (i===0?' active':'');
+  d.onclick = () => goTo(i);
+  dotsEl.appendChild(d);
+}
+
+function goTo(n){
+  slides[current].classList.remove('active');
+  slides[current].classList.add('out');
+  setTimeout(()=>slides[current].classList.remove('out'), 500);
+  current = Math.max(0, Math.min(n, total-1));
+  slides[current].classList.add('active');
+  // update dots
+  document.querySelectorAll('.dot').forEach((d,i)=>d.classList.toggle('active',i===current));
+  // update progress
+  document.getElementById('progress').style.width = ((current+1)/total*100)+'%';
+  // update btns
+  document.getElementById('prevBtn').disabled = current===0;
+  document.getElementById('nextBtn').disabled = current===total-1;
+}
+
+function navigate(dir){ goTo(current+dir); }
+
+// keyboard
+document.addEventListener('keydown', e=>{
+  if(e.key==='ArrowLeft'||e.key==='ArrowDown') navigate(1);
+  if(e.key==='ArrowRight'||e.key==='ArrowUp') navigate(-1);
+});
+
+// hide key hint after first interaction
+document.addEventListener('keydown', ()=>{
+  document.getElementById('keyHint').style.opacity='0';
+}, {once:true});
+
+// init progress
+document.getElementById('progress').style.width = (1/total*100)+'%';
+
+// touch support
+let tx=0;
+document.addEventListener('touchstart',e=>tx=e.touches[0].clientX);
+document.addEventListener('touchend',e=>{
+  const dx=e.changedTouches[0].clientX-tx;
+  if(Math.abs(dx)>50) navigate(dx<0?1:-1);
+});
+</script>
+</body>
+</html>
