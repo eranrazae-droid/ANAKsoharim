@@ -237,6 +237,64 @@ function makePlate(plate){
 function card(lbl,val,cls){return '<div class="info-card"><div class="info-label">'+lbl+'</div><div class="info-val'+(cls?' '+cls:'')+'">'+(val||'—')+'</div></div>';}
 function cardSm(lbl,val){return val&&val!=='—'?'<div class="info-card"><div class="info-label">'+lbl+'</div><div class="info-val sm">'+val+'</div></div>':'';}
 
+/* All known field names → Hebrew labels. null = skip silently */
+var FIELD_LABELS = {
+  '_id':null,'_full_text':null,'mispar_rechev':null,
+  'tozeret_cd':null,'degem_cd':null,'sug_delek_cd':null,'hanaa_cd':null,
+  'tozeret_nm':'יצרן','kinuy_mishari':'דגם מסחרי','degem_nm':'שם דגם',
+  'shnat_yitzur':'שנת ייצור','tzeva_rechev':'צבע','sug_delek_nm':'סוג דלק',
+  'eretz_yitzur_nm':'ארץ ייצור','mivne_mechonit_nm':'מבנה רכב',
+  'sug_rechev_nm':'סוג רכב','ramat_gimur':'רמת גימור',
+  'nefach_manoa':'נפח מנוע (סמ"ק)','kosher_neto':'הספק (כ"ס)',
+  'koah_sus':'הספק (כ"ס)','mishkal_ezem':'משקל עצמי (ק"ג)',
+  'mishkal_kolel':'משקל כולל (ק"ג)','mispar_moshavim':'מספר מושבים',
+  'mispar_dlatot':'מספר דלתות','hanaa_nm':'הנעה',
+  'technologiat_rig':'טכנולוגיית מנוע','degem_manoa':'דגם מנוע',
+  'kvutzat_agra':'קבוצת אגרה','kvutzat_zihum':'קבוצת זיהום',
+  'tokef_dt':'תוקף רישיון','moed_aliya_lakvish':'עלייה לכביש',
+  'mivchan_acharon_dt':'מבחן אחרון','baalut':null,
+  'mispar_baalim':null,'ramat_eivzur_betihuty':null,
+};
+
+/* Ordered list of basic-info fields (always shown first if present) */
+var BASIC_FIELDS = ['tozeret_nm','kinuy_mishari','shnat_yitzur','eretz_yitzur_nm','tzeva_rechev','sug_delek_nm','mivne_mechonit_nm','sug_rechev_nm','ramat_gimur','degem_nm'];
+/* Ordered list of license fields */
+var LICENSE_FIELDS = ['moed_aliya_lakvish','mivchan_acharon_dt','tokef_dt','kvutzat_zihum','kvutzat_agra'];
+/* Ordered list of tech fields */
+var TECH_FIELDS = ['nefach_manoa','kosher_neto','koah_sus','mishkal_ezem','mishkal_kolel','mispar_moshavim','mispar_dlatot','hanaa_nm','technologiat_rig','degem_manoa'];
+
+function buildFieldCards(c, fieldList, shownSet, colourFn){
+  var html = '';
+  var usedLabels = new Set();
+  fieldList.forEach(function(k){
+    var v = fv(c[k]);
+    if(v === null) return;
+    var lbl = FIELD_LABELS[k];
+    if(lbl === null || lbl === undefined) return; // skip
+    if(usedLabels.has(lbl)) return; // deduplicate same label
+    usedLabels.add(lbl);
+    shownSet.add(k);
+    var cls = colourFn ? colourFn(k,v) : '';
+    html += card(lbl, String(v), cls);
+  });
+  return html;
+}
+
+/* Show any API field not yet displayed */
+function buildCatchAll(c, shownSet){
+  var html = '';
+  Object.keys(c).forEach(function(k){
+    if(shownSet.has(k)) return;
+    if(FIELD_LABELS[k] === null) return; // explicitly skipped
+    var v = fv(c[k]);
+    if(v === null) return;
+    var lbl = FIELD_LABELS[k] || k; // fallback to raw key name
+    html += card(lbl, String(v));
+    shownSet.add(k);
+  });
+  return html;
+}
+
 function scoreCard(icon,val,lbl,cls){
   return '<div class="score-card"><div class="score-icon">'+icon+'</div><div class="score-val'+(cls?' '+cls:'')+'" style="font-size:'+(val.length>6?'14px':'18px')+'">'+val+'</div><div class="score-lbl">'+lbl+'</div></div>';
 }
@@ -431,42 +489,42 @@ function renderResult(c, testRecords, wData, recallRecords){
 
     '<div class="info-grid">'+
 
-    /* פרטי הרכב */
-    '<div class="sec-div">🚗 פרטי הרכב</div>'+
-    card('יצרן', fs(c.tozeret_nm))+
-    card('דגם מסחרי', fs(c.kinuy_mishari))+
-    card('שנת ייצור', fs(c.shnat_yitzur),'gold')+
-    card('ארץ ייצור', fs(c.eretz_yitzur_nm))+
-    card('צבע', fs(c.tzeva_rechev))+
-    card('סוג דלק', fs(c.sug_delek_nm))+
-    cardSm('מבנה רכב', fs(c.mivne_mechonit_nm))+
-    cardSm('סוג רכב', fs(c.sug_rechev_nm))+
-    cardSm('רמת גימור', fs(c.ramat_gimur))+
-    cardSm('שם דגם', fs(c.degem_nm))+
+    (function(){
+      var shown = new Set(['baalut','mispar_baalim','ramat_eivzur_betihuty']);
 
-    /* מפרט טכני */
-    '<div class="sec-div">⚙️ מפרט טכני</div>'+
-    card('נפח מנוע (סמ"ק)', fs(c.nefach_manoa))+
-    card('הספק (כ"ס)', fs(c.kosher_neto))+
-    card('הנעה', fs(c.hanaa_nm))+
-    card('טכנולוגיית מנוע', fs(c.technologiat_rig))+
-    card('משקל עצמי (ק"ג)', fs(c.mishkal_ezem))+
-    card('משקל כולל (ק"ג)', fs(c.mishkal_kolel))+
-    card('מספר מושבים', fs(c.mispar_moshavim))+
-    (fv(c.mispar_dlatot)?card('מספר דלתות', fs(c.mispar_dlatot)):'')+
-    cardSm('קוד מנוע', fs(c.degem_manoa))+
+      /* פרטי הרכב */
+      var basicCards = buildFieldCards(c, BASIC_FIELDS, shown, function(k,v){
+        return k==='shnat_yitzur'?'gold':'';
+      });
+      var basicSection = basicCards ? '<div class="sec-div">🚗 פרטי הרכב</div>'+basicCards : '';
 
-    wltp+
+      /* מפרט טכני — dynamic, show only fields that have values */
+      var techCards = buildFieldCards(c, TECH_FIELDS, shown, null);
+      var techSection = techCards ? '<div class="sec-div">⚙️ מפרט טכני</div>'+techCards : '';
 
-    /* רישוי */
-    '<div class="sec-div">📋 רישוי ומבחנים</div>'+
-    card('תאריך עלייה לכביש', formatDate(c.moed_aliya_lakvish))+
-    card('וותק על הכביש', age?age.str:'—')+
-    (fv(c.mivchan_acharon_dt)?card('מבחן טכני אחרון', formatDate(c.mivchan_acharon_dt)):'')+
-    card('תוקף רישיון', formatDate(c.tokef_dt), ts.cls==='tokef-expired'?'red':ts.cls==='tokef-ok'?'green':'gold')+
-    (baalutTxt!=='—'?card('סוג בעלות', baalutTxt):'')+
-    (fv(c.kvutzat_zihum)?card('קבוצת זיהום', fs(c.kvutzat_zihum),'green'):'')+
-    (fv(c.kvutzat_agra)?card('קבוצת אגרה', fs(c.kvutzat_agra)):'')+
+      /* WLTP */
+      var wltpSection = wltp || '';
+
+      /* רישוי */
+      var licCards =
+        card('תאריך עלייה לכביש', formatDate(c.moed_aliya_lakvish))+
+        card('וותק על הכביש', age?age.str:'—')+
+        (fv(c.mivchan_acharon_dt)?card('מבחן טכני אחרון', formatDate(c.mivchan_acharon_dt)):'')+
+        card('תוקף רישיון', formatDate(c.tokef_dt), ts.cls==='tokef-expired'?'red':ts.cls==='tokef-ok'?'green':'gold')+
+        (baalutTxt!=='—'?card('סוג בעלות', baalutTxt):'');
+      shown.add('moed_aliya_lakvish'); shown.add('mivchan_acharon_dt'); shown.add('tokef_dt'); shown.add('kvutzat_zihum'); shown.add('kvutzat_agra');
+      buildFieldCards(c, LICENSE_FIELDS, shown, function(k){ return k==='kvutzat_zihum'?'green':''; });
+      licCards += (fv(c.kvutzat_zihum)?card('קבוצת זיהום', fs(c.kvutzat_zihum),'green'):'')+
+                  (fv(c.kvutzat_agra)?card('קבוצת אגרה', fs(c.kvutzat_agra)):'');
+
+      /* כל שאר הנתונים מה-API שלא הוצגו */
+      var extraCards = buildCatchAll(c, shown);
+      var extraSection = extraCards ? '<div class="sec-div">📋 נתונים נוספים מהמאגר</div>'+extraCards : '';
+
+      return basicSection + techSection + wltpSection +
+        '<div class="sec-div">📋 רישוי ומבחנים</div>'+licCards +
+        extraSection;
+    })()+
 
     /* תובנות */
     insights+
