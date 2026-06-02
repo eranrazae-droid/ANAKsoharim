@@ -19,9 +19,18 @@ from pathlib import Path
 import requests
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 
+# טען .env אם קיים
+_env_path = Path(__file__).parent / ".env"
+if _env_path.exists():
+    for _line in _env_path.read_text().splitlines():
+        _line = _line.strip()
+        if _line and not _line.startswith("#") and "=" in _line:
+            _k, _v = _line.split("=", 1)
+            os.environ.setdefault(_k.strip(), _v.strip())
+
 # ─── הגדרות ──────────────────────────────────────────────────────────────────
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")   # טוקן הבוט
-TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")  # ה-Chat ID שלך
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 
 ALERTS_FILE = Path("market_alerts.json")   # קובץ מיוצא מהדשבורד
 SEEN_FILE = Path(".seen_listings.json")    # מודעות שכבר ראינו
