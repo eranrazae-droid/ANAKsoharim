@@ -1,0 +1,1364 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;800;900&display=swap" rel="stylesheet">
+  <title>אוטודילר - ניהול</title>
+  <style>
+    :root{
+      --bg:#f4f4f6;--card:#fff;--text:#111827;--muted:#6b7280;
+      --line:#e5e7eb;--gold:#D4A017;--gold-soft:#fef9e7;
+      --green:#16a34a;--red:#dc2626;
+      --shadow:0 4px 24px rgba(0,0,0,.07);--radius:20px;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Heebo',Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text);font-size:15px}
+    button,input,select,textarea{font:inherit}
+    .hidden{display:none!important}
+    .app{display:flex;min-height:100vh}
+    .sidebar{width:220px;background:#0d0d0d;color:#fff;display:flex;flex-direction:column;position:fixed;top:0;right:0;bottom:0;z-index:30}
+    .sidebar-logo{padding:24px 20px;border-bottom:1px solid rgba(255,255,255,.08)}
+    .sidebar-logo span{color:var(--gold);font-size:22px;font-weight:900}
+    .sidebar-logo small{display:block;color:rgba(255,255,255,.4);font-size:11px;margin-top:4px}
+    .sidebar-nav{flex:1;padding:16px 0}
+    .nav-item{display:flex;align-items:center;gap:10px;padding:12px 20px;cursor:pointer;color:rgba(255,255,255,.6);font-size:14px;font-weight:600;transition:.15s}
+    .nav-item:hover{background:rgba(255,255,255,.06);color:#fff}
+    .nav-item.active{background:var(--gold);color:#000}
+    .nav-icon{font-size:18px;width:22px;text-align:center}
+    .sidebar-footer{padding:16px 20px;border-top:1px solid rgba(255,255,255,.08)}
+    .main{margin-right:220px;flex:1;display:flex;flex-direction:column}
+    .topbar{background:#fff;border-bottom:1px solid var(--line);padding:0 28px;height:60px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:20}
+    .topbar-title{font-size:18px;font-weight:900}
+    .content{padding:28px;flex:1}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+    .panel{padding:24px}
+    .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+    .stat-card{padding:20px 22px;border-radius:var(--radius);border:1px solid var(--line);background:#fff;box-shadow:var(--shadow)}
+    .stat-card .label{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px}
+    .stat-card .value{font-size:34px;font-weight:900;line-height:1}
+    .stat-card .sub{font-size:12px;color:var(--muted);margin-top:6px}
+    .stat-green{background:#ecfdf5;border-color:#bbf7d0}.stat-green .value{color:#15803d}
+    .stat-amber{background:#fffbeb;border-color:#fde68a}.stat-amber .value{color:#a16207}
+    .stat-red{background:#fef2f2;border-color:#fecaca}.stat-red .value{color:#b91c1c}
+    .form-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+    .form-group{display:flex;flex-direction:column;gap:6px}
+    .form-group label{font-size:12px;font-weight:700;color:var(--muted)}
+    input,select,textarea{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:#fff;direction:rtl;text-align:right}
+    input:focus,select:focus,textarea:focus{outline:none;border-color:var(--gold)}
+    textarea{min-height:80px;resize:vertical}
+    .preview-box{background:#f8fafc;border:1px solid var(--line);border-radius:14px;padding:16px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:16px}
+    .preview-item{text-align:center}
+    .preview-item .plabel{font-size:11px;color:var(--muted);font-weight:700;margin-bottom:4px}
+    .preview-item .pval{font-size:18px;font-weight:900;color:var(--gold)}
+    .btn{border:none;border-radius:12px;padding:12px 20px;font-weight:900;cursor:pointer;font-size:14px;transition:.15s}
+    .btn-black{background:#0d0d0d;color:#fff}.btn-black:hover{background:#222}
+    .btn-gold{background:var(--gold);color:#000}
+    .btn-line{background:#fff;border:1px solid var(--line)}
+    .btn-red{background:#fef2f2;border:1px solid #fecaca;color:var(--red)}
+    .btn-sm{padding:8px 14px;font-size:13px;border-radius:10px}
+    .actions-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:16px}
+    .inv-item{display:grid;grid-template-columns:110px 1fr auto;gap:16px;align-items:center;padding:16px;border:1px solid var(--line);border-radius:16px;background:#fff;margin-bottom:10px}
+    .inv-item img{width:110px;height:80px;object-fit:cover;border-radius:12px}
+    .badge-s{display:inline-block;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:900}
+    .badge-avail{background:#dcfce7;color:#15803d}
+    .badge-out{background:#fef3c7;color:#a16207}
+    .lead-card{padding:16px;border:1px solid var(--line);border-radius:14px;background:#fff;margin-bottom:10px}
+    .lead-score{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:15px;flex-shrink:0}
+    .s-hot{background:#fef2f2;color:#b91c1c}
+    .s-warm{background:#fff7ed;color:#c2410c}
+    .s-cold{background:#f0fdf4;color:#15803d}
+    .section-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px}
+    .section-hd h2{font-size:22px;font-weight:900}
+    .eyebrow{font-size:11px;font-weight:900;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:4px}
+    .login-page{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0d0d0d}
+    .login-box{background:#fff;border-radius:24px;padding:40px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+    .error-box{background:#fef2f2;color:#b91c1c;border-radius:12px;padding:12px 16px;font-weight:700;margin-top:12px;font-size:14px}
+    .toast{position:fixed;bottom:24px;left:24px;background:#0d0d0d;color:#fff;padding:14px 20px;border-radius:14px;font-weight:700;font-size:14px;z-index:999;opacity:0;transform:translateY(10px);transition:.3s;pointer-events:none}
+    .toast.show{opacity:1;transform:translateY(0)}
+    @media(max-width:900px){
+      .sidebar{width:60px}.sidebar-logo span,.sidebar-logo small,.nav-item span{display:none}
+      .main{margin-right:60px}.nav-item{justify-content:center;padding:14px}
+      .stats-grid,.form-grid{grid-template-columns:1fr 1fr}
+    }
+    @media(max-width:600px){
+      .sidebar{display:none}.main{margin-right:0}
+      .stats-grid{grid-template-columns:1fr 1fr}
+      .form-grid{grid-template-columns:1fr}
+      .inv-item{grid-template-columns:1fr}
+      .inv-item img{width:100%;height:150px}
+      .content{padding:16px}
+    }
+  </style>
+</head>
+<body>
+
+<div id="loginPage" class="login-page">
+  <div class="login-box">
+    <div style="font-size:26px;font-weight:900;margin-bottom:16px"><span style="color:var(--gold)">אוטו</span>דילר</div>
+    <h1 style="font-size:26px;margin-bottom:8px">כניסה למנהל</h1>
+    <p style="color:var(--muted);margin-bottom:24px;font-size:14px;line-height:1.6">ניהול מלאי, לידים ושוברים</p>
+    <div style="display:grid;gap:12px">
+      <input id="pwInput" type="password" placeholder="סיסמה" onkeydown="if(event.key==='Enter')login()"/>
+      <button class="btn btn-gold" style="width:100%;padding:14px" onclick="login()">כניסה</button>
+    </div>
+    <div id="loginErr" class="error-box hidden">סיסמה שגויה. נסו שוב.</div>
+  </div>
+</div>
+
+<div id="appWrapper" class="app hidden">
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <span>אוטודילר</span>
+      <small>מערכת ניהול</small>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-item active" onclick="showTab('dashboard')"><span class="nav-icon">📊</span><span>דשבורד</span></div>
+      <div class="nav-item" onclick="showTab('inventory')"><span class="nav-icon">🚗</span><span>מלאי רכבים</span></div>
+      <div class="nav-item" onclick="showTab('addcar')"><span class="nav-icon">➕</span><span>הוספת רכב</span></div>
+      <div class="nav-item" onclick="showTab('leads')"><span class="nav-icon">👥</span><span>לידים</span></div>
+      <div class="nav-item" onclick="showTab('vouchers')"><span class="nav-icon">🎟</span><span>שוברים</span></div>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="btn btn-line btn-sm" style="width:100%;margin-bottom:8px;background:#ca8a04;color:#fff;border:none" onclick="syncAllToSupabase()">🔄 סנכרן הכל ל-Supabase</button>
+      <button class="btn btn-line btn-sm" style="width:100%" onclick="logout()">התנתקות</button>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="topbar-title" id="topbarTitle">דשבורד</div>
+      <div style="font-size:13px;color:var(--muted)">autodealer.co.il</div>
+    </div>
+    <div class="content">
+
+      <!-- DASHBOARD -->
+      <div id="tab-dashboard">
+        <div class="stats-grid">
+          <div class="stat-card"><div class="label">סה"כ רכבים</div><div class="value" id="st-total">0</div><div class="sub">במלאי</div></div>
+          <div class="stat-card stat-green"><div class="label">זמין מיידי</div><div class="value" id="st-avail">0</div><div class="sub">⚡ אספקה מידית</div></div>
+          <div class="stat-card stat-amber"><div class="label">אזל במלאי</div><div class="value" id="st-out">0</div><div class="sub">לא זמין</div></div>
+          <div class="stat-card stat-red"><div class="label">שוברים פעילים</div><div class="value" id="st-vouchers">0</div><div class="sub">ב-300 ₪</div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+          <div class="card panel">
+            <div class="eyebrow">לידים</div>
+            <h2 style="margin-bottom:16px;font-size:18px">הכי חמים</h2>
+            <div id="dash-leads"></div>
+          </div>
+          <div class="card panel">
+            <div class="eyebrow">שוברים</div>
+            <h2 style="margin-bottom:16px;font-size:18px">אחרונים</h2>
+            <div id="dash-vouchers"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- INVENTORY -->
+      <div id="tab-inventory" class="hidden">
+        <div class="section-hd">
+          <div><div class="eyebrow">מלאי</div><h2>רכבים קיימים</h2></div>
+          <button class="btn btn-black" onclick="showTab('addcar')">+ הוסף רכב</button>
+        </div>
+        <div id="inventoryList"></div>
+      </div>
+
+      <!-- ADD CAR -->
+      <div id="tab-addcar" class="hidden">
+        <div class="section-hd"><div><div class="eyebrow">הוספה</div><h2>רכב חדש</h2></div></div>
+        <div class="card panel">
+          <div class="form-grid">
+            <div class="form-group"><label>יצרן</label><input id="f-brand" placeholder="יונדאי, BYD..."/></div>
+            <div class="form-group"><label>דגם</label><input id="f-model" placeholder="Elantra, Atto 3..."/></div>
+            <div class="form-group"><label>שנה</label><input id="f-year" value="2026"/></div>
+            <div class="form-group" style="grid-column:span 3">
+              <label>תמונת ראשית + גלריה</label>
+              <div style="border:2px dashed var(--line);border-radius:14px;padding:16px;background:#fafafa">
+                <!-- Main image -->
+                <div style="margin-bottom:12px">
+                  <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px">תמונה ראשית</div>
+                  <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+                    <div style="background:#0d0d0d;color:#fff;padding:9px 16px;border-radius:10px;font-size:13px;font-weight:700;white-space:nowrap">📁 בחר תמונה</div>
+                    <span id="main-img-name" style="font-size:13px;color:var(--muted)">לא נבחרה תמונה</span>
+                    <input type="file" id="f-image-file" accept="image/*" style="display:none" onchange="handleMainImage(this)"/>
+                  </label>
+                  <div id="main-img-preview" style="margin-top:10px;display:none">
+                    <img id="main-img-thumb" style="height:120px;border-radius:10px;object-fit:cover;border:2px solid var(--gold)"/>
+                  </div>
+                  <input id="f-image" type="hidden" value=""/>
+                </div>
+                <!-- Gallery -->
+                <div>
+                  <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px">גלריה נוספת (עד 8 תמונות)</div>
+                  <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+                    <div style="background:#f1f5f9;color:#333;border:1px solid var(--line);padding:9px 16px;border-radius:10px;font-size:13px;font-weight:700;white-space:nowrap">📷 הוסף תמונות</div>
+                    <span id="gallery-count" style="font-size:13px;color:var(--muted)">0 תמונות נבחרו</span>
+                    <input type="file" id="f-gallery-files" accept="image/*" multiple style="display:none" onchange="handleGallery(this)"/>
+                  </label>
+                  <div id="gallery-preview" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"></div>
+                </div>
+              </div>
+            </div>
+            <div class="form-group"><label>באדג'</label><input id="f-badge" value="דיל חם"/></div>
+            <div class="form-group">
+              <label>קטגוריה</label>
+              <select id="f-cat">
+                <option>קטנות</option><option>משפחתיות</option><option>מנהלים</option>
+                <option>ג׳יפונים</option><option>חשמלי מלא</option><option>היברידי</option>
+                <option>היברידי פלאג-אין</option><option>מסחריות</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>סוג מנוע</label>
+              <select id="f-engine" onchange="toggleRangeField('f-range-wrap', this.value)">
+                <option>בנזין</option>
+                <option>טורבו בנזין</option>
+                <option>דיזל</option>
+                <option>טורבו דיזל</option>
+                <option>חשמל מלא</option>
+                <option>חשמל / בנזין (היברידי)</option>
+                <option>חשמל / בנזין נטען (היברידי פלאג-אין)</option>
+              </select>
+            </div>
+            <div class="form-group hidden" id="f-range-wrap">
+              <label>טווח נסיעה (ק"מ)</label>
+              <input id="f-range" type="number" placeholder="למשל 450"/>
+            </div>
+            <div class="form-group"><label>מחירון כולל רישוי (₪)</label><input id="f-catalog" type="number" placeholder="185000"/></div>
+            <div class="form-group"><label>מחיר אוטודילר (₪)</label><input id="f-price" type="number" placeholder="169900" oninput="calcPreview()"/></div>
+            <div class="form-group">
+              <label>סטטוס מלאי</label>
+              <select id="f-status"><option>זמין מיידי</option><option>אזל במלאי</option></select>
+            </div>
+            <div class="form-group" style="grid-column:span 3">
+              <label>תיאור קצר</label>
+              <textarea id="f-summary" placeholder="תיאור הרכב..."></textarea>
+            </div>
+          </div>
+          <div class="preview-box">
+            <div class="preview-item"><div class="plabel">בלון 50% / 60 תש'</div><div class="pval" id="prev-balloon">-</div></div>
+            <div class="preview-item"><div class="plabel">100 תשלומים מדד</div><div class="pval" id="prev-indexed">-</div></div>
+            <div class="preview-item"><div class="plabel">100 תשלומים פריים</div><div class="pval" id="prev-prime">-</div></div>
+          </div>
+          <div class="actions-row">
+            <button class="btn btn-black" onclick="addCar()" type="button" style="min-width:160px">הוספת רכב למלאי</button>
+            <button class="btn btn-line" onclick="clearForm()">ניקוי טופס</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- LEADS -->
+      <div id="tab-leads" class="hidden">
+        <div class="section-hd">
+          <div><div class="eyebrow">לידים</div><h2>ניהול לידים</h2></div>
+          <div style="font-size:13px;color:var(--muted)">ממוין לפי ציון חום</div>
+        </div>
+        <div id="leadsList"></div>
+      </div>
+
+      <!-- VOUCHERS -->
+      <div id="tab-vouchers" class="hidden">
+        <div class="section-hd">
+          <div><div class="eyebrow">שוברים</div><h2>שוברים שנרכשו</h2></div>
+          <div style="background:var(--gold-soft);color:#a16207;padding:8px 14px;border-radius:10px;font-size:13px;font-weight:700">300 ₪ - מחיר השקה</div>
+        </div>
+        <div class="card panel"><div id="vouchersList"></div></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+
+<div id="editModal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:100;display:flex;align-items:center;justify-content:center;padding:16px">
+  <div style="background:#fff;border-radius:24px;padding:28px;width:100%;max-width:700px;max-height:90vh;overflow-y:auto;direction:rtl">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <h2 style="font-size:22px;font-weight:900">עריכת רכב</h2>
+      <button onclick="closeEdit()" style="background:#f1f5f9;border:none;border-radius:50%;width:36px;height:36px;font-size:18px;cursor:pointer">✕</button>
+    </div>
+    <div class="form-grid">
+      <div class="form-group"><label>יצרן</label><input id="e-brand"/></div>
+      <div class="form-group"><label>דגם</label><input id="e-model"/></div>
+      <div class="form-group"><label>שנה</label><input id="e-year"/></div>
+      <div class="form-group"><label>באדג'</label><input id="e-badge"/></div>
+      <div class="form-group">
+        <label>קטגוריה</label>
+        <select id="e-cat">
+          <option>קטנות</option><option>משפחתיות</option><option>מנהלים</option>
+          <option>ג׳יפונים</option><option>חשמלי מלא</option><option>היברידי</option>
+          <option>היברידי פלאג-אין</option><option>מסחריות</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>סוג מנוע</label>
+        <select id="e-engine" onchange="toggleRangeField('e-range-wrap', this.value)">
+          <option>בנזין</option><option>טורבו בנזין</option>
+          <option>דיזל</option><option>טורבו דיזל</option>
+          <option>חשמל מלא</option><option>חשמל / בנזין (היברידי)</option>
+          <option>חשמל / בנזין נטען (היברידי פלאג-אין)</option>
+        </select>
+      </div>
+      <div class="form-group hidden" id="e-range-wrap">
+        <label>טווח נסיעה (ק"מ)</label>
+        <input id="e-range" type="number" placeholder="למשל 450"/>
+      </div>
+      <div class="form-group">
+        <label>סטטוס מלאי</label>
+        <select id="e-status"><option>זמין מיידי</option><option>אזל במלאי</option></select>
+      </div>
+      <div class="form-group"><label>מחירון (₪)</label><input id="e-catalog" type="number"/></div>
+      <div class="form-group"><label>מחיר אוטודילר (₪)</label><input id="e-price" type="number" oninput="calcEditPreview()"/></div>
+      <div class="form-group" style="grid-column:span 3">
+        <label>תיאור קצר</label>
+        <textarea id="e-summary"></textarea>
+        <label style="margin-top:12px;font-weight:900;font-size:16px">📋 מפרט טכני מלא</label>
+        <div style="margin-top:16px;border-top:2px solid #D4A017;padding-top:12px"><div style="font-weight:900;font-size:16px;margin-bottom:10px">פרטי הרכב ואחריות</div><div style="display:grid;gap:8px">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">שנת דגם</label><input id="sp_שנת_דגם" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">מספר דלתות</label><input id="sp_מספר_דלתות" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">מקומות ישיבה</label><input id="sp_מקומות_ישיבה" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">מחיר</label><input id="sp_מחיר" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">קבוצת שווי</label><input id="sp_קבוצת_שווי" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">שווי שימוש רציף</label><input id="sp_שווי_שימוש_רציף" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">אחריות</label><input id="sp_אחריות" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">שנת השקת הדגם</label><input id="sp_שנת_השקת_הדגם" type="text" style="padding:6px 8px;font-size:13px"></div>
+</div></div>
+<div style="margin-top:16px;border-top:2px solid #D4A017;padding-top:12px"><div style="font-weight:900;font-size:16px;margin-bottom:10px">מנוע גיר וביצועים</div><div style="display:grid;gap:8px">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">הנעה</label><input id="sp_הנעה" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">תיבת הילוכים</label><input id="sp_תיבת_הילוכים" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">מס' הילוכים</label><input id="sp_מסq_הילוכים" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">סוג מנוע</label><input id="sp_סוג_מנוע" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">מס' בוכנות</label><input id="sp_מסq_בוכנות" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">נפח (סמ"ק)</label><input id="sp_נפח_סמqק" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">הספק מרבי (כ"ס)</label><input id="sp_הספק_מרבי_כqס" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">סל"ד להספק מרבי</label><input id="sp_סלqד_להספק_מרבי" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">מומנט מרבי (קג"מ)</label><input id="sp_מומנט_מרבי_קגqמ" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">סל"ד למומנט מרבי</label><input id="sp_סלqד_למומנט_מרבי" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">רכב שטח: הילוכי כח</label><input id="sp_רכב_שטח__הילוכי_כח" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">רכב שטח: נעילות דיפרנציאל</label><input id="sp_רכב_שטח__נעילות_דיפרנציאל" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">רכב שטח: בקרת משיכה</label><input id="sp_רכב_שטח__בקרת_משיכה" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">תאוצה 0-100</label><input id="sp_תאוצה_0_100" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">מהירות מרבית</label><input id="sp_מהירות_מרבית" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">צריכת דלק - עירונית (ק"מ/ליטר)</label><input id="sp_צריכת_דלק___עירונית_קqמ_ליטר" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">צריכת דלק - בינעירונית (ק"מ/ליטר)</label><input id="sp_צריכת_דלק___בינעירונית_קqמ_ליט" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">צריכת דלק - ממוצעת (ק"מ/ליטר)</label><input id="sp_צריכת_דלק___ממוצעת_קqמ_ליטר" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">צריכת חשמל (וואט שעה / ק"מ)</label><input id="sp_צריכת_חשמל_וואט_שעה___קqמ" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">קיבולת סוללה (קווט"ש)</label><input id="sp_קיבולת_סוללה_קווטqש" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">טווח נסיעה חשמלי (ק"מ)</label><input id="sp_טווח_נסיעה_חשמלי_קqמ" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">זמן טעינה ביתית</label><input id="sp_זמן_טעינה_ביתית" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">זמן טעינה מהירה</label><input id="sp_זמן_טעינה_מהירה" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">דרגת זיהום</label><input id="sp_דרגת_זיהום" type="text" style="padding:6px 8px;font-size:13px"></div>
+</div></div>
+<div style="margin-top:16px;border-top:2px solid #D4A017;padding-top:12px"><div style="font-weight:900;font-size:16px;margin-bottom:10px">בטיחות</div><div style="display:grid;gap:8px">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">מבחן ריסוק</label><input id="sp_מבחן_ריסוק" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">בלמים</label><input id="sp_בלמים" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">כריות אוויר</label><input id="sp_כריות_אוויר" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">בקרת יציבות אלקטרונית</label><input id="sp_בקרת_יציבות_אלקטרונית" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">ביטול כרית אוויר נוסע</label><input id="sp_ביטול_כרית_אוויר_נוסע" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">איזופיקס</label><input id="sp_איזופיקס" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">חיישני לחץ אוויר</label><input id="sp_חיישני_לחץ_אוויר" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">זמזם התראה לחגורות</label><input id="sp_זמזם_התראה_לחגורות" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">בלימת חירום אוטונומית</label><input id="sp_בלימת_חירום_אוטונומית" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">זיהוי הולכי רגל</label><input id="sp_זיהוי_הולכי_רגל" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">זיהוי דו גלגלי</label><input id="sp_זיהוי_דו_גלגלי" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">בקרת שיוט אדפטיבית</label><input id="sp_בקרת_שיוט_אדפטיבית" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">בקרת סטיה מנתיב</label><input id="sp_בקרת_סטיה_מנתיב" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">זיהוי כלי רכב ב"שטח מת"</label><input id="sp_זיהוי_כלי_רכב_בqשטח_מתq" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">התרעת תנועה חוצה מאחור</label><input id="sp_התרעת_תנועה_חוצה_מאחור" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">בלימה אוטונומית בנסיעה לאחור</label><input id="sp_בלימה_אוטונומית_בנסיעה_לאחור" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">התרעת עייפות</label><input id="sp_התרעת_עייפות" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">אורות גבוהים אוטומטיים</label><input id="sp_אורות_גבוהים_אוטומטיים" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">זיהוי תמרורים</label><input id="sp_זיהוי_תמרורים" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">התרעת רכב חולף בפתיחת דלת</label><input id="sp_התרעת_רכב_חולף_בפתיחת_דלת" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">התרעה על שכחת ילד במושב האחורי</label><input id="sp_התרעה_על_שכחת_ילד_במושב_האחורי" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">אבזור בטיחותי נוסף</label><input id="sp_אבזור_בטיחותי_נוסף" type="text" style="padding:6px 8px;font-size:13px"></div>
+</div></div>
+<div style="margin-top:16px;border-top:2px solid #D4A017;padding-top:12px"><div style="font-weight:900;font-size:16px;margin-bottom:10px">מידות</div><div style="display:grid;gap:8px">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">אורך (ס"מ)</label><input id="sp_אורך_סqמ" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">רוחב (ס"מ)</label><input id="sp_רוחב_סqמ" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">גובה (ס"מ)</label><input id="sp_גובה_סqמ" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">בסיס גלגלים (ס"מ)</label><input id="sp_בסיס_גלגלים_סqמ" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">נפח תא מטען (ליטרים)</label><input id="sp_נפח_תא_מטען_ליטרים" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">נפח תא מטען בקיפול מושבים (ליטרים)</label><input id="sp_נפח_תא_מטען_בקיפול_מושבים_ליטר" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">משקל עצמי (ק"ג)</label><input id="sp_משקל_עצמי_קqג" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">משקל כולל (ק"ג)</label><input id="sp_משקל_כולל_קqג" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">כושר העמסה (ק"ג)</label><input id="sp_כושר_העמסה_קqג" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">כושר גרירה ללא בלמים</label><input id="sp_כושר_גרירה_ללא_בלמים" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">כושר גרירה עם בלמים</label><input id="sp_כושר_גרירה_עם_בלמים" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">מידות צמיגים</label><input id="sp_מידות_צמיגים" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">קיבולת מיכל דלק (ליטרים)</label><input id="sp_קיבולת_מיכל_דלק_ליטרים" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">מרווח גחון (ס"מ)</label><input id="sp_מרווח_גחון_סqמ" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">זווית גישה (מעלות)</label><input id="sp_זווית_גישה_מעלות" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">זווית נטישה (מעלות)</label><input id="sp_זווית_נטישה_מעלות" type="text" style="padding:6px 8px;font-size:13px"></div>
+</div></div>
+<div style="margin-top:16px;border-top:2px solid #D4A017;padding-top:12px"><div style="font-weight:900;font-size:16px;margin-bottom:10px">מסך וקישוריות</div><div style="display:grid;gap:8px">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">מערכת שמע</label><input id="sp_מערכת_שמע" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">בלוטות'</label><input id="sp_בלוטותq" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">מחליף דיסקים</label><input id="sp_מחליף_דיסקים" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">מסך מולטימדיה</label><input id="sp_מסך_מולטימדיה" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">גודל מסך (אינץ')</label><input id="sp_גודל_מסך_אינץq" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">מערכת ניווט GPS</label><input id="sp_מערכת_ניווט_GPS" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">חיבורי אודיו</label><input id="sp_חיבורי_אודיו" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">קישוריות</label><input id="sp_קישוריות" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">טעינה אלחוטית</label><input id="sp_טעינה_אלחוטית" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">מסכים בגב המושבים</label><input id="sp_מסכים_בגב_המושבים" type="text" style="padding:6px 8px;font-size:13px"></div>
+</div></div>
+<div style="margin-top:16px;border-top:2px solid #D4A017;padding-top:12px"><div style="font-weight:900;font-size:16px;margin-bottom:10px">אבזור</div><div style="display:grid;gap:8px">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">חלונות חשמליים</label><input id="sp_חלונות_חשמליים" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">מיזוג אוויר</label><input id="sp_מיזוג_אוויר" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">חלון שמש בגג</label><input id="sp_חלון_שמש_בגג" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">חישוקים קלים</label><input id="sp_חישוקים_קלים" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">בקרת שיוט</label><input id="sp_בקרת_שיוט" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">ריפוד</label><input id="sp_ריפוד" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">מושבים - כוונון חשמלי</label><input id="sp_מושבים___כוונון_חשמלי" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">מושבים - חימום</label><input id="sp_מושבים___חימום" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">עיסוי במושבים</label><input id="sp_עיסוי_במושבים" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">פנסי חזית</label><input id="sp_פנסי_חזית" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">פנסי ערפל קדמיים</label><input id="sp_פנסי_ערפל_קדמיים" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">חיישני גשם</label><input id="sp_חיישני_גשם" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">חיישני תאורה</label><input id="sp_חיישני_תאורה" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">חיישני חניה</label><input id="sp_חיישני_חניה" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">מצלמות חניה</label><input id="sp_מצלמות_חניה" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">חניה אוטומטית</label><input id="sp_חניה_אוטומטית" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">מחשב דרך</label><input id="sp_מחשב_דרך" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">לוח מחוונים דיגיטלי</label><input id="sp_לוח_מחוונים_דיגיטלי" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">תצוגה עילית</label><input id="sp_תצוגה_עילית" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">כניסה / הנעה ללא מפתח</label><input id="sp_כניסה___הנעה_ללא_מפתח" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">מראות צד מתקפלות חשמלית</label><input id="sp_מראות_צד_מתקפלות_חשמלית" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">מראות נגד סנוור</label><input id="sp_מראות_נגד_סנוור" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">הגה וידית הילוכים מצופי עור</label><input id="sp_הגה_וידית_הילוכים_מצופי_עור" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">גלגל הגה מחומם</label><input id="sp_גלגל_הגה_מחומם" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">החלפת הילוכים מגלגל ההגה</label><input id="sp_החלפת_הילוכים_מגלגל_ההגה" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">בורר מצבי נהיגה</label><input id="sp_בורר_מצבי_נהיגה" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">מערכת "עצור וסע" לדימום מנוע בעמידה</label><input id="sp_מערכת_qעצור_וסעq_לדימום_מנוע_ב" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">בלם יד חשמלי</label><input id="sp_בלם_יד_חשמלי" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">תאורת אווירה</label><input id="sp_תאורת_אווירה" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">בקרת גלישה במדרון</label><input id="sp_בקרת_גלישה_במדרון" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">מתלים ובולמים</label><input id="sp_מתלים_ובולמים" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">דלת תא מטען חשמלית</label><input id="sp_דלת_תא_מטען_חשמלית" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">אבזור נוסף</label><input id="sp_אבזור_נוסף" type="text" style="padding:6px 8px;font-size:13px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">אבזור בתוספת תשלום</label><input id="sp_אבזור_בתוספת_תשלום" type="text" style="padding:6px 8px;font-size:13px"></div>
+</div></div>
+        <label style="margin-top:12px">קישור למפרט טכני (URL)</label>
+        <input id="e-specLink" type="url" placeholder="https://...">
+      </div>
+      <div class="form-group" style="grid-column:span 3">
+        <label>תמונה ראשית + גלריה</label>
+        <div style="border:2px dashed var(--line);border-radius:14px;padding:16px;background:#fafafa">
+          <div style="margin-bottom:12px">
+            <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px">תמונה ראשית</div>
+            <div style="display:flex;align-items:center;gap:12px">
+              <label style="cursor:pointer">
+                <div style="background:#0d0d0d;color:#fff;padding:9px 16px;border-radius:10px;font-size:13px;font-weight:700">📁 החלף תמונה</div>
+                <input type="file" accept="image/*" style="display:none" onchange="handleEditImage(this)"/>
+              </label>
+              <img id="e-img-thumb" style="height:60px;border-radius:8px;object-fit:cover;border:2px solid var(--gold)"/>
+              <span id="e-main-img-name" style="font-size:13px;color:var(--muted)"></span>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px">גלריה (עד 8 תמונות)</div>
+            <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+              <div style="background:#f1f5f9;color:#333;border:1px solid var(--line);padding:9px 16px;border-radius:10px;font-size:13px;font-weight:700">📷 הוסף תמונות</div>
+              <span id="e-gallery-count" style="font-size:13px;color:var(--muted)">0 תמונות</span>
+              <input type="file" id="e-gallery-files" accept="image/*" multiple style="display:none" onchange="handleEditGallery(this)"/>
+            </label>
+            <div id="e-gallery-preview" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"></div>
+          </div>
+        </div>
+        <input id="e-image" type="hidden"/>
+      </div>
+    </div>
+    <div class="preview-box" style="margin-top:16px">
+      <div class="preview-item"><div class="plabel">בלון 50%</div><div class="pval" id="e-prev-balloon">-</div></div>
+      <div class="preview-item"><div class="plabel">100 מדד</div><div class="pval" id="e-prev-indexed">-</div></div>
+      <div class="preview-item"><div class="plabel">100 פריים</div><div class="pval" id="e-prev-prime">-</div></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button class="btn btn-black" onclick="saveEdit()">שמור שינויים</button>
+      <button class="btn btn-line" onclick="closeEdit()">ביטול</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+<script>
+    const seedCars=[
+      {id:10,brand:"AVATR",model:"Ultra RWD",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"חשמל מלא",range:"475",catalogPriceNumber:293706,autodealerPriceNumber:275706,summary:"",stockStatus:"זמין מיידי"},
+      {id:11,brand:"BYD",model:"ATTO 3 COMFORT FL",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"חשמל מלא",range:"",catalogPriceNumber:173894,autodealerPriceNumber:138990,summary:"",stockStatus:"זמין מיידי"},
+      {id:12,brand:"BYD",model:"BYD SEAL U BOOST  DM-i",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"חשמל / בנזין נטען (היברידי פלאג-אין)",range:"",catalogPriceNumber:202712,autodealerPriceNumber:185990,summary:"",stockStatus:"זמין מיידי"},
+      {id:13,brand:"BYD",model:"SEAL U DMI COMFORT PHEV 1.6",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"חשמל / בנזין נטען (היברידי פלאג-אין)",range:"",catalogPriceNumber:217712,autodealerPriceNumber:199490,summary:"",stockStatus:"זמין מיידי"},
+      {id:14,brand:"BYD",model:"BYD SEALION COMF 5 DM-i",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"חשמל / בנזין נטען (היברידי פלאג-אין)",range:"",catalogPriceNumber:169384,autodealerPriceNumber:154990,summary:"",stockStatus:"זמין מיידי"},
+      {id:15,brand:"BYD",model:"BYD SEALION DESIGN 5 DM-i",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"חשמל / בנזין נטען (היברידי פלאג-אין)",range:"",catalogPriceNumber:174384,autodealerPriceNumber:164990,summary:"",stockStatus:"זמין מיידי"},
+      {id:17,brand:"MG",model:"MG3 LUXURY HYBRID 1.5",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"חשמל / בנזין (היברידי)",range:"",catalogPriceNumber:129595,autodealerPriceNumber:118990,summary:"",stockStatus:"זמין מיידי"},
+      {id:18,brand:"MG",model:"ZS COMORT 1.5",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"בנזין",range:"",catalogPriceNumber:146918,autodealerPriceNumber:123990,summary:"",stockStatus:"זמין מיידי"},
+      {id:19,brand:"MG",model:"ZS LUXURY HYBRID 1.5",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"חשמל / בנזין (היברידי)",range:"",catalogPriceNumber:157918,autodealerPriceNumber:143990,summary:"",stockStatus:"זמין מיידי"},
+      {id:20,brand:"MG",model:"MG HS LUXURY 1.5L",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"בנזין",range:"",catalogPriceNumber:168918,autodealerPriceNumber:142990,summary:"",stockStatus:"זמין מיידי"},
+      {id:21,brand:"MG",model:"MG HS HYBRID+ LUXURY 1.5L 224h",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"חשמל / בנזין (היברידי)",range:"",catalogPriceNumber:179610,autodealerPriceNumber:163990,summary:"",stockStatus:"זמין מיידי"},
+      {id:22,brand:"MG",model:"MG EHS Luxury PHEV 1.5L 272hp",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"חשמל / בנזין נטען (היברידי פלאג-אין)",range:"",catalogPriceNumber:191610,autodealerPriceNumber:174990,summary:"",stockStatus:"זמין מיידי"},
+      {id:23,brand:"אומודה",model:"OMODA 7 PHV - Harmony",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"חשמל / בנזין נטען (היברידי פלאג-אין)",range:"",catalogPriceNumber:192622,autodealerPriceNumber:179490,summary:"",stockStatus:"זמין מיידי"},
+      {id:24,brand:"אומודה",model:"OMODA 9 PHEV - Harmony",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"חשמל / בנזין נטען (היברידי פלאג-אין)",range:"",catalogPriceNumber:232712,autodealerPriceNumber:218990,summary:"",stockStatus:"זמין מיידי"},
+      {id:25,brand:"XPENG",model:"G6 Core+ RWD",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"חשמל מלא",range:"",catalogPriceNumber:212712,autodealerPriceNumber:196990,summary:"",stockStatus:"זמין מיידי"},
+      {id:26,brand:"ג'אקו",model:"JAECOO 7 PREMIUM PHEV 1.5",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"חשמל / בנזין נטען (היברידי פלאג-אין)",range:"",catalogPriceNumber:192712,autodealerPriceNumber:175990,summary:"",stockStatus:"זמין מיידי"},
+      {id:27,brand:"ג'אקו",model:"JAECOO 7 LUXURY PHEV 1.5",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"חשמל / בנזין נטען (היברידי פלאג-אין)",range:"",catalogPriceNumber:205712,autodealerPriceNumber:190990,summary:"",stockStatus:"זמין מיידי"},
+      {id:28,brand:"גילי",model:"EX5 PRO",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"חשמל מלא",range:"",catalogPriceNumber:164384,autodealerPriceNumber:152990,summary:"",stockStatus:"זמין מיידי"},
+      {id:29,brand:"גילי",model:"StarRay EM-i Pro",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"חשמל / בנזין נטען (היברידי פלאג-אין)",range:"",catalogPriceNumber:172384,autodealerPriceNumber:158990,summary:"",stockStatus:"זמין מיידי"},
+      {id:31,brand:"טויוטה",model:"YARIS CROSS ECO HSD 1.5",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"חשמל / בנזין (היברידי)",range:"",catalogPriceNumber:161020,autodealerPriceNumber:150990,summary:"",stockStatus:"זמין מיידי"},
+      {id:32,brand:"טויוטה",model:"HILUX ACTIVE 4X4 DIESEL 2.4",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"דיזל",range:"",catalogPriceNumber:298796,autodealerPriceNumber:285990,summary:"",stockStatus:"זמין מיידי"},
+      {id:33,brand:"יונדאי",model:"ELANTRA PREMIUM FL HYBRID 1.6",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"חשמל / בנזין (היברידי)",range:"",catalogPriceNumber:180384,autodealerPriceNumber:168490,summary:"",stockStatus:"זמין מיידי"},
+      {id:34,brand:"יונדאי",model:"TUCSON PURE HYBRID 1.6",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"חשמל / בנזין (היברידי)",range:"",catalogPriceNumber:202622,autodealerPriceNumber:186990,summary:"",stockStatus:"זמין מיידי"},
+      {id:35,brand:"יונדאי",model:"KONA PREMIUM HYBRID 1.6",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"חשמל / בנזין (היברידי)",range:"",catalogPriceNumber:179384,autodealerPriceNumber:163990,summary:"",stockStatus:"זמין מיידי"},
+      {id:36,brand:"יונדאי",model:"SONATA LIMITED FL HYBRID 2.0",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"חשמל / בנזין (היברידי)",range:"",catalogPriceNumber:237712,autodealerPriceNumber:222490,summary:"",stockStatus:"זמין מיידי"},
+      {id:37,brand:"מיצובישי",model:"OUTLANDER INSTYLE FL 2.5 גג",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"בנזין",range:"",catalogPriceNumber:213712,autodealerPriceNumber:196990,summary:"",stockStatus:"זמין מיידי"},
+      {id:38,brand:"מיצובישי",model:"OUTLANDER EXECUTIVE 2.5",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"בנזין",range:"",catalogPriceNumber:207712,autodealerPriceNumber:193990,summary:"",stockStatus:"זמין מיידי"},
+      {id:39,brand:"סיאט",model:"ARONA STYLE 1.0",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"בנזין",range:"",catalogPriceNumber:134607,autodealerPriceNumber:128490,summary:"",stockStatus:"זמין מיידי"},
+      {id:40,brand:"סובארו",model:"THE NEW CROSSTREK LUXURY 2.5",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"בנזין",range:"",catalogPriceNumber:179384,autodealerPriceNumber:160990,summary:"",stockStatus:"זמין מיידי"},
+      {id:41,brand:"סקודה",model:"KAMIQ FL SELECTION 1.0",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"בנזין",range:"",catalogPriceNumber:142020,autodealerPriceNumber:135490,summary:"",stockStatus:"זמין מיידי"},
+      {id:42,brand:"סקודה",model:"OCTAVIA FL SELECTION 1.5",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"בנזין",range:"",catalogPriceNumber:167384,autodealerPriceNumber:155990,summary:"",stockStatus:"זמין מיידי"},
+      {id:43,brand:"פיגו",model:"ACTIVE 2008",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"בנזין",range:"",catalogPriceNumber:150020,autodealerPriceNumber:126990,summary:"",stockStatus:"זמין מיידי"},
+      {id:44,brand:"צ'רי",model:"FX COMFORT HEV 1.5",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"חשמל / בנזין (היברידי)",range:"",catalogPriceNumber:155020,autodealerPriceNumber:142990,summary:"",stockStatus:"זמין מיידי"},
+      {id:45,brand:"צ'רי",model:"TIGGO 4 COMFORT HEV 1.5",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"חשמל / בנזין (היברידי)",range:"",catalogPriceNumber:137697,autodealerPriceNumber:128990,summary:"",stockStatus:"זמין מיידי"},
+      {id:46,brand:"צ'רי",model:"TIGGO 7 PRO PHEV LUXURY + גג 1.5",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"חשמל / בנזין נטען (היברידי פלאג-אין)",range:"",catalogPriceNumber:182384,autodealerPriceNumber:171990,summary:"",stockStatus:"זמין מיידי"},
+      {id:47,brand:"צ'רי",model:"TIGGO 8 PRO PHEV NOBLE + גג 1.5",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"חשמל / בנזין נטען (היברידי פלאג-אין)",range:"",catalogPriceNumber:202712,autodealerPriceNumber:191990,summary:"",stockStatus:"זמין מיידי"},
+      {id:48,brand:"צ'רי",model:"TIGGO 9 PRO PHEV LUXURY + גג 1.5",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"חשמל / בנזין נטען (היברידי פלאג-אין)",range:"",catalogPriceNumber:221796,autodealerPriceNumber:207990,summary:"",stockStatus:"זמין מיידי"},
+      {id:49,brand:"צ'רי",model:"ARIZO 8 PHEV COMFORT 1.5",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"חשמל / בנזין נטען (היברידי פלאג-אין)",range:"",catalogPriceNumber:178384,autodealerPriceNumber:162990,summary:"",stockStatus:"זמין מיידי"},
+      {id:50,brand:"צ'רי",model:"ARIZO 8 PHEV COMFORT 1.5",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"חשמל / בנזין נטען (היברידי פלאג-אין)",range:"",catalogPriceNumber:178384,autodealerPriceNumber:151990,summary:"",stockStatus:"זמין מיידי"},
+      {id:51,brand:"קיה",model:"PICANTO LX PLUS 1.2",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"בנזין",range:"",catalogPriceNumber:111272,autodealerPriceNumber:101490,summary:"",stockStatus:"זמין מיידי"},
+      {id:52,brand:"קיה",model:"NIRO HEV LX 1.6",year:"2026",image:"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+",badge:"דיל חם",category:"",engine:"חשמל / בנזין (היברידי)",range:"",catalogPriceNumber:181294,autodealerPriceNumber:160990,summary:"",stockStatus:"זמין מיידי"},
+    ];
+  const STORAGE_KEY = 'autodealer_shared_inventory_v6';
+  const PASS = 'autodealer2024';
+  const SUPA_URL = 'https://vwfmfjjdusirabgbkhvw.supabase.co';
+  const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3Zm1mampkdXNpcmFiZ2JraHZ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxOTAzMzMsImV4cCI6MjA5MTc2NjMzM30.iaelOlcZ9bavR78weRGnddvot13qsNjR6GEnEctAZB0';
+
+  async function loadCarsFromSupabase(){
+    try {
+      const r = await fetch(SUPA_URL+'/rest/v1/cars?select=*&order=id', {
+        headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}
+      });
+      const data = await r.json();
+      if(Array.isArray(data) && data.length > 0){
+        return data.map(c=>({
+          id:c.id, brand:c.brand, model:c.model, year:c.year,
+          image:c.image||'', badge:c.badge||'', category:c.category||'',
+          engine:c.engine||'', range:c.range_km||'',
+          catalogPriceNumber:c.catalog_price, autodealerPriceNumber:c.autodealer_price,
+          summary:c.summary||'', stockStatus:c.stock_status||'זמין מיידי',
+          verified:c.verified||false, gallery:c.gallery||[],
+          specLink:c.spec_link||'', specs:c.specs||{}, specText:c.spec_text||'', specData:c.spec_data||{}
+        }));
+      }
+    } catch(e){}
+    return null;
+  }
+
+  async function saveCarsToSupabase(carsArr){
+    for(const car of carsArr){
+      const body = {
+        id:car.id, brand:car.brand, model:car.model, year:car.year,
+        image:car.image||'', badge:car.badge||'', category:car.category||'',
+        engine:car.engine||'', range_km:car.range||null,
+        catalog_price:car.catalogPriceNumber, autodealer_price:car.autodealerPriceNumber,
+        summary:car.summary||'', stock_status:car.stockStatus||'זמין מיידי',
+        verified:car.verified||false, gallery:car.gallery||[]
+      };
+      await fetch(SUPA_URL+'/rest/v1/cars?id=eq.'+car.id, {
+        method:'PATCH',
+        headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
+        body:JSON.stringify(body)
+      });
+    }
+  }
+
+  let cars=JSON.parse(localStorage.getItem(STORAGE_KEY)||'null')||seedCars;
+
+  let leads = JSON.parse(localStorage.getItem('autodealer_leads')||'[]');
+  let vouchers = JSON.parse(localStorage.getItem('autodealer_vouchers')||'[]');
+
+  const tabTitles={dashboard:'דשבורד',inventory:'מלאי רכבים',addcar:'הוספת רכב',leads:'לידים',vouchers:'שוברים'};
+  const tabOrder=['dashboard','inventory','addcar','leads','vouchers'];
+
+  function login(){
+    if(document.getElementById('pwInput').value===PASS){
+      sessionStorage.setItem('ad_auth','1');
+      document.getElementById('loginPage').classList.add('hidden');
+      document.getElementById('appWrapper').classList.remove('hidden');
+      document.getElementById('loginErr').classList.add('hidden');
+      loadCarsFromSupabase().then(data => {
+        if(data && data.length > 0) { cars = data; localStorage.setItem(STORAGE_KEY, JSON.stringify(cars)); }
+        renderAll();
+      });
+    } else {
+      document.getElementById('loginErr').classList.remove('hidden');
+    }
+  }
+
+  function logout(){
+    sessionStorage.removeItem('ad_auth');
+    document.getElementById('appWrapper').classList.add('hidden');
+    document.getElementById('loginPage').classList.remove('hidden');
+    document.getElementById('pwInput').value='';
+  }
+
+  // Auto-login if session active
+  if(sessionStorage.getItem('ad_auth')==='1'){
+    document.getElementById('loginPage').classList.add('hidden');
+    document.getElementById('appWrapper').classList.remove('hidden');
+    loadCarsFromSupabase().then(data => {
+      if(data && data.length > 0) { cars = data; localStorage.setItem(STORAGE_KEY, JSON.stringify(cars)); }
+      renderAll();
+    });
+  }
+
+  function showTab(id){
+    document.querySelectorAll('[id^="tab-"]').forEach(el=>el.classList.add('hidden'));
+    document.getElementById('tab-'+id).classList.remove('hidden');
+    document.querySelectorAll('.nav-item').forEach((el,i)=>el.classList.toggle('active',tabOrder[i]===id));
+    document.getElementById('topbarTitle').textContent=tabTitles[id]||id;
+    renderAll();
+  }
+
+  const BALLOON_RATE=4.3,INDEXED_RATE=4.3,PRIME_RATE=7.6;
+  function monthly(p,r,n){if(!p||!n)return 0;const mr=r/100/12;return mr?p*mr/(1-Math.pow(1+mr,-n)):p/n;}
+  function fmt(n){return Math.round(n).toLocaleString('he-IL')+' ₪';}
+  function calcPreview(){
+    const p=Number(document.getElementById('f-price').value||0);
+    document.getElementById('prev-balloon').textContent=p?fmt(monthly(p*.5,BALLOON_RATE,60)):'-';
+    document.getElementById('prev-indexed').textContent=p?fmt(monthly(p,INDEXED_RATE,100)):'-';
+    document.getElementById('prev-prime').textContent=p?fmt(monthly(p,PRIME_RATE,100)):'-';
+  }
+
+  function toggleRangeField(wrapId, engineVal){
+    const electricEngines = ['חשמל מלא', 'חשמל / בנזין (היברידי)', 'חשמל / בנזין נטען (היברידי פלאג-אין)'];
+    try {
+      const wrap = document.getElementById(wrapId);
+      if(wrap) wrap.classList.toggle('hidden', !electricEngines.includes(engineVal));
+    } catch(e){}
+  }
+
+  async function syncAllToSupabase(){
+    toast('מסנכרן... אנא המתן');
+    let success = 0;
+    for(const car of cars){
+      try {
+        const body = {
+          id:car.id, brand:car.brand, model:car.model, year:car.year,
+          image:car.image||'', badge:car.badge||'', category:car.category||'',
+          engine:car.engine||'', range_km:car.range||null,
+          catalog_price:car.catalogPriceNumber, autodealer_price:car.autodealerPriceNumber,
+          summary:car.summary||'', stock_status:car.stockStatus||'זמין מיידי',
+          verified:car.verified||false, gallery:car.gallery||[],
+          spec_link:car.specLink||'', specs:car.specs||{}
+        };
+        const r = await fetch(SUPA_URL+'/rest/v1/cars?id=eq.'+car.id, {
+          method:'PATCH',
+          headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
+          body:JSON.stringify(body)
+        });
+        if(r.ok || r.status===204) success++;
+      } catch(e){}
+    }
+    toast('✅ סונכרנו ' + success + ' רכבים ל-Supabase!');
+  }
+
+  async function saveCarToDB(car){
+    const baseBody = {
+      id:car.id, brand:car.brand, model:car.model, year:car.year,
+      image:car.image||'', badge:car.badge||'', category:car.category||'',
+      engine:car.engine||'', range_km:car.range||null,
+      catalog_price:car.catalogPriceNumber, autodealer_price:car.autodealerPriceNumber,
+      summary:car.summary||'', stock_status:car.stockStatus||'זמין מיידי',
+      verified:car.verified||false, gallery:car.gallery||[]
+    };
+    const fullBody = {...baseBody,
+      spec_link:car.specLink||'', specs:car.specs||{},
+      spec_text:car.specText||'', spec_data:car.specData||{}
+    };
+    const hdrs = {'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Content-Type':'application/json','Prefer':'return=minimal'};
+    try {
+      // Try PATCH with full body (including spec columns)
+      let r = await fetch(SUPA_URL+'/rest/v1/cars?id=eq.'+car.id, {method:'PATCH',headers:hdrs,body:JSON.stringify(fullBody)});
+      if(r.status===400){
+        // spec columns don't exist yet — retry without them
+        r = await fetch(SUPA_URL+'/rest/v1/cars?id=eq.'+car.id, {method:'PATCH',headers:hdrs,body:JSON.stringify(baseBody)});
+      }
+      if(!r.ok && r.status!==204){
+        // New car — POST
+        let r2 = await fetch(SUPA_URL+'/rest/v1/cars', {method:'POST',headers:hdrs,body:JSON.stringify(fullBody)});
+        if(r2.status===400){
+          await fetch(SUPA_URL+'/rest/v1/cars', {method:'POST',headers:hdrs,body:JSON.stringify(baseBody)});
+        }
+      }
+    } catch(e){ console.error('saveCarToDB error', e); }
+  }
+
+  async function deleteCarFromDB(id){
+    try {
+      await fetch(SUPA_URL+'/rest/v1/cars?id=eq.'+id, {
+        method:'DELETE',
+        headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}
+      });
+    } catch(e){ console.error('deleteCarFromDB error', e); }
+  }
+
+  function saveCars(){
+    localStorage.setItem(STORAGE_KEY,JSON.stringify(cars));
+    // dispatch event so index.html in same browser updates live
+    window.dispatchEvent(new StorageEvent('storage',{key:STORAGE_KEY,newValue:JSON.stringify(cars)}));
+  }
+
+  function addCar(){
+    const brand=document.getElementById('f-brand').value.trim();
+    const model=document.getElementById('f-model').value.trim();
+    const cat=Number(document.getElementById('f-catalog').value||0);
+    const price=Number(document.getElementById('f-price').value||0);
+    const missing=[];
+    if(!brand) missing.push('יצרן');
+    if(!model) missing.push('דגם');
+    if(!cat) missing.push('מחירון');
+    if(!price) missing.push('מחיר אוטודילר');
+    if(missing.length){toast('⚠️ חסרים שדות: '+missing.join(', '));return;}
+    cars.unshift({
+      id:Date.now(),brand,model,
+      year:document.getElementById('f-year').value||'2026',
+      image:document.getElementById('f-image').value.trim()||'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCI+CiAgPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDBkMGQiLz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjQiIGZpbGw9IiNENEEwMTciLz4KICA8cmVjdCB4PSIwIiB5PSI0OTYiIHdpZHRoPSI4MDAiIGhlaWdodD0iNCIgZmlsbD0iI0Q0QTAxNyIvPgogIDwhLS0gQ2FyIHNpbGhvdWV0dGUgLS0+CiAgPGcgb3BhY2l0eT0iMC4xMiI+CiAgICA8ZWxsaXBzZSBjeD0iMjIwIiBjeT0iMzcwIiByeD0iNzAiIHJ5PSI3MCIgZmlsbD0iI0Q0QTAxNyIvPgogICAgPGVsbGlwc2UgY3g9IjU4MCIgY3k9IjM3MCIgcng9IjcwIiByeT0iNzAiIGZpbGw9IiNENEEwMTciLz4KICAgIDxyZWN0IHg9IjEwMCIgeT0iMjgwIiB3aWR0aD0iNjAwIiBoZWlnaHQ9IjEyMCIgcng9IjIwIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cGF0aCBkPSJNMTgwIDI4MCBRMjIwIDE4MCAzMjAgMTcwIEw0ODAgMTcwIFE1ODAgMTgwIDYyMCAyODBaIiBmaWxsPSIjRDRBMDE3Ii8+CiAgICA8cmVjdCB4PSIyMzAiIHk9IjE4NSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI4MCIgcng9IjgiIGZpbGw9IiMwZDBkMGQiIG9wYWNpdHk9IjAuNSIvPgogICAgPHJlY3QgeD0iMzUwIiB5PSIxODUiIHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIHJ4PSI4IiBmaWxsPSIjMGQwZDBkIiBvcGFjaXR5PSIwLjUiLz4KICA8L2c+CiAgPCEtLSBUZXh0IC0tPgogIDx0ZXh0IHg9IjQwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IiNENEEwMTciPteR16fXqNeV15E8L3RleHQ+CiAgPHRleHQgeD0iNDAwIiB5PSIyNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ij7Xqtee15XXoNeqINeU16jXm9eRINeq16rXoteT15vXnyDXkden16jXldeRPC90ZXh0PgogIDx0ZXh0IHg9IjQwMCIgeT0iMzEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNENEEwMTciIG9wYWNpdHk9IjAuOCI+QVVUT0RFQUxFUi5DTy5JTDwvdGV4dD4KPC9zdmc+',
+      gallery:galleryImages.slice(),
+      badge:document.getElementById('f-badge').value.trim()||'דיל חם',
+      category:document.getElementById('f-cat').value,
+      engine:document.getElementById('f-engine').value,
+      range:document.getElementById('f-range').value||'',
+      catalogPriceNumber:cat,autodealerPriceNumber:price,
+      summary:document.getElementById('f-summary').value.trim()||'רכב חדש במבצע.',
+      stockStatus:document.getElementById('f-status').value
+    });
+    saveCars(); saveCarToDB(cars[0]); clearForm();toast('✅ הרכב נוסף למלאי!');showTab('inventory');
+  }
+
+  function clearForm(){
+    ['f-brand','f-model','f-catalog','f-price','f-summary'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('f-image').value='';
+    document.getElementById('f-engine').value='בנזין';
+    document.getElementById('f-range').value='';
+    document.getElementById('f-range-wrap').classList.add('hidden');
+    document.getElementById('f-image-file').value='';
+    document.getElementById('f-gallery-files').value='';
+    document.getElementById('main-img-name').textContent='לא נבחרה תמונה';
+    document.getElementById('main-img-preview').style.display='none';
+    document.getElementById('gallery-preview').innerHTML='';
+    document.getElementById('gallery-count').textContent='0 תמונות נבחרו';
+    galleryImages=[];
+    document.getElementById('f-year').value='2026';
+    document.getElementById('f-badge').value='דיל חם';
+    calcPreview();
+  }
+
+  function updateStatus(id,val){
+    cars=cars.map(c=>c.id===id?{...c,stockStatus:val}:c);
+    saveCars();renderAll();
+    toast(val==='זמין מיידי'?'✅ זמין מיידי':'⚠️ אזל במלאי');
+  }
+
+  function toggleVerify(id){
+    cars = cars.map(c => c.id===id ? {...c, verified: !c.verified} : c);
+    saveCars();
+    renderInventory();
+    const car = cars.find(c=>c.id===id);
+    toast(car.verified ? '✅ סומן כתקין!' : '🔍 חזר לבדיקה');
+  }
+
+  function deleteCar(id){
+    if(!confirm('למחוק רכב זה?'))return;
+    cars=cars.filter(c=>c.id!==id);
+    saveCars(); deleteCarFromDB(id);
+    renderAll();toast('🗑 הרכב נמחק');
+  }
+
+  function renderAll(){updateStats();renderInventory();renderLeads();renderVouchers();renderDash();}
+
+  function updateStats(){
+    document.getElementById('st-total').textContent=cars.length;
+    document.getElementById('st-avail').textContent=cars.filter(c=>(c.stockStatus||'זמין מיידי')==='זמין מיידי').length;
+    document.getElementById('st-out').textContent=cars.filter(c=>c.stockStatus==='אזל במלאי').length;
+    document.getElementById('st-vouchers').textContent=vouchers.filter(v=>!v.used).length;
+  }
+
+  function renderInventory(){
+    const el=document.getElementById('inventoryList');if(!el)return;
+    el.innerHTML=cars.map(c=>{
+      const avail=(c.stockStatus||'זמין מיידי')==='זמין מיידי';
+      const disc=Math.round((c.catalogPriceNumber-c.autodealerPriceNumber)/c.catalogPriceNumber*100);
+      return `<div class="inv-item">
+        <img src="${c.image}" alt="${c.brand} ${c.model}" onerror="this.src='https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&w=400&q=60'">
+        <div>
+          <div style="font-size:18px;font-weight:900">${c.brand} ${c.model} <span style="font-size:13px;color:var(--muted);font-weight:400">${c.year}</span></div>
+          <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap">
+            <span class="badge-s ${avail?'badge-avail':'badge-out'}">${avail?'⚡ זמין מיידי':'אזל במלאי'}</span>
+            <span style="background:#fef9e7;color:#a16207;font-size:11px;font-weight:900;padding:3px 8px;border-radius:999px">${c.category}</span>
+            <span style="background:#fef2f2;color:#b91c1c;font-size:11px;font-weight:900;padding:3px 8px;border-radius:999px">-${disc}%</span>
+          </div>
+          <div style="margin-top:8px;font-size:13px">
+            <span style="text-decoration:line-through;color:var(--muted)">${fmt(c.catalogPriceNumber)}</span>
+            <span style="color:#a16207;font-weight:900;margin-right:8px">${fmt(c.autodealerPriceNumber)}</span>
+          </div>
+          <div style="margin-top:4px;font-size:12px;color:var(--muted)">${c.summary}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <select onchange="updateStatus(${c.id},this.value)" style="padding:8px 12px;font-size:13px;border-radius:10px;min-width:130px">
+            <option ${avail?'selected':''}>זמין מיידי</option>
+            <option ${!avail?'selected':''}>אזל במלאי</option>
+          </select>
+          <button class="btn btn-line btn-sm" onclick="editCar(${c.id})">✏️ עריכה</button>
+          <button class="btn btn-sm" onclick="toggleVerify(${c.id})" style="${c.verified ? 'background:#dcfce7;border:1px solid #86efac;color:#15803d' : 'background:#fef9c3;border:1px solid #fde68a;color:#854d0e'}">
+            ${c.verified ? '✅ תקין' : '🔍 לבדיקה'}
+          </button>
+          <button class="btn btn-red btn-sm" onclick="deleteCar(${c.id})">🗑 מחיקה</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  function renderLeads(){
+    const el=document.getElementById('leadsList');if(!el)return;
+    const sorted=[...leads].sort((a,b)=>b.score-a.score);
+    el.innerHTML=sorted.map(l=>{
+      const cls=l.score>=80?'s-hot':l.score>=50?'s-warm':'s-cold';
+      const lbl=l.score>=80?'🔥 רותח':l.score>=50?'🌡 חם':'❄️ קר';
+      return `<div class="lead-card">
+        <div style="display:flex;gap:14px;align-items:flex-start">
+          <div class="lead-score ${cls}">${l.score}</div>
+          <div style="flex:1">
+            <div style="font-weight:900;font-size:16px">${l.name} <span style="font-size:12px;margin-right:6px;color:${l.score>=80?'#b91c1c':l.score>=50?'#c2410c':'#15803d'}">${lbl}</span></div>
+            <div style="font-size:13px;color:var(--muted);margin-top:2px">${l.phone} · ${l.car}</div>
+            <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+              <span style="background:#f1f5f9;padding:4px 10px;border-radius:8px;font-size:12px;font-weight:700">מקדמה: ${l.down} ₪</span>
+              <span style="background:#f1f5f9;padding:4px 10px;border-radius:8px;font-size:12px;font-weight:700">חודשי: ${l.monthly} ₪</span>
+              <span style="background:#f1f5f9;padding:4px 10px;border-radius:8px;font-size:12px;font-weight:700">${l.track||'לא בחר מסלול'}</span>
+            </div>
+            <div style="margin-top:6px;font-size:12px;color:var(--muted)">📍 ${l.action} · ${l.time}</div>
+          </div>
+          <a href="https://wa.me/972${l.phone.replace(/-/g,'').replace(/^0/,'')}" target="_blank"
+             style="background:#25D366;color:#fff;padding:9px 16px;border-radius:10px;font-size:13px;font-weight:900;text-decoration:none;white-space:nowrap;flex-shrink:0">
+            📲 וואטסאפ
+          </a>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  function renderVouchers(){
+    const el=document.getElementById('vouchersList');if(!el)return;
+    el.innerHTML=vouchers.length?vouchers.map(v=>`
+      <div style="display:flex;align-items:center;gap:16px;padding:14px 0;border-bottom:1px solid var(--line);font-size:14px">
+        <div style="flex:1"><div style="font-weight:700">${v.name}</div><div style="color:var(--muted);font-size:12px">${v.phone}</div></div>
+        <div style="color:var(--muted)">${v.car}</div>
+        <div style="font-weight:700;color:#a16207">${v.amount} ₪</div>
+        <div style="font-size:12px;color:var(--muted)">${v.date}</div>
+        <span style="background:${v.used?'#fef9e7':'#dcfce7'};color:${v.used?'#a16207':'#15803d'};padding:5px 12px;border-radius:999px;font-size:12px;font-weight:900">${v.used?'מומש':'פעיל'}</span>
+      </div>`).join('')
+    :'<div style="text-align:center;padding:40px;color:var(--muted)">אין שוברים עדיין</div>';
+  }
+
+  function renderDash(){
+    const dl=document.getElementById('dash-leads');
+    const dv=document.getElementById('dash-vouchers');
+    if(dl){
+      dl.innerHTML=[...leads].sort((a,b)=>b.score-a.score).slice(0,3).map(l=>`
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)">
+          <div><div style="font-weight:700">${l.name}</div><div style="font-size:12px;color:var(--muted)">${l.car}</div></div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="background:${l.score>=80?'#fef2f2':'#fff7ed'};color:${l.score>=80?'#b91c1c':'#c2410c'};padding:4px 10px;border-radius:999px;font-size:12px;font-weight:900">${l.score}</span>
+            <a href="https://wa.me/972${l.phone.replace(/-/g,'').replace(/^0/,'')}" target="_blank" style="background:#25D366;color:#fff;padding:5px 10px;border-radius:8px;font-size:12px;font-weight:900;text-decoration:none">📲</a>
+          </div>
+        </div>`).join('');
+    }
+    if(dv){
+      dv.innerHTML=vouchers.slice(0,3).map(v=>`
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)">
+          <div><div style="font-weight:700">${v.name}</div><div style="font-size:12px;color:var(--muted)">${v.car} · ${v.date}</div></div>
+          <span style="background:${v.used?'#fef9e7':'#dcfce7'};color:${v.used?'#a16207':'#15803d'};padding:4px 10px;border-radius:999px;font-size:12px;font-weight:900">${v.used?'מומש':'פעיל'}</span>
+        </div>`).join('');
+    }
+  }
+
+  let galleryImages=[];
+
+  async function uploadToStorage(file, folder){
+    const ext = file.name.split('.').pop();
+    const filename = folder + '_' + Date.now() + '.' + ext;
+    const res = await fetch(SUPA_URL + '/storage/v1/object/cars/' + filename, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPA_KEY,
+        'Authorization': 'Bearer ' + SUPA_KEY,
+        'Content-Type': file.type,
+        'x-upsert': 'true'
+      },
+      body: file
+    });
+    if(!res.ok) return null;
+    return SUPA_URL + '/storage/v1/object/public/cars/' + filename;
+  }
+
+  function handleMainImage(input){
+    const file=input.files[0];
+    if(!file)return;
+    if(file.size>15*1024*1024){toast('⚠️ תמונה גדולה מדי - עד 15MB');return;}
+    document.getElementById('main-img-name').textContent='⏳ מעלה תמונה...';
+    uploadToStorage(file, 'main').then(function(url){
+      if(url){
+        document.getElementById('f-image').value=url;
+        document.getElementById('main-img-thumb').src=url;
+        document.getElementById('main-img-preview').style.display='block';
+        document.getElementById('main-img-name').textContent='✅ '+file.name;
+        toast('✅ תמונה ראשית הועלתה!');
+      } else {
+        // fallback to base64
+        const reader=new FileReader();
+        reader.onload=function(e){
+          document.getElementById('f-image').value=e.target.result;
+          document.getElementById('main-img-thumb').src=e.target.result;
+          document.getElementById('main-img-preview').style.display='block';
+          document.getElementById('main-img-name').textContent='✅ '+file.name;
+          toast('✅ תמונה נטענה');
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+  }
+
+  function handleGallery(input){
+    const files=Array.from(input.files).slice(0,8);
+    galleryImages=[];
+    document.getElementById('gallery-preview').innerHTML='';
+    document.getElementById('gallery-count').textContent='⏳ מעלה תמונות...';
+    let uploaded=0;
+    files.forEach((file,i)=>{
+      if(file.size>8*1024*1024)return;
+      uploadToStorage(file,'gallery').then(function(url){
+        const src = url || null;
+        if(!src){ uploaded++; return; }
+        galleryImages[i]=src;
+        uploaded++;
+        document.getElementById('gallery-count').textContent=galleryImages.filter(Boolean).length+' תמונות הועלו';
+        const wrap=document.createElement('div');
+        wrap.style.cssText='position:relative;display:inline-block';
+        const img=document.createElement('img');
+        img.src=src;
+        img.style.cssText='width:80px;height:60px;object-fit:cover;border-radius:8px;border:1px solid var(--line)';
+        const del=document.createElement('button');
+        del.textContent='✕';
+        del.style.cssText='position:absolute;top:-6px;right:-6px;background:#dc2626;color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0';
+        del.onclick=()=>{galleryImages[i]=null;wrap.remove();document.getElementById('gallery-count').textContent=galleryImages.filter(Boolean).length+' תמונות הועלו';};
+        wrap.appendChild(img);wrap.appendChild(del);
+        document.getElementById('gallery-preview').appendChild(wrap);
+      });
+    });
+  }
+
+  let editingId = null;
+
+  function editCar(id){
+    const c = cars.find(x=>x.id===id);
+    if(!c) return;
+    editingId = id;
+    document.getElementById('e-brand').value = c.brand;
+    document.getElementById('e-model').value = c.model;
+    document.getElementById('e-year').value = c.year;
+    document.getElementById('e-badge').value = c.badge||'';
+    document.getElementById('e-cat').value = c.category;
+    document.getElementById('e-status').value = c.stockStatus||'זמין מיידי';
+    document.getElementById('e-engine').value = c.engine||'בנזין';
+    document.getElementById('e-range').value = c.range||'';
+    toggleRangeField('e-range-wrap', c.engine||'בנזין');
+    document.getElementById('e-catalog').value = c.catalogPriceNumber;
+    document.getElementById('e-price').value = c.autodealerPriceNumber;
+    document.getElementById('e-summary').value = c.summary||'';
+    const specData = c.specData || {};
+    document.getElementById('sp_שנת_דגם').value = (specData['פרטי הרכב ואחריות'] && specData['פרטי הרכב ואחריות']['שנת דגם']) ? specData['פרטי הרכב ואחריות']['שנת דגם'] : '';
+    document.getElementById('sp_מספר_דלתות').value = (specData['פרטי הרכב ואחריות'] && specData['פרטי הרכב ואחריות']['מספר דלתות']) ? specData['פרטי הרכב ואחריות']['מספר דלתות'] : '';
+    document.getElementById('sp_מקומות_ישיבה').value = (specData['פרטי הרכב ואחריות'] && specData['פרטי הרכב ואחריות']['מקומות ישיבה']) ? specData['פרטי הרכב ואחריות']['מקומות ישיבה'] : '';
+    document.getElementById('sp_מחיר').value = (specData['פרטי הרכב ואחריות'] && specData['פרטי הרכב ואחריות']['מחיר']) ? specData['פרטי הרכב ואחריות']['מחיר'] : '';
+    document.getElementById('sp_קבוצת_שווי').value = (specData['פרטי הרכב ואחריות'] && specData['פרטי הרכב ואחריות']['קבוצת שווי']) ? specData['פרטי הרכב ואחריות']['קבוצת שווי'] : '';
+    document.getElementById('sp_שווי_שימוש_רציף').value = (specData['פרטי הרכב ואחריות'] && specData['פרטי הרכב ואחריות']['שווי שימוש רציף']) ? specData['פרטי הרכב ואחריות']['שווי שימוש רציף'] : '';
+    document.getElementById('sp_אחריות').value = (specData['פרטי הרכב ואחריות'] && specData['פרטי הרכב ואחריות']['אחריות']) ? specData['פרטי הרכב ואחריות']['אחריות'] : '';
+    document.getElementById('sp_שנת_השקת_הדגם').value = (specData['פרטי הרכב ואחריות'] && specData['פרטי הרכב ואחריות']['שנת השקת הדגם']) ? specData['פרטי הרכב ואחריות']['שנת השקת הדגם'] : '';
+    document.getElementById('sp_הנעה').value = (specData['מנוע גיר וביצועים'] && specData['מנוע גיר וביצועים']['הנעה']) ? specData['מנוע גיר וביצועים']['הנעה'] : '';
+    document.getElementById('sp_תיבת_הילוכים').value = (specData['מנוע גיר וביצועים'] && specData['מנוע גיר וביצועים']['תיבת הילוכים']) ? specData['מנוע גיר וביצועים']['תיבת הילוכים'] : '';
+    document.getElementById('sp_מסq_הילוכים').value = (specData['מנוע גיר וביצועים'] && specData['מנוע גיר וביצועים']["מס' הילוכים"]) ? specData['מנוע גיר וביצועים']["מס' הילוכים"] : '';
+    document.getElementById('sp_סוג_מנוע').value = (specData['מנוע גיר וביצועים'] && specData['מנוע גיר וביצועים']['סוג מנוע']) ? specData['מנוע גיר וביצועים']['סוג מנוע'] : '';
+    document.getElementById('sp_מסq_בוכנות').value = (specData['מנוע גיר וביצועים'] && specData['מנוע גיר וביצועים']["מס' בוכנות"]) ? specData['מנוע גיר וביצועים']["מס' בוכנות"] : '';
+    document.getElementById('sp_נפח_סמqק').value = (specData['מנוע גיר וביצועים'] && specData['מנוע גיר וביצועים']['נפח (סמ"ק)']) ? specData['מנוע גיר וביצועים']['נפח (סמ"ק)'] : '';
+    document.getElementById('sp_הספק_מרבי_כqס').value = (specData['מנוע גיר וביצועים'] && specData['מנוע גיר וביצועים']['הספק מרבי (כ"ס)']) ? specData['מנוע גיר וביצועים']['הספק מרבי (כ"ס)'] : '';
+    document.getElementById('sp_סלqד_להספק_מרבי').value = (specData['מנוע גיר וביצועים'] && specData['מנוע גיר וביצועים']['סל"ד להספק מרבי']) ? specData['מנוע גיר וביצועים']['סל"ד להספק מרבי'] : '';
+    document.getElementById('sp_מומנט_מרבי_קגqמ').value = (specData['מנוע גיר וביצועים'] && specData['מנוע גיר וביצועים']['מומנט מרבי (קג"מ)']) ? specData['מנוע גיר וביצועים']['מומנט מרבי (קג"מ)'] : '';
+    document.getElementById('sp_סלqד_למומנט_מרבי').value = (specData['מנוע גיר וביצועים'] && specData['מנוע גיר וביצועים']['סל"ד למומנט מרבי']) ? specData['מנוע גיר וביצועים']['סל"ד למומנט מרבי'] : '';
+    document.getElementById('sp_רכב_שטח__הילוכי_כח').value = (specData['מנוע גיר וביצועים'] && specData['מנוע גיר וביצועים']['רכב שטח: הילוכי כח']) ? specData['מנוע גיר וביצועים']['רכב שטח: הילוכי כח'] : '';
+    document.getElementById('sp_רכב_שטח__נעילות_דיפרנציאל').value = (specData['מנוע גיר וביצועים'] && specData['מנוע גיר וביצועים']['רכב שטח: נעילות דיפרנציאל']) ? specData['מנוע גיר וביצועים']['רכב שטח: נעילות דיפרנציאל'] : '';
+    document.getElementById('sp_רכב_שטח__בקרת_משיכה').value = (specData['מנוע גיר וביצועים'] && specData['מנוע גיר וביצועים']['רכב שטח: בקרת משיכה']) ? specData['מנוע גיר וביצועים']['רכב שטח: בקרת משיכה'] : '';
+    document.getElementById('sp_תאוצה_0_100').value = (specData['מנוע גיר וביצועים'] && specData['מנוע גיר וביצועים']['תאוצה 0-100']) ? specData['מנוע גיר וביצועים']['תאוצה 0-100'] : '';
+    document.getElementById('sp_מהירות_מרבית').value = (specData['מנוע גיר וביצועים'] && specData['מנוע גיר וביצועים']['מהירות מרבית']) ? specData['מנוע גיר וביצועים']['מהירות מרבית'] : '';
+    document.getElementById('sp_צריכת_דלק___עירונית_קqמ_ליטר').value = (specData['מנוע גיר וביצועים'] && specData['מנוע גיר וביצועים']['צריכת דלק - עירונית (ק"מ/ליטר)']) ? specData['מנוע גיר וביצועים']['צריכת דלק - עירונית (ק"מ/ליטר)'] : '';
+    document.getElementById('sp_צריכת_דלק___בינעירונית_קqמ_ליט').value = (specData['מנוע גיר וביצועים'] && specData['מנוע גיר וביצועים']['צריכת דלק - בינעירונית (ק"מ/ליטר)']) ? specData['מנוע גיר וביצועים']['צריכת דלק - בינעירונית (ק"מ/ליטר)'] : '';
+    document.getElementById('sp_צריכת_דלק___ממוצעת_קqמ_ליטר').value = (specData['מנוע גיר וביצועים'] && specData['מנוע גיר וביצועים']['צריכת דלק - ממוצעת (ק"מ/ליטר)']) ? specData['מנוע גיר וביצועים']['צריכת דלק - ממוצעת (ק"מ/ליטר)'] : '';
+    document.getElementById('sp_צריכת_חשמל_וואט_שעה___קqמ').value = (specData['מנוע גיר וביצועים'] && specData['מנוע גיר וביצועים']['צריכת חשמל (וואט שעה / ק"מ)']) ? specData['מנוע גיר וביצועים']['צריכת חשמל (וואט שעה / ק"מ)'] : '';
+    document.getElementById('sp_קיבולת_סוללה_קווטqש').value = (specData['מנוע גיר וביצועים'] && specData['מנוע גיר וביצועים']['קיבולת סוללה (קווט"ש)']) ? specData['מנוע גיר וביצועים']['קיבולת סוללה (קווט"ש)'] : '';
+    document.getElementById('sp_טווח_נסיעה_חשמלי_קqמ').value = (specData['מנוע גיר וביצועים'] && specData['מנוע גיר וביצועים']['טווח נסיעה חשמלי (ק"מ)']) ? specData['מנוע גיר וביצועים']['טווח נסיעה חשמלי (ק"מ)'] : '';
+    document.getElementById('sp_זמן_טעינה_ביתית').value = (specData['מנוע גיר וביצועים'] && specData['מנוע גיר וביצועים']['זמן טעינה ביתית']) ? specData['מנוע גיר וביצועים']['זמן טעינה ביתית'] : '';
+    document.getElementById('sp_זמן_טעינה_מהירה').value = (specData['מנוע גיר וביצועים'] && specData['מנוע גיר וביצועים']['זמן טעינה מהירה']) ? specData['מנוע גיר וביצועים']['זמן טעינה מהירה'] : '';
+    document.getElementById('sp_דרגת_זיהום').value = (specData['מנוע גיר וביצועים'] && specData['מנוע גיר וביצועים']['דרגת זיהום']) ? specData['מנוע גיר וביצועים']['דרגת זיהום'] : '';
+    document.getElementById('sp_מבחן_ריסוק').value = (specData['בטיחות'] && specData['בטיחות']['מבחן ריסוק']) ? specData['בטיחות']['מבחן ריסוק'] : '';
+    document.getElementById('sp_בלמים').value = (specData['בטיחות'] && specData['בטיחות']['בלמים']) ? specData['בטיחות']['בלמים'] : '';
+    document.getElementById('sp_כריות_אוויר').value = (specData['בטיחות'] && specData['בטיחות']['כריות אוויר']) ? specData['בטיחות']['כריות אוויר'] : '';
+    document.getElementById('sp_בקרת_יציבות_אלקטרונית').value = (specData['בטיחות'] && specData['בטיחות']['בקרת יציבות אלקטרונית']) ? specData['בטיחות']['בקרת יציבות אלקטרונית'] : '';
+    document.getElementById('sp_ביטול_כרית_אוויר_נוסע').value = (specData['בטיחות'] && specData['בטיחות']['ביטול כרית אוויר נוסע']) ? specData['בטיחות']['ביטול כרית אוויר נוסע'] : '';
+    document.getElementById('sp_איזופיקס').value = (specData['בטיחות'] && specData['בטיחות']['איזופיקס']) ? specData['בטיחות']['איזופיקס'] : '';
+    document.getElementById('sp_חיישני_לחץ_אוויר').value = (specData['בטיחות'] && specData['בטיחות']['חיישני לחץ אוויר']) ? specData['בטיחות']['חיישני לחץ אוויר'] : '';
+    document.getElementById('sp_זמזם_התראה_לחגורות').value = (specData['בטיחות'] && specData['בטיחות']['זמזם התראה לחגורות']) ? specData['בטיחות']['זמזם התראה לחגורות'] : '';
+    document.getElementById('sp_בלימת_חירום_אוטונומית').value = (specData['בטיחות'] && specData['בטיחות']['בלימת חירום אוטונומית']) ? specData['בטיחות']['בלימת חירום אוטונומית'] : '';
+    document.getElementById('sp_זיהוי_הולכי_רגל').value = (specData['בטיחות'] && specData['בטיחות']['זיהוי הולכי רגל']) ? specData['בטיחות']['זיהוי הולכי רגל'] : '';
+    document.getElementById('sp_זיהוי_דו_גלגלי').value = (specData['בטיחות'] && specData['בטיחות']['זיהוי דו גלגלי']) ? specData['בטיחות']['זיהוי דו גלגלי'] : '';
+    document.getElementById('sp_בקרת_שיוט_אדפטיבית').value = (specData['בטיחות'] && specData['בטיחות']['בקרת שיוט אדפטיבית']) ? specData['בטיחות']['בקרת שיוט אדפטיבית'] : '';
+    document.getElementById('sp_בקרת_סטיה_מנתיב').value = (specData['בטיחות'] && specData['בטיחות']['בקרת סטיה מנתיב']) ? specData['בטיחות']['בקרת סטיה מנתיב'] : '';
+    document.getElementById('sp_זיהוי_כלי_רכב_בqשטח_מתq').value = (specData['בטיחות'] && specData['בטיחות']['זיהוי כלי רכב ב"שטח מת"']) ? specData['בטיחות']['זיהוי כלי רכב ב"שטח מת"'] : '';
+    document.getElementById('sp_התרעת_תנועה_חוצה_מאחור').value = (specData['בטיחות'] && specData['בטיחות']['התרעת תנועה חוצה מאחור']) ? specData['בטיחות']['התרעת תנועה חוצה מאחור'] : '';
+    document.getElementById('sp_בלימה_אוטונומית_בנסיעה_לאחור').value = (specData['בטיחות'] && specData['בטיחות']['בלימה אוטונומית בנסיעה לאחור']) ? specData['בטיחות']['בלימה אוטונומית בנסיעה לאחור'] : '';
+    document.getElementById('sp_התרעת_עייפות').value = (specData['בטיחות'] && specData['בטיחות']['התרעת עייפות']) ? specData['בטיחות']['התרעת עייפות'] : '';
+    document.getElementById('sp_אורות_גבוהים_אוטומטיים').value = (specData['בטיחות'] && specData['בטיחות']['אורות גבוהים אוטומטיים']) ? specData['בטיחות']['אורות גבוהים אוטומטיים'] : '';
+    document.getElementById('sp_זיהוי_תמרורים').value = (specData['בטיחות'] && specData['בטיחות']['זיהוי תמרורים']) ? specData['בטיחות']['זיהוי תמרורים'] : '';
+    document.getElementById('sp_התרעת_רכב_חולף_בפתיחת_דלת').value = (specData['בטיחות'] && specData['בטיחות']['התרעת רכב חולף בפתיחת דלת']) ? specData['בטיחות']['התרעת רכב חולף בפתיחת דלת'] : '';
+    document.getElementById('sp_התרעה_על_שכחת_ילד_במושב_האחורי').value = (specData['בטיחות'] && specData['בטיחות']['התרעה על שכחת ילד במושב האחורי']) ? specData['בטיחות']['התרעה על שכחת ילד במושב האחורי'] : '';
+    document.getElementById('sp_אבזור_בטיחותי_נוסף').value = (specData['בטיחות'] && specData['בטיחות']['אבזור בטיחותי נוסף']) ? specData['בטיחות']['אבזור בטיחותי נוסף'] : '';
+    document.getElementById('sp_אורך_סqמ').value = (specData['מידות'] && specData['מידות']['אורך (ס"מ)']) ? specData['מידות']['אורך (ס"מ)'] : '';
+    document.getElementById('sp_רוחב_סqמ').value = (specData['מידות'] && specData['מידות']['רוחב (ס"מ)']) ? specData['מידות']['רוחב (ס"מ)'] : '';
+    document.getElementById('sp_גובה_סqמ').value = (specData['מידות'] && specData['מידות']['גובה (ס"מ)']) ? specData['מידות']['גובה (ס"מ)'] : '';
+    document.getElementById('sp_בסיס_גלגלים_סqמ').value = (specData['מידות'] && specData['מידות']['בסיס גלגלים (ס"מ)']) ? specData['מידות']['בסיס גלגלים (ס"מ)'] : '';
+    document.getElementById('sp_נפח_תא_מטען_ליטרים').value = (specData['מידות'] && specData['מידות']['נפח תא מטען (ליטרים)']) ? specData['מידות']['נפח תא מטען (ליטרים)'] : '';
+    document.getElementById('sp_נפח_תא_מטען_בקיפול_מושבים_ליטר').value = (specData['מידות'] && specData['מידות']['נפח תא מטען בקיפול מושבים (ליטרים)']) ? specData['מידות']['נפח תא מטען בקיפול מושבים (ליטרים)'] : '';
+    document.getElementById('sp_משקל_עצמי_קqג').value = (specData['מידות'] && specData['מידות']['משקל עצמי (ק"ג)']) ? specData['מידות']['משקל עצמי (ק"ג)'] : '';
+    document.getElementById('sp_משקל_כולל_קqג').value = (specData['מידות'] && specData['מידות']['משקל כולל (ק"ג)']) ? specData['מידות']['משקל כולל (ק"ג)'] : '';
+    document.getElementById('sp_כושר_העמסה_קqג').value = (specData['מידות'] && specData['מידות']['כושר העמסה (ק"ג)']) ? specData['מידות']['כושר העמסה (ק"ג)'] : '';
+    document.getElementById('sp_כושר_גרירה_ללא_בלמים').value = (specData['מידות'] && specData['מידות']['כושר גרירה ללא בלמים']) ? specData['מידות']['כושר גרירה ללא בלמים'] : '';
+    document.getElementById('sp_כושר_גרירה_עם_בלמים').value = (specData['מידות'] && specData['מידות']['כושר גרירה עם בלמים']) ? specData['מידות']['כושר גרירה עם בלמים'] : '';
+    document.getElementById('sp_מידות_צמיגים').value = (specData['מידות'] && specData['מידות']['מידות צמיגים']) ? specData['מידות']['מידות צמיגים'] : '';
+    document.getElementById('sp_קיבולת_מיכל_דלק_ליטרים').value = (specData['מידות'] && specData['מידות']['קיבולת מיכל דלק (ליטרים)']) ? specData['מידות']['קיבולת מיכל דלק (ליטרים)'] : '';
+    document.getElementById('sp_מרווח_גחון_סqמ').value = (specData['מידות'] && specData['מידות']['מרווח גחון (ס"מ)']) ? specData['מידות']['מרווח גחון (ס"מ)'] : '';
+    document.getElementById('sp_זווית_גישה_מעלות').value = (specData['מידות'] && specData['מידות']['זווית גישה (מעלות)']) ? specData['מידות']['זווית גישה (מעלות)'] : '';
+    document.getElementById('sp_זווית_נטישה_מעלות').value = (specData['מידות'] && specData['מידות']['זווית נטישה (מעלות)']) ? specData['מידות']['זווית נטישה (מעלות)'] : '';
+    document.getElementById('sp_מערכת_שמע').value = (specData['מסך וקישוריות'] && specData['מסך וקישוריות']['מערכת שמע']) ? specData['מסך וקישוריות']['מערכת שמע'] : '';
+    document.getElementById('sp_בלוטותq').value = (specData['מסך וקישוריות'] && specData['מסך וקישוריות']["בלוטות'"]) ? specData['מסך וקישוריות']["בלוטות'"] : '';
+    document.getElementById('sp_מחליף_דיסקים').value = (specData['מסך וקישוריות'] && specData['מסך וקישוריות']['מחליף דיסקים']) ? specData['מסך וקישוריות']['מחליף דיסקים'] : '';
+    document.getElementById('sp_מסך_מולטימדיה').value = (specData['מסך וקישוריות'] && specData['מסך וקישוריות']['מסך מולטימדיה']) ? specData['מסך וקישוריות']['מסך מולטימדיה'] : '';
+    document.getElementById('sp_גודל_מסך_אינץq').value = (specData['מסך וקישוריות'] && specData['מסך וקישוריות']["גודל מסך (אינץ')"]) ? specData['מסך וקישוריות']["גודל מסך (אינץ')"] : '';
+    document.getElementById('sp_מערכת_ניווט_GPS').value = (specData['מסך וקישוריות'] && specData['מסך וקישוריות']['מערכת ניווט GPS']) ? specData['מסך וקישוריות']['מערכת ניווט GPS'] : '';
+    document.getElementById('sp_חיבורי_אודיו').value = (specData['מסך וקישוריות'] && specData['מסך וקישוריות']['חיבורי אודיו']) ? specData['מסך וקישוריות']['חיבורי אודיו'] : '';
+    document.getElementById('sp_קישוריות').value = (specData['מסך וקישוריות'] && specData['מסך וקישוריות']['קישוריות']) ? specData['מסך וקישוריות']['קישוריות'] : '';
+    document.getElementById('sp_טעינה_אלחוטית').value = (specData['מסך וקישוריות'] && specData['מסך וקישוריות']['טעינה אלחוטית']) ? specData['מסך וקישוריות']['טעינה אלחוטית'] : '';
+    document.getElementById('sp_מסכים_בגב_המושבים').value = (specData['מסך וקישוריות'] && specData['מסך וקישוריות']['מסכים בגב המושבים']) ? specData['מסך וקישוריות']['מסכים בגב המושבים'] : '';
+    document.getElementById('sp_חלונות_חשמליים').value = (specData['אבזור'] && specData['אבזור']['חלונות חשמליים']) ? specData['אבזור']['חלונות חשמליים'] : '';
+    document.getElementById('sp_מיזוג_אוויר').value = (specData['אבזור'] && specData['אבזור']['מיזוג אוויר']) ? specData['אבזור']['מיזוג אוויר'] : '';
+    document.getElementById('sp_חלון_שמש_בגג').value = (specData['אבזור'] && specData['אבזור']['חלון שמש בגג']) ? specData['אבזור']['חלון שמש בגג'] : '';
+    document.getElementById('sp_חישוקים_קלים').value = (specData['אבזור'] && specData['אבזור']['חישוקים קלים']) ? specData['אבזור']['חישוקים קלים'] : '';
+    document.getElementById('sp_בקרת_שיוט').value = (specData['אבזור'] && specData['אבזור']['בקרת שיוט']) ? specData['אבזור']['בקרת שיוט'] : '';
+    document.getElementById('sp_ריפוד').value = (specData['אבזור'] && specData['אבזור']['ריפוד']) ? specData['אבזור']['ריפוד'] : '';
+    document.getElementById('sp_מושבים___כוונון_חשמלי').value = (specData['אבזור'] && specData['אבזור']['מושבים - כוונון חשמלי']) ? specData['אבזור']['מושבים - כוונון חשמלי'] : '';
+    document.getElementById('sp_מושבים___חימום').value = (specData['אבזור'] && specData['אבזור']['מושבים - חימום']) ? specData['אבזור']['מושבים - חימום'] : '';
+    document.getElementById('sp_עיסוי_במושבים').value = (specData['אבזור'] && specData['אבזור']['עיסוי במושבים']) ? specData['אבזור']['עיסוי במושבים'] : '';
+    document.getElementById('sp_פנסי_חזית').value = (specData['אבזור'] && specData['אבזור']['פנסי חזית']) ? specData['אבזור']['פנסי חזית'] : '';
+    document.getElementById('sp_פנסי_ערפל_קדמיים').value = (specData['אבזור'] && specData['אבזור']['פנסי ערפל קדמיים']) ? specData['אבזור']['פנסי ערפל קדמיים'] : '';
+    document.getElementById('sp_חיישני_גשם').value = (specData['אבזור'] && specData['אבזור']['חיישני גשם']) ? specData['אבזור']['חיישני גשם'] : '';
+    document.getElementById('sp_חיישני_תאורה').value = (specData['אבזור'] && specData['אבזור']['חיישני תאורה']) ? specData['אבזור']['חיישני תאורה'] : '';
+    document.getElementById('sp_חיישני_חניה').value = (specData['אבזור'] && specData['אבזור']['חיישני חניה']) ? specData['אבזור']['חיישני חניה'] : '';
+    document.getElementById('sp_מצלמות_חניה').value = (specData['אבזור'] && specData['אבזור']['מצלמות חניה']) ? specData['אבזור']['מצלמות חניה'] : '';
+    document.getElementById('sp_חניה_אוטומטית').value = (specData['אבזור'] && specData['אבזור']['חניה אוטומטית']) ? specData['אבזור']['חניה אוטומטית'] : '';
+    document.getElementById('sp_מחשב_דרך').value = (specData['אבזור'] && specData['אבזור']['מחשב דרך']) ? specData['אבזור']['מחשב דרך'] : '';
+    document.getElementById('sp_לוח_מחוונים_דיגיטלי').value = (specData['אבזור'] && specData['אבזור']['לוח מחוונים דיגיטלי']) ? specData['אבזור']['לוח מחוונים דיגיטלי'] : '';
+    document.getElementById('sp_תצוגה_עילית').value = (specData['אבזור'] && specData['אבזור']['תצוגה עילית']) ? specData['אבזור']['תצוגה עילית'] : '';
+    document.getElementById('sp_כניסה___הנעה_ללא_מפתח').value = (specData['אבזור'] && specData['אבזור']['כניסה / הנעה ללא מפתח']) ? specData['אבזור']['כניסה / הנעה ללא מפתח'] : '';
+    document.getElementById('sp_מראות_צד_מתקפלות_חשמלית').value = (specData['אבזור'] && specData['אבזור']['מראות צד מתקפלות חשמלית']) ? specData['אבזור']['מראות צד מתקפלות חשמלית'] : '';
+    document.getElementById('sp_מראות_נגד_סנוור').value = (specData['אבזור'] && specData['אבזור']['מראות נגד סנוור']) ? specData['אבזור']['מראות נגד סנוור'] : '';
+    document.getElementById('sp_הגה_וידית_הילוכים_מצופי_עור').value = (specData['אבזור'] && specData['אבזור']['הגה וידית הילוכים מצופי עור']) ? specData['אבזור']['הגה וידית הילוכים מצופי עור'] : '';
+    document.getElementById('sp_גלגל_הגה_מחומם').value = (specData['אבזור'] && specData['אבזור']['גלגל הגה מחומם']) ? specData['אבזור']['גלגל הגה מחומם'] : '';
+    document.getElementById('sp_החלפת_הילוכים_מגלגל_ההגה').value = (specData['אבזור'] && specData['אבזור']['החלפת הילוכים מגלגל ההגה']) ? specData['אבזור']['החלפת הילוכים מגלגל ההגה'] : '';
+    document.getElementById('sp_בורר_מצבי_נהיגה').value = (specData['אבזור'] && specData['אבזור']['בורר מצבי נהיגה']) ? specData['אבזור']['בורר מצבי נהיגה'] : '';
+    document.getElementById('sp_מערכת_qעצור_וסעq_לדימום_מנוע_ב').value = (specData['אבזור'] && specData['אבזור']['מערכת "עצור וסע" לדימום מנוע בעמידה']) ? specData['אבזור']['מערכת "עצור וסע" לדימום מנוע בעמידה'] : '';
+    document.getElementById('sp_בלם_יד_חשמלי').value = (specData['אבזור'] && specData['אבזור']['בלם יד חשמלי']) ? specData['אבזור']['בלם יד חשמלי'] : '';
+    document.getElementById('sp_תאורת_אווירה').value = (specData['אבזור'] && specData['אבזור']['תאורת אווירה']) ? specData['אבזור']['תאורת אווירה'] : '';
+    document.getElementById('sp_בקרת_גלישה_במדרון').value = (specData['אבזור'] && specData['אבזור']['בקרת גלישה במדרון']) ? specData['אבזור']['בקרת גלישה במדרון'] : '';
+    document.getElementById('sp_מתלים_ובולמים').value = (specData['אבזור'] && specData['אבזור']['מתלים ובולמים']) ? specData['אבזור']['מתלים ובולמים'] : '';
+    document.getElementById('sp_דלת_תא_מטען_חשמלית').value = (specData['אבזור'] && specData['אבזור']['דלת תא מטען חשמלית']) ? specData['אבזור']['דלת תא מטען חשמלית'] : '';
+    document.getElementById('sp_אבזור_נוסף').value = (specData['אבזור'] && specData['אבזור']['אבזור נוסף']) ? specData['אבזור']['אבזור נוסף'] : '';
+    document.getElementById('sp_אבזור_בתוספת_תשלום').value = (specData['אבזור'] && specData['אבזור']['אבזור בתוספת תשלום']) ? specData['אבזור']['אבזור בתוספת תשלום'] : '';
+    document.getElementById('e-specLink').value = c.specLink||'';
+    document.getElementById('e-image').value = c.image||'';
+    document.getElementById('e-img-thumb').src = c.image||'';
+    editGalleryImages = [];
+    const editGalleryPreview = document.getElementById('e-gallery-preview');
+    const editGalleryCount = document.getElementById('e-gallery-count');
+    if(editGalleryPreview) editGalleryPreview.innerHTML = '';
+    if(c.gallery && c.gallery.length){
+      if(editGalleryCount) editGalleryCount.textContent = c.gallery.length + ' תמונות';
+      c.gallery.forEach((img,i)=>{
+        editGalleryImages[i] = img;
+        if(!editGalleryPreview) return;
+        const wrap = document.createElement('div');
+        wrap.style.cssText = 'position:relative;display:inline-block';
+        const imgEl = document.createElement('img');
+        imgEl.src = img;
+        imgEl.style.cssText = 'width:80px;height:60px;object-fit:cover;border-radius:8px;border:1px solid var(--line)';
+        const del = document.createElement('button');
+        del.textContent = '×';
+        del.style.cssText = 'position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:14px;cursor:pointer;line-height:1;padding:0';
+        del.onclick = ()=>{ editGalleryImages[i]=null; wrap.remove(); if(editGalleryCount) editGalleryCount.textContent=editGalleryImages.filter(Boolean).length+' תמונות'; };
+        wrap.appendChild(imgEl);
+        wrap.appendChild(del);
+        editGalleryPreview.appendChild(wrap);
+      });
+    } else {
+      if(editGalleryCount) editGalleryCount.textContent = '0 תמונות';
+    }
+    calcEditPreview();
+    document.getElementById('editModal').classList.remove('hidden');
+    document.body.style.overflow='hidden';
+  }
+
+  function closeEdit(){
+    document.getElementById('editModal').classList.add('hidden');
+    document.body.style.overflow='';
+    editingId = null;
+  }
+
+  let editGalleryImages = [];
+
+  function handleEditImage(input){
+    const file = input.files[0];
+    if(!file) return;
+    if(file.size>15*1024*1024){toast('⚠️ תמונה גדולה מדי - עד 15MB');return;}
+    const nameEl = document.getElementById('e-main-img-name');
+    if(nameEl) nameEl.textContent = '⏳ מעלה תמונה...';
+    uploadToStorage(file, 'edit').then(function(url){
+      if(url){
+        document.getElementById('e-image').value = url;
+        document.getElementById('e-img-thumb').src = url;
+        if(nameEl) nameEl.textContent = '✅ ' + file.name;
+        toast('✅ תמונה הועלתה!');
+      } else {
+        const reader = new FileReader();
+        reader.onload = function(e){
+          document.getElementById('e-image').value = e.target.result;
+          document.getElementById('e-img-thumb').src = e.target.result;
+          if(nameEl) nameEl.textContent = '✅ ' + file.name;
+          toast('✅ תמונה נטענה');
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+  }
+
+  function handleEditGallery(input){
+    const files = Array.from(input.files).slice(0,8);
+    editGalleryImages = [];
+    const preview = document.getElementById('e-gallery-preview');
+    const count = document.getElementById('e-gallery-count');
+    if(preview) preview.innerHTML = '';
+    if(count) count.textContent = '⏳ מעלה תמונות...';
+    files.forEach((file,i)=>{
+      if(file.size>8*1024*1024) return;
+      uploadToStorage(file,'gallery').then(function(url){
+        const src = url || null;
+        if(!src) return;
+        editGalleryImages[i] = src;
+        if(count) count.textContent = editGalleryImages.filter(Boolean).length + ' תמונות הועלו';
+        if(!preview) return;
+        const wrap = document.createElement('div');
+        wrap.style.cssText = 'position:relative;display:inline-block';
+        const img = document.createElement('img');
+        img.src = src;
+        img.style.cssText = 'width:80px;height:60px;object-fit:cover;border-radius:8px;border:1px solid var(--line)';
+        const del = document.createElement('button');
+        del.textContent = '✕';
+        del.style.cssText = 'position:absolute;top:-6px;right:-6px;background:#dc2626;color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer;padding:0';
+        del.onclick = ()=>{ editGalleryImages[i]=null; wrap.remove(); if(count) count.textContent = editGalleryImages.filter(Boolean).length + ' תמונות הועלו'; };
+        wrap.appendChild(img); wrap.appendChild(del);
+        preview.appendChild(wrap);
+      });
+    });
+  }
+
+  function calcEditPreview(){
+    const p = Number(document.getElementById('e-price').value||0);
+    document.getElementById('e-prev-balloon').textContent = p?fmt(monthly(p*.5,BALLOON_RATE,60)):'-';
+    document.getElementById('e-prev-indexed').textContent = p?fmt(monthly(p,INDEXED_RATE,100)):'-';
+    document.getElementById('e-prev-prime').textContent = p?fmt(monthly(p,PRIME_RATE,100)):'-';
+  }
+
+  async function saveEdit(){
+    if(!editingId) return;
+    toast('⏳ שומר שינויים...');
+    const imageVal = document.getElementById('e-image').value;
+    // If image is base64 (upload to Supabase failed previously), try again
+    let finalImage = imageVal;
+    if(imageVal && imageVal.startsWith('data:')){
+      toast('⏳ מעלה תמונה ל-Supabase...');
+      const blob = await fetch(imageVal).then(r=>r.blob());
+      const file = new File([blob], 'image_'+Date.now()+'.jpg', {type: blob.type});
+      const url = await uploadToStorage(file, 'edit');
+      if(url) finalImage = url;
+      else toast('⚠️ שגיאה בהעלאת תמונה - נשמר בכל זאת');
+    }
+    cars = cars.map(c=>{
+      if(c.id!==editingId) return c;
+      const specData = {};
+        specData['פרטי הרכב ואחריות'] = {};
+        specData['פרטי הרכב ואחריות']['שנת דגם'] = document.getElementById('sp_שנת_דגם').value.trim();
+        specData['פרטי הרכב ואחריות']['מספר דלתות'] = document.getElementById('sp_מספר_דלתות').value.trim();
+        specData['פרטי הרכב ואחריות']['מקומות ישיבה'] = document.getElementById('sp_מקומות_ישיבה').value.trim();
+        specData['פרטי הרכב ואחריות']['מחיר'] = document.getElementById('sp_מחיר').value.trim();
+        specData['פרטי הרכב ואחריות']['קבוצת שווי'] = document.getElementById('sp_קבוצת_שווי').value.trim();
+        specData['פרטי הרכב ואחריות']['שווי שימוש רציף'] = document.getElementById('sp_שווי_שימוש_רציף').value.trim();
+        specData['פרטי הרכב ואחריות']['אחריות'] = document.getElementById('sp_אחריות').value.trim();
+        specData['פרטי הרכב ואחריות']['שנת השקת הדגם'] = document.getElementById('sp_שנת_השקת_הדגם').value.trim();
+        specData['מנוע גיר וביצועים'] = {};
+        specData['מנוע גיר וביצועים']['הנעה'] = document.getElementById('sp_הנעה').value.trim();
+        specData['מנוע גיר וביצועים']['תיבת הילוכים'] = document.getElementById('sp_תיבת_הילוכים').value.trim();
+        specData['מנוע גיר וביצועים']["מס' הילוכים"] = document.getElementById('sp_מסq_הילוכים').value.trim();
+        specData['מנוע גיר וביצועים']['סוג מנוע'] = document.getElementById('sp_סוג_מנוע').value.trim();
+        specData['מנוע גיר וביצועים']["מס' בוכנות"] = document.getElementById('sp_מסq_בוכנות').value.trim();
+        specData['מנוע גיר וביצועים']['נפח (סמ"ק)'] = document.getElementById('sp_נפח_סמqק').value.trim();
+        specData['מנוע גיר וביצועים']['הספק מרבי (כ"ס)'] = document.getElementById('sp_הספק_מרבי_כqס').value.trim();
+        specData['מנוע גיר וביצועים']['סל"ד להספק מרבי'] = document.getElementById('sp_סלqד_להספק_מרבי').value.trim();
+        specData['מנוע גיר וביצועים']['מומנט מרבי (קג"מ)'] = document.getElementById('sp_מומנט_מרבי_קגqמ').value.trim();
+        specData['מנוע גיר וביצועים']['סל"ד למומנט מרבי'] = document.getElementById('sp_סלqד_למומנט_מרבי').value.trim();
+        specData['מנוע גיר וביצועים']['רכב שטח: הילוכי כח'] = document.getElementById('sp_רכב_שטח__הילוכי_כח').value.trim();
+        specData['מנוע גיר וביצועים']['רכב שטח: נעילות דיפרנציאל'] = document.getElementById('sp_רכב_שטח__נעילות_דיפרנציאל').value.trim();
+        specData['מנוע גיר וביצועים']['רכב שטח: בקרת משיכה'] = document.getElementById('sp_רכב_שטח__בקרת_משיכה').value.trim();
+        specData['מנוע גיר וביצועים']['תאוצה 0-100'] = document.getElementById('sp_תאוצה_0_100').value.trim();
+        specData['מנוע גיר וביצועים']['מהירות מרבית'] = document.getElementById('sp_מהירות_מרבית').value.trim();
+        specData['מנוע גיר וביצועים']['צריכת דלק - עירונית (ק"מ/ליטר)'] = document.getElementById('sp_צריכת_דלק___עירונית_קqמ_ליטר').value.trim();
+        specData['מנוע גיר וביצועים']['צריכת דלק - בינעירונית (ק"מ/ליטר)'] = document.getElementById('sp_צריכת_דלק___בינעירונית_קqמ_ליט').value.trim();
+        specData['מנוע גיר וביצועים']['צריכת דלק - ממוצעת (ק"מ/ליטר)'] = document.getElementById('sp_צריכת_דלק___ממוצעת_קqמ_ליטר').value.trim();
+        specData['מנוע גיר וביצועים']['צריכת חשמל (וואט שעה / ק"מ)'] = document.getElementById('sp_צריכת_חשמל_וואט_שעה___קqמ').value.trim();
+        specData['מנוע גיר וביצועים']['קיבולת סוללה (קווט"ש)'] = document.getElementById('sp_קיבולת_סוללה_קווטqש').value.trim();
+        specData['מנוע גיר וביצועים']['טווח נסיעה חשמלי (ק"מ)'] = document.getElementById('sp_טווח_נסיעה_חשמלי_קqמ').value.trim();
+        specData['מנוע גיר וביצועים']['זמן טעינה ביתית'] = document.getElementById('sp_זמן_טעינה_ביתית').value.trim();
+        specData['מנוע גיר וביצועים']['זמן טעינה מהירה'] = document.getElementById('sp_זמן_טעינה_מהירה').value.trim();
+        specData['מנוע גיר וביצועים']['דרגת זיהום'] = document.getElementById('sp_דרגת_זיהום').value.trim();
+        specData['בטיחות'] = {};
+        specData['בטיחות']['מבחן ריסוק'] = document.getElementById('sp_מבחן_ריסוק').value.trim();
+        specData['בטיחות']['בלמים'] = document.getElementById('sp_בלמים').value.trim();
+        specData['בטיחות']['כריות אוויר'] = document.getElementById('sp_כריות_אוויר').value.trim();
+        specData['בטיחות']['בקרת יציבות אלקטרונית'] = document.getElementById('sp_בקרת_יציבות_אלקטרונית').value.trim();
+        specData['בטיחות']['ביטול כרית אוויר נוסע'] = document.getElementById('sp_ביטול_כרית_אוויר_נוסע').value.trim();
+        specData['בטיחות']['איזופיקס'] = document.getElementById('sp_איזופיקס').value.trim();
+        specData['בטיחות']['חיישני לחץ אוויר'] = document.getElementById('sp_חיישני_לחץ_אוויר').value.trim();
+        specData['בטיחות']['זמזם התראה לחגורות'] = document.getElementById('sp_זמזם_התראה_לחגורות').value.trim();
+        specData['בטיחות']['בלימת חירום אוטונומית'] = document.getElementById('sp_בלימת_חירום_אוטונומית').value.trim();
+        specData['בטיחות']['זיהוי הולכי רגל'] = document.getElementById('sp_זיהוי_הולכי_רגל').value.trim();
+        specData['בטיחות']['זיהוי דו גלגלי'] = document.getElementById('sp_זיהוי_דו_גלגלי').value.trim();
+        specData['בטיחות']['בקרת שיוט אדפטיבית'] = document.getElementById('sp_בקרת_שיוט_אדפטיבית').value.trim();
+        specData['בטיחות']['בקרת סטיה מנתיב'] = document.getElementById('sp_בקרת_סטיה_מנתיב').value.trim();
+        specData['בטיחות']['זיהוי כלי רכב ב"שטח מת"'] = document.getElementById('sp_זיהוי_כלי_רכב_בqשטח_מתq').value.trim();
+        specData['בטיחות']['התרעת תנועה חוצה מאחור'] = document.getElementById('sp_התרעת_תנועה_חוצה_מאחור').value.trim();
+        specData['בטיחות']['בלימה אוטונומית בנסיעה לאחור'] = document.getElementById('sp_בלימה_אוטונומית_בנסיעה_לאחור').value.trim();
+        specData['בטיחות']['התרעת עייפות'] = document.getElementById('sp_התרעת_עייפות').value.trim();
+        specData['בטיחות']['אורות גבוהים אוטומטיים'] = document.getElementById('sp_אורות_גבוהים_אוטומטיים').value.trim();
+        specData['בטיחות']['זיהוי תמרורים'] = document.getElementById('sp_זיהוי_תמרורים').value.trim();
+        specData['בטיחות']['התרעת רכב חולף בפתיחת דלת'] = document.getElementById('sp_התרעת_רכב_חולף_בפתיחת_דלת').value.trim();
+        specData['בטיחות']['התרעה על שכחת ילד במושב האחורי'] = document.getElementById('sp_התרעה_על_שכחת_ילד_במושב_האחורי').value.trim();
+        specData['בטיחות']['אבזור בטיחותי נוסף'] = document.getElementById('sp_אבזור_בטיחותי_נוסף').value.trim();
+        specData['מידות'] = {};
+        specData['מידות']['אורך (ס"מ)'] = document.getElementById('sp_אורך_סqמ').value.trim();
+        specData['מידות']['רוחב (ס"מ)'] = document.getElementById('sp_רוחב_סqמ').value.trim();
+        specData['מידות']['גובה (ס"מ)'] = document.getElementById('sp_גובה_סqמ').value.trim();
+        specData['מידות']['בסיס גלגלים (ס"מ)'] = document.getElementById('sp_בסיס_גלגלים_סqמ').value.trim();
+        specData['מידות']['נפח תא מטען (ליטרים)'] = document.getElementById('sp_נפח_תא_מטען_ליטרים').value.trim();
+        specData['מידות']['נפח תא מטען בקיפול מושבים (ליטרים)'] = document.getElementById('sp_נפח_תא_מטען_בקיפול_מושבים_ליטר').value.trim();
+        specData['מידות']['משקל עצמי (ק"ג)'] = document.getElementById('sp_משקל_עצמי_קqג').value.trim();
+        specData['מידות']['משקל כולל (ק"ג)'] = document.getElementById('sp_משקל_כולל_קqג').value.trim();
+        specData['מידות']['כושר העמסה (ק"ג)'] = document.getElementById('sp_כושר_העמסה_קqג').value.trim();
+        specData['מידות']['כושר גרירה ללא בלמים'] = document.getElementById('sp_כושר_גרירה_ללא_בלמים').value.trim();
+        specData['מידות']['כושר גרירה עם בלמים'] = document.getElementById('sp_כושר_גרירה_עם_בלמים').value.trim();
+        specData['מידות']['מידות צמיגים'] = document.getElementById('sp_מידות_צמיגים').value.trim();
+        specData['מידות']['קיבולת מיכל דלק (ליטרים)'] = document.getElementById('sp_קיבולת_מיכל_דלק_ליטרים').value.trim();
+        specData['מידות']['מרווח גחון (ס"מ)'] = document.getElementById('sp_מרווח_גחון_סqמ').value.trim();
+        specData['מידות']['זווית גישה (מעלות)'] = document.getElementById('sp_זווית_גישה_מעלות').value.trim();
+        specData['מידות']['זווית נטישה (מעלות)'] = document.getElementById('sp_זווית_נטישה_מעלות').value.trim();
+        specData['מסך וקישוריות'] = {};
+        specData['מסך וקישוריות']['מערכת שמע'] = document.getElementById('sp_מערכת_שמע').value.trim();
+        specData['מסך וקישוריות']["בלוטות'"] = document.getElementById('sp_בלוטותq').value.trim();
+        specData['מסך וקישוריות']['מחליף דיסקים'] = document.getElementById('sp_מחליף_דיסקים').value.trim();
+        specData['מסך וקישוריות']['מסך מולטימדיה'] = document.getElementById('sp_מסך_מולטימדיה').value.trim();
+        specData['מסך וקישוריות']["גודל מסך (אינץ')"] = document.getElementById('sp_גודל_מסך_אינץq').value.trim();
+        specData['מסך וקישוריות']['מערכת ניווט GPS'] = document.getElementById('sp_מערכת_ניווט_GPS').value.trim();
+        specData['מסך וקישוריות']['חיבורי אודיו'] = document.getElementById('sp_חיבורי_אודיו').value.trim();
+        specData['מסך וקישוריות']['קישוריות'] = document.getElementById('sp_קישוריות').value.trim();
+        specData['מסך וקישוריות']['טעינה אלחוטית'] = document.getElementById('sp_טעינה_אלחוטית').value.trim();
+        specData['מסך וקישוריות']['מסכים בגב המושבים'] = document.getElementById('sp_מסכים_בגב_המושבים').value.trim();
+        specData['אבזור'] = {};
+        specData['אבזור']['חלונות חשמליים'] = document.getElementById('sp_חלונות_חשמליים').value.trim();
+        specData['אבזור']['מיזוג אוויר'] = document.getElementById('sp_מיזוג_אוויר').value.trim();
+        specData['אבזור']['חלון שמש בגג'] = document.getElementById('sp_חלון_שמש_בגג').value.trim();
+        specData['אבזור']['חישוקים קלים'] = document.getElementById('sp_חישוקים_קלים').value.trim();
+        specData['אבזור']['בקרת שיוט'] = document.getElementById('sp_בקרת_שיוט').value.trim();
+        specData['אבזור']['ריפוד'] = document.getElementById('sp_ריפוד').value.trim();
+        specData['אבזור']['מושבים - כוונון חשמלי'] = document.getElementById('sp_מושבים___כוונון_חשמלי').value.trim();
+        specData['אבזור']['מושבים - חימום'] = document.getElementById('sp_מושבים___חימום').value.trim();
+        specData['אבזור']['עיסוי במושבים'] = document.getElementById('sp_עיסוי_במושבים').value.trim();
+        specData['אבזור']['פנסי חזית'] = document.getElementById('sp_פנסי_חזית').value.trim();
+        specData['אבזור']['פנסי ערפל קדמיים'] = document.getElementById('sp_פנסי_ערפל_קדמיים').value.trim();
+        specData['אבזור']['חיישני גשם'] = document.getElementById('sp_חיישני_גשם').value.trim();
+        specData['אבזור']['חיישני תאורה'] = document.getElementById('sp_חיישני_תאורה').value.trim();
+        specData['אבזור']['חיישני חניה'] = document.getElementById('sp_חיישני_חניה').value.trim();
+        specData['אבזור']['מצלמות חניה'] = document.getElementById('sp_מצלמות_חניה').value.trim();
+        specData['אבזור']['חניה אוטומטית'] = document.getElementById('sp_חניה_אוטומטית').value.trim();
+        specData['אבזור']['מחשב דרך'] = document.getElementById('sp_מחשב_דרך').value.trim();
+        specData['אבזור']['לוח מחוונים דיגיטלי'] = document.getElementById('sp_לוח_מחוונים_דיגיטלי').value.trim();
+        specData['אבזור']['תצוגה עילית'] = document.getElementById('sp_תצוגה_עילית').value.trim();
+        specData['אבזור']['כניסה / הנעה ללא מפתח'] = document.getElementById('sp_כניסה___הנעה_ללא_מפתח').value.trim();
+        specData['אבזור']['מראות צד מתקפלות חשמלית'] = document.getElementById('sp_מראות_צד_מתקפלות_חשמלית').value.trim();
+        specData['אבזור']['מראות נגד סנוור'] = document.getElementById('sp_מראות_נגד_סנוור').value.trim();
+        specData['אבזור']['הגה וידית הילוכים מצופי עור'] = document.getElementById('sp_הגה_וידית_הילוכים_מצופי_עור').value.trim();
+        specData['אבזור']['גלגל הגה מחומם'] = document.getElementById('sp_גלגל_הגה_מחומם').value.trim();
+        specData['אבזור']['החלפת הילוכים מגלגל ההגה'] = document.getElementById('sp_החלפת_הילוכים_מגלגל_ההגה').value.trim();
+        specData['אבזור']['בורר מצבי נהיגה'] = document.getElementById('sp_בורר_מצבי_נהיגה').value.trim();
+        specData['אבזור']['מערכת "עצור וסע" לדימום מנוע בעמידה'] = document.getElementById('sp_מערכת_qעצור_וסעq_לדימום_מנוע_ב').value.trim();
+        specData['אבזור']['בלם יד חשמלי'] = document.getElementById('sp_בלם_יד_חשמלי').value.trim();
+        specData['אבזור']['תאורת אווירה'] = document.getElementById('sp_תאורת_אווירה').value.trim();
+        specData['אבזור']['בקרת גלישה במדרון'] = document.getElementById('sp_בקרת_גלישה_במדרון').value.trim();
+        specData['אבזור']['מתלים ובולמים'] = document.getElementById('sp_מתלים_ובולמים').value.trim();
+        specData['אבזור']['דלת תא מטען חשמלית'] = document.getElementById('sp_דלת_תא_מטען_חשמלית').value.trim();
+        specData['אבזור']['אבזור נוסף'] = document.getElementById('sp_אבזור_נוסף').value.trim();
+        specData['אבזור']['אבזור בתוספת תשלום'] = document.getElementById('sp_אבזור_בתוספת_תשלום').value.trim();
+      return {...c,
+        brand: document.getElementById('e-brand').value.trim()||c.brand,
+        model: document.getElementById('e-model').value.trim()||c.model,
+        year: document.getElementById('e-year').value||c.year,
+        badge: document.getElementById('e-badge').value.trim()||c.badge,
+        category: document.getElementById('e-cat').value,
+        engine: document.getElementById('e-engine').value,
+        range: document.getElementById('e-range').value||'',
+        stockStatus: document.getElementById('e-status').value,
+        catalogPriceNumber: Number(document.getElementById('e-catalog').value||c.catalogPriceNumber),
+        autodealerPriceNumber: Number(document.getElementById('e-price').value||c.autodealerPriceNumber),
+        summary: document.getElementById('e-summary').value.trim()||c.summary,
+        specData: specData,
+        specText: '',
+        specLink: document.getElementById('e-specLink').value.trim()||'',
+        image: finalImage||c.image,
+        gallery: editGalleryImages.filter(Boolean).length ? editGalleryImages.filter(Boolean) : (c.gallery||[]),
+      };
+    });
+    saveCars();
+    const updatedCar = cars.find(c=>c.id===editingId);
+    if(updatedCar) await saveCarToDB(updatedCar);
+    renderAll(); closeEdit();
+    toast('✅ הרכב עודכן בהצלחה!');
+  }
+
+  function toast(msg){
+    const el=document.getElementById('toast');
+    el.textContent=msg;el.classList.add('show');
+    setTimeout(()=>el.classList.remove('show'),2800);
+  }
+</script>
+</body>
+</html>
