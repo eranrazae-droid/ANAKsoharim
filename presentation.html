@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ענק הרכבים — מצגת</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Heebo',sans-serif;background:#0d0d1a;color:#fff;overflow:hidden;height:100vh}
+
+/* slides */
+.deck{width:100%;height:100vh;position:relative}
+.slide{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 80px;opacity:0;pointer-events:none;transition:opacity .5s,transform .5s;transform:translateX(-60px)}
+.slide.active{opacity:1;pointer-events:auto;transform:translateX(0)}
+.slide.exit{opacity:0;transform:translateX(60px)}
+
+/* backgrounds */
+.slide-1{background:linear-gradient(135deg,#0d0d1a 0%,#1a1a2e 60%,#16213e 100%)}
+.slide-2{background:linear-gradient(135deg,#1a1a2e,#0d1b2e)}
+.slide-3{background:linear-gradient(135deg,#1a1a2e,#12201a)}
+.slide-4{background:linear-gradient(135deg,#1a1a2e,#1a0d0d)}
+.slide-5{background:linear-gradient(135deg,#1a1a2e,#0d1020)}
+.slide-6{background:linear-gradient(135deg,#0d1020,#1a1a2e)}
+.slide-7{background:linear-gradient(135deg,#1a1a2e,#0d0d1a)}
+
+/* nav */
+.nav{position:fixed;bottom:36px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:20px;z-index:100}
+.nav-btn{background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.15);color:#fff;border-radius:50%;width:48px;height:48px;font-size:20px;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center}
+.nav-btn:hover{background:rgba(201,162,39,.3);border-color:#c9a227}
+.dots{display:flex;gap:8px;align-items:center}
+.dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.25);cursor:pointer;transition:all .2s}
+.dot.active{background:#c9a227;transform:scale(1.4)}
+
+/* slide counter */
+.counter{position:fixed;top:28px;left:40px;font-size:13px;color:rgba(255,255,255,.35);font-weight:600;z-index:100}
+
+/* logo top-right */
+.slide-logo{position:fixed;top:24px;right:40px;font-size:18px;font-weight:900;color:rgba(255,255,255,.6);z-index:100}
+.slide-logo span{color:#c9a227}
+
+/* ── typography ── */
+.tag{display:inline-block;background:rgba(201,162,39,.18);color:#c9a227;border:1px solid rgba(201,162,39,.4);border-radius:999px;padding:5px 18px;font-size:13px;font-weight:700;margin-bottom:22px;letter-spacing:.06em;text-transform:uppercase}
+.h1{font-size:clamp(38px,6vw,72px);font-weight:900;line-height:1.1;text-align:center}
+.h1 em{color:#c9a227;font-style:normal}
+.h2{font-size:clamp(26px,4vw,48px);font-weight:900;line-height:1.2;text-align:center}
+.h2 em{color:#c9a227;font-style:normal}
+.h3{font-size:clamp(20px,3vw,32px);font-weight:700;line-height:1.3}
+.h3 em{color:#c9a227;font-style:normal}
+.sub{font-size:clamp(14px,2vw,20px);color:rgba(255,255,255,.6);text-align:center;margin-top:16px;line-height:1.6;max-width:700px}
+.accent{color:#c9a227}
+
+/* cards row */
+.cards{display:flex;gap:24px;margin-top:40px;justify-content:center;flex-wrap:wrap}
+.card{background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.1);border-radius:18px;padding:28px 28px;flex:1;min-width:220px;max-width:280px;transition:border-color .2s}
+.card:hover{border-color:rgba(201,162,39,.5)}
+.card-icon{font-size:36px;margin-bottom:14px}
+.card-title{font-size:16px;font-weight:900;margin-bottom:8px}
+.card-desc{font-size:13px;color:rgba(255,255,255,.55);line-height:1.6}
+
+/* steps */
+.steps{display:flex;flex-direction:column;gap:18px;margin-top:32px;width:100%;max-width:680px}
+.step{display:flex;align-items:flex-start;gap:18px;background:rgba(255,255,255,.04);border:1.5px solid rgba(255,255,255,.08);border-radius:14px;padding:20px 22px}
+.step-num{width:36px;height:36px;border-radius:50%;background:#c9a227;color:#000;font-weight:900;font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px}
+.step-text{flex:1}
+.step-title{font-size:15px;font-weight:900;margin-bottom:4px}
+.step-desc{font-size:13px;color:rgba(255,255,255,.5);line-height:1.5}
+
+/* stat */
+.stats{display:flex;gap:40px;margin-top:36px;justify-content:center;flex-wrap:wrap}
+.stat{text-align:center}
+.stat-num{font-size:clamp(40px,7vw,80px);font-weight:900;color:#c9a227;line-height:1}
+.stat-label{font-size:14px;color:rgba(255,255,255,.5);margin-top:6px;font-weight:600}
+
+/* flow */
+.flow{display:flex;align-items:center;gap:0;margin-top:36px;flex-wrap:wrap;justify-content:center}
+.flow-box{background:rgba(255,255,255,.06);border:1.5px solid rgba(255,255,255,.12);border-radius:14px;padding:18px 24px;text-align:center;min-width:150px}
+.flow-box-icon{font-size:28px;margin-bottom:8px}
+.flow-box-title{font-size:13px;font-weight:900}
+.flow-box-sub{font-size:11px;color:rgba(255,255,255,.45);margin-top:4px}
+.flow-arrow{font-size:24px;color:rgba(201,162,39,.6);padding:0 12px;flex-shrink:0}
+
+/* badge pill */
+.pill{display:inline-block;border-radius:999px;padding:4px 14px;font-size:12px;font-weight:700;margin:3px}
+.pill-green{background:rgba(34,197,94,.15);color:#4ade80;border:1px solid rgba(34,197,94,.3)}
+.pill-blue{background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.3)}
+.pill-yellow{background:rgba(201,162,39,.15);color:#c9a227;border:1px solid rgba(201,162,39,.3)}
+
+/* final slide */
+.big-cta{background:linear-gradient(135deg,rgba(201,162,39,.15),rgba(201,162,39,.05));border:2px solid rgba(201,162,39,.4);border-radius:24px;padding:40px 56px;text-align:center;margin-top:32px}
+.cta-btn{display:inline-block;background:#c9a227;color:#000;font-size:16px;font-weight:900;font-family:'Heebo',sans-serif;padding:14px 40px;border-radius:12px;margin-top:20px;cursor:pointer;border:none;transition:opacity .15s}
+.cta-btn:hover{opacity:.85}
+
+/* divider */
+.divider{width:60px;height:4px;background:#c9a227;border-radius:2px;margin:20px auto}
+</style>
+</head>
+<body>
+
+<div class="slide-logo">ענק <span>הרכבים</span></div>
+<div class="counter" id="counter">1 / 7</div>
+
+<div class="deck" id="deck">
+
+  <!-- 1. HERO -->
+  <div class="slide slide-1 active" data-index="0">
+    <div class="tag">🚗 פלטפורמת רכב חכמה</div>
+    <h1 class="h1">ענק <em>הרכבים</em></h1>
+    <div class="divider"></div>
+    <p class="sub">מחירי סוחרים בשקיפות מלאה · מלאי מיידי · התראות Marketplace בזמן אמת</p>
+    <div style="display:flex;gap:12px;margin-top:32px;flex-wrap:wrap;justify-content:center">
+      <span class="pill pill-green">✅ מחירים לסוחרים</span>
+      <span class="pill pill-blue">⚡ מלאי מיידי</span>
+      <span class="pill pill-yellow">🔔 התראות Facebook</span>
+    </div>
+  </div>
+
+  <!-- 2. הבעיה -->
+  <div class="slide slide-2" data-index="1">
+    <div class="tag">הבעיה</div>
+    <h2 class="h2">שוק הרכב <em>אטום</em></h2>
+    <p class="sub">סוחרים מבזבזים שעות על השוואת מחירים, מפספסים עסקאות, ונתקלים בהפתעות בסוף התהליך</p>
+    <div class="cards">
+      <div class="card">
+        <div class="card-icon">😤</div>
+        <div class="card-title">חוסר שקיפות</div>
+        <div class="card-desc">מחירי מחירון לא משקפים את המחיר האמיתי לסוחר</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">⏰</div>
+        <div class="card-title">בזבוז זמן</div>
+        <div class="card-desc">בדיקה ידנית של עשרות דגמים אצל עשרות יבואנים</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">📉</div>
+        <div class="card-title">הזדמנויות אבודות</div>
+        <div class="card-desc">מודעות ב-Marketplace נמכרות לפני שהסוחר רואה אותן</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. הפתרון -->
+  <div class="slide slide-3" data-index="2">
+    <div class="tag">הפתרון</div>
+    <h2 class="h2">הכל <em>במקום אחד</em></h2>
+    <div class="divider"></div>
+    <div class="flow">
+      <div class="flow-box">
+        <div class="flow-box-icon">📊</div>
+        <div class="flow-box-title">מחירון סוחרים</div>
+        <div class="flow-box-sub">עדכני ומדויק</div>
+      </div>
+      <div class="flow-arrow">←</div>
+      <div class="flow-box">
+        <div class="flow-box-icon">🔍</div>
+        <div class="flow-box-title">חיפוש חכם</div>
+        <div class="flow-box-sub">פילטרים מתקדמים</div>
+      </div>
+      <div class="flow-arrow">←</div>
+      <div class="flow-box">
+        <div class="flow-box-icon">🔔</div>
+        <div class="flow-box-title">התראות Marketplace</div>
+        <div class="flow-box-sub">בזמן אמת לנייד</div>
+      </div>
+      <div class="flow-arrow">←</div>
+      <div class="flow-box">
+        <div class="flow-box-icon">📱</div>
+        <div class="flow-box-title">טלגרם</div>
+        <div class="flow-box-sub">ישיר לכיס</div>
+      </div>
+    </div>
+    <p class="sub" style="margin-top:36px">סוחר מגדיר פעם אחת — המערכת עובדת 24/7</p>
+  </div>
+
+  <!-- 4. מחירון סוחרים -->
+  <div class="slide slide-4" data-index="3">
+    <div class="tag">פיצ'ר 1</div>
+    <h2 class="h2">מחירון <em>סוחרים</em></h2>
+    <p class="sub">מחירים מיוחדים לסוחרים רשומים בלבד — כולל רישוי, ללא הפתעות</p>
+    <div class="cards" style="margin-top:32px">
+      <div class="card">
+        <div class="card-icon">🏷️</div>
+        <div class="card-title">מחיר סוחר בלבד</div>
+        <div class="card-desc">לא מחיר מחירון — המחיר שאתה באמת משלם</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">⚡</div>
+        <div class="card-title">מלאי מיידי</div>
+        <div class="card-desc">רכבים זמינים עכשיו עם ציון צבעים וזמינות</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">📊</div>
+        <div class="card-title">35+ יצרנים</div>
+        <div class="card-desc">BYD, טויוטה, יונדאי, קיה, MG, גילי ועוד</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">🔢</div>
+        <div class="card-title">השוואת מימון</div>
+        <div class="card-desc">חישוב תשלום חודשי לפי % מימון ומקדמה</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. מערכת התראות -->
+  <div class="slide slide-5" data-index="4">
+    <div class="tag">פיצ'ר 2</div>
+    <h2 class="h2">התראות <em>Facebook Marketplace</em></h2>
+    <p class="sub">מגדיר חיפוש אחד — ברגע שמופיעה מודעה תואמת מקבל הודעה בטלגרם</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-text">
+          <div class="step-title">הגדר חיפוש בדשבורד</div>
+          <div class="step-desc">בחר יצרן, דגם, טווח מחיר, שנה, קילומטרז' ואזור גיאוגרפי</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-text">
+          <div class="step-title">הסקריפט סורק כל 10 דקות</div>
+          <div class="step-desc">Python + Playwright מדמה דפדפן וסורק את Marketplace אוטומטית</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-text">
+          <div class="step-title">קבל התראה בטלגרם</div>
+          <div class="step-desc">הודעה עם פרטי הרכב, מחיר וקישור ישיר למודעה</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. מספרים -->
+  <div class="slide slide-6" data-index="5">
+    <div class="tag">בגדול</div>
+    <h2 class="h2">המערכת <em>במספרים</em></h2>
+    <div class="divider"></div>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-num">35+</div>
+        <div class="stat-label">יצרני רכב</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">10</div>
+        <div class="stat-label">דקות בין סריקות</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">24/7</div>
+        <div class="stat-label">עבודה רציפה</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">∞</div>
+        <div class="stat-label">חיפושים במקביל</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:40px;flex-wrap:wrap;justify-content:center">
+      <span class="pill pill-green">Python + Playwright</span>
+      <span class="pill pill-blue">Telegram Bot API</span>
+      <span class="pill pill-yellow">Firebase Firestore</span>
+      <span class="pill pill-green">LocalStorage</span>
+      <span class="pill pill-blue">HTML / JS / CSS</span>
+    </div>
+  </div>
+
+  <!-- 7. CTA -->
+  <div class="slide slide-7" data-index="6">
+    <div class="tag">מה הלאה</div>
+    <h2 class="h2">מוכן <em>להפעיל?</em></h2>
+    <div class="big-cta">
+      <div style="font-size:48px;margin-bottom:16px">🚀</div>
+      <h3 class="h3" style="text-align:center">3 צעדים להתחלה</h3>
+      <div style="margin-top:20px;display:flex;flex-direction:column;gap:10px;text-align:right;max-width:400px;margin-inline:auto">
+        <div style="display:flex;align-items:center;gap:12px"><span style="color:#c9a227;font-size:20px;font-weight:900">1.</span><span style="font-size:15px">צור בוט טלגרם דרך <strong>@BotFather</strong></span></div>
+        <div style="display:flex;align-items:center;gap:12px"><span style="color:#c9a227;font-size:20px;font-weight:900">2.</span><span style="font-size:15px">הוסף חיפושים בדשבורד וייצא JSON</span></div>
+        <div style="display:flex;align-items:center;gap:12px"><span style="color:#c9a227;font-size:20px;font-weight:900">3.</span><span style="font-size:15px">הרץ <code style="background:rgba(255,255,255,.1);padding:2px 8px;border-radius:6px;font-size:13px">python marketplace_monitor.py</code></span></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- nav -->
+<div class="nav">
+  <button class="nav-btn" id="prevBtn" onclick="navigate(-1)">→</button>
+  <div class="dots" id="dots"></div>
+  <button class="nav-btn" id="nextBtn" onclick="navigate(1)">←</button>
+</div>
+
+<script>
+var current = 0;
+var slides = document.querySelectorAll('.slide');
+var total = slides.length;
+
+// build dots
+var dotsEl = document.getElementById('dots');
+for(var i=0;i<total;i++){
+  var d = document.createElement('div');
+  d.className = 'dot' + (i===0?' active':'');
+  d.setAttribute('data-i', i);
+  d.onclick = (function(idx){ return function(){ goTo(idx); }; })(i);
+  dotsEl.appendChild(d);
+}
+
+function goTo(n) {
+  if(n<0||n>=total) return;
+  slides[current].classList.remove('active');
+  slides[current].classList.add('exit');
+  var prev = current;
+  current = n;
+  slides[current].classList.add('active');
+  setTimeout(function(){ slides[prev].classList.remove('exit'); }, 500);
+  document.querySelectorAll('.dot').forEach(function(d,i){ d.classList.toggle('active', i===current); });
+  document.getElementById('counter').textContent = (current+1) + ' / ' + total;
+}
+
+function navigate(dir) { goTo(current + dir); }
+
+document.addEventListener('keydown', function(e){
+  if(e.key==='ArrowLeft'||e.key==='ArrowDown') navigate(1);
+  if(e.key==='ArrowRight'||e.key==='ArrowUp') navigate(-1);
+});
+
+// swipe
+var touchX=0;
+document.addEventListener('touchstart',function(e){touchX=e.touches[0].clientX;});
+document.addEventListener('touchend',function(e){
+  var dx=touchX-e.changedTouches[0].clientX;
+  if(Math.abs(dx)>50) navigate(dx>0?1:-1);
+});
+</script>
+</body>
+</html>
