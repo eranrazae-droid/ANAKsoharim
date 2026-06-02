@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>משה התראות — כניסה</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Heebo',sans-serif;background:#0d0d1a;color:#fff;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px}
+
+.bg-glow{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:0}
+.bg-glow::before{content:'';position:absolute;top:-200px;right:-200px;width:600px;height:600px;background:radial-gradient(circle,rgba(201,162,39,.12) 0%,transparent 70%);border-radius:50%}
+.bg-glow::after{content:'';position:absolute;bottom:-200px;left:-200px;width:500px;height:500px;background:radial-gradient(circle,rgba(59,130,246,.08) 0%,transparent 70%);border-radius:50%}
+
+.card{position:relative;z-index:1;background:rgba(255,255,255,.04);border:1.5px solid rgba(255,255,255,.1);border-radius:24px;padding:48px 44px;width:100%;max-width:420px;text-align:center;backdrop-filter:blur(12px)}
+
+.logo{font-size:48px;margin-bottom:8px}
+.title{font-size:28px;font-weight:900;color:#fff}
+.title em{color:#c9a227;font-style:normal}
+.subtitle{font-size:14px;color:rgba(255,255,255,.5);margin-top:8px;line-height:1.6}
+
+.divider{width:48px;height:3px;background:#c9a227;border-radius:2px;margin:28px auto}
+
+.feature-list{text-align:right;margin-bottom:32px;display:flex;flex-direction:column;gap:10px}
+.feature{display:flex;align-items:center;gap:12px;font-size:14px;color:rgba(255,255,255,.7)}
+.feature-icon{width:32px;height:32px;border-radius:8px;background:rgba(201,162,39,.15);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+
+.tg-wrap{display:flex;justify-content:center;margin-bottom:20px}
+
+/* override telegram widget button look */
+.tg-wrap iframe{border-radius:12px !important}
+
+.terms{font-size:12px;color:rgba(255,255,255,.3);margin-top:16px;line-height:1.6}
+
+/* logged-in state */
+.user-card{display:none;background:rgba(201,162,39,.08);border:1.5px solid rgba(201,162,39,.3);border-radius:16px;padding:20px;margin-bottom:20px;align-items:center;gap:14px}
+.user-avatar{width:52px;height:52px;border-radius:50%;border:2px solid #c9a227;object-fit:cover}
+.user-avatar-placeholder{width:52px;height:52px;border-radius:50%;border:2px solid #c9a227;background:#c9a227;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:900;color:#000;flex-shrink:0}
+.user-info{text-align:right;flex:1}
+.user-name{font-size:16px;font-weight:900}
+.user-id{font-size:12px;color:rgba(255,255,255,.45);margin-top:2px}
+
+.enter-btn{display:none;width:100%;padding:14px;background:#c9a227;border:none;border-radius:12px;font-size:16px;font-weight:900;font-family:'Heebo',sans-serif;color:#000;cursor:pointer;transition:opacity .15s;margin-bottom:12px}
+.enter-btn:hover{opacity:.88}
+
+.logout-btn{display:none;width:100%;padding:10px;background:transparent;border:1.5px solid rgba(255,255,255,.15);border-radius:10px;font-size:13px;font-weight:700;font-family:'Heebo',sans-serif;color:rgba(255,255,255,.5);cursor:pointer;transition:all .15s}
+.logout-btn:hover{border-color:rgba(255,255,255,.35);color:#fff}
+</style>
+</head>
+<body>
+
+<div class="bg-glow"></div>
+
+<div class="card" id="loginCard">
+  <div class="logo">🔔</div>
+  <h1 class="title">משה <em>התראות</em></h1>
+  <p class="subtitle">מעקב אחרי רכבים ב-Facebook Marketplace<br>התראות בזמן אמת לטלגרם</p>
+
+  <div class="divider"></div>
+
+  <div class="feature-list">
+    <div class="feature">
+      <div class="feature-icon">🚗</div>
+      <span>הגדר חיפוש לפי יצרן, דגם, מחיר ואזור</span>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">⚡</div>
+      <span>סריקה אוטומטית כל 10 דקות</span>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">📱</div>
+      <span>התראה ישירה לטלגרם עם קישור למודעה</span>
+    </div>
+  </div>
+
+  <!-- Telegram Login Widget -->
+  <div class="tg-wrap" id="tgWidget">
+    <script async src="https://telegram.org/js/telegram-widget.js?22"
+      data-telegram-login="MosheHatrootBot"
+      data-size="large"
+      data-radius="12"
+      data-onauth="onTelegramAuth(user)"
+      data-request-access="write">
+    </script>
+  </div>
+
+  <!-- after login -->
+  <div class="user-card" id="userCard">
+    <div id="userAvatarWrap"></div>
+    <div class="user-info">
+      <div class="user-name" id="userName"></div>
+      <div class="user-id" id="userId"></div>
+    </div>
+  </div>
+
+  <button class="enter-btn" id="enterBtn" onclick="enterDashboard()">כנס לדשבורד ←</button>
+  <button class="logout-btn" id="logoutBtn" onclick="logout()">התחבר עם חשבון אחר</button>
+
+  <p class="terms">בכניסה אתה מאשר שימוש בפרטי הטלגרם לצורך אימות בלבד</p>
+</div>
+
+<script>
+function onTelegramAuth(user) {
+  localStorage.setItem('moshe_user', JSON.stringify(user));
+  showLoggedIn(user);
+}
+
+function showLoggedIn(user) {
+  document.getElementById('tgWidget').style.display = 'none';
+
+  var avatarWrap = document.getElementById('userAvatarWrap');
+  if (user.photo_url) {
+    avatarWrap.innerHTML = '<img class="user-avatar" src="' + user.photo_url + '" alt="">';
+  } else {
+    var initials = (user.first_name || '?')[0].toUpperCase();
+    avatarWrap.innerHTML = '<div class="user-avatar-placeholder">' + initials + '</div>';
+  }
+
+  document.getElementById('userName').textContent = [user.first_name, user.last_name].filter(Boolean).join(' ');
+  document.getElementById('userId').textContent = '@' + (user.username || 'id: ' + user.id);
+
+  document.getElementById('userCard').style.display = 'flex';
+  document.getElementById('enterBtn').style.display = 'block';
+  document.getElementById('logoutBtn').style.display = 'block';
+}
+
+function enterDashboard() {
+  window.location.href = 'index.html';
+}
+
+function logout() {
+  localStorage.removeItem('moshe_user');
+  location.reload();
+}
+
+// בדוק אם כבר מחובר
+var saved = localStorage.getItem('moshe_user');
+if (saved) {
+  try { showLoggedIn(JSON.parse(saved)); } catch(e) { localStorage.removeItem('moshe_user'); }
+}
+</script>
+</body>
+</html>
