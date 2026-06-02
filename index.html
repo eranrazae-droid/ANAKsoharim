@@ -4149,6 +4149,18 @@ function showAlertToast(msg) {
   _toastTimer = setTimeout(function(){ t.style.opacity = '0'; }, 2500);
 }
 
+function exportAlerts() {
+  var alerts = loadAlerts();
+  if (!alerts.length) { showAlertToast('אין חיפושים לייצוא'); return; }
+  var data = JSON.stringify(alerts.filter(function(a){ return a.active; }), null, 2);
+  var blob = new Blob([data], {type:'application/json'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'market_alerts.json';
+  a.click();
+  showAlertToast('✅ קובץ הורד: market_alerts.json');
+}
+
 </script>
 
 <div id="sectionAlerts">
@@ -4215,7 +4227,10 @@ function showAlertToast(msg) {
 
     <div class="alerts-list-title">
       <strong>החיפושים שלי</strong>
-      <span id="alertsCount" style="color:#7a839a;font-size:13px"></span>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span id="alertsCount" style="color:#7a839a;font-size:13px"></span>
+        <button onclick="exportAlerts()" style="background:#1a1a2e;color:#c9a227;border:none;border-radius:8px;padding:7px 16px;font-size:12px;font-weight:700;font-family:Heebo,sans-serif;cursor:pointer">⬇️ ייצוא JSON</button>
+      </div>
     </div>
     <div id="alertsList"></div>
   </div>
