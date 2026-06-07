@@ -1809,18 +1809,21 @@ display:none !important;
         const saved = localStorage.getItem(STORAGE_KEY);
         if(saved){
           const parsed = JSON.parse(saved);
-          if(Array.isArray(parsed) && parsed.length) return parsed;
+          if(Array.isArray(parsed) && parsed.length > 0) return parsed;
         }
       }catch(e){}
-      return cars;
+      return null;
     }
 
     async function initCars(){
-      const fromSupabase = await loadCarsFromSupabase();
-      if(fromSupabase && fromSupabase.length > 0){
-        cars = fromSupabase;
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(cars));
-      }
+      try {
+        const fromSupabase = await loadCarsFromSupabase();
+        if(fromSupabase && fromSupabase.length > 0){
+          cars = fromSupabase;
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(cars));
+        }
+      } catch(e) {}
+      if(!cars || cars.length === 0) cars = loadSharedCars() || [];
       renderCars();
       // Handle deep link: #car-10
       const hash = window.location.hash;
@@ -1831,7 +1834,7 @@ display:none !important;
       }
     }
 
-    cars = loadSharedCars();
+    cars = loadSharedCars() || cars;
 
     const leads = [
       { id: 1, name: "יוסי כהן", phone: "050-1111111", car: "BYD Atto 3", downPayment: "20,000 ₪", track: "בלון 50%", desiredMonthly: "2,500 ₪", score: 85, action: "שיחק במחשבון + לחץ וואטסאפ" },
@@ -2449,7 +2452,7 @@ display:none !important;
 
     window.addEventListener('storage', function(e){
       if(e.key === STORAGE_KEY){
-        cars = loadSharedCars();
+        cars = loadSharedCars() || cars;
         renderCars();
         if(selectedCar){
           const refreshed = cars.map(enrich).find(c => c.id === selectedCar.id);
