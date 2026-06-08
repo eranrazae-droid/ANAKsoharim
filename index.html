@@ -1359,80 +1359,8 @@ display:none !important;
     const PRIME_TRACK_RATE = PRIME_RATE + 1.6;
 
     const STORAGE_KEY = "autodealer_shared_inventory_v6";
-    const SUPA_URL = "https://vwfmfjjdusirabgbkhvw.supabase.co";
-    const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3Zm1mampkdXNpcmFiZ2JraHZ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxOTAzMzMsImV4cCI6MjA5MTc2NjMzM30.iaelOlcZ9bavR78weRGnddvot13qsNjR6GEnEctAZB0";
-
-    async function supaFetch(path, options){
-      options = options || {};
-      try{
-        const headers = {
-          'apikey': SUPA_KEY,
-          'Authorization': 'Bearer ' + SUPA_KEY,
-          'Content-Type': 'application/json'
-        };
-        if(options.headers) Object.assign(headers, options.headers);
-        const res = await fetch(SUPA_URL + path, {
-          method: options.method || 'GET',
-          headers: headers,
-          body: options.body
-        });
-        if(!res.ok) return null;
-        const text = await res.text();
-        return text ? JSON.parse(text) : [];
-      } catch(e){ return null; }
-    }
-
-    async function loadCarsFromSupabase(){
-      const data = await supaFetch('/rest/v1/cars?select=*&order=id');
-      if(data && data.length > 0){
-        return data.map(function(c){ return {
-          id: c.id,
-          brand: c.brand||'',
-          model: c.model||'',
-          year: c.year||'2026',
-          image: c.image||'',
-          badge: c.badge||'דיל חם',
-          category: c.category||'',
-          engine: c.engine||'בנזין',
-          range: c.range_km||'',
-          catalogPriceNumber: c.catalog_price||0,
-          autodealerPriceNumber: c.autodealer_price||0,
-          summary: c.summary||'',
-          stockStatus: c.stock_status||'זמין מיידי',
-          verified: c.verified||false,
-          gallery: c.gallery||[],
-          specLink: c.spec_link||'',
-          specs: c.specs||{},
-          specText: c.spec_text||'', specData: c.spec_data||{}
-        }; });
-      }
-      return null;
-    }
-
-    async function saveCarsToSupabase(carsArray){
-      const rows = carsArray.map(function(c){ return {
-        id: c.id,
-        brand: c.brand,
-        model: c.model,
-        year: c.year,
-        image: c.image,
-        badge: c.badge,
-        category: c.category,
-        engine: c.engine,
-        range_km: c.range||'',
-        catalog_price: c.catalogPriceNumber,
-        autodealer_price: c.autodealerPriceNumber,
-        summary: c.summary,
-        stock_status: c.stockStatus,
-        verified: c.verified||false,
-        gallery: c.gallery||[]
-      }; });
-      await supaFetch('/rest/v1/cars?on_conflict=id', {
-        method: 'POST',
-        headers: {'Prefer': 'resolution=merge-duplicates'},
-        body: JSON.stringify(rows)
-      });
-    }
+    async function loadCarsFromSupabase(){ return null; }
+    async function saveCarsToSupabase(){ return; }
 
     let cars = [
       {

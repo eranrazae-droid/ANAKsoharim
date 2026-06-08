@@ -528,47 +528,8 @@
     ];
   const STORAGE_KEY = 'autodealer_shared_inventory_v6';
   const PASS = 'autodealer2024';
-  const SUPA_URL = 'https://vwfmfjjdusirabgbkhvw.supabase.co';
-  const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3Zm1mampkdXNpcmFiZ2JraHZ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxOTAzMzMsImV4cCI6MjA5MTc2NjMzM30.iaelOlcZ9bavR78weRGnddvot13qsNjR6GEnEctAZB0';
-
-  async function loadCarsFromSupabase(){
-    try {
-      const r = await fetch(SUPA_URL+'/rest/v1/cars?select=*&order=id', {
-        headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}
-      });
-      const data = await r.json();
-      if(Array.isArray(data) && data.length > 0){
-        return data.map(c=>({
-          id:c.id, brand:c.brand, model:c.model, year:c.year,
-          image:c.image||'', badge:c.badge||'', category:c.category||'',
-          engine:c.engine||'', range:c.range_km||'',
-          catalogPriceNumber:c.catalog_price, autodealerPriceNumber:c.autodealer_price,
-          summary:c.summary||'', stockStatus:c.stock_status||'זמין מיידי',
-          verified:c.verified||false, gallery:c.gallery||[],
-          specLink:c.spec_link||'', specs:c.specs||{}, specText:c.spec_text||'', specData:c.spec_data||{}
-        }));
-      }
-    } catch(e){}
-    return null;
-  }
-
-  async function saveCarsToSupabase(carsArr){
-    for(const car of carsArr){
-      const body = {
-        id:car.id, brand:car.brand, model:car.model, year:car.year,
-        image:car.image||'', badge:car.badge||'', category:car.category||'',
-        engine:car.engine||'', range_km:car.range||null,
-        catalog_price:car.catalogPriceNumber, autodealer_price:car.autodealerPriceNumber,
-        summary:car.summary||'', stock_status:car.stockStatus||'זמין מיידי',
-        verified:car.verified||false, gallery:car.gallery||[]
-      };
-      await fetch(SUPA_URL+'/rest/v1/cars?id=eq.'+car.id, {
-        method:'PATCH',
-        headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
-        body:JSON.stringify(body)
-      });
-    }
-  }
+  async function loadCarsFromSupabase(){ return null; }
+  async function saveCarsToSupabase(){ return; }
 
   let cars=JSON.parse(localStorage.getItem(STORAGE_KEY)||'null')||seedCars;
 
@@ -636,70 +597,9 @@
     } catch(e){}
   }
 
-  async function syncAllToSupabase(){
-    toast('מסנכרן... אנא המתן');
-    let success = 0;
-    for(const car of cars){
-      try {
-        const body = {
-          id:car.id, brand:car.brand, model:car.model, year:car.year,
-          image:car.image||'', badge:car.badge||'', category:car.category||'',
-          engine:car.engine||'', range_km:car.range||null,
-          catalog_price:car.catalogPriceNumber, autodealer_price:car.autodealerPriceNumber,
-          summary:car.summary||'', stock_status:car.stockStatus||'זמין מיידי',
-          verified:car.verified||false, gallery:car.gallery||[],
-          spec_link:car.specLink||'', specs:car.specs||{}
-        };
-        const r = await fetch(SUPA_URL+'/rest/v1/cars?id=eq.'+car.id, {
-          method:'PATCH',
-          headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
-          body:JSON.stringify(body)
-        });
-        if(r.ok || r.status===204) success++;
-      } catch(e){}
-    }
-    toast('✅ סונכרנו ' + success + ' רכבים ל-Supabase!');
-  }
-
-  async function saveCarToDB(car){
-    const baseBody = {
-      id:car.id, brand:car.brand, model:car.model, year:car.year,
-      image:car.image||'', badge:car.badge||'', category:car.category||'',
-      engine:car.engine||'', range_km:car.range||null,
-      catalog_price:car.catalogPriceNumber, autodealer_price:car.autodealerPriceNumber,
-      summary:car.summary||'', stock_status:car.stockStatus||'זמין מיידי',
-      verified:car.verified||false, gallery:car.gallery||[]
-    };
-    const fullBody = {...baseBody,
-      spec_link:car.specLink||'', specs:car.specs||{},
-      spec_text:car.specText||'', spec_data:car.specData||{}
-    };
-    const hdrs = {'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Content-Type':'application/json','Prefer':'return=minimal'};
-    try {
-      // Try PATCH with full body (including spec columns)
-      let r = await fetch(SUPA_URL+'/rest/v1/cars?id=eq.'+car.id, {method:'PATCH',headers:hdrs,body:JSON.stringify(fullBody)});
-      if(r.status===400){
-        // spec columns don't exist yet — retry without them
-        r = await fetch(SUPA_URL+'/rest/v1/cars?id=eq.'+car.id, {method:'PATCH',headers:hdrs,body:JSON.stringify(baseBody)});
-      }
-      if(!r.ok && r.status!==204){
-        // New car — POST
-        let r2 = await fetch(SUPA_URL+'/rest/v1/cars', {method:'POST',headers:hdrs,body:JSON.stringify(fullBody)});
-        if(r2.status===400){
-          await fetch(SUPA_URL+'/rest/v1/cars', {method:'POST',headers:hdrs,body:JSON.stringify(baseBody)});
-        }
-      }
-    } catch(e){ console.error('saveCarToDB error', e); }
-  }
-
-  async function deleteCarFromDB(id){
-    try {
-      await fetch(SUPA_URL+'/rest/v1/cars?id=eq.'+id, {
-        method:'DELETE',
-        headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}
-      });
-    } catch(e){ console.error('deleteCarFromDB error', e); }
-  }
+  async function syncAllToSupabase(){ toast('✅ נשמר ב-localStorage!'); }
+  async function saveCarToDB(){ return; }
+  async function deleteCarFromDB(){ return; }
 
   function saveCars(){
     localStorage.setItem(STORAGE_KEY,JSON.stringify(cars));
@@ -883,20 +783,12 @@
   let galleryImages=[];
 
   async function uploadToStorage(file, folder){
-    const ext = file.name.split('.').pop();
-    const filename = folder + '_' + Date.now() + '.' + ext;
-    const res = await fetch(SUPA_URL + '/storage/v1/object/cars/' + filename, {
-      method: 'POST',
-      headers: {
-        'apikey': SUPA_KEY,
-        'Authorization': 'Bearer ' + SUPA_KEY,
-        'Content-Type': file.type,
-        'x-upsert': 'true'
-      },
-      body: file
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = e => resolve(e.target.result);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(file);
     });
-    if(!res.ok) return null;
-    return SUPA_URL + '/storage/v1/object/public/cars/' + filename;
   }
 
   function handleMainImage(input){
