@@ -158,7 +158,7 @@ body{
       </div>
       <div class="fld">
         <label>מספר תשלומים</label>
-        <input type="number" id="n" value="100" oninput="calc()" inputmode="numeric" min="1" max="100">
+        <input type="number" id="n" value="100" oninput="this.dataset.touched=1;calc()" inputmode="numeric" min="1" max="120">
       </div>
     </div>
 
@@ -210,15 +210,19 @@ function fmt(n) {
 
 function calc() {
   var loan    = parseFloat(document.getElementById('loan').value) || 0;
-  var n       = parseInt(document.getElementById('n').value) || 100;
   var balloonInput = document.getElementById('balloon').value;
   var balloon = balloonInput !== '' ? parseFloat(balloonInput) : Math.round(loan * 0.5);
+  var hasBalloon = balloon > 0;
+  var defaultN = hasBalloon ? 60 : 100;
+  var nEl = document.getElementById('n');
+  if (!nEl.dataset.touched) nEl.value = defaultN;
+  var n = parseInt(nEl.value) || defaultN;
   var el      = document.getElementById('cards');
 
   if (!loan) { el.innerHTML = ''; return; }
 
-  var maxKal   = 100;
-  var maxYasir = loan > 400000 ? 120 : 100;
+  var maxKal   = hasBalloon ? 60 : 100;
+  var maxYasir = hasBalloon ? 60 : (loan > 400000 ? 120 : 100);
 
   var tracks = [
     {
