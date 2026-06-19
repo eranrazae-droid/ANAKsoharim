@@ -212,7 +212,8 @@ function calc() {
 
   if (!loan) { el.innerHTML = ''; return; }
 
-  n = Math.min(n, 100); // כאל חדש מקס 100
+  var maxKal   = 100;
+  var maxYasir = loan > 400000 ? 120 : 100;
 
   var tracks = [
     {
@@ -221,7 +222,8 @@ function calc() {
       rate:    4.2,
       rateStr: '4.2%',
       balloon: 0,
-      fee:     'kal'
+      fee:     'kal',
+      maxN:    maxKal
     },
     {
       company: 'כאל',
@@ -229,7 +231,8 @@ function calc() {
       rate:    4.2,
       rateStr: '4.2%',
       balloon: balloon,
-      fee:     'kal'
+      fee:     'kal',
+      maxN:    maxKal
     },
     {
       company: 'כאל',
@@ -237,7 +240,8 @@ function calc() {
       rate:    PRIME + 1.6,
       rateStr: (PRIME + 1.6).toFixed(1) + '%',
       balloon: 0,
-      fee:     'kal'
+      fee:     'kal',
+      maxN:    maxKal
     },
     {
       company: 'מימון ישיר',
@@ -245,7 +249,8 @@ function calc() {
       rate:    7.0,
       rateStr: '7%',
       balloon: 0,
-      fee:     'yasir'
+      fee:     'yasir',
+      maxN:    maxYasir
     },
     {
       company: 'מימון ישיר',
@@ -253,16 +258,18 @@ function calc() {
       rate:    9.0,
       rateStr: '9%',
       balloon: 0,
-      fee:     'yasir'
+      fee:     'yasir',
+      maxN:    maxYasir
     }
   ];
 
   var results = tracks.map(function(t) {
-    var monthly = pmt(loan, t.rate, n, t.balloon);
+    var effN    = Math.min(n, t.maxN);
+    var monthly = pmt(loan, t.rate, effN, t.balloon);
     var fee     = t.fee === 'kal' ? feeKal(loan) : feeYasir(loan);
-    var total   = monthly * n + (t.balloon || 0);
+    var total   = monthly * effN + (t.balloon || 0);
     var cost    = total - loan;
-    return { t: t, monthly: monthly, fee: fee, cost: cost };
+    return { t: t, effN: effN, monthly: monthly, fee: fee, cost: cost };
   });
 
   // find lowest monthly (best for customer)
@@ -275,7 +282,7 @@ function calc() {
     html += '<div class="rcard-company">' + r.t.company + '</div>';
     html += '<div class="rcard-track">' + r.t.track + '<br>' + r.t.rateStr + '</div>';
     html += '<div class="rcard-monthly"><span class="rcard-monthly-sym">₪</span>' + r.monthly.toLocaleString('he-IL') + '</div>';
-    html += '<div class="rcard-label">לחודש × ' + n + ' תשלומים</div>';
+    html += '<div class="rcard-label">לחודש × ' + r.effN + ' תשלומים</div>';
     html += '<hr class="rcard-divider">';
     if (r.t.balloon > 0) {
       html += '<div class="rcard-row"><span>בלון</span><span class="rcard-val">' + fmt(r.t.balloon) + '</span></div>';
