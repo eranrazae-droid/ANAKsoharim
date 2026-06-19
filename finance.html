@@ -234,9 +234,15 @@ function fmt(n) {
 }
 
 function makeOptions(maxN, selectedN) {
+  var steps = [];
+  for (var i = 12; i <= Math.min(96, maxN); i += 12) steps.push(i);
+  if (maxN >= 100) steps.push(100);
+  if (maxN > 100) steps.push(maxN); // e.g. 120 for ישיר >400K
+  // render highest first
   var opts = '';
-  for (var i = maxN; i >= 12; i -= 12) {
-    opts += '<option value="' + i + '"' + (i === selectedN ? ' selected' : '') + '>' + i + ' תשלומים</option>';
+  for (var j = steps.length - 1; j >= 0; j--) {
+    var v = steps[j];
+    opts += '<option value="' + v + '"' + (v === selectedN ? ' selected' : '') + '>' + v + ' תשלומים</option>';
   }
   return opts;
 }
