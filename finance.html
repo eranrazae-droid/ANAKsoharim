@@ -72,6 +72,7 @@ body{
 
 /* ── CARDS GRID ── */
 .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+@media(min-width:521px){.cards{grid-template-columns:repeat(3,1fr)}}
 
 /* ── SINGLE RESULT CARD ── */
 .rcard{
@@ -166,7 +167,7 @@ body{
   </div>
 
   <!-- RESULTS -->
-  <div class="results-label">תוצאות כאל</div>
+  <div class="results-label">תוצאות השוואה</div>
   <div class="cards" id="cards"></div>
 
   <!-- PRIME RATE INFO -->
@@ -184,6 +185,9 @@ var PRIME = 5.5;
 function feeKal(loan) {
   if (loan <= 100000) return 345;
   return Math.round(345 + loan * 0.01);
+}
+function feeYasir(loan) {
+  return Math.round(loan * 0.015 + 400);
 }
 
 function pmt(principal, rate, n, balloon) {
@@ -212,31 +216,50 @@ function calc() {
 
   var tracks = [
     {
+      company: 'כאל',
       track:   'צמוד מדד',
       rate:    4.2,
       rateStr: '4.2%',
       balloon: 0,
-      id:      'index'
+      fee:     'kal'
     },
     {
+      company: 'כאל',
       track:   'צמוד מדד + בלון',
       rate:    4.2,
       rateStr: '4.2%',
       balloon: balloon,
-      id:      'balloon'
+      fee:     'kal'
     },
     {
+      company: 'כאל',
       track:   'פריים + 1.6%',
       rate:    PRIME + 1.6,
       rateStr: (PRIME + 1.6).toFixed(1) + '%',
       balloon: 0,
-      id:      'prime'
+      fee:     'kal'
+    },
+    {
+      company: 'מימון ישיר',
+      track:   'ריבית קבועה',
+      rate:    7.0,
+      rateStr: '7%',
+      balloon: 0,
+      fee:     'yasir'
+    },
+    {
+      company: 'מימון ישיר',
+      track:   'ריבית קבועה',
+      rate:    9.0,
+      rateStr: '9%',
+      balloon: 0,
+      fee:     'yasir'
     }
   ];
 
   var results = tracks.map(function(t) {
     var monthly = pmt(loan, t.rate, n, t.balloon);
-    var fee     = feeKal(loan);
+    var fee     = t.fee === 'kal' ? feeKal(loan) : feeYasir(loan);
     var total   = monthly * n + (t.balloon || 0);
     var cost    = total - loan;
     return { t: t, monthly: monthly, fee: fee, cost: cost };
@@ -249,7 +272,7 @@ function calc() {
   results.forEach(function(r) {
     var isBest = r.monthly === minMonthly;
     html += '<div class="rcard' + (isBest ? ' best' : '') + '">';
-    html += '<div class="rcard-company">כאל</div>';
+    html += '<div class="rcard-company">' + r.t.company + '</div>';
     html += '<div class="rcard-track">' + r.t.track + '<br>' + r.t.rateStr + '</div>';
     html += '<div class="rcard-monthly"><span class="rcard-monthly-sym">₪</span>' + r.monthly.toLocaleString('he-IL') + '</div>';
     html += '<div class="rcard-label">לחודש × ' + n + ' תשלומים</div>';
