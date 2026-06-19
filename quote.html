@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>הצעת מחיר — ענק הרכבים</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:'Heebo',sans-serif;
+  background:#f0f4fa;
+  color:#0d1f3c;
+  min-height:100vh;
+}
+
+.hdr{
+  background:#0d1f3c;
+  padding:16px 24px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.hdr-logo{font-size:18px;font-weight:900;color:#fff}
+.hdr-logo span{color:#c9a227}
+.hdr-title{font-size:13px;color:#7a9ccf;margin-top:2px}
+
+.page{max-width:680px;margin:0 auto;padding:28px 16px 60px}
+
+.page-title{
+  font-size:26px;font-weight:900;color:#0d1f3c;
+  margin-bottom:24px;text-align:center;
+}
+.page-title span{color:#c9a227}
+
+/* ── DEAL TABLE ── */
+.deal-card{
+  background:#fff;
+  border-radius:16px;
+  border:1px solid #dce6f5;
+  box-shadow:0 2px 12px rgba(13,31,60,.07);
+  overflow:hidden;
+  margin-bottom:20px;
+}
+
+.deal-row{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  border-bottom:1px solid #eef2fb;
+}
+.deal-row:last-child{border-bottom:none}
+
+.deal-label{
+  padding:14px 16px;
+  font-size:14px;font-weight:600;color:#0d1f3c;
+  border-left:1px solid #eef2fb;
+  display:flex;align-items:center;
+}
+.deal-label.sub{color:#5a7aa5;font-weight:400;font-size:13px;padding-right:24px}
+
+.deal-val{
+  padding:10px 16px;
+  display:flex;align-items:center;
+}
+
+/* editable inputs */
+.deal-input{
+  width:100%;border:none;outline:none;
+  font-family:'Heebo',sans-serif;
+  font-size:18px;font-weight:700;
+  color:#0d1f3c;background:transparent;
+  text-align:left;
+}
+.deal-input::placeholder{color:#c0cfe8;font-weight:400;font-size:15px}
+.deal-input:focus{color:#1a56db}
+
+/* text-only name inputs */
+.deal-input.name-input{
+  font-size:14px;font-weight:600;
+}
+
+/* computed rows */
+.deal-val.computed{
+  font-size:18px;font-weight:700;color:#0d1f3c;
+}
+.deal-val.computed.diff{color:#5a7aa5}
+
+/* section headers */
+.deal-section{
+  background:#f5f8ff;
+  padding:8px 16px;
+  font-size:11px;font-weight:700;color:#5a7aa5;
+  letter-spacing:.08em;text-transform:uppercase;
+  border-bottom:1px solid #eef2fb;
+}
+
+/* highlighted rows */
+.deal-row.total-deal .deal-label,
+.deal-row.total-deal .deal-val{background:#f5f8ff}
+.deal-row.total-deal .deal-val.computed{font-size:20px}
+
+.deal-row.finance-row .deal-label,
+.deal-row.finance-row .deal-val{background:#fff8dc}
+.deal-row.finance-row .deal-val.computed{font-size:22px;color:#c9a227}
+
+.deal-row.cash-row .deal-label,
+.deal-row.cash-row .deal-val{background:#fff0f5}
+.deal-row.cash-row .deal-val.computed{font-size:20px;color:#e02d2d}
+
+/* ── MONTHLY BOX ── */
+.monthly-box{
+  background:#0d1f3c;
+  border-radius:16px;
+  padding:24px;
+  color:#fff;
+  display:flex;align-items:center;justify-content:space-between;
+  gap:20px;
+  margin-bottom:20px;
+  flex-wrap:wrap;
+}
+.monthly-main{display:flex;flex-direction:column;gap:4px}
+.monthly-label{font-size:12px;color:#7a9ccf;font-weight:600;letter-spacing:.05em;text-transform:uppercase}
+.monthly-amount{font-size:48px;font-weight:900;color:#fff;line-height:1}
+.monthly-amount span{font-size:24px}
+.monthly-sub{font-size:13px;color:#7a9ccf;margin-top:2px}
+
+.monthly-controls{display:flex;flex-direction:column;gap:10px;min-width:160px}
+.ctrl-row{display:flex;flex-direction:column;gap:4px}
+.ctrl-label{font-size:11px;color:#7a9ccf;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.ctrl-select{
+  background:#1a2f54;border:1px solid #2a4a7a;
+  border-radius:8px;padding:8px 12px;
+  font-family:'Heebo',sans-serif;font-size:14px;font-weight:700;
+  color:#fff;outline:none;cursor:pointer;
+  appearance:none;-webkit-appearance:none;
+  width:100%;
+}
+
+/* ── RESET BTN ── */
+.btn-reset{
+  display:block;width:100%;
+  background:transparent;border:1.5px solid #dce6f5;
+  border-radius:10px;padding:12px;
+  font-family:'Heebo',sans-serif;font-size:14px;font-weight:700;
+  color:#5a7aa5;cursor:pointer;
+  transition:background .15s;
+}
+.btn-reset:hover{background:#f0f4fa}
+
+@media(max-width:480px){
+  .monthly-box{flex-direction:column;align-items:flex-start}
+  .monthly-controls{width:100%}
+  .monthly-amount{font-size:40px}
+}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div>
+    <div class="hdr-logo">ענק <span>הרכבים</span></div>
+    <div class="hdr-title">כלי מכירות פנימי</div>
+  </div>
+</div>
+
+<div class="page">
+  <div class="page-title">הצעת <span>מחיר</span></div>
+
+  <div class="deal-card">
+
+    <!-- רכב חדש -->
+    <div class="deal-section">רכב חדש</div>
+    <div class="deal-row">
+      <div class="deal-label">פרטי רכב</div>
+      <div class="deal-val">
+        <input class="deal-input name-input" id="new-car-name" type="text" placeholder="שם הרכב" oninput="calc()">
+      </div>
+    </div>
+    <div class="deal-row">
+      <div class="deal-label">מחיר</div>
+      <div class="deal-val">
+        <input class="deal-input" id="new-price" type="number" placeholder="260,000" oninput="calc()" inputmode="numeric">
+      </div>
+    </div>
+
+    <!-- טרייד אין -->
+    <div class="deal-section">טרייד אין (רכב ישן)</div>
+    <div class="deal-row">
+      <div class="deal-label">פרטי רכב</div>
+      <div class="deal-val">
+        <input class="deal-input name-input" id="old-car-name" type="text" placeholder="שם הרכב" oninput="calc()">
+      </div>
+    </div>
+    <div class="deal-row">
+      <div class="deal-label">שווי זיכוי</div>
+      <div class="deal-val">
+        <input class="deal-input" id="trade-in" type="number" placeholder="110,000" oninput="calc()" inputmode="numeric">
+      </div>
+    </div>
+    <div class="deal-row">
+      <div class="deal-label sub">הפרש</div>
+      <div class="deal-val computed diff" id="diff">—</div>
+    </div>
+
+    <!-- חוב + סה"כ -->
+    <div class="deal-section">פרטי עסקה</div>
+    <div class="deal-row">
+      <div class="deal-label">חוב מימון על רכב ישן</div>
+      <div class="deal-val">
+        <input class="deal-input" id="old-loan" type="number" placeholder="0" oninput="calc()" inputmode="numeric">
+      </div>
+    </div>
+    <div class="deal-row total-deal">
+      <div class="deal-label">סה"כ עסקה</div>
+      <div class="deal-val computed" id="total-deal">—</div>
+    </div>
+    <div class="deal-row">
+      <div class="deal-label">כסף שהלקוח מביא</div>
+      <div class="deal-val">
+        <input class="deal-input" id="cash" type="number" placeholder="0" oninput="calc()" inputmode="numeric">
+      </div>
+    </div>
+    <div class="deal-row finance-row">
+      <div class="deal-label">סכום מימון</div>
+      <div class="deal-val computed" id="finance-amount">—</div>
+    </div>
+    <div class="deal-row cash-row">
+      <div class="deal-label">כסף להביא לסגירה</div>
+      <div class="deal-val computed" id="cash-display">—</div>
+    </div>
+
+  </div>
+
+  <!-- MONTHLY PAYMENT -->
+  <div class="monthly-box" id="monthly-box" style="display:none">
+    <div class="monthly-main">
+      <div class="monthly-label">החזר חודשי משוער</div>
+      <div class="monthly-amount"><span>₪</span><span id="monthly-val">—</span></div>
+      <div class="monthly-sub" id="monthly-sub"></div>
+    </div>
+    <div class="monthly-controls">
+      <div class="ctrl-row">
+        <div class="ctrl-label">מסלול</div>
+        <select class="ctrl-select" id="track-sel" onchange="calc()">
+          <option value="4.2">כאל צמוד מדד 4.2%</option>
+          <option value="7.1">כאל פריים+1.6 (7.1%)</option>
+          <option value="7">ישיר 7%</option>
+          <option value="9">ישיר 9%</option>
+        </select>
+      </div>
+      <div class="ctrl-row">
+        <div class="ctrl-label">תשלומים</div>
+        <select class="ctrl-select" id="n-sel" onchange="calc()">
+          <option value="100">100 תשלומים</option>
+          <option value="96">96 תשלומים</option>
+          <option value="84">84 תשלומים</option>
+          <option value="72">72 תשלומים</option>
+          <option value="60">60 תשלומים</option>
+          <option value="48">48 תשלומים</option>
+          <option value="36">36 תשלומים</option>
+          <option value="24">24 תשלומים</option>
+          <option value="12">12 תשלומים</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <button class="btn-reset" onclick="resetAll()">נקה הכל</button>
+</div>
+
+<script>
+function fmtNum(n) {
+  if (isNaN(n) || n === null) return '—';
+  return '₪ ' + Math.round(n).toLocaleString('he-IL');
+}
+
+function pmt(principal, rate, n) {
+  if (!principal || !n) return 0;
+  var r = rate / 100 / 12;
+  if (r === 0) return Math.round(principal / n);
+  return Math.round(principal * r / (1 - Math.pow(1 + r, -n)));
+}
+
+function calc() {
+  var newPrice = parseFloat(document.getElementById('new-price').value) || 0;
+  var tradeIn  = parseFloat(document.getElementById('trade-in').value)  || 0;
+  var oldLoan  = parseFloat(document.getElementById('old-loan').value)  || 0;
+  var cash     = parseFloat(document.getElementById('cash').value)      || 0;
+
+  var diff        = newPrice - tradeIn;
+  var totalDeal   = diff + oldLoan;
+  var financeAmt  = totalDeal - cash;
+
+  // display diff
+  document.getElementById('diff').textContent = newPrice ? fmtNum(diff) : '—';
+
+  // display total deal
+  document.getElementById('total-deal').textContent = newPrice ? fmtNum(totalDeal) : '—';
+
+  // display finance amount
+  document.getElementById('finance-amount').textContent = newPrice ? fmtNum(financeAmt) : '—';
+
+  // display cash to bring
+  document.getElementById('cash-display').textContent = newPrice ? fmtNum(cash) : '—';
+
+  // monthly payment
+  var box = document.getElementById('monthly-box');
+  if (financeAmt > 0) {
+    box.style.display = 'flex';
+    var rate = parseFloat(document.getElementById('track-sel').value);
+    var n    = parseInt(document.getElementById('n-sel').value);
+    var monthly = pmt(financeAmt, rate, n);
+    document.getElementById('monthly-val').textContent = monthly.toLocaleString('he-IL');
+    document.getElementById('monthly-sub').textContent = n + ' תשלומים · ' + fmtNum(financeAmt) + ' מימון';
+  } else {
+    box.style.display = 'none';
+  }
+}
+
+function resetAll() {
+  ['new-car-name','old-car-name','new-price','trade-in','old-loan','cash'].forEach(function(id){
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('track-sel').selectedIndex = 0;
+  document.getElementById('n-sel').selectedIndex = 0;
+  calc();
+}
+</script>
+</body>
+</html>
