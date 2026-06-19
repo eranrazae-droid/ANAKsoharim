@@ -52,6 +52,8 @@ body{
   color:#0d1f3c;
   box-shadow:0 4px 20px rgba(0,0,0,.25);
   transition:transform .12s, box-shadow .12s;
+  cursor:pointer;
+  border:none;
 }
 .tool-btn:hover{
   transform:translateY(-2px);
@@ -69,16 +71,95 @@ body{
 .tool-title{font-size:18px;font-weight:900;color:#0d1f3c}
 .tool-desc{font-size:13px;color:#5a7aa5;margin-top:3px}
 
-/* accent colors per button */
 .tool-btn.new   { border-right:5px solid #1a56db; }
 .tool-btn.used  { border-right:5px solid #c9a227; }
 .tool-btn.quote { border-right:5px solid #16a34a; }
+.tool-btn.bank  { border-right:5px solid #7c3aed; }
 
 .footer{
   text-align:center;
   padding:20px;
   font-size:12px;
   color:#2a4a7a;
+}
+
+/* ── MODAL ── */
+.modal-overlay{
+  display:none;
+  position:fixed;inset:0;
+  background:rgba(0,0,0,.65);
+  z-index:1000;
+  align-items:center;justify-content:center;
+  padding:16px;
+}
+.modal-overlay.open{display:flex}
+
+.modal{
+  background:#fff;
+  border-radius:20px;
+  width:100%;max-width:460px;
+  max-height:90vh;
+  overflow-y:auto;
+  color:#0d1f3c;
+  box-shadow:0 12px 48px rgba(0,0,0,.4);
+}
+
+.modal-hdr{
+  background:#0d1f3c;
+  border-radius:20px 20px 0 0;
+  padding:18px 20px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.modal-hdr-title{font-size:17px;font-weight:900;color:#fff}
+.modal-close{
+  background:none;border:none;color:#7a9ccf;
+  font-size:22px;cursor:pointer;line-height:1;padding:0 4px;
+}
+
+.modal-body{padding:16px}
+
+.bank-section{
+  border:1.5px solid #dce6f5;
+  border-radius:14px;
+  padding:14px 16px;
+  margin-bottom:12px;
+}
+.bank-section:last-child{margin-bottom:0}
+
+.bank-name{
+  font-size:14px;font-weight:900;color:#0d1f3c;
+  margin-bottom:10px;
+  display:flex;align-items:center;gap:8px;
+}
+.bank-tag{
+  font-size:11px;font-weight:700;
+  padding:2px 8px;border-radius:999px;
+  background:#f0f4fa;color:#5a7aa5;
+}
+.bank-tag.primary{background:#eef3ff;color:#1a56db}
+
+.bank-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:6px 0;
+  border-bottom:1px solid #f0f4fa;
+  gap:8px;
+}
+.bank-row:last-child{border-bottom:none}
+.bank-lbl{font-size:12px;color:#5a7aa5;white-space:nowrap}
+.bank-val{font-size:13px;font-weight:700;color:#0d1f3c;text-align:left;direction:ltr;word-break:break-all}
+
+.copy-btn{
+  background:#f0f4fa;border:none;border-radius:8px;
+  font-size:11px;font-weight:700;color:#1a56db;
+  padding:4px 10px;cursor:pointer;white-space:nowrap;
+  transition:background .15s;flex-shrink:0;
+}
+.copy-btn:active{background:#dce6f5}
+.copy-btn.copied{color:#16a34a;background:#f0fdf4}
+
+.bank-note{
+  font-size:11px;color:#e02d2d;font-weight:700;
+  margin-top:8px;
 }
 </style>
 </head>
@@ -115,9 +196,138 @@ body{
     </div>
   </a>
 
+  <button class="tool-btn bank" onclick="document.getElementById('bankModal').classList.add('open')">
+    <div class="tool-icon">🏦</div>
+    <div class="tool-text">
+      <div class="tool-title">פרטי חשבון בנק</div>
+      <div class="tool-desc">דיסקונט · פועלים · לאומי</div>
+    </div>
+  </button>
+
 </div>
 
 <div class="footer">ענק הרכבים · כלי פנימי לאנשי מכירות</div>
+
+<!-- BANK MODAL -->
+<div class="modal-overlay" id="bankModal" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div class="modal-hdr-title">פרטי חשבונות בנק</div>
+      <button class="modal-close" onclick="document.getElementById('bankModal').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- דיסקונט -->
+      <div class="bank-section">
+        <div class="bank-name">
+          🏦 בנק דיסקונט
+          <span class="bank-tag primary">מומלץ · כל הבנקים</span>
+        </div>
+        <div class="bank-row">
+          <span class="bank-lbl">שם (עברית)</span>
+          <span class="bank-val">ענק הרכבים ( רז ) בע"מ</span>
+        </div>
+        <div class="bank-row">
+          <span class="bank-lbl">שם (אנגלית)</span>
+          <span class="bank-val">ANAK HAREHAVIM RAZ LTD</span>
+        </div>
+        <div class="bank-row">
+          <span class="bank-lbl">סניף</span>
+          <span class="bank-val">506</span>
+        </div>
+        <div class="bank-row">
+          <span class="bank-lbl">מספר חשבון</span>
+          <span class="bank-val">152696352</span>
+          <button class="copy-btn" onclick="copyText('152696352',this)">העתק</button>
+        </div>
+        <div class="bank-row">
+          <span class="bank-lbl">זה"ב (IBAN)</span>
+          <span class="bank-val">IL86-0115-0600-0015-2696-352</span>
+          <button class="copy-btn" onclick="copyText('IL860115060000152696352',this)">העתק</button>
+        </div>
+        <div class="bank-row">
+          <span class="bank-lbl">SWIFT</span>
+          <span class="bank-val">IDBLILIT</span>
+          <button class="copy-btn" onclick="copyText('IDBLILIT',this)">העתק</button>
+        </div>
+      </div>
+
+      <!-- פועלים -->
+      <div class="bank-section">
+        <div class="bank-name">
+          🏦 בנק הפועלים (12)
+          <span class="bank-tag">פועלים לפועלים בלבד</span>
+        </div>
+        <div class="bank-row">
+          <span class="bank-lbl">שם (עברית)</span>
+          <span class="bank-val">ענק הרכבים ( רז ) בע"מ</span>
+        </div>
+        <div class="bank-row">
+          <span class="bank-lbl">שם (אנגלית)</span>
+          <span class="bank-val">ANAK HAREHAVIM RAZ LTD</span>
+        </div>
+        <div class="bank-row">
+          <span class="bank-lbl">סניף</span>
+          <span class="bank-val">300 (עסקים בת ים)</span>
+        </div>
+        <div class="bank-row">
+          <span class="bank-lbl">מספר חשבון</span>
+          <span class="bank-val">8961</span>
+          <button class="copy-btn" onclick="copyText('8961',this)">העתק</button>
+        </div>
+        <div class="bank-row">
+          <span class="bank-lbl">זה"ב (IBAN)</span>
+          <span class="bank-val">IL70-0123-0000-0000-0008-961</span>
+          <button class="copy-btn" onclick="copyText('IL700123000000000008961',this)">העתק</button>
+        </div>
+        <div class="bank-note">⚠️ להעברות מפועלים לפועלים בלבד</div>
+      </div>
+
+      <!-- לאומי -->
+      <div class="bank-section">
+        <div class="bank-name">
+          🏦 בנק לאומי (10)
+          <span class="bank-tag">לאומי ללאומי בלבד</span>
+        </div>
+        <div class="bank-row">
+          <span class="bank-lbl">שם (עברית)</span>
+          <span class="bank-val">ענק הרכבים ( רז ) בע"מ</span>
+        </div>
+        <div class="bank-row">
+          <span class="bank-lbl">שם (אנגלית)</span>
+          <span class="bank-val">ANAK HAREHAVIM RAZ LTD</span>
+        </div>
+        <div class="bank-row">
+          <span class="bank-lbl">סניף</span>
+          <span class="bank-val">827 (אזור)</span>
+        </div>
+        <div class="bank-row">
+          <span class="bank-lbl">מספר חשבון</span>
+          <span class="bank-val">566500/15</span>
+          <button class="copy-btn" onclick="copyText('56650015',this)">העתק</button>
+        </div>
+        <div class="bank-row">
+          <span class="bank-lbl">זה"ב (IBAN)</span>
+          <span class="bank-val">IL29-0108-2700-0005-6650-015</span>
+          <button class="copy-btn" onclick="copyText('IL290108270000056650015',this)">העתק</button>
+        </div>
+        <div class="bank-note">⚠️ להעברות מלאומי ללאומי בלבד</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+function copyText(text, btn) {
+  navigator.clipboard.writeText(text).then(function() {
+    var orig = btn.textContent;
+    btn.textContent = '✓ הועתק';
+    btn.classList.add('copied');
+    setTimeout(function(){ btn.textContent = orig; btn.classList.remove('copied'); }, 1500);
+  });
+}
+</script>
 
 </body>
 </html>
