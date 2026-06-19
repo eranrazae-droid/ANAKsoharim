@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ענק הרכבים — כלי מכירות</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Heebo',sans-serif;background:#f4f6fb;color:#1a1a2e;min-height:100vh}
+
+/* HEADER */
+.header{background:#1a1a2e;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.25)}
+.logo{font-size:22px;font-weight:900;color:#fff}
+.logo span{color:#c9a227}
+.back-btn{color:#c9a227;font-size:13px;font-weight:700;text-decoration:none;border:1.5px solid #c9a227;border-radius:8px;padding:6px 14px;transition:all .15s}
+.back-btn:hover{background:#c9a227;color:#000}
+
+/* HOME — 3 BIG BUTTONS */
+#homeScreen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:calc(100vh - 56px);padding:32px 16px;gap:20px}
+.home-title{font-size:20px;font-weight:900;color:#1a1a2e;margin-bottom:8px;text-align:center}
+.home-sub{font-size:14px;color:#7a839a;margin-bottom:16px;text-align:center}
+.tool-btn{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+  width:100%;max-width:400px;padding:28px 20px;
+  background:#fff;border:2.5px solid #e0e4ef;border-radius:18px;
+  cursor:pointer;transition:all .2s;text-align:center;
+  box-shadow:0 2px 12px rgba(0,0,0,.06);
+}
+.tool-btn:hover{border-color:#c9a227;box-shadow:0 6px 24px rgba(201,162,39,.18);transform:translateY(-2px)}
+.tool-btn-icon{font-size:40px;line-height:1}
+.tool-btn-title{font-size:18px;font-weight:900;color:#1a1a2e}
+.tool-btn-desc{font-size:13px;color:#7a839a;font-weight:400}
+
+/* SCREEN WRAPPER */
+.screen{display:none;padding:24px 16px 60px;max-width:600px;margin:0 auto}
+.screen.active{display:block}
+.screen-header{display:flex;align-items:center;gap:12px;margin-bottom:24px}
+.screen-icon{font-size:28px}
+.screen-title{font-size:20px;font-weight:900;color:#1a1a2e}
+.screen-sub{font-size:13px;color:#7a839a;margin-top:2px}
+
+/* FORM CARD */
+.card{background:#fff;border-radius:14px;border:1px solid #e0e4ef;padding:20px;margin-bottom:16px;box-shadow:0 1px 6px rgba(0,0,0,.05)}
+.card-title{font-size:13px;font-weight:900;color:#7a839a;letter-spacing:.06em;text-transform:uppercase;margin-bottom:14px}
+
+/* FIELDS */
+.field-row{display:flex;gap:12px;margin-bottom:14px}
+.field-row:last-child{margin-bottom:0}
+.field{flex:1;display:flex;flex-direction:column;gap:5px}
+.field label{font-size:12px;font-weight:700;color:#7a839a}
+.field input,.field select,.field textarea{
+  border:1.5px solid #e0e4ef;border-radius:8px;padding:10px 12px;
+  font-size:14px;font-family:'Heebo',sans-serif;color:#1a1a2e;
+  background:#f8f9ff;outline:none;width:100%;
+}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:#c9a227;background:#fff}
+.field textarea{resize:vertical;min-height:70px}
+
+/* SUMMARY BOX */
+.summary{background:#f8f9ff;border-radius:12px;padding:16px;border:1px solid #e0e4ef;margin-bottom:16px}
+.summary-title{font-size:13px;font-weight:900;color:#1a1a2e;margin-bottom:12px}
+.summary-row{display:flex;justify-content:space-between;align-items:center;padding:7px 0;font-size:13px;color:#555;border-bottom:1px solid #eee}
+.summary-row:last-child{border-bottom:none}
+.summary-row.big{font-size:16px;font-weight:900;color:#1a1a2e;padding-top:10px}
+.summary-val{font-weight:700;color:#1a1a2e;text-align:left}
+.summary-val.gold{color:#c9a227;font-size:18px}
+.summary-val.red{color:#e24b4a}
+.summary-val.green{color:#16a34a}
+
+/* BUTTONS */
+.wa-send-btn{
+  width:100%;background:#25D366;color:#fff;border:none;border-radius:12px;
+  padding:15px;font-size:16px;font-weight:900;font-family:'Heebo',sans-serif;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;
+  box-shadow:0 4px 16px rgba(37,211,102,.3);transition:opacity .15s;
+}
+.wa-send-btn:hover{opacity:.9}
+.calc-btn{
+  width:100%;background:#c9a227;color:#000;border:none;border-radius:12px;
+  padding:13px;font-size:15px;font-weight:900;font-family:'Heebo',sans-serif;
+  cursor:pointer;margin-bottom:12px;transition:opacity .15s;
+}
+.calc-btn:hover{opacity:.88}
+.note{font-size:11px;color:#aaa;text-align:center;margin-top:8px}
+
+/* DIVIDER */
+hr.div{border:none;border-top:1px solid #e0e4ef;margin:16px 0}
+
+/* CAR SELECT */
+.car-select-wrap{position:relative}
+.car-search-input{
+  border:1.5px solid #e0e4ef;border-radius:8px;padding:10px 12px;
+  font-size:14px;font-family:'Heebo',sans-serif;color:#1a1a2e;
+  background:#f8f9ff;outline:none;width:100%;
+}
+.car-search-input:focus{border-color:#c9a227;background:#fff}
+.car-dropdown{
+  position:absolute;top:100%;right:0;left:0;background:#fff;border:1.5px solid #c9a227;
+  border-radius:8px;z-index:200;max-height:220px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.12);
+  display:none;
+}
+.car-dropdown.open{display:block}
+.car-option{padding:10px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid #f0f0f0}
+.car-option:hover{background:#fdf8e8}
+.car-option .brand{font-weight:900;color:#c9a227}
+.car-option .meta{color:#999;font-size:11px;margin-top:1px}
+.selected-car-pill{
+  display:inline-flex;align-items:center;gap:8px;background:#1a1a2e;color:#fff;
+  border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;margin-top:8px;width:100%;
+}
+.selected-car-pill .rem{background:none;border:none;color:#c9a227;cursor:pointer;font-size:16px;margin-right:auto;padding:0;line-height:1}
+
+/* QUOTE PREVIEW */
+#quotePreview{display:none}
+.quote-paper{
+  background:#fff;border:2px solid #1a1a2e;border-radius:14px;padding:24px;
+  font-family:'Heebo',sans-serif;
+}
+.quote-header-row{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px}
+.quote-logo{font-size:20px;font-weight:900;color:#1a1a2e}
+.quote-logo span{color:#c9a227}
+.quote-date{font-size:11px;color:#999}
+.quote-car-title{font-size:17px;font-weight:900;color:#1a1a2e;margin-bottom:4px}
+.quote-car-sub{font-size:12px;color:#7a839a;margin-bottom:16px}
+.quote-table{width:100%;border-collapse:collapse;font-size:13px}
+.quote-table td{padding:7px 10px;border-bottom:1px solid #eee}
+.quote-table td:last-child{text-align:left;font-weight:700}
+.quote-table tr.section td{background:#f4f6fb;font-weight:900;font-size:11px;color:#7a839a;letter-spacing:.05em;text-transform:uppercase;padding:5px 10px}
+.quote-table tr.highlight td{background:#fdf8e8;font-weight:900;font-size:15px;color:#c9a227}
+.quote-footer{font-size:10px;color:#aaa;text-align:center;margin-top:14px;border-top:1px solid #eee;padding-top:10px}
+
+@media(max-width:480px){
+  .field-row{flex-direction:column}
+  .tool-btn{padding:22px 16px}
+  .tool-btn-icon{font-size:32px}
+  .tool-btn-title{font-size:16px}
+}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="logo">ענק <span>הרכבים</span></div>
+  <a href="/index.html" class="back-btn">← חזרה לקטלוג</a>
+</header>
+
+<!-- HOME SCREEN -->
+<div id="homeScreen">
+  <div class="home-title">כלי עבודה — אנשי מכירות</div>
+  <div class="home-sub">בחר כלי לעבודה</div>
+
+  <div class="tool-btn" onclick="showScreen('newFinance')">
+    <div class="tool-btn-icon">🚗</div>
+    <div class="tool-btn-title">מימון לרכב חדש</div>
+    <div class="tool-btn-desc">בחר רכב מהקטלוג וחשב תשלומים</div>
+  </div>
+
+  <div class="tool-btn" onclick="showScreen('usedFinance')">
+    <div class="tool-btn-icon">🔑</div>
+    <div class="tool-btn-title">מימון לרכב משומש</div>
+    <div class="tool-btn-desc">הזן פרטי רכב יד שניה וחשב תשלומים</div>
+  </div>
+
+  <div class="tool-btn" onclick="showScreen('quote')">
+    <div class="tool-btn-icon">📄</div>
+    <div class="tool-btn-title">הצעת מחיר</div>
+    <div class="tool-btn-desc">הפק הצעת מחיר מסודרת ושלח ללקוח</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     1. מימון לרכב חדש
+═══════════════════════════════════════════ -->
+<div class="screen" id="screenNewFinance">
+  <div class="screen-header">
+    <div class="screen-icon">🚗</div>
+    <div>
+      <div class="screen-title">מימון לרכב חדש</div>
+      <div class="screen-sub">בחר רכב מהקטלוג וחשב תשלומים</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">בחר רכב</div>
+    <div class="car-select-wrap">
+      <input class="car-search-input" id="newCarSearch" placeholder="חפש יצרן או דגם..." oninput="filterNewCars()" onfocus="openNewDropdown()" autocomplete="off">
+      <div class="car-dropdown" id="newCarDropdown"></div>
+    </div>
+    <div id="newCarPill" style="display:none">
+      <div class="selected-car-pill">
+        <span id="newCarPillText"></span>
+        <button class="rem" onclick="clearNewCar()">✕</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">פרטי מימון</div>
+    <div class="field-row">
+      <div class="field">
+        <label>מחיר לסוחר כולל רישוי (₪)</label>
+        <input type="number" id="nfDealer" oninput="calcNew()" step="100" placeholder="ישאב אוטומטית">
+      </div>
+      <div class="field">
+        <label>מקדמה (₪)</label>
+        <input type="number" id="nfDown" value="0" oninput="calcNew()" step="1000" min="0">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>מספר תשלומים</label>
+        <select id="nfN" onchange="calcNew()">
+          <option value="24">24</option>
+          <option value="36">36</option>
+          <option value="48">48</option>
+          <option value="60">60</option>
+          <option value="72">72</option>
+          <option value="84">84</option>
+          <option value="100" selected>100</option>
+          <option value="120">120</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>ריבית שנתית (%)</label>
+        <input type="number" id="nfRate" value="4.7" oninput="calcNew()" step="0.1" min="0" max="30">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>בלון סיום (₪)</label>
+        <input type="number" id="nfBalloon" value="0" oninput="calcNew()" step="1000" min="0">
+      </div>
+      <div class="field">
+        <label>עמלת סוחר (₪)</label>
+        <input type="number" id="nfFee" value="1500" oninput="calcNew()" step="100" min="0">
+      </div>
+    </div>
+  </div>
+
+  <div class="summary" id="nfSummary">
+    <div class="summary-title">📊 תוצאת החישוב</div>
+    <div class="summary-row"><span>מחירון כולל רישוי</span><span class="summary-val" id="nfs-catalog">—</span></div>
+    <div class="summary-row"><span>מחיר לסוחר</span><span class="summary-val" id="nfs-dealer">—</span></div>
+    <div class="summary-row"><span>הנחה מהמחירון</span><span class="summary-val green" id="nfs-disc">—</span></div>
+    <div class="summary-row"><span>מקדמה</span><span class="summary-val" id="nfs-down">—</span></div>
+    <div class="summary-row"><span>סכום למימון</span><span class="summary-val" id="nfs-financed">—</span></div>
+    <div class="summary-row"><span>עמלת סוחר</span><span class="summary-val" id="nfs-fee">—</span></div>
+    <div class="summary-row big"><span>💰 תשלום חודשי</span><span class="summary-val gold" id="nfs-monthly">—</span></div>
+    <div class="summary-row"><span>סה"כ עלות מימון</span><span class="summary-val red" id="nfs-totalcost">—</span></div>
+  </div>
+
+  <button class="wa-send-btn" onclick="sendNew()">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+    שלח הצעת מימון בוואטסאפ
+  </button>
+  <div class="note">* החישוב הוא אומדן בלבד. הריבית הסופית תיקבע מול חברת המימון.</div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     2. מימון לרכב משומש
+═══════════════════════════════════════════ -->
+<div class="screen" id="screenUsedFinance">
+  <div class="screen-header">
+    <div class="screen-icon">🔑</div>
+    <div>
+      <div class="screen-title">מימון לרכב משומש</div>
+      <div class="screen-sub">הזן פרטי רכב יד שניה</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">פרטי הרכב</div>
+    <div class="field-row">
+      <div class="field">
+        <label>יצרן</label>
+        <input type="text" id="ufBrand" placeholder="למשל: טויוטה" oninput="calcUsed()">
+      </div>
+      <div class="field">
+        <label>דגם</label>
+        <input type="text" id="ufModel" placeholder="למשל: קורולה" oninput="calcUsed()">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>שנת ייצור</label>
+        <input type="number" id="ufYear" placeholder="2020" min="1990" max="2025" oninput="calcUsed()">
+      </div>
+      <div class="field">
+        <label>ק"מ על השעון</label>
+        <input type="number" id="ufKm" placeholder="80000" step="1000" min="0" oninput="calcUsed()">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>מחיר הרכב (₪)</label>
+        <input type="number" id="ufPrice" placeholder="120000" step="1000" oninput="calcUsed()">
+      </div>
+      <div class="field">
+        <label>מקדמה (₪)</label>
+        <input type="number" id="ufDown" value="0" step="1000" min="0" oninput="calcUsed()">
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">פרטי מימון</div>
+    <div class="field-row">
+      <div class="field">
+        <label>מספר תשלומים</label>
+        <select id="ufN" onchange="calcUsed()">
+          <option value="12">12</option>
+          <option value="24">24</option>
+          <option value="36">36</option>
+          <option value="48">48</option>
+          <option value="60" selected>60</option>
+          <option value="72">72</option>
+          <option value="84">84</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>ריבית שנתית (%)</label>
+        <input type="number" id="ufRate" value="5.5" oninput="calcUsed()" step="0.1" min="0" max="30">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>בלון סיום (₪)</label>
+        <input type="number" id="ufBalloon" value="0" oninput="calcUsed()" step="1000" min="0">
+      </div>
+      <div class="field">
+        <label>עמלת סוחר (₪)</label>
+        <input type="number" id="ufFee" value="1500" oninput="calcUsed()" step="100" min="0">
+      </div>
+    </div>
+  </div>
+
+  <div class="summary" id="ufSummary">
+    <div class="summary-title">📊 תוצאת החישוב</div>
+    <div class="summary-row"><span>מחיר הרכב</span><span class="summary-val" id="ufs-price">—</span></div>
+    <div class="summary-row"><span>מקדמה</span><span class="summary-val" id="ufs-down">—</span></div>
+    <div class="summary-row"><span>סכום למימון</span><span class="summary-val" id="ufs-financed">—</span></div>
+    <div class="summary-row"><span>עמלת סוחר</span><span class="summary-val" id="ufs-fee">—</span></div>
+    <div class="summary-row big"><span>💰 תשלום חודשי</span><span class="summary-val gold" id="ufs-monthly">—</span></div>
+    <div class="summary-row"><span>סה"כ עלות מימון</span><span class="summary-val red" id="ufs-totalcost">—</span></div>
+  </div>
+
+  <button class="wa-send-btn" onclick="sendUsed()">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+    שלח הצעת מימון בוואטסאפ
+  </button>
+  <div class="note">* החישוב הוא אומדן בלבד. הריבית הסופית תיקבע מול חברת המימון.</div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     3. הצעת מחיר
+═══════════════════════════════════════════ -->
+<div class="screen" id="screenQuote">
+  <div class="screen-header">
+    <div class="screen-icon">📄</div>
+    <div>
+      <div class="screen-title">הצעת מחיר</div>
+      <div class="screen-sub">מלא פרטים ושלח ללקוח</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">פרטי הלקוח</div>
+    <div class="field-row">
+      <div class="field">
+        <label>שם מלא</label>
+        <input type="text" id="qName" placeholder="ישראל ישראלי" oninput="buildQuote()">
+      </div>
+      <div class="field">
+        <label>טלפון</label>
+        <input type="tel" id="qPhone" placeholder="05X-XXXXXXX" oninput="buildQuote()">
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">פרטי הרכב</div>
+    <div class="field-row">
+      <div class="field" style="flex:2">
+        <label>שם הרכב המלא</label>
+        <input type="text" id="qCar" placeholder="BYD ATTO2 DM-I Boost" oninput="buildQuote()">
+      </div>
+      <div class="field">
+        <label>צבע</label>
+        <input type="text" id="qColor" placeholder="לבן" oninput="buildQuote()">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>מחירון כולל רישוי (₪)</label>
+        <input type="number" id="qCatalog" step="100" oninput="buildQuote()">
+      </div>
+      <div class="field">
+        <label>מחיר לסוחר (₪)</label>
+        <input type="number" id="qDealer" step="100" oninput="buildQuote()">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>אבזור נוסף / הערות לרכב</label>
+        <input type="text" id="qExtras" placeholder="גג פנורמי, ציפוי קרמי..." oninput="buildQuote()">
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">פרטי מימון (אופציונלי)</div>
+    <div class="field-row">
+      <div class="field">
+        <label>מקדמה (₪)</label>
+        <input type="number" id="qDown" value="0" step="1000" oninput="buildQuote()">
+      </div>
+      <div class="field">
+        <label>מספר תשלומים</label>
+        <select id="qN" onchange="buildQuote()">
+          <option value="0">ללא מימון</option>
+          <option value="24">24</option>
+          <option value="36">36</option>
+          <option value="48">48</option>
+          <option value="60">60</option>
+          <option value="72">72</option>
+          <option value="84">84</option>
+          <option value="100">100</option>
+          <option value="120">120</option>
+        </select>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>ריבית שנתית (%)</label>
+        <input type="number" id="qRate" value="4.7" step="0.1" min="0" max="30" oninput="buildQuote()">
+      </div>
+      <div class="field">
+        <label>בלון סיום (₪)</label>
+        <input type="number" id="qBalloon" value="0" step="1000" oninput="buildQuote()">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>עמלת סוחר (₪)</label>
+        <input type="number" id="qFee" value="1500" step="100" oninput="buildQuote()">
+      </div>
+      <div class="field">
+        <label>הערות נוספות</label>
+        <input type="text" id="qNotes" placeholder="תוקף ההצעה: 48 שעות" oninput="buildQuote()">
+      </div>
+    </div>
+  </div>
+
+  <!-- QUOTE PREVIEW -->
+  <div id="quotePreview">
+    <div class="quote-paper" id="quotePaper">
+      <div class="quote-header-row">
+        <div class="quote-logo">ענק <span>הרכבים</span><br><small style="font-size:11px;font-weight:400;color:#999">מחירי סוחרים</small></div>
+        <div class="quote-date" id="qDate"></div>
+      </div>
+      <div class="quote-car-title" id="qPreviewCar"></div>
+      <div class="quote-car-sub" id="qPreviewColor"></div>
+      <table class="quote-table">
+        <tbody id="quoteTableBody"></tbody>
+      </table>
+      <div class="quote-footer">ענק הרכבים · מחירי סוחרים בלבד · כולל רישוי · עמלת סוחר 1,500 ₪<br>ההצעה בתוקף ל-48 שעות בלבד, בכפוף לזמינות המלאי</div>
+    </div>
+    <br>
+  </div>
+
+  <button class="wa-send-btn" onclick="sendQuote()">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+    שלח הצעת מחיר בוואטסאפ
+  </button>
+  <div class="note">* ניתן לשלוח ללקוח ישירות בוואטסאפ</div>
+</div>
+
+<script>
+// ──────────────────────────────────────────────
+// CAR DATA (synced from catalog)
+// ──────────────────────────────────────────────
+var cars = [
+  {brand:'AVATR',model:'Ultra RWD',fuel:'EV',catalog:293706,dealer:281010},
+  {brand:'BYD',model:'BYD ATTO2 DM-I Boost',fuel:'PHEV',catalog:152020,dealer:141000},
+  {brand:'BYD',model:'BYD SEAL U BOOST DM-i',fuel:'PHEV',catalog:202712,dealer:185000},
+  {brand:'BYD',model:'BYD SEALION COMF 5 DM-i',fuel:'PHEV',catalog:169384,dealer:153000},
+  {brand:'BYD',model:'BYD SEALION DESIGN 5 DM-i',fuel:'PHEV',catalog:174384,dealer:162000},
+  {brand:'LEAPMOTOR',model:'C 10 LIFE',fuel:'PHEV',catalog:187622,dealer:154500},
+  {brand:'MG',model:'MG3 LUXURY HYBRID 1.5',fuel:'HEV',catalog:129595,dealer:118000},
+  {brand:'MG',model:'ZS COMFORT 1.5',fuel:'בנזין',catalog:146918,dealer:120000},
+  {brand:'MG',model:'ZS LUXURY HYBRID 1.5',fuel:'HEV',catalog:157918,dealer:141000},
+  {brand:'MG',model:'MG HS LUXURY 1.5L',fuel:'בנזין',catalog:168918,dealer:137000},
+  {brand:'MG',model:'MG HS HYBRID+ LUXURY 1.5L',fuel:'HEV',catalog:179610,dealer:160000},
+  {brand:'MG',model:'MG EHS Luxury PHEV 1.5L',fuel:'PHEV',catalog:191610,dealer:170000},
+  {brand:'אומודה',model:'OMODA 7 PHV ELEVATE',fuel:'PHEV',catalog:182294,dealer:168500},
+  {brand:'אומודה',model:'OMODA 7 PHV Harmony',fuel:'PHEV',catalog:192622,dealer:178000},
+  {brand:'אומודה',model:'OMODA 9 PHEV Harmony',fuel:'PHEV',catalog:232622,dealer:217000},
+  {brand:'XPENG',model:'G6 Core+ RWD',fuel:'EV',catalog:212712,dealer:196000},
+  {brand:"ג'אקו",model:'JAECOO 7 PREMIUM PHEV 1.5',fuel:'PHEV',catalog:192712,dealer:175000},
+  {brand:"ג'אקו",model:'JAECOO 7 LUXURY PHEV 1.5',fuel:'PHEV',catalog:205712,dealer:190000},
+  {brand:'גילי',model:'EX5 PRO',fuel:'EV',catalog:164384,dealer:148000},
+  {brand:'גילי',model:'EX5 TECH',fuel:'EV',catalog:170440,dealer:155500},
+  {brand:'גילי',model:'StarRay EM-i Pro',fuel:'PHEV',catalog:172384,dealer:157000},
+  {brand:'גילי',model:'STARRAY EM-I TECH',fuel:'PHEV',catalog:178440,dealer:163000},
+  {brand:'טויוטה',model:'TOYOTA CITY 5 DIESEL 1.5',fuel:'דיזל',catalog:183384,dealer:168000},
+  {brand:'טויוטה',model:'YARIS CROSS ECO HSD 1.5',fuel:'בנזין',catalog:161020,dealer:150000},
+  {brand:'טויוטה',model:'HILUX ACTIVE 4X4 DIESEL 2.4',fuel:'דיזל',catalog:298796,dealer:283000},
+  {brand:'יונדאי',model:'ELANTRA PREMIUM FL HYBRID 1.6',fuel:'HEV',catalog:180384,dealer:167500},
+  {brand:'יונדאי',model:'TUCSON EXECUTIVE HYBRID 1.6',fuel:'HEV',catalog:215622,dealer:198500},
+  {brand:'יונדאי',model:'VENUE PRIME 1.6',fuel:'בנזין',catalog:131697,dealer:123500},
+  {brand:'יונדאי',model:'KONA PREMIUM HYBRID 1.6',fuel:'HEV',catalog:179384,dealer:163000},
+  {brand:'יונדאי',model:'SONATA LIMITED FL HYBRID 2.0',fuel:'HEV',catalog:237712,dealer:221500},
+  {brand:'מזדה',model:'CX5 2.5L EXECUTIVE',fuel:'בנזין',catalog:197686,dealer:180500},
+  {brand:'מיצובישי',model:'OUTLANDER INSTYLE FL 2.5',fuel:'בנזין',catalog:213712,dealer:196000},
+  {brand:'מיצובישי',model:'OUTLANDER EXECUTIVE 2.5',fuel:'בנזין',catalog:207712,dealer:193000},
+  {brand:'סיאט',model:'ARONA STYLE 1.0',fuel:'בנזין',catalog:134607,dealer:127500},
+  {brand:'סיטרואן',model:'BERLINGO COMBI Shine Pack 1.5',fuel:'דיזל',catalog:179384,dealer:165000},
+  {brand:'סובארו',model:'CROSSTREK LUXURY 2.5',fuel:'בנזין',catalog:179294,dealer:160000},
+  {brand:'סקודה',model:'KAMIQ FL SELECTION 1.0',fuel:'בנזין',catalog:142020,dealer:134500},
+  {brand:'סקודה',model:'OCTAVIA FL SELECTION 1.5',fuel:'בנזין',catalog:167384,dealer:155000},
+  {brand:'פורד',model:'RANGER XLT CHROM 4x4 דיזל',fuel:'דיזל',catalog:305806,dealer:276000},
+  {brand:'פיגו',model:'ACTIVE 2008',fuel:'בנזין',catalog:150020,dealer:124000},
+  {brand:"צ'רי",model:'FX COMFORT HEV 1.5',fuel:'HEV',catalog:155020,dealer:141000},
+  {brand:"צ'רי",model:'TIGGO 4 COMFORT HEV 1.5',fuel:'HEV',catalog:137697,dealer:128000},
+  {brand:"צ'רי",model:'TIGGO 4 LUXURY HEV 1.5',fuel:'HEV',catalog:139697,dealer:131000},
+  {brand:"צ'רי",model:'TIGGO 7 PRO PHEV LUXURY 1.5',fuel:'PHEV',catalog:182384,dealer:166000},
+  {brand:"צ'רי",model:'TIGGO 8 PRO PHEV NOBLE 1.5',fuel:'PHEV',catalog:202712,dealer:189000},
+  {brand:"צ'רי",model:'TIGGO 8 PRO PHEV Unlimited 1.5',fuel:'PHEV',catalog:207712,dealer:193000},
+  {brand:"צ'רי",model:'TIGGO 9 PRO PHEV LUXURY 1.5',fuel:'PHEV',catalog:221889,dealer:205000},
+  {brand:"צ'רי",model:'TIGGO 9 PRO PHEV NOBLE 1.5',fuel:'PHEV',catalog:248889,dealer:232000},
+  {brand:"צ'רי",model:'ARIZO 8 PHEV COMFORT 1.5',fuel:'PHEV',catalog:178384,dealer:162000},
+  {brand:'קיה',model:'PICANTO LX PLUS 1.2',fuel:'בנזין',catalog:111272,dealer:100500},
+  {brand:'קיה',model:'NIRO HEV LX 1.6',fuel:'HEV',catalog:181294,dealer:157000},
+  {brand:'קיה',model:'SPORTAGE URBAN',fuel:'בנזין',catalog:187440,dealer:156000},
+  {brand:'קיה',model:'SPORTAGE EX HEV',fuel:'HEV',catalog:198686,dealer:186000},
+  {brand:'קיי גי מוביליטי',model:'TORRES PREMIUM 1.5 HEV',fuel:'HEV',catalog:182350,dealer:171000}
+];
+
+// ──────────────────────────────────────────────
+// HELPERS
+// ──────────────────────────────────────────────
+function fmt(n) {
+  if (!n && n !== 0) return '—';
+  return Number(n).toLocaleString('he-IL') + ' ₪';
+}
+
+function pmtCalc(principal, annualRate, n, balloon) {
+  if (!principal || !n) return 0;
+  var r = annualRate / 100 / 12;
+  if (r === 0) return Math.round((principal - balloon) / n);
+  var pvBalloon = balloon / Math.pow(1 + r, n);
+  return Math.round((principal - pvBalloon) * r / (1 - Math.pow(1 + r, -n)));
+}
+
+function today() {
+  var d = new Date();
+  return d.getDate() + '/' + (d.getMonth()+1) + '/' + d.getFullYear();
+}
+
+// ──────────────────────────────────────────────
+// SCREEN NAVIGATION
+// ──────────────────────────────────────────────
+function showScreen(name) {
+  document.getElementById('homeScreen').style.display = 'none';
+  document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active')});
+  var map = {newFinance:'screenNewFinance', usedFinance:'screenUsedFinance', quote:'screenQuote'};
+  var el = document.getElementById(map[name]);
+  if (el) el.classList.add('active');
+  window.scrollTo(0,0);
+}
+
+function goHome() {
+  document.getElementById('homeScreen').style.display = '';
+  document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active')});
+  window.scrollTo(0,0);
+}
+
+// Make logo clickable to go home
+document.querySelector('.header .logo').style.cursor = 'pointer';
+document.querySelector('.header .logo').onclick = goHome;
+
+// ──────────────────────────────────────────────
+// 1. NEW CAR FINANCE
+// ──────────────────────────────────────────────
+var selectedNewCar = null;
+
+function filterNewCars() {
+  var q = document.getElementById('newCarSearch').value.toLowerCase();
+  openNewDropdown(q);
+}
+
+function openNewDropdown(q) {
+  if (typeof q === 'undefined') q = document.getElementById('newCarSearch').value.toLowerCase();
+  var dd = document.getElementById('newCarDropdown');
+  var filtered = cars.filter(function(c){
+    return (c.brand + ' ' + c.model).toLowerCase().includes(q);
+  });
+  if (!filtered.length) { dd.innerHTML = '<div class="car-option" style="color:#aaa">לא נמצאו תוצאות</div>'; }
+  else {
+    dd.innerHTML = filtered.slice(0,30).map(function(c,i){
+      return '<div class="car-option" onclick="selectNewCar(' + cars.indexOf(c) + ')">' +
+        '<span class="brand">' + c.brand + '</span> ' + c.model +
+        '<div class="meta">' + c.fuel + ' · מחיר לסוחר: ' + c.dealer.toLocaleString('he-IL') + ' ₪</div></div>';
+    }).join('');
+  }
+  dd.classList.add('open');
+}
+
+function selectNewCar(idx) {
+  selectedNewCar = cars[idx];
+  document.getElementById('newCarSearch').value = '';
+  document.getElementById('newCarDropdown').classList.remove('open');
+  document.getElementById('newCarPillText').textContent = selectedNewCar.brand + ' ' + selectedNewCar.model;
+  document.getElementById('newCarPill').style.display = 'block';
+  document.getElementById('nfDealer').value = selectedNewCar.dealer;
+  calcNew();
+}
+
+function clearNewCar() {
+  selectedNewCar = null;
+  document.getElementById('newCarPill').style.display = 'none';
+  document.getElementById('nfDealer').value = '';
+  calcNew();
+}
+
+document.addEventListener('click', function(e){
+  if (!e.target.closest('.car-select-wrap')) {
+    document.getElementById('newCarDropdown').classList.remove('open');
+  }
+});
+
+function calcNew() {
+  var dealer = parseFloat(document.getElementById('nfDealer').value) || 0;
+  var down   = parseFloat(document.getElementById('nfDown').value) || 0;
+  var n      = parseInt(document.getElementById('nfN').value) || 100;
+  var rate   = parseFloat(document.getElementById('nfRate').value) || 0;
+  var balloon= parseFloat(document.getElementById('nfBalloon').value) || 0;
+  var fee    = parseFloat(document.getElementById('nfFee').value) || 0;
+  var catalog= selectedNewCar ? selectedNewCar.catalog : 0;
+  var disc   = catalog - dealer;
+  var financed = Math.max(0, dealer - down);
+  var monthly  = pmtCalc(financed, rate, n, balloon);
+  var totalPaid = monthly * n + balloon + down + fee;
+  var totalCost = totalPaid - dealer;
+
+  document.getElementById('nfs-catalog').textContent   = catalog ? fmt(catalog) : '—';
+  document.getElementById('nfs-dealer').textContent    = dealer  ? fmt(dealer)  : '—';
+  document.getElementById('nfs-disc').textContent      = disc > 0 ? '−' + disc.toLocaleString('he-IL') + ' ₪' : '—';
+  document.getElementById('nfs-down').textContent      = fmt(down);
+  document.getElementById('nfs-financed').textContent  = fmt(financed);
+  document.getElementById('nfs-fee').textContent       = fmt(fee);
+  document.getElementById('nfs-monthly').textContent   = dealer ? fmt(monthly) : '—';
+  document.getElementById('nfs-totalcost').textContent = dealer ? fmt(totalCost) : '—';
+}
+
+function sendNew() {
+  var dealer  = parseFloat(document.getElementById('nfDealer').value) || 0;
+  var down    = parseFloat(document.getElementById('nfDown').value) || 0;
+  var n       = parseInt(document.getElementById('nfN').value) || 100;
+  var rate    = parseFloat(document.getElementById('nfRate').value) || 0;
+  var balloon = parseFloat(document.getElementById('nfBalloon').value) || 0;
+  var fee     = parseFloat(document.getElementById('nfFee').value) || 0;
+  var catalog = selectedNewCar ? selectedNewCar.catalog : 0;
+  var carName = selectedNewCar ? selectedNewCar.brand + ' ' + selectedNewCar.model : 'רכב חדש';
+  var financed = Math.max(0, dealer - down);
+  var monthly  = pmtCalc(financed, rate, n, balloon);
+
+  var msg = '🚗 הצעת מימון — ' + carName + '\n';
+  msg += '━━━━━━━━━━━━━━━━\n';
+  if (catalog) msg += '📋 מחירון: ' + catalog.toLocaleString('he-IL') + ' ₪\n';
+  msg += '💰 מחיר לסוחר: ' + dealer.toLocaleString('he-IL') + ' ₪\n';
+  if (catalog && dealer) msg += '🎁 הנחה: −' + (catalog-dealer).toLocaleString('he-IL') + ' ₪\n';
+  msg += '━━━━━━━━━━━━━━━━\n';
+  msg += '🏦 מקדמה: ' + down.toLocaleString('he-IL') + ' ₪\n';
+  msg += '📆 ' + n + ' תשלומים · ' + rate + '% ריבית שנתית\n';
+  if (balloon) msg += '🔚 בלון: ' + balloon.toLocaleString('he-IL') + ' ₪\n';
+  msg += '💳 תשלום חודשי: *' + monthly.toLocaleString('he-IL') + ' ₪*\n';
+  msg += '🔧 עמלת סוחר: ' + fee.toLocaleString('he-IL') + ' ₪\n';
+  msg += '━━━━━━━━━━━━━━━━\n';
+  msg += 'אפשר להתקדם?';
+  window.open('https://wa.me/972544214850?text=' + encodeURIComponent(msg), '_blank');
+}
+
+// ──────────────────────────────────────────────
+// 2. USED CAR FINANCE
+// ──────────────────────────────────────────────
+function calcUsed() {
+  var price   = parseFloat(document.getElementById('ufPrice').value) || 0;
+  var down    = parseFloat(document.getElementById('ufDown').value) || 0;
+  var n       = parseInt(document.getElementById('ufN').value) || 60;
+  var rate    = parseFloat(document.getElementById('ufRate').value) || 0;
+  var balloon = parseFloat(document.getElementById('ufBalloon').value) || 0;
+  var fee     = parseFloat(document.getElementById('ufFee').value) || 0;
+  var financed = Math.max(0, price - down);
+  var monthly  = pmtCalc(financed, rate, n, balloon);
+  var totalPaid = monthly * n + balloon + down + fee;
+  var totalCost = totalPaid - price;
+
+  document.getElementById('ufs-price').textContent    = price ? fmt(price) : '—';
+  document.getElementById('ufs-down').textContent     = fmt(down);
+  document.getElementById('ufs-financed').textContent = fmt(financed);
+  document.getElementById('ufs-fee').textContent      = fmt(fee);
+  document.getElementById('ufs-monthly').textContent  = price ? fmt(monthly) : '—';
+  document.getElementById('ufs-totalcost').textContent= price ? fmt(totalCost) : '—';
+}
+
+function sendUsed() {
+  var brand   = document.getElementById('ufBrand').value.trim();
+  var model   = document.getElementById('ufModel').value.trim();
+  var year    = document.getElementById('ufYear').value;
+  var km      = document.getElementById('ufKm').value;
+  var price   = parseFloat(document.getElementById('ufPrice').value) || 0;
+  var down    = parseFloat(document.getElementById('ufDown').value) || 0;
+  var n       = parseInt(document.getElementById('ufN').value) || 60;
+  var rate    = parseFloat(document.getElementById('ufRate').value) || 0;
+  var balloon = parseFloat(document.getElementById('ufBalloon').value) || 0;
+  var fee     = parseFloat(document.getElementById('ufFee').value) || 0;
+  var financed = Math.max(0, price - down);
+  var monthly  = pmtCalc(financed, rate, n, balloon);
+  var carName  = [brand, model].filter(Boolean).join(' ') || 'רכב משומש';
+
+  var msg = '🔑 הצעת מימון — ' + carName;
+  if (year) msg += ' (' + year + ')';
+  msg += '\n━━━━━━━━━━━━━━━━\n';
+  if (km) msg += '🛣️ ק"מ: ' + Number(km).toLocaleString('he-IL') + '\n';
+  msg += '💰 מחיר: ' + price.toLocaleString('he-IL') + ' ₪\n';
+  msg += '━━━━━━━━━━━━━━━━\n';
+  msg += '🏦 מקדמה: ' + down.toLocaleString('he-IL') + ' ₪\n';
+  msg += '📆 ' + n + ' תשלומים · ' + rate + '% ריבית שנתית\n';
+  if (balloon) msg += '🔚 בלון: ' + balloon.toLocaleString('he-IL') + ' ₪\n';
+  msg += '💳 תשלום חודשי: *' + monthly.toLocaleString('he-IL') + ' ₪*\n';
+  msg += '🔧 עמלת סוחר: ' + fee.toLocaleString('he-IL') + ' ₪\n';
+  msg += '━━━━━━━━━━━━━━━━\nאפשר להתקדם?';
+  window.open('https://wa.me/972544214850?text=' + encodeURIComponent(msg), '_blank');
+}
+
+// ──────────────────────────────────────────────
+// 3. PRICE QUOTE
+// ──────────────────────────────────────────────
+function buildQuote() {
+  var name    = document.getElementById('qName').value.trim();
+  var phone   = document.getElementById('qPhone').value.trim();
+  var car     = document.getElementById('qCar').value.trim();
+  var color   = document.getElementById('qColor').value.trim();
+  var catalog = parseFloat(document.getElementById('qCatalog').value) || 0;
+  var dealer  = parseFloat(document.getElementById('qDealer').value) || 0;
+  var extras  = document.getElementById('qExtras').value.trim();
+  var down    = parseFloat(document.getElementById('qDown').value) || 0;
+  var n       = parseInt(document.getElementById('qN').value) || 0;
+  var rate    = parseFloat(document.getElementById('qRate').value) || 0;
+  var balloon = parseFloat(document.getElementById('qBalloon').value) || 0;
+  var fee     = parseFloat(document.getElementById('qFee').value) || 0;
+  var notes   = document.getElementById('qNotes').value.trim();
+
+  var disc = catalog && dealer ? catalog - dealer : 0;
+  var financed = Math.max(0, dealer - down);
+  var monthly  = n ? pmtCalc(financed, rate, n, balloon) : 0;
+
+  document.getElementById('qDate').textContent = today();
+  document.getElementById('qPreviewCar').textContent = car || 'שם הרכב';
+  document.getElementById('qPreviewColor').textContent = [color, extras].filter(Boolean).join(' · ');
+
+  var rows = '';
+  if (name || phone) {
+    rows += '<tr class="section"><td colspan="2">פרטי לקוח</td></tr>';
+    if (name) rows += '<tr><td>שם</td><td>' + name + '</td></tr>';
+    if (phone) rows += '<tr><td>טלפון</td><td>' + phone + '</td></tr>';
+  }
+  rows += '<tr class="section"><td colspan="2">פרטי הרכב</td></tr>';
+  if (catalog) rows += '<tr><td>מחירון כולל רישוי</td><td>' + fmt(catalog) + '</td></tr>';
+  if (dealer)  rows += '<tr><td>מחיר לסוחר</td><td>' + fmt(dealer) + '</td></tr>';
+  if (disc > 0) rows += '<tr><td>הנחה מהמחירון</td><td style="color:#16a34a">−' + disc.toLocaleString('he-IL') + ' ₪</td></tr>';
+  if (fee)     rows += '<tr><td>עמלת סוחר</td><td>' + fmt(fee) + '</td></tr>';
+  if (n > 0) {
+    rows += '<tr class="section"><td colspan="2">פרטי מימון</td></tr>';
+    rows += '<tr><td>מקדמה</td><td>' + fmt(down) + '</td></tr>';
+    rows += '<tr><td>מספר תשלומים</td><td>' + n + '</td></tr>';
+    rows += '<tr><td>ריבית שנתית</td><td>' + rate + '%</td></tr>';
+    if (balloon) rows += '<tr><td>בלון סיום</td><td>' + fmt(balloon) + '</td></tr>';
+    rows += '<tr class="highlight"><td>💰 תשלום חודשי</td><td>' + fmt(monthly) + '</td></tr>';
+  }
+  if (notes) rows += '<tr><td colspan="2" style="color:#7a839a;font-size:12px">' + notes + '</td></tr>';
+
+  document.getElementById('quoteTableBody').innerHTML = rows;
+  document.getElementById('quotePreview').style.display = 'block';
+}
+
+function sendQuote() {
+  var name    = document.getElementById('qName').value.trim();
+  var car     = document.getElementById('qCar').value.trim();
+  var color   = document.getElementById('qColor').value.trim();
+  var catalog = parseFloat(document.getElementById('qCatalog').value) || 0;
+  var dealer  = parseFloat(document.getElementById('qDealer').value) || 0;
+  var extras  = document.getElementById('qExtras').value.trim();
+  var down    = parseFloat(document.getElementById('qDown').value) || 0;
+  var n       = parseInt(document.getElementById('qN').value) || 0;
+  var rate    = parseFloat(document.getElementById('qRate').value) || 0;
+  var balloon = parseFloat(document.getElementById('qBalloon').value) || 0;
+  var fee     = parseFloat(document.getElementById('qFee').value) || 0;
+  var notes   = document.getElementById('qNotes').value.trim();
+  var disc    = catalog && dealer ? catalog - dealer : 0;
+  var financed = Math.max(0, dealer - down);
+  var monthly  = n ? pmtCalc(financed, rate, n, balloon) : 0;
+  var phone   = document.getElementById('qPhone').value.trim().replace(/\D/g,'');
+
+  var msg = '📄 הצעת מחיר — ענק הרכבים\n';
+  msg += '━━━━━━━━━━━━━━━━\n';
+  if (name) msg += '👤 ' + name + '\n';
+  msg += '🚗 ' + (car || 'רכב') + (color ? ' · ' + color : '') + '\n';
+  if (extras) msg += '✨ ' + extras + '\n';
+  msg += '━━━━━━━━━━━━━━━━\n';
+  if (catalog) msg += '📋 מחירון: ' + fmt(catalog) + '\n';
+  if (dealer)  msg += '💰 מחיר לסוחר: ' + fmt(dealer) + '\n';
+  if (disc > 0) msg += '🎁 הנחה: −' + disc.toLocaleString('he-IL') + ' ₪\n';
+  if (fee)     msg += '🔧 עמלת סוחר: ' + fmt(fee) + '\n';
+  if (n > 0) {
+    msg += '━━━━━━━━━━━━━━━━\n';
+    msg += '🏦 מקדמה: ' + fmt(down) + '\n';
+    msg += '📆 ' + n + ' תשלומים · ' + rate + '% ריבית\n';
+    if (balloon) msg += '🔚 בלון: ' + fmt(balloon) + '\n';
+    msg += '💳 תשלום חודשי: *' + fmt(monthly) + '*\n';
+  }
+  msg += '━━━━━━━━━━━━━━━━\n';
+  if (notes) msg += notes + '\n';
+  msg += 'ההצעה בתוקף 48 שעות · ענק הרכבים';
+
+  var dest = phone.length >= 9 ? phone : '972544214850';
+  if (dest.startsWith('0')) dest = '972' + dest.slice(1);
+  window.open('https://wa.me/' + dest + '?text=' + encodeURIComponent(msg), '_blank');
+}
+</script>
+</body>
+</html>
