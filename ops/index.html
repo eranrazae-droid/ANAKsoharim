@@ -2275,11 +2275,7 @@ function loadDriverInventoryAssignments() {
   if (_dinvUnsub) _dinvUnsub();
   const container = document.getElementById('dinv-list');
   container.innerHTML = '<div class="loading"><div class="spinner"></div> טוען...</div>';
-  const { query, where, orderBy } = window._fbImports || {};
-  const q = query
-    ? query(_colRef('inventory_assignments'), where('assignedTo','==',currentUser.name), where('status','==','pending'))
-    : _colRef('inventory_assignments');
-  _dinvUnsub = _onSnap(q, snap => {
+  _dinvUnsub = _onSnap(_colRef('inventory_assignments'), snap => {
     const docs = snap.docs
       .map(d => ({ id: d.id, ...d.data() }))
       .filter(d => d.assignedTo === currentUser.name && d.status === 'pending');
