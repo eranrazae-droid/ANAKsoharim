@@ -1,3 +1,7 @@
+// v2 — force update
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', e => e.waitUntil(clients.claim()));
+
 // Network-first for HTML — always fetch fresh page from server
 self.addEventListener('fetch', e => {
   if (e.request.mode === 'navigate') {
