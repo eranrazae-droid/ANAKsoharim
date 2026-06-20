@@ -1014,14 +1014,18 @@ function renderHome() {
       ];
 
   document.getElementById('menu-grid').innerHTML = menuItems.map(m => `
-    <div class="menu-card" onclick="goToScreen('${m.screen}')">
-      <div class="mc-icon">${m.icon}</div>
+    <div class="menu-card" id="menu-card-${m.screen}" onclick="goToScreen('${m.screen}')">
+      <div style="position:relative;display:inline-block">
+        <div class="mc-icon">${m.icon}</div>
+        <span id="badge-${m.screen}" style="display:none;position:absolute;top:-6px;right:-10px;background:#ef4444;color:#fff;border-radius:999px;font-size:11px;font-weight:900;padding:1px 6px;min-width:18px;text-align:center"></span>
+      </div>
       <div class="mc-title">${m.title}</div>
-      <div class="mc-sub">${m.sub}</div>
+      <div class="mc-sub" id="sub-${m.screen}">${m.sub}</div>
     </div>
   `).join('');
 
   loadStats();
+  if (!isManager) loadDriverBadges();
 }
 
 function goToScreen(name) {
@@ -1054,6 +1058,45 @@ function loadStats() {
   const pq = _query(_colRef('parts'), _where('status','==','pending'));
   _onSnap(pq, snap => {
     document.getElementById('stat-parts').textContent = snap.size;
+  });
+}
+
+function _setCardBadge(screen, count) {
+  const card = document.getElementById('menu-card-' + screen);
+  const badge = document.getElementById('badge-' + screen);
+  const sub = document.getElementById('sub-' + screen);
+  if (!card || !badge) return;
+  if (count > 0) {
+    card.style.background = '#1e40af';
+    card.style.color = '#fff';
+    card.querySelectorAll('.mc-title,.mc-sub').forEach(el => el.style.color = '#fff');
+    badge.style.display = 'inline-block';
+    badge.textContent = count > 1 ? count : '';
+  } else {
+    card.style.background = '';
+    card.style.color = '';
+    card.querySelectorAll('.mc-title,.mc-sub').forEach(el => el.style.color = '');
+    badge.style.display = 'none';
+  }
+}
+
+function loadDriverBadges() {
+  if (!window._CONFIG_DONE || !currentUser) return;
+  const name = currentUser.name;
+
+  // tasks pending for this driver
+  _onSnap(_query(_colRef('tasks'), _where('assignedTo','==',name), _where('status','==','pending')), snap => {
+    _setCardBadge('tasks', snap.size);
+  });
+
+  // intakes pending for this driver
+  _onSnap(_query(_colRef('intake_assignments'), _where('assignedTo','==',name), _where('status','==','pending')), snap => {
+    _setCardBadge('vehicles', snap.size);
+  });
+
+  // inventory checks pending for this driver
+  _onSnap(_query(_colRef('inventory_assignments'), _where('assignedTo','==',name), _where('status','==','pending')), snap => {
+    _setCardBadge('driver-inventory', snap.size);
   });
 }
 
@@ -2609,11 +2652,18 @@ async function submitDriverInv() {
     await _updateDoc(_docRef('inventory_assignments', _driverInvDocId), {
       status: 'done', completedBy: currentUser.name, completedAt: _serverTs(), present, absent
     });
-    closeModal('modal-driver-inv');
     _driverInvDocId = null;
     _driverInvRows = [];
+    // close modal and go home
+    document.querySelectorAll('.modal-overlay').forEach(m => m.style.display = 'none');
     goHome();
-    showToast('✅ בדיקת המלאי נשלחה!');
+    showToast('✅ הבדיקה נשלחה בהצלחה!', 2000);
+    // prominent success banner
+    const banner = document.createElement('div');
+    banner.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#22c55e;color:#fff;border-radius:20px;padding:24px 40px;font-size:22px;font-weight:900;z-index:9999;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.3)';
+    banner.textContent = '✅ הבדיקה נשלחה בהצלחה!';
+    document.body.appendChild(banner);
+    setTimeout(() => banner.remove(), 2000);
   } catch(e) {
     console.error('submitDriverInv error', e);
     showToast('שגיאה: ' + (e.code || e.message));
