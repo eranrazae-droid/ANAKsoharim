@@ -3135,13 +3135,35 @@ function loadYardData() {
     _updateYardResetBanner(d);
 
     if (!isManager) {
-      // Driver: always sync table from Firestore
+      // Driver: sync table from Firestore
       yardData = d.data || {};
-      renderYardTable();
-      renderYardInputValues();
       const hasData = Object.values(yardData).some(v => v && String(v).trim());
       const toolbar = document.getElementById('yard-driver-toolbar');
       if (toolbar) toolbar.style.display = hasData ? 'flex' : 'none';
+
+      const wrap = document.getElementById('yard-table-wrap');
+      if (!hasData) {
+        // Show placeholder instead of empty table
+        if (wrap) wrap.innerHTML = `<div style="text-align:center;padding:60px 20px;color:var(--muted);font-size:16px;font-weight:700">אין סידור מגרש פעיל כרגע</div>`;
+        return;
+      }
+      // Render table then fill values, scale after layout settles
+      renderYardTable();
+      renderYardInputValues();
+      setTimeout(() => {
+        const tbl = document.getElementById('yard-table');
+        if (!wrap || !tbl) return;
+        const availW = window.innerWidth;
+        const availH = window.innerHeight - (wrap.getBoundingClientRect().top || 200);
+        const scaleX = availW / (tbl.scrollWidth + 2);
+        const scaleY = availH / (tbl.scrollHeight + 2);
+        const scale  = Math.min(scaleX, scaleY, 1);
+        tbl.style.transform = `scale(${scale})`;
+        tbl.style.transformOrigin = 'top right';
+        wrap.style.height = (tbl.scrollHeight * scale + 16) + 'px';
+        wrap.style.overflow = 'hidden';
+      }, 150);
+      return;
     } else {
       // Manager: only react to status transitions, never overwrite live edits
       if (_yardLastStatus === null) {
@@ -3226,22 +3248,6 @@ function renderYardTable() {
   tbody.innerHTML = html;
   renderYardInputValues();
 
-  // Auto-scale for driver view to fit screen
-  if (!isManager) {
-    setTimeout(() => {
-      const wrap = document.getElementById('yard-table-wrap');
-      const tbl  = document.getElementById('yard-table');
-      const availH = wrap.clientHeight || window.innerHeight - 200;
-      const availW = wrap.clientWidth  || window.innerWidth;
-      const scaleX = availW / (tbl.scrollWidth + 2);
-      const scaleY = availH / (tbl.scrollHeight + 2);
-      const scale  = Math.min(scaleX, scaleY, 1);
-      tbl.style.transform = `scale(${scale})`;
-      tbl.style.transformOrigin = 'top right';
-      wrap.style.height = (tbl.scrollHeight * scale) + 'px';
-      wrap.style.overflow = 'hidden';
-    }, 100);
-  }
 }
 
 function renderToPlaceGrid(isManager) {
