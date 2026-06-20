@@ -1073,8 +1073,21 @@ async function submitVehicle() {
   if (!plate) return showToast('נא להזין מספר לוחית');
   if (!window._CONFIG_DONE) return showToast('Firebase לא מחובר');
   const checklist = getChecklist();
+
+  // validate: if X selected on photo-required items, must have at least 1 photo
+  const photoRequired = {
+    'c-lights-break': 'שברים בפנסים',
+    'c-glass-break':  'שברים בשמשות',
+    'c-upholstery':   'ריפודים',
+    'c-steering':     'הגה'
+  };
+  for (const [k, label] of Object.entries(photoRequired)) {
+    if (checklist[k] === 'x' && !(ciPhotoFiles[k]?.length)) {
+      return showToast(`חובה להעלות תמונה עבור: ${label}`);
+    }
+  }
+
   const vehicleId = plate + '_' + Date.now();
-  // upload photos if any
   const photoKeys = ['c-lights-break','c-glass-break','c-upholstery','c-steering'];
   const photoUrls = {};
   for (const k of photoKeys) {
