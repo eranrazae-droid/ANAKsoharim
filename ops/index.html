@@ -1078,42 +1078,66 @@ function loadVehicles() {
   const q = _query(_colRef('vehicles'), _orderBy('receivedAt','desc'));
   vehicleUnsub = _onSnap(q, snap => {
     const vehicles = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-
-    // open intakes summary boxes
-    const drivers = ['עופר','גיל','איתי'];
+    const isManager = currentUser.role === 'manager';
     const summary = document.getElementById('vehicle-open-summary');
-    summary.style.display = 'grid';
-    summary.innerHTML = drivers.map(name => {
-      const count = vehicles.filter(v => v.receivedBy === name).length;
-      return `<div style="background:#fff;border:2px solid var(--border);border-radius:14px;padding:14px 10px;text-align:center">
-        <div style="font-size:11px;color:var(--muted);font-weight:600;margin-bottom:4px">קליטות</div>
-        <div style="font-size:28px;font-weight:900;color:${count>0?'var(--gold)':'var(--muted)'}">${count}</div>
-        <div style="font-size:13px;font-weight:700;color:var(--dark);margin-top:2px">${name}</div>
-      </div>`;
-    }).join('');
-
     const container = document.getElementById('vehicle-list-container');
-    if (!vehicles.length) {
-      container.innerHTML = `<div class="empty-state"><div class="es-icon">🅿️</div><h3>המגרש ריק</h3><p>עדיין לא נקלטו רכבים</p></div>`;
-      return;
-    }
-    container.innerHTML = vehicles.map(v => {
+
+    function vehicleCard(v) {
       const ts = v.receivedAt?.toDate ? v.receivedAt.toDate().toLocaleString('he-IL') : '';
-      const checked = v.checklist ? Object.values(v.checklist).filter(Boolean).length : 0;
-      const total   = v.checklist ? Object.values(v.checklist).length : 0;
-      return `
-      <div class="vehicle-card">
+      return `<div class="vehicle-card">
         <div class="vehicle-plate">${esc(v.plate)}</div>
-        <div class="vehicle-info">${esc(v.brand)} ${esc(v.model)} ${esc(v.year||'')}</div>
+        <div class="vehicle-info">${[v.brand,v.model,v.year].filter(Boolean).map(esc).join(' ')}</div>
         <div class="vehicle-meta">
-          <span class="cond-badge cond-${v.condition}">${esc(v.condition)}</span>
-          ${total ? `<span class="tag assignee">צ׳קליסט: ${checked}/${total}</span>` : ''}
-          <span>נקלט ע"י ${esc(v.receivedBy)}</span>
+          ${v.color ? `<span class="tag assignee">🎨 ${esc(v.color)}</span>` : ''}
+          <span class="tag assignee">👤 ${esc(v.receivedBy)}</span>
         </div>
-        ${v.notes ? `<div class="task-notes" style="margin-top:8px">${esc(v.notes)}</div>` : ''}
+        ${v.notes ? `<div class="task-notes" style="margin-top:6px">${esc(v.notes)}</div>` : ''}
         ${ts ? `<div class="task-time">${ts}</div>` : ''}
       </div>`;
-    }).join('');
+    }
+
+    if (isManager) {
+      // Summary boxes
+      const drivers = ['עופר','גיל','איתי'];
+      summary.style.display = 'grid';
+      summary.innerHTML = drivers.map(name => {
+        const count = vehicles.filter(v => v.receivedBy === name).length;
+        return `<div style="background:#fff;border:2px solid var(--border);border-radius:14px;padding:14px 10px;text-align:center">
+          <div style="font-size:11px;color:var(--muted);font-weight:600;margin-bottom:2px">קליטות</div>
+          <div style="font-size:30px;font-weight:900;color:${count>0?'var(--gold)':'var(--muted)'}">${count}</div>
+          <div style="font-size:13px;font-weight:700;color:var(--dark)">${name}</div>
+        </div>`;
+      }).join('');
+
+      // Grouped by driver
+      if (!vehicles.length) {
+        container.innerHTML = `<div class="empty-state"><div class="es-icon">🅿️</div><h3>המגרש ריק</h3><p>עדיין לא נקלטו רכבים</p></div>`;
+        return;
+      }
+      let html = '';
+      drivers.forEach(name => {
+        const dv = vehicles.filter(v => v.receivedBy === name);
+        if (!dv.length) return;
+        html += `<div style="padding:10px 16px 4px;font-weight:900;font-size:14px;color:var(--dark);border-bottom:2px solid var(--gold);margin-bottom:6px">👤 ${name} — ${dv.length} קליטות</div>`;
+        html += dv.map(vehicleCard).join('');
+      });
+      // vehicles with unknown driver
+      const others = vehicles.filter(v => !drivers.includes(v.receivedBy));
+      if (others.length) {
+        html += `<div style="padding:10px 16px 4px;font-weight:900;font-size:14px;color:var(--dark);border-bottom:2px solid var(--border);margin-bottom:6px">אחר</div>`;
+        html += others.map(vehicleCard).join('');
+      }
+      container.innerHTML = html;
+    } else {
+      // Driver sees only their own
+      summary.style.display = 'none';
+      const mine = vehicles.filter(v => v.receivedBy === currentUser.name);
+      if (!mine.length) {
+        container.innerHTML = `<div class="empty-state"><div class="es-icon">📋</div><h3>אין קליטות</h3><p>עדיין לא קלטת רכבים</p></div>`;
+        return;
+      }
+      container.innerHTML = mine.map(vehicleCard).join('');
+    }
   });
 }
 
