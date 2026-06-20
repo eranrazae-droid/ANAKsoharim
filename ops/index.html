@@ -106,6 +106,7 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
 .tag.prio-high{background:#fee2e2;color:#991b1b}
 .tag.prio-med{background:#fef3c7;color:#92400e}
 .tag.prio-low{background:#dcfce7;color:#166534}
+.tag.task-label{background:#ede9fe;color:#5b21b6;font-weight:800}
 .task-time{font-size:11px;color:var(--muted);margin-top:8px}
 .task-notes{font-size:13px;color:var(--muted);margin-top:6px;line-height:1.5}
 
@@ -319,6 +320,17 @@ if ('serviceWorker' in navigator) {
         <option value="נהג 1">נהג 1</option>
         <option value="נהג 2">נהג 2</option>
         <option value="נהג 3">נהג 3</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>תווית</label>
+      <select class="form-select" id="task-label">
+        <option value="משימות כלליות">משימות כלליות</option>
+        <option value="חביב">חביב</option>
+        <option value="ולאדי">ולאדי</option>
+        <option value="רפד">רפד</option>
+        <option value="זגג">זגג</option>
+        <option value="רדארים">רדארים</option>
       </select>
     </div>
     <div class="form-group">
@@ -848,9 +860,11 @@ function openTasksScreen() {
   document.getElementById('fab-new-task').style.display = isManager ? 'flex' : 'none';
 
   // filter tabs
-  const tabs = isManager
+  const statusTabs = isManager
     ? ['הכל','פתוחות','בביצוע','הושלמו']
     : ['שלי','פתוחות','הושלמו'];
+  const labelTabs = ['משימות כלליות','חביב','ולאדי','רפד','זגג','רדארים'];
+  const tabs = [...statusTabs, ...labelTabs];
   const tabEl = document.getElementById('task-filter-tabs');
   tabEl.innerHTML = tabs.map((t,i) =>
     `<button class="ftab${i===0?' active':''}" onclick="filterTasks('${t}',this)">${t}</button>`
@@ -893,10 +907,12 @@ function renderTasksFromCache() {
   }
 
   const f = activeTaskFilter;
+  const labelFilters = ['משימות כלליות','חביב','ולאדי','רפד','זגג','רדארים'];
   if (f === 'פתוחות') tasks = tasks.filter(t => t.status === 'open');
   else if (f === 'בביצוע') tasks = tasks.filter(t => t.status === 'inprog');
-  else if (f === 'הושלמו' || f === 'הושלמו') tasks = tasks.filter(t => t.status === 'done');
+  else if (f === 'הושלמו') tasks = tasks.filter(t => t.status === 'done');
   else if (f === 'שלי') tasks = tasks.filter(t => t.assignedTo === currentUser.name || t.assignedTo === 'כולם');
+  else if (labelFilters.includes(f)) tasks = tasks.filter(t => t.label === f);
 
   const container = document.getElementById('task-list-container');
   if (!tasks.length) {
@@ -919,6 +935,7 @@ function renderTasksFromCache() {
       </div>
       ${t.notes ? `<div class="task-notes">${esc(t.notes)}</div>` : ''}
       <div class="task-meta">
+        ${t.label ? `<span class="tag task-label">${esc(t.label)}</span>` : ''}
         <span class="tag assignee">👤 ${esc(t.assignedTo)}</span>
         <span class="tag status-${t.status}">${statusLabel[t.status]||t.status}</span>
         <span class="tag prio-${t.priority}">${prioLabel[t.priority]||t.priority}</span>
@@ -938,6 +955,7 @@ function openNewTaskModal() {
   document.getElementById('task-title').value = '';
   document.getElementById('task-notes').value = '';
   document.getElementById('task-assignee').value = 'כולם';
+  document.getElementById('task-label').value = 'משימות כלליות';
   document.getElementById('task-priority').value = 'med';
   openModal('modal-task');
 }
@@ -950,6 +968,7 @@ async function submitTask() {
     title,
     notes:      document.getElementById('task-notes').value.trim(),
     assignedTo: document.getElementById('task-assignee').value,
+    label:      document.getElementById('task-label').value,
     priority:   document.getElementById('task-priority').value,
     status:     'open',
     createdBy:  currentUser.name,
