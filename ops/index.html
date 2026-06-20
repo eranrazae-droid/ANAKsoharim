@@ -1586,15 +1586,12 @@ async function submitDriverIntake() {
   if (!_currentIntakeId) { showToast('שגיאה: אין קליטה פתוחה'); return; }
   if (!window._CONFIG_DONE) { showToast('Firebase לא מחובר'); return; }
 
-  const keys = [...new Set([...document.querySelectorAll('#modal-driver-intake .ci-box')].map(b => b.dataset.key))];
-
-  // all items must be marked
-  for (const key of keys) {
+  // validate all checklist items are marked
+  for (const [key, label] of Object.entries(_ciLabels)) {
     const active = document.querySelector(`#modal-driver-intake .ci-box[data-key="${key}"].v-active,#modal-driver-intake .ci-box[data-key="${key}"].x-active`);
     if (!active) {
-      const label = _ciLabels[key] || key;
       document.querySelector(`#modal-driver-intake .ci-box[data-key="${key}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      showToast(`נא לסמן: ${label}`);
+      showToast(`⚠️ נא לסמן: ${label}`);
       return;
     }
   }
@@ -1868,14 +1865,18 @@ async function uploadPhotos(key, vehicleId) {
   const files = ciPhotoFiles[key] || [];
   const urls = [];
   if (!files.length) return urls;
+  console.log(`uploadPhotos: uploading ${files.length} file(s) for key=${key}`);
   const { getStorage, ref: sRef, uploadBytes: uBytes, getDownloadURL: getDL } =
     await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js");
   const st = window._storage || getStorage(window._app);
   for (let i = 0; i < files.length; i++) {
     const path = `vehicles/${vehicleId}/${key}_${i}_${Date.now()}`;
+    console.log(`uploadPhotos: uploading to path=${path}`);
     const r = sRef(st, path);
     await uBytes(r, files[i]);
-    urls.push(await getDL(r));
+    const url = await getDL(r);
+    console.log(`uploadPhotos: got url=${url}`);
+    urls.push(url);
   }
   return urls;
 }
