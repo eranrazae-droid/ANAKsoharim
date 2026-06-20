@@ -637,6 +637,7 @@ if ('serviceWorker' in navigator) {
     <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px" id="yard-to-place-grid"></div>
   </div>
   <div id="yard-table-wrap" style="overflow:auto;padding:8px 8px 80px">
+    <div id="yard-no-data-msg" style="display:none;text-align:center;padding:60px 20px;color:var(--muted);font-size:16px;font-weight:700">אין סידור מגרש פעיל כרגע</div>
     <table id="yard-table" style="border-collapse:collapse;font-family:Heebo,sans-serif;font-size:13px">
       <thead>
         <tr style="background:var(--dark);color:#fff">
@@ -1266,17 +1267,44 @@ function _onDragOver(e) {
   e.currentTarget.classList.add('drag-over');
 }
 function _onDragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
-async function _onDrop(e, newLabel) {
+async function _onDrop(e, newLabel, beforeId, afterId) {
   e.preventDefault();
   e.currentTarget.classList.remove('drag-over');
   if (!_dragTaskId) return;
   const id = _dragTaskId;
   _dragTaskId = null;
-  // find current label from cache
-  const task = tasksCache.find(t => t.id === id);
-  if (!task || task.label === newLabel) return;
+
+  // Calculate new sortOrder between neighbours
+  const getSortOrder = (tid) => {
+    const t = tasksCache.find(x => x.id === tid);
+    return t ? (t.sortOrder ?? t.createdAt?.toMillis?.() ?? Date.now()) : null;
+  };
+  const afterOrder  = afterId  ? getSortOrder(afterId)  : null;
+  const beforeOrder = beforeId ? getSortOrder(beforeId) : null;
+
+  let newOrder;
+  if (afterOrder !== null && beforeOrder !== null) {
+    newOrder = (afterOrder + beforeOrder) / 2;
+  } else if (afterOrder !== null) {
+    newOrder = afterOrder - 1000;
+  } else if (beforeOrder !== null) {
+    newOrder = beforeOrder + 1000;
+  } else {
+    newOrder = Date.now();
+  }
+
+  const updates = { sortOrder: newOrder };
+  if (newLabel) updates.label = newLabel;
+
+  // Update assignedTo based on new label
+  const colToAssigned = {
+    'רפד':'רפד','זגג':'זגג','חביב':'חביב','ולאדי':'ולאדי','גיל':'גיל',
+    'עופר':'עופר','איתי':'איתי','רדארים':'רדארים','משימות כלליות':'כולם',
+  };
+  if (newLabel && colToAssigned[newLabel]) updates.assignedTo = colToAssigned[newLabel];
+
   try {
-    await _updateDoc(_docRef('tasks', id), { label: newLabel });
+    await _updateDoc(_docRef('tasks', id), updates);
   } catch(err) { showToast('שגיאה בעדכון: ' + (err.message||err.code)); }
 }
 // ─────────────────────────────────────────────────────────
@@ -1311,7 +1339,6 @@ function renderTasksFromCache() {
         <div class="task-title">${esc(t.title)}</div>
         <div style="display:flex;gap:4px;flex-shrink:0;align-items:center">
           ${isManager && !done ? `<button onclick="openEditTask('${t.id}')" style="background:#6366f1;color:#fff;border:none;border-radius:999px;width:24px;height:24px;cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0">✏️</button>` : ''}
-          <button class="task-done-btn${done?' done':''}" onclick="toggleTaskDone('${t.id}','${t.status}')">${done?'✓':''}</button>
           ${isManager ? `<button onclick="deleteTask('${t.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:999px;width:24px;height:24px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="מחק">🗑</button>` : ''}
         </div>
       </div>
@@ -1323,13 +1350,13 @@ function renderTasksFromCache() {
     return card;
   }
 
-  function makeDropZone(label) {
+  function makeDropZone(label, afterId, beforeId) {
     const zone = document.createElement('div');
     zone.className = 'task-drop-zone';
     zone.dataset.label = label;
     zone.addEventListener('dragover',  _onDragOver);
     zone.addEventListener('dragleave', _onDragLeave);
-    zone.addEventListener('drop',      e => _onDrop(e, label));
+    zone.addEventListener('drop',      e => _onDrop(e, label, beforeId, afterId));
     return zone;
   }
 
@@ -1337,7 +1364,9 @@ function renderTasksFromCache() {
     return [...tasks].sort((a,b) => {
       const dA = a.status==='done'?1:0, dB = b.status==='done'?1:0;
       if (dA !== dB) return dA - dB;
-      return (prioOrder[a.priority]??1) - (prioOrder[b.priority]??1);
+      const sA = a.sortOrder ?? a.createdAt?.toMillis?.() ?? 0;
+      const sB = b.sortOrder ?? b.createdAt?.toMillis?.() ?? 0;
+      return sA - sB;
     });
   }
 
@@ -1356,15 +1385,15 @@ function renderTasksFromCache() {
     cards.className = 'task-col-cards';
 
     if (tasks.length === 0) {
-      const zone = makeDropZone(label);
+      const zone = makeDropZone(label, null, null);
       zone.innerHTML = `<div style="text-align:center;color:var(--muted);font-size:13px;padding:20px 0">אין משימות</div>`;
       cards.appendChild(zone);
     } else {
-      // drop zone at top
-      cards.appendChild(makeDropZone(label));
-      tasks.forEach(t => {
+      cards.appendChild(makeDropZone(label, null, tasks[0].id));
+      tasks.forEach((t, i) => {
         cards.appendChild(makeCard(t));
-        cards.appendChild(makeDropZone(label));
+        const nextId = tasks[i+1]?.id ?? null;
+        cards.appendChild(makeDropZone(label, t.id, nextId));
       });
     }
     col.appendChild(cards);
@@ -1420,12 +1449,12 @@ function renderTasksFromCache() {
     subHeader.textContent = name;
     sub.appendChild(subHeader);
     if (tasks.length === 0) {
-      const zone = makeDropZone(name);
+      const zone = makeDropZone(name, null, null);
       zone.innerHTML = `<div style="text-align:center;color:var(--muted);font-size:12px;padding:8px 0">אין משימות</div>`;
       sub.appendChild(zone);
     } else {
-      sub.appendChild(makeDropZone(name));
-      tasks.forEach(t => { sub.appendChild(makeCard(t)); sub.appendChild(makeDropZone(name)); });
+      sub.appendChild(makeDropZone(name, null, tasks[0].id));
+      tasks.forEach((t,i) => { sub.appendChild(makeCard(t)); sub.appendChild(makeDropZone(name, t.id, tasks[i+1]?.id??null)); });
     }
     zrCards.appendChild(sub);
   });
@@ -1449,12 +1478,12 @@ function renderTasksFromCache() {
     subHeader.textContent = driver;
     sub.appendChild(subHeader);
     if (tasks.length === 0) {
-      const zone = makeDropZone(driver);
+      const zone = makeDropZone(driver, null, null);
       zone.innerHTML = `<div style="text-align:center;color:var(--muted);font-size:12px;padding:8px 0">אין משימות</div>`;
       sub.appendChild(zone);
     } else {
-      sub.appendChild(makeDropZone(driver));
-      tasks.forEach(t => { sub.appendChild(makeCard(t)); sub.appendChild(makeDropZone(driver)); });
+      sub.appendChild(makeDropZone(driver, null, tasks[0].id));
+      tasks.forEach((t,i) => { sub.appendChild(makeCard(t)); sub.appendChild(makeDropZone(driver, t.id, tasks[i+1]?.id??null)); });
     }
     drCards.appendChild(sub);
   });
@@ -3076,18 +3105,19 @@ window.resetYard = resetYard;
 ═══════════════════════════════════════════════════════ */
 
 function openYardScreen() {
-  try {
-    document.getElementById('yard-user-badge').textContent = currentUser.name;
-    const isManager = currentUser.role === 'manager';
-    renderYardTable();
-    showScreen('yard');
-    loadYardData();
-    if (isManager) {
-      const btn = document.getElementById('yard-publish-btn');
-      if (btn) { btn.textContent = '📤 שלח לנהגים'; btn.style.background = 'var(--gold)'; btn.style.color = '#000'; btn.onclick = publishYard; btn.disabled = false; }
-    }
-  } catch(e) {
-    alert('שגיאה בפתיחת סידור מגרש:\n' + e.message + '\n' + e.stack?.split('\n').slice(0,3).join('\n'));
+  document.getElementById('yard-user-badge').textContent = currentUser.name;
+  const isManager = currentUser.role === 'manager';
+  // Ensure table is visible before rendering (driver may have hidden it)
+  const tbl = document.getElementById('yard-table');
+  const msg = document.getElementById('yard-no-data-msg');
+  if (tbl) tbl.style.display = '';
+  if (msg) msg.style.display = 'none';
+  renderYardTable();
+  showScreen('yard');
+  loadYardData();
+  if (isManager) {
+    const btn = document.getElementById('yard-publish-btn');
+    if (btn) { btn.textContent = '📤 שלח לנהגים'; btn.style.background = 'var(--gold)'; btn.style.color = '#000'; btn.onclick = publishYard; btn.disabled = false; }
   }
 }
 
@@ -3141,26 +3171,30 @@ function loadYardData() {
       const toolbar = document.getElementById('yard-driver-toolbar');
       if (toolbar) toolbar.style.display = hasData ? 'flex' : 'none';
 
-      const wrap = document.getElementById('yard-table-wrap');
+      const noDataMsg = document.getElementById('yard-no-data-msg');
+      const tbl = document.getElementById('yard-table');
       if (!hasData) {
-        // Show placeholder instead of empty table
-        if (wrap) wrap.innerHTML = `<div style="text-align:center;padding:60px 20px;color:var(--muted);font-size:16px;font-weight:700">אין סידור מגרש פעיל כרגע</div>`;
+        if (noDataMsg) noDataMsg.style.display = 'block';
+        if (tbl) tbl.style.display = 'none';
         return;
       }
+      if (noDataMsg) noDataMsg.style.display = 'none';
+      if (tbl) tbl.style.display = '';
       // Render table then fill values, scale after layout settles
       renderYardTable();
       renderYardInputValues();
+      const wrap = document.getElementById('yard-table-wrap');
       setTimeout(() => {
-        const tbl = document.getElementById('yard-table');
-        if (!wrap || !tbl) return;
+        const t = document.getElementById('yard-table');
+        if (!wrap || !t) return;
         const availW = window.innerWidth;
         const availH = window.innerHeight - (wrap.getBoundingClientRect().top || 200);
-        const scaleX = availW / (tbl.scrollWidth + 2);
-        const scaleY = availH / (tbl.scrollHeight + 2);
+        const scaleX = availW / (t.scrollWidth + 2);
+        const scaleY = availH / (t.scrollHeight + 2);
         const scale  = Math.min(scaleX, scaleY, 1);
-        tbl.style.transform = `scale(${scale})`;
-        tbl.style.transformOrigin = 'top right';
-        wrap.style.height = (tbl.scrollHeight * scale + 16) + 'px';
+        t.style.transform = `scale(${scale})`;
+        t.style.transformOrigin = 'top right';
+        wrap.style.height = (t.scrollHeight * scale + 16) + 'px';
         wrap.style.overflow = 'hidden';
       }, 150);
       return;
