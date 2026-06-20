@@ -2026,11 +2026,11 @@ document.querySelectorAll('.modal-overlay').forEach(o => {
   o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); });
 });
 
-function showToast(msg) {
+function showToast(msg, duration) {
   const t = document.getElementById('toast');
   t.textContent = msg;
   t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2800);
+  setTimeout(() => t.classList.remove('show'), duration || 2800);
 }
 
 function esc(str) {
@@ -2136,14 +2136,20 @@ function loadLastInventoryAssignment() {
       banner.style.color = '#166534';
       banner.innerHTML = `✅ הבדיקה הושלמה ע"י <strong>${esc(last.completedBy||last.assignedTo)}</strong> · ${ts}`;
       renderInvResult(headers, rows, last.present||[], last.absent||[]);
+      // notify manager if this just changed to done
+      if (window._lastInvStatus && window._lastInvStatus !== 'done') {
+        showToast(`🔔 ${esc(last.completedBy||last.assignedTo)} סיים את בדיקת המלאי — לחץ לצפייה בתוצאות`, 6000);
+      }
+      window._lastInvStatus = 'done';
     } else {
       const ts = last.createdAt?.toDate ? last.createdAt.toDate().toLocaleDateString('he-IL') : '';
       banner.style.display = 'block';
-      banner.style.background = '#fef3c7';
-      banner.style.border = '2px solid #f59e0b';
-      banner.style.color = '#92400e';
-      banner.innerHTML = `⏳ ממתין לסימון ע"י <strong>${esc(last.assignedTo)}</strong> · נשלח ${ts}`;
+      banner.style.background = '#dcfce7';
+      banner.style.border = '2px solid #22c55e';
+      banner.style.color = '#166534';
+      banner.innerHTML = `✅ נשלח לבדיקה ע"י <strong>${esc(last.assignedTo)}</strong> · ${ts} — ממתין לסיום הבדיקה`;
       renderInvPending(headers, rows);
+      window._lastInvStatus = 'pending';
     }
   });
 }
