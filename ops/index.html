@@ -3229,18 +3229,27 @@ async function publishYard() {
   showToast('📤 הטבלה נשלחה לנהגים!');
   const btn = document.getElementById('yard-publish-btn');
   if (btn) {
-    btn.textContent = '✅ נשלח';
+    btn.textContent = '✅ בוצע';
     btn.style.background = '#22c55e';
     btn.style.color = '#fff';
-    btn.onclick = null;
-    btn.disabled = true;
+    btn.disabled = false;
+    btn.onclick = doneYardManager;
   }
+}
+
+async function doneYardManager() {
+  if (!window._CONFIG_DONE) return showToast('Firebase לא מחובר');
+  await _setDoc(_docRef('yard','current'), { data: {}, updatedAt: _serverTs(), publishedAt: null, status: 'done' });
+  yardData = {};
+  showToast('✅ בוצע! הטבלה אופסה');
+  goHome();
 }
 
 async function markYardDone() {
   if (!window._CONFIG_DONE) return showToast('Firebase לא מחובר');
-  await _setDoc(_docRef('yard','current'), { data: yardData, updatedAt: _serverTs(), publishedAt: null, status: 'done' });
-  showToast('✅ סידור המגרש סומן כבוצע!');
+  await _setDoc(_docRef('yard','current'), { data: {}, updatedAt: _serverTs(), publishedAt: null, status: 'done' });
+  yardData = {};
+  showToast('✅ בוצע! הטבלה אופסה');
   document.getElementById('yard-driver-toolbar').style.display = 'none';
   goHome();
 }
