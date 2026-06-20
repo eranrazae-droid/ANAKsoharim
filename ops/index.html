@@ -861,19 +861,47 @@ function loadStats() {
 /* ═══════════════════════════════════════════════════════
    TASKS SCREEN
 ═══════════════════════════════════════════════════════ */
+function getSeenTasks() {
+  try { return new Set(JSON.parse(localStorage.getItem('anak_seen_tasks') || '[]')); }
+  catch { return new Set(); }
+}
+function markLabelSeen(label) {
+  const seen = getSeenTasks();
+  const labelFilters = ['משימות כלליות','חביב','ולאדי','רפד','זגג','רדארים'];
+  let tasks = tasksCache;
+  if (labelFilters.includes(label)) tasks = tasks.filter(t => t.label === label);
+  tasks.forEach(t => seen.add(t.id));
+  localStorage.setItem('anak_seen_tasks', JSON.stringify([...seen]));
+}
+function unreadCountByLabel() {
+  const seen = getSeenTasks();
+  const counts = {};
+  tasksCache.forEach(t => {
+    if (!seen.has(t.id) && t.label) {
+      counts[t.label] = (counts[t.label] || 0) + 1;
+    }
+  });
+  return counts;
+}
+function renderTaskTabs() {
+  const isManager = currentUser.role === 'manager';
+  const labelTabs = ['משימות כלליות','חביב','ולאדי','רפד','זגג','רדארים'];
+  const tabs = isManager ? labelTabs : ['שלי', ...labelTabs];
+  const counts = isManager ? unreadCountByLabel() : {};
+  const tabEl = document.getElementById('task-filter-tabs');
+  tabEl.innerHTML = tabs.map((t,i) => {
+    const n = counts[t];
+    const label = n ? `${t} (${n})` : t;
+    const active = activeTaskFilter === t || (i === 0 && activeTaskFilter === 'הכל') ? ' active' : '';
+    return `<button class="ftab${active}" onclick="filterTasks('${t}',this)">${label}</button>`;
+  }).join('');
+}
+
 function openTasksScreen() {
   const isManager = currentUser.role === 'manager';
   document.getElementById('tasks-user-badge').textContent = currentUser.name;
   document.getElementById('fab-new-task').style.display = isManager ? 'flex' : 'none';
-
-  // filter tabs
-  const labelTabs = ['משימות כלליות','חביב','ולאדי','רפד','זגג','רדארים'];
-  const tabs = isManager ? labelTabs : ['שלי', ...labelTabs];
-  const tabEl = document.getElementById('task-filter-tabs');
-  tabEl.innerHTML = tabs.map((t,i) =>
-    `<button class="ftab${i===0?' active':''}" onclick="filterTasks('${t}',this)">${t}</button>`
-  ).join('');
-
+  activeTaskFilter = isManager ? 'משימות כלליות' : 'שלי';
   showScreen('tasks');
   loadTasks();
 }
@@ -881,10 +909,16 @@ function openTasksScreen() {
 let activeTaskFilter = 'הכל';
 
 function filterTasks(f, el) {
+  markLabelSeen(f);
   activeTaskFilter = f;
   document.querySelectorAll('#task-filter-tabs .ftab').forEach(b => b.classList.remove('active'));
   el.classList.add('active');
   renderTasksFromCache();
+  renderTaskTabs();
+  // restore active class after re-render
+  document.querySelectorAll('#task-filter-tabs .ftab').forEach(b => {
+    if (b.textContent.startsWith(f)) b.classList.add('active');
+  });
 }
 
 let tasksCache = [];
@@ -898,6 +932,7 @@ function loadTasks() {
   const q = _query(_colRef('tasks'), _orderBy('createdAt','desc'));
   taskUnsub = _onSnap(q, snap => {
     tasksCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderTaskTabs();
     renderTasksFromCache();
   });
 }
@@ -1544,34 +1579,30 @@ function renderYardTable() {
     } else {
       const nums = rightRow;
       if (nums.length === 2) {
-        // ONE ROW, TWO CELLS SIDE BY SIDE per column
-        rightNumCell = `<td style="${tdStyle('center')};font-weight:700">${nums[0]}/${nums[1]}</td>`;
+        // even number → בפנים, odd number → בחוץ
+        const even = nums[0]; // e.g. 40
+        const odd  = nums[1]; // e.g. 41
+        rightNumCell = `<td style="${tdStyle('center')};font-weight:700">${even}/${odd}</td>`;
         rightPnim = `<td style="${tdStyle()};padding:4px">
-          <div style="display:flex;gap:4px;align-items:center">
-            <div style="display:flex;flex-direction:column;align-items:center;flex:1">
-              <span style="font-size:10px;color:var(--muted);margin-bottom:2px">${nums[0]}</span>
-              ${spotInput('R_'+nums[0]+'_בפנים', isManager)}
-            </div>
-            <div style="display:flex;flex-direction:column;align-items:center;flex:1">
-              <span style="font-size:10px;color:var(--muted);margin-bottom:2px">${nums[1]}</span>
-              ${spotInput('R_'+nums[1]+'_בפנים', isManager)}
-            </div>
+          <div style="display:flex;flex-direction:column;align-items:center">
+            <span style="font-size:10px;color:var(--muted);margin-bottom:2px">${even}</span>
+            ${spotInput('R_'+even+'_בפנים', isManager)}
           </div></td>`;
         rightHutz = `<td style="${tdStyle()};padding:4px">
-          <div style="display:flex;gap:4px;align-items:center">
-            <div style="display:flex;flex-direction:column;align-items:center;flex:1">
-              <span style="font-size:10px;color:var(--muted);margin-bottom:2px">${nums[0]}</span>
-              ${spotInput('R_'+nums[0]+'_בחוץ', isManager)}
-            </div>
-            <div style="display:flex;flex-direction:column;align-items:center;flex:1">
-              <span style="font-size:10px;color:var(--muted);margin-bottom:2px">${nums[1]}</span>
-              ${spotInput('R_'+nums[1]+'_בחוץ', isManager)}
-            </div>
+          <div style="display:flex;flex-direction:column;align-items:center">
+            <span style="font-size:10px;color:var(--muted);margin-bottom:2px">${odd}</span>
+            ${spotInput('R_'+odd+'_בחוץ', isManager)}
           </div></td>`;
       } else {
-        rightNumCell = `<td style="${tdStyle('center')};font-weight:700">${nums[0]}</td>`;
-        rightPnim = `<td style="${tdStyle()}">${spotInput('R_'+nums[0]+'_בפנים', isManager)}</td>`;
-        rightHutz = `<td style="${tdStyle()}">${spotInput('R_'+nums[0]+'_בחוץ', isManager)}</td>`;
+        const num = nums[0];
+        const isEven = parseInt(num) % 2 === 0;
+        rightNumCell = `<td style="${tdStyle('center')};font-weight:700">${num}</td>`;
+        rightPnim = isEven
+          ? `<td style="${tdStyle()}">${spotInput('R_'+num+'_בפנים', isManager)}</td>`
+          : `<td style="${tdStyle()}"></td>`;
+        rightHutz = !isEven
+          ? `<td style="${tdStyle()}">${spotInput('R_'+num+'_בחוץ', isManager)}</td>`
+          : `<td style="${tdStyle()}"></td>`;
       }
     }
 
