@@ -1137,7 +1137,8 @@ function renderTasksFromCache() {
     return;
   }
 
-  const cols = ['משימות כלליות','חביב','ולאדי','רפד','זגג','רדארים','עופר','גיל','איתי'];
+  const regularCols = ['משימות כלליות','חביב','ולאדי','רפד','זגג','רדארים'];
+  const driverCols  = ['עופר','גיל','איתי'];
 
   const colColors = {
     'משימות כלליות': '#6366f1',
@@ -1151,16 +1152,18 @@ function renderTasksFromCache() {
     'איתי':          '#84cc16',
   };
 
-  container.innerHTML = cols.map(col => {
-    let colTasks = allTasks.filter(t => t.label === col);
-    // open tasks first, done tasks last
-    colTasks = [...colTasks].sort((a,b) => {
+  function sortTasks(tasks) {
+    return [...tasks].sort((a,b) => {
       const doneA = a.status === 'done' ? 1 : 0;
       const doneB = b.status === 'done' ? 1 : 0;
       if (doneA !== doneB) return doneA - doneB;
       return (prioOrder[a.priority]??1) - (prioOrder[b.priority]??1);
     });
-    const color = colColors[col] || 'var(--dark)';
+  }
+
+  const regularHtml = regularCols.map(col => {
+    const colTasks = sortTasks(allTasks.filter(t => t.label === col));
+    const color = colColors[col];
     const openCount = colTasks.filter(t => t.status !== 'done').length;
     return `<div class="task-col">
       <div class="task-col-header">
@@ -1172,6 +1175,27 @@ function renderTasksFromCache() {
       </div>
     </div>`;
   }).join('');
+
+  // Combined drivers column
+  const driversOpenCount = driverCols.reduce((sum, d) => sum + allTasks.filter(t => t.label === d && t.status !== 'done').length, 0);
+  const driversInner = driverCols.map(driver => {
+    const tasks = sortTasks(allTasks.filter(t => t.label === driver));
+    const color = colColors[driver];
+    return `<div style="margin-bottom:10px">
+      <div style="font-size:12px;font-weight:900;color:${color};padding:4px 2px 6px;border-bottom:2px solid ${color};margin-bottom:6px">${driver}</div>
+      ${tasks.length ? tasks.map(taskCard).join('') : `<div style="text-align:center;color:var(--muted);font-size:12px;padding:8px 0">אין משימות</div>`}
+    </div>`;
+  }).join('');
+
+  const driversCol = `<div class="task-col" style="min-width:260px;max-width:260px">
+    <div class="task-col-header">
+      <span class="task-col-title" style="color:#475569">נהגים</span>
+      <span class="task-col-count">${driversOpenCount}</span>
+    </div>
+    <div class="task-col-cards">${driversInner}</div>
+  </div>`;
+
+  container.innerHTML = regularHtml + driversCol;
 }
 
 function toggleTaskDone(id, currentStatus) {
