@@ -3023,14 +3023,18 @@ const RIGHT_ROWS = [
 var yardData = {}; // { 'L_1_כניסה': 'ABC', 'R_40': 'XYZ', ... }
 
 function openYardScreen() {
-  document.getElementById('yard-user-badge').textContent = currentUser.name;
-  const isManager = currentUser.role === 'manager';
-  renderYardTable();
-  showScreen('yard');
-  loadYardData();
-  if (isManager) {
-    const btn = document.getElementById('yard-publish-btn');
-    if (btn) { btn.textContent = '📤 שלח לנהגים'; btn.style.background = 'var(--gold)'; btn.style.color = '#000'; btn.onclick = publishYard; btn.disabled = false; }
+  try {
+    document.getElementById('yard-user-badge').textContent = currentUser.name;
+    const isManager = currentUser.role === 'manager';
+    renderYardTable();
+    showScreen('yard');
+    loadYardData();
+    if (isManager) {
+      const btn = document.getElementById('yard-publish-btn');
+      if (btn) { btn.textContent = '📤 שלח לנהגים'; btn.style.background = 'var(--gold)'; btn.style.color = '#000'; btn.onclick = publishYard; btn.disabled = false; }
+    }
+  } catch(e) {
+    alert('שגיאה בפתיחת סידור מגרש:\n' + e.message + '\n' + e.stack?.split('\n').slice(0,3).join('\n'));
   }
 }
 
