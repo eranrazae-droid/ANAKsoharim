@@ -3096,25 +3096,39 @@ function startYard(mode) {
   showScreen('yard');
 }
 
+var _yardLastStatus = null;
+
 function loadYardData() {
   if (!window._CONFIG_DONE) return;
   if (yardUnsub) yardUnsub();
+  _yardLastStatus = null;
   yardUnsub = _onSnap(_docRef('yard','current'), snap => {
-    if (snap.exists()) {
-      const d = snap.data();
+    if (!snap.exists()) return;
+    const d = snap.data();
+    const isManager = currentUser?.role === 'manager';
+
+    if (!isManager) {
+      // Driver: always sync table from Firestore
       yardData = d.data || {};
       renderYardInputValues();
-      if (currentUser?.role !== 'manager') {
-        const toolbar = document.getElementById('yard-driver-toolbar');
-        if (toolbar) toolbar.style.display = d.status === 'pending' ? 'flex' : 'none';
-        // Re-render table so published data fills in read-only cells
-        if (d.status === 'pending') renderYardTable();
+      const toolbar = document.getElementById('yard-driver-toolbar');
+      if (toolbar) toolbar.style.display = d.status === 'pending' ? 'flex' : 'none';
+      if (d.status === 'pending') renderYardTable();
+    } else {
+      // Manager: only react to status transitions, never overwrite live edits
+      if (_yardLastStatus === null) {
+        // First load — populate table from Firestore
+        yardData = d.data || {};
+        renderYardInputValues();
+      } else if (d.status === 'done' && _yardLastStatus !== 'done') {
+        // Driver marked בוצע — reset manager table too
+        yardData = {};
+        renderYardInputValues();
+        showToast('✅ נהג סימן בוצע — הטבלה אופסה');
+        const btn = document.getElementById('yard-publish-btn');
+        if (btn) { btn.textContent = '📤 שלח לנהגים'; btn.style.background = 'var(--gold)'; btn.style.color = '#000'; btn.onclick = publishYard; btn.disabled = false; }
       }
-    }
-    // Manager reads once only — stop listener so edits aren't overwritten
-    if (currentUser?.role === 'manager' && yardUnsub) {
-      yardUnsub();
-      yardUnsub = null;
+      _yardLastStatus = d.status;
     }
   });
 }
