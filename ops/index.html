@@ -87,17 +87,29 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
 .filter-tabs::-webkit-scrollbar{display:none}
 .ftab{background:var(--bg);border:1.5px solid var(--border);border-radius:999px;padding:7px 16px;font-size:13px;font-weight:700;font-family:'Heebo',sans-serif;cursor:pointer;white-space:nowrap;color:var(--muted);transition:all .15s}
 .ftab.active{background:var(--gold);border-color:var(--gold);color:#000}
-.task-list{padding:16px;display:flex;flex-direction:column;gap:12px;padding-bottom:100px}
-.task-card{background:var(--card);border-radius:16px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,.07);border-right:5px solid var(--border);transition:all .2s}
-.task-card.priority-high{border-right-color:var(--danger)}
-.task-card.priority-med{border-right-color:var(--warning)}
-.task-card.priority-low{border-right-color:var(--success)}
-.task-card.done{opacity:.55}
-.task-top{display:flex;align-items:flex-start;gap:10px;margin-bottom:8px}
-.task-title{font-size:15px;font-weight:800;flex:1}
-.task-done-btn{background:none;border:2.5px solid var(--border);border-radius:999px;width:28px;height:28px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;transition:all .15s}
+/* ===== TASK BOARD ===== */
+.task-board{flex:1;display:flex;gap:12px;overflow-x:auto;overflow-y:hidden;padding:12px 14px 80px;align-items:flex-start}
+.task-board::-webkit-scrollbar{height:5px}
+.task-board::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+.task-col{background:#e8eaf4;border-radius:16px;min-width:240px;max-width:240px;display:flex;flex-direction:column;max-height:calc(100vh - 160px)}
+.task-col-header{padding:12px 14px 8px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.task-col-title{font-size:14px;font-weight:900;color:var(--dark)}
+.task-col-count{background:rgba(0,0,0,.15);color:var(--dark);border-radius:999px;padding:2px 9px;font-size:12px;font-weight:700}
+.task-col-cards{overflow-y:auto;padding:0 8px 10px;display:flex;flex-direction:column;gap:8px;flex:1}
+.task-col-cards::-webkit-scrollbar{width:3px}
+.task-col-cards::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.task-card{background:var(--card);border-radius:12px;padding:12px;box-shadow:0 2px 6px rgba(0,0,0,.08);border-top:4px solid var(--border);transition:all .2s}
+.task-card.priority-high{border-top-color:var(--danger)}
+.task-card.priority-med{border-top-color:var(--warning)}
+.task-card.priority-low{border-top-color:var(--success)}
+.task-card.done{opacity:.5}
+.task-top{display:flex;align-items:flex-start;gap:8px;margin-bottom:6px}
+.task-title{font-size:14px;font-weight:800;flex:1;line-height:1.4}
+.task-done-btn{background:none;border:2px solid var(--border);border-radius:999px;width:24px;height:24px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;transition:all .15s}
 .task-done-btn.done{background:var(--success);border-color:var(--success);color:#fff}
-.task-meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.task-meta{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+/* keep task-list class for fallback */
+.task-list{padding:16px;display:flex;flex-direction:column;gap:12px;padding-bottom:100px}
 .tag{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700}
 .tag.assignee{background:#eef0fa;color:var(--dark)}
 .tag.status-open{background:#fef3c7;color:#92400e}
@@ -261,8 +273,7 @@ if ('serviceWorker' in navigator) {
     <div class="logo">משימות</div>
     <div class="user-badge" id="tasks-user-badge"></div>
   </div>
-  <div class="filter-tabs" id="task-filter-tabs"></div>
-  <div id="task-list-container" class="task-list">
+  <div id="task-list-container" class="task-board">
     <div class="loading"><div class="spinner"></div> טוען...</div>
   </div>
   <button class="fab" id="fab-new-task" onclick="openNewTaskModal()" style="display:none">+ משימה חדשה</button>
@@ -995,13 +1006,11 @@ function loadTasks() {
   taskUnsub = _onSnap(q, snap => {
     clearTimeout(timeout);
     tasksCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    renderTaskTabs();
     renderTasksFromCache();
   }, err => {
     clearTimeout(timeout);
     console.error('tasks listener error', err);
     tasksCache = [];
-    renderTaskTabs();
     renderTasksFromCache();
   });
 }
@@ -1011,44 +1020,72 @@ function renderTasksFromCache() {
   if (!container) return;
   const isManager = currentUser?.role === 'manager';
   const myName = currentUser?.name || '';
-  let tasks = tasksCache;
 
+  // All tasks visible to this user
+  let allTasks = tasksCache;
   if (!isManager) {
-    tasks = tasks.filter(t => t.assignedTo === myName || t.assignedTo === 'כולם');
+    allTasks = allTasks.filter(t => t.assignedTo === myName || t.assignedTo === 'כולם');
   }
 
-  const f = activeTaskFilter;
-  const labelFilters = ['משימות כלליות','חביב','ולאדי','רפד','זגג','רדארים'];
-  if (f === 'שלי') tasks = tasks.filter(t => t.assignedTo === myName || t.assignedTo === 'כולם');
-  else if (labelFilters.includes(f)) tasks = tasks.filter(t => t.label === f);
-
-  if (!tasks.length) {
-    container.innerHTML = `<div class="empty-state"><div class="es-icon">📭</div><h3>אין משימות</h3><p>עדיין לא נפתחו משימות בקטגוריה זו</p></div>`;
+  if (!allTasks.length) {
+    container.innerHTML = `<div style="padding:40px;text-align:center;color:var(--muted)"><div style="font-size:48px">📭</div><div style="font-size:16px;font-weight:700;margin-top:12px">אין משימות</div></div>`;
     return;
   }
 
+  const prioOrder = { high: 0, med: 1, low: 2 };
+  const prioLabel = { high:'🔴 גבוהה', med:'🟡 בינונית', low:'🟢 נמוכה' };
   const statusLabel = { open:'פתוחה', inprog:'בביצוע', done:'הושלמה' };
-  const prioLabel   = { high:'גבוהה 🔴', med:'בינונית', low:'נמוכה' };
 
-  container.innerHTML = tasks.map(t => {
-    const ts = t.createdAt?.toDate ? t.createdAt.toDate().toLocaleString('he-IL') : '';
-    return `
-    <div class="task-card priority-${t.priority} ${t.status==='done'?'done':''}">
+  function taskCard(t) {
+    const done = t.status === 'done';
+    return `<div class="task-card priority-${t.priority||'low'} ${done?'done':''}">
       <div class="task-top">
         <div class="task-title">${esc(t.title)}</div>
-        <button class="task-done-btn ${t.status==='done'?'done':''}" onclick="toggleTaskDone('${t.id}','${t.status}')" title="סמן הושלם">
-          ${t.status==='done'?'✓':''}
-        </button>
+        <button class="task-done-btn ${done?'done':''}" onclick="toggleTaskDone('${t.id}','${t.status}')">${done?'✓':''}</button>
       </div>
-      ${t.notes ? `<div class="task-notes">${esc(t.notes)}</div>` : ''}
-      ${t.photos?.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${t.photos.map(u=>`<img src="${esc(u)}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--border)">`).join('')}</div>` : ''}
+      ${t.notes ? `<div class="task-notes" style="font-size:12px;color:var(--muted);margin-bottom:6px">${esc(t.notes)}</div>` : ''}
       <div class="task-meta">
-        ${t.label ? `<span class="tag task-label">${esc(t.label)}</span>` : ''}
-        <span class="tag assignee">👤 ${esc(t.assignedTo)}</span>
-        <span class="tag status-${t.status}">${statusLabel[t.status]||t.status}</span>
-        <span class="tag prio-${t.priority}">${prioLabel[t.priority]||t.priority}</span>
+        <span class="tag assignee" style="font-size:11px">👤 ${esc(t.assignedTo)}</span>
+        <span class="tag status-${t.status}" style="font-size:11px">${statusLabel[t.status]||t.status}</span>
       </div>
-      ${ts ? `<div class="task-time">${ts}</div>` : ''}
+    </div>`;
+  }
+
+  const cols = isManager
+    ? ['משימות כלליות','חביב','ולאדי','רפד','זגג','רדארים']
+    : ['שלי','משימות כלליות','חביב','ולאדי','רפד','זגג','רדארים'];
+
+  const colColors = {
+    'משימות כלליות': '#6366f1',
+    'חביב':          '#f59e0b',
+    'ולאדי':         '#3b82f6',
+    'רפד':           '#ec4899',
+    'זגג':           '#10b981',
+    'רדארים':        '#8b5cf6',
+    'שלי':           '#ef4444',
+  };
+
+  container.innerHTML = cols.map(col => {
+    let colTasks = col === 'שלי'
+      ? allTasks.filter(t => t.assignedTo === myName || t.assignedTo === 'כולם')
+      : allTasks.filter(t => t.label === col);
+    // open tasks first, done tasks last
+    colTasks = [...colTasks].sort((a,b) => {
+      const doneA = a.status === 'done' ? 1 : 0;
+      const doneB = b.status === 'done' ? 1 : 0;
+      if (doneA !== doneB) return doneA - doneB;
+      return (prioOrder[a.priority]??1) - (prioOrder[b.priority]??1);
+    });
+    const color = colColors[col] || 'var(--dark)';
+    const openCount = colTasks.filter(t => t.status !== 'done').length;
+    return `<div class="task-col">
+      <div class="task-col-header">
+        <span class="task-col-title" style="color:${color}">${col}</span>
+        <span class="task-col-count">${openCount}</span>
+      </div>
+      <div class="task-col-cards">
+        ${colTasks.length ? colTasks.map(taskCard).join('') : `<div style="text-align:center;color:var(--muted);font-size:13px;padding:20px 0">אין משימות</div>`}
+      </div>
     </div>`;
   }).join('');
 }
