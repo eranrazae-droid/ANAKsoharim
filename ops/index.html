@@ -197,22 +197,23 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
       <p>מערכת ניהול תפעול</p>
     </div>
     <div class="login-role-title">בחר את שמך</div>
-    <div id="manager-card" style="display:none;margin-bottom:16px">
-      <div class="role-card" data-role="manager" onclick="selectRole('manager',this)" style="grid-column:span 2">
-        <div class="icon">👔</div>
-        <div class="name">מנהל תפעול</div>
-        <div class="desc">ניהול מלא</div>
-      </div>
-    </div>
     <div class="driver-select">
       <select id="driver-name-select" onchange="selectDriver(this.value)">
         <option value="">— בחר את שמך —</option>
         <option value="עופר">עופר</option>
         <option value="גיל">גיל</option>
         <option value="איתי">איתי</option>
+        <option value="ליאל">ליאל</option>
       </select>
     </div>
-    <button class="btn-login" id="btn-enter" onclick="doLogin()" disabled>כניסה למערכת</button>
+    <div id="manager-password-wrap" style="display:none;margin-top:14px">
+      <input id="manager-password-input" type="password" inputmode="numeric" pattern="[0-9]*" placeholder="סיסמא (מספרים)" dir="ltr"
+        oninput="checkLoginReady()"
+        onkeydown="if(event.key==='Enter')doLogin()"
+        style="width:100%;background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.15);border-radius:12px;padding:14px 16px;font-family:Heebo,sans-serif;font-size:16px;color:#fff;outline:none;box-sizing:border-box"
+        onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='rgba(255,255,255,.15)'">
+    </div>
+    <button class="btn-login" id="btn-enter" onclick="doLogin()" disabled style="margin-top:18px">כניסה למערכת</button>
   </div>
 </div>
 
@@ -535,48 +536,50 @@ function showConfigWarning() {
 /* ═══════════════════════════════════════════════════════
    LOGIN
 ═══════════════════════════════════════════════════════ */
-let logoTapCount = 0;
-let logoTapTimer = null;
+// Manager password stored as base64 — change by encoding your password with btoa()
+const MANAGER_PWD_B64 = btoa('0000');
 
-function handleLogoTap() {
-  logoTapCount++;
-  clearTimeout(logoTapTimer);
-  logoTapTimer = setTimeout(() => { logoTapCount = 0; }, 2000);
-  if (logoTapCount >= 5) {
-    logoTapCount = 0;
-    document.getElementById('manager-card').style.display = 'block';
-    showToast('מצב מנהל זמין 👔');
-  }
-}
-
-function selectRole(role, el) {
-  selectedRole = role;
-  document.querySelectorAll('.role-card').forEach(c => c.classList.remove('selected'));
-  el.classList.add('selected');
-  document.getElementById('driver-name-select').value = '';
-  document.getElementById('btn-enter').disabled = false;
-}
+function handleLogoTap() {} // kept for compatibility
 
 function selectDriver(val) {
-  if (val) {
-    selectedRole = 'driver';
-    document.querySelectorAll('.role-card').forEach(c => c.classList.remove('selected'));
+  const pwWrap = document.getElementById('manager-password-wrap');
+  const pwInput = document.getElementById('manager-password-input');
+  if (val === 'ליאל') {
+    pwWrap.style.display = 'block';
+    setTimeout(() => pwInput.focus(), 50);
+  } else {
+    pwWrap.style.display = 'none';
+    pwInput.value = '';
   }
   checkLoginReady();
 }
 
 function checkLoginReady() {
   const btn = document.getElementById('btn-enter');
-  if (selectedRole === 'manager') { btn.disabled = false; return; }
-  btn.disabled = !document.getElementById('driver-name-select').value;
+  const val = document.getElementById('driver-name-select').value;
+  if (!val) { btn.disabled = true; return; }
+  if (val === 'ליאל') {
+    const pw = document.getElementById('manager-password-input').value;
+    btn.disabled = !pw;
+  } else {
+    btn.disabled = false;
+  }
 }
 
 function doLogin() {
-  const name = selectedRole === 'manager'
-    ? 'מנהל תפעול'
-    : document.getElementById('driver-name-select').value;
-  if (!name) return;
-  currentUser = { role: selectedRole, name };
+  const val = document.getElementById('driver-name-select').value;
+  if (!val) return;
+  if (val === 'ליאל') {
+    const pw = document.getElementById('manager-password-input').value;
+    if (btoa(pw) !== MANAGER_PWD_B64) {
+      showToast('❌ סיסמא שגויה');
+      document.getElementById('manager-password-input').value = '';
+      return;
+    }
+    currentUser = { role: 'manager', name: 'ליאל' };
+  } else {
+    currentUser = { role: 'driver', name: val };
+  }
   localStorage.setItem('anak_user', JSON.stringify(currentUser));
   enterApp();
 }
