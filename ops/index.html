@@ -1092,9 +1092,15 @@ function renderTasksFromCache() {
   const myName = currentUser?.name || '';
 
   // All tasks visible to this user
+  const _driverNames = ['עופר','גיל','איתי'];
   let allTasks = tasksCache;
   if (!isManager) {
-    allTasks = allTasks.filter(t => t.assignedTo === myName || t.assignedTo === 'כולם');
+    allTasks = allTasks.filter(t => {
+      // task labeled for a specific driver → only that driver sees it
+      if (_driverNames.includes(t.label)) return t.label === myName;
+      // otherwise show if assigned to me or everyone
+      return t.assignedTo === myName || t.assignedTo === 'כולם';
+    });
   }
 
   const prioOrder = { high: 0, med: 1, low: 2 };
