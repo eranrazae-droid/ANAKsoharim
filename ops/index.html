@@ -699,7 +699,7 @@ if ('serviceWorker' in navigator) {
       <button onclick="dinvMarkAll('x')" style="background:#ef4444;color:#fff;border:none;border-radius:12px;padding:12px;font-family:Heebo,sans-serif;font-weight:900;font-size:15px;cursor:pointer">✕ סמן הכל X</button>
     </div>
     <div style="overflow-x:auto;-webkit-overflow-scrolling:touch" id="dinv-rows-container"></div>
-    <button class="btn-submit" onclick="submitDriverInv()" style="margin-top:14px">✅ שלח בדיקה</button>
+    <button id="dinv-submit-btn" class="btn-submit" onclick="submitDriverInv()" style="margin-top:14px">✅ שלח בדיקה</button>
   </div>
 </div>
 
@@ -2652,16 +2652,12 @@ async function submitDriverInv() {
     });
     _driverInvDocId = null;
     _driverInvRows = [];
-    // close modal and go home
-    closeModal('modal-driver-inv');
-    goHome();
-    showToast('✅ הבדיקה נשלחה בהצלחה!', 2000);
-    // prominent success banner
-    const banner = document.createElement('div');
-    banner.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#22c55e;color:#fff;border-radius:20px;padding:24px 40px;font-size:22px;font-weight:900;z-index:9999;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.3)';
-    banner.textContent = '✅ הבדיקה נשלחה בהצלחה!';
-    document.body.appendChild(banner);
-    setTimeout(() => banner.remove(), 2000);
+    const btn = document.getElementById('dinv-submit-btn');
+    if (btn) {
+      btn.textContent = '🏠 חזור למסך הבית';
+      btn.style.background = '#22c55e';
+      btn.onclick = () => { closeModal('modal-driver-inv'); goHome(); };
+    }
   } catch(e) {
     console.error('submitDriverInv error', e);
     showToast('שגיאה: ' + (e.code || e.message));
