@@ -330,7 +330,17 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
     <!-- פרטי הרכב -->
     <div class="form-group">
       <label>מספר לוחית רישוי</label>
-      <input class="form-input" id="v-plate" placeholder="123-45-678" style="font-size:20px;font-weight:900;letter-spacing:.08em">
+      <div style="display:flex;gap:8px;align-items:center">
+        <input class="form-input" id="v-plate" placeholder="12345678"
+          style="font-size:20px;font-weight:900;letter-spacing:.08em;flex:1"
+          inputmode="numeric" pattern="[0-9]*"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();fetchVehicleData()}">
+        <button onclick="fetchVehicleData()" id="btn-fetch-vehicle"
+          style="background:var(--gold);color:#000;border:none;border-radius:10px;padding:10px 14px;font-family:Heebo,sans-serif;font-weight:900;font-size:14px;cursor:pointer;white-space:nowrap;flex-shrink:0">
+          🔍 אישור
+        </button>
+      </div>
+      <div id="v-fetch-status" style="font-size:12px;color:var(--muted);margin-top:4px;min-height:16px"></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="form-group">
@@ -340,6 +350,16 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
       <div class="form-group">
         <label>דגם</label>
         <input class="form-input" id="v-model" placeholder="קורולה...">
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="form-group">
+        <label>תת-דגם</label>
+        <input class="form-input" id="v-submodel" placeholder="">
+      </div>
+      <div class="form-group">
+        <label>צבע</label>
+        <input class="form-input" id="v-color" placeholder="">
       </div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
@@ -928,13 +948,39 @@ function loadVehicles() {
 }
 
 function openNewVehicleModal() {
-  ['v-plate','v-brand','v-model','v-year','v-km','v-code','v-battery-pct','v-battery-km','v-notes']
+  ['v-plate','v-brand','v-model','v-submodel','v-color','v-year','v-km','v-code','v-battery-pct','v-battery-km','v-notes']
     .forEach(id => document.getElementById(id).value = '');
-  // default: oil & coolant pre-checked
+  document.getElementById('v-fetch-status').textContent = '';
   document.querySelectorAll('#checklist-items input[type=checkbox]').forEach(cb => {
     cb.checked = (cb.id === 'c-oil' || cb.id === 'c-coolant');
   });
   openModal('modal-vehicle');
+}
+
+async function fetchVehicleData() {
+  const raw = document.getElementById('v-plate').value.trim().replace(/[^0-9]/g, '');
+  if (!raw) return showToast('נא להזין מספר לוחית');
+  const status = document.getElementById('v-fetch-status');
+  const btn = document.getElementById('btn-fetch-vehicle');
+  status.textContent = '⏳ מחפש...';
+  btn.disabled = true;
+  try {
+    const url = `https://data.gov.il/api/3/action/datastore_search?resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3&q=${raw}&limit=1`;
+    const res = await fetch(url);
+    const json = await res.json();
+    const rec = json?.result?.records?.[0];
+    if (!rec) { status.textContent = '❌ לא נמצא רכב עם מספר זה'; return; }
+    document.getElementById('v-brand').value    = rec.tozeret_nm   || '';
+    document.getElementById('v-model').value    = rec.kinuy_mishari|| rec.degem_nm || '';
+    document.getElementById('v-submodel').value = rec.degem_nm     || '';
+    document.getElementById('v-color').value    = rec.tzeva_rechev || '';
+    document.getElementById('v-year').value     = rec.shnat_yitzur || '';
+    status.textContent = '✅ פרטים נטענו בהצלחה';
+  } catch(e) {
+    status.textContent = '❌ שגיאה בחיבור לשרת';
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 async function submitVehicle() {
@@ -949,6 +995,8 @@ async function submitVehicle() {
     plate,
     brand:       document.getElementById('v-brand').value.trim(),
     model:       document.getElementById('v-model').value.trim(),
+    submodel:    document.getElementById('v-submodel').value.trim(),
+    color:       document.getElementById('v-color').value.trim(),
     year:        document.getElementById('v-year').value,
     km:          document.getElementById('v-km').value,
     code:        document.getElementById('v-code').value.trim(),
@@ -1137,6 +1185,7 @@ window.goHome = goHome;
 window.goToScreen = goToScreen;
 window.openNewTaskModal = openNewTaskModal;
 window.openNewVehicleModal = openNewVehicleModal;
+window.fetchVehicleData = fetchVehicleData;
 window.openNewPartModal = openNewPartModal;
 window.submitTask = submitTask;
 window.submitVehicle = submitVehicle;
