@@ -598,7 +598,9 @@ if ('serviceWorker' in navigator) {
     <div class="user-badge" id="inventory-user-badge"></div>
   </div>
   <div style="padding:16px 16px 100px">
-    <!-- Upload area -->
+    <!-- Last assignment status banner -->
+    <div id="inv-status-banner" style="display:none;border-radius:14px;padding:14px 16px;margin-bottom:14px;font-size:14px;font-weight:700"></div>
+    <!-- Upload area (small when table loaded) -->
     <div id="inv-upload-zone" style="border:2px dashed var(--gold);border-radius:16px;padding:28px 20px;text-align:center;background:#f8f9ff;margin-bottom:16px;cursor:pointer" onclick="document.getElementById('inv-file-input').click()">
       <div style="font-size:36px;margin-bottom:8px">📊</div>
       <div style="font-weight:700;font-size:16px;color:var(--dark)">לחץ לצרף קובץ אקסל</div>
@@ -607,7 +609,7 @@ if ('serviceWorker' in navigator) {
     </div>
     <!-- Vehicle list -->
     <div id="inv-list"></div>
-    <!-- Submit -->
+    <!-- Submit (new upload) -->
     <div id="inv-submit-wrap" style="display:none;position:fixed;bottom:0;right:0;left:0;padding:12px 16px;background:#fff;border-top:1px solid var(--border);z-index:50">
       <div style="display:flex;gap:10px;align-items:center">
         <select id="inv-driver-select" style="flex:1;background:#f0f2ff;border:2px solid var(--border);border-radius:12px;padding:12px 10px;font-family:Heebo,sans-serif;font-size:15px;font-weight:700;color:var(--dark)">
@@ -665,10 +667,7 @@ if ('serviceWorker' in navigator) {
       <div class="form-group"><label>צבע</label><input class="form-input" id="ei-color"></div>
       <div class="form-group"><label>שנה</label><input class="form-input" id="ei-year" type="number"></div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div class="form-group"><label>ק"מ</label><input class="form-input" id="ei-km" type="number"></div>
-      <div class="form-group"><label>מספר חניה</label><input class="form-input" id="ei-spot"></div>
-    </div>
+    <div class="form-group"><label>מספר חניה</label><input class="form-input" id="ei-spot"></div>
     <div class="form-group">
       <label>נהג קולט</label>
       <select class="form-input" id="ei-driver">
@@ -1308,7 +1307,6 @@ function openEditIntake(id) {
       document.getElementById('ei-model').value = v.model  || '';
       document.getElementById('ei-color').value = v.color  || '';
       document.getElementById('ei-year').value  = v.year   || '';
-      document.getElementById('ei-km').value    = v.km     || '';
       document.getElementById('ei-spot').value  = v.spot   || '';
       document.getElementById('ei-driver').value = v.assignedTo || 'עופר';
       openModal('modal-edit-intake');
@@ -1326,7 +1324,6 @@ async function saveEditIntake() {
       model:      document.getElementById('ei-model').value.trim(),
       color:      document.getElementById('ei-color').value.trim(),
       year:       document.getElementById('ei-year').value,
-      km:         document.getElementById('ei-km').value,
       spot:       document.getElementById('ei-spot').value.trim(),
       assignedTo: document.getElementById('ei-driver').value,
     });
@@ -1783,17 +1780,98 @@ function demoPartsHTML() {
 /* ═══════════════════════════════════════════════════════
    INVENTORY SCREEN
 ═══════════════════════════════════════════════════════ */
-let inventoryRows  = []; // [{cells: [...], status: null|'v'|'x'}]
-let inventoryHeaders = []; // first row used as headers if non-numeric
+let inventoryRows    = []; // [{cells, status}] — preview of newly uploaded file
+let inventoryHeaders = [];
+let _invUnsub        = null;
+let _invMode         = 'live'; // 'live' = showing Firestore data | 'preview' = new upload
 
 function openInventoryScreen() {
   document.getElementById('inventory-user-badge').textContent = currentUser.name;
   inventoryRows = [];
   inventoryHeaders = [];
-  document.getElementById('inv-list').innerHTML = '';
-  document.getElementById('inv-submit-wrap').style.display = 'none';
+  _invMode = 'live';
   document.getElementById('inv-file-input').value = '';
+  document.getElementById('inv-submit-wrap').style.display = 'none';
   showScreen('inventory');
+  loadLastInventoryAssignment();
+}
+
+function loadLastInventoryAssignment() {
+  if (!window._CONFIG_DONE) return;
+  if (_invUnsub) _invUnsub();
+  const container  = document.getElementById('inv-list');
+  const banner     = document.getElementById('inv-status-banner');
+  container.innerHTML = '<div class="loading"><div class="spinner"></div> טוען...</div>';
+
+  _invUnsub = _onSnap(_colRef('inventory_assignments'), snap => {
+    if (_invMode === 'preview') return; // user uploaded new file — don't overwrite
+    const mine = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(d => d.sentBy === currentUser.name)
+      .sort((a,b) => (b.createdAt?.toMillis?.()??0) - (a.createdAt?.toMillis?.()??0));
+
+    const last = mine[0];
+    if (!last) {
+      container.innerHTML = '<div class="empty-state" style="padding:40px 20px;text-align:center;color:var(--muted)">טרם נשלחה בדיקת מלאי</div>';
+      banner.style.display = 'none';
+      return;
+    }
+
+    // Shrink upload zone to a small button
+    document.getElementById('inv-upload-zone').style.padding = '10px 16px';
+
+    const rows = last.rows || [];
+    const headers = last.headers || [];
+
+    if (last.status === 'done') {
+      const ts = last.completedAt?.toDate ? last.completedAt.toDate().toLocaleDateString('he-IL') : '';
+      banner.style.display = 'block';
+      banner.style.background = '#f0fff4';
+      banner.style.border = '2px solid #22c55e';
+      banner.style.color = '#166534';
+      banner.innerHTML = `✅ הבדיקה הושלמה ע"י <strong>${esc(last.completedBy||last.assignedTo)}</strong> · ${ts}`;
+      renderInvResult(headers, rows, last.present||[], last.absent||[]);
+    } else {
+      const ts = last.createdAt?.toDate ? last.createdAt.toDate().toLocaleDateString('he-IL') : '';
+      banner.style.display = 'block';
+      banner.style.background = '#fef3c7';
+      banner.style.border = '2px solid #f59e0b';
+      banner.style.color = '#92400e';
+      banner.innerHTML = `⏳ ממתין לסימון ע"י <strong>${esc(last.assignedTo)}</strong> · נשלח ${ts}`;
+      renderInvPending(headers, rows);
+    }
+  });
+}
+
+function renderInvPending(headers, rows) {
+  const colCount = headers.length || (rows[0]?.length || 1);
+  let html = `<div style="font-weight:700;font-size:14px;color:var(--muted);margin-bottom:10px">${rows.length} שורות — ממתין לנהג</div>`;
+  if (headers.length) {
+    html += `<div style="display:grid;grid-template-columns:repeat(${colCount},1fr);gap:4px;background:var(--dark);color:#fff;border-radius:10px 10px 0 0;padding:8px 10px;font-size:12px;font-weight:700;direction:rtl">${headers.map(h=>`<div>${esc(h)}</div>`).join('')}</div>`;
+  }
+  html += rows.map((cells,i) => `<div style="display:grid;grid-template-columns:repeat(${colCount},1fr);gap:4px;align-items:center;background:#fff;border:2px solid var(--border);border-radius:${headers.length&&i===0?'0':'8px'};padding:8px 10px;margin-bottom:4px;direction:rtl">${cells.map(c=>`<div style="font-size:14px;font-weight:600">${esc(c)}</div>`).join('')}</div>`).join('');
+  document.getElementById('inv-list').innerHTML = html;
+}
+
+function renderInvResult(headers, rows, present, absent) {
+  const presentSet = new Set(present);
+  const colCount = headers.length || (rows[0]?.length || 1);
+  let html = `<div style="display:flex;gap:12px;margin-bottom:12px">
+    <span style="background:#dcfce7;color:#166534;border-radius:8px;padding:6px 12px;font-weight:700;font-size:13px">✓ נמצאו: ${present.length}</span>
+    <span style="background:#fee2e2;color:#991b1b;border-radius:8px;padding:6px 12px;font-weight:700;font-size:13px">✕ חסרים: ${absent.length}</span>
+  </div>`;
+  if (headers.length) {
+    html += `<div style="display:grid;grid-template-columns:repeat(${colCount},1fr) 48px;gap:4px;background:var(--dark);color:#fff;border-radius:10px 10px 0 0;padding:8px 10px;font-size:12px;font-weight:700;direction:rtl">${headers.map(h=>`<div>${esc(h)}</div>`).join('')}<div style="text-align:center">סטטוס</div></div>`;
+  }
+  html += rows.map((cells,i) => {
+    const key = cells.join(' | ');
+    const st = presentSet.has(key) ? 'v' : 'x';
+    const bg = st==='v' ? '#f0fff4' : '#fff0f0';
+    const border = st==='v' ? '#22c55e' : '#ef4444';
+    const icon = st==='v' ? '<span style="color:#22c55e;font-size:20px;font-weight:900">✓</span>' : '<span style="color:#ef4444;font-size:20px;font-weight:900">✕</span>';
+    return `<div style="display:grid;grid-template-columns:repeat(${colCount},1fr) 48px;gap:4px;align-items:center;background:${bg};border:2px solid ${border};border-radius:${headers.length&&i===0?'0':'8px'};padding:8px 10px;margin-bottom:4px;direction:rtl">${cells.map(c=>`<div style="font-size:14px;font-weight:600">${esc(c)}</div>`).join('')}<div style="text-align:center">${icon}</div></div>`;
+  }).join('');
+  document.getElementById('inv-list').innerHTML = html;
 }
 
 function handleInventoryFile(input) {
@@ -1828,23 +1906,22 @@ function handleInventoryFile(input) {
 }
 
 function renderInventoryList() {
+  _invMode = 'preview';
   const container = document.getElementById('inv-list');
   const hasCols = inventoryHeaders.length > 0;
   const colCount = hasCols ? inventoryHeaders.length : (inventoryRows[0]?.cells.length || 1);
+  const banner = document.getElementById('inv-status-banner');
+  banner.style.display = 'block';
+  banner.style.background = '#f0f2ff';
+  banner.style.border = '2px solid var(--primary, #6366f1)';
+  banner.style.color = '#3730a3';
+  banner.innerHTML = `📋 טבלה חדשה מוכנה לשליחה — ${inventoryRows.length} שורות`;
 
-  let html = `<div style="font-weight:700;font-size:15px;color:var(--dark);margin-bottom:10px">${inventoryRows.length} שורות — יישלחו לנהג לסימון</div>`;
-
+  let html = '';
   if (hasCols) {
-    html += `<div style="display:grid;grid-template-columns:repeat(${colCount},1fr);gap:4px;background:var(--dark);color:#fff;border-radius:10px 10px 0 0;padding:8px 10px;font-size:12px;font-weight:700;direction:rtl">
-      ${inventoryHeaders.map(h => `<div>${esc(h)}</div>`).join('')}
-    </div>`;
+    html += `<div style="display:grid;grid-template-columns:repeat(${colCount},1fr);gap:4px;background:var(--dark);color:#fff;border-radius:10px 10px 0 0;padding:8px 10px;font-size:12px;font-weight:700;direction:rtl">${inventoryHeaders.map(h=>`<div>${esc(h)}</div>`).join('')}</div>`;
   }
-
-  html += inventoryRows.map((item, i) => {
-    return `<div id="inv-row-${i}" style="display:grid;grid-template-columns:repeat(${colCount},1fr);gap:4px;align-items:center;background:#fff;border:2px solid var(--border);border-radius:${hasCols&&i===0?'0':'8px'};padding:8px 10px;margin-bottom:4px;direction:rtl">
-      ${item.cells.map(c => `<div style="font-size:14px;font-weight:600">${esc(c)}</div>`).join('')}
-    </div>`;
-  }).join('');
+  html += inventoryRows.map((item,i) => `<div style="display:grid;grid-template-columns:repeat(${colCount},1fr);gap:4px;align-items:center;background:#fff;border:2px solid var(--border);border-radius:${hasCols&&i===0?'0':'8px'};padding:8px 10px;margin-bottom:4px;direction:rtl">${item.cells.map(c=>`<div style="font-size:14px;font-weight:600">${esc(c)}</div>`).join('')}</div>`).join('');
 
   container.innerHTML = html;
   document.getElementById('inv-submit-wrap').style.display = 'block';
@@ -1863,8 +1940,9 @@ async function submitInventory() {
     rows:        inventoryRows.map(r => r.cells),
     status:      'pending'
   });
+  _invMode = 'live';
+  document.getElementById('inv-submit-wrap').style.display = 'none';
   showToast(`✅ נשלח ל${driver} לבדיקה!`);
-  goHome();
 }
 
 /* ── DRIVER INVENTORY ── */
