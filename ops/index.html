@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#1a1a2e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>ענק הרכבים — תפעול</title>
+<link rel="manifest" href="manifest.json">
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --dark:#1a1a2e;
+  --gold:#c9a227;
+  --gold-light:#e8c547;
+  --bg:#f4f6fb;
+  --card:#fff;
+  --border:#e0e4ef;
+  --text:#1a1a2e;
+  --muted:#7a839a;
+  --success:#22c55e;
+  --warning:#f59e0b;
+  --danger:#ef4444;
+  --info:#3b82f6;
+}
+body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:15px}
+.screen{display:none;min-height:100vh;flex-direction:column}
+.screen.active{display:flex}
+
+/* ===== HEADER ===== */
+.app-header{background:var(--dark);padding:14px 18px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.3)}
+.app-header .logo{font-size:18px;font-weight:900;color:#fff;flex:1}
+.app-header .logo span{color:var(--gold)}
+.app-header .user-badge{background:var(--gold);color:#000;border-radius:999px;padding:5px 14px;font-size:13px;font-weight:700;cursor:pointer}
+.app-header .back-btn{background:none;border:none;color:#fff;font-size:22px;cursor:pointer;padding:4px 8px;font-family:'Heebo',sans-serif}
+
+/* ===== LOGIN ===== */
+#screen-login{background:var(--dark);justify-content:center;align-items:center;padding:32px 24px}
+.login-box{width:100%;max-width:380px}
+.login-logo{text-align:center;margin-bottom:36px}
+.login-logo h1{font-size:32px;font-weight:900;color:#fff}
+.login-logo h1 span{color:var(--gold)}
+.login-logo p{color:var(--muted);margin-top:6px;font-size:14px}
+.login-role-title{color:var(--muted);font-size:13px;font-weight:700;text-align:center;margin-bottom:16px;letter-spacing:.05em}
+.role-cards{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px}
+.role-card{background:rgba(255,255,255,.07);border:2px solid rgba(255,255,255,.1);border-radius:16px;padding:20px 12px;text-align:center;cursor:pointer;transition:all .2s}
+.role-card:hover,.role-card.selected{border-color:var(--gold);background:rgba(201,162,39,.12)}
+.role-card .icon{font-size:32px;margin-bottom:8px}
+.role-card .name{color:#fff;font-weight:700;font-size:15px}
+.role-card .desc{color:var(--muted);font-size:12px;margin-top:4px}
+.driver-select{margin-bottom:24px}
+.driver-select label{color:var(--muted);font-size:13px;font-weight:700;display:block;margin-bottom:8px}
+.driver-select select{width:100%;background:rgba(255,255,255,.07);border:2px solid rgba(255,255,255,.1);border-radius:12px;padding:12px 16px;color:#fff;font-family:'Heebo',sans-serif;font-size:15px;outline:none;appearance:none;cursor:pointer}
+.driver-select select:focus{border-color:var(--gold)}
+.driver-select select option{background:#1a1a2e;color:#fff}
+.btn-login{width:100%;background:var(--gold);color:#000;font-family:'Heebo',sans-serif;font-size:17px;font-weight:900;border:none;border-radius:14px;padding:16px;cursor:pointer;transition:all .15s}
+.btn-login:hover{background:var(--gold-light)}
+.btn-login:disabled{opacity:.4;cursor:not-allowed}
+
+/* ===== HOME ===== */
+.home-body{flex:1;padding:20px 16px;overflow-y:auto}
+.welcome-bar{margin-bottom:20px}
+.welcome-bar h2{font-size:20px;font-weight:900}
+.welcome-bar p{color:var(--muted);font-size:13px;margin-top:4px}
+.stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:24px}
+.stat-card{background:var(--card);border-radius:14px;padding:14px 10px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.stat-card .num{font-size:26px;font-weight:900;color:var(--gold)}
+.stat-card .lbl{font-size:11px;color:var(--muted);font-weight:600;margin-top:2px}
+.menu-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.menu-card{background:var(--card);border-radius:18px;padding:22px 16px;box-shadow:0 2px 10px rgba(0,0,0,.07);cursor:pointer;transition:all .2s;border:2px solid transparent;text-decoration:none;color:inherit}
+.menu-card:hover{border-color:var(--gold);transform:translateY(-2px)}
+.menu-card .mc-icon{font-size:34px;margin-bottom:10px}
+.menu-card .mc-title{font-size:15px;font-weight:900}
+.menu-card .mc-sub{font-size:12px;color:var(--muted);margin-top:4px}
+.menu-card .mc-badge{display:inline-block;background:var(--danger);color:#fff;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:700;margin-top:8px}
+.menu-card .mc-badge.green{background:var(--success)}
+.menu-card .mc-badge.orange{background:var(--warning)}
+
+/* ===== TASKS ===== */
+.page-body{flex:1;overflow-y:auto;padding:16px}
+.page-body.no-pad{padding:0}
+.fab{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--gold);color:#000;border:none;border-radius:999px;padding:14px 28px;font-family:'Heebo',sans-serif;font-size:16px;font-weight:900;cursor:pointer;box-shadow:0 4px 20px rgba(201,162,39,.4);z-index:50;display:flex;align-items:center;gap:8px;transition:all .15s}
+.fab:hover{background:var(--gold-light);transform:translateX(-50%) translateY(-2px)}
+.filter-tabs{display:flex;gap:8px;padding:14px 16px;overflow-x:auto;background:#fff;border-bottom:1px solid var(--border);flex-shrink:0}
+.filter-tabs::-webkit-scrollbar{display:none}
+.ftab{background:var(--bg);border:1.5px solid var(--border);border-radius:999px;padding:7px 16px;font-size:13px;font-weight:700;font-family:'Heebo',sans-serif;cursor:pointer;white-space:nowrap;color:var(--muted);transition:all .15s}
+.ftab.active{background:var(--gold);border-color:var(--gold);color:#000}
+.task-list{padding:16px;display:flex;flex-direction:column;gap:12px;padding-bottom:100px}
+.task-card{background:var(--card);border-radius:16px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,.07);border-right:5px solid var(--border);transition:all .2s}
+.task-card.priority-high{border-right-color:var(--danger)}
+.task-card.priority-med{border-right-color:var(--warning)}
+.task-card.priority-low{border-right-color:var(--success)}
+.task-card.done{opacity:.55}
+.task-top{display:flex;align-items:flex-start;gap:10px;margin-bottom:8px}
+.task-title{font-size:15px;font-weight:800;flex:1}
+.task-done-btn{background:none;border:2.5px solid var(--border);border-radius:999px;width:28px;height:28px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;transition:all .15s}
+.task-done-btn.done{background:var(--success);border-color:var(--success);color:#fff}
+.task-meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.tag{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700}
+.tag.assignee{background:#eef0fa;color:var(--dark)}
+.tag.status-open{background:#fef3c7;color:#92400e}
+.tag.status-done{background:#dcfce7;color:#166534}
+.tag.status-inprog{background:#dbeafe;color:#1e40af}
+.tag.prio-high{background:#fee2e2;color:#991b1b}
+.tag.prio-med{background:#fef3c7;color:#92400e}
+.tag.prio-low{background:#dcfce7;color:#166534}
+.task-time{font-size:11px;color:var(--muted);margin-top:8px}
+.task-notes{font-size:13px;color:var(--muted);margin-top:6px;line-height:1.5}
+
+/* ===== MODAL ===== */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .25s}
+.modal-overlay.open{opacity:1;pointer-events:all}
+.modal-box{background:#fff;border-radius:24px 24px 0 0;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;padding:24px 20px 40px;transform:translateY(100%);transition:transform .3s}
+.modal-overlay.open .modal-box{transform:translateY(0)}
+.modal-title{font-size:18px;font-weight:900;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between}
+.modal-close{background:var(--bg);border:none;border-radius:999px;width:32px;height:32px;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.form-group{margin-bottom:16px}
+.form-group label{display:block;font-size:13px;font-weight:700;color:var(--muted);margin-bottom:6px}
+.form-input,.form-select,.form-textarea{width:100%;background:var(--bg);border:2px solid var(--border);border-radius:12px;padding:12px 14px;font-family:'Heebo',sans-serif;font-size:14px;color:var(--text);outline:none;transition:border-color .15s}
+.form-input:focus,.form-select:focus,.form-textarea:focus{border-color:var(--gold)}
+.form-textarea{resize:vertical;min-height:80px}
+.btn-submit{width:100%;background:var(--gold);color:#000;font-family:'Heebo',sans-serif;font-size:16px;font-weight:900;border:none;border-radius:14px;padding:14px;cursor:pointer;margin-top:8px;transition:all .15s}
+.btn-submit:hover{background:var(--gold-light)}
+.btn-danger{background:var(--danger);color:#fff}
+
+/* ===== VEHICLE INTAKE ===== */
+.section-title{font-size:13px;font-weight:800;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin:20px 0 12px;padding-bottom:6px;border-bottom:2px solid var(--border)}
+.checklist-item{display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--card);border-radius:12px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+.checklist-item input[type=checkbox]{width:20px;height:20px;accent-color:var(--gold);cursor:pointer;flex-shrink:0}
+.checklist-item label{font-size:14px;font-weight:600;cursor:pointer;flex:1}
+.photo-upload{border:2px dashed var(--border);border-radius:14px;padding:24px;text-align:center;cursor:pointer;transition:all .2s}
+.photo-upload:hover{border-color:var(--gold);background:#fffbf0}
+.photo-upload input{display:none}
+.photo-upload .pu-icon{font-size:32px;margin-bottom:8px}
+.photo-upload .pu-txt{font-size:13px;color:var(--muted)}
+.photo-previews{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.photo-previews img{width:72px;height:72px;object-fit:cover;border-radius:10px;border:2px solid var(--border)}
+
+/* ===== PARTS ===== */
+.parts-list{padding:16px;display:flex;flex-direction:column;gap:12px;padding-bottom:100px}
+.part-card{background:var(--card);border-radius:14px;padding:14px 16px;box-shadow:0 2px 6px rgba(0,0,0,.06)}
+.part-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
+.part-name{font-size:15px;font-weight:800}
+.part-status{padding:4px 12px;border-radius:999px;font-size:12px;font-weight:700}
+.part-status.pending{background:#fef3c7;color:#92400e}
+.part-status.ordered{background:#dbeafe;color:#1e40af}
+.part-status.arrived{background:#dcfce7;color:#166534}
+.part-meta{font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:8px}
+
+/* ===== VEHICLES LIST ===== */
+.vehicle-list{padding:16px;display:flex;flex-direction:column;gap:12px;padding-bottom:100px}
+.vehicle-card{background:var(--card);border-radius:14px;padding:14px 16px;box-shadow:0 2px 6px rgba(0,0,0,.06)}
+.vehicle-plate{font-size:20px;font-weight:900;color:var(--dark);letter-spacing:.05em}
+.vehicle-info{font-size:14px;font-weight:600;margin-top:4px}
+.vehicle-meta{font-size:12px;color:var(--muted);margin-top:6px;display:flex;flex-wrap:wrap;gap:8px}
+.cond-badge{padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700}
+.cond-תקין{background:#dcfce7;color:#166534}
+.cond-פגום{background:#fee2e2;color:#991b1b}
+.cond-לבדיקה{background:#fef3c7;color:#92400e}
+
+/* ===== EMPTY STATE ===== */
+.empty-state{text-align:center;padding:60px 24px;color:var(--muted)}
+.empty-state .es-icon{font-size:52px;margin-bottom:16px}
+.empty-state h3{font-size:17px;font-weight:800;color:var(--text);margin-bottom:8px}
+.empty-state p{font-size:14px;line-height:1.6}
+
+/* ===== TOAST ===== */
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:#1a1a2e;color:#fff;padding:12px 24px;border-radius:999px;font-size:14px;font-weight:700;z-index:999;opacity:0;transition:all .3s;white-space:nowrap;pointer-events:none}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ===== LOADING ===== */
+.loading{display:flex;align-items:center;justify-content:center;padding:40px;color:var(--muted);gap:10px;font-size:14px}
+.spinner{width:20px;height:20px;border:3px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ===== RESPONSIVE ===== */
+@media(min-width:600px){
+  .modal-overlay{align-items:center}
+  .modal-box{border-radius:24px;max-height:80vh}
+  .menu-grid{grid-template-columns:repeat(4,1fr)}
+  .stats-row{grid-template-columns:repeat(4,1fr)}
+}
+
+/* ===== FIREBASE CONFIG WARNING ===== */
+.config-warning{background:#fef3c7;border:2px solid var(--warning);border-radius:12px;padding:14px 16px;margin:16px;font-size:13px;color:#92400e;font-weight:600}
+</style>
+</head>
+<body>
+
+<!-- ====== SCREEN: LOGIN ====== -->
+<div id="screen-login" class="screen">
+  <div class="login-box">
+    <div class="login-logo">
+      <h1>ענק <span>הרכבים</span></h1>
+      <p>מערכת ניהול תפעול</p>
+    </div>
+    <div class="login-role-title">בחר תפקיד</div>
+    <div class="role-cards">
+      <div class="role-card" data-role="manager" onclick="selectRole('manager',this)">
+        <div class="icon">👔</div>
+        <div class="name">מנהל תפעול</div>
+        <div class="desc">ניהול מלא</div>
+      </div>
+      <div class="role-card" data-role="driver" onclick="selectRole('driver',this)">
+        <div class="icon">🚗</div>
+        <div class="name">נהג</div>
+        <div class="desc">משימות שלי</div>
+      </div>
+    </div>
+    <div id="driver-select-wrap" class="driver-select" style="display:none">
+      <label>בחר את שמך</label>
+      <select id="driver-name-select">
+        <option value="">— בחר נהג —</option>
+        <option value="נהג 1">נהג 1</option>
+        <option value="נהג 2">נהג 2</option>
+        <option value="נהג 3">נהג 3</option>
+      </select>
+    </div>
+    <button class="btn-login" id="btn-enter" onclick="doLogin()" disabled>כניסה למערכת</button>
+  </div>
+</div>
+
+<!-- ====== SCREEN: HOME ====== -->
+<div id="screen-home" class="screen">
+  <div class="app-header">
+    <div class="logo">ענק <span>הרכבים</span></div>
+    <div class="user-badge" id="home-user-badge" onclick="logout()">יציאה</div>
+  </div>
+  <div class="home-body">
+    <div class="welcome-bar">
+      <h2 id="home-welcome">שלום 👋</h2>
+      <p id="home-date"></p>
+    </div>
+    <div class="stats-row" id="stats-row">
+      <div class="stat-card"><div class="num" id="stat-tasks">—</div><div class="lbl">משימות פתוחות</div></div>
+      <div class="stat-card"><div class="num" id="stat-vehicles">—</div><div class="lbl">רכבים במגרש</div></div>
+      <div class="stat-card"><div class="num" id="stat-parts">—</div><div class="lbl">הזמנות חלקים</div></div>
+    </div>
+    <div class="menu-grid" id="menu-grid"></div>
+  </div>
+</div>
+
+<!-- ====== SCREEN: TASKS ====== -->
+<div id="screen-tasks" class="screen">
+  <div class="app-header">
+    <button class="back-btn" onclick="goHome()">→</button>
+    <div class="logo">משימות</div>
+    <div class="user-badge" id="tasks-user-badge"></div>
+  </div>
+  <div class="filter-tabs" id="task-filter-tabs"></div>
+  <div id="task-list-container" class="task-list">
+    <div class="loading"><div class="spinner"></div> טוען...</div>
+  </div>
+  <button class="fab" id="fab-new-task" onclick="openNewTaskModal()" style="display:none">+ משימה חדשה</button>
+</div>
+
+<!-- ====== SCREEN: VEHICLES ====== -->
+<div id="screen-vehicles" class="screen">
+  <div class="app-header">
+    <button class="back-btn" onclick="goHome()">→</button>
+    <div class="logo">רכבים במגרש</div>
+    <div class="user-badge" id="vehicles-user-badge"></div>
+  </div>
+  <div id="vehicle-list-container" class="vehicle-list">
+    <div class="loading"><div class="spinner"></div> טוען...</div>
+  </div>
+  <button class="fab" id="fab-new-vehicle" onclick="openNewVehicleModal()" style="display:none">+ קליטת רכב</button>
+</div>
+
+<!-- ====== SCREEN: PARTS ====== -->
+<div id="screen-parts" class="screen">
+  <div class="app-header">
+    <button class="back-btn" onclick="goHome()">→</button>
+    <div class="logo">הזמנת חלקים</div>
+    <div class="user-badge" id="parts-user-badge"></div>
+  </div>
+  <div class="filter-tabs">
+    <button class="ftab active" onclick="filterParts('all',this)">הכל</button>
+    <button class="ftab" onclick="filterParts('pending',this)">ממתין</button>
+    <button class="ftab" onclick="filterParts('ordered',this)">הוזמן</button>
+    <button class="ftab" onclick="filterParts('arrived',this)">הגיע</button>
+  </div>
+  <div id="parts-list-container" class="parts-list">
+    <div class="loading"><div class="spinner"></div> טוען...</div>
+  </div>
+  <button class="fab" id="fab-new-part" onclick="openNewPartModal()" style="display:none">+ בקשת חלק</button>
+</div>
+
+<!-- ====== MODAL: NEW TASK ====== -->
+<div class="modal-overlay" id="modal-task">
+  <div class="modal-box">
+    <div class="modal-title">
+      משימה חדשה
+      <button class="modal-close" onclick="closeModal('modal-task')">✕</button>
+    </div>
+    <div class="form-group">
+      <label>כותרת המשימה</label>
+      <input class="form-input" id="task-title" placeholder="לדוגמא: שטיפת רכב לוח 123-45">
+    </div>
+    <div class="form-group">
+      <label>פירוט / הוראות</label>
+      <textarea class="form-textarea" id="task-notes" placeholder="הוסף פירוטים..."></textarea>
+    </div>
+    <div class="form-group">
+      <label>שייך לנהג</label>
+      <select class="form-select" id="task-assignee">
+        <option value="כולם">כולם</option>
+        <option value="נהג 1">נהג 1</option>
+        <option value="נהג 2">נהג 2</option>
+        <option value="נהג 3">נהג 3</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>עדיפות</label>
+      <select class="form-select" id="task-priority">
+        <option value="low">נמוכה</option>
+        <option value="med" selected>בינונית</option>
+        <option value="high">גבוהה 🔴</option>
+      </select>
+    </div>
+    <button class="btn-submit" onclick="submitTask()">פתח משימה</button>
+  </div>
+</div>
+
+<!-- ====== MODAL: NEW VEHICLE ====== -->
+<div class="modal-overlay" id="modal-vehicle">
+  <div class="modal-box">
+    <div class="modal-title">
+      קליטת רכב חדש
+      <button class="modal-close" onclick="closeModal('modal-vehicle')">✕</button>
+    </div>
+    <div class="form-group">
+      <label>מספר לוחית רישוי</label>
+      <input class="form-input" id="v-plate" placeholder="123-45-678" style="font-size:20px;font-weight:900;letter-spacing:.08em">
+    </div>
+    <div class="form-group">
+      <label>יצרן</label>
+      <input class="form-input" id="v-brand" placeholder="טויוטה, קיה, הונדה...">
+    </div>
+    <div class="form-group">
+      <label>דגם</label>
+      <input class="form-input" id="v-model" placeholder="קורולה, ספורטז׳...">
+    </div>
+    <div class="form-group">
+      <label>שנה</label>
+      <input class="form-input" id="v-year" type="number" placeholder="2023" min="1990" max="2030">
+    </div>
+    <div class="form-group">
+      <label>מצב כללי</label>
+      <select class="form-select" id="v-condition">
+        <option value="תקין">תקין ✅</option>
+        <option value="לבדיקה">דרוש בדיקה ⚠️</option>
+        <option value="פגום">פגום 🔴</option>
+      </select>
+    </div>
+    <div class="section-title">צ׳קליסט קליטה</div>
+    <div id="checklist-items">
+      <div class="checklist-item"><input type="checkbox" id="c1"><label for="c1">בדיקת שמן</label></div>
+      <div class="checklist-item"><input type="checkbox" id="c2"><label for="c2">בדיקת מים</label></div>
+      <div class="checklist-item"><input type="checkbox" id="c3"><label for="c3">בדיקת צמיגים</label></div>
+      <div class="checklist-item"><input type="checkbox" id="c4"><label for="c4">בדיקת בלמים</label></div>
+      <div class="checklist-item"><input type="checkbox" id="c5"><label for="c5">בדיקת אורות</label></div>
+      <div class="checklist-item"><input type="checkbox" id="c6"><label for="c6">בדיקת סוללה</label></div>
+      <div class="checklist-item"><input type="checkbox" id="c7"><label for="c7">ניקיון פנים</label></div>
+      <div class="checklist-item"><input type="checkbox" id="c8"><label for="c8">ניקיון חוץ</label></div>
+      <div class="checklist-item"><input type="checkbox" id="c9"><label for="c9">מסמכים תקינים</label></div>
+    </div>
+    <div class="form-group" style="margin-top:16px">
+      <label>הערות נוספות</label>
+      <textarea class="form-textarea" id="v-notes" placeholder="ציין כל דבר חשוב שנמצא..."></textarea>
+    </div>
+    <button class="btn-submit" onclick="submitVehicle()">קלוט רכב</button>
+  </div>
+</div>
+
+<!-- ====== MODAL: NEW PART ====== -->
+<div class="modal-overlay" id="modal-part">
+  <div class="modal-box">
+    <div class="modal-title">
+      בקשת חלק
+      <button class="modal-close" onclick="closeModal('modal-part')">✕</button>
+    </div>
+    <div class="form-group">
+      <label>שם החלק</label>
+      <input class="form-input" id="p-name" placeholder="לדוגמא: פילטר שמן">
+    </div>
+    <div class="form-group">
+      <label>לוחית רישוי (אם רלוונטי)</label>
+      <input class="form-input" id="p-plate" placeholder="123-45-678">
+    </div>
+    <div class="form-group">
+      <label>כמות</label>
+      <input class="form-input" id="p-qty" type="number" value="1" min="1">
+    </div>
+    <div class="form-group">
+      <label>ספק מועדף (אופציונלי)</label>
+      <input class="form-input" id="p-supplier" placeholder="שם ספק...">
+    </div>
+    <div class="form-group">
+      <label>הערות</label>
+      <textarea class="form-textarea" id="p-notes" placeholder="פרטים נוספים..."></textarea>
+    </div>
+    <button class="btn-submit" onclick="submitPart()">שלח בקשה</button>
+  </div>
+</div>
+
+<!-- ====== TOAST ====== -->
+<div class="toast" id="toast"></div>
+
+<!-- ====== FIREBASE ====== -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, query, orderBy, serverTimestamp, where }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+// ┌─────────────────────────────────────────────────────────────────┐
+// │  הכנס כאן את פרטי ה-Firebase שלך (ראה הוראות בתחתית הדף)      │
+// └─────────────────────────────────────────────────────────────────┘
+const firebaseConfig = {
+  apiKey:            "AIzaSyAVrNBg_EgCKc0B2YUAX9Ga6QZyOVQiiZE",
+  authDomain:        "anak-soharim.firebaseapp.com",
+  projectId:         "anak-soharim",
+  storageBucket:     "anak-soharim.firebasestorage.app",
+  messagingSenderId: "343573102369",
+  appId:             "1:343573102369:web:129db37c736f10efda4860",
+  measurementId:     "G-78SE7ZZE54"
+};
+
+const CONFIG_DONE = !firebaseConfig.apiKey.includes("PASTE");
+
+let db, app;
+if (CONFIG_DONE) {
+  app = initializeApp(firebaseConfig);
+  db  = getFirestore(app);
+}
+
+// ── expose to global scope ──
+window._db = db;
+window._CONFIG_DONE = CONFIG_DONE;
+window._fs = CONFIG_DONE ? { collection, addDoc, onSnapshot, doc, updateDoc, query, orderBy, serverTimestamp, where } : null;
+
+// ── Firestore helpers ──
+window._addDoc    = CONFIG_DONE ? addDoc    : null;
+window._onSnap    = CONFIG_DONE ? onSnapshot: null;
+window._colRef    = CONFIG_DONE ? (n) => collection(db, n) : null;
+window._docRef    = CONFIG_DONE ? (c,id) => doc(db, c, id) : null;
+window._updateDoc = CONFIG_DONE ? updateDoc : null;
+window._query     = CONFIG_DONE ? query     : null;
+window._orderBy   = CONFIG_DONE ? orderBy   : null;
+window._serverTs  = CONFIG_DONE ? serverTimestamp : null;
+window._where     = CONFIG_DONE ? where     : null;
+
+window.dispatchEvent(new Event('firebase-ready'));
+</script>
+
+<script>
+/* ═══════════════════════════════════════════════════════
+   APP STATE
+═══════════════════════════════════════════════════════ */
+let currentUser = null; // { role: 'manager'|'driver', name: string }
+let selectedRole = null;
+let partsFilter = 'all';
+let taskUnsub = null;
+let vehicleUnsub = null;
+let partsUnsub = null;
+
+/* ═══════════════════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════════════════ */
+window.addEventListener('firebase-ready', () => {
+  if (!window._CONFIG_DONE) {
+    showConfigWarning();
+  }
+  // check saved session
+  const saved = localStorage.getItem('anak_user');
+  if (saved) {
+    currentUser = JSON.parse(saved);
+    enterApp();
+  } else {
+    showScreen('login');
+  }
+});
+
+function showConfigWarning() {
+  const w = document.createElement('div');
+  w.className = 'config-warning';
+  w.innerHTML = '⚠️ <strong>Firebase לא מוגדר עדיין</strong> — האפליקציה עובדת במצב הדגמה בלבד. ראה הוראות בתחתית הקוד.';
+  document.body.prepend(w);
+}
+
+/* ═══════════════════════════════════════════════════════
+   LOGIN
+═══════════════════════════════════════════════════════ */
+function selectRole(role, el) {
+  selectedRole = role;
+  document.querySelectorAll('.role-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  document.getElementById('driver-select-wrap').style.display = role === 'driver' ? 'block' : 'none';
+  checkLoginReady();
+}
+
+function checkLoginReady() {
+  const btn = document.getElementById('btn-enter');
+  if (!selectedRole) { btn.disabled = true; return; }
+  if (selectedRole === 'driver') {
+    btn.disabled = !document.getElementById('driver-name-select').value;
+  } else {
+    btn.disabled = false;
+  }
+}
+
+document.getElementById('driver-name-select').addEventListener('change', checkLoginReady);
+
+function doLogin() {
+  const name = selectedRole === 'manager'
+    ? 'מנהל תפעול'
+    : document.getElementById('driver-name-select').value;
+  currentUser = { role: selectedRole, name };
+  localStorage.setItem('anak_user', JSON.stringify(currentUser));
+  enterApp();
+}
+
+function logout() {
+  if (!confirm('לצאת מהמערכת?')) return;
+  localStorage.removeItem('anak_user');
+  if (taskUnsub) taskUnsub();
+  if (vehicleUnsub) vehicleUnsub();
+  if (partsUnsub) partsUnsub();
+  currentUser = null;
+  showScreen('login');
+}
+
+/* ═══════════════════════════════════════════════════════
+   SCREEN NAVIGATION
+═══════════════════════════════════════════════════════ */
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+}
+
+function enterApp() {
+  renderHome();
+  showScreen('home');
+}
+
+function goHome() {
+  showScreen('home');
+}
+
+/* ═══════════════════════════════════════════════════════
+   HOME
+═══════════════════════════════════════════════════════ */
+function renderHome() {
+  const isManager = currentUser.role === 'manager';
+  document.getElementById('home-welcome').textContent =
+    'שלום, ' + currentUser.name + ' 👋';
+  const now = new Date();
+  document.getElementById('home-date').textContent =
+    now.toLocaleDateString('he-IL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  document.getElementById('home-user-badge').textContent = currentUser.name;
+
+  const menuItems = isManager
+    ? [
+        { icon: '📋', title: 'לוח משימות', sub: 'ניהול משימות לנהגים', screen: 'tasks' },
+        { icon: '🚗', title: 'קליטת רכב', sub: 'רכבים במגרש', screen: 'vehicles' },
+        { icon: '🔧', title: 'הזמנת חלקים', sub: 'בקשות ועדכונים', screen: 'parts' },
+      ]
+    : [
+        { icon: '📋', title: 'המשימות שלי', sub: 'משימות שהוקצו לך', screen: 'tasks' },
+      ];
+
+  document.getElementById('menu-grid').innerHTML = menuItems.map(m => `
+    <div class="menu-card" onclick="goToScreen('${m.screen}')">
+      <div class="mc-icon">${m.icon}</div>
+      <div class="mc-title">${m.title}</div>
+      <div class="mc-sub">${m.sub}</div>
+    </div>
+  `).join('');
+
+  loadStats();
+}
+
+function goToScreen(name) {
+  if (name === 'tasks') openTasksScreen();
+  else if (name === 'vehicles') openVehiclesScreen();
+  else if (name === 'parts') openPartsScreen();
+}
+
+function loadStats() {
+  if (!window._CONFIG_DONE) {
+    document.getElementById('stat-tasks').textContent = '—';
+    document.getElementById('stat-vehicles').textContent = '—';
+    document.getElementById('stat-parts').textContent = '—';
+    return;
+  }
+  // tasks open
+  const tq = _query(_colRef('tasks'), _where('status','!=','done'));
+  _onSnap(tq, snap => {
+    document.getElementById('stat-tasks').textContent = snap.size;
+  });
+  // vehicles
+  _onSnap(_colRef('vehicles'), snap => {
+    document.getElementById('stat-vehicles').textContent = snap.size;
+  });
+  // parts pending
+  const pq = _query(_colRef('parts'), _where('status','==','pending'));
+  _onSnap(pq, snap => {
+    document.getElementById('stat-parts').textContent = snap.size;
+  });
+}
+
+/* ═══════════════════════════════════════════════════════
+   TASKS SCREEN
+═══════════════════════════════════════════════════════ */
+function openTasksScreen() {
+  const isManager = currentUser.role === 'manager';
+  document.getElementById('tasks-user-badge').textContent = currentUser.name;
+  document.getElementById('fab-new-task').style.display = isManager ? 'flex' : 'none';
+
+  // filter tabs
+  const tabs = isManager
+    ? ['הכל','פתוחות','בביצוע','הושלמו']
+    : ['שלי','פתוחות','הושלמו'];
+  const tabEl = document.getElementById('task-filter-tabs');
+  tabEl.innerHTML = tabs.map((t,i) =>
+    `<button class="ftab${i===0?' active':''}" onclick="filterTasks('${t}',this)">${t}</button>`
+  ).join('');
+
+  showScreen('tasks');
+  loadTasks();
+}
+
+let activeTaskFilter = 'הכל';
+
+function filterTasks(f, el) {
+  activeTaskFilter = f;
+  document.querySelectorAll('#task-filter-tabs .ftab').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  renderTasksFromCache();
+}
+
+let tasksCache = [];
+
+function loadTasks() {
+  if (!window._CONFIG_DONE) {
+    document.getElementById('task-list-container').innerHTML = demoTasksHTML();
+    return;
+  }
+  if (taskUnsub) taskUnsub();
+  const q = _query(_colRef('tasks'), _orderBy('createdAt','desc'));
+  taskUnsub = _onSnap(q, snap => {
+    tasksCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderTasksFromCache();
+  });
+}
+
+function renderTasksFromCache() {
+  const isManager = currentUser.role === 'manager';
+  let tasks = tasksCache;
+
+  if (!isManager) {
+    tasks = tasks.filter(t => t.assignedTo === currentUser.name || t.assignedTo === 'כולם');
+  }
+
+  const f = activeTaskFilter;
+  if (f === 'פתוחות') tasks = tasks.filter(t => t.status === 'open');
+  else if (f === 'בביצוע') tasks = tasks.filter(t => t.status === 'inprog');
+  else if (f === 'הושלמו' || f === 'הושלמו') tasks = tasks.filter(t => t.status === 'done');
+  else if (f === 'שלי') tasks = tasks.filter(t => t.assignedTo === currentUser.name || t.assignedTo === 'כולם');
+
+  const container = document.getElementById('task-list-container');
+  if (!tasks.length) {
+    container.innerHTML = `<div class="empty-state"><div class="es-icon">📭</div><h3>אין משימות</h3><p>עדיין לא נפתחו משימות בקטגוריה זו</p></div>`;
+    return;
+  }
+
+  const statusLabel = { open:'פתוחה', inprog:'בביצוע', done:'הושלמה' };
+  const prioLabel   = { high:'גבוהה 🔴', med:'בינונית', low:'נמוכה' };
+
+  container.innerHTML = tasks.map(t => {
+    const ts = t.createdAt?.toDate ? t.createdAt.toDate().toLocaleString('he-IL') : '';
+    return `
+    <div class="task-card priority-${t.priority} ${t.status==='done'?'done':''}">
+      <div class="task-top">
+        <div class="task-title">${esc(t.title)}</div>
+        <button class="task-done-btn ${t.status==='done'?'done':''}" onclick="toggleTaskDone('${t.id}','${t.status}')" title="סמן הושלם">
+          ${t.status==='done'?'✓':''}
+        </button>
+      </div>
+      ${t.notes ? `<div class="task-notes">${esc(t.notes)}</div>` : ''}
+      <div class="task-meta">
+        <span class="tag assignee">👤 ${esc(t.assignedTo)}</span>
+        <span class="tag status-${t.status}">${statusLabel[t.status]||t.status}</span>
+        <span class="tag prio-${t.priority}">${prioLabel[t.priority]||t.priority}</span>
+      </div>
+      ${ts ? `<div class="task-time">${ts}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function toggleTaskDone(id, currentStatus) {
+  if (!window._CONFIG_DONE) return showToast('Firebase לא מחובר');
+  const newStatus = currentStatus === 'done' ? 'open' : 'done';
+  _updateDoc(_docRef('tasks', id), { status: newStatus });
+}
+
+function openNewTaskModal() {
+  document.getElementById('task-title').value = '';
+  document.getElementById('task-notes').value = '';
+  document.getElementById('task-assignee').value = 'כולם';
+  document.getElementById('task-priority').value = 'med';
+  openModal('modal-task');
+}
+
+async function submitTask() {
+  const title = document.getElementById('task-title').value.trim();
+  if (!title) return showToast('נא להזין כותרת למשימה');
+  if (!window._CONFIG_DONE) return showToast('Firebase לא מחובר');
+  await _addDoc(_colRef('tasks'), {
+    title,
+    notes:      document.getElementById('task-notes').value.trim(),
+    assignedTo: document.getElementById('task-assignee').value,
+    priority:   document.getElementById('task-priority').value,
+    status:     'open',
+    createdBy:  currentUser.name,
+    createdAt:  _serverTs()
+  });
+  closeModal('modal-task');
+  showToast('✅ משימה נפתחה!');
+}
+
+/* ═══════════════════════════════════════════════════════
+   VEHICLES SCREEN
+═══════════════════════════════════════════════════════ */
+function openVehiclesScreen() {
+  const isManager = currentUser.role === 'manager';
+  document.getElementById('vehicles-user-badge').textContent = currentUser.name;
+  document.getElementById('fab-new-vehicle').style.display = isManager ? 'flex' : 'none';
+  showScreen('vehicles');
+  loadVehicles();
+}
+
+function loadVehicles() {
+  if (!window._CONFIG_DONE) {
+    document.getElementById('vehicle-list-container').innerHTML = demoVehiclesHTML();
+    return;
+  }
+  if (vehicleUnsub) vehicleUnsub();
+  const q = _query(_colRef('vehicles'), _orderBy('receivedAt','desc'));
+  vehicleUnsub = _onSnap(q, snap => {
+    const vehicles = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const container = document.getElementById('vehicle-list-container');
+    if (!vehicles.length) {
+      container.innerHTML = `<div class="empty-state"><div class="es-icon">🅿️</div><h3>המגרש ריק</h3><p>עדיין לא נקלטו רכבים</p></div>`;
+      return;
+    }
+    container.innerHTML = vehicles.map(v => {
+      const ts = v.receivedAt?.toDate ? v.receivedAt.toDate().toLocaleString('he-IL') : '';
+      const checked = v.checklist ? Object.values(v.checklist).filter(Boolean).length : 0;
+      const total   = v.checklist ? Object.values(v.checklist).length : 0;
+      return `
+      <div class="vehicle-card">
+        <div class="vehicle-plate">${esc(v.plate)}</div>
+        <div class="vehicle-info">${esc(v.brand)} ${esc(v.model)} ${esc(v.year||'')}</div>
+        <div class="vehicle-meta">
+          <span class="cond-badge cond-${v.condition}">${esc(v.condition)}</span>
+          ${total ? `<span class="tag assignee">צ׳קליסט: ${checked}/${total}</span>` : ''}
+          <span>נקלט ע"י ${esc(v.receivedBy)}</span>
+        </div>
+        ${v.notes ? `<div class="task-notes" style="margin-top:8px">${esc(v.notes)}</div>` : ''}
+        ${ts ? `<div class="task-time">${ts}</div>` : ''}
+      </div>`;
+    }).join('');
+  });
+}
+
+function openNewVehicleModal() {
+  ['v-plate','v-brand','v-model','v-year','v-notes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('v-condition').value = 'תקין';
+  document.querySelectorAll('#checklist-items input[type=checkbox]').forEach(cb => cb.checked = false);
+  openModal('modal-vehicle');
+}
+
+async function submitVehicle() {
+  const plate = document.getElementById('v-plate').value.trim();
+  if (!plate) return showToast('נא להזין מספר לוחית');
+  if (!window._CONFIG_DONE) return showToast('Firebase לא מחובר');
+  const checklist = {};
+  document.querySelectorAll('#checklist-items input[type=checkbox]').forEach(cb => {
+    checklist[cb.nextElementSibling.textContent] = cb.checked;
+  });
+  await _addDoc(_colRef('vehicles'), {
+    plate,
+    brand:      document.getElementById('v-brand').value.trim(),
+    model:      document.getElementById('v-model').value.trim(),
+    year:       document.getElementById('v-year').value,
+    condition:  document.getElementById('v-condition').value,
+    notes:      document.getElementById('v-notes').value.trim(),
+    checklist,
+    receivedBy: currentUser.name,
+    receivedAt: _serverTs()
+  });
+  closeModal('modal-vehicle');
+  showToast('✅ רכב נקלט!');
+}
+
+/* ═══════════════════════════════════════════════════════
+   PARTS SCREEN
+═══════════════════════════════════════════════════════ */
+function openPartsScreen() {
+  const isManager = currentUser.role === 'manager';
+  document.getElementById('parts-user-badge').textContent = currentUser.name;
+  document.getElementById('fab-new-part').style.display = isManager ? 'flex' : 'none';
+  showScreen('parts');
+  loadParts();
+}
+
+function filterParts(f, el) {
+  partsFilter = f;
+  document.querySelectorAll('#screen-parts .ftab').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  renderPartsFromCache();
+}
+
+let partsCache = [];
+
+function loadParts() {
+  if (!window._CONFIG_DONE) {
+    document.getElementById('parts-list-container').innerHTML = demoPartsHTML();
+    return;
+  }
+  if (partsUnsub) partsUnsub();
+  const q = _query(_colRef('parts'), _orderBy('requestedAt','desc'));
+  partsUnsub = _onSnap(q, snap => {
+    partsCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderPartsFromCache();
+  });
+}
+
+function renderPartsFromCache() {
+  let parts = partsCache;
+  if (partsFilter !== 'all') parts = parts.filter(p => p.status === partsFilter);
+  const container = document.getElementById('parts-list-container');
+  if (!parts.length) {
+    container.innerHTML = `<div class="empty-state"><div class="es-icon">🔧</div><h3>אין הזמנות</h3><p>עדיין לא הוגשו בקשות חלקים</p></div>`;
+    return;
+  }
+  const statusLabel = { pending:'ממתין לאישור', ordered:'הוזמן', arrived:'הגיע' };
+  container.innerHTML = parts.map(p => {
+    const ts = p.requestedAt?.toDate ? p.requestedAt.toDate().toLocaleString('he-IL') : '';
+    return `
+    <div class="part-card">
+      <div class="part-top">
+        <div class="part-name">${esc(p.name)}</div>
+        <span class="part-status ${p.status}">${statusLabel[p.status]||p.status}</span>
+      </div>
+      <div class="part-meta">
+        ${p.plate ? `<span>🚗 ${esc(p.plate)}</span>` : ''}
+        ${p.qty   ? `<span>כמות: ${p.qty}</span>` : ''}
+        ${p.supplier ? `<span>ספק: ${esc(p.supplier)}</span>` : ''}
+        <span>בוקש ע"י ${esc(p.requestedBy)}</span>
+      </div>
+      ${p.notes ? `<div class="task-notes" style="margin-top:8px">${esc(p.notes)}</div>` : ''}
+      ${ts ? `<div class="task-time">${ts}</div>` : ''}
+      ${currentUser.role==='manager' ? `
+      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+        <button onclick="updatePartStatus('${p.id}','ordered')" style="flex:1;padding:8px;background:#dbeafe;border:none;border-radius:10px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;color:#1e40af">✓ סמן הוזמן</button>
+        <button onclick="updatePartStatus('${p.id}','arrived')" style="flex:1;padding:8px;background:#dcfce7;border:none;border-radius:10px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;color:#166534">✓ הגיע</button>
+      </div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function updatePartStatus(id, status) {
+  if (!window._CONFIG_DONE) return;
+  _updateDoc(_docRef('parts', id), { status });
+  showToast(status === 'ordered' ? '📦 סומן כ"הוזמן"' : '✅ סומן כ"הגיע"');
+}
+
+function openNewPartModal() {
+  ['p-name','p-plate','p-supplier','p-notes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('p-qty').value = '1';
+  openModal('modal-part');
+}
+
+async function submitPart() {
+  const name = document.getElementById('p-name').value.trim();
+  if (!name) return showToast('נא להזין שם חלק');
+  if (!window._CONFIG_DONE) return showToast('Firebase לא מחובר');
+  await _addDoc(_colRef('parts'), {
+    name,
+    plate:       document.getElementById('p-plate').value.trim(),
+    qty:         document.getElementById('p-qty').value,
+    supplier:    document.getElementById('p-supplier').value.trim(),
+    notes:       document.getElementById('p-notes').value.trim(),
+    status:      'pending',
+    requestedBy: currentUser.name,
+    requestedAt: _serverTs()
+  });
+  closeModal('modal-part');
+  showToast('✅ בקשה נשלחה!');
+}
+
+/* ═══════════════════════════════════════════════════════
+   UTILS
+═══════════════════════════════════════════════════════ */
+function openModal(id) {
+  document.getElementById(id).classList.add('open');
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+document.querySelectorAll('.modal-overlay').forEach(o => {
+  o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); });
+});
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+function esc(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ── DEMO HTML (when Firebase not configured) ── */
+function demoTasksHTML() {
+  return `
+  <div class="task-card priority-high">
+    <div class="task-top"><div class="task-title">הכנת רכב ללקוח VIP</div><button class="task-done-btn"></button></div>
+    <div class="task-meta"><span class="tag assignee">👤 נהג 1</span><span class="tag status-open">פתוחה</span><span class="tag prio-high">גבוהה 🔴</span></div>
+  </div>
+  <div class="task-card priority-med">
+    <div class="task-top"><div class="task-title">שטיפת הרכבים בשורה ג׳</div><button class="task-done-btn"></button></div>
+    <div class="task-notes">כל 8 הרכבים בשורה</div>
+    <div class="task-meta"><span class="tag assignee">👤 כולם</span><span class="tag status-inprog">בביצוע</span><span class="tag prio-med">בינונית</span></div>
+  </div>
+  <div class="task-card priority-low done">
+    <div class="task-top"><div class="task-title">סידור מגרש קטע ב׳</div><button class="task-done-btn done">✓</button></div>
+    <div class="task-meta"><span class="tag assignee">👤 נהג 2</span><span class="tag status-done">הושלמה</span><span class="tag prio-low">נמוכה</span></div>
+  </div>`;
+}
+function demoVehiclesHTML() {
+  return `
+  <div class="vehicle-card">
+    <div class="vehicle-plate">123-45-678</div>
+    <div class="vehicle-info">טויוטה קורולה 2022</div>
+    <div class="vehicle-meta"><span class="cond-badge cond-תקין">תקין</span><span class="tag assignee">צ׳קליסט: 7/9</span><span>נקלט ע"י מנהל תפעול</span></div>
+  </div>
+  <div class="vehicle-card">
+    <div class="vehicle-plate">987-65-432</div>
+    <div class="vehicle-info">קיה ספורטז׳ 2023</div>
+    <div class="vehicle-meta"><span class="cond-badge cond-לבדיקה">דרוש בדיקה</span></div>
+    <div class="task-notes" style="margin-top:8px">רעש מהמנוע בהנעה</div>
+  </div>`;
+}
+function demoPartsHTML() {
+  return `
+  <div class="part-card">
+    <div class="part-top"><div class="part-name">פילטר שמן</div><span class="part-status pending">ממתין לאישור</span></div>
+    <div class="part-meta"><span>🚗 123-45-678</span><span>כמות: 2</span><span>בוקש ע"י מנהל תפעול</span></div>
+  </div>
+  <div class="part-card">
+    <div class="part-top"><div class="part-name">רפידות בלם קדמי</div><span class="part-status ordered">הוזמן</span></div>
+    <div class="part-meta"><span>🚗 987-65-432</span><span>ספק: חלקי ענק</span></div>
+  </div>`;
+}
+
+// expose functions needed by inline onclick
+window.selectRole = selectRole;
+window.doLogin = doLogin;
+window.logout = logout;
+window.goHome = goHome;
+window.goToScreen = goToScreen;
+window.openNewTaskModal = openNewTaskModal;
+window.openNewVehicleModal = openNewVehicleModal;
+window.openNewPartModal = openNewPartModal;
+window.submitTask = submitTask;
+window.submitVehicle = submitVehicle;
+window.submitPart = submitPart;
+window.toggleTaskDone = toggleTaskDone;
+window.filterTasks = filterTasks;
+window.filterParts = filterParts;
+window.updatePartStatus = updatePartStatus;
+window.openModal = openModal;
+window.closeModal = closeModal;
+window.openTasksScreen = openTasksScreen;
+window.openVehiclesScreen = openVehiclesScreen;
+window.openPartsScreen = openPartsScreen;
+</script>
+</body>
+</html>
