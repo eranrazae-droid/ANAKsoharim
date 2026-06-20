@@ -431,7 +431,16 @@ if ('serviceWorker' in navigator) {
       </div>
 
       <div class="checklist-item"><span class="ci-label">השלמת חוסר שטיחים / שטיחים בלויים</span><div class="ci-btns"><button type="button" class="ci-box" data-key="c-mats" data-val="v" onclick="ciClick(this)">✓</button><button type="button" class="ci-box" data-key="c-mats" data-val="x" onclick="ciClick(this)">✕</button></div></div>
-      <div id="note-c-mats" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="cn-c-mats" placeholder="הערה לשטיחים..." rows="2"></textarea></div>
+      <div id="note-c-mats" class="ci-note-row" style="display:none">
+        <div style="background:#fff8e1;border:1.5px solid #f59e0b;border-radius:10px;padding:12px 14px;margin-bottom:10px;font-size:13px;line-height:1.7;color:#92400e">
+          ⚠️ <strong>שים לב:</strong><br>
+          • במידה וחסר שטיחים — <strong>הוסף עכשיו</strong><br>
+          • במידה והשטיחים בלויים — <strong>צלם תמונה</strong>
+        </div>
+        <textarea class="form-textarea" id="cn-c-mats" placeholder="הערה לשטיחים..." rows="2"></textarea>
+        <div class="ci-photos" id="photos-c-mats"></div>
+        <input type="file" accept="image/*" capture="environment" id="file-c-mats" style="display:none" multiple onchange="addPhotos('c-mats',this)">
+      </div>
 
       <!-- שדה קוד -->
       <div class="form-group" style="margin-top:10px">
@@ -1076,7 +1085,7 @@ function openNewVehicleModal() {
   document.getElementById('v-fetch-status').textContent = '';
   document.querySelectorAll('.ci-box').forEach(b => b.classList.remove('v-active','x-active'));
   document.querySelectorAll('.ci-note-row').forEach(r => { r.style.display = 'none'; r.querySelector('textarea').value = ''; });
-  ['c-lights-break','c-glass-break','c-upholstery','c-steering'].forEach(k => {
+  ['c-lights-break','c-glass-break','c-upholstery','c-steering','c-mats'].forEach(k => {
     ciPhotoFiles[k] = [];
     renderPhotoGrid(k);
   });
@@ -1123,7 +1132,8 @@ async function submitVehicle() {
     'c-lights-break': 'שברים בפנסים',
     'c-glass-break':  'שברים בשמשות',
     'c-upholstery':   'ריפודים',
-    'c-steering':     'הגה'
+    'c-steering':     'הגה',
+    'c-mats':         'שטיחים'
   };
   for (const [k, label] of Object.entries(photoRequired)) {
     if (checklist[k] === 'x' && !(ciPhotoFiles[k]?.length)) {
@@ -1132,7 +1142,7 @@ async function submitVehicle() {
   }
 
   const vehicleId = plate + '_' + Date.now();
-  const photoKeys = ['c-lights-break','c-glass-break','c-upholstery','c-steering'];
+  const photoKeys = ['c-lights-break','c-glass-break','c-upholstery','c-steering','c-mats'];
   const photoUrls = {};
   for (const k of photoKeys) {
     if (ciPhotoFiles[k]?.length) {
