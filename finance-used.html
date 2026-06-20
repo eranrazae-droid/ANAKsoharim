@@ -170,10 +170,44 @@ body{
   text-align:center;
 }
 
+/* ── MOBILE HORIZONTAL CARDS ── */
 @media(max-width:700px){
-  .cards{grid-template-columns:repeat(2,1fr)}
   .input-row{flex-direction:column}
   .page-title{font-size:22px}
+  .cards{
+    grid-template-columns:1fr;
+    gap:10px;
+  }
+  .rcard{
+    display:grid;
+    grid-template-rows:auto auto;
+    padding:0;
+    min-width:unset;
+  }
+  .rcard-nsel{
+    border-radius:12px 12px 0 0;
+    margin-bottom:0;
+  }
+  .rcard-body{
+    display:flex;
+    flex-direction:row;
+    align-items:center;
+    padding:12px 14px;
+    gap:12px;
+  }
+  .rcard-amount{
+    display:flex;flex-direction:column;align-items:center;
+    min-width:100px;
+    border-left:1px solid #eef2fb;
+    padding-left:12px;
+  }
+  .rcard-info{flex:1}
+  .rcard-monthly{font-size:30px}
+  .rcard-company{text-align:right}
+  .rcard-track{text-align:right;margin-bottom:6px}
+  .rcard-divider{display:none}
+  .rcard-inline{align-items:flex-start}
+  .rcard-inline-item{flex-direction:row-reverse;gap:4px}
 }
 </style>
 </head>
@@ -361,27 +395,36 @@ function calc() {
 
   var minMonthly = Math.min.apply(null, results.map(function(r){ return r.monthly; }));
 
+  // sort cheap → expensive
+  results.sort(function(a,b){ return a.monthly - b.monthly; });
+
   var html = '<div class="cards">';
   results.forEach(function(r) {
     var isBest   = r.monthly === minMonthly;
     var colorCls = r.t.fee === 'kal' ? 'kal' : 'yasir';
+    var monthlyInterest = Math.round(r.monthly - (loan / r.selN));
     html += '<div class="rcard ' + colorCls + (isBest ? ' best' : '') + '">';
     html += '<select class="rcard-nsel" onchange="onNChange(' + r.idx + ',this.value)">';
     html += makeOptions(r.t.maxN, r.selN);
     html += '</select>';
     html += '<div class="rcard-body">';
+    // info side
+    html += '<div class="rcard-info">';
     html += '<div class="rcard-company">' + r.t.company + '</div>';
     html += '<div class="rcard-track">' + r.t.track + ' · ' + r.t.rateStr + '</div>';
-    html += '<div class="rcard-monthly"><span class="rcard-monthly-sym">₪</span>' + r.monthly.toLocaleString('he-IL') + '</div>';
-    html += '<div class="rcard-label">לחודש</div>';
     html += '<hr class="rcard-divider">';
-    var monthlyInterest = Math.round(r.monthly - (loan / r.selN));
     html += '<div class="rcard-inline">';
     if (r.t.balloon > 0) {
       html += '<div class="rcard-inline-item"><span>בלון</span> <span class="rcard-val">' + fmt(r.t.balloon) + '</span></div>';
     }
     html += '<div class="rcard-inline-item"><span>עלות ריבית</span> <span class="rcard-val">' + fmt(monthlyInterest) + '/חודש</span></div>';
     html += '<div class="rcard-inline-item"><span>עמלת פתיחת תיק</span> <span class="rcard-val">' + fmt(r.fee) + '</span></div>';
+    html += '</div>';
+    html += '</div>';
+    // amount side
+    html += '<div class="rcard-amount">';
+    html += '<div class="rcard-monthly"><span class="rcard-monthly-sym">₪</span>' + r.monthly.toLocaleString('he-IL') + '</div>';
+    html += '<div class="rcard-label">לחודש</div>';
     html += '</div>';
     html += '</div>';
     html += '</div>';
