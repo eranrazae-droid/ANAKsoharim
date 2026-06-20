@@ -1171,7 +1171,11 @@ async function submitVehicle() {
   if (!driverBtn) return showToast('נא לבחור נהג קולט');
   const driver = driverBtn.dataset.driver;
 
-  await _addDoc(_colRef('vehicles'), {
+  // close immediately before async save
+  closeModal('modal-vehicle');
+  showToast('✅ רכב נקלט!');
+
+  _addDoc(_colRef('vehicles'), {
     plate,
     brand:      document.getElementById('v-brand').value.trim(),
     model:      document.getElementById('v-model').value.trim(),
@@ -1181,9 +1185,6 @@ async function submitVehicle() {
     receivedBy: driver,
     receivedAt: _serverTs()
   });
-
-  closeModal('modal-vehicle');
-  showToast('✅ רכב נקלט!');
 }
 
 /* ═══════════════════════════════════════════════════════
