@@ -860,11 +860,8 @@ function openTasksScreen() {
   document.getElementById('fab-new-task').style.display = isManager ? 'flex' : 'none';
 
   // filter tabs
-  const statusTabs = isManager
-    ? ['הכל','פתוחות','בביצוע','הושלמו']
-    : ['שלי','פתוחות','הושלמו'];
   const labelTabs = ['משימות כלליות','חביב','ולאדי','רפד','זגג','רדארים'];
-  const tabs = [...statusTabs, ...labelTabs];
+  const tabs = isManager ? labelTabs : ['שלי', ...labelTabs];
   const tabEl = document.getElementById('task-filter-tabs');
   tabEl.innerHTML = tabs.map((t,i) =>
     `<button class="ftab${i===0?' active':''}" onclick="filterTasks('${t}',this)">${t}</button>`
@@ -908,10 +905,7 @@ function renderTasksFromCache() {
 
   const f = activeTaskFilter;
   const labelFilters = ['משימות כלליות','חביב','ולאדי','רפד','זגג','רדארים'];
-  if (f === 'פתוחות') tasks = tasks.filter(t => t.status === 'open');
-  else if (f === 'בביצוע') tasks = tasks.filter(t => t.status === 'inprog');
-  else if (f === 'הושלמו') tasks = tasks.filter(t => t.status === 'done');
-  else if (f === 'שלי') tasks = tasks.filter(t => t.assignedTo === currentUser.name || t.assignedTo === 'כולם');
+  if (f === 'שלי') tasks = tasks.filter(t => t.assignedTo === currentUser.name || t.assignedTo === 'כולם');
   else if (labelFilters.includes(f)) tasks = tasks.filter(t => t.label === f);
 
   const container = document.getElementById('task-list-container');
