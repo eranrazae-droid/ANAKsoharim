@@ -1558,6 +1558,7 @@ async function submitDriverIntake() {
   const km     = document.getElementById('di-km').value.trim();
   const code   = document.getElementById('di-code').value.trim();
 
+  if (!_updateDoc || !_docRef) { showToast('שגיאה: Firebase לא אותחל'); return; }
   showToast('⏳ שולח טופס...');
 
   try {
@@ -1836,9 +1837,10 @@ function clearIntakeDraft(id) {
 
 function getChecklist() {
   const result = {};
-  const keys = [...new Set([...document.querySelectorAll('.ci-box')].map(b => b.dataset.key))];
+  const modal = document.getElementById('modal-driver-intake');
+  const keys = [...new Set([...modal.querySelectorAll('.ci-box')].map(b => b.dataset.key))];
   keys.forEach(key => {
-    const active = document.querySelector(`.ci-box[data-key="${key}"].v-active,.ci-box[data-key="${key}"].x-active`);
+    const active = modal.querySelector(`.ci-box[data-key="${key}"].v-active,.ci-box[data-key="${key}"].x-active`);
     result[key] = active ? active.dataset.val : '';
     const noteEl = document.getElementById('cn-' + key);
     if (noteEl && noteEl.value.trim()) result[key + '_note'] = noteEl.value.trim();
@@ -2247,17 +2249,24 @@ async function submitInventory() {
   const driver = document.getElementById('inv-driver-select').value;
   if (!driver) { showToast('בחר נהג לפני שליחה'); return; }
   if (!window._CONFIG_DONE) { showToast('Firebase לא מחובר'); return; }
-  await _addDoc(_colRef('inventory_assignments'), {
-    assignedTo:  driver,
-    sentBy:      currentUser.name,
-    createdAt:   _serverTs(),
-    headers:     inventoryHeaders,
-    rows:        inventoryRows.map(r => r.cells),
-    status:      'pending'
-  });
-  _invMode = 'live';
-  document.getElementById('inv-submit-wrap').style.display = 'none';
-  showToast(`✅ נשלח ל${driver} לבדיקה!`);
+  if (!_addDoc || !_colRef) { showToast('שגיאה: Firebase לא אותחל'); return; }
+  showToast('⏳ שולח...');
+  try {
+    await _addDoc(_colRef('inventory_assignments'), {
+      assignedTo:  driver,
+      sentBy:      currentUser.name,
+      createdAt:   _serverTs(),
+      headers:     inventoryHeaders,
+      rows:        inventoryRows.map(r => r.cells),
+      status:      'pending'
+    });
+    _invMode = 'live';
+    document.getElementById('inv-submit-wrap').style.display = 'none';
+    showToast(`✅ נשלח ל${driver} לבדיקה!`);
+  } catch(e) {
+    console.error('submitInventory error', e);
+    showToast('שגיאה: ' + (e.code || e.message));
+  }
 }
 
 /* ── DRIVER INVENTORY ── */
@@ -2351,15 +2360,22 @@ async function submitDriverInv() {
     return;
   }
   if (!window._CONFIG_DONE) { showToast('Firebase לא מחובר'); return; }
-  const present = _driverInvRows.filter(r => r.status === 'v').map(r => r.cells.join(' | '));
-  const absent  = _driverInvRows.filter(r => r.status === 'x').map(r => r.cells.join(' | '));
-  await _updateDoc(_docRef('inventory_assignments', _driverInvDocId), {
-    status: 'done', completedBy: currentUser.name, completedAt: _serverTs(), present, absent
-  });
-  closeModal('modal-driver-inv');
-  showToast('✅ בדיקת המלאי נשלחה!');
-  _driverInvDocId = null;
-  _driverInvRows = [];
+  if (!_driverInvDocId) { showToast('שגיאה: אין מסמך פתוח'); return; }
+  showToast('⏳ שולח...');
+  try {
+    const present = _driverInvRows.filter(r => r.status === 'v').map(r => r.cells.join(' | '));
+    const absent  = _driverInvRows.filter(r => r.status === 'x').map(r => r.cells.join(' | '));
+    await _updateDoc(_docRef('inventory_assignments', _driverInvDocId), {
+      status: 'done', completedBy: currentUser.name, completedAt: _serverTs(), present, absent
+    });
+    closeModal('modal-driver-inv');
+    showToast('✅ בדיקת המלאי נשלחה!');
+    _driverInvDocId = null;
+    _driverInvRows = [];
+  } catch(e) {
+    console.error('submitDriverInv error', e);
+    showToast('שגיאה: ' + (e.code || e.message));
+  }
 }
 
 /* ═══════════════════════════════════════════════════════
