@@ -898,16 +898,19 @@ function showConfigWarning() {
 /* ═══════════════════════════════════════════════════════
    LOGIN
 ═══════════════════════════════════════════════════════ */
-// Manager password stored as base64 — change by encoding your password with btoa()
 const MANAGER_PWD_B64 = btoa('0000');
+const DRIVER_PINS = { 'גיל': btoa('9999'), 'עופר': btoa('7777'), 'איתי': btoa('5555') };
 
 function handleLogoTap() {} // kept for compatibility
 
 function selectDriver(val) {
-  const pwWrap = document.getElementById('manager-password-wrap');
+  const pwWrap  = document.getElementById('manager-password-wrap');
   const pwInput = document.getElementById('manager-password-input');
-  if (val === 'ליאל') {
+  const needPin = val === 'ליאל' || !!DRIVER_PINS[val];
+  if (needPin) {
     pwWrap.style.display = 'block';
+    pwInput.value = '';
+    pwInput.placeholder = val === 'ליאל' ? 'סיסמא (מספרים)' : 'קוד כניסה (4 ספרות)';
     setTimeout(() => pwInput.focus(), 50);
   } else {
     pwWrap.style.display = 'none';
@@ -920,7 +923,7 @@ function checkLoginReady() {
   const btn = document.getElementById('btn-enter');
   const val = document.getElementById('driver-name-select').value;
   if (!val) { btn.disabled = true; return; }
-  if (val === 'ליאל') {
+  if (val === 'ליאל' || DRIVER_PINS[val]) {
     const pw = document.getElementById('manager-password-input').value;
     btn.disabled = !pw;
   } else {
@@ -931,14 +934,21 @@ function checkLoginReady() {
 function doLogin() {
   const val = document.getElementById('driver-name-select').value;
   if (!val) return;
+  const pw = document.getElementById('manager-password-input').value;
   if (val === 'ליאל') {
-    const pw = document.getElementById('manager-password-input').value;
     if (btoa(pw) !== MANAGER_PWD_B64) {
       showToast('❌ סיסמא שגויה');
       document.getElementById('manager-password-input').value = '';
       return;
     }
     currentUser = { role: 'manager', name: 'ליאל' };
+  } else if (DRIVER_PINS[val]) {
+    if (btoa(pw) !== DRIVER_PINS[val]) {
+      showToast('❌ קוד שגוי');
+      document.getElementById('manager-password-input').value = '';
+      return;
+    }
+    currentUser = { role: 'driver', name: val };
   } else {
     currentUser = { role: 'driver', name: val };
   }
