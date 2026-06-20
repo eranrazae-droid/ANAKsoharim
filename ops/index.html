@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#1a1a2e">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>ענק הרכבים — תפעול v4</title>
+<title>ענק הרכבים — תפעול v5</title>
 <link rel="manifest" href="manifest.json">
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
 <style>
@@ -1008,12 +1008,14 @@ function loadTasks() {
     clearTimeout(timeout);
     tasksCache = snap.docs.map(d => ({ id: d.id, ...d.data() }))
       .sort((a,b) => (b.createdAt?.toMillis?.()??0) - (a.createdAt?.toMillis?.()??0));
+    console.log('[TASKS] loaded', tasksCache.length, 'tasks');
     renderTasksFromCache();
   }, err => {
     clearTimeout(timeout);
-    console.error('tasks listener error', err);
-    tasksCache = [];
-    renderTasksFromCache();
+    console.error('[TASKS] error', err.code, err.message);
+    // show error to user
+    const c = document.getElementById('task-list-container');
+    if (c) c.innerHTML = `<div style="padding:32px;text-align:center;color:var(--danger)"><div style="font-size:36px">⚠️</div><div style="font-weight:700;margin-top:8px">שגיאת חיבור</div><div style="font-size:13px;color:var(--muted);margin-top:4px">${err.code||err.message}</div></div>`;
   });
 }
 
