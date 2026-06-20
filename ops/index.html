@@ -3222,11 +3222,14 @@ function renderToPlaceGrid(isManager) {
   for (let i = 1; i <= 10; i++) {
     const key = 'TO_PLACE_' + i;
     if (isManager) {
-      html += `<input data-key="${key}" value="${esc(yardData[key]||'')}" placeholder="רכב ${i}"
-        onchange="yardData[this.dataset.key]=this.value"
+      const tpVal = yardData[key] || '';
+      const tpBg = tpVal ? '#dcfce7' : '#fff';
+      const tpBorder = tpVal ? '#16a34a' : 'var(--border)';
+      html += `<input data-key="${key}" value="${esc(tpVal)}" placeholder="רכב ${i}"
+        onchange="yardData[this.dataset.key]=this.value;this.style.background=this.value?'#dcfce7':'#fff';this.style.borderColor=this.value?'#16a34a':'var(--border)'"
         onkeydown="if(event.key==='Enter'){yardData[this.dataset.key]=this.value;this.blur();}"
-        style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:6px 8px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;color:#1a1a2e;text-align:center;outline:none"
-        onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'">`;
+        style="background:${tpBg};border:1px solid ${tpBorder};border-radius:8px;padding:6px 8px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;color:#15803d;text-align:center;outline:none"
+        onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor=this.value?'#16a34a':'var(--border)'">`;
     } else {
       const val = yardData[key] || '';
       html += `<div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:6px 8px;font-size:13px;text-align:center;min-height:32px;color:${val?'var(--dark)':'#ccc'}">${val||'—'}</div>`;
@@ -3240,10 +3243,12 @@ function spotInput(key, editable) {
   if (!editable) {
     return `<div data-key="${key}" style="min-width:60px;min-height:24px;font-size:12px;text-align:center;color:${val?'var(--dark)':'#bbb'}">${val||'—'}</div>`;
   }
-  return `<input data-key="${key}" value="${esc(val)}" onchange="yardData[this.dataset.key]=this.value"
+  const bg = val ? '#dcfce7' : 'transparent';
+  const border = val ? '#16a34a' : 'var(--border)';
+  return `<input data-key="${key}" value="${esc(val)}" onchange="yardData[this.dataset.key]=this.value;this.style.background=this.value?'#dcfce7':'transparent';this.style.borderColor=this.value?'#16a34a':'var(--border)'"
     onkeydown="if(event.key==='Enter'){yardData[this.dataset.key]=this.value;this.blur();}"
-    style="width:100%;min-width:60px;background:transparent;border:1px solid var(--border);border-radius:6px;padding:4px 6px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;color:#1a1a2e;outline:none"
-    onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'">`;
+    style="width:100%;min-width:60px;background:${bg};border:1px solid ${border};border-radius:6px;padding:4px 6px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;color:#15803d;outline:none"
+    onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor=this.value?'#16a34a':'var(--border)'">`;
 }
 
 function tdStyle(align) {
