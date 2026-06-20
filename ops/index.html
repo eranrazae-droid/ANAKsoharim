@@ -1112,7 +1112,10 @@ function renderTasksFromCache() {
     return `<div class="task-card priority-${t.priority||'low'} ${done?'done':''}">
       <div class="task-top">
         <div class="task-title">${esc(t.title)}</div>
-        <button class="task-done-btn ${done?'done':''}" onclick="toggleTaskDone('${t.id}','${t.status}')">${done?'✓':''}</button>
+        <div style="display:flex;gap:4px;flex-shrink:0">
+          <button class="task-done-btn ${done?'done':''}" onclick="toggleTaskDone('${t.id}','${t.status}')">${done?'✓':''}</button>
+          ${done ? `<button onclick="deleteTask('${t.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:999px;width:24px;height:24px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="מחק">🗑</button>` : ''}
+        </div>
       </div>
       ${t.notes ? `<div class="task-notes" style="font-size:12px;color:var(--muted);margin-bottom:6px">${esc(t.notes)}</div>` : ''}
       <div class="task-meta">
@@ -1221,6 +1224,12 @@ function renderTasksFromCache() {
   </div>`;
 
   container.innerHTML = regularHtml + zagRafadCol + driversCol;
+}
+
+async function deleteTask(id) {
+  if (!window._CONFIG_DONE) return;
+  const { deleteDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  await deleteDoc(doc(window._db, 'tasks', id));
 }
 
 function toggleTaskDone(id, currentStatus) {
@@ -2341,6 +2350,7 @@ window.submitTask = submitTask;
 window.submitVehicle = submitVehicle;
 window.submitPart = submitPart;
 window.toggleTaskDone = toggleTaskDone;
+window.deleteTask = deleteTask;
 window.filterTasks = filterTasks;
 window.filterParts = filterParts;
 window.updatePartStatus = updatePartStatus;
