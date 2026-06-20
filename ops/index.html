@@ -2235,7 +2235,9 @@ function loadLastInventoryAssignment() {
       banner.style.background = '#f0fff4';
       banner.style.border = '2px solid #22c55e';
       banner.style.color = '#166534';
-      banner.innerHTML = `✅ הבדיקה הושלמה ע"י <strong>${esc(last.completedBy||last.assignedTo)}</strong> · ${tsStr}`;
+      const bannerText = `✅ הבדיקה הושלמה ע"י <strong>${esc(last.completedBy||last.assignedTo)}</strong> · ${tsStr}`;
+      banner.innerHTML = bannerText;
+      localStorage.setItem('_lastInvBanner', bannerText);
       renderInvResult(headers, rows, last.present||[], last.absent||[]);
       // notify manager if this just changed to done
       if (window._lastInvStatus && window._lastInvStatus !== 'done') {
@@ -2263,8 +2265,19 @@ async function deleteInventoryTable() {
   const { deleteDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
   await deleteDoc(doc(window._db, 'inventory_assignments', docId));
   btn.style.display = 'none';
-  document.getElementById('inv-status-banner').style.display = 'none';
   document.getElementById('inv-list').innerHTML = '';
+  // restore last-completed banner if exists
+  const savedBanner = localStorage.getItem('_lastInvBanner');
+  const banner = document.getElementById('inv-status-banner');
+  if (savedBanner) {
+    banner.style.display = 'block';
+    banner.style.background = '#f0fff4';
+    banner.style.border = '2px solid #22c55e';
+    banner.style.color = '#166534';
+    banner.innerHTML = savedBanner;
+  } else {
+    banner.style.display = 'none';
+  }
   document.getElementById('inv-upload-zone').style.padding = '28px 20px';
   document.getElementById('inv-submit-wrap').style.display = 'none';
   inventoryHeaders = [];
@@ -2480,24 +2493,36 @@ function openDriverInvModal(docId) {
 }
 
 function renderDriverInvModal(headers) {
-  const colCount = headers.length || (_driverInvRows[0]?.cells.length || 1);
-  const colW = `96px repeat(${colCount},minmax(90px,1fr))`;
-  const minW = (96 + colCount * 90) + 'px';
+  // Reorder columns: buttons | plate | vehicle-status | rest
+  const plateIdx  = headers.findIndex(h => h.includes('מספר'));
+  const statusIdx = headers.findIndex(h => h.includes('סטטוס'));
+  const order = [];
+  if (plateIdx  >= 0) order.push(plateIdx);
+  if (statusIdx >= 0) order.push(statusIdx);
+  headers.forEach((_, i) => { if (i !== plateIdx && i !== statusIdx) order.push(i); });
+
+  const reorder = arr => order.map(i => arr[i] ?? '');
+  const orderedHeaders = reorder(headers);
+  const colCount = orderedHeaders.length || (_driverInvRows[0]?.cells.length || 1);
+  // fixed button col + equal data cols, min 70px each
+  const colW = `88px repeat(${colCount},minmax(70px,1fr))`;
+  const minW = (88 + colCount * 70) + 'px';
   let html = '';
-  if (headers.length) {
-    html += `<div style="display:grid;grid-template-columns:${colW};min-width:${minW};gap:4px;background:var(--dark);color:#fff;border-radius:10px 10px 0 0;padding:8px 10px;font-size:12px;font-weight:700;direction:rtl">
-      <div style="text-align:center">סטטוס</div>${headers.map(h => `<div>${esc(h)}</div>`).join('')}
+  if (orderedHeaders.length) {
+    html += `<div style="display:grid;grid-template-columns:${colW};min-width:${minW};gap:4px;background:var(--dark);color:#fff;border-radius:10px 10px 0 0;padding:8px 10px;font-size:11px;font-weight:700;direction:rtl">
+      <div style="text-align:center">סימון</div>${orderedHeaders.map(h => `<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(h)}</div>`).join('')}
     </div>`;
   }
   html += _driverInvRows.map((item, i) => {
     const border = item.status ? (item.status==='v'?'#22c55e':'#ef4444') : 'var(--border)';
     const bg = item.status==='v' ? '#f0fff4' : item.status==='x' ? '#fff0f0' : '#fff';
-    return `<div id="dinv-row-${i}" style="display:grid;grid-template-columns:${colW};min-width:${minW};gap:4px;align-items:center;background:${bg};border:2px solid ${border};border-radius:8px;padding:8px 10px;margin-bottom:4px;direction:rtl">
-      <div style="display:flex;gap:4px;justify-content:center">
-        <button onclick="dinvClick(${i},'v')" style="width:40px;height:40px;border-radius:8px;border:2px solid ${item.status==='v'?'#22c55e':'#ccc'};background:${item.status==='v'?'#22c55e':'#f9f9f9'};font-size:18px;cursor:pointer;font-weight:900;color:${item.status==='v'?'#fff':'#555'}">✓</button>
-        <button onclick="dinvClick(${i},'x')" style="width:40px;height:40px;border-radius:8px;border:2px solid ${item.status==='x'?'#ef4444':'#ccc'};background:${item.status==='x'?'#ef4444':'#f9f9f9'};font-size:18px;cursor:pointer;font-weight:900;color:${item.status==='x'?'#fff':'#555'}">✕</button>
+    const orderedCells = reorder(item.cells);
+    return `<div id="dinv-row-${i}" style="display:grid;grid-template-columns:${colW};min-width:${minW};gap:4px;align-items:center;background:${bg};border:2px solid ${border};border-radius:8px;padding:6px 8px;margin-bottom:4px;direction:rtl">
+      <div style="display:flex;gap:3px;justify-content:center">
+        <button onclick="dinvClick(${i},'v')" style="width:38px;height:38px;border-radius:8px;border:2px solid ${item.status==='v'?'#22c55e':'#ccc'};background:${item.status==='v'?'#22c55e':'#f9f9f9'};font-size:17px;cursor:pointer;font-weight:900;color:${item.status==='v'?'#fff':'#555'}">✓</button>
+        <button onclick="dinvClick(${i},'x')" style="width:38px;height:38px;border-radius:8px;border:2px solid ${item.status==='x'?'#ef4444':'#ccc'};background:${item.status==='x'?'#ef4444':'#f9f9f9'};font-size:17px;cursor:pointer;font-weight:900;color:${item.status==='x'?'#fff':'#555'}">✕</button>
       </div>
-      ${item.cells.map(c => `<div style="font-size:14px;font-weight:600;white-space:nowrap">${esc(c)}</div>`).join('')}
+      ${orderedCells.map(c => `<div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c)}</div>`).join('')}
     </div>`;
   }).join('');
   document.getElementById('dinv-rows-container').innerHTML = html;
