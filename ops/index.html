@@ -2847,8 +2847,14 @@ function loadYardData() {
   if (yardUnsub) yardUnsub();
   yardUnsub = _onSnap(_docRef('yard','current'), snap => {
     if (snap.exists()) {
-      yardData = snap.data().data || {};
+      const d = snap.data();
+      yardData = d.data || {};
       renderYardInputValues();
+      // Show done button for drivers when status is pending
+      if (currentUser?.role !== 'manager') {
+        const toolbar = document.getElementById('yard-driver-toolbar');
+        if (toolbar) toolbar.style.display = d.status === 'pending' ? 'flex' : 'none';
+      }
     }
     // Manager reads once only — stop listener so edits aren't overwritten
     if (currentUser?.role === 'manager' && yardUnsub) {
@@ -2862,7 +2868,7 @@ function renderYardTable() {
   const isManager = currentUser.role === 'manager';
   // Show/hide manager controls
   document.getElementById('yard-manager-toolbar').style.display = isManager ? 'flex' : 'none';
-  document.getElementById('yard-driver-toolbar').style.display = !isManager ? 'flex' : 'none';
+  document.getElementById('yard-driver-toolbar').style.display = 'none'; // shown dynamically after data loads
   document.getElementById('yard-to-place-panel').style.display = isManager ? 'block' : 'none';
   if (isManager) renderToPlaceGrid(true);
 
