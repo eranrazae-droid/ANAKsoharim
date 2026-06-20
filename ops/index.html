@@ -1083,21 +1083,17 @@ function _setCardBadge(screen, count) {
 function loadDriverBadges() {
   if (!window._CONFIG_DONE || !currentUser) return;
   const name = currentUser.name;
-
-  // tasks pending for this driver
-  _onSnap(_query(_colRef('tasks'), _where('assignedTo','==',name)), snap => {
-    _setCardBadge('tasks', snap.docs.filter(d => d.data().status === 'pending').length);
-  });
-
-  // intakes pending for this driver
-  _onSnap(_query(_colRef('intake_assignments'), _where('assignedTo','==',name)), snap => {
-    _setCardBadge('vehicles', snap.docs.filter(d => d.data().status === 'pending').length);
-  });
-
-  // inventory checks pending for this driver
-  _onSnap(_query(_colRef('inventory_assignments'), _where('assignedTo','==',name)), snap => {
-    _setCardBadge('driver-inventory', snap.docs.filter(d => d.data().status === 'pending').length);
-  });
+  try {
+    _onSnap(_query(_colRef('tasks'), _where('assignedTo','==',name)), snap => {
+      _setCardBadge('tasks', snap.docs.filter(d => d.data().status === 'pending').length);
+    });
+    _onSnap(_query(_colRef('intake_assignments'), _where('assignedTo','==',name)), snap => {
+      _setCardBadge('vehicles', snap.docs.filter(d => d.data().status === 'pending').length);
+    });
+    _onSnap(_query(_colRef('inventory_assignments'), _where('assignedTo','==',name)), snap => {
+      _setCardBadge('driver-inventory', snap.docs.filter(d => d.data().status === 'pending').length);
+    });
+  } catch(e) { console.warn('loadDriverBadges error', e); }
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -2470,9 +2466,11 @@ function handleInventoryFile(input) {
       }
       renderInventoryList();
     } catch(err) {
-      showToast('שגיאה בקריאת הקובץ');
+      console.error('handleInventoryFile error', err);
+      showToast('שגיאה בקריאת הקובץ: ' + (err.message || err));
     }
   };
+  reader.onerror = e => showToast('שגיאה בפתיחת הקובץ');
   reader.readAsArrayBuffer(file);
 }
 
