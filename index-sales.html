@@ -148,15 +148,18 @@ body{
 .bank-lbl{font-size:12px;color:#5a7aa5;white-space:nowrap}
 .bank-val{font-size:13px;font-weight:700;color:#0d1f3c;text-align:left;direction:ltr;word-break:break-all}
 
-.copy-all-btn{
-  display:block;width:100%;margin-top:12px;
-  background:#f0f4fa;border:1.5px solid #dce6f5;border-radius:10px;
-  font-size:13px;font-weight:700;color:#1a56db;font-family:'Heebo',sans-serif;
-  padding:10px;cursor:pointer;
-  transition:background .15s;
+.bank-btns{display:flex;gap:8px;margin-top:12px}
+.bank-action-btn{
+  flex:1;
+  border:none;border-radius:10px;
+  font-size:13px;font-weight:700;font-family:'Heebo',sans-serif;
+  padding:10px 8px;cursor:pointer;
+  transition:opacity .15s;
+  text-decoration:none;display:flex;align-items:center;justify-content:center;gap:5px;
 }
-.copy-all-btn:active{background:#dce6f5}
-.copy-all-btn.copied{color:#16a34a;background:#f0fdf4;border-color:#bbf7d0}
+.bank-action-btn:active{opacity:.75}
+.bank-btn-wa{background:#25D366;color:#fff}
+.bank-btn-print{background:#f0f4fa;color:#0d1f3c;border:1.5px solid #dce6f5}
 
 .bank-note{
   font-size:11px;color:#e02d2d;font-weight:700;
@@ -229,7 +232,10 @@ body{
         <div class="bank-row"><span class="bank-lbl">שם (אנגלית)</span><span class="bank-val">ANAK HAREHAVIM RAZ LTD</span></div>
         <div class="bank-row"><span class="bank-lbl">IBAN</span><span class="bank-val">IL86-0115-0600-0015-2696-352</span></div>
         <div class="bank-row"><span class="bank-lbl">SWIFT</span><span class="bank-val">IDBLILIT</span></div>
-        <button class="copy-all-btn" onclick="copyBank('zehav',this)">📋 העתק את כל הפרטים</button>
+        <div class="bank-btns">
+          <button class="bank-action-btn bank-btn-print" onclick="printBank('zehav')">🖨️ הדפס</button>
+          <button class="bank-action-btn bank-btn-wa" onclick="waBank('zehav')">📲 שלח בוואטסאפ</button>
+        </div>
       </div>
 
       <!-- 2. דיסקונט רגיל -->
@@ -242,7 +248,10 @@ body{
         <div class="bank-row"><span class="bank-lbl">שם (עברית)</span><span class="bank-val">ענק הרכבים ( רז ) בע"מ</span></div>
         <div class="bank-row"><span class="bank-lbl">סניף</span><span class="bank-val">506</span></div>
         <div class="bank-row"><span class="bank-lbl">מספר חשבון</span><span class="bank-val">152696352</span></div>
-        <button class="copy-all-btn" onclick="copyBank('discount',this)">📋 העתק את כל הפרטים</button>
+        <div class="bank-btns">
+          <button class="bank-action-btn bank-btn-print" onclick="printBank('discount')">🖨️ הדפס</button>
+          <button class="bank-action-btn bank-btn-wa" onclick="waBank('discount')">📲 שלח בוואטסאפ</button>
+        </div>
       </div>
 
       <!-- 3. פועלים -->
@@ -256,7 +265,10 @@ body{
         <div class="bank-row"><span class="bank-lbl">מספר חשבון</span><span class="bank-val">8961</span></div>
         <div class="bank-row"><span class="bank-lbl">IBAN</span><span class="bank-val">IL70-0123-0000-0000-0008-961</span></div>
         <div class="bank-note">⚠️ להעברות מפועלים לפועלים בלבד</div>
-        <button class="copy-all-btn" onclick="copyBank('poalim',this)">📋 העתק את כל הפרטים</button>
+        <div class="bank-btns">
+          <button class="bank-action-btn bank-btn-print" onclick="printBank('poalim')">🖨️ הדפס</button>
+          <button class="bank-action-btn bank-btn-wa" onclick="waBank('poalim')">📲 שלח בוואטסאפ</button>
+        </div>
       </div>
 
       <!-- 4. לאומי -->
@@ -270,7 +282,10 @@ body{
         <div class="bank-row"><span class="bank-lbl">מספר חשבון</span><span class="bank-val">566500/15</span></div>
         <div class="bank-row"><span class="bank-lbl">IBAN</span><span class="bank-val">IL29-0108-2700-0005-6650-015</span></div>
         <div class="bank-note">⚠️ להעברות מלאומי ללאומי בלבד</div>
-        <button class="copy-all-btn" onclick="copyBank('leumi',this)">📋 העתק את כל הפרטים</button>
+        <div class="bank-btns">
+          <button class="bank-action-btn bank-btn-print" onclick="printBank('leumi')">🖨️ הדפס</button>
+          <button class="bank-action-btn bank-btn-wa" onclick="waBank('leumi')">📲 שלח בוואטסאפ</button>
+        </div>
       </div>
 
     </div>
@@ -308,31 +323,18 @@ var BANK_TEXTS = {
   ].join('\n')
 };
 
-function copyBank(key, btn) {
+function waBank(key) {
   var text = BANK_TEXTS[key];
-  var done = function() {
-    var orig = btn.textContent;
-    btn.textContent = '✓ הועתק';
-    btn.classList.add('copied');
-    setTimeout(function(){ btn.textContent = orig; btn.classList.remove('copied'); }, 1500);
-  };
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text).then(done).catch(function(){ fallbackCopy(text, done); });
-  } else {
-    fallbackCopy(text, done);
-  }
+  window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
 }
 
-function fallbackCopy(text, done) {
-  var ta = document.createElement('textarea');
-  ta.value = text;
-  ta.style.position = 'fixed';
-  ta.style.opacity = '0';
-  document.body.appendChild(ta);
-  ta.focus();
-  ta.select();
-  try { document.execCommand('copy'); done(); } catch(e) {}
-  document.body.removeChild(ta);
+function printBank(key) {
+  var text = BANK_TEXTS[key];
+  var lines = text.split('\n').map(function(l){ return '<p>' + l + '</p>'; }).join('');
+  var w = window.open('', '_blank');
+  w.document.write('<html dir="rtl"><head><meta charset="UTF-8"><style>body{font-family:Arial,sans-serif;padding:32px;font-size:16px;direction:rtl}h2{margin-bottom:16px}p{margin:6px 0;line-height:1.6}</style></head><body><h2>פרטי בנק — ענק הרכבים</h2>' + lines + '</body></html>');
+  w.document.close();
+  w.print();
 }
 </script>
 
