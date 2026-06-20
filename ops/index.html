@@ -192,30 +192,24 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
 <!-- ====== SCREEN: LOGIN ====== -->
 <div id="screen-login" class="screen">
   <div class="login-box">
-    <div class="login-logo">
+    <div class="login-logo" id="login-logo-tap" onclick="handleLogoTap()">
       <h1>ענק <span>הרכבים</span></h1>
       <p>מערכת ניהול תפעול</p>
     </div>
-    <div class="login-role-title">בחר תפקיד</div>
-    <div class="role-cards">
-      <div class="role-card" data-role="manager" onclick="selectRole('manager',this)">
+    <div class="login-role-title">בחר את שמך</div>
+    <div id="manager-card" style="display:none;margin-bottom:16px">
+      <div class="role-card" data-role="manager" onclick="selectRole('manager',this)" style="grid-column:span 2">
         <div class="icon">👔</div>
         <div class="name">מנהל תפעול</div>
         <div class="desc">ניהול מלא</div>
       </div>
-      <div class="role-card" data-role="driver" onclick="selectRole('driver',this)">
-        <div class="icon">🚗</div>
-        <div class="name">נהג</div>
-        <div class="desc">משימות שלי</div>
-      </div>
     </div>
-    <div id="driver-select-wrap" class="driver-select" style="display:none">
-      <label>בחר את שמך</label>
-      <select id="driver-name-select">
-        <option value="">— בחר נהג —</option>
-        <option value="נהג 1">נהג 1</option>
-        <option value="נהג 2">נהג 2</option>
-        <option value="נהג 3">נהג 3</option>
+    <div class="driver-select">
+      <select id="driver-name-select" onchange="selectDriver(this.value)">
+        <option value="">— בחר את שמך —</option>
+        <option value="עופר">עופר</option>
+        <option value="גיל">גיל</option>
+        <option value="איתי">איתי</option>
       </select>
     </div>
     <button class="btn-login" id="btn-enter" onclick="doLogin()" disabled>כניסה למערכת</button>
@@ -493,30 +487,47 @@ function showConfigWarning() {
 /* ═══════════════════════════════════════════════════════
    LOGIN
 ═══════════════════════════════════════════════════════ */
+let logoTapCount = 0;
+let logoTapTimer = null;
+
+function handleLogoTap() {
+  logoTapCount++;
+  clearTimeout(logoTapTimer);
+  logoTapTimer = setTimeout(() => { logoTapCount = 0; }, 2000);
+  if (logoTapCount >= 5) {
+    logoTapCount = 0;
+    document.getElementById('manager-card').style.display = 'block';
+    showToast('מצב מנהל זמין 👔');
+  }
+}
+
 function selectRole(role, el) {
   selectedRole = role;
   document.querySelectorAll('.role-card').forEach(c => c.classList.remove('selected'));
   el.classList.add('selected');
-  document.getElementById('driver-select-wrap').style.display = role === 'driver' ? 'block' : 'none';
+  document.getElementById('driver-name-select').value = '';
+  document.getElementById('btn-enter').disabled = false;
+}
+
+function selectDriver(val) {
+  if (val) {
+    selectedRole = 'driver';
+    document.querySelectorAll('.role-card').forEach(c => c.classList.remove('selected'));
+  }
   checkLoginReady();
 }
 
 function checkLoginReady() {
   const btn = document.getElementById('btn-enter');
-  if (!selectedRole) { btn.disabled = true; return; }
-  if (selectedRole === 'driver') {
-    btn.disabled = !document.getElementById('driver-name-select').value;
-  } else {
-    btn.disabled = false;
-  }
+  if (selectedRole === 'manager') { btn.disabled = false; return; }
+  btn.disabled = !document.getElementById('driver-name-select').value;
 }
-
-document.getElementById('driver-name-select').addEventListener('change', checkLoginReady);
 
 function doLogin() {
   const name = selectedRole === 'manager'
     ? 'מנהל תפעול'
     : document.getElementById('driver-name-select').value;
+  if (!name) return;
   currentUser = { role: selectedRole, name };
   localStorage.setItem('anak_user', JSON.stringify(currentUser));
   enterApp();
