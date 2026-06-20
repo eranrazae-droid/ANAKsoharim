@@ -1707,7 +1707,21 @@ async function viewIntakeForm(id) {
   };
   const cl = v.checklist || {};
   const photos = v.photoUrls || {};
+  console.log('RAW photoUrls:', JSON.stringify(photos));
+  console.log('ALL doc keys:', Object.keys(v));
   const ts = v.completedAt?.toDate ? v.completedAt.toDate().toLocaleString('he-IL') : '';
+
+  // Show ALL urls from photoUrls regardless of structure
+  const allUrls = [];
+  const collectUrls = (obj) => {
+    if (!obj) return;
+    if (typeof obj === 'string' && obj.startsWith('http')) { allUrls.push(obj); return; }
+    if (Array.isArray(obj)) { obj.forEach(collectUrls); return; }
+    if (typeof obj === 'object') { Object.values(obj).forEach(collectUrls); }
+  };
+  collectUrls(photos);
+  // also check top-level photos field
+  if (v.photos) collectUrls(v.photos);
 
   let rows = '';
   for (const [key, label] of Object.entries(checklistLabels)) {
@@ -1728,13 +1742,10 @@ async function viewIntakeForm(id) {
     </div>`;
   }
 
-  // collect any photos that didn't match a checklist key
-  const matchedUrls = new Set(Object.entries(checklistLabels).flatMap(([key]) => photos[key]||[]));
-  const unmatchedUrls = Object.values(photos).flat().filter(u => u && !matchedUrls.has(u));
-  const extraPhotos = unmatchedUrls.length
-    ? `<div style="margin-bottom:14px"><div style="font-weight:900;font-size:13px;color:var(--muted);margin-bottom:8px">📸 תמונות נוספות</div>
-       <div style="display:flex;gap:8px;flex-wrap:wrap">${unmatchedUrls.map(url =>
-         `<img src="${url}" onclick="openPhotoZoom('${url}')" style="width:80px;height:80px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid #ccc">`
+  const extraPhotos = allUrls.length
+    ? `<div style="margin-bottom:14px"><div style="font-weight:900;font-size:13px;color:var(--muted);margin-bottom:8px">📸 תמונות (${allUrls.length})</div>
+       <div style="display:flex;gap:8px;flex-wrap:wrap">${allUrls.map(url =>
+         `<img src="${url}" onclick="openPhotoZoom('${url}')" style="width:90px;height:90px;object-fit:cover;border-radius:10px;cursor:pointer;border:2px solid #ccc">`
        ).join('')}</div></div>` : '';
 
   const km = v.km ? `<span style="margin-left:16px"><strong>ק"מ:</strong> ${esc(v.km)}</span>` : '';
