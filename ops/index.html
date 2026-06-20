@@ -195,6 +195,11 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
 /* ===== FIREBASE CONFIG WARNING ===== */
 .config-warning{background:#fef3c7;border:2px solid var(--warning);border-radius:12px;padding:14px 16px;margin:16px;font-size:13px;color:#92400e;font-weight:600}
 </style>
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/ops/sw.js');
+}
+</script>
 </head>
 <body>
 
@@ -714,6 +719,45 @@ function showScreen(name) {
 function enterApp() {
   renderHome();
   showScreen('home');
+  if (currentUser.role === 'manager') {
+    requestNotifPermission();
+    listenForNewVehicles();
+  }
+}
+
+let _lastVehicleTime = null;
+let _vehicleNotifUnsub = null;
+
+function requestNotifPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+function listenForNewVehicles() {
+  if (!window._CONFIG_DONE) return;
+  if (_vehicleNotifUnsub) _vehicleNotifUnsub();
+  // track existing docs first, then only react to new ones
+  _lastVehicleTime = Date.now();
+  _vehicleNotifUnsub = _onSnap(
+    _query(_colRef('vehicles'), _orderBy('receivedAt', 'desc')),
+    snap => {
+      snap.docChanges().forEach(change => {
+        if (change.type !== 'added') return;
+        const v = change.doc.data();
+        // skip docs that already existed before we logged in
+        const ts = v.receivedAt?.toMillis?.() || 0;
+        if (ts && ts < _lastVehicleTime) return;
+        if (!ts && _lastVehicleTime) return;
+        const title = `🚗 רכב חדש נקלט – ${v.plate || ''}`;
+        const body  = `${v.brand || ''} ${v.model || ''} | נקלט ע"י ${v.receivedBy || ''}`;
+        showToast(title);
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification(title, { body, icon: '/ops/icon-192.png' });
+        }
+      });
+    }
+  );
 }
 
 function goHome() {
