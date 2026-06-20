@@ -297,7 +297,12 @@ if ('serviceWorker' in navigator) {
       <span style="font-weight:800;font-size:15px">📁 ארכיון קליטות</span>
       <span id="archive-toggle-icon" style="font-size:18px;transition:transform .2s">▼</span>
     </div>
-    <div id="intake-archive-list" style="display:none"></div>
+    <div id="intake-archive-body" style="display:none">
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <input id="archive-search" type="tel" inputmode="numeric" placeholder="חפש לפי מספר רכב..." oninput="filterArchive()" style="flex:1;border:2px solid var(--border);border-radius:12px;padding:10px 14px;font-family:Heebo,sans-serif;font-size:15px;font-weight:700;outline:none">
+      </div>
+      <div id="intake-archive-list"></div>
+    </div>
   </div>
   <button class="fab" id="fab-new-vehicle" onclick="openNewVehicleModal()" style="display:none">+ קליטת רכב</button>
 </div>
@@ -1445,7 +1450,7 @@ function loadVehicles() {
         archiveWrap.style.display = 'block';
         archiveList.innerHTML = archived.map(v => {
           const ts = v.createdAt?.toDate ? v.createdAt.toDate().toLocaleString('he-IL') : '';
-          return `<div class="vehicle-card" style="border-right:5px solid var(--info);margin-bottom:8px">
+          return `<div class="vehicle-card" data-plate="${esc(v.plate)}" style="border-right:5px solid var(--info);margin-bottom:8px">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
               <div>
                 <div class="vehicle-plate">${esc(v.plate)}</div>
@@ -1960,13 +1965,13 @@ async function submitVehicle() {
   const existing = await getDocs(
     query(collection(window._db, 'intake_assignments'),
       where('plate','==', plate),
-      where('status','in',['pending','done'])
+      where('status','in',['pending','done','checked'])
     )
   );
   if (!existing.empty) {
     const st = existing.docs[0].data().status;
-    const stLabel = st === 'pending' ? 'ממתינה לקליטה' : 'בוצעה ועדיין לא נבדקה';
-    return showToast(`⚠️ לרכב ${plate} כבר קיימת קליטה ${stLabel}`);
+    const stLabel = st === 'pending' ? 'ממתינה לקליטה' : st === 'done' ? 'בוצעה ועדיין לא נבדקה' : 'נבדקה';
+    return showToast(`⚠️ לרכב ${plate} כבר קיימת קליטה — ${stLabel}`);
   }
 
   closeModal('modal-vehicle');
@@ -2480,13 +2485,21 @@ function filterVehiclesByDriver(name) {
 window.filterVehiclesByDriver = filterVehiclesByDriver;
 
 function toggleIntakeArchive() {
-  const list = document.getElementById('intake-archive-list');
+  const body = document.getElementById('intake-archive-body');
   const icon = document.getElementById('archive-toggle-icon');
-  const open = list.style.display === 'none';
-  list.style.display = open ? 'block' : 'none';
+  const open = body.style.display === 'none';
+  body.style.display = open ? 'block' : 'none';
   icon.style.transform = open ? 'rotate(180deg)' : '';
 }
 window.toggleIntakeArchive = toggleIntakeArchive;
+
+function filterArchive() {
+  const q = document.getElementById('archive-search').value.trim();
+  document.querySelectorAll('#intake-archive-list [data-plate]').forEach(card => {
+    card.style.display = (!q || card.dataset.plate.includes(q)) ? 'block' : 'none';
+  });
+}
+window.filterArchive = filterArchive;
 window.viewIntakeForm = viewIntakeForm;
 window.deleteIntake = deleteIntake;
 window.openEditIntake = openEditIntake;
