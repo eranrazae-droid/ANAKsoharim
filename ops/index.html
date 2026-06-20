@@ -1383,6 +1383,26 @@ async function submitDriverIntake() {
     if (!active) return showToast('נא למלא את כל שדות הצ׳קליסט');
   }
 
+  const photoKeys = ['c-lights-break','c-glass-break','c-upholstery','c-mats','c-windows','c-steering'];
+
+  // validate: x-marked items must have a note; photo items must also have a photo
+  for (const key of keys) {
+    const xActive = document.querySelector(`#modal-driver-intake .ci-box[data-key="${key}"].x-active`);
+    if (!xActive) continue;
+    const noteEl = document.getElementById('cn-' + key);
+    if (!noteEl || !noteEl.value.trim()) {
+      const label = noteEl?.closest('.ci-note-row')?.previousElementSibling?.querySelector('.ci-label')?.textContent || key;
+      noteEl?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      noteEl?.focus();
+      return showToast(`נא למלא הערה עבור: ${label}`);
+    }
+    if (photoKeys.includes(key) && !(ciPhotoFiles[key]||[]).length) {
+      const label = document.getElementById('cn-' + key)?.closest('.ci-note-row')?.previousElementSibling?.querySelector('.ci-label')?.textContent || key;
+      document.getElementById('cn-' + key)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return showToast(`נא לצלם תמונה עבור: ${label}`);
+    }
+  }
+
   const checklist = getChecklist();
   const notes  = document.getElementById('di-notes').value.trim();
   const km     = document.getElementById('di-km').value.trim();
@@ -1390,7 +1410,6 @@ async function submitDriverIntake() {
 
   // upload photos
   const photoUrls = {};
-  const photoKeys = ['c-lights-break','c-glass-break','c-upholstery','c-mats','c-windows','c-steering'];
   for (const key of photoKeys) {
     if ((ciPhotoFiles[key]||[]).length) {
       photoUrls[key] = await uploadPhotos(key, _currentIntakeId);
