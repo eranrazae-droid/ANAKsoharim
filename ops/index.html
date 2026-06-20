@@ -990,7 +990,9 @@ function loadTasks() {
 }
 
 function renderTasksFromCache() {
-  const isManager = currentUser.role === 'manager';
+  const container = document.getElementById('task-list-container');
+  if (!container) return;
+  const isManager = currentUser?.role === 'manager';
   let tasks = tasksCache;
 
   if (!isManager) {
@@ -1002,7 +1004,6 @@ function renderTasksFromCache() {
   if (f === 'שלי') tasks = tasks.filter(t => t.assignedTo === currentUser.name || t.assignedTo === 'כולם');
   else if (labelFilters.includes(f)) tasks = tasks.filter(t => t.label === f);
 
-  const container = document.getElementById('task-list-container');
   if (!tasks.length) {
     container.innerHTML = `<div class="empty-state"><div class="es-icon">📭</div><h3>אין משימות</h3><p>עדיין לא נפתחו משימות בקטגוריה זו</p></div>`;
     return;
