@@ -976,14 +976,31 @@ function filterTasks(f, el) {
 let tasksCache = [];
 
 function loadTasks() {
+  const container = document.getElementById('task-list-container');
   if (!window._CONFIG_DONE) {
-    document.getElementById('task-list-container').innerHTML = demoTasksHTML();
+    if (container) container.innerHTML = demoTasksHTML();
     return;
   }
   if (taskUnsub) taskUnsub();
+
+  // Timeout fallback — if Firestore doesn't respond in 8s, show empty state
+  const timeout = setTimeout(() => {
+    if (container && container.querySelector('.loading')) {
+      container.innerHTML = `<div class="empty-state"><div class="es-icon">📭</div><h3>אין משימות</h3><p>עדיין לא נפתחו משימות</p></div>`;
+      renderTaskTabs();
+    }
+  }, 8000);
+
   const q = _query(_colRef('tasks'), _orderBy('createdAt','desc'));
   taskUnsub = _onSnap(q, snap => {
+    clearTimeout(timeout);
     tasksCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderTaskTabs();
+    renderTasksFromCache();
+  }, err => {
+    clearTimeout(timeout);
+    console.error('tasks listener error', err);
+    tasksCache = [];
     renderTaskTabs();
     renderTasksFromCache();
   });
@@ -993,15 +1010,16 @@ function renderTasksFromCache() {
   const container = document.getElementById('task-list-container');
   if (!container) return;
   const isManager = currentUser?.role === 'manager';
+  const myName = currentUser?.name || '';
   let tasks = tasksCache;
 
   if (!isManager) {
-    tasks = tasks.filter(t => t.assignedTo === currentUser.name || t.assignedTo === 'כולם');
+    tasks = tasks.filter(t => t.assignedTo === myName || t.assignedTo === 'כולם');
   }
 
   const f = activeTaskFilter;
   const labelFilters = ['משימות כלליות','חביב','ולאדי','רפד','זגג','רדארים'];
-  if (f === 'שלי') tasks = tasks.filter(t => t.assignedTo === currentUser.name || t.assignedTo === 'כולם');
+  if (f === 'שלי') tasks = tasks.filter(t => t.assignedTo === myName || t.assignedTo === 'כולם');
   else if (labelFilters.includes(f)) tasks = tasks.filter(t => t.label === f);
 
   if (!tasks.length) {
