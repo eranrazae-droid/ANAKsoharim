@@ -1373,35 +1373,56 @@ function openDriverIntake(id) {
     });
   }
   openModal('modal-driver-intake');
+  // restore saved draft after modal opens
+  setTimeout(() => restoreIntakeDraft(id), 50);
+  // auto-save on any text input
+  document.querySelectorAll('#modal-driver-intake textarea, #di-km, #di-code, #di-notes').forEach(el => {
+    el.addEventListener('input', saveIntakeDraft);
+  });
 }
 
+const _ciLabels = {
+  'c-oil':'שמן מנוע','c-coolant':'נוזל קירור','c-safety':'ג\'ק, אפוד, משולש, ספייר',
+  'c-lights-break':'שברים בפנסים','c-glass-break':'שברים בשמשות','c-bulbs':'מנורות שרופות',
+  'c-frames-ext':'מסגרות','c-tires':'מצב צמיגים','c-glove':'ניקיון תא כפפות',
+  'c-windows':'מתגי חלונות','c-ac':'מזגן','c-dashboard':'מנורות לוח שעונים',
+  'c-sunroof':'גג נפתח','c-upholstery':'ריפודים','c-mats':'שטיחים','c-steering':'הגה – קילופים'
+};
+const _photoKeys = ['c-lights-break','c-glass-break','c-upholstery','c-mats','c-windows','c-steering'];
+
 async function submitDriverIntake() {
-  if (!_currentIntakeId) return;
-  if (!window._CONFIG_DONE) return showToast('Firebase לא מחובר');
+  if (!_currentIntakeId) { showToast('שגיאה: אין קליטה פתוחה'); return; }
+  if (!window._CONFIG_DONE) { showToast('Firebase לא מחובר'); return; }
 
   const keys = [...new Set([...document.querySelectorAll('#modal-driver-intake .ci-box')].map(b => b.dataset.key))];
+
+  // all items must be marked
   for (const key of keys) {
     const active = document.querySelector(`#modal-driver-intake .ci-box[data-key="${key}"].v-active,#modal-driver-intake .ci-box[data-key="${key}"].x-active`);
-    if (!active) return showToast('נא למלא את כל שדות הצ׳קליסט');
+    if (!active) {
+      const label = _ciLabels[key] || key;
+      document.querySelector(`#modal-driver-intake .ci-box[data-key="${key}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      showToast(`נא לסמן: ${label}`);
+      return;
+    }
   }
 
-  const photoKeys = ['c-lights-break','c-glass-break','c-upholstery','c-mats','c-windows','c-steering'];
-
-  // validate: x-marked items must have a note; photo items must also have a photo
+  // x-marked items: must have note; photo items must also have photo
   for (const key of keys) {
     const xActive = document.querySelector(`#modal-driver-intake .ci-box[data-key="${key}"].x-active`);
     if (!xActive) continue;
+    const label = _ciLabels[key] || key;
     const noteEl = document.getElementById('cn-' + key);
     if (!noteEl || !noteEl.value.trim()) {
-      const label = noteEl?.closest('.ci-note-row')?.previousElementSibling?.querySelector('.ci-label')?.textContent || key;
-      noteEl?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      document.getElementById('note-' + key)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       noteEl?.focus();
-      return showToast(`נא למלא הערה עבור: ${label}`);
+      showToast(`נא למלא הערה עבור: ${label}`);
+      return;
     }
-    if (photoKeys.includes(key) && !(ciPhotoFiles[key]||[]).length) {
-      const label = document.getElementById('cn-' + key)?.closest('.ci-note-row')?.previousElementSibling?.querySelector('.ci-label')?.textContent || key;
-      document.getElementById('cn-' + key)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      return showToast(`נא לצלם תמונה עבור: ${label}`);
+    if (_photoKeys.includes(key) && !(ciPhotoFiles[key]||[]).length) {
+      document.getElementById('note-' + key)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      showToast(`נא לצלם תמונה עבור: ${label}`);
+      return;
     }
   }
 
@@ -1412,7 +1433,7 @@ async function submitDriverIntake() {
 
   // upload photos
   const photoUrls = {};
-  for (const key of photoKeys) {
+  for (const key of _photoKeys) {
     if ((ciPhotoFiles[key]||[]).length) {
       photoUrls[key] = await uploadPhotos(key, _currentIntakeId);
     }
@@ -1434,6 +1455,7 @@ async function submitDriverIntake() {
     return;
   }
 
+  clearIntakeDraft(_currentIntakeId);
   _currentIntakeId = null;
   closeModal('modal-driver-intake');
   showToast('✅ הטופס נשלח בהצלחה!');
@@ -1620,12 +1642,63 @@ function ciClick(btn) {
     b.classList.remove('v-active','x-active');
   });
   btn.classList.add(val === 'v' ? 'v-active' : 'x-active');
-  // show/hide note field
   const noteRow = document.getElementById('note-' + key);
   if (noteRow) {
     noteRow.style.display = val === 'x' ? 'block' : 'none';
-    if (val === 'v') noteRow.querySelector('textarea').value = '';
+    if (val === 'v') { const ta = noteRow.querySelector('textarea'); if (ta) ta.value = ''; }
   }
+  saveIntakeDraft();
+}
+
+function saveIntakeDraft() {
+  if (!_currentIntakeId) return;
+  const checks = {};
+  document.querySelectorAll('#modal-driver-intake .ci-box.v-active,#modal-driver-intake .ci-box.x-active').forEach(b => {
+    checks[b.dataset.key] = b.dataset.val;
+  });
+  const notes = {};
+  document.querySelectorAll('#modal-driver-intake textarea[id^="cn-"]').forEach(ta => {
+    if (ta.value.trim()) notes[ta.id.replace('cn-','')] = ta.value;
+  });
+  const draft = {
+    checks,
+    notes,
+    km:   document.getElementById('di-km')?.value   || '',
+    code: document.getElementById('di-code')?.value || '',
+    general: document.getElementById('di-notes')?.value || ''
+  };
+  try { localStorage.setItem('intake_draft_' + _currentIntakeId, JSON.stringify(draft)); } catch(e) {}
+}
+
+function restoreIntakeDraft(id) {
+  try {
+    const raw = localStorage.getItem('intake_draft_' + id);
+    if (!raw) return;
+    const draft = JSON.parse(raw);
+    // restore checklist marks
+    Object.entries(draft.checks || {}).forEach(([key, val]) => {
+      document.querySelectorAll(`#modal-driver-intake .ci-box[data-key="${key}"]`).forEach(b => b.classList.remove('v-active','x-active'));
+      const btn = document.querySelector(`#modal-driver-intake .ci-box[data-key="${key}"][data-val="${val}"]`);
+      if (btn) {
+        btn.classList.add(val === 'v' ? 'v-active' : 'x-active');
+        const noteRow = document.getElementById('note-' + key);
+        if (noteRow) noteRow.style.display = val === 'x' ? 'block' : 'none';
+      }
+    });
+    // restore notes
+    Object.entries(draft.notes || {}).forEach(([key, text]) => {
+      const ta = document.getElementById('cn-' + key);
+      if (ta) ta.value = text;
+    });
+    if (draft.km)      { const el = document.getElementById('di-km');    if (el) el.value = draft.km; }
+    if (draft.code)    { const el = document.getElementById('di-code');  if (el) el.value = draft.code; }
+    if (draft.general) { const el = document.getElementById('di-notes'); if (el) el.value = draft.general; }
+    showToast('✏️ ממשיך מהמצב השמור');
+  } catch(e) {}
+}
+
+function clearIntakeDraft(id) {
+  try { localStorage.removeItem('intake_draft_' + id); } catch(e) {}
 }
 
 function getChecklist() {
@@ -2190,6 +2263,7 @@ window.openEditIntake = openEditIntake;
 window.saveEditIntake = saveEditIntake;
 window.openDriverIntake = openDriverIntake;
 window.submitDriverIntake = submitDriverIntake;
+window.ciClick = ciClick;
 window.markChecked = markChecked;
 window.openInventoryScreen = openInventoryScreen;
 window.handleInventoryFile = handleInventoryFile;
@@ -2211,7 +2285,6 @@ window.goToScreen = goToScreen;
 window.openNewTaskModal = openNewTaskModal;
 window.openNewVehicleModal = openNewVehicleModal;
 window.fetchVehicleData = fetchVehicleData;
-window.ciClick = ciClick;
 window.addPhotos = addPhotos;
 window.removePhoto = removePhoto;
 window.openNewPartModal = openNewPartModal;
