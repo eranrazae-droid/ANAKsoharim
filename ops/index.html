@@ -1109,25 +1109,11 @@ function loadVehicles() {
         </div>`;
       }).join('');
 
-      // Grouped by driver
       if (!vehicles.length) {
         container.innerHTML = `<div class="empty-state"><div class="es-icon">🅿️</div><h3>המגרש ריק</h3><p>עדיין לא נקלטו רכבים</p></div>`;
         return;
       }
-      let html = '';
-      drivers.forEach(name => {
-        const dv = vehicles.filter(v => v.receivedBy === name);
-        if (!dv.length) return;
-        html += `<div style="padding:10px 16px 4px;font-weight:900;font-size:14px;color:var(--dark);border-bottom:2px solid var(--gold);margin-bottom:6px">👤 ${name} — ${dv.length} קליטות</div>`;
-        html += dv.map(vehicleCard).join('');
-      });
-      // vehicles with unknown driver
-      const others = vehicles.filter(v => !drivers.includes(v.receivedBy));
-      if (others.length) {
-        html += `<div style="padding:10px 16px 4px;font-weight:900;font-size:14px;color:var(--dark);border-bottom:2px solid var(--border);margin-bottom:6px">אחר</div>`;
-        html += others.map(vehicleCard).join('');
-      }
-      container.innerHTML = html;
+      container.innerHTML = vehicles.map(vehicleCard).join('');
     } else {
       // Driver sees only their own
       summary.style.display = 'none';
