@@ -680,6 +680,15 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
+<!-- ====== MODAL: VIEW INTAKE FORM ====== -->
+<div class="modal-overlay" id="modal-view-intake">
+  <div class="modal-box" style="max-height:90vh;overflow-y:auto">
+    <div class="modal-title">טופס קליטה <button class="modal-close" onclick="closeModal('modal-view-intake')">✕</button></div>
+    <div id="view-intake-content"></div>
+    <button class="btn-submit" onclick="printViewIntake()" style="margin-top:12px;background:var(--dark)">🖨️ הדפסה / שמירה PDF</button>
+  </div>
+</div>
+
 <!-- ====== MODAL: CAR TYPE (after vehicle submit) ====== -->
 <div class="modal-overlay" id="modal-car-type">
   <div class="modal-box" style="text-align:center">
@@ -1244,6 +1253,7 @@ function loadVehicles() {
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">
               <span style="background:${color};color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;white-space:nowrap">${label}</span>
               ${st === 'pending' ? `<button onclick="openEditIntake('${v.id}')" style="background:#6366f1;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">✏️ עריכה</button>` : ''}
+              ${st === 'done' || st === 'checked' ? `<button onclick="viewIntakeForm('${v.id}')" style="background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">👁️ צפייה בטופס</button>` : ''}
               ${canCheck ? `<button onclick="markChecked('${v.id}')" style="background:var(--dark);color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">📋 נבדק</button>` : ''}
             </div>
           </div>
@@ -1417,6 +1427,57 @@ async function markChecked(id) {
   const data = { id, ...snap.data() };
   generateIntakePDF(data);
   await _updateDoc(_docRef('intake_assignments', id), { status: 'checked', checkedAt: _serverTs() });
+}
+
+async function viewIntakeForm(id) {
+  const { getDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  const snap = await getDoc(doc(window._db, 'intake_assignments', id));
+  if (!snap.exists()) return showToast('לא נמצאה קליטה');
+  const v = { id, ...snap.data() };
+  const checklistLabels = {
+    'c-oil': 'שמן מנוע','c-coolant': 'נוזל קירור','c-safety': 'ג׳ק, אפוד, משולש, ספייר',
+    'c-lights-break': 'שברים בפנסים','c-glass-break': 'שברים בשמשות','c-bulbs': 'מנורות שרופות',
+    'c-frames-ext': 'מסגרות','c-tires': 'מצב צמיגים','c-glove': 'ניקיון תא כפפות',
+    'c-windows': 'מתגי חלונות','c-ac': 'מזגן','c-dashboard': 'מנורות לוח שעונים',
+    'c-sunroof': 'גג נפתח','c-upholstery': 'ריפודים','c-mats': 'שטיחים','c-steering': 'הגה – קילופים'
+  };
+  const cl = v.checklist || {};
+  const photos = v.photoUrls || {};
+  const ts = v.completedAt?.toDate ? v.completedAt.toDate().toLocaleString('he-IL') : '';
+
+  let rows = '';
+  for (const [key, label] of Object.entries(checklistLabels)) {
+    const val = cl[key];
+    if (!val) continue;
+    const icon = val === 'v' ? '✅' : '❌';
+    const bg = val === 'v' ? '#f0fff4' : '#fff0f0';
+    const note = cl[key+'_note'] ? `<div style="font-size:12px;color:#555;margin-top:4px">📝 ${esc(cl[key+'_note'])}</div>` : '';
+    const imgs = (photos[key]||[]).map(url => `<img src="${url}" style="max-width:100%;border-radius:8px;margin-top:6px;display:block">`).join('');
+    rows += `<div style="background:${bg};border-radius:10px;padding:10px 14px;margin-bottom:8px">
+      <div style="font-weight:700;font-size:14px">${icon} ${label}</div>${note}${imgs}
+    </div>`;
+  }
+
+  const km = v.km ? `<span style="margin-left:16px"><strong>ק"מ:</strong> ${esc(v.km)}</span>` : '';
+  const code = v.code ? `<span><strong>קוד:</strong> ${esc(v.code)}</span>` : '';
+  const notes = v.notes ? `<div style="background:#f8f8ff;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:14px">📝 <strong>הערות:</strong> ${esc(v.notes)}</div>` : '';
+
+  document.getElementById('view-intake-content').innerHTML = `
+    <div style="background:#f0f2ff;border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:13px;line-height:2">
+      <strong>${esc(v.plate)}</strong> · ${esc(v.brand||'')} ${esc(v.model||'')} ${esc(v.year||'')}<br>
+      צבע: ${esc(v.color||'')} · חניה: ${esc(v.spot||'')}${km ? '<br>' + km + code : ''}<br>
+      נהג קולט: <strong>${esc(v.completedBy||v.assignedTo||'')}</strong> · ${ts}
+    </div>
+    ${notes}
+    <div style="font-weight:900;font-size:13px;color:var(--muted);margin-bottom:8px">🔍 ממצאי בדיקה</div>
+    ${rows || '<div style="color:var(--muted);text-align:center;padding:20px">אין נתוני צ׳קליסט</div>'}
+  `;
+  window._viewIntakeData = v;
+  openModal('modal-view-intake');
+}
+
+function printViewIntake() {
+  if (window._viewIntakeData) generateIntakePDF(window._viewIntakeData);
 }
 
 function generateIntakePDF(v) {
@@ -2081,6 +2142,8 @@ async function selectCarType(type) {
   showToast(`✅ רכב נקלט! סוג: ${type}`);
 }
 
+window.viewIntakeForm = viewIntakeForm;
+window.printViewIntake = printViewIntake;
 window.openEditIntake = openEditIntake;
 window.saveEditIntake = saveEditIntake;
 window.openDriverIntake = openDriverIntake;
