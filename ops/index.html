@@ -277,6 +277,7 @@ if ('serviceWorker' in navigator) {
     <div class="loading"><div class="spinner"></div> טוען...</div>
   </div>
   <button class="fab" id="fab-new-task" onclick="openNewTaskModal()" style="display:none">+ משימה חדשה</button>
+  <button id="fab-import-tasks" onclick="importTrelloTasks()" style="display:none;position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateX(120px);background:#6366f1;color:#fff;border:none;border-radius:999px;padding:14px 22px;font-family:Heebo,sans-serif;font-size:15px;font-weight:900;cursor:pointer;box-shadow:0 4px 20px rgba(99,102,241,.4);z-index:50">📋 ייבא מטרלו</button>
 </div>
 
 <!-- ====== SCREEN: VEHICLES ====== -->
@@ -1147,6 +1148,7 @@ function openTasksScreen() {
   const isManager = currentUser.role === 'manager';
   document.getElementById('tasks-user-badge').textContent = currentUser.name;
   document.getElementById('fab-new-task').style.display = isManager ? 'flex' : 'none';
+  document.getElementById('fab-import-tasks').style.display = isManager ? 'flex' : 'none';
   activeTaskFilter = isManager ? 'משימות כלליות' : 'שלי';
   showScreen('tasks');
   loadTasks();
@@ -1386,6 +1388,51 @@ function openNewTaskModal() {
   document.getElementById('task-label').value = 'משימות כלליות';
   document.getElementById('task-priority').value = 'med';
   openModal('modal-task');
+}
+
+async function importTrelloTasks() {
+  if (!confirm('לייבא את כל המשימות מהטרלו? פעולה זו תוסיף 24 משימות.')) return;
+  if (!window._CONFIG_DONE) return showToast('Firebase לא מחובר');
+  const tasks = [
+    { title: 'להוריד מגבי רוח בצרי fx וטוסון 2016 אפור', assignedTo: 'גל' },
+    { title: 'מכחולים טוסון 2017', assignedTo: 'גל' },
+    { title: 'CX5 2015 לכן', assignedTo: 'ולאדי' },
+    { title: 'יצחק לקראו לו 0545528728 שולדרי פה', assignedTo: 'ולאדי' },
+    { title: 'CX30 2021 לייסר ספולר קדמי', assignedTo: 'ולאדי' },
+    { title: 'כנר אחורי ימין בי וי די סליון 5', assignedTo: 'ולאדי' },
+    { title: 'קאדילק שחור', assignedTo: 'ולאדי' },
+    { title: 'סוסון 879', assignedTo: 'ולאדי' },
+    { title: 'מנורות שרופות q2', assignedTo: 'חביב' },
+    { title: 'חלון קדמי ימין גירו לבנה לא יורד', assignedTo: 'חביב' },
+    { title: 'מתג חלון בדלת קדמי ימין טוסון 17 155 לא עובד', assignedTo: 'חביב' },
+    { title: 'מתג חלונות נהג מאזדה 3 2015 לא עובד', assignedTo: 'חביב' },
+    { title: 'להכניס', assignedTo: 'רדארים' },
+    { title: 'X4 2 מראות בשחור – גריד', assignedTo: 'כולם', label: 'שנע החוצה' },
+    { title: 'שליף סבון פתח 21', assignedTo: 'כולם', label: 'שנע החוצה' },
+    { title: 'GLC2023 שלייף כנפיים קדמיות ותסגורן אחורי', assignedTo: 'כולם', label: 'שנע החוצה' },
+    { title: 'לבדוק קם ברגלר לכן ולסדר אותו !!!!', assignedTo: 'כולם', priority: 'high' },
+    { title: 'לבדוק שמן A250 2024', assignedTo: 'כולם' },
+    { title: 'אפק אילון – קנה אקספנג G6 שטיחים הבאן לו גר בדימונה 052-523-3535', assignedTo: 'כולם' },
+    { title: 'לאפס מנורת טיפול במרצדס של אילינה', assignedTo: 'כולם' },
+    { title: 'לקנות ציציות ממבצע סיני 9 חולון', assignedTo: 'כולם' },
+    { title: 'דלק X1', assignedTo: 'כולם' },
+    { title: 'מנורת טיפול צרי FX+ צק אנגי ולבדוק מצבר', assignedTo: 'כולם' },
+    { title: 'כיסוי הגה מאזדה 3 2015', assignedTo: 'כולם' },
+  ];
+  showToast('⏳ מייבא משימות...');
+  for (const t of tasks) {
+    await _addDoc(_colRef('tasks'), {
+      title: t.title,
+      assignedTo: t.assignedTo,
+      label: t.label || 'משימות כלליות',
+      priority: t.priority || 'med',
+      status: 'open',
+      createdBy: currentUser.name,
+      createdAt: _serverTs()
+    });
+  }
+  showToast('✅ כל המשימות יובאו בהצלחה!');
+  document.getElementById('fab-import-tasks').style.display = 'none';
 }
 
 async function submitTask() {
