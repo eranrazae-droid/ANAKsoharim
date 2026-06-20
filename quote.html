@@ -163,7 +163,10 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
     </div>
     <div class="deal-row">
       <div class="deal-label">מספר רישוי</div>
-      <div class="deal-val"><input class="deal-input name-input" id="new-car-plate" type="text" placeholder="000-00-000" oninput="calc()"></div>
+      <div class="deal-val" style="display:flex;gap:6px;align-items:center">
+        <input class="deal-input name-input" id="new-car-plate" type="text" placeholder="000-00-000" oninput="calc()" style="flex:1">
+        <button onclick="lookupPlate('new-car-plate','new-car-name',this)" style="background:#1a56db;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:Heebo,sans-serif">🔍 שלוף</button>
+      </div>
     </div>
     <div class="deal-row">
       <div class="deal-label">מחיר</div>
@@ -178,7 +181,10 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
     </div>
     <div class="deal-row">
       <div class="deal-label">מספר רישוי</div>
-      <div class="deal-val"><input class="deal-input name-input" id="old-car-plate" type="text" placeholder="000-00-000" oninput="calc()"></div>
+      <div class="deal-val" style="display:flex;gap:6px;align-items:center">
+        <input class="deal-input name-input" id="old-car-plate" type="text" placeholder="000-00-000" oninput="calc()" style="flex:1">
+        <button onclick="lookupPlate('old-car-plate','old-car-name',this)" style="background:#c9a227;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:Heebo,sans-serif">🔍 שלוף</button>
+      </div>
     </div>
     <div class="deal-row">
       <div class="deal-label">זיכוי טרייד אין</div>
@@ -365,6 +371,27 @@ function printQuote() {
   document.getElementById('print-date').textContent =
     d.toLocaleDateString('he-IL') + ' · ' + (document.getElementById('customer-name').value || '');
   window.print();
+}
+
+function lookupPlate(plateId, nameId, btn) {
+  var plate = document.getElementById(plateId).value.replace(/\D/g,'');
+  if (!plate) { alert('יש להזין מספר רישוי'); return; }
+  var orig = btn.textContent;
+  btn.textContent = '⏳';
+  btn.disabled = true;
+  fetch('https://data.gov.il/api/3/action/datastore_search?resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3&filters={"mispar_rechev":"' + plate + '"}&limit=1')
+    .then(function(r){ return r.json(); })
+    .then(function(data) {
+      var rec = data.result && data.result.records && data.result.records[0];
+      if (!rec) { alert('לא נמצא רכב עבור לוחית זו'); return; }
+      var year  = rec.shnat_yitzur || '';
+      var make  = rec.tozeret_nm   || '';
+      var model = rec.kinuy_mishari|| rec.degem_nm || '';
+      document.getElementById(nameId).value = [make, model, year].filter(Boolean).join(' ');
+      calc();
+    })
+    .catch(function(){ alert('שגיאה בשליפה — בדוק חיבור לאינטרנט'); })
+    .finally(function(){ btn.textContent = orig; btn.disabled = false; });
 }
 
 var _autoSaveTimer = null;
