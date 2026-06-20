@@ -1416,22 +1416,26 @@ function loadVehicles() {
     if (isManager) {
       const drivers = ['עופר','גיל','איתי'];
       summary.style.display = 'grid';
+      const activeFilter = window._vehicleDriverFilter || null;
       summary.innerHTML = drivers.map(name => {
         const pending = all.filter(v => v.assignedTo === name && v.status === 'pending').length;
         const done    = all.filter(v => v.assignedTo === name && v.status === 'done').length;
-        return `<div style="background:#fff;border:2px solid var(--border);border-radius:14px;padding:14px 10px;text-align:center">
-          <div style="font-size:11px;color:var(--muted);font-weight:600;margin-bottom:2px">${name}</div>
-          <div style="font-size:22px;font-weight:900;color:var(--warning)">${pending} ⏳</div>
-          <div style="font-size:13px;font-weight:700;color:var(--success)">${done} ✅</div>
+        const checked = all.filter(v => v.assignedTo === name && v.status === 'checked').length;
+        const isActive = activeFilter === name;
+        return `<div onclick="filterVehiclesByDriver('${name}')" style="background:${isActive?'var(--dark)':'#fff'};border:2px solid ${isActive?'var(--dark)':'var(--border)'};border-radius:14px;padding:14px 10px;text-align:center;cursor:pointer;transition:all .15s">
+          <div style="font-size:12px;font-weight:800;margin-bottom:4px;color:${isActive?'#fff':'var(--dark)'}">${name}</div>
+          <div style="font-size:20px;font-weight:900;color:${isActive?'#fbbf24':'var(--warning)'}">${pending} ⏳</div>
+          <div style="font-size:12px;font-weight:700;color:${isActive?'#86efac':'var(--success)'}">בוצע ${done} · נבדק ${checked}</div>
         </div>`;
       }).join('');
 
-      const active   = all.filter(v => v.status === 'pending' || v.status === 'done');
-      const archived = all.filter(v => v.status === 'checked');
+      const f = window._vehicleDriverFilter;
+      const active   = all.filter(v => (v.status === 'pending' || v.status === 'done') && (!f || v.assignedTo === f));
+      const archived = all.filter(v => v.status === 'checked' && (!f || v.assignedTo === f));
 
       container.innerHTML = active.length
         ? active.map(intakeCard).join('')
-        : `<div class="empty-state"><div class="es-icon">🚗</div><h3>אין קליטות פעילות</h3><p>לחץ + קליטת רכב להוסיף</p></div>`;
+        : `<div class="empty-state"><div class="es-icon">🚗</div><h3>${f ? 'אין קליטות פעילות עבור ' + f : 'אין קליטות פעילות'}</h3><p>לחץ + קליטת רכב להוסיף</p></div>`;
 
       // archive section
       const archiveWrap = document.getElementById('intake-archive-wrap');
@@ -2452,6 +2456,13 @@ async function selectCarType(type) {
   }
   showToast(`✅ רכב נקלט! סוג: ${type}`);
 }
+
+function filterVehiclesByDriver(name) {
+  // toggle: click same driver again to show all
+  window._vehicleDriverFilter = (window._vehicleDriverFilter === name) ? null : name;
+  loadVehicles();
+}
+window.filterVehiclesByDriver = filterVehiclesByDriver;
 
 function toggleIntakeArchive() {
   const list = document.getElementById('intake-archive-list');
