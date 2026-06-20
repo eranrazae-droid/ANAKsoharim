@@ -1180,6 +1180,25 @@ async function submitVehicle() {
     receivedBy:  currentUser.name,
     receivedAt:  _serverTs()
   });
+  // auto-task: sunroof X → task to manager with label זגג
+  if (checklist['c-sunroof'] === 'x') {
+    const plate    = document.getElementById('v-plate').value.trim();
+    const brand    = document.getElementById('v-brand').value.trim();
+    const model    = document.getElementById('v-model').value.trim();
+    const sunNote  = document.getElementById('cn-c-sunroof')?.value.trim() || '';
+    const taskNote = `רכב: ${plate}${brand||model ? ' | ' + [brand,model].filter(Boolean).join(' ') : ''}${sunNote ? '\nהערת נהג: ' + sunNote : ''}`;
+    await _addDoc(_colRef('tasks'), {
+      title:      `גג נפתח – ${plate}`,
+      notes:      taskNote,
+      assignedTo: 'ליאל',
+      label:      'זגג',
+      priority:   'med',
+      status:     'open',
+      createdBy:  currentUser.name,
+      createdAt:  _serverTs()
+    });
+  }
+
   closeModal('modal-vehicle');
   showToast('✅ רכב נקלט!');
 }
