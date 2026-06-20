@@ -880,6 +880,7 @@ function renderHome() {
       ]
     : [
         { icon: '📋', title: 'המשימות שלי', sub: 'משימות שהוקצו לך', screen: 'tasks' },
+        { icon: '🚗', title: 'קליטות רכב שלי', sub: 'קליטות ממתינות לביצוע', screen: 'vehicles' },
         { icon: '🅿️', title: 'סידור מגרש', sub: 'צפייה בטבלת חניות', screen: 'yard' },
       ];
 
@@ -1002,10 +1003,11 @@ function loadTasks() {
     }
   }, 8000);
 
-  const q = _query(_colRef('tasks'), _orderBy('createdAt','desc'));
+  const q = _colRef('tasks');
   taskUnsub = _onSnap(q, snap => {
     clearTimeout(timeout);
-    tasksCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    tasksCache = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((a,b) => (b.createdAt?.toMillis?.()??0) - (a.createdAt?.toMillis?.()??0));
     renderTasksFromCache();
   }, err => {
     clearTimeout(timeout);
