@@ -928,6 +928,7 @@ function renderTasksFromCache() {
         </button>
       </div>
       ${t.notes ? `<div class="task-notes">${esc(t.notes)}</div>` : ''}
+      ${t.photos?.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${t.photos.map(u=>`<img src="${esc(u)}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--border)">`).join('')}</div>` : ''}
       <div class="task-meta">
         ${t.label ? `<span class="tag task-label">${esc(t.label)}</span>` : ''}
         <span class="tag assignee">👤 ${esc(t.assignedTo)}</span>
@@ -1180,6 +1181,26 @@ async function submitVehicle() {
     receivedBy:  currentUser.name,
     receivedAt:  _serverTs()
   });
+  // auto-task: steering X → task to רפד with photos
+  if (checklist['c-steering'] === 'x') {
+    const plate       = document.getElementById('v-plate').value.trim();
+    const brand       = document.getElementById('v-brand').value.trim();
+    const model       = document.getElementById('v-model').value.trim();
+    const steerNote   = document.getElementById('cn-c-steering')?.value.trim() || '';
+    const taskNote    = `רכב: ${plate}${brand||model ? ' | ' + [brand,model].filter(Boolean).join(' ') : ''}${steerNote ? '\nהערת נהג: ' + steerNote : ''}`;
+    await _addDoc(_colRef('tasks'), {
+      title:      `הגה – ${plate}`,
+      notes:      taskNote,
+      assignedTo: 'כולם',
+      label:      'רפד',
+      priority:   'med',
+      status:     'open',
+      photos:     photoUrls['c-steering'] || [],
+      createdBy:  currentUser.name,
+      createdAt:  _serverTs()
+    });
+  }
+
   // auto-task: sunroof X → task to manager with label זגג
   if (checklist['c-sunroof'] === 'x') {
     const plate    = document.getElementById('v-plate').value.trim();
