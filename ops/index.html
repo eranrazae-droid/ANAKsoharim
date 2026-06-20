@@ -708,6 +708,7 @@ if ('serviceWorker' in navigator) {
   <div class="modal-box" style="max-height:90vh;overflow-y:auto">
     <div class="modal-title">סימון מלאי <button class="modal-close" onclick="closeModal('modal-driver-inv')">✕</button></div>
     <input type="hidden" id="dinv-headers-cache" value="[]">
+    <button onclick="dinvMarkAll('v')" style="width:100%;background:#22c55e;color:#fff;border:none;border-radius:12px;padding:10px;font-family:Heebo,sans-serif;font-weight:900;font-size:14px;cursor:pointer;margin-bottom:10px">✅ סמן הכל V</button>
     <div style="overflow-x:auto;-webkit-overflow-scrolling:touch" id="dinv-rows-container"></div>
     <button id="dinv-submit-btn" class="btn-submit" onclick="submitDriverInv()" style="margin-top:14px">✅ שלח בדיקה</button>
   </div>
@@ -3026,13 +3027,13 @@ var yardData = {}; // { 'L_1_כניסה': 'ABC', 'R_40': 'XYZ', ... }
 function openYardScreen() {
   document.getElementById('yard-user-badge').textContent = currentUser.name;
   const isManager = currentUser.role === 'manager';
-  if (!isManager) {
-    renderYardTable();   // build structure first (read-only)
-    showScreen('yard');
-    loadYardData();      // then fill values when Firestore responds
-    return;
+  renderYardTable();
+  showScreen('yard');
+  loadYardData();
+  if (isManager) {
+    const btn = document.getElementById('yard-publish-btn');
+    if (btn) { btn.textContent = '📤 שלח לנהגים'; btn.style.background = 'var(--gold)'; btn.style.color = '#000'; btn.onclick = publishYard; btn.disabled = false; }
   }
-  openModal('modal-yard-start');
 }
 
 function startYard(mode) {
