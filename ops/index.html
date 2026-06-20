@@ -1614,15 +1614,19 @@ async function submitDriverIntake() {
   if (!_updateDoc || !_docRef) { showToast('שגיאה: Firebase לא אותחל'); return; }
   showToast('⏳ שולח טופס...');
 
-  try {
-    // upload photos
-    const photoUrls = {};
-    for (const key of _photoKeys) {
-      if ((ciPhotoFiles[key]||[]).length) {
+  // upload photos (non-fatal — form submits even if storage fails)
+  const photoUrls = {};
+  for (const key of _photoKeys) {
+    if ((ciPhotoFiles[key]||[]).length) {
+      try {
         photoUrls[key] = await uploadPhotos(key, _currentIntakeId);
+      } catch(pe) {
+        console.warn('photo upload failed for', key, pe);
       }
     }
+  }
 
+  try {
     await _updateDoc(_docRef('intake_assignments', _currentIntakeId), {
       checklist,
       notes,
@@ -2323,12 +2327,14 @@ async function submitInventory() {
   if (!_addDoc || !_colRef) { showToast('שגיאה: Firebase לא אותחל'); return; }
   showToast('⏳ שולח...');
   try {
+    const safeHeaders = (inventoryHeaders||[]).map(h => String(h||''));
+    const safeRows = (inventoryRows||[]).map(r => (r.cells||[]).map(c => String(c??'')));
     await _addDoc(_colRef('inventory_assignments'), {
       assignedTo:  driver,
       sentBy:      currentUser.name,
       createdAt:   _serverTs(),
-      headers:     inventoryHeaders,
-      rows:        inventoryRows.map(r => r.cells),
+      headers:     safeHeaders,
+      rows:        safeRows,
       status:      'pending'
     });
     _invMode = 'live';
