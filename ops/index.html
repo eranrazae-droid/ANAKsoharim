@@ -404,22 +404,16 @@ if ('serviceWorker' in navigator) {
       <input class="form-input" id="v-color" placeholder="">
     </div>
 
-    <!-- שנה + ק"מ -->
+    <!-- שנה + מספר חניה -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="form-group">
         <label>שנה</label>
         <input class="form-input" id="v-year" type="number" placeholder="2023" min="1990" max="2030">
       </div>
       <div class="form-group">
-        <label>ק"מ ברכב</label>
-        <input class="form-input" id="v-km" type="number" placeholder="0">
+        <label>מספר חניה</label>
+        <input class="form-input" id="v-spot" placeholder="42" inputmode="numeric">
       </div>
-    </div>
-
-    <!-- מספר חניה -->
-    <div class="form-group">
-      <label>מספר חניה</label>
-      <input class="form-input" id="v-spot" placeholder="לדוגמא: 42" inputmode="numeric">
     </div>
 
     <!-- בחירת נהג -->
@@ -444,6 +438,18 @@ if ('serviceWorker' in navigator) {
       <button class="modal-close" onclick="closeModal('modal-driver-intake')">✕</button>
     </div>
     <div id="di-vehicle-info" style="background:#f0f2ff;border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:14px;line-height:1.8"></div>
+
+    <!-- ק"מ + קוד -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+      <div class="form-group" style="margin:0">
+        <label>ק"מ ברכב</label>
+        <input class="form-input" id="di-km" type="number" placeholder="0" inputmode="numeric">
+      </div>
+      <div class="form-group" style="margin:0">
+        <label>קוד רכב</label>
+        <input class="form-input" id="di-code" placeholder="קוד...">
+      </div>
+    </div>
 
     <!-- צ'קליסט -->
     <div class="section-title">🔍 בדיקות חוץ</div>
@@ -1312,7 +1318,7 @@ function openDriverIntake(id) {
   // clear checklist
   document.querySelectorAll('#modal-driver-intake .ci-box').forEach(b => b.classList.remove('v-active','x-active'));
   document.querySelectorAll('#modal-driver-intake .ci-note-row').forEach(r => r.style.display = 'none');
-  document.querySelectorAll('#modal-driver-intake textarea').forEach(t => t.value = '');
+  document.querySelectorAll('#modal-driver-intake textarea, #modal-driver-intake input[type=number], #di-code').forEach(t => t.value = '');
   ['c-lights-break','c-glass-break','c-upholstery','c-mats','c-windows','c-steering'].forEach(k => {
     ciPhotoFiles[k] = [];
     renderPhotoGrid(k);
@@ -1344,7 +1350,9 @@ async function submitDriverIntake() {
   }
 
   const checklist = getChecklist();
-  const notes = document.getElementById('di-notes').value.trim();
+  const notes  = document.getElementById('di-notes').value.trim();
+  const km     = document.getElementById('di-km').value.trim();
+  const code   = document.getElementById('di-code').value.trim();
 
   // upload photos
   const photoUrls = {};
@@ -1359,6 +1367,8 @@ async function submitDriverIntake() {
     await _updateDoc(_docRef('intake_assignments', _currentIntakeId), {
       checklist,
       notes,
+      km,
+      code,
       photoUrls,
       status: 'done',
       completedBy: currentUser.name,
@@ -1509,7 +1519,7 @@ function getChecklist() {
 }
 
 function openNewVehicleModal() {
-  ['v-plate','v-brand','v-model','v-color','v-year','v-km','v-spot'].forEach(id => {
+  ['v-plate','v-brand','v-model','v-color','v-year','v-spot'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
@@ -1569,7 +1579,6 @@ async function submitVehicle() {
     model:      document.getElementById('v-model').value.trim(),
     color:      document.getElementById('v-color').value.trim(),
     year:       document.getElementById('v-year').value,
-    km:         document.getElementById('v-km').value,
     spot:       document.getElementById('v-spot').value.trim(),
     assignedTo: driver,
     createdBy:  currentUser.name,
