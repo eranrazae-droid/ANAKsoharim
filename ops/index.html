@@ -223,7 +223,7 @@ if ('serviceWorker' in navigator) {
     </div>
     <div id="manager-password-wrap" style="display:none;margin-top:14px">
       <input id="manager-password-input" type="password" inputmode="numeric" pattern="[0-9]*" placeholder="סיסמא (מספרים)" dir="ltr"
-        oninput="checkLoginReady()"
+        oninput="checkLoginReady(); if(this.value.length===4) doLogin()"
         onkeydown="if(event.key==='Enter')doLogin()"
         style="width:100%;background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.15);border-radius:12px;padding:14px 16px;font-family:Heebo,sans-serif;font-size:16px;color:#fff;outline:none;box-sizing:border-box"
         onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='rgba(255,255,255,.15)'">
@@ -922,15 +922,16 @@ function unreadCountByLabel() {
   return counts;
 }
 function renderTaskTabs() {
-  const isManager = currentUser.role === 'manager';
+  const tabEl = document.getElementById('task-filter-tabs');
+  if (!tabEl) return;
+  const isManager = currentUser?.role === 'manager';
   const labelTabs = ['משימות כלליות','חביב','ולאדי','רפד','זגג','רדארים'];
   const tabs = isManager ? labelTabs : ['שלי', ...labelTabs];
   const counts = isManager ? unreadCountByLabel() : {};
-  const tabEl = document.getElementById('task-filter-tabs');
-  tabEl.innerHTML = tabs.map((t,i) => {
+  tabEl.innerHTML = tabs.map(t => {
     const n = counts[t];
     const label = n ? `${t} (${n})` : t;
-    const active = activeTaskFilter === t || (i === 0 && activeTaskFilter === 'הכל') ? ' active' : '';
+    const active = activeTaskFilter === t ? ' active' : '';
     return `<button class="ftab${active}" onclick="filterTasks('${t}',this)">${label}</button>`;
   }).join('');
 }
@@ -949,14 +950,8 @@ let activeTaskFilter = 'הכל';
 function filterTasks(f, el) {
   markLabelSeen(f);
   activeTaskFilter = f;
-  document.querySelectorAll('#task-filter-tabs .ftab').forEach(b => b.classList.remove('active'));
-  el.classList.add('active');
   renderTasksFromCache();
   renderTaskTabs();
-  // restore active class after re-render
-  document.querySelectorAll('#task-filter-tabs .ftab').forEach(b => {
-    if (b.textContent.startsWith(f)) b.classList.add('active');
-  });
 }
 
 let tasksCache = [];
@@ -1322,9 +1317,8 @@ async function submitVehicle() {
     });
   }
 
-  window._lastVehicleDocRef = vDocRef;
   closeModal('modal-vehicle');
-  openCarTypeModal();
+  showToast('✅ רכב נקלט!');
 }
 
 /* ═══════════════════════════════════════════════════════
