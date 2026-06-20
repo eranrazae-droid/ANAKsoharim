@@ -1039,18 +1039,21 @@ async function fetchVehicleData() {
   status.textContent = '⏳ מחפש...';
   btn.disabled = true;
   try {
-    const url = `https://data.gov.il/api/3/action/datastore_search?resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3&q=${raw}&limit=1`;
+    const filters = encodeURIComponent(JSON.stringify({ mispar_rechev: raw }));
+    const url = `https://data.gov.il/api/3/action/datastore_search?resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3&filters=${filters}&limit=1`;
     const res = await fetch(url);
+    if (!res.ok) throw new Error('network');
     const json = await res.json();
     const rec = json?.result?.records?.[0];
-    if (!rec) { status.textContent = '❌ לא נמצא רכב עם מספר זה'; return; }
-    document.getElementById('v-brand').value    = rec.tozeret_nm   || '';
-    document.getElementById('v-model').value    = rec.kinuy_mishari|| rec.degem_nm || '';
-    document.getElementById('v-submodel').value = rec.degem_nm     || '';
-    document.getElementById('v-color').value    = rec.tzeva_rechev || '';
-    document.getElementById('v-year').value     = rec.shnat_yitzur || '';
+    if (!rec) { status.style.color='var(--danger)'; status.textContent = '❌ לא נמצא רכב עם מספר זה'; return; }
+    document.getElementById('v-brand').value = rec.tozeret_nm    || '';
+    document.getElementById('v-model').value = rec.kinuy_mishari || rec.degem_nm || '';
+    document.getElementById('v-color').value = rec.tzeva_rechev  || '';
+    document.getElementById('v-year').value  = rec.shnat_yitzur  || '';
+    status.style.color = 'var(--success)';
     status.textContent = '✅ פרטים נטענו בהצלחה';
   } catch(e) {
+    status.style.color = 'var(--danger)';
     status.textContent = '❌ שגיאה בחיבור לשרת';
   } finally {
     btn.disabled = false;
