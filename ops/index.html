@@ -613,7 +613,11 @@ if ('serviceWorker' in navigator) {
   </div>
   <div id="yard-manager-toolbar" style="padding:12px 16px;background:#fff;border-bottom:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end">
     <button onclick="resetYard()" style="background:var(--danger);color:#fff;border:none;border-radius:10px;padding:8px 16px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">🔄 טבלה חדשה</button>
-    <button id="yard-save-btn" onclick="saveYard()" style="background:var(--gold);color:#000;border:none;border-radius:10px;padding:8px 16px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">💾 שמור ופרסם לנהגים</button>
+    <button id="yard-draft-btn" onclick="saveYardDraft()" style="background:#e2e8f0;color:#1a1a2e;border:none;border-radius:10px;padding:8px 16px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">💾 שמור</button>
+    <button id="yard-publish-btn" onclick="publishYard()" style="background:var(--gold);color:#000;border:none;border-radius:10px;padding:8px 16px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">📤 שלח לנהגים</button>
+  </div>
+  <div id="yard-driver-toolbar" style="display:none;padding:12px 16px;background:#fff;border-bottom:1px solid var(--border);justify-content:flex-end">
+    <button id="yard-done-btn" onclick="markYardDone()" style="background:#22c55e;color:#fff;border:none;border-radius:10px;padding:8px 20px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">✅ בוצע</button>
   </div>
   <!-- Vehicles to place panel -->
   <div id="yard-to-place-panel" style="padding:12px 16px;background:#f8f9ff;border-bottom:1px solid var(--border)">
@@ -1092,6 +1096,10 @@ function loadDriverBadges() {
     });
     _onSnap(_query(_colRef('inventory_assignments'), _where('assignedTo','==',name)), snap => {
       _setCardBadge('driver-inventory', snap.docs.filter(d => d.data().status === 'pending').length);
+    });
+    _onSnap(_docRef('yard','current'), snap => {
+      const status = snap.exists() ? snap.data().status : null;
+      _setCardBadge('yard', status === 'pending' ? 1 : 0);
     });
   } catch(e) { console.warn('loadDriverBadges error', e); }
 }
@@ -2820,10 +2828,12 @@ function openYardScreen() {
 
 function startYard(mode) {
   closeModal('modal-yard-start');
+  const btn = document.getElementById('yard-publish-btn');
+  if (btn) { btn.textContent = '📤 שלח לנהגים'; btn.style.background = 'var(--gold)'; btn.style.color = '#000'; btn.onclick = publishYard; btn.disabled = false; }
   if (mode === 'new') {
     yardData = {};
     if (window._CONFIG_DONE) {
-      _setDoc(_docRef('yard','current'), { data: {}, updatedAt: _serverTs() });
+      _setDoc(_docRef('yard','current'), { data: {}, updatedAt: _serverTs(), publishedAt: null, status: 'draft' });
     }
   } else {
     loadYardData();
@@ -2852,6 +2862,7 @@ function renderYardTable() {
   const isManager = currentUser.role === 'manager';
   // Show/hide manager controls
   document.getElementById('yard-manager-toolbar').style.display = isManager ? 'flex' : 'none';
+  document.getElementById('yard-driver-toolbar').style.display = !isManager ? 'flex' : 'none';
   document.getElementById('yard-to-place-panel').style.display = isManager ? 'block' : 'none';
   if (isManager) renderToPlaceGrid(true);
 
@@ -2974,29 +2985,40 @@ function renderYardInputValues() {
   });
 }
 
-async function saveYard() {
+function _collectYardInputs() {
   document.querySelectorAll('#yard-tbody input[data-key], #yard-to-place-grid input[data-key]').forEach(inp => {
     yardData[inp.dataset.key] = inp.value;
   });
+}
+
+async function saveYardDraft() {
+  _collectYardInputs();
   if (!window._CONFIG_DONE) return showToast('Firebase לא מחובר');
-  await _setDoc(_docRef('yard','current'), { data: yardData, updatedAt: _serverTs() });
-  showToast('✅ הטבלה נשמרה ופורסמה לנהגים!');
-  const btn = document.getElementById('yard-save-btn');
+  await _setDoc(_docRef('yard','current'), { data: yardData, updatedAt: _serverTs(), publishedAt: null, status: 'draft' });
+  showToast('💾 הטבלה נשמרה');
+}
+
+async function publishYard() {
+  _collectYardInputs();
+  if (!window._CONFIG_DONE) return showToast('Firebase לא מחובר');
+  await _setDoc(_docRef('yard','current'), { data: yardData, updatedAt: _serverTs(), publishedAt: _serverTs(), status: 'pending' });
+  showToast('📤 הטבלה נשלחה לנהגים!');
+  const btn = document.getElementById('yard-publish-btn');
   if (btn) {
-    btn.textContent = '✅ בוצע';
+    btn.textContent = '✅ נשלח';
     btn.style.background = '#22c55e';
     btn.style.color = '#fff';
-    btn.onclick = unmarkYardSave;
+    btn.onclick = null;
+    btn.disabled = true;
   }
 }
 
-function unmarkYardSave() {
-  const btn = document.getElementById('yard-save-btn');
-  if (!btn) return;
-  btn.textContent = '💾 שמור ופרסם לנהגים';
-  btn.style.background = 'var(--gold)';
-  btn.style.color = '#000';
-  btn.onclick = saveYard;
+async function markYardDone() {
+  if (!window._CONFIG_DONE) return showToast('Firebase לא מחובר');
+  await _setDoc(_docRef('yard','current'), { data: yardData, updatedAt: _serverTs(), publishedAt: null, status: 'done' });
+  showToast('✅ סידור המגרש סומן כבוצע!');
+  document.getElementById('yard-driver-toolbar').style.display = 'none';
+  goHome();
 }
 
 function resetYard() {
