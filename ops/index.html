@@ -613,7 +613,7 @@ if ('serviceWorker' in navigator) {
   </div>
   <div id="yard-manager-toolbar" style="padding:12px 16px;background:#fff;border-bottom:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end">
     <button onclick="resetYard()" style="background:var(--danger);color:#fff;border:none;border-radius:10px;padding:8px 16px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">🔄 טבלה חדשה</button>
-    <button onclick="saveYard()" style="background:var(--gold);color:#000;border:none;border-radius:10px;padding:8px 16px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">💾 שמור ופרסם לנהגים</button>
+    <button id="yard-save-btn" onclick="saveYard()" style="background:var(--gold);color:#000;border:none;border-radius:10px;padding:8px 16px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">💾 שמור ופרסם לנהגים</button>
   </div>
   <!-- Vehicles to place panel -->
   <div id="yard-to-place-panel" style="padding:12px 16px;background:#f8f9ff;border-bottom:1px solid var(--border)">
@@ -2981,7 +2981,22 @@ async function saveYard() {
   if (!window._CONFIG_DONE) return showToast('Firebase לא מחובר');
   await _setDoc(_docRef('yard','current'), { data: yardData, updatedAt: _serverTs() });
   showToast('✅ הטבלה נשמרה ופורסמה לנהגים!');
-  goHome();
+  const btn = document.getElementById('yard-save-btn');
+  if (btn) {
+    btn.textContent = '✅ בוצע';
+    btn.style.background = '#22c55e';
+    btn.style.color = '#fff';
+    btn.onclick = unmarkYardSave;
+  }
+}
+
+function unmarkYardSave() {
+  const btn = document.getElementById('yard-save-btn');
+  if (!btn) return;
+  btn.textContent = '💾 שמור ופרסם לנהגים';
+  btn.style.background = 'var(--gold)';
+  btn.style.color = '#000';
+  btn.onclick = saveYard;
 }
 
 function resetYard() {
