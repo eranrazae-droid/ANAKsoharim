@@ -659,8 +659,6 @@ if ('serviceWorker' in navigator) {
     <div id="inv-done-banner" style="display:none;border-radius:14px;padding:14px 16px;margin-bottom:10px;font-size:14px;font-weight:700;background:#f0fff4;border:2px solid #22c55e;color:#166534"></div>
     <!-- Current assignment status banner -->
     <div id="inv-status-banner" style="display:none;border-radius:14px;padding:14px 16px;margin-bottom:14px;font-size:14px;font-weight:700"></div>
-    <!-- Reset button (manager only, shown when assignment exists) -->
-    <button id="inv-reset-btn" onclick="resetInventoryAssignment()" style="display:none;width:100%;background:#fff0f0;border:2px solid #ef4444;border-radius:14px;padding:13px;font-family:Heebo,sans-serif;font-weight:900;font-size:15px;color:#ef4444;cursor:pointer;margin-bottom:14px">🔄 איפוס בדיקת מלאי (מחק אצל הנהג)</button>
     <!-- Upload area (small when table loaded) -->
     <div style="display:flex;gap:10px;align-items:stretch;margin-bottom:16px">
       <div id="inv-upload-zone" style="flex:1;border:2px dashed var(--gold);border-radius:16px;padding:28px 20px;text-align:center;background:#f8f9ff;cursor:pointer" onclick="document.getElementById('inv-file-input').click()">
@@ -669,7 +667,7 @@ if ('serviceWorker' in navigator) {
         <div style="font-size:13px;color:var(--muted);margin-top:4px">קובץ .xlsx עם מספרי רכב</div>
         <input type="file" id="inv-file-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleInventoryFile(this)">
       </div>
-      <button id="inv-delete-btn" onclick="deleteInventoryTable()" style="display:none;flex-shrink:0;width:56px;background:#fff0f0;border:2px solid #ef4444;border-radius:16px;font-size:22px;cursor:pointer;color:#ef4444" title="מחק טבלה">🗑️</button>
+      <button id="inv-delete-btn" onclick="deleteInventoryTable()" style="flex-shrink:0;width:56px;background:#fff0f0;border:2px solid #ef4444;border-radius:16px;font-size:22px;cursor:pointer;color:#ef4444" title="מחק טבלה">🗑️</button>
     </div>
     <!-- Vehicle list -->
     <div id="inv-list"></div>
@@ -2519,10 +2517,7 @@ function loadLastInventoryAssignment() {
 
     // Shrink upload zone to a small button
     document.getElementById('inv-upload-zone').style.padding = '10px 16px';
-    document.getElementById('inv-delete-btn').style.display = 'flex';
     document.getElementById('inv-delete-btn').dataset.docId = last.id;
-    const resetBtn = document.getElementById('inv-reset-btn');
-    if (resetBtn) { resetBtn.style.display = 'block'; resetBtn.dataset.docId = last.id; }
 
     const rows = last.rowsJson ? JSON.parse(last.rowsJson) : (last.rows || []);
     const headers = last.headers || [];
@@ -2557,9 +2552,7 @@ function loadLastInventoryAssignment() {
 }
 
 function _clearInventoryUI() {
-  document.getElementById('inv-delete-btn').style.display = 'none';
-  const resetBtn = document.getElementById('inv-reset-btn');
-  if (resetBtn) resetBtn.style.display = 'none';
+  document.getElementById('inv-delete-btn').dataset.docId = '';
   document.getElementById('inv-list').innerHTML = '';
   document.getElementById('inv-status-banner').style.display = 'none';
   document.getElementById('inv-done-banner').style.display = 'none';
@@ -2581,17 +2574,6 @@ async function deleteInventoryTable() {
   await deleteDoc(doc(window._db, 'inventory_assignments', docId));
   _clearInventoryUI();
   showToast('🗑️ הטבלה נמחקה');
-}
-
-async function resetInventoryAssignment() {
-  const btn = document.getElementById('inv-reset-btn');
-  const docId = btn?.dataset.docId;
-  if (!docId) return;
-  if (!confirm('לאפס את בדיקת המלאי? הבדיקה תימחק אצל הנהג.')) return;
-  const { deleteDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-  await deleteDoc(doc(window._db, 'inventory_assignments', docId));
-  _clearInventoryUI();
-  showToast('🔄 בדיקת המלאי אופסה');
 }
 
 function renderInvPending(headers, rows) {
@@ -2972,7 +2954,6 @@ window.markChecked = markChecked;
 window.openInventoryScreen = openInventoryScreen;
 window.handleInventoryFile = handleInventoryFile;
 window.submitInventory = submitInventory;
-window.resetInventoryAssignment = resetInventoryAssignment;
 window.openDriverInventoryScreen = openDriverInventoryScreen;
 window.openDriverInvModal = openDriverInvModal;
 window.dinvClick = dinvClick;
