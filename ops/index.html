@@ -1029,7 +1029,8 @@ function renderHome() {
   `).join('');
 
   loadStats();
-  if (!isManager) loadDriverBadges();
+  if (isManager) loadManagerBadges();
+  else loadDriverBadges();
 }
 
 function goToScreen(name) {
@@ -1102,6 +1103,15 @@ function loadDriverBadges() {
       _setCardBadge('yard', status === 'pending' ? 1 : 0);
     });
   } catch(e) { console.warn('loadDriverBadges error', e); }
+}
+
+function loadManagerBadges() {
+  if (!window._CONFIG_DONE) return;
+  try {
+    _onSnap(_query(_colRef('intake_assignments'), _where('status','==','done')), snap => {
+      _setCardBadge('vehicles', snap.size);
+    });
+  } catch(e) { console.warn('loadManagerBadges error', e); }
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -1784,13 +1794,13 @@ async function createIntakeTasks(checklist, allNotes, vehicle) {
     { key: 'c-upholstery',  assignedTo: 'רפד',   label: 'ריפודים' },
     { key: 'c-mats',        assignedTo: 'רפד',   label: 'שטיחים' },
     { key: 'c-sunroof',     assignedTo: 'זז',    label: 'גג נפתח' },
-    { key: 'c-dashboard',   assignedTo: 'כולם',  label: 'מנורות לוח שעונים' },
+    { key: 'c-dashboard',   assignedTo: 'ליאל',  label: 'מנורות לוח שעונים' },
     { key: 'c-windows',     assignedTo: 'חביב',  label: 'מתגי חלונות' },
-    { key: 'c-glass-break', assignedTo: 'כולם',  label: 'שברים בשמשות' },
-    { key: 'c-lights-break',assignedTo: 'כולם',  label: 'שברים בפנסים' },
-    { key: 'c-oil',         assignedTo: 'כולם',  label: 'שמן מנוע' },
-    { key: 'c-coolant',     assignedTo: 'כולם',  label: 'נוזל קירור' },
-    { key: 'c-tires',       assignedTo: 'כולם',  label: 'מצב צמיגים' },
+    { key: 'c-glass-break', assignedTo: 'ליאל',  label: 'שברים בשמשות' },
+    { key: 'c-lights-break',assignedTo: 'ליאל',  label: 'שברים בפנסים' },
+    { key: 'c-oil',         assignedTo: 'ליאל',  label: 'שמן מנוע' },
+    { key: 'c-coolant',     assignedTo: 'ליאל',  label: 'נוזל קירור' },
+    { key: 'c-tires',       assignedTo: 'ליאל',  label: 'מצב צמיגים' },
     { key: 'c-safety',      assignedTo: driverName, label: 'השלם ג\'ק, אפוד, משולש, גלגל ספייר' },
   ];
 
@@ -1837,8 +1847,6 @@ async function markChecked(id) {
   const { getDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
   const snap = await getDoc(doc(window._db, 'intake_assignments', id));
   if (!snap.exists()) return;
-  const data = { id, ...snap.data() };
-  generateIntakePDF(data);
   await _updateDoc(_docRef('intake_assignments', id), { status: 'checked', checkedAt: _serverTs() });
 }
 
