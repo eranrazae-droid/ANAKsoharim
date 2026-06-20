@@ -633,6 +633,39 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
+<!-- ====== MODAL: EDIT INTAKE ====== -->
+<div class="modal-overlay" id="modal-edit-intake">
+  <div class="modal-box">
+    <div class="modal-title">עריכת קליטה <button class="modal-close" onclick="closeModal('modal-edit-intake')">✕</button></div>
+    <input type="hidden" id="ei-id">
+    <div class="form-group">
+      <label>לוחית רישוי</label>
+      <input class="form-input" id="ei-plate" inputmode="numeric" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="form-group"><label>יצרן</label><input class="form-input" id="ei-brand"></div>
+      <div class="form-group"><label>דגם</label><input class="form-input" id="ei-model"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="form-group"><label>צבע</label><input class="form-input" id="ei-color"></div>
+      <div class="form-group"><label>שנה</label><input class="form-input" id="ei-year" type="number"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="form-group"><label>ק"מ</label><input class="form-input" id="ei-km" type="number"></div>
+      <div class="form-group"><label>מספר חניה</label><input class="form-input" id="ei-spot"></div>
+    </div>
+    <div class="form-group">
+      <label>נהג קולט</label>
+      <select class="form-input" id="ei-driver">
+        <option value="עופר">עופר</option>
+        <option value="גיל">גיל</option>
+        <option value="איתי">איתי</option>
+      </select>
+    </div>
+    <button class="btn-submit" onclick="saveEditIntake()">💾 שמור שינויים</button>
+  </div>
+</div>
+
 <!-- ====== MODAL: CAR TYPE (after vehicle submit) ====== -->
 <div class="modal-overlay" id="modal-car-type">
   <div class="modal-box" style="text-align:center">
@@ -1178,6 +1211,7 @@ function loadVehicles() {
             </div>
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">
               <span style="background:${color};color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;white-space:nowrap">${label}</span>
+              ${st === 'pending' ? `<button onclick="openEditIntake('${v.id}')" style="background:#6366f1;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">✏️ עריכה</button>` : ''}
               ${canCheck ? `<button onclick="markChecked('${v.id}')" style="background:var(--dark);color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">📋 נבדק</button>` : ''}
             </div>
           </div>
@@ -1227,6 +1261,47 @@ function loadVehicles() {
       container.innerHTML = mine.map(intakeCard).join('');
     }
   });
+}
+
+/* ── EDIT INTAKE (manager) ── */
+function openEditIntake(id) {
+  import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(({getDoc, doc}) => {
+    getDoc(doc(window._db, 'intake_assignments', id)).then(snap => {
+      if (!snap.exists()) return showToast('לא נמצאה קליטה');
+      const v = snap.data();
+      document.getElementById('ei-id').value    = id;
+      document.getElementById('ei-plate').value = v.plate  || '';
+      document.getElementById('ei-brand').value = v.brand  || '';
+      document.getElementById('ei-model').value = v.model  || '';
+      document.getElementById('ei-color').value = v.color  || '';
+      document.getElementById('ei-year').value  = v.year   || '';
+      document.getElementById('ei-km').value    = v.km     || '';
+      document.getElementById('ei-spot').value  = v.spot   || '';
+      document.getElementById('ei-driver').value = v.assignedTo || 'עופר';
+      openModal('modal-edit-intake');
+    });
+  });
+}
+
+async function saveEditIntake() {
+  const id = document.getElementById('ei-id').value;
+  if (!id) return;
+  try {
+    await _updateDoc(_docRef('intake_assignments', id), {
+      plate:      document.getElementById('ei-plate').value.trim(),
+      brand:      document.getElementById('ei-brand').value.trim(),
+      model:      document.getElementById('ei-model').value.trim(),
+      color:      document.getElementById('ei-color').value.trim(),
+      year:       document.getElementById('ei-year').value,
+      km:         document.getElementById('ei-km').value,
+      spot:       document.getElementById('ei-spot').value.trim(),
+      assignedTo: document.getElementById('ei-driver').value,
+    });
+    closeModal('modal-edit-intake');
+    showToast('✅ הקליטה עודכנה!');
+  } catch(e) {
+    showToast('שגיאה: ' + (e.code || e.message));
+  }
 }
 
 /* ── DRIVER INTAKE ── */
@@ -1817,6 +1892,8 @@ async function selectCarType(type) {
   showToast(`✅ רכב נקלט! סוג: ${type}`);
 }
 
+window.openEditIntake = openEditIntake;
+window.saveEditIntake = saveEditIntake;
 window.openDriverIntake = openDriverIntake;
 window.submitDriverIntake = submitDriverIntake;
 window.markChecked = markChecked;
