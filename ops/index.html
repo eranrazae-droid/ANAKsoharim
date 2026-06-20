@@ -2328,6 +2328,20 @@ function handleInventoryFile(input) {
         inventoryRows = nonEmpty.slice(1).map(r => ({ cells: r, status: null }));
       }
       if (!inventoryRows.length) { showToast('לא נמצאו שורות בקובץ'); return; }
+      // sort by יצרן then דגם
+      const mfrIdx = inventoryHeaders.findIndex(h => h.includes('יצרן'));
+      const mdlIdx = inventoryHeaders.findIndex(h => h.includes('דגם'));
+      if (mfrIdx >= 0 || mdlIdx >= 0) {
+        inventoryRows.sort((a, b) => {
+          const mfrA = mfrIdx >= 0 ? (a.cells[mfrIdx] || '') : '';
+          const mfrB = mfrIdx >= 0 ? (b.cells[mfrIdx] || '') : '';
+          const cmp = mfrA.localeCompare(mfrB, 'he');
+          if (cmp !== 0) return cmp;
+          const mdlA = mdlIdx >= 0 ? (a.cells[mdlIdx] || '') : '';
+          const mdlB = mdlIdx >= 0 ? (b.cells[mdlIdx] || '') : '';
+          return mdlA.localeCompare(mdlB, 'he');
+        });
+      }
       renderInventoryList();
     } catch(err) {
       showToast('שגיאה בקריאת הקובץ');
