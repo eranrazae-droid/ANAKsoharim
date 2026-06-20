@@ -1717,6 +1717,15 @@ async function viewIntakeForm(id) {
     </div>`;
   }
 
+  // collect any photos that didn't match a checklist key
+  const matchedUrls = new Set(Object.entries(checklistLabels).flatMap(([key]) => photos[key]||[]));
+  const unmatchedUrls = Object.values(photos).flat().filter(u => u && !matchedUrls.has(u));
+  const extraPhotos = unmatchedUrls.length
+    ? `<div style="margin-bottom:14px"><div style="font-weight:900;font-size:13px;color:var(--muted);margin-bottom:8px">📸 תמונות נוספות</div>
+       <div style="display:flex;gap:8px;flex-wrap:wrap">${unmatchedUrls.map(url =>
+         `<img src="${url}" onclick="openPhotoZoom('${url}')" style="width:80px;height:80px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid #ccc">`
+       ).join('')}</div></div>` : '';
+
   const km = v.km ? `<span style="margin-left:16px"><strong>ק"מ:</strong> ${esc(v.km)}</span>` : '';
   const code = v.code ? `<span><strong>קוד:</strong> ${esc(v.code)}</span>` : '';
   const notes = v.notes ? `<div style="background:#f8f8ff;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:14px">📝 <strong>הערות:</strong> ${esc(v.notes)}</div>` : '';
@@ -1728,6 +1737,7 @@ async function viewIntakeForm(id) {
       נהג קולט: <strong>${esc(v.completedBy||v.assignedTo||'')}</strong> · ${ts}${v.intakeDateTime ? '<br>תאריך קליטה: <strong>' + esc(v.intakeDateTime) + '</strong>' : ''}
     </div>
     ${notes}
+    ${extraPhotos}
     <div style="font-weight:900;font-size:13px;color:var(--muted);margin-bottom:8px">🔍 ממצאי בדיקה</div>
     ${rows || '<div style="color:var(--muted);text-align:center;padding:20px">אין נתוני צ׳קליסט</div>'}
   `;
@@ -1755,10 +1765,11 @@ function generateIntakePDF(v) {
     const color = val === 'v' ? '#166534' : '#991b1b';
     const bg = val === 'v' ? '#f0fff4' : '#fff0f0';
     const note = cl[key+'_note'] ? `<div style="font-size:12px;color:#555;margin-top:4px">הערה: ${cl[key+'_note']}</div>` : '';
-    const imgs = (photos[key]||[]).map(url => `<img src="${url}" style="max-width:110px;max-height:80px;border-radius:4px;margin:3px;display:inline-block">`).join('');
+    const keyUrls = (photos[key]||[]);
+    const imgs = keyUrls.map(url => `<img src="${url}" onclick="openPhotoZoom('${url}')" style="width:80px;height:80px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid #ccc;margin:3px">`).join('');
     rows += `<div style="display:flex;align-items:flex-start;gap:10px;padding:8px 10px;background:${bg};border-radius:6px;margin-bottom:6px">
       <span style="font-size:16px;font-weight:900;color:${color};min-width:18px">${icon}</span>
-      <div style="flex:1"><div style="font-size:13px;font-weight:700">${label}</div>${note}${imgs ? `<div style="margin-top:4px">${imgs}</div>` : ''}</div>
+      <div style="flex:1"><div style="font-size:13px;font-weight:700">${label}</div>${note}${imgs ? `<div style="display:flex;flex-wrap:wrap;margin-top:6px">${imgs}</div>` : ''}</div>
     </div>`;
   }
 
