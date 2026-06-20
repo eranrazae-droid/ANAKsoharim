@@ -829,6 +829,9 @@ window._query     = CONFIG_DONE ? query     : null;
 window._orderBy   = CONFIG_DONE ? orderBy   : null;
 window._serverTs  = CONFIG_DONE ? serverTimestamp : null;
 window._where     = CONFIG_DONE ? where     : null;
+window._uploadBytes   = CONFIG_DONE ? uploadBytes   : null;
+window._getDownloadURL = CONFIG_DONE ? getDownloadURL : null;
+window._storageRef    = CONFIG_DONE ? storageRef    : null;
 
 window.dispatchEvent(new Event('firebase-ready'));
 </script>
@@ -1651,11 +1654,7 @@ async function submitDriverIntake() {
       showToast(`נא למלא הערה עבור: ${label}`);
       return;
     }
-    if (_photoKeys.includes(key) && !(ciPhotoFiles[key]||[]).length) {
-      document.getElementById('note-' + key)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      showToast(`נא לצלם תמונה עבור: ${label}`);
-      return;
-    }
+    // photo is optional — upload if present but don't block submission
   }
 
   const checklist = getChecklist();
@@ -1908,17 +1907,19 @@ async function uploadPhotos(key, vehicleId) {
   const files = ciPhotoFiles[key] || [];
   const urls = [];
   if (!files.length) return urls;
-  console.log(`uploadPhotos: uploading ${files.length} file(s) for key=${key}`);
-  const { getStorage, ref: sRef, uploadBytes: uBytes, getDownloadURL: getDL } =
-    await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js");
-  const st = window._storage || getStorage(window._app);
+  const st = window._storage;
+  const sRef = window._storageRef;
+  const uBytes = window._uploadBytes;
+  const getDL = window._getDownloadURL;
+  if (!st || !sRef || !uBytes || !getDL) {
+    console.warn('uploadPhotos: storage not initialized');
+    return urls;
+  }
   for (let i = 0; i < files.length; i++) {
     const path = `vehicles/${vehicleId}/${key}_${i}_${Date.now()}`;
-    console.log(`uploadPhotos: uploading to path=${path}`);
     const r = sRef(st, path);
     await uBytes(r, files[i]);
     const url = await getDL(r);
-    console.log(`uploadPhotos: got url=${url}`);
     urls.push(url);
   }
   return urls;
