@@ -475,10 +475,6 @@ if ('serviceWorker' in navigator) {
       <span id="di-title">קליטת רכב</span>
       <button class="modal-close" onclick="closeModal('modal-driver-intake')">✕</button>
     </div>
-    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
-      <input id="di-datetime" class="form-input" style="flex:1;font-size:14px;font-weight:700" placeholder="תאריך ושעת קליטה..." readonly>
-      <button type="button" onclick="fillIntakeDateTime()" style="background:var(--gold);color:#000;border:none;border-radius:12px;padding:10px 14px;font-family:Heebo,sans-serif;font-weight:900;font-size:13px;cursor:pointer;white-space:nowrap">📅 עכשיו</button>
-    </div>
     <div id="di-vehicle-info" style="background:#f0f2ff;border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:14px;line-height:1.8"></div>
 
     <!-- צ'קליסט -->
@@ -1553,7 +1549,6 @@ function openDriverIntake(id) {
       });
     });
   }
-  document.getElementById('di-datetime').value = '';
   openModal('modal-driver-intake');
   // restore saved draft after modal opens
   setTimeout(() => restoreIntakeDraft(id), 50);
@@ -1609,10 +1604,12 @@ async function submitDriverIntake() {
   }
 
   const checklist = getChecklist();
-  const notes         = document.getElementById('di-notes').value.trim();
-  const km            = document.getElementById('di-km').value.trim();
-  const code          = document.getElementById('di-code').value.trim();
-  const intakeDateTime = document.getElementById('di-datetime').value.trim();
+  const notes     = document.getElementById('di-notes').value.trim();
+  const km        = document.getElementById('di-km').value.trim();
+  const code      = document.getElementById('di-code').value.trim();
+  const now = new Date();
+  const intakeDateTime = now.toLocaleDateString('he-IL', { day:'numeric', month:'numeric', year:'numeric' }) +
+    ' · ' + now.toLocaleTimeString('he-IL', { hour:'2-digit', minute:'2-digit' });
 
   if (!_updateDoc || !_docRef) { showToast('שגיאה: Firebase לא אותחל'); return; }
   showToast('⏳ שולח טופס...');
@@ -2487,13 +2484,6 @@ function filterVehiclesByDriver(name) {
   window._vehicleDriverFilter = (window._vehicleDriverFilter === name) ? null : name;
   loadVehicles();
 }
-function fillIntakeDateTime() {
-  const now = new Date();
-  const val = now.toLocaleDateString('he-IL', { day:'numeric', month:'numeric', year:'numeric' }) +
-    ' · ' + now.toLocaleTimeString('he-IL', { hour:'2-digit', minute:'2-digit' });
-  document.getElementById('di-datetime').value = val;
-}
-window.fillIntakeDateTime = fillIntakeDateTime;
 
 window.filterVehiclesByDriver = filterVehiclesByDriver;
 
