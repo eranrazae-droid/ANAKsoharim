@@ -1884,18 +1884,22 @@ async function createIntakeTasks(checklist, allNotes, vehicle) {
   const prefix = `לפי הקליטה של ${driverName} לרכב מספר ${plate} מסוג ${carDesc}`;
 
   const rules = [
-    { key: 'c-steering',    assignedTo: 'רפד',   label: 'קילופים בהגה' },
-    { key: 'c-upholstery',  assignedTo: 'רפד',   label: 'ריפודים' },
-    { key: 'c-mats',        assignedTo: 'רפד',   label: 'שטיחים' },
-    { key: 'c-sunroof',     assignedTo: 'זז',    label: 'גג נפתח' },
-    { key: 'c-dashboard',   assignedTo: 'ליאל',  label: 'מנורות לוח שעונים' },
-    { key: 'c-windows',     assignedTo: 'חביב',  label: 'מתגי חלונות' },
-    { key: 'c-glass-break', assignedTo: 'ליאל',  label: 'שברים בשמשות' },
-    { key: 'c-lights-break',assignedTo: 'ליאל',  label: 'שברים בפנסים' },
-    { key: 'c-oil',         assignedTo: 'ליאל',  label: 'שמן מנוע' },
-    { key: 'c-coolant',     assignedTo: 'ליאל',  label: 'נוזל קירור' },
-    { key: 'c-tires',       assignedTo: 'ליאל',  label: 'מצב צמיגים' },
-    { key: 'c-safety',      assignedTo: driverName, label: 'השלם ג\'ק, אפוד, משולש, גלגל ספייר' },
+    { key: 'c-steering',    col: 'רפד',              title: 'קילופים בהגה' },
+    { key: 'c-upholstery',  col: 'רפד',              title: 'ריפודים (חורים/קרעים)' },
+    { key: 'c-mats',        col: 'משימות כלליות',    title: 'שטיחים' },
+    { key: 'c-sunroof',     col: 'זגג',              title: 'גג נפתח' },
+    { key: 'c-dashboard',   col: 'משימות כלליות',    title: 'מנורות לוח שעונים' },
+    { key: 'c-ac',          col: 'משימות כלליות',    title: 'מזגן' },
+    { key: 'c-windows',     col: 'חביב',             title: 'מתגי חלונות' },
+    { key: 'c-glove',       col: driverName,         title: 'ניקיון תא כפפות' },
+    { key: 'c-tires',       col: 'משימות כלליות',    title: 'מצב צמיגים' },
+    { key: 'c-frames-ext',  col: driverName,         title: 'מסגרות' },
+    { key: 'c-bulbs',       col: 'גיל',              title: 'מנורות שרופות' },
+    { key: 'c-glass-break', col: 'משימות כלליות',    title: 'שברים בשמשות' },
+    { key: 'c-lights-break',col: 'משימות כלליות',    title: 'שברים בפנסים' },
+    { key: 'c-safety',      col: driverName,         title: 'השלם ג\'ק, אפוד, משולש, גלגל ספייר' },
+    { key: 'c-oil',         col: 'משימות כלליות',    title: 'שמן מנוע' },
+    { key: 'c-coolant',     col: 'משימות כלליות',    title: 'נוזל קירור' },
   ];
 
   const getNoteForKey = (key) => {
@@ -1903,14 +1907,23 @@ async function createIntakeTasks(checklist, allNotes, vehicle) {
     return el ? el.value.trim() : '';
   };
 
+  // Map column name → assignedTo value
+  const colToAssigned = {
+    'רפד': 'רפד', 'זגג': 'זגג', 'חביב': 'חביב', 'גיל': 'גיל',
+    'משימות כלליות': 'כולם',
+  };
+
   for (const rule of rules) {
     if (checklist[rule.key] !== 'x') continue;
     const note = getNoteForKey(rule.key);
-    const title = `${prefix} – ${rule.label}${note ? ': ' + note : ''}`;
+    const taskTitle = `${prefix} – ${rule.title}${note ? ': ' + note : ''}`;
+    const isDriverCol = !colToAssigned[rule.col]; // driver name column
+    const label     = isDriverCol ? rule.col      : rule.col;
+    const assignedTo = isDriverCol ? rule.col     : colToAssigned[rule.col];
     await _addDoc(_colRef('tasks'), {
-      title,
-      assignedTo: rule.assignedTo,
-      label: 'משימות כלליות',
+      title: taskTitle,
+      assignedTo,
+      label,
       priority: 'med',
       status: 'open',
       createdBy: driverName,
