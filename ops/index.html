@@ -134,6 +134,11 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
 .ci-box.v-active{border-color:var(--success);color:var(--success)}
 .ci-box.x-active{border-color:var(--danger);color:var(--danger)}
 .ci-note-row{padding:0 4px 8px;margin-top:-4px}
+.ci-photos{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.ci-photo-box{width:72px;height:72px;border:2px dashed var(--border);border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;background:#f8f9ff;flex-shrink:0;position:relative}
+.ci-photo-box img{width:100%;height:100%;object-fit:cover;border-radius:8px}
+.ci-photo-box .add-icon{font-size:24px;color:var(--muted)}
+.ci-photo-box .rm-btn{position:absolute;top:2px;left:2px;background:rgba(0,0,0,.55);color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1}
 .photo-upload{border:2px dashed var(--border);border-radius:14px;padding:24px;text-align:center;cursor:pointer;transition:all .2s}
 .photo-upload:hover{border-color:var(--gold);background:#fffbf0}
 .photo-upload input{display:none}
@@ -406,7 +411,11 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
       <div id="note-c-tires" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="cn-c-tires" placeholder="הערה לצמיגים..." rows="2"></textarea></div>
 
       <div class="checklist-item"><span class="ci-label">ריפודים (חורים/קרעים)</span><div class="ci-btns"><button type="button" class="ci-box" data-key="c-upholstery" data-val="v" onclick="ciClick(this)">✓</button><button type="button" class="ci-box" data-key="c-upholstery" data-val="x" onclick="ciClick(this)">✕</button></div></div>
-      <div id="note-c-upholstery" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="cn-c-upholstery" placeholder="הערה לריפודים..." rows="2"></textarea></div>
+      <div id="note-c-upholstery" class="ci-note-row" style="display:none">
+        <textarea class="form-textarea" id="cn-c-upholstery" placeholder="הערה לריפודים..." rows="2"></textarea>
+        <div class="ci-photos" id="photos-c-upholstery"></div>
+        <input type="file" accept="image/*" capture="environment" id="file-c-upholstery" style="display:none" multiple onchange="addPhotos('c-upholstery',this)">
+      </div>
 
       <div class="checklist-item"><span class="ci-label">השלמת חוסר שטיחים / שטיחים בלויים</span><div class="ci-btns"><button type="button" class="ci-box" data-key="c-mats" data-val="v" onclick="ciClick(this)">✓</button><button type="button" class="ci-box" data-key="c-mats" data-val="x" onclick="ciClick(this)">✕</button></div></div>
       <div id="note-c-mats" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="cn-c-mats" placeholder="הערה לשטיחים..." rows="2"></textarea></div>
@@ -421,7 +430,11 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
       <div id="note-c-windows" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="cn-c-windows" placeholder="הערה לחלונות..." rows="2"></textarea></div>
 
       <div class="checklist-item"><span class="ci-label">הגה – קילופים וכדומה</span><div class="ci-btns"><button type="button" class="ci-box" data-key="c-steering" data-val="v" onclick="ciClick(this)">✓</button><button type="button" class="ci-box" data-key="c-steering" data-val="x" onclick="ciClick(this)">✕</button></div></div>
-      <div id="note-c-steering" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="cn-c-steering" placeholder="הערה להגה..." rows="2"></textarea></div>
+      <div id="note-c-steering" class="ci-note-row" style="display:none">
+        <textarea class="form-textarea" id="cn-c-steering" placeholder="הערה להגה..." rows="2"></textarea>
+        <div class="ci-photos" id="photos-c-steering"></div>
+        <input type="file" accept="image/*" capture="environment" id="file-c-steering" style="display:none" multiple onchange="addPhotos('c-steering',this)">
+      </div>
 
 
       <div class="checklist-item"><span class="ci-label">תקינות מזגן (חום/קור)</span><div class="ci-btns"><button type="button" class="ci-box" data-key="c-ac" data-val="v" onclick="ciClick(this)">✓</button><button type="button" class="ci-box" data-key="c-ac" data-val="x" onclick="ciClick(this)">✕</button></div></div>
@@ -541,6 +554,8 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, setDoc, query, orderBy, serverTimestamp, where }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 
 // ┌─────────────────────────────────────────────────────────────────┐
 // │  הכנס כאן את פרטי ה-Firebase שלך (ראה הוראות בתחתית הדף)      │
@@ -557,10 +572,11 @@ const firebaseConfig = {
 
 const CONFIG_DONE = !firebaseConfig.apiKey.includes("PASTE");
 
-let db, app;
+let db, app, storage;
 if (CONFIG_DONE) {
-  app = initializeApp(firebaseConfig);
-  db  = getFirestore(app);
+  app     = initializeApp(firebaseConfig);
+  db      = getFirestore(app);
+  storage = getStorage(app);
 }
 
 // ── expose to global scope ──
@@ -927,6 +943,54 @@ function loadVehicles() {
   });
 }
 
+/* ── PHOTO UPLOAD ── */
+const ciPhotoFiles = {}; // { 'c-upholstery': [File,...], ... }
+
+function addPhotos(key, input) {
+  if (!ciPhotoFiles[key]) ciPhotoFiles[key] = [];
+  const remaining = 4 - ciPhotoFiles[key].length;
+  const files = [...input.files].slice(0, remaining);
+  ciPhotoFiles[key].push(...files);
+  input.value = '';
+  renderPhotoGrid(key);
+}
+
+function removePhoto(key, idx) {
+  ciPhotoFiles[key].splice(idx, 1);
+  renderPhotoGrid(key);
+}
+
+function renderPhotoGrid(key) {
+  const grid = document.getElementById('photos-' + key);
+  if (!grid) return;
+  const files = ciPhotoFiles[key] || [];
+  let html = files.map((f, i) => {
+    const url = URL.createObjectURL(f);
+    return `<div class="ci-photo-box">
+      <img src="${url}">
+      <button class="rm-btn" onclick="removePhoto('${key}',${i})">✕</button>
+    </div>`;
+  }).join('');
+  if (files.length < 4) {
+    html += `<div class="ci-photo-box" onclick="document.getElementById('file-${key}').click()">
+      <span class="add-icon">📷</span>
+    </div>`;
+  }
+  grid.innerHTML = html;
+}
+
+async function uploadPhotos(key, vehicleId) {
+  const files = ciPhotoFiles[key] || [];
+  const urls = [];
+  for (let i = 0; i < files.length; i++) {
+    const path = `vehicles/${vehicleId}/${key}_${i}_${Date.now()}`;
+    const ref = storageRef(storage, path);
+    await uploadBytes(ref, files[i]);
+    urls.push(await getDownloadURL(ref));
+  }
+  return urls;
+}
+
 function ciClick(btn) {
   const key = btn.dataset.key;
   const val = btn.dataset.val;
@@ -960,6 +1024,10 @@ function openNewVehicleModal() {
   document.getElementById('v-fetch-status').textContent = '';
   document.querySelectorAll('.ci-box').forEach(b => b.classList.remove('v-active','x-active'));
   document.querySelectorAll('.ci-note-row').forEach(r => { r.style.display = 'none'; r.querySelector('textarea').value = ''; });
+  ['c-upholstery','c-steering'].forEach(k => {
+    ciPhotoFiles[k] = [];
+    renderPhotoGrid(k);
+  });
   openModal('modal-vehicle');
 }
 
@@ -994,6 +1062,16 @@ async function submitVehicle() {
   if (!plate) return showToast('נא להזין מספר לוחית');
   if (!window._CONFIG_DONE) return showToast('Firebase לא מחובר');
   const checklist = getChecklist();
+  const vehicleId = plate + '_' + Date.now();
+  // upload photos if any
+  const photoKeys = ['c-upholstery','c-steering'];
+  const photoUrls = {};
+  for (const k of photoKeys) {
+    if (ciPhotoFiles[k]?.length) {
+      showToast('⏳ מעלה תמונות...');
+      photoUrls[k] = await uploadPhotos(k, vehicleId);
+    }
+  }
   await _addDoc(_colRef('vehicles'), {
     plate,
     brand:       document.getElementById('v-brand').value.trim(),
@@ -1007,6 +1085,7 @@ async function submitVehicle() {
     batteryKm:   document.getElementById('v-battery-km').value,
     notes:       document.getElementById('v-notes').value.trim(),
     checklist,
+    photos:      photoUrls,
     receivedBy:  currentUser.name,
     receivedAt:  _serverTs()
   });
@@ -1190,6 +1269,8 @@ window.openNewTaskModal = openNewTaskModal;
 window.openNewVehicleModal = openNewVehicleModal;
 window.fetchVehicleData = fetchVehicleData;
 window.ciClick = ciClick;
+window.addPhotos = addPhotos;
+window.removePhoto = removePhoto;
 window.openNewPartModal = openNewPartModal;
 window.submitTask = submitTask;
 window.submitVehicle = submitVehicle;
