@@ -1633,6 +1633,7 @@ async function saveEditIntake() {
 
 /* ── DRIVER INTAKE ── */
 let _currentIntakeId = null;
+let _currentIntakeVehicle = null;
 
 function openDriverIntake(id) {
   _currentIntakeId = id;
@@ -1651,6 +1652,7 @@ function openDriverIntake(id) {
       getDoc(doc(window._db, 'intake_assignments', id)).then(snap => {
         if (!snap.exists()) return;
         const v = snap.data();
+        _currentIntakeVehicle = v;
         document.getElementById('di-title').textContent = `קליטת רכב – ${v.plate}`;
         document.getElementById('di-vehicle-info').innerHTML =
           `<strong>${esc(v.plate)}</strong> &nbsp;${[v.brand,v.model,v.color,v.year ? 'שנת '+v.year : ''].filter(Boolean).map(esc).join(' • ')}`;
@@ -1759,11 +1761,58 @@ async function submitDriverIntake() {
     return;
   }
 
+  // auto-create tasks for X-marked items
+  await createIntakeTasks(checklist, notes, _currentIntakeVehicle);
+
   clearIntakeDraft(_currentIntakeId);
   _currentIntakeId = null;
+  _currentIntakeVehicle = null;
   closeModal('modal-driver-intake');
   showToast('✅ הטופס נשלח בהצלחה!');
   openVehiclesScreen();
+}
+
+async function createIntakeTasks(checklist, allNotes, vehicle) {
+  if (!vehicle) return;
+  const driverName = currentUser.name;
+  const plate = vehicle.plate || '';
+  const carDesc = [vehicle.brand, vehicle.model].filter(Boolean).join(' ');
+  const prefix = `לפי הקליטה של ${driverName} לרכב מספר ${plate} מסוג ${carDesc}`;
+
+  const rules = [
+    { key: 'c-steering',    assignedTo: 'רפד',   label: 'קילופים בהגה' },
+    { key: 'c-upholstery',  assignedTo: 'רפד',   label: 'ריפודים' },
+    { key: 'c-mats',        assignedTo: 'רפד',   label: 'שטיחים' },
+    { key: 'c-sunroof',     assignedTo: 'זז',    label: 'גג נפתח' },
+    { key: 'c-dashboard',   assignedTo: 'כולם',  label: 'מנורות לוח שעונים' },
+    { key: 'c-windows',     assignedTo: 'חביב',  label: 'מתגי חלונות' },
+    { key: 'c-glass-break', assignedTo: 'כולם',  label: 'שברים בשמשות' },
+    { key: 'c-lights-break',assignedTo: 'כולם',  label: 'שברים בפנסים' },
+    { key: 'c-oil',         assignedTo: 'כולם',  label: 'שמן מנוע' },
+    { key: 'c-coolant',     assignedTo: 'כולם',  label: 'נוזל קירור' },
+    { key: 'c-tires',       assignedTo: 'כולם',  label: 'מצב צמיגים' },
+    { key: 'c-safety',      assignedTo: driverName, label: 'השלם ג\'ק, אפוד, משולש, גלגל ספייר' },
+  ];
+
+  const getNoteForKey = (key) => {
+    const el = document.getElementById('cn-' + key);
+    return el ? el.value.trim() : '';
+  };
+
+  for (const rule of rules) {
+    if (checklist[rule.key] !== 'x') continue;
+    const note = getNoteForKey(rule.key);
+    const title = `${prefix} – ${rule.label}${note ? ': ' + note : ''}`;
+    await _addDoc(_colRef('tasks'), {
+      title,
+      assignedTo: rule.assignedTo,
+      label: 'משימות כלליות',
+      priority: 'med',
+      status: 'open',
+      createdBy: driverName,
+      createdAt: _serverTs()
+    });
+  }
 }
 
 async function resendIntake(id) {
