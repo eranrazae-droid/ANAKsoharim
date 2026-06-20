@@ -1240,6 +1240,7 @@ function _onDragStart(e, taskId) {
     document.getElementById('task-list-container')?.classList.add('dragging-active');
   }, 0);
   e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', taskId);
 }
 function _onDragEnd() {
   _dragTaskEl?.classList.remove('dragging');
@@ -1278,10 +1279,7 @@ function renderTasksFromCache() {
   const _driverNames = ['עופר','גיל','איתי'];
   let allTasks = tasksCache;
   if (!isManager) {
-    allTasks = allTasks.filter(t => {
-      if (_driverNames.includes(t.label)) return t.label === myName;
-      return t.assignedTo === myName || t.assignedTo === 'כולם';
-    });
+    allTasks = allTasks.filter(t => t.label === myName || t.assignedTo === myName);
   }
 
   const prioOrder   = { high: 0, med: 1, low: 2 };
@@ -1303,7 +1301,7 @@ function renderTasksFromCache() {
         <div style="display:flex;gap:4px;flex-shrink:0;align-items:center">
           ${isManager && !done ? `<button onclick="openEditTask('${t.id}')" style="background:#6366f1;color:#fff;border:none;border-radius:999px;width:24px;height:24px;cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0">✏️</button>` : ''}
           <button class="task-done-btn${done?' done':''}" onclick="toggleTaskDone('${t.id}','${t.status}')">${done?'✓':''}</button>
-          ${done ? `<button onclick="deleteTask('${t.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:999px;width:24px;height:24px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="מחק">🗑</button>` : ''}
+          ${isManager ? `<button onclick="deleteTask('${t.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:999px;width:24px;height:24px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="מחק">🗑</button>` : ''}
         </div>
       </div>
       ${t.notes ? `<div class="task-notes" style="font-size:12px;color:var(--muted);margin-bottom:6px">${esc(t.notes)}</div>` : ''}
@@ -1487,6 +1485,7 @@ window.saveEditTask = saveEditTask;
 
 async function deleteTask(id) {
   if (!window._CONFIG_DONE) return;
+  if (!confirm('למחוק את המשימה?')) return;
   const { deleteDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
   await deleteDoc(doc(window._db, 'tasks', id));
 }
