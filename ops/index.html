@@ -3120,10 +3120,11 @@ function loadYardData() {
     if (!isManager) {
       // Driver: always sync table from Firestore
       yardData = d.data || {};
+      renderYardTable();
       renderYardInputValues();
+      const hasData = Object.values(yardData).some(v => v && String(v).trim());
       const toolbar = document.getElementById('yard-driver-toolbar');
-      if (toolbar) toolbar.style.display = d.status === 'pending' ? 'flex' : 'none';
-      if (d.status === 'pending') renderYardTable();
+      if (toolbar) toolbar.style.display = hasData ? 'flex' : 'none';
     } else {
       // Manager: only react to status transitions, never overwrite live edits
       if (_yardLastStatus === null) {
