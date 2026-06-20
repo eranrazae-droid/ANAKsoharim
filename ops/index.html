@@ -685,7 +685,6 @@ if ('serviceWorker' in navigator) {
   <div class="modal-box" style="max-height:90vh;overflow-y:auto">
     <div class="modal-title">טופס קליטה <button class="modal-close" onclick="closeModal('modal-view-intake')">✕</button></div>
     <div id="view-intake-content"></div>
-    <button class="btn-submit" onclick="printViewIntake()" style="margin-top:12px;background:var(--dark)">🖨️ הדפסה / שמירה PDF</button>
   </div>
 </div>
 
@@ -717,6 +716,8 @@ if ('serviceWorker' in navigator) {
 
 <!-- SheetJS for Excel parsing -->
 <script async src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<!-- html2pdf for PDF download -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
 <!-- ====== FIREBASE ====== -->
 <script type="module">
@@ -1503,56 +1504,65 @@ async function viewIntakeForm(id) {
   openModal('modal-view-intake');
 }
 
-function printViewIntake() {
-  if (window._viewIntakeData) generateIntakePDF(window._viewIntakeData);
-}
-
 function generateIntakePDF(v) {
   const checklistLabels = {
-    'c-oil': 'שמן מנוע','c-coolant': 'נוזל קירור','c-safety': 'ג׳ק, אפוד, משולש, ספייר',
+    'c-oil': 'שמן מנוע','c-coolant': 'נוזל קירור','c-safety': 'ג\'ק, אפוד, משולש, ספייר',
     'c-lights-break': 'שברים בפנסים','c-glass-break': 'שברים בשמשות','c-bulbs': 'מנורות שרופות',
-    'c-frames-ext': 'מסגרות','c-glove': 'ניקיון תא כפפות','c-tires': 'מצב צמיגים',
-    'c-upholstery': 'ריפודים','c-mats': 'שטיחים','c-windows': 'מתגי חלונות',
-    'c-steering': 'הגה – קילופים','c-ac': 'מזגן','c-dashboard': 'מנורות לוח שעונים','c-sunroof': 'גג נפתח'
+    'c-frames-ext': 'מסגרות','c-tires': 'מצב צמיגים','c-glove': 'ניקיון תא כפפות',
+    'c-windows': 'מתגי חלונות','c-ac': 'מזגן','c-dashboard': 'מנורות לוח שעונים',
+    'c-sunroof': 'גג נפתח','c-upholstery': 'ריפודים','c-mats': 'שטיחים','c-steering': 'הגה - קילופים'
   };
   const cl = v.checklist || {};
   const photos = v.photoUrls || {};
   const ts = v.completedAt?.toDate ? v.completedAt.toDate().toLocaleString('he-IL') : '';
 
-  let checkRows = '';
+  let rows = '';
   for (const [key, label] of Object.entries(checklistLabels)) {
     const val = cl[key];
-    const icon = val === 'v' ? '✅' : val === 'x' ? '❌' : '⬜';
-    const note = cl[key+'_note'] ? `<div style="color:#555;font-size:13px;margin-top:4px">📝 ${cl[key+'_note']}</div>` : '';
-    const imgs = (photos[key]||[]).map(url => `<img src="${url}" style="max-width:120px;max-height:90px;border-radius:6px;margin:4px">`).join('');
-    checkRows += `<tr style="border-bottom:1px solid #eee"><td style="padding:8px 12px;font-size:14px;font-weight:600">${icon} ${label}</td><td>${note}${imgs}</td></tr>`;
+    if (!val) continue;
+    const icon = val === 'v' ? '✓' : '✕';
+    const color = val === 'v' ? '#166534' : '#991b1b';
+    const bg = val === 'v' ? '#f0fff4' : '#fff0f0';
+    const note = cl[key+'_note'] ? `<div style="font-size:12px;color:#555;margin-top:4px">הערה: ${cl[key+'_note']}</div>` : '';
+    const imgs = (photos[key]||[]).map(url => `<img src="${url}" style="max-width:110px;max-height:80px;border-radius:4px;margin:3px;display:inline-block">`).join('');
+    rows += `<div style="display:flex;align-items:flex-start;gap:10px;padding:8px 10px;background:${bg};border-radius:6px;margin-bottom:6px">
+      <span style="font-size:16px;font-weight:900;color:${color};min-width:18px">${icon}</span>
+      <div style="flex:1"><div style="font-size:13px;font-weight:700">${label}</div>${note}${imgs ? `<div style="margin-top:4px">${imgs}</div>` : ''}</div>
+    </div>`;
   }
 
-  const html = `<!DOCTYPE html><html dir="rtl" lang="he"><head><meta charset="UTF-8">
-<title>קליטת רכב ${v.plate}</title>
-<style>body{font-family:Arial,sans-serif;margin:24px;color:#1a1a2e;direction:rtl}
-h1{font-size:22px;margin-bottom:4px}h2{font-size:16px;color:#555;margin-bottom:16px}
-table{width:100%;border-collapse:collapse}th{background:#1a1a2e;color:#fff;padding:10px 12px;text-align:right}
-td{padding:8px 12px;vertical-align:top}.info{background:#f0f2ff;border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:15px}
-</style></head><body>
-<h1>🚗 טופס קליטת רכב</h1>
-<h2>ענק הרכבים</h2>
-<div class="info">
-  <strong>לוחית:</strong> ${esc(v.plate)} &nbsp;
-  <strong>יצרן/דגם:</strong> ${esc((v.brand||'')+(v.model?' '+v.model:''))} &nbsp;
-  <strong>שנה:</strong> ${esc(v.year||'')} &nbsp;
-  <strong>צבע:</strong> ${esc(v.color||'')} &nbsp;
-  <strong>ק"מ:</strong> ${esc(v.km||'')}<br>
-  <strong>נהג קולט:</strong> ${esc(v.completedBy||v.assignedTo)} &nbsp;
-  <strong>תאריך:</strong> ${ts}
-</div>
-<table><thead><tr><th>סעיף</th><th>פרטים</th></tr></thead><tbody>${checkRows}</tbody></table>
-${v.notes ? `<div style="margin-top:20px;padding:12px;background:#fffbe6;border-radius:8px"><strong>הערות:</strong> ${esc(v.notes)}</div>` : ''}
-<script>window.onload=()=>window.print()<\/script>
-</body></html>`;
+  const el = document.createElement('div');
+  el.style.cssText = 'font-family:Arial,sans-serif;direction:rtl;padding:20px;color:#1a1a2e;width:700px';
+  el.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;border-bottom:3px solid #1a1a2e;padding-bottom:12px">
+      <div>
+        <div style="font-size:22px;font-weight:900">טופס קליטת רכב</div>
+        <div style="font-size:14px;color:#666">ענק הרכבים</div>
+      </div>
+      <div style="font-size:28px;font-weight:900;letter-spacing:2px">${esc(v.plate)}</div>
+    </div>
+    <div style="background:#f0f2ff;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px;line-height:2">
+      <strong>יצרן/דגם:</strong> ${esc((v.brand||'')+' '+(v.model||''))} &nbsp;
+      <strong>שנה:</strong> ${esc(v.year||'')} &nbsp;
+      <strong>צבע:</strong> ${esc(v.color||'')} &nbsp;
+      <strong>חניה:</strong> ${esc(v.spot||'')} &nbsp;
+      <strong>ק"מ:</strong> ${esc(v.km||'')}<br>
+      <strong>נהג קולט:</strong> ${esc(v.completedBy||v.assignedTo||'')} &nbsp;
+      <strong>תאריך:</strong> ${ts}
+    </div>
+    <div style="font-size:14px;font-weight:900;margin-bottom:8px">ממצאי בדיקה</div>
+    ${rows || '<div style="color:#999;font-size:13px">אין נתוני צ\'קליסט</div>'}
+    ${v.notes ? `<div style="margin-top:14px;background:#fffbe6;border-radius:6px;padding:10px 14px;font-size:13px"><strong>הערות נוספות:</strong> ${esc(v.notes)}</div>` : ''}
+  `;
 
-  const w = window.open('', '_blank');
-  if (w) { w.document.write(html); w.document.close(); }
+  showToast('מכין PDF...');
+  html2pdf().set({
+    margin: 10,
+    filename: `קליטה-${v.plate}.pdf`,
+    image: { type: 'jpeg', quality: 0.95 },
+    html2canvas: { scale: 2, useCORS: true },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+  }).from(el).save().then(() => showToast('✅ PDF הורד בהצלחה'));
 }
 
 /* ── PHOTO UPLOAD ── */
@@ -2170,7 +2180,6 @@ async function selectCarType(type) {
 }
 
 window.viewIntakeForm = viewIntakeForm;
-window.printViewIntake = printViewIntake;
 window.deleteIntake = deleteIntake;
 window.openEditIntake = openEditIntake;
 window.saveEditIntake = saveEditIntake;
