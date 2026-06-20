@@ -2206,7 +2206,7 @@ function loadLastInventoryAssignment() {
     // Shrink upload zone to a small button
     document.getElementById('inv-upload-zone').style.padding = '10px 16px';
 
-    const rows = last.rows || [];
+    const rows = last.rowsJson ? JSON.parse(last.rowsJson) : (last.rows || []);
     const headers = last.headers || [];
 
     if (last.status === 'done') {
@@ -2327,15 +2327,20 @@ async function submitInventory() {
   if (!_addDoc || !_colRef) { showToast('שגיאה: Firebase לא אותחל'); return; }
   showToast('⏳ שולח...');
   try {
-    const safeHeaders = (inventoryHeaders||[]).map(h => String(h||''));
-    const safeRows = (inventoryRows||[]).map(r => (r.cells||[]).map(c => String(c??'')));
-    await _addDoc(_colRef('inventory_assignments'), {
-      assignedTo:  driver,
-      sentBy:      currentUser.name,
-      createdAt:   _serverTs(),
-      headers:     safeHeaders,
-      rows:        safeRows,
-      status:      'pending'
+    // deep-clean: convert everything to plain strings, strip undefined/null/special Excel values
+    const safeHeaders = (inventoryHeaders||[]).map(h => (h == null ? '' : String(h)));
+    // Firestore doesn't support nested arrays — serialize rows as JSON string
+    const rowsJson = JSON.stringify(
+      (inventoryRows||[]).map(r => (r.cells||[]).map(c => (c == null ? '' : String(c))))
+    );
+    const { addDoc, collection } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    await addDoc(collection(window._db, 'inventory_assignments'), {
+      assignedTo: driver,
+      sentBy:     currentUser.name,
+      createdAt:  new Date().toISOString(),
+      headers:    safeHeaders,
+      rowsJson,
+      status:     'pending'
     });
     _invMode = 'live';
     document.getElementById('inv-submit-wrap').style.display = 'none';
@@ -2374,7 +2379,7 @@ function loadDriverInventoryAssignments() {
       return `<div class="vehicle-card" onclick="openDriverInvModal('${d.id}')" style="cursor:pointer;margin-bottom:12px">
         <div class="vehicle-plate" style="font-size:16px">📦 בדיקת מלאי</div>
         <div class="vehicle-info">נשלח ע"י ${esc(d.sentBy||'')} · ${ts}</div>
-        <div class="vehicle-meta"><span class="cond-badge" style="background:#fef3c7;color:#92400e">${d.rows?.length||0} שורות לבדיקה</span></div>
+        <div class="vehicle-meta"><span class="cond-badge" style="background:#fef3c7;color:#92400e">${d.rowsJson ? JSON.parse(d.rowsJson).length : (d.rows?.length||0)} שורות לבדיקה</span></div>
       </div>`;
     }).join('');
   });
@@ -2386,7 +2391,8 @@ function openDriverInvModal(docId) {
     if (!snap.exists()) return;
     const data = snap.data();
     _driverInvDocId = docId;
-    _driverInvRows = (data.rows || []).map(cells => ({ cells, status: null }));
+    const parsedRows = data.rowsJson ? JSON.parse(data.rowsJson) : (data.rows || []);
+    _driverInvRows = parsedRows.map(cells => ({ cells, status: null }));
     renderDriverInvModal(data.headers || []);
     openModal('modal-driver-inv');
   });
