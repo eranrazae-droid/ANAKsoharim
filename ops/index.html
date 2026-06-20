@@ -649,11 +649,14 @@ if ('serviceWorker' in navigator) {
     <!-- Last assignment status banner -->
     <div id="inv-status-banner" style="display:none;border-radius:14px;padding:14px 16px;margin-bottom:14px;font-size:14px;font-weight:700"></div>
     <!-- Upload area (small when table loaded) -->
-    <div id="inv-upload-zone" style="border:2px dashed var(--gold);border-radius:16px;padding:28px 20px;text-align:center;background:#f8f9ff;margin-bottom:16px;cursor:pointer" onclick="document.getElementById('inv-file-input').click()">
-      <div style="font-size:36px;margin-bottom:8px">📊</div>
-      <div style="font-weight:700;font-size:16px;color:var(--dark)">לחץ לצרף קובץ אקסל</div>
-      <div style="font-size:13px;color:var(--muted);margin-top:4px">קובץ .xlsx עם מספרי רכב</div>
-      <input type="file" id="inv-file-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleInventoryFile(this)">
+    <div style="display:flex;gap:10px;align-items:stretch;margin-bottom:16px">
+      <div id="inv-upload-zone" style="flex:1;border:2px dashed var(--gold);border-radius:16px;padding:28px 20px;text-align:center;background:#f8f9ff;cursor:pointer" onclick="document.getElementById('inv-file-input').click()">
+        <div style="font-size:36px;margin-bottom:8px">📊</div>
+        <div style="font-weight:700;font-size:16px;color:var(--dark)">לחץ לצרף קובץ אקסל</div>
+        <div style="font-size:13px;color:var(--muted);margin-top:4px">קובץ .xlsx עם מספרי רכב</div>
+        <input type="file" id="inv-file-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleInventoryFile(this)">
+      </div>
+      <button id="inv-delete-btn" onclick="deleteInventoryTable()" style="display:none;flex-shrink:0;width:56px;background:#fff0f0;border:2px solid #ef4444;border-radius:16px;font-size:22px;cursor:pointer;color:#ef4444" title="מחק טבלה">🗑️</button>
     </div>
     <!-- Vehicle list -->
     <div id="inv-list"></div>
@@ -2217,17 +2220,22 @@ function loadLastInventoryAssignment() {
 
     // Shrink upload zone to a small button
     document.getElementById('inv-upload-zone').style.padding = '10px 16px';
+    document.getElementById('inv-delete-btn').style.display = 'flex';
+    document.getElementById('inv-delete-btn').dataset.docId = last.id;
 
     const rows = last.rowsJson ? JSON.parse(last.rowsJson) : (last.rows || []);
     const headers = last.headers || [];
 
     if (last.status === 'done') {
-      const ts = last.completedAt?.toDate ? last.completedAt.toDate().toLocaleDateString('he-IL') : '';
+      const completedDate = last.completedAt?.toDate ? last.completedAt.toDate() : null;
+      const tsDate = completedDate ? completedDate.toLocaleDateString('he-IL') : '';
+      const tsTime = completedDate ? completedDate.toLocaleTimeString('he-IL', {hour:'2-digit',minute:'2-digit'}) : '';
+      const tsStr = tsDate + (tsTime ? ' · ' + tsTime : '');
       banner.style.display = 'block';
       banner.style.background = '#f0fff4';
       banner.style.border = '2px solid #22c55e';
       banner.style.color = '#166534';
-      banner.innerHTML = `✅ הבדיקה הושלמה ע"י <strong>${esc(last.completedBy||last.assignedTo)}</strong> · ${ts}`;
+      banner.innerHTML = `✅ הבדיקה הושלמה ע"י <strong>${esc(last.completedBy||last.assignedTo)}</strong> · ${tsStr}`;
       renderInvResult(headers, rows, last.present||[], last.absent||[]);
       // notify manager if this just changed to done
       if (window._lastInvStatus && window._lastInvStatus !== 'done') {
@@ -2247,13 +2255,32 @@ function loadLastInventoryAssignment() {
   });
 }
 
+async function deleteInventoryTable() {
+  const btn = document.getElementById('inv-delete-btn');
+  const docId = btn.dataset.docId;
+  if (!docId) return;
+  if (!confirm('למחוק את טבלת המלאי הנוכחית?')) return;
+  const { deleteDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  await deleteDoc(doc(window._db, 'inventory_assignments', docId));
+  btn.style.display = 'none';
+  document.getElementById('inv-status-banner').style.display = 'none';
+  document.getElementById('inv-list').innerHTML = '';
+  document.getElementById('inv-upload-zone').style.padding = '28px 20px';
+  document.getElementById('inv-submit-wrap').style.display = 'none';
+  inventoryHeaders = [];
+  inventoryRows = [];
+  _invMode = 'live';
+  window._lastInvStatus = null;
+  showToast('🗑️ הטבלה נמחקה');
+}
+
 function renderInvPending(headers, rows) {
   const colCount = headers.length || (rows[0]?.length || 1);
   let html = `<div style="font-weight:700;font-size:14px;color:var(--muted);margin-bottom:10px">${rows.length} שורות — ממתין לנהג</div>`;
   if (headers.length) {
-    html += `<div style="display:grid;grid-template-columns:repeat(${colCount},1fr);gap:4px;background:var(--dark);color:#fff;border-radius:10px 10px 0 0;padding:8px 10px;font-size:12px;font-weight:700;direction:rtl">${headers.map(h=>`<div>${esc(h)}</div>`).join('')}</div>`;
+    html += `<div style="display:grid;grid-template-columns:48px repeat(${colCount},1fr);gap:4px;background:var(--dark);color:#fff;border-radius:10px 10px 0 0;padding:8px 10px;font-size:12px;font-weight:700;direction:rtl"><div style="text-align:center">סטטוס</div>${headers.map(h=>`<div>${esc(h)}</div>`).join('')}</div>`;
   }
-  html += rows.map((cells,i) => `<div style="display:grid;grid-template-columns:repeat(${colCount},1fr);gap:4px;align-items:center;background:#fff;border:2px solid var(--border);border-radius:${headers.length&&i===0?'0':'8px'};padding:8px 10px;margin-bottom:4px;direction:rtl">${cells.map(c=>`<div style="font-size:14px;font-weight:600">${esc(c)}</div>`).join('')}</div>`).join('');
+  html += rows.map((cells,i) => `<div style="display:grid;grid-template-columns:48px repeat(${colCount},1fr);gap:4px;align-items:center;background:#fff;border:2px solid var(--border);border-radius:${headers.length&&i===0?'0':'8px'};padding:8px 10px;margin-bottom:4px;direction:rtl"><div style="text-align:center;color:#aaa;font-size:18px">—</div>${cells.map(c=>`<div style="font-size:14px;font-weight:600">${esc(c)}</div>`).join('')}</div>`).join('');
   document.getElementById('inv-list').innerHTML = html;
 }
 
@@ -2265,7 +2292,7 @@ function renderInvResult(headers, rows, present, absent) {
     <span style="background:#fee2e2;color:#991b1b;border-radius:8px;padding:6px 12px;font-weight:700;font-size:13px">✕ חסרים: ${absent.length}</span>
   </div>`;
   if (headers.length) {
-    html += `<div style="display:grid;grid-template-columns:repeat(${colCount},1fr) 48px;gap:4px;background:var(--dark);color:#fff;border-radius:10px 10px 0 0;padding:8px 10px;font-size:12px;font-weight:700;direction:rtl">${headers.map(h=>`<div>${esc(h)}</div>`).join('')}<div style="text-align:center">סטטוס</div></div>`;
+    html += `<div style="display:grid;grid-template-columns:48px repeat(${colCount},1fr);gap:4px;background:var(--dark);color:#fff;border-radius:10px 10px 0 0;padding:8px 10px;font-size:12px;font-weight:700;direction:rtl"><div style="text-align:center">סטטוס</div>${headers.map(h=>`<div>${esc(h)}</div>`).join('')}</div>`;
   }
   html += rows.map((cells,i) => {
     const key = cells.join(' | ');
@@ -2273,7 +2300,7 @@ function renderInvResult(headers, rows, present, absent) {
     const bg = st==='v' ? '#f0fff4' : '#fff0f0';
     const border = st==='v' ? '#22c55e' : '#ef4444';
     const icon = st==='v' ? '<span style="color:#22c55e;font-size:20px;font-weight:900">✓</span>' : '<span style="color:#ef4444;font-size:20px;font-weight:900">✕</span>';
-    return `<div style="display:grid;grid-template-columns:repeat(${colCount},1fr) 48px;gap:4px;align-items:center;background:${bg};border:2px solid ${border};border-radius:${headers.length&&i===0?'0':'8px'};padding:8px 10px;margin-bottom:4px;direction:rtl">${cells.map(c=>`<div style="font-size:14px;font-weight:600">${esc(c)}</div>`).join('')}<div style="text-align:center">${icon}</div></div>`;
+    return `<div style="display:grid;grid-template-columns:48px repeat(${colCount},1fr);gap:4px;align-items:center;background:${bg};border:2px solid ${border};border-radius:${headers.length&&i===0?'0':'8px'};padding:8px 10px;margin-bottom:4px;direction:rtl"><div style="text-align:center">${icon}</div>${cells.map(c=>`<div style="font-size:14px;font-weight:600">${esc(c)}</div>`).join('')}</div>`;
   }).join('');
   document.getElementById('inv-list').innerHTML = html;
 }
@@ -2414,19 +2441,19 @@ function renderDriverInvModal(headers) {
   const colCount = headers.length || (_driverInvRows[0]?.cells.length || 1);
   let html = '';
   if (headers.length) {
-    html += `<div style="display:grid;grid-template-columns:repeat(${colCount},1fr) 96px;gap:4px;background:var(--dark);color:#fff;border-radius:10px 10px 0 0;padding:8px 10px;font-size:12px;font-weight:700;direction:rtl">
-      ${headers.map(h => `<div>${esc(h)}</div>`).join('')}<div style="text-align:center">סטטוס</div>
+    html += `<div style="display:grid;grid-template-columns:96px repeat(${colCount},1fr);gap:4px;background:var(--dark);color:#fff;border-radius:10px 10px 0 0;padding:8px 10px;font-size:12px;font-weight:700;direction:rtl">
+      <div style="text-align:center">סטטוס</div>${headers.map(h => `<div>${esc(h)}</div>`).join('')}
     </div>`;
   }
   html += _driverInvRows.map((item, i) => {
     const border = item.status ? (item.status==='v'?'#22c55e':'#ef4444') : 'var(--border)';
     const bg = item.status==='v' ? '#f0fff4' : item.status==='x' ? '#fff0f0' : '#fff';
-    return `<div id="dinv-row-${i}" style="display:grid;grid-template-columns:repeat(${colCount},1fr) 96px;gap:4px;align-items:center;background:${bg};border:2px solid ${border};border-radius:8px;padding:8px 10px;margin-bottom:4px;direction:rtl">
-      ${item.cells.map(c => `<div style="font-size:14px;font-weight:600">${esc(c)}</div>`).join('')}
+    return `<div id="dinv-row-${i}" style="display:grid;grid-template-columns:96px repeat(${colCount},1fr);gap:4px;align-items:center;background:${bg};border:2px solid ${border};border-radius:8px;padding:8px 10px;margin-bottom:4px;direction:rtl">
       <div style="display:flex;gap:4px;justify-content:center">
         <button onclick="dinvClick(${i},'v')" style="width:40px;height:40px;border-radius:8px;border:2px solid ${item.status==='v'?'#22c55e':'#ccc'};background:${item.status==='v'?'#22c55e':'#f9f9f9'};font-size:18px;cursor:pointer;font-weight:900;color:${item.status==='v'?'#fff':'#555'}">✓</button>
         <button onclick="dinvClick(${i},'x')" style="width:40px;height:40px;border-radius:8px;border:2px solid ${item.status==='x'?'#ef4444':'#ccc'};background:${item.status==='x'?'#ef4444':'#f9f9f9'};font-size:18px;cursor:pointer;font-weight:900;color:${item.status==='x'?'#fff':'#555'}">✕</button>
       </div>
+      ${item.cells.map(c => `<div style="font-size:14px;font-weight:600">${esc(c)}</div>`).join('')}
     </div>`;
   }).join('');
   document.getElementById('dinv-rows-container').innerHTML = html;
