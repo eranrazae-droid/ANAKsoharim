@@ -309,12 +309,30 @@ var BANK_TEXTS = {
 };
 
 function copyBank(key, btn) {
-  navigator.clipboard.writeText(BANK_TEXTS[key]).then(function() {
+  var text = BANK_TEXTS[key];
+  var done = function() {
     var orig = btn.textContent;
     btn.textContent = '✓ הועתק';
     btn.classList.add('copied');
     setTimeout(function(){ btn.textContent = orig; btn.classList.remove('copied'); }, 1500);
-  });
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(function(){ fallbackCopy(text, done); });
+  } else {
+    fallbackCopy(text, done);
+  }
+}
+
+function fallbackCopy(text, done) {
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  try { document.execCommand('copy'); done(); } catch(e) {}
+  document.body.removeChild(ta);
 }
 </script>
 
