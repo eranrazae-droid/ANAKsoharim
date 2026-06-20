@@ -757,7 +757,7 @@ if ('serviceWorker' in navigator) {
 <div id="photo-zoom-overlay" onclick="closePhotoZoom()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;flex-direction:column;align-items:center;justify-content:center;gap:16px">
   <img id="photo-zoom-img" style="max-width:95vw;max-height:80vh;border-radius:12px;object-fit:contain">
   <div style="display:flex;gap:12px" onclick="event.stopPropagation()">
-    <a id="photo-zoom-dl" download="תמונת-קליטה.jpg" style="background:var(--gold);color:#000;border:none;border-radius:12px;padding:12px 24px;font-family:Heebo,sans-serif;font-weight:900;font-size:15px;text-decoration:none">⬇️ הורד תמונה</a>
+    <button id="photo-zoom-dl-btn" onclick="downloadWithWatermark()" style="background:var(--gold);color:#000;border:none;border-radius:12px;padding:12px 24px;font-family:Heebo,sans-serif;font-weight:900;font-size:15px;cursor:pointer">⬇️ הורד תמונה</button>
     <button onclick="closePhotoZoom()" style="background:#fff;color:#000;border:none;border-radius:12px;padding:12px 24px;font-family:Heebo,sans-serif;font-weight:900;font-size:15px;cursor:pointer">✕ סגור</button>
   </div>
 </div>
@@ -2004,9 +2004,10 @@ async function viewIntakeForm(id) {
     // match photos by exact key or any key that starts with the same prefix
     const keyPhotos = (photos[key]||[]).length ? photos[key]
       : Object.entries(photos).filter(([k]) => k.startsWith(key) || key.startsWith(k)).flatMap(([,v]) => v);
+    const plate = esc(v.plate || '');
     const imgs = keyPhotos.length
       ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${keyPhotos.map(url =>
-          `<img src="${url}" onclick="openPhotoZoom('${url}')" style="width:80px;height:80px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid #ccc">`
+          `<img src="${url}" onclick="openPhotoZoom('${url}','${plate}')" style="width:80px;height:80px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid #ccc">`
         ).join('')}</div>` : '';
     rows += `<div style="background:${bg};border-radius:10px;padding:10px 14px;margin-bottom:8px">
       <div style="font-weight:700;font-size:14px">${icon} ${label}</div>${note}${imgs}
@@ -2016,7 +2017,7 @@ async function viewIntakeForm(id) {
   const extraPhotos = allUrls.length
     ? `<div style="margin-bottom:14px"><div style="font-weight:900;font-size:13px;color:var(--muted);margin-bottom:8px">📸 תמונות (${allUrls.length})</div>
        <div style="display:flex;gap:8px;flex-wrap:wrap">${allUrls.map(url =>
-         `<img src="${url}" onclick="openPhotoZoom('${url}')" style="width:90px;height:90px;object-fit:cover;border-radius:10px;cursor:pointer;border:2px solid #ccc">`
+         `<img src="${url}" onclick="openPhotoZoom('${url}','${esc(v.plate||'')}')" style="width:90px;height:90px;object-fit:cover;border-radius:10px;cursor:pointer;border:2px solid #ccc">`
        ).join('')}</div></div>` : '';
 
   const km = v.km ? `<span style="margin-left:16px"><strong>ק"מ:</strong> ${esc(v.km)}</span>` : '';
@@ -2946,17 +2947,53 @@ function filterVehiclesByDriver(name) {
 
 window.filterVehiclesByDriver = filterVehiclesByDriver;
 
-function openPhotoZoom(url) {
-  const overlay = document.getElementById('photo-zoom-overlay');
+let _zoomPlate = '';
+
+function openPhotoZoom(url, plate) {
+  _zoomPlate = plate || '';
   document.getElementById('photo-zoom-img').src = url;
-  document.getElementById('photo-zoom-dl').href = url;
-  overlay.style.display = 'flex';
+  document.getElementById('photo-zoom-overlay').style.display = 'flex';
 }
 function closePhotoZoom() {
   document.getElementById('photo-zoom-overlay').style.display = 'none';
 }
+
+async function downloadWithWatermark() {
+  const img = document.getElementById('photo-zoom-img');
+  const plate = _zoomPlate;
+  const canvas = document.createElement('canvas');
+  // Wait for image to be loaded
+  await new Promise(res => { if (img.complete) res(); else img.onload = res; });
+  canvas.width  = img.naturalWidth  || img.width;
+  canvas.height = img.naturalHeight || img.height;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+
+  if (plate) {
+    const fontSize = Math.max(28, Math.round(canvas.width * 0.06));
+    ctx.font = `900 ${fontSize}px Heebo, Arial, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    // shadow for readability
+    ctx.shadowColor = 'rgba(0,0,0,0.85)';
+    ctx.shadowBlur = 10;
+    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+    ctx.fillText(plate, canvas.width / 2, canvas.height - 18);
+    // draw again for crisp look
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillText(plate, canvas.width / 2, canvas.height - 20);
+  }
+
+  const a = document.createElement('a');
+  a.download = plate ? `קליטה-${plate}.jpg` : 'תמונת-קליטה.jpg';
+  a.href = canvas.toDataURL('image/jpeg', 0.95);
+  a.click();
+}
+
 window.openPhotoZoom = openPhotoZoom;
 window.closePhotoZoom = closePhotoZoom;
+window.downloadWithWatermark = downloadWithWatermark;
 
 function toggleIntakeArchive() {
   const body = document.getElementById('intake-archive-body');
