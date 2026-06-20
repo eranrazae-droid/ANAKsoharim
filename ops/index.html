@@ -1143,7 +1143,7 @@ function renderTasksFromCache() {
     return;
   }
 
-  const regularCols = ['משימות כלליות','חביב','ולאדי','רפד','זגג','רדארים'];
+  const regularCols = ['משימות כלליות','חביב','ולאדי','רדארים'];
   const driverCols  = ['עופר','גיל','איתי'];
 
   const colColors = {
@@ -1182,6 +1182,25 @@ function renderTasksFromCache() {
     </div>`;
   }).join('');
 
+  // Combined זגג + רפד column
+  const zagRafadCols = ['רפד','זגג'];
+  const zagRafadOpenCount = zagRafadCols.reduce((sum, d) => sum + allTasks.filter(t => t.label === d && t.status !== 'done').length, 0);
+  const zagRafadInner = zagRafadCols.map(name => {
+    const tasks = sortTasks(allTasks.filter(t => t.label === name));
+    const color = colColors[name];
+    return `<div style="margin-bottom:10px">
+      <div style="font-size:12px;font-weight:900;color:${color};padding:4px 2px 6px;border-bottom:2px solid ${color};margin-bottom:6px">${name}</div>
+      ${tasks.length ? tasks.map(taskCard).join('') : `<div style="text-align:center;color:var(--muted);font-size:12px;padding:8px 0">אין משימות</div>`}
+    </div>`;
+  }).join('');
+  const zagRafadCol = `<div class="task-col" style="min-width:260px;max-width:260px">
+    <div class="task-col-header">
+      <span class="task-col-title" style="color:#475569">זגג / רפד</span>
+      <span class="task-col-count">${zagRafadOpenCount}</span>
+    </div>
+    <div class="task-col-cards">${zagRafadInner}</div>
+  </div>`;
+
   // Combined drivers column
   const driversOpenCount = driverCols.reduce((sum, d) => sum + allTasks.filter(t => t.label === d && t.status !== 'done').length, 0);
   const driversInner = driverCols.map(driver => {
@@ -1201,7 +1220,7 @@ function renderTasksFromCache() {
     <div class="task-col-cards">${driversInner}</div>
   </div>`;
 
-  container.innerHTML = regularHtml + driversCol;
+  container.innerHTML = regularHtml + zagRafadCol + driversCol;
 }
 
 function toggleTaskDone(id, currentStatus) {
