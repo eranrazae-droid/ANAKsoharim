@@ -102,13 +102,17 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
 .task-card:first-child{border-radius:8px 8px 0 0;border-top:3px solid var(--border)}
 .task-card:last-child{border-radius:0 0 8px 8px}
 .task-card:active{cursor:grabbing}
-.task-card.priority-high{border-top-color:#b91c1c !important;background:#ef4444 !important;color:#fff !important;}
-.task-card.priority-high .task-title{color:#fff !important}
-.task-card.priority-high .tag{background:rgba(255,255,255,.25) !important;color:#fff !important}
-.task-card.priority-high .task-done-btn{border-color:rgba(255,255,255,.6) !important}
-.task-card.priority-high .task-notes{color:rgba(255,255,255,.85) !important}
-.task-card.priority-med{border-top-color:var(--warning)}
-.task-card.priority-low{border-top-color:var(--success)}
+.task-card.color-red{background:#ef4444 !important;color:#fff !important;border-top-color:#b91c1c !important}
+.task-card.color-green{background:#22c55e !important;color:#fff !important;border-top-color:#15803d !important}
+.task-card.color-yellow{background:#eab308 !important;color:#fff !important;border-top-color:#a16207 !important}
+.task-card.color-purple{background:#a855f7 !important;color:#fff !important;border-top-color:#7e22ce !important}
+.task-card.color-blue{background:#3b82f6 !important;color:#fff !important;border-top-color:#1d4ed8 !important}
+.task-card.color-red .task-title,.task-card.color-green .task-title,.task-card.color-yellow .task-title,.task-card.color-purple .task-title,.task-card.color-blue .task-title{color:#fff !important}
+.task-card.color-red .tag,.task-card.color-green .tag,.task-card.color-yellow .tag,.task-card.color-purple .tag,.task-card.color-blue .tag{background:rgba(255,255,255,.25) !important;color:#fff !important}
+.task-card.color-red .task-notes,.task-card.color-green .task-notes,.task-card.color-yellow .task-notes,.task-card.color-purple .task-notes,.task-card.color-blue .task-notes{color:rgba(255,255,255,.85) !important}
+.color-picker{display:flex;gap:8px;margin-top:4px}
+.color-swatch{width:32px;height:32px;border-radius:50%;border:3px solid transparent;cursor:pointer;transition:transform .15s}
+.color-swatch.selected{border-color:#1a1a2e;transform:scale(1.2)}
 .task-card.done{opacity:.5}
 .task-card.dragging{opacity:.35;transform:scale(.97)}
 .task-drop-zone{min-height:0;height:0;border-radius:10px;transition:all .15s}
@@ -361,12 +365,16 @@ if ('serviceWorker' in navigator) {
       </select>
     </div>
     <div class="form-group">
-      <label>עדיפות</label>
-      <select class="form-select" id="et-priority">
-        <option value="low">נמוכה</option>
-        <option value="med">בינונית</option>
-        <option value="high">גבוהה 🔴</option>
-      </select>
+      <label>צבע כרטיסייה</label>
+      <div class="color-picker" id="et-color-picker">
+        <div class="color-swatch" data-color="" style="background:#e2e8f0;border-color:#94a3b8" title="ללא צבע" onclick="pickColor('et',this)"></div>
+        <div class="color-swatch" data-color="red"    style="background:#ef4444" title="אדום"  onclick="pickColor('et',this)"></div>
+        <div class="color-swatch" data-color="green"  style="background:#22c55e" title="ירוק"  onclick="pickColor('et',this)"></div>
+        <div class="color-swatch" data-color="yellow" style="background:#eab308" title="צהוב"  onclick="pickColor('et',this)"></div>
+        <div class="color-swatch" data-color="purple" style="background:#a855f7" title="סגול"  onclick="pickColor('et',this)"></div>
+        <div class="color-swatch" data-color="blue"   style="background:#3b82f6" title="כחול"  onclick="pickColor('et',this)"></div>
+      </div>
+      <input type="hidden" id="et-color" value="">
     </div>
     <button class="btn-submit" onclick="saveEditTask()">💾 שמור שינויים</button>
   </div>
@@ -398,12 +406,16 @@ if ('serviceWorker' in navigator) {
       </select>
     </div>
     <div class="form-group">
-      <label>עדיפות</label>
-      <select class="form-select" id="task-priority">
-        <option value="low">נמוכה</option>
-        <option value="med" selected>בינונית</option>
-        <option value="high">גבוהה 🔴</option>
-      </select>
+      <label>צבע כרטיסייה</label>
+      <div class="color-picker" id="task-color-picker">
+        <div class="color-swatch selected" data-color="" style="background:#e2e8f0;border-color:#94a3b8" title="ללא צבע" onclick="pickColor('task',this)"></div>
+        <div class="color-swatch" data-color="red"    style="background:#ef4444" title="אדום"  onclick="pickColor('task',this)"></div>
+        <div class="color-swatch" data-color="green"  style="background:#22c55e" title="ירוק"  onclick="pickColor('task',this)"></div>
+        <div class="color-swatch" data-color="yellow" style="background:#eab308" title="צהוב"  onclick="pickColor('task',this)"></div>
+        <div class="color-swatch" data-color="purple" style="background:#a855f7" title="סגול"  onclick="pickColor('task',this)"></div>
+        <div class="color-swatch" data-color="blue"   style="background:#3b82f6" title="כחול"  onclick="pickColor('task',this)"></div>
+      </div>
+      <input type="hidden" id="task-color" value="">
     </div>
     <button class="btn-submit" onclick="submitTask()">פתח משימה</button>
   </div>
@@ -1321,13 +1333,12 @@ function renderTasksFromCache() {
     allTasks = allTasks.filter(t => t.label === myName || t.assignedTo === myName);
   }
 
-  const prioOrder   = { high: 0, med: 1, low: 2 };
   const statusLabel = { open:'פתוחה', inprog:'בביצוע', done:'הושלמה' };
 
   function makeCard(t) {
     const done = t.status === 'done';
     const card = document.createElement('div');
-    card.className = `task-card priority-${t.priority||'low'}${done?' done':''}`;
+    card.className = `task-card${t.color?' color-'+t.color:''}${done?' done':''}`;
     card.draggable = isManager && !done;
     card.dataset.id = t.id;
     if (isManager && !done) {
@@ -1369,6 +1380,7 @@ function renderTasksFromCache() {
       return sA - sB;
     });
   }
+
 
   function makeCol(label, color, tasks, { title, minWidth } = {}) {
     const openCount = tasks.filter(t => t.status !== 'done').length;
@@ -1499,10 +1511,19 @@ async function openEditTask(id) {
   document.getElementById('et-id').value = id;
   document.getElementById('et-title').value = t.title || '';
   document.getElementById('et-label').value = t.label || 'משימות כלליות';
-  document.getElementById('et-priority').value = t.priority || 'med';
+  const existingColor = t.color || '';
+  document.getElementById('et-color').value = existingColor;
+  document.querySelectorAll('#et-color-picker .color-swatch').forEach(s => s.classList.toggle('selected', s.dataset.color === existingColor));
   openModal('modal-edit-task');
 }
 window.openEditTask = openEditTask;
+
+function pickColor(prefix, el) {
+  document.querySelectorAll(`#${prefix}-color-picker .color-swatch`).forEach(s => s.classList.remove('selected'));
+  el.classList.add('selected');
+  document.getElementById(`${prefix}-color`).value = el.dataset.color;
+}
+window.pickColor = pickColor;
 
 async function saveEditTask() {
   const id = document.getElementById('et-id').value;
@@ -1513,7 +1534,7 @@ async function saveEditTask() {
     await _updateDoc(_docRef('tasks', id), {
       title,
       label: document.getElementById('et-label').value,
-      priority: document.getElementById('et-priority').value,
+      color: document.getElementById('et-color').value,
     });
     closeModal('modal-edit-task');
     showToast('✅ המשימה עודכנה!');
@@ -1539,7 +1560,8 @@ function toggleTaskDone(id, currentStatus) {
 function openNewTaskModal() {
   document.getElementById('task-title').value = '';
   document.getElementById('task-label').value = 'משימות כלליות';
-  document.getElementById('task-priority').value = 'med';
+  document.getElementById('task-color').value = '';
+  document.querySelectorAll('#task-color-picker .color-swatch').forEach((s,i) => s.classList.toggle('selected', i===0));
   openModal('modal-task');
 }
 
@@ -1578,7 +1600,6 @@ async function importTrelloTasks() {
       title: t.title,
       assignedTo: t.assignedTo,
       label: t.label || 'משימות כלליות',
-      priority: t.priority || 'med',
       status: 'open',
       createdBy: currentUser.name,
       createdAt: _serverTs()
@@ -1596,7 +1617,7 @@ async function submitTask() {
     title,
     assignedTo: 'כולם',
     label:      document.getElementById('task-label').value,
-    priority:   document.getElementById('task-priority').value,
+    color:      document.getElementById('task-color').value,
     status:     'open',
     createdBy:  currentUser.name,
     createdAt:  _serverTs()
@@ -1973,7 +1994,6 @@ async function createIntakeTasks(checklist, allNotes, vehicle) {
       title: taskTitle,
       assignedTo,
       label,
-      priority: 'med',
       status: 'open',
       createdBy: driverName,
       createdAt: _serverTs()
