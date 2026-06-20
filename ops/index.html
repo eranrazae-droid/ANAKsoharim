@@ -786,6 +786,7 @@ if (CONFIG_DONE) {
 
 // ── expose to global scope ──
 window._db = db;
+window._storage = storage;
 window._CONFIG_DONE = CONFIG_DONE;
 window._fs = CONFIG_DONE ? { collection, addDoc, onSnapshot, doc, updateDoc, query, orderBy, serverTimestamp, where } : null;
 
@@ -1755,11 +1756,14 @@ function renderPhotoGrid(key) {
 async function uploadPhotos(key, vehicleId) {
   const files = ciPhotoFiles[key] || [];
   const urls = [];
+  if (!files.length) return urls;
+  const { ref: sRef, uploadBytes: uBytes, getDownloadURL: getDL } =
+    await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js");
   for (let i = 0; i < files.length; i++) {
     const path = `vehicles/${vehicleId}/${key}_${i}_${Date.now()}`;
-    const ref = storageRef(storage, path);
-    await uploadBytes(ref, files[i]);
-    urls.push(await getDownloadURL(ref));
+    const r = sRef(window._storage, path);
+    await uBytes(r, files[i]);
+    urls.push(await getDL(r));
   }
   return urls;
 }
