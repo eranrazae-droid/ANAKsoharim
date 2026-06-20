@@ -1181,6 +1181,27 @@ async function submitVehicle() {
     receivedBy:  currentUser.name,
     receivedAt:  _serverTs()
   });
+  // auto-task: windows X + note → task to חביב
+  if (checklist['c-windows'] === 'x') {
+    const windowsNote = document.getElementById('cn-c-windows')?.value.trim() || '';
+    if (windowsNote) {
+      const plate = document.getElementById('v-plate').value.trim();
+      const brand = document.getElementById('v-brand').value.trim();
+      const model = document.getElementById('v-model').value.trim();
+      const taskNote = `רכב: ${plate}${brand||model ? ' | ' + [brand,model].filter(Boolean).join(' ') : ''}\nהערת נהג: ${windowsNote}`;
+      await _addDoc(_colRef('tasks'), {
+        title:      `מתגי חלונות – ${plate}`,
+        notes:      taskNote,
+        assignedTo: 'כולם',
+        label:      'חביב',
+        priority:   'med',
+        status:     'open',
+        createdBy:  currentUser.name,
+        createdAt:  _serverTs()
+      });
+    }
+  }
+
   // auto-task: steering X → task to רפד with photos
   if (checklist['c-steering'] === 'x') {
     const plate       = document.getElementById('v-plate').value.trim();
