@@ -250,8 +250,8 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
     <button class="btn btn-wa" onclick="shareWA()">📲 שלח ב-WhatsApp</button>
     <button class="btn btn-finance" onclick="openFinance()">🔢 מחשבון מימון</button>
     <button class="btn btn-print" onclick="printQuote()">🖨️ הדפסה</button>
-    <button class="btn btn-save" onclick="saveHistory()">💾 שמור</button>
   </div>
+  <div id="autosave-indicator" style="font-size:11px;color:#16a34a;text-align:center;min-height:16px;margin-top:4px"></div>
 
   <button class="btn-reset" onclick="resetAll()">נקה הכל</button>
 
@@ -312,6 +312,7 @@ function calc() {
     document.getElementById('monthly-sub').textContent = currentN + ' תשלומים · ' + fmtNum(financeAmt) + ' מימון';
     var monthlyInterest = Math.round(currentMonthly - (financeAmt / currentN));
     document.getElementById('monthly-cost').textContent = 'עלות ריבית: ' + fmtNum(monthlyInterest) + '/חודש · סה"כ: ' + fmtNum(costFinance);
+    scheduleAutoSave();
   } else {
     box.style.display = 'none';
     actions.style.display = 'none';
@@ -366,11 +367,22 @@ function printQuote() {
   window.print();
 }
 
-function saveHistory() {
+var _autoSaveTimer = null;
+
+function scheduleAutoSave() {
+  clearTimeout(_autoSaveTimer);
+  _autoSaveTimer = setTimeout(autoSave, 1500);
+}
+
+function autoSave() {
+  var customer = document.getElementById('customer-name').value || '';
+  var newCar   = document.getElementById('new-car-name').value  || '';
+  if (!customer && !newCar && !currentFinanceAmt) return; // nothing worth saving
+  var now = new Date();
   var item = {
-    date: new Date().toLocaleDateString('he-IL'),
-    customer: document.getElementById('customer-name').value || 'לא ידוע',
-    newCar: document.getElementById('new-car-name').value || '',
+    date: now.toLocaleDateString('he-IL') + ' ' + now.toLocaleTimeString('he-IL', {hour:'2-digit',minute:'2-digit'}),
+    customer: customer || 'לא ידוע',
+    newCar: newCar,
     newPrice: parseFloat(document.getElementById('new-price').value) || 0,
     tradeIn: parseFloat(document.getElementById('trade-in').value) || 0,
     oldLoan: parseFloat(document.getElementById('old-loan').value) || 0,
@@ -384,11 +396,18 @@ function saveHistory() {
     oldPlate: document.getElementById('old-car-plate').value || ''
   };
   var hist = JSON.parse(localStorage.getItem('anak-quotes') || '[]');
-  hist.unshift(item);
-  if (hist.length > 5) hist = hist.slice(0, 5);
+  // replace top entry if same customer within same minute, else prepend
+  if (hist.length && hist[0].customer === item.customer && hist[0].date.slice(0,16) === item.date.slice(0,16)) {
+    hist[0] = item;
+  } else {
+    hist.unshift(item);
+  }
+  if (hist.length > 20) hist = hist.slice(0, 20);
   localStorage.setItem('anak-quotes', JSON.stringify(hist));
   renderHistory();
-  alert('נשמר בהצלחה ✓');
+  var ind = document.getElementById('autosave-indicator');
+  ind.textContent = '✓ נשמר אוטומטית';
+  setTimeout(function(){ ind.textContent = ''; }, 2000);
 }
 
 function loadHistoryItem(item) {
