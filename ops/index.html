@@ -197,22 +197,23 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
       <p>מערכת ניהול תפעול</p>
     </div>
     <div class="login-role-title">בחר את שמך</div>
-    <div id="manager-card" style="display:none;margin-bottom:16px">
-      <div class="role-card" data-role="manager" onclick="selectRole('manager',this)" style="grid-column:span 2">
-        <div class="icon">👔</div>
-        <div class="name">מנהל תפעול</div>
-        <div class="desc">ניהול מלא</div>
-      </div>
-    </div>
     <div class="driver-select">
       <select id="driver-name-select" onchange="selectDriver(this.value)">
         <option value="">— בחר את שמך —</option>
         <option value="עופר">עופר</option>
         <option value="גיל">גיל</option>
         <option value="איתי">איתי</option>
+        <option value="ליאל">ליאל</option>
       </select>
     </div>
-    <button class="btn-login" id="btn-enter" onclick="doLogin()" disabled>כניסה למערכת</button>
+    <div id="manager-password-wrap" style="display:none;margin-top:14px">
+      <input id="manager-password-input" type="password" inputmode="numeric" pattern="[0-9]*" placeholder="סיסמא (מספרים)" dir="ltr"
+        oninput="checkLoginReady()"
+        onkeydown="if(event.key==='Enter')doLogin()"
+        style="width:100%;background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.15);border-radius:12px;padding:14px 16px;font-family:Heebo,sans-serif;font-size:16px;color:#fff;outline:none;box-sizing:border-box"
+        onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='rgba(255,255,255,.15)'">
+    </div>
+    <button class="btn-login" id="btn-enter" onclick="doLogin()" disabled style="margin-top:18px">כניסה למערכת</button>
   </div>
 </div>
 
@@ -407,21 +408,26 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
     <div class="logo">סידור מגרש</div>
     <div class="user-badge" id="yard-user-badge"></div>
   </div>
-  <div style="padding:12px 16px;background:#fff;border-bottom:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end">
+  <div id="yard-manager-toolbar" style="padding:12px 16px;background:#fff;border-bottom:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end">
     <button onclick="resetYard()" style="background:var(--danger);color:#fff;border:none;border-radius:10px;padding:8px 16px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">🔄 טבלה חדשה</button>
-    <button onclick="saveYard()" style="background:var(--gold);color:#000;border:none;border-radius:10px;padding:8px 16px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">💾 שמור</button>
+    <button onclick="saveYard()" style="background:var(--gold);color:#000;border:none;border-radius:10px;padding:8px 16px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">💾 שמור ופרסם לנהגים</button>
   </div>
-  <div style="overflow-x:auto;padding:16px 8px 80px">
-    <table id="yard-table" style="width:100%;border-collapse:collapse;min-width:600px;font-family:Heebo,sans-serif">
+  <!-- Vehicles to place panel -->
+  <div id="yard-to-place-panel" style="padding:12px 16px;background:#f8f9ff;border-bottom:1px solid var(--border)">
+    <div style="font-weight:700;font-size:14px;color:var(--dark);margin-bottom:8px">🚗 רכבים שצריך להכניס לחניות</div>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px" id="yard-to-place-grid"></div>
+  </div>
+  <div id="yard-table-wrap" style="overflow:auto;padding:8px 8px 80px">
+    <table id="yard-table" style="border-collapse:collapse;font-family:Heebo,sans-serif;font-size:13px">
       <thead>
         <tr style="background:var(--dark);color:#fff">
-          <th style="padding:10px 8px;text-align:right;font-size:13px;border:1px solid #333">מס׳ חניה</th>
-          <th style="padding:10px 8px;text-align:right;font-size:13px;border:1px solid #333;color:var(--gold)">כניסה</th>
-          <th style="padding:10px 8px;text-align:right;font-size:13px;border:1px solid #333;color:var(--gold)">למגרש</th>
-          <th style="padding:10px 8px;text-align:right;font-size:13px;border:1px solid #333;width:20px;background:#2a2a3e"></th>
-          <th style="padding:10px 8px;text-align:right;font-size:13px;border:1px solid #333">מס׳ חניה</th>
-          <th style="padding:10px 8px;text-align:right;font-size:13px;border:1px solid #333;color:var(--gold)">בפנים</th>
-          <th style="padding:10px 8px;text-align:right;font-size:13px;border:1px solid #333;color:var(--gold)">בחוץ</th>
+          <th style="padding:8px 6px;text-align:center;font-size:12px;border:1px solid #333;min-width:48px">מס׳</th>
+          <th style="padding:8px 6px;text-align:center;font-size:12px;border:1px solid #333;color:var(--gold);min-width:90px"></th>
+          <th style="padding:8px 6px;text-align:center;font-size:12px;border:1px solid #333;color:var(--gold);min-width:160px">למגרש</th>
+          <th style="padding:8px 6px;width:8px;background:#2a2a3e;border:1px solid #444"></th>
+          <th style="padding:8px 6px;text-align:center;font-size:12px;border:1px solid #333;min-width:56px">מס׳</th>
+          <th style="padding:8px 6px;text-align:center;font-size:12px;border:1px solid #333;color:var(--gold);min-width:90px">בפנים</th>
+          <th style="padding:8px 6px;text-align:center;font-size:12px;border:1px solid #333;color:var(--gold);min-width:90px">בחוץ</th>
         </tr>
       </thead>
       <tbody id="yard-tbody"></tbody>
@@ -530,48 +536,50 @@ function showConfigWarning() {
 /* ═══════════════════════════════════════════════════════
    LOGIN
 ═══════════════════════════════════════════════════════ */
-let logoTapCount = 0;
-let logoTapTimer = null;
+// Manager password stored as base64 — change by encoding your password with btoa()
+const MANAGER_PWD_B64 = btoa('0000');
 
-function handleLogoTap() {
-  logoTapCount++;
-  clearTimeout(logoTapTimer);
-  logoTapTimer = setTimeout(() => { logoTapCount = 0; }, 2000);
-  if (logoTapCount >= 5) {
-    logoTapCount = 0;
-    document.getElementById('manager-card').style.display = 'block';
-    showToast('מצב מנהל זמין 👔');
-  }
-}
-
-function selectRole(role, el) {
-  selectedRole = role;
-  document.querySelectorAll('.role-card').forEach(c => c.classList.remove('selected'));
-  el.classList.add('selected');
-  document.getElementById('driver-name-select').value = '';
-  document.getElementById('btn-enter').disabled = false;
-}
+function handleLogoTap() {} // kept for compatibility
 
 function selectDriver(val) {
-  if (val) {
-    selectedRole = 'driver';
-    document.querySelectorAll('.role-card').forEach(c => c.classList.remove('selected'));
+  const pwWrap = document.getElementById('manager-password-wrap');
+  const pwInput = document.getElementById('manager-password-input');
+  if (val === 'ליאל') {
+    pwWrap.style.display = 'block';
+    setTimeout(() => pwInput.focus(), 50);
+  } else {
+    pwWrap.style.display = 'none';
+    pwInput.value = '';
   }
   checkLoginReady();
 }
 
 function checkLoginReady() {
   const btn = document.getElementById('btn-enter');
-  if (selectedRole === 'manager') { btn.disabled = false; return; }
-  btn.disabled = !document.getElementById('driver-name-select').value;
+  const val = document.getElementById('driver-name-select').value;
+  if (!val) { btn.disabled = true; return; }
+  if (val === 'ליאל') {
+    const pw = document.getElementById('manager-password-input').value;
+    btn.disabled = !pw;
+  } else {
+    btn.disabled = false;
+  }
 }
 
 function doLogin() {
-  const name = selectedRole === 'manager'
-    ? 'מנהל תפעול'
-    : document.getElementById('driver-name-select').value;
-  if (!name) return;
-  currentUser = { role: selectedRole, name };
+  const val = document.getElementById('driver-name-select').value;
+  if (!val) return;
+  if (val === 'ליאל') {
+    const pw = document.getElementById('manager-password-input').value;
+    if (btoa(pw) !== MANAGER_PWD_B64) {
+      showToast('❌ סיסמא שגויה');
+      document.getElementById('manager-password-input').value = '';
+      return;
+    }
+    currentUser = { role: 'manager', name: 'ליאל' };
+  } else {
+    currentUser = { role: 'driver', name: val };
+  }
   localStorage.setItem('anak_user', JSON.stringify(currentUser));
   enterApp();
 }
@@ -624,6 +632,7 @@ function renderHome() {
       ]
     : [
         { icon: '📋', title: 'המשימות שלי', sub: 'משימות שהוקצו לך', screen: 'tasks' },
+        { icon: '🅿️', title: 'סידור מגרש', sub: 'צפייה בטבלת חניות', screen: 'yard' },
       ];
 
   document.getElementById('menu-grid').innerHTML = menuItems.map(m => `
@@ -639,7 +648,6 @@ function renderHome() {
 
 function goToScreen(name) {
   if (name === 'parts' && currentUser.role !== 'manager') return;
-  if (name === 'yard' && currentUser.role !== 'manager') return;
   if (name === 'tasks') openTasksScreen();
   else if (name === 'vehicles') openVehiclesScreen();
   else if (name === 'parts') openPartsScreen();
@@ -1084,6 +1092,14 @@ let yardData = {}; // { 'L_1_כניסה': 'ABC', 'R_40': 'XYZ', ... }
 
 function openYardScreen() {
   document.getElementById('yard-user-badge').textContent = currentUser.name;
+  const isManager = currentUser.role === 'manager';
+  if (!isManager) {
+    // drivers: load published yard directly in read-only mode
+    loadYardData();
+    renderYardTable();
+    showScreen('yard');
+    return;
+  }
   openModal('modal-yard-start');
 }
 
@@ -1112,25 +1128,28 @@ function loadYardData() {
 }
 
 function renderYardTable() {
+  const isManager = currentUser.role === 'manager';
+  // Show/hide manager controls
+  document.getElementById('yard-manager-toolbar').style.display = isManager ? 'flex' : 'none';
+  const toPlacePanel = document.getElementById('yard-to-place-panel');
+  renderToPlaceGrid(isManager);
+
   const tbody = document.getElementById('yard-tbody');
   let html = '';
   for (let i = 0; i < Math.max(LEFT_SPOTS.length, RIGHT_ROWS.length); i++) {
     const leftSpot = LEFT_SPOTS[i] || '';
     const rightRow = i < RIGHT_ROWS.length ? RIGHT_ROWS[i] : null;
 
-    // Left cells
-    const leftNum = leftSpot ? `<td style="${tdStyle('right')}">${leftSpot}</td>` : `<td style="${tdStyle()}"></td>`;
-    const leftKnisa = leftSpot
-      ? `<td style="${tdStyle()}">${spotInput('L_'+leftSpot+'_כניסה')}</td>`
-      : `<td style="${tdStyle()}"></td>`;
-    const leftMagr = leftSpot
-      ? `<td style="${tdStyle()}">${spotInput('L_'+leftSpot+'_למגרש')}</td>`
-      : `<td style="${tdStyle()}"></td>`;
+    const leftNum = leftSpot ? `<td style="${tdStyle('center')};font-weight:700">${leftSpot}</td>` : `<td style="${tdStyle()}"></td>`;
+    const leftKnisa = leftSpot ? `<td style="${tdStyle()}">${spotInput('L_'+leftSpot+'_כניסה', isManager)}</td>` : `<td style="${tdStyle()}"></td>`;
+    const leftMagr  = leftSpot ? `<td style="${tdStyle()};padding:4px">
+      <div style="display:flex;gap:4px">
+        ${spotInput('L_'+leftSpot+'_למגרש_1', isManager)}
+        ${spotInput('L_'+leftSpot+'_למגרש_2', isManager)}
+      </div></td>` : `<td style="${tdStyle()}"></td>`;
 
-    // Divider
-    const divider = `<td style="background:#e0e4ef;width:8px;border:1px solid #ccc"></td>`;
+    const divider = `<td style="background:#c0c4d8;width:8px;border:1px solid #b0b4c8"></td>`;
 
-    // Right cells
     let rightNumCell = '', rightPnim = '', rightHutz = '';
     if (!rightRow) {
       rightNumCell = `<td style="${tdStyle()}"></td>`;
@@ -1138,35 +1157,87 @@ function renderYardTable() {
       rightHutz    = `<td style="${tdStyle()}"></td>`;
     } else {
       const nums = rightRow;
-      rightNumCell = `<td style="${tdStyle('right')}">${nums.join('/')}</td>`;
       if (nums.length === 2) {
-        rightPnim = `<td style="${tdStyle()}">
-          <div style="display:flex;flex-direction:column;gap:3px">
-            <div style="font-size:10px;color:var(--muted)">${nums[0]}:</div>${spotInput('R_'+nums[0]+'_בפנים')}
-            <div style="font-size:10px;color:var(--muted);margin-top:4px">${nums[1]}:</div>${spotInput('R_'+nums[1]+'_בפנים')}
+        // ONE ROW, TWO CELLS SIDE BY SIDE per column
+        rightNumCell = `<td style="${tdStyle('center')};font-weight:700">${nums[0]}/${nums[1]}</td>`;
+        rightPnim = `<td style="${tdStyle()};padding:4px">
+          <div style="display:flex;gap:4px;align-items:center">
+            <div style="display:flex;flex-direction:column;align-items:center;flex:1">
+              <span style="font-size:10px;color:var(--muted);margin-bottom:2px">${nums[0]}</span>
+              ${spotInput('R_'+nums[0]+'_בפנים', isManager)}
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:center;flex:1">
+              <span style="font-size:10px;color:var(--muted);margin-bottom:2px">${nums[1]}</span>
+              ${spotInput('R_'+nums[1]+'_בפנים', isManager)}
+            </div>
           </div></td>`;
-        rightHutz = `<td style="${tdStyle()}">
-          <div style="display:flex;flex-direction:column;gap:3px">
-            <div style="font-size:10px;color:var(--muted)">${nums[0]}:</div>${spotInput('R_'+nums[0]+'_בחוץ')}
-            <div style="font-size:10px;color:var(--muted);margin-top:4px">${nums[1]}:</div>${spotInput('R_'+nums[1]+'_בחוץ')}
+        rightHutz = `<td style="${tdStyle()};padding:4px">
+          <div style="display:flex;gap:4px;align-items:center">
+            <div style="display:flex;flex-direction:column;align-items:center;flex:1">
+              <span style="font-size:10px;color:var(--muted);margin-bottom:2px">${nums[0]}</span>
+              ${spotInput('R_'+nums[0]+'_בחוץ', isManager)}
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:center;flex:1">
+              <span style="font-size:10px;color:var(--muted);margin-bottom:2px">${nums[1]}</span>
+              ${spotInput('R_'+nums[1]+'_בחוץ', isManager)}
+            </div>
           </div></td>`;
       } else {
-        rightPnim = `<td style="${tdStyle()}">${spotInput('R_'+nums[0]+'_בפנים')}</td>`;
-        rightHutz = `<td style="${tdStyle()}">${spotInput('R_'+nums[0]+'_בחוץ')}</td>`;
+        rightNumCell = `<td style="${tdStyle('center')};font-weight:700">${nums[0]}</td>`;
+        rightPnim = `<td style="${tdStyle()}">${spotInput('R_'+nums[0]+'_בפנים', isManager)}</td>`;
+        rightHutz = `<td style="${tdStyle()}">${spotInput('R_'+nums[0]+'_בחוץ', isManager)}</td>`;
       }
     }
 
-    const rowBg = i % 2 === 0 ? '#fff' : '#f8f9ff';
+    const rowBg = i % 2 === 0 ? '#fff' : '#f0f2ff';
     html += `<tr style="background:${rowBg}">${leftNum}${leftKnisa}${leftMagr}${divider}${rightNumCell}${rightPnim}${rightHutz}</tr>`;
   }
   tbody.innerHTML = html;
   renderYardInputValues();
+
+  // Auto-scale for driver view to fit screen
+  if (!isManager) {
+    setTimeout(() => {
+      const wrap = document.getElementById('yard-table-wrap');
+      const tbl  = document.getElementById('yard-table');
+      const availH = wrap.clientHeight || window.innerHeight - 200;
+      const availW = wrap.clientWidth  || window.innerWidth;
+      const scaleX = availW / (tbl.scrollWidth + 2);
+      const scaleY = availH / (tbl.scrollHeight + 2);
+      const scale  = Math.min(scaleX, scaleY, 1);
+      tbl.style.transform = `scale(${scale})`;
+      tbl.style.transformOrigin = 'top right';
+      wrap.style.height = (tbl.scrollHeight * scale) + 'px';
+      wrap.style.overflow = 'hidden';
+    }, 100);
+  }
 }
 
-function spotInput(key) {
+function renderToPlaceGrid(isManager) {
+  const grid = document.getElementById('yard-to-place-grid');
+  let html = '';
+  for (let i = 1; i <= 10; i++) {
+    const key = 'TO_PLACE_' + i;
+    if (isManager) {
+      html += `<input data-key="${key}" value="${esc(yardData[key]||'')}" placeholder="רכב ${i}"
+        onchange="yardData[this.dataset.key]=this.value"
+        style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:6px 8px;font-family:Heebo,sans-serif;font-size:13px;text-align:center;outline:none"
+        onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'">`;
+    } else {
+      const val = yardData[key] || '';
+      html += `<div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:6px 8px;font-size:13px;text-align:center;min-height:32px;color:${val?'var(--dark)':'#ccc'}">${val||'—'}</div>`;
+    }
+  }
+  grid.innerHTML = html;
+}
+
+function spotInput(key, editable) {
   const val = yardData[key] || '';
+  if (!editable) {
+    return `<div data-key="${key}" style="min-width:60px;min-height:24px;font-size:12px;text-align:center;color:${val?'var(--dark)':'#bbb'}">${val||'—'}</div>`;
+  }
   return `<input data-key="${key}" value="${esc(val)}" onchange="yardData[this.dataset.key]=this.value"
-    style="width:100%;background:transparent;border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-family:Heebo,sans-serif;font-size:13px;outline:none;min-width:70px"
+    style="width:100%;min-width:60px;background:transparent;border:1px solid var(--border);border-radius:6px;padding:4px 6px;font-family:Heebo,sans-serif;font-size:12px;outline:none"
     onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'">`;
 }
 
@@ -1175,14 +1246,19 @@ function tdStyle(align) {
 }
 
 function renderYardInputValues() {
-  document.querySelectorAll('#yard-tbody input[data-key]').forEach(inp => {
+  document.querySelectorAll('#yard-tbody input[data-key], #yard-to-place-grid input[data-key]').forEach(inp => {
     inp.value = yardData[inp.dataset.key] || '';
+  });
+  // Update read-only display divs
+  document.querySelectorAll('#yard-tbody div[data-key], #yard-to-place-grid div[data-key]').forEach(div => {
+    const val = yardData[div.dataset.key] || '';
+    div.textContent = val || '—';
+    div.style.color = val ? 'var(--dark)' : '#bbb';
   });
 }
 
 async function saveYard() {
-  // collect all input values
-  document.querySelectorAll('#yard-tbody input[data-key]').forEach(inp => {
+  document.querySelectorAll('#yard-tbody input[data-key], #yard-to-place-grid input[data-key]').forEach(inp => {
     yardData[inp.dataset.key] = inp.value;
   });
   if (!window._CONFIG_DONE) return showToast('Firebase לא מחובר');
