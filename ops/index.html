@@ -646,7 +646,9 @@ if ('serviceWorker' in navigator) {
     <div class="user-badge" id="inventory-user-badge"></div>
   </div>
   <div style="padding:16px 16px 100px">
-    <!-- Last assignment status banner -->
+    <!-- Last completed check banner (persistent) -->
+    <div id="inv-done-banner" style="display:none;border-radius:14px;padding:14px 16px;margin-bottom:10px;font-size:14px;font-weight:700;background:#f0fff4;border:2px solid #22c55e;color:#166534"></div>
+    <!-- Current assignment status banner -->
     <div id="inv-status-banner" style="display:none;border-radius:14px;padding:14px 16px;margin-bottom:14px;font-size:14px;font-weight:700"></div>
     <!-- Upload area (small when table loaded) -->
     <div style="display:flex;gap:10px;align-items:stretch;margin-bottom:16px">
@@ -2202,7 +2204,12 @@ function loadLastInventoryAssignment() {
   if (_invUnsub) _invUnsub();
   const container  = document.getElementById('inv-list');
   const banner     = document.getElementById('inv-status-banner');
+  const doneBanner = document.getElementById('inv-done-banner');
   container.innerHTML = '<div class="loading"><div class="spinner"></div> טוען...</div>';
+
+  // restore saved last-check banner immediately
+  const savedBanner = localStorage.getItem('_lastInvBanner');
+  if (savedBanner) { doneBanner.style.display = 'block'; doneBanner.innerHTML = savedBanner; }
 
   _invUnsub = _onSnap(_colRef('inventory_assignments'), snap => {
     if (_invMode === 'preview') return; // user uploaded new file — don't overwrite
@@ -2231,13 +2238,11 @@ function loadLastInventoryAssignment() {
       const tsDate = completedDate ? completedDate.toLocaleDateString('he-IL') : '';
       const tsTime = completedDate ? completedDate.toLocaleTimeString('he-IL', {hour:'2-digit',minute:'2-digit'}) : '';
       const tsStr = tsDate + (tsTime ? ' · ' + tsTime : '');
-      banner.style.display = 'block';
-      banner.style.background = '#f0fff4';
-      banner.style.border = '2px solid #22c55e';
-      banner.style.color = '#166534';
       const bannerText = `✅ הבדיקה הושלמה ע"י <strong>${esc(last.completedBy||last.assignedTo)}</strong> · ${tsStr}`;
-      banner.innerHTML = bannerText;
+      doneBanner.style.display = 'block';
+      doneBanner.innerHTML = bannerText;
       localStorage.setItem('_lastInvBanner', bannerText);
+      banner.style.display = 'none';
       renderInvResult(headers, rows, last.present||[], last.absent||[]);
       // notify manager if this just changed to done
       if (window._lastInvStatus && window._lastInvStatus !== 'done') {
@@ -2266,18 +2271,12 @@ async function deleteInventoryTable() {
   await deleteDoc(doc(window._db, 'inventory_assignments', docId));
   btn.style.display = 'none';
   document.getElementById('inv-list').innerHTML = '';
+  document.getElementById('inv-status-banner').style.display = 'none';
   // restore last-completed banner if exists
   const savedBanner = localStorage.getItem('_lastInvBanner');
-  const banner = document.getElementById('inv-status-banner');
-  if (savedBanner) {
-    banner.style.display = 'block';
-    banner.style.background = '#f0fff4';
-    banner.style.border = '2px solid #22c55e';
-    banner.style.color = '#166534';
-    banner.innerHTML = savedBanner;
-  } else {
-    banner.style.display = 'none';
-  }
+  const doneBanner = document.getElementById('inv-done-banner');
+  if (savedBanner) { doneBanner.style.display = 'block'; doneBanner.innerHTML = savedBanner; }
+  else { doneBanner.style.display = 'none'; }
   document.getElementById('inv-upload-zone').style.padding = '28px 20px';
   document.getElementById('inv-submit-wrap').style.display = 'none';
   inventoryHeaders = [];
