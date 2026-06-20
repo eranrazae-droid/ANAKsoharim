@@ -574,6 +574,40 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
+<!-- ====== SCREEN: INVENTORY CHECK ====== -->
+<div id="screen-inventory" class="screen">
+  <div class="app-header">
+    <button class="back-btn" onclick="goHome()">→</button>
+    <div class="logo">בדיקת מלאי</div>
+    <div class="user-badge" id="inventory-user-badge"></div>
+  </div>
+  <div style="padding:16px 16px 100px">
+    <!-- Upload area -->
+    <div id="inv-upload-zone" style="border:2px dashed var(--gold);border-radius:16px;padding:28px 20px;text-align:center;background:#f8f9ff;margin-bottom:16px;cursor:pointer" onclick="document.getElementById('inv-file-input').click()">
+      <div style="font-size:36px;margin-bottom:8px">📊</div>
+      <div style="font-weight:700;font-size:16px;color:var(--dark)">לחץ לצרף קובץ אקסל</div>
+      <div style="font-size:13px;color:var(--muted);margin-top:4px">קובץ .xlsx עם מספרי רכב</div>
+      <input type="file" id="inv-file-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleInventoryFile(this)">
+    </div>
+    <!-- Vehicle list -->
+    <div id="inv-list"></div>
+    <!-- Submit -->
+    <div id="inv-submit-wrap" style="display:none;position:fixed;bottom:0;right:0;left:0;padding:16px;background:#fff;border-top:1px solid var(--border);z-index:50">
+      <button onclick="submitInventory()" style="width:100%;background:var(--gold);color:#000;border:none;border-radius:14px;padding:16px;font-family:Heebo,sans-serif;font-weight:900;font-size:18px;cursor:pointer">✅ שליחת דוח מלאי</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== MODAL: CAR TYPE (after vehicle submit) ====== -->
+<div class="modal-overlay" id="modal-car-type">
+  <div class="modal-box" style="text-align:center">
+    <div style="font-size:36px;margin-bottom:8px">🚗</div>
+    <div class="modal-title" style="justify-content:center;font-size:18px">סוג הרכב</div>
+    <p style="color:var(--muted);font-size:14px;margin-bottom:20px">בחר את סוג הרכב שקלטת</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px" id="car-type-grid"></div>
+  </div>
+</div>
+
 <!-- ====== MODAL: YARD CONTINUE ====== -->
 <div class="modal-overlay" id="modal-yard-start">
   <div class="modal-box" style="text-align:center">
@@ -589,6 +623,9 @@ if ('serviceWorker' in navigator) {
 
 <!-- ====== TOAST ====== -->
 <div class="toast" id="toast"></div>
+
+<!-- SheetJS for Excel parsing -->
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 
 <!-- ====== FIREBASE ====== -->
 <script type="module">
@@ -810,6 +847,7 @@ function renderHome() {
         { icon: '🚗', title: 'קליטת רכב', sub: 'רכבים במגרש', screen: 'vehicles' },
         { icon: '🔧', title: 'הזמנת חלקים', sub: 'בקשות ועדכונים', screen: 'parts' },
         { icon: '🅿️', title: 'סידור מגרש', sub: 'טבלת חניות', screen: 'yard' },
+        { icon: '📦', title: 'בדיקת מלאי', sub: 'סימון רכבים במגרש', screen: 'inventory' },
       ]
     : [
         { icon: '📋', title: 'המשימות שלי', sub: 'משימות שהוקצו לך', screen: 'tasks' },
@@ -833,6 +871,7 @@ function goToScreen(name) {
   else if (name === 'vehicles') openVehiclesScreen();
   else if (name === 'parts') openPartsScreen();
   else if (name === 'yard') openYardScreen();
+  else if (name === 'inventory') openInventoryScreen();
 }
 
 function loadStats() {
@@ -1206,11 +1245,11 @@ async function submitVehicle() {
       photoUrls[k] = await uploadPhotos(k, vehicleId);
     }
   }
-  await _addDoc(_colRef('vehicles'), {
+  const vDocRef = await _addDoc(_colRef('vehicles'), {
     plate,
     brand:       document.getElementById('v-brand').value.trim(),
     model:       document.getElementById('v-model').value.trim(),
-    submodel:    document.getElementById('v-submodel').value.trim(),
+    submodel:    '',
     color:       document.getElementById('v-color').value.trim(),
     year:        document.getElementById('v-year').value,
     km:          document.getElementById('v-km').value,
@@ -1284,8 +1323,9 @@ async function submitVehicle() {
     });
   }
 
+  window._lastVehicleDocRef = vDocRef;
   closeModal('modal-vehicle');
-  showToast('✅ רכב נקלט!');
+  openCarTypeModal();
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -1454,6 +1494,136 @@ function demoPartsHTML() {
 }
 
 // expose functions needed by inline onclick
+/* ═══════════════════════════════════════════════════════
+   INVENTORY SCREEN
+═══════════════════════════════════════════════════════ */
+let inventoryPlates = []; // [{plate, status: null|'v'|'x'}]
+
+function openInventoryScreen() {
+  document.getElementById('inventory-user-badge').textContent = currentUser.name;
+  inventoryPlates = [];
+  document.getElementById('inv-list').innerHTML = '';
+  document.getElementById('inv-submit-wrap').style.display = 'none';
+  document.getElementById('inv-file-input').value = '';
+  showScreen('inventory');
+}
+
+function handleInventoryFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+      // collect all non-empty cells that look like plate numbers (numeric or alphanumeric)
+      const plates = [];
+      rows.forEach(row => {
+        row.forEach(cell => {
+          const v = String(cell).trim();
+          if (v && v.length >= 5 && v.length <= 9 && /^[0-9\-]+$/.test(v.replace(/[-\s]/g,''))) {
+            plates.push(v);
+          }
+        });
+      });
+      if (!plates.length) { showToast('לא נמצאו מספרי רכב בקובץ'); return; }
+      inventoryPlates = plates.map(p => ({ plate: p, status: null }));
+      renderInventoryList();
+    } catch(err) {
+      showToast('שגיאה בקריאת הקובץ');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function renderInventoryList() {
+  const container = document.getElementById('inv-list');
+  container.innerHTML = `
+    <div style="font-weight:700;font-size:15px;color:var(--dark);margin-bottom:10px">
+      ${inventoryPlates.length} רכבים — סמן נוכחות לכל אחד
+    </div>
+    ${inventoryPlates.map((item, i) => `
+    <div id="inv-row-${i}" style="display:flex;align-items:center;gap:10px;background:#fff;border:2px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;direction:rtl">
+      <div style="font-weight:900;font-size:16px;letter-spacing:.05em;flex:1">${esc(item.plate)}</div>
+      <button class="inv-btn v-btn ${item.status==='v'?'inv-active-v':''}" onclick="invClick(${i},'v')"
+        style="width:44px;height:44px;border-radius:10px;border:2px solid ${item.status==='v'?'#22c55e':'#ccc'};background:${item.status==='v'?'#22c55e':'#f9f9f9'};font-size:20px;cursor:pointer;font-weight:900;color:${item.status==='v'?'#fff':'#555'}">✓</button>
+      <button class="inv-btn x-btn ${item.status==='x'?'inv-active-x':''}" onclick="invClick(${i},'x')"
+        style="width:44px;height:44px;border-radius:10px;border:2px solid ${item.status==='x'?'#ef4444':'#ccc'};background:${item.status==='x'?'#ef4444':'#f9f9f9'};font-size:20px;cursor:pointer;font-weight:900;color:${item.status==='x'?'#fff':'#555'}">✕</button>
+    </div>`).join('')}
+  `;
+  document.getElementById('inv-submit-wrap').style.display = 'block';
+}
+
+function invClick(idx, val) {
+  inventoryPlates[idx].status = inventoryPlates[idx].status === val ? null : val;
+  renderInventoryList();
+  // scroll back to position
+  const row = document.getElementById(`inv-row-${idx}`);
+  if (row) row.scrollIntoView({ block: 'nearest' });
+}
+
+async function submitInventory() {
+  const missing = inventoryPlates.filter(p => !p.status);
+  if (missing.length) {
+    showToast(`נותרו ${missing.length} רכבים ללא סימון`);
+    // highlight first unmarked
+    const idx = inventoryPlates.indexOf(missing[0]);
+    document.getElementById(`inv-row-${idx}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    document.getElementById(`inv-row-${idx}`).style.border = '2px solid #ef4444';
+    return;
+  }
+  if (window._CONFIG_DONE) {
+    const present = inventoryPlates.filter(p => p.status === 'v').map(p => p.plate);
+    const absent  = inventoryPlates.filter(p => p.status === 'x').map(p => p.plate);
+    await _addDoc(_colRef('inventory_reports'), {
+      submittedBy: currentUser.name,
+      createdAt:   _serverTs(),
+      present,
+      absent,
+      total: inventoryPlates.length
+    });
+  }
+  showToast('✅ דוח מלאי נשלח!');
+  setTimeout(() => goHome(), 1200);
+}
+
+/* ═══════════════════════════════════════════════════════
+   CAR TYPE MODAL (after vehicle submit)
+═══════════════════════════════════════════════════════ */
+const CAR_TYPES = [
+  { icon: '🚗', label: 'פרטית' },
+  { icon: '🚙', label: 'שטח' },
+  { icon: '🚐', label: 'מסחרית' },
+  { icon: '🚌', label: 'ואן' },
+];
+
+function openCarTypeModal() {
+  document.getElementById('car-type-grid').innerHTML = CAR_TYPES.map(t => `
+    <button onclick="selectCarType('${t.label}')"
+      style="background:#f0f2ff;border:2px solid var(--border);border-radius:14px;padding:18px 10px;
+             font-family:Heebo,sans-serif;font-size:15px;font-weight:700;cursor:pointer;
+             display:flex;flex-direction:column;align-items:center;gap:6px">
+      <span style="font-size:32px">${t.icon}</span>${t.label}
+    </button>
+  `).join('');
+  openModal('modal-car-type');
+}
+
+async function selectCarType(type) {
+  closeModal('modal-car-type');
+  if (window._CONFIG_DONE && window._lastVehicleDocRef) {
+    await _updateDoc(window._lastVehicleDocRef, { carType: type });
+  }
+  showToast(`✅ רכב נקלט! סוג: ${type}`);
+}
+
+window.openInventoryScreen = openInventoryScreen;
+window.handleInventoryFile = handleInventoryFile;
+window.invClick = invClick;
+window.submitInventory = submitInventory;
+window.selectCarType = selectCarType;
+
 window.selectDriver = selectDriver;
 window.checkLoginReady = checkLoginReady;
 window.doLogin = doLogin;
