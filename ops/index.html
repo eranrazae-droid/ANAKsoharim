@@ -416,6 +416,12 @@ if ('serviceWorker' in navigator) {
       </div>
     </div>
 
+    <!-- מספר חניה -->
+    <div class="form-group">
+      <label>מספר חניה</label>
+      <input class="form-input" id="v-spot" placeholder="לדוגמא: 42" inputmode="numeric">
+    </div>
+
     <!-- בחירת נהג -->
     <div class="form-group" style="margin-top:4px">
       <label>נהג קולט</label>
@@ -1166,6 +1172,7 @@ function loadVehicles() {
               <div class="vehicle-meta" style="margin-top:4px">
                 ${v.color ? `<span class="tag assignee">🎨 ${esc(v.color)}</span>` : ''}
                 <span class="tag assignee">👤 ${esc(v.assignedTo)}</span>
+                ${v.spot ? `<span class="tag assignee">🅿️ חניה ${esc(v.spot)}</span>` : ''}
               </div>
               ${ts ? `<div class="task-time" style="margin-top:4px">${ts}</div>` : ''}
             </div>
@@ -1183,6 +1190,7 @@ function loadVehicles() {
             <div>
               <div class="vehicle-plate">${esc(v.plate)}</div>
               <div class="vehicle-info">${[v.brand,v.model,v.year].filter(Boolean).map(esc).join(' ')}</div>
+              ${v.spot ? `<div style="font-size:13px;font-weight:700;color:var(--dark);margin-top:4px">🅿️ חניה ${esc(v.spot)}</div>` : ''}
               ${ts ? `<div class="task-time" style="margin-top:4px">${ts}</div>` : ''}
             </div>
             <span style="background:${color};color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700">פתיחה ▶</span>
@@ -1426,7 +1434,7 @@ function getChecklist() {
 }
 
 function openNewVehicleModal() {
-  ['v-plate','v-brand','v-model','v-color','v-year','v-km'].forEach(id => {
+  ['v-plate','v-brand','v-model','v-color','v-year','v-km','v-spot'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
@@ -1487,6 +1495,7 @@ async function submitVehicle() {
     color:      document.getElementById('v-color').value.trim(),
     year:       document.getElementById('v-year').value,
     km:         document.getElementById('v-km').value,
+    spot:       document.getElementById('v-spot').value.trim(),
     assignedTo: driver,
     createdBy:  currentUser.name,
     status:     'pending',
