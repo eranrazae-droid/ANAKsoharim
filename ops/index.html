@@ -629,6 +629,8 @@ if ('serviceWorker' in navigator) {
   <div id="yard-driver-toolbar" style="display:none;padding:12px 16px;background:#fff;border-bottom:1px solid var(--border);justify-content:flex-end">
     <button id="yard-done-btn" onclick="markYardDone()" style="background:#22c55e;color:#fff;border:none;border-radius:10px;padding:8px 20px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">✅ בוצע</button>
   </div>
+  <!-- Reset info banner -->
+  <div id="yard-reset-banner" style="display:none;padding:8px 16px;background:#eff6ff;border-bottom:1px solid #bfdbfe;font-size:12px;color:#1e40af;font-weight:700;text-align:right"></div>
   <!-- Vehicles to place panel -->
   <div id="yard-to-place-panel" style="padding:12px 16px;background:#f8f9ff;border-bottom:1px solid var(--border)">
     <div style="font-weight:700;font-size:14px;color:var(--dark);margin-bottom:8px">🚗 רכבים שצריך להכניס לחניות</div>
@@ -3095,9 +3097,7 @@ function startYard(mode) {
   if (btn) { btn.textContent = '📤 שלח לנהגים'; btn.style.background = 'var(--gold)'; btn.style.color = '#000'; btn.onclick = publishYard; btn.disabled = false; }
   if (mode === 'new') {
     yardData = {};
-    if (window._CONFIG_DONE) {
-      _setDoc(_docRef('yard','current'), { data: {}, updatedAt: _serverTs(), publishedAt: null, status: 'draft' });
-    }
+    _yardUpdate({ data: {}, updatedAt: _serverTs(), publishedAt: null, status: 'draft' });
   } else {
     loadYardData();
   }
@@ -3107,6 +3107,21 @@ function startYard(mode) {
 
 var _yardLastStatus = null;
 
+function _updateYardResetBanner(d) {
+  const banner = document.getElementById('yard-reset-banner');
+  if (!banner) return;
+  const by = d.resetBy;
+  const at = d.resetAt;
+  if (!by && !at) { banner.style.display = 'none'; return; }
+  let timeStr = '';
+  if (at) {
+    const date = at.toDate ? at.toDate() : new Date(at);
+    timeStr = date.toLocaleString('he-IL', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
+  }
+  banner.style.display = 'block';
+  banner.textContent = `🔄 טבלה אופסה בפעם האחרונה על ידי ${by || ''}${timeStr ? ' — ' + timeStr : ''}`;
+}
+
 function loadYardData() {
   if (!window._CONFIG_DONE) return;
   if (yardUnsub) yardUnsub();
@@ -3115,6 +3130,9 @@ function loadYardData() {
     if (!snap.exists()) return;
     const d = snap.data();
     const isManager = currentUser?.role === 'manager';
+
+    // Update reset banner for everyone
+    _updateYardResetBanner(d);
 
     if (!isManager) {
       // Driver: always sync table from Firestore
@@ -3237,7 +3255,7 @@ function renderToPlaceGrid(isManager) {
       const tpBorder = tpVal ? '#16a34a' : 'var(--border)';
       html += `<input data-key="${key}" value="${esc(tpVal)}" placeholder="רכב ${i}"
         onchange="yardData[this.dataset.key]=this.value;this.style.background=this.value?'#dcfce7':'#fff';this.style.borderColor=this.value?'#16a34a':'var(--border)';_autoSaveYard()"
-        onkeydown="if(event.key==='Enter'||event.keyCode===13){event.preventDefault();yardData[this.dataset.key]=this.value;clearTimeout(_yardSaveTimer);if(window._CONFIG_DONE)_setDoc(_docRef('yard','current'),{data:yardData,updatedAt:_serverTs(),publishedAt:null,status:'draft'});this.blur();}"
+        onkeydown="if(event.key==='Enter'||event.keyCode===13){event.preventDefault();yardData[this.dataset.key]=this.value;clearTimeout(_yardSaveTimer);_yardUpdate({data:yardData,updatedAt:_serverTs(),status:'draft'});this.blur();}"
         style="background:${tpBg};border:1px solid ${tpBorder};border-radius:8px;padding:6px 8px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;color:#15803d;text-align:center;outline:none"
         onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor=this.value?'#16a34a':'var(--border)'">`;
     } else {
@@ -3256,7 +3274,7 @@ function spotInput(key, editable) {
   const bg = val ? '#dcfce7' : 'transparent';
   const border = val ? '#16a34a' : 'var(--border)';
   return `<input data-key="${key}" value="${esc(val)}" onchange="yardData[this.dataset.key]=this.value;this.style.background=this.value?'#dcfce7':'transparent';this.style.borderColor=this.value?'#16a34a':'var(--border)';_autoSaveYard()"
-    onkeydown="if(event.key==='Enter'||event.keyCode===13){event.preventDefault();yardData[this.dataset.key]=this.value;clearTimeout(_yardSaveTimer);if(window._CONFIG_DONE)_setDoc(_docRef('yard','current'),{data:yardData,updatedAt:_serverTs(),publishedAt:null,status:'draft'});this.blur();}"
+    onkeydown="if(event.key==='Enter'||event.keyCode===13){event.preventDefault();yardData[this.dataset.key]=this.value;clearTimeout(_yardSaveTimer);_yardUpdate({data:yardData,updatedAt:_serverTs(),status:'draft'});this.blur();}"
     style="width:100%;min-width:60px;background:${bg};border:1px solid ${border};border-radius:6px;padding:4px 6px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;color:#15803d;outline:none"
     onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor=this.value?'#16a34a':'var(--border)'">`;
 }
@@ -3283,26 +3301,33 @@ function _collectYardInputs() {
   });
 }
 
+async function _yardUpdate(fields) {
+  if (!window._CONFIG_DONE) return;
+  try {
+    await _updateDoc(_docRef('yard','current'), fields);
+  } catch(e) {
+    if (e.code === 'not-found') await _setDoc(_docRef('yard','current'), fields);
+    else console.warn('yard save error', e);
+  }
+}
+
 let _yardSaveTimer = null;
 function _autoSaveYard() {
   _collectYardInputs();
   clearTimeout(_yardSaveTimer);
-  _yardSaveTimer = setTimeout(async () => {
-    if (!window._CONFIG_DONE) return;
-    await _setDoc(_docRef('yard','current'), { data: yardData, updatedAt: _serverTs(), publishedAt: null, status: 'draft' });
-  }, 800);
+  _yardSaveTimer = setTimeout(() => _yardUpdate({ data: yardData, updatedAt: _serverTs(), status: 'draft' }), 800);
 }
 
 async function saveYardDraft() {
   _collectYardInputs();
   if (!window._CONFIG_DONE) return showToast('Firebase לא מחובר');
-  await _setDoc(_docRef('yard','current'), { data: yardData, updatedAt: _serverTs(), publishedAt: null, status: 'draft' });
+  await _yardUpdate({ data: yardData, updatedAt: _serverTs(), status: 'draft' });
 }
 
 async function publishYard() {
   _collectYardInputs();
   if (!window._CONFIG_DONE) return showToast('Firebase לא מחובר');
-  await _setDoc(_docRef('yard','current'), { data: yardData, updatedAt: _serverTs(), publishedAt: _serverTs(), status: 'pending' });
+  await _yardUpdate({ data: yardData, updatedAt: _serverTs(), publishedAt: _serverTs(), status: 'pending' });
   showToast('📤 הטבלה נשלחה לנהגים!');
   const btn = document.getElementById('yard-publish-btn');
   if (btn) {
@@ -3316,7 +3341,7 @@ async function publishYard() {
 
 async function doneYardManager() {
   if (!window._CONFIG_DONE) return showToast('Firebase לא מחובר');
-  await _setDoc(_docRef('yard','current'), { data: {}, updatedAt: _serverTs(), publishedAt: null, status: 'done' });
+  await _yardUpdate({ data: {}, updatedAt: _serverTs(), publishedAt: null, status: 'done', resetBy: currentUser?.name || '', resetAt: _serverTs() });
   yardData = {};
   showToast('✅ בוצע! הטבלה אופסה');
   goHome();
@@ -3324,7 +3349,7 @@ async function doneYardManager() {
 
 async function markYardDone() {
   if (!window._CONFIG_DONE) return showToast('Firebase לא מחובר');
-  await _setDoc(_docRef('yard','current'), { data: {}, updatedAt: _serverTs(), publishedAt: null, status: 'done' });
+  await _yardUpdate({ data: {}, updatedAt: _serverTs(), publishedAt: null, status: 'done', resetBy: currentUser?.name || '', resetAt: _serverTs() });
   yardData = {};
   showToast('✅ בוצע! הטבלה אופסה');
   document.getElementById('yard-driver-toolbar').style.display = 'none';
@@ -3335,9 +3360,7 @@ async function resetYard() {
   if (!confirm('למחוק את כל הנתונים ולהתחיל טבלה חדשה?')) return;
   yardData = {};
   renderYardInputValues();
-  if (window._CONFIG_DONE) {
-    await _setDoc(_docRef('yard','current'), { data: {}, updatedAt: _serverTs(), publishedAt: null, status: 'draft' });
-  }
+  await _yardUpdate({ data: {}, updatedAt: _serverTs(), publishedAt: null, status: 'draft' });
   const btn = document.getElementById('yard-publish-btn');
   if (btn) { btn.textContent = '📤 שלח לנהגים'; btn.style.background = 'var(--gold)'; btn.style.color = '#000'; btn.onclick = publishYard; btn.disabled = false; }
   showToast('🔄 הטבלה אופסה אצל כולם');
