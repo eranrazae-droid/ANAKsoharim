@@ -1959,18 +1959,15 @@ async function submitVehicle() {
   if (!driverBtn) return showToast('נא לבחור נהג קולט');
   const driver = driverBtn.dataset.driver;
 
-  // check for duplicate active intake
+  // check for duplicate intake (any status) — fetch by plate only, filter client-side
   const { getDocs, query, collection, where } =
     await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-  const existing = await getDocs(
-    query(collection(window._db, 'intake_assignments'),
-      where('plate','==', plate),
-      where('status','in',['pending','done','checked'])
-    )
+  const snap = await getDocs(
+    query(collection(window._db, 'intake_assignments'), where('plate','==', plate))
   );
-  if (!existing.empty) {
-    const st = existing.docs[0].data().status;
-    const stLabel = st === 'pending' ? 'ממתינה לקליטה' : st === 'done' ? 'בוצעה ועדיין לא נבדקה' : 'נבדקה';
+  const conflict = snap.docs.map(d => d.data()).find(d => ['pending','done','checked'].includes(d.status));
+  if (conflict) {
+    const stLabel = conflict.status === 'pending' ? 'בתהליך קליטה' : conflict.status === 'done' ? 'בוצעה ועדיין לא נבדקה' : 'נבדקה';
     return showToast(`⚠️ לרכב ${plate} כבר קיימת קליטה — ${stLabel}`);
   }
 
