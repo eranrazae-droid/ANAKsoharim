@@ -2284,17 +2284,45 @@ function renderInvPending(headers, rows) {
   document.getElementById('inv-list').innerHTML = html;
 }
 
+let _invResultData = null; // cache for filter
+
 function renderInvResult(headers, rows, present, absent) {
+  _invResultData = { headers, rows, present, absent };
+  _renderInvResultFiltered('all');
+}
+
+function filterInvResult(filter) {
+  _renderInvResultFiltered(filter);
+}
+
+function _renderInvResultFiltered(filter) {
+  if (!_invResultData) return;
+  const { headers, rows, present, absent } = _invResultData;
   const presentSet = new Set(present);
   const colCount = headers.length || (rows[0]?.length || 1);
-  let html = `<div style="display:flex;gap:12px;margin-bottom:12px">
-    <span style="background:#dcfce7;color:#166534;border-radius:8px;padding:6px 12px;font-weight:700;font-size:13px">✓ נמצאו: ${present.length}</span>
-    <span style="background:#fee2e2;color:#991b1b;border-radius:8px;padding:6px 12px;font-weight:700;font-size:13px">✕ חסרים: ${absent.length}</span>
+
+  const activeStyle = 'cursor:pointer;border-radius:8px;padding:6px 12px;font-weight:700;font-size:13px;border:2px solid transparent';
+  const presentActive = filter === 'present' ? 'border-color:#166534' : '';
+  const absentActive  = filter === 'absent'  ? 'border-color:#991b1b' : '';
+  const allActive     = filter === 'all'     ? 'text-decoration:underline' : '';
+
+  let html = `<div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap">
+    <span onclick="filterInvResult('present')" style="${activeStyle};background:#dcfce7;color:#166534;${presentActive}">✓ נמצאו: ${present.length}</span>
+    <span onclick="filterInvResult('absent')"  style="${activeStyle};background:#fee2e2;color:#991b1b;${absentActive}">✕ חסרים: ${absent.length}</span>
+    <span onclick="filterInvResult('all')"     style="${activeStyle};background:#f1f5f9;color:#333;${allActive}">הכל</span>
   </div>`;
+
+  const filtered = rows.filter(cells => {
+    const key = cells.join(' | ');
+    if (filter === 'present') return presentSet.has(key);
+    if (filter === 'absent')  return !presentSet.has(key);
+    return true;
+  });
+
   if (headers.length) {
     html += `<div style="display:grid;grid-template-columns:48px repeat(${colCount},1fr);gap:4px;background:var(--dark);color:#fff;border-radius:10px 10px 0 0;padding:8px 10px;font-size:12px;font-weight:700;direction:rtl"><div style="text-align:center">סטטוס</div>${headers.map(h=>`<div>${esc(h)}</div>`).join('')}</div>`;
   }
-  html += rows.map((cells,i) => {
+  html += filtered.map((cells,i) => {
     const key = cells.join(' | ');
     const st = presentSet.has(key) ? 'v' : 'x';
     const bg = st==='v' ? '#f0fff4' : '#fff0f0';
