@@ -2544,8 +2544,13 @@ function renderDriverInvModal(headers) {
   const reorder = arr => order.map(i => arr[i] ?? '');
   const orderedHeaders = reorder(headers);
   const colCount = orderedHeaders.length || (_driverInvRows[0]?.cells.length || 1);
-  const colW = `80px repeat(${colCount},minmax(65px,1fr))`;
-  const minW = (80 + colCount * 65) + 'px';
+  // give wide columns to דגם and צבע, narrow to the rest
+  const colWidths = ['80px', ...orderedHeaders.map(h => {
+    if (h.includes('דגם') || h.includes('צבע')) return 'minmax(100px,1.6fr)';
+    return 'minmax(48px,1fr)';
+  })];
+  const colW = colWidths.join(' ');
+  const minW = (80 + orderedHeaders.reduce((s,h) => s + (h.includes('דגם')||h.includes('צבע') ? 100 : 48), 0)) + 'px';
   let html = '';
   if (orderedHeaders.length) {
     html += `<div style="display:grid;grid-template-columns:${colW};min-width:${minW};gap:2px;background:var(--dark);color:#fff;border-radius:10px 10px 0 0;padding:5px 6px;font-size:10px;font-weight:700;direction:rtl">
