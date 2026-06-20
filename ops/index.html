@@ -3067,10 +3067,11 @@ function loadYardData() {
       const d = snap.data();
       yardData = d.data || {};
       renderYardInputValues();
-      // Show done button for drivers when status is pending
       if (currentUser?.role !== 'manager') {
         const toolbar = document.getElementById('yard-driver-toolbar');
         if (toolbar) toolbar.style.display = d.status === 'pending' ? 'flex' : 'none';
+        // Re-render table so published data fills in read-only cells
+        if (d.status === 'pending') renderYardTable();
       }
     }
     // Manager reads once only — stop listener so edits aren't overwritten
@@ -3253,11 +3254,16 @@ async function markYardDone() {
   goHome();
 }
 
-function resetYard() {
+async function resetYard() {
   if (!confirm('למחוק את כל הנתונים ולהתחיל טבלה חדשה?')) return;
   yardData = {};
   renderYardInputValues();
-  showToast('🔄 הטבלה אופסה');
+  if (window._CONFIG_DONE) {
+    await _setDoc(_docRef('yard','current'), { data: {}, updatedAt: _serverTs(), publishedAt: null, status: 'draft' });
+  }
+  const btn = document.getElementById('yard-publish-btn');
+  if (btn) { btn.textContent = '📤 שלח לנהגים'; btn.style.background = 'var(--gold)'; btn.style.color = '#000'; btn.onclick = publishYard; btn.disabled = false; }
+  showToast('🔄 הטבלה אופסה אצל כולם');
 }
 </script>
 </body>
