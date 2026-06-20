@@ -1272,18 +1272,23 @@ async function submitDriverIntake() {
     }
   }
 
-  await _updateDoc(_docRef('intake_assignments', _currentIntakeId), {
-    checklist,
-    notes,
-    photoUrls,
-    status: 'done',
-    completedBy: currentUser.name,
-    completedAt: _serverTs()
-  });
+  try {
+    await _updateDoc(_docRef('intake_assignments', _currentIntakeId), {
+      checklist,
+      notes,
+      photoUrls,
+      status: 'done',
+      completedBy: currentUser.name,
+      completedAt: _serverTs()
+    });
+  } catch(e) {
+    showToast('שגיאה: ' + (e.code || e.message));
+    return;
+  }
 
+  _currentIntakeId = null;
   closeModal('modal-driver-intake');
   showToast('✅ הטופס נשלח בהצלחה!');
-  _currentIntakeId = null;
   openVehiclesScreen();
 }
 
