@@ -273,6 +273,8 @@ if ('serviceWorker' in navigator) {
     <div class="logo">רכבים במגרש</div>
     <div class="user-badge" id="vehicles-user-badge"></div>
   </div>
+  <!-- Open intakes summary -->
+  <div id="vehicle-open-summary" style="display:none;padding:12px 16px 0;gap:10px;display:grid;grid-template-columns:repeat(3,1fr)"></div>
   <div id="vehicle-list-container" class="vehicle-list">
     <div class="loading"><div class="spinner"></div> טוען...</div>
   </div>
@@ -1076,6 +1078,20 @@ function loadVehicles() {
   const q = _query(_colRef('vehicles'), _orderBy('receivedAt','desc'));
   vehicleUnsub = _onSnap(q, snap => {
     const vehicles = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    // open intakes summary boxes
+    const drivers = ['עופר','גיל','איתי'];
+    const summary = document.getElementById('vehicle-open-summary');
+    summary.style.display = 'grid';
+    summary.innerHTML = drivers.map(name => {
+      const count = vehicles.filter(v => v.receivedBy === name).length;
+      return `<div style="background:#fff;border:2px solid var(--border);border-radius:14px;padding:14px 10px;text-align:center">
+        <div style="font-size:11px;color:var(--muted);font-weight:600;margin-bottom:4px">קליטות</div>
+        <div style="font-size:28px;font-weight:900;color:${count>0?'var(--gold)':'var(--muted)'}">${count}</div>
+        <div style="font-size:13px;font-weight:700;color:var(--dark);margin-top:2px">${name}</div>
+      </div>`;
+    }).join('');
+
     const container = document.getElementById('vehicle-list-container');
     if (!vehicles.length) {
       container.innerHTML = `<div class="empty-state"><div class="es-icon">🅿️</div><h3>המגרש ריק</h3><p>עדיין לא נקלטו רכבים</p></div>`;
