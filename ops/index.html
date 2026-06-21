@@ -651,7 +651,12 @@ if ('serviceWorker' in navigator) {
       </div>
       <div>
         <label style="font-size:13px;font-weight:700;color:var(--dark);display:block;margin-bottom:4px">סוג בדיקה</label>
-        <input id="pit-type" placeholder="לדוגמה: טסט, שמן, בלמים..." style="width:100%;border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;font-family:Heebo,sans-serif;font-size:15px;outline:none;box-sizing:border-box">
+        <div style="display:flex;gap:8px">
+          <button type="button" class="pit-type-btn" data-type="בור" onclick="selectPitType(this)" style="flex:1;border:2px solid var(--border);border-radius:10px;padding:10px 6px;font-family:Heebo,sans-serif;font-size:14px;font-weight:700;background:#fff;cursor:pointer">🕳️ בור</button>
+          <button type="button" class="pit-type-btn" data-type="בדיקה מלאה" onclick="selectPitType(this)" style="flex:1;border:2px solid var(--border);border-radius:10px;padding:10px 6px;font-family:Heebo,sans-serif;font-size:14px;font-weight:700;background:#fff;cursor:pointer">🔍 בדיקה מלאה</button>
+          <button type="button" class="pit-type-btn" data-type="פרונט" onclick="selectPitType(this)" style="flex:1;border:2px solid var(--border);border-radius:10px;padding:10px 6px;font-family:Heebo,sans-serif;font-size:14px;font-weight:700;background:#fff;cursor:pointer">🚗 פרונט</button>
+        </div>
+        <input type="hidden" id="pit-type">
       </div>
       <button onclick="addPitCheck()" style="background:var(--dark);color:#fff;border:none;border-radius:12px;padding:12px;font-family:Heebo,sans-serif;font-weight:700;font-size:15px;cursor:pointer;margin-top:4px">✅ הוסף</button>
     </div>
@@ -3199,6 +3204,13 @@ function loadPits() {
   });
 }
 
+function selectPitType(el) {
+  document.querySelectorAll('.pit-type-btn').forEach(b => { b.style.background='#fff'; b.style.borderColor='var(--border)'; b.style.color='inherit'; });
+  el.style.background = 'var(--dark)'; el.style.borderColor = 'var(--dark)'; el.style.color = '#fff';
+  document.getElementById('pit-type').value = el.dataset.type;
+}
+window.selectPitType = selectPitType;
+
 async function addPitCheck() {
   const plate = document.getElementById('pit-plate').value.trim();
   const checkType = document.getElementById('pit-type').value.trim();
@@ -3207,6 +3219,7 @@ async function addPitCheck() {
   await _addDoc(_colRef('pit_checks'), { plate, checkType, createdAt: _serverTs() });
   document.getElementById('pit-plate').value = '';
   document.getElementById('pit-type').value = '';
+  document.querySelectorAll('.pit-type-btn').forEach(b => { b.style.background='#fff'; b.style.borderColor='var(--border)'; b.style.color='inherit'; });
   closeModal('modal-add-pit');
   showToast('✅ הבדיקה נוספה');
 }
