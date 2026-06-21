@@ -301,6 +301,8 @@ if ('serviceWorker' in navigator) {
     <div class="logo">רכבים במגרש</div>
     <div class="user-badge" id="vehicles-user-badge" onclick="logout()"></div>
   </div>
+  <!-- Battery alerts -->
+  <div id="battery-alerts-wrap" style="display:none;padding:10px 16px 0"></div>
   <!-- Open intakes summary -->
   <div id="vehicle-open-summary" style="display:none;padding:12px 16px 0;gap:10px;display:grid;grid-template-columns:repeat(3,1fr)"></div>
   <div id="vehicle-list-container" class="vehicle-list">
@@ -502,6 +504,35 @@ if ('serviceWorker' in navigator) {
 
     <!-- צ'קליסט -->
     <div class="section-title">🔍 בדיקות חוץ</div>
+
+    <!-- Battery section (under external checks) -->
+    <div style="background:#f8f9ff;border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:10px">
+      <div style="font-weight:700;font-size:14px;margin-bottom:8px">🔋 מצבר</div>
+      <div class="checklist-item" style="margin-bottom:6px">
+        <span class="ci-label">מצבר מקורי</span>
+        <div class="ci-btns">
+          <button type="button" class="ci-box" data-key="c-battery-original" data-val="v" onclick="ciClick(this);batteryOriginalToggle(this)">✓</button>
+          <button type="button" class="ci-box" data-key="c-battery-original" data-val="x" onclick="ciClick(this);batteryOriginalToggle(this)">✕</button>
+        </div>
+      </div>
+      <div id="battery-date-section">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+          <div class="form-group" style="margin:0">
+            <label style="font-size:12px">חודש מצבר <span style="color:#ef4444">*</span></label>
+            <input type="month" class="form-input" id="di-battery-month" style="font-family:Heebo,sans-serif">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label style="font-size:12px">שעת בדיקה <span style="color:#ef4444">*</span></label>
+            <input type="time" class="form-input" id="di-battery-time" style="font-family:Heebo,sans-serif">
+          </div>
+        </div>
+      </div>
+      <button type="button" onclick="document.getElementById('file-battery').click()" style="background:var(--dark);color:#fff;border:none;border-radius:10px;padding:8px 16px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">📷 צלם מצבר</button>
+      <span id="battery-photo-count" style="font-size:12px;color:var(--muted);margin-right:8px"></span>
+      <input type="file" accept="image/*" capture="environment" id="file-battery" style="display:none" onchange="addBatteryPhoto(this)">
+      <div id="battery-photos" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
+    </div>
+
     <div class="checklist-item"><span class="ci-label">שמן מנוע</span><div class="ci-btns"><button type="button" class="ci-box" data-key="c-oil" data-val="v" onclick="ciClick(this)">✓</button><button type="button" class="ci-box" data-key="c-oil" data-val="x" onclick="ciClick(this)">✕</button></div></div>
     <div id="note-c-oil" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="cn-c-oil" placeholder="הערה..." rows="2"></textarea></div>
 
@@ -586,27 +617,6 @@ if ('serviceWorker' in navigator) {
       <textarea class="form-textarea" id="cn-c-steering" placeholder="הערה..." rows="2"></textarea>
       <div class="ci-photos" id="photos-c-steering"></div>
       <input type="file" accept="image/*" capture="environment" id="file-c-steering" style="display:none" onchange="addPhotos('c-steering',this)">
-    </div>
-
-    <!-- Battery photo -->
-    <div class="section-title" style="margin-top:14px">🔋 מצבר</div>
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-      <button type="button" onclick="document.getElementById('file-battery').click()" style="background:var(--dark);color:#fff;border:none;border-radius:10px;padding:10px 18px;font-family:Heebo,sans-serif;font-weight:700;font-size:14px;cursor:pointer">📷 צלם מצבר</button>
-      <span id="battery-photo-count" style="font-size:13px;color:var(--muted)"></span>
-    </div>
-    <input type="file" accept="image/*" capture="environment" id="file-battery" style="display:none" onchange="addBatteryPhoto(this)">
-    <div id="battery-photos" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px"></div>
-
-    <!-- Battery date: month + hour (required) -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
-      <div class="form-group" style="margin:0">
-        <label>חודש מצבר <span style="color:#ef4444">*</span></label>
-        <input type="month" class="form-input" id="di-battery-month" style="font-family:Heebo,sans-serif">
-      </div>
-      <div class="form-group" style="margin:0">
-        <label>שעת בדיקה <span style="color:#ef4444">*</span></label>
-        <input type="time" class="form-input" id="di-battery-time" style="font-family:Heebo,sans-serif">
-      </div>
     </div>
 
     <div class="form-group" style="margin-top:12px">
@@ -1753,7 +1763,29 @@ function openVehiclesScreen() {
   document.getElementById('fab-new-vehicle').style.display = isManager ? 'flex' : 'none';
   showScreen('vehicles');
   loadVehicles();
+  if (isManager) loadBatteryAlerts();
 }
+
+function loadBatteryAlerts() {
+  const wrap = document.getElementById('battery-alerts-wrap');
+  if (!wrap) return;
+  _onSnap(_query(_colRef('manager_alerts'), _where('type','==','battery_original'), _where('seen','==',false)), snap => {
+    const alerts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (!alerts.length) { wrap.style.display = 'none'; return; }
+    wrap.style.display = 'block';
+    wrap.innerHTML = alerts.map(a => `
+      <div style="background:#fef9c3;border:2px solid #ca8a04;border-radius:12px;padding:10px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <div style="font-size:13px;font-weight:700;color:#854d0e">${esc(a.message)}</div>
+        <button onclick="dismissBatteryAlert('${a.id}')" style="background:#854d0e;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-family:Heebo,sans-serif;font-weight:700;font-size:12px;cursor:pointer;flex-shrink:0">✓ קיבלתי</button>
+      </div>`).join('');
+  });
+}
+
+async function dismissBatteryAlert(id) {
+  const { updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  await updateDoc(doc(window._db, 'manager_alerts', id), { seen: true });
+}
+window.dismissBatteryAlert = dismissBatteryAlert;
 
 function loadVehicles() {
   if (!window._CONFIG_DONE) {
@@ -1965,7 +1997,7 @@ const _ciLabels = {
   'c-lights-break':'שברים בפנסים','c-glass-break':'שברים בשמשות','c-bulbs':'מנורות שרופות',
   'c-frames-ext':'מסגרות','c-tires':'מצב צמיגים','c-glove':'ניקיון תא כפפות',
   'c-windows':'מתגי חלונות','c-ac':'מזגן','c-dashboard':'מנורות לוח שעונים',
-  'c-sunroof':'גג נפתח','c-upholstery':'ריפודים','c-mats':'שטיחים','c-steering':'הגה – קילופים'
+  'c-sunroof':'גג נפתח','c-upholstery':'ריפודים','c-mats':'שטיחים','c-steering':'הגה – קילופים','c-battery-original':'מצבר מקורי'
 };
 const _photoKeys = ['c-lights-break','c-glass-break','c-upholstery','c-mats','c-windows','c-steering'];
 
@@ -2066,6 +2098,24 @@ async function submitDriverIntake() {
     console.error('submitDriverIntake error', e);
     showToast('שגיאה בשליחה: ' + (e.code || e.message));
     return;
+  }
+
+  // alert manager if original battery marked on vehicle year <= 2021
+  const batteryOriginalV = document.querySelector('#modal-driver-intake .ci-box[data-key="c-battery-original"].v-active');
+  if (batteryOriginalV && _currentIntakeVehicle) {
+    const year = parseInt(_currentIntakeVehicle.year || '0');
+    if (year && year <= 2021) {
+      const plate = _currentIntakeVehicle.plate || '';
+      await _addDoc(_colRef('manager_alerts'), {
+        type: 'battery_original',
+        plate,
+        year,
+        driver: currentUser.name,
+        message: `⚠️ רכב ${plate} (${year}) — ${currentUser.name} סימן מצבר מקורי`,
+        createdAt: _serverTs(),
+        seen: false
+      });
+    }
   }
 
   // auto-create tasks for X-marked items
@@ -2307,6 +2357,17 @@ const ciPhotoFiles = {}; // { 'c-upholstery': [File,...], ... }
 
 let _batteryPhotoFiles = [];
 window._batteryPhotoUrls = {};
+
+function batteryOriginalToggle(btn) {
+  const isV = btn.dataset.val === 'v' && btn.classList.contains('v-active');
+  const dateSection = document.getElementById('battery-date-section');
+  if (dateSection) dateSection.style.display = isV ? 'none' : 'block';
+  if (isV) {
+    const bm = document.getElementById('di-battery-month'); if (bm) bm.value = '';
+    const bt = document.getElementById('di-battery-time');  if (bt) bt.value = '';
+  }
+}
+window.batteryOriginalToggle = batteryOriginalToggle;
 
 function addBatteryPhoto(input) {
   const files = [...input.files];
