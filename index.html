@@ -728,7 +728,7 @@ display:none !important;
               <!-- RIGHT: image + gallery -->
               <div style="display:flex;flex-direction:column">
                 <div class="panel" style="padding:0;overflow:hidden;position:relative;flex:1">
-                  <img id="carImage" src="" alt="" style="width:100%;height:100%;min-height:320px;object-fit:cover;display:block">
+                  <img id="carImage" src="" alt="" referrerpolicy="no-referrer" style="width:100%;height:100%;min-height:320px;object-fit:cover;display:block">
                   <button id="galleryPrev" onclick="changeGalleryImg(-1)" style="display:none;position:absolute;top:50%;right:12px;transform:translateY(-50%);background:rgba(0,0,0,.55);color:#fff;border:none;border-radius:50%;width:40px;height:40px;font-size:20px;cursor:pointer">‹</button>
                   <button id="galleryNext" onclick="changeGalleryImg(1)" style="display:none;position:absolute;top:50%;left:12px;transform:translateY(-50%);background:rgba(0,0,0,.55);color:#fff;border:none;border-radius:50%;width:40px;height:40px;font-size:20px;cursor:pointer">›</button>
                   <div id="galleryCounter" style="display:none;position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.55);color:#fff;padding:4px 12px;border-radius:999px;font-size:15px;font-weight:700"></div>
@@ -1362,6 +1362,18 @@ display:none !important;
     async function loadCarsFromSupabase(){ return null; }
     async function saveCarsToSupabase(){ return; }
 
+    async function loadFromCloud(){
+      try{
+        const cloudName = localStorage.getItem('cld_cloud_name');
+        if(!cloudName) return null;
+        const url = 'https://res.cloudinary.com/'+cloudName+'/raw/upload/autodealer/autodealer_data.json?t='+Date.now();
+        const res = await fetch(url);
+        if(!res.ok) return null;
+        const data = await res.json();
+        return Array.isArray(data) ? data : null;
+      }catch(e){ return null; }
+    }
+
     let cars = [
       {
         id: 10, brand: "AVATR", model: "Ultra RWD", year: "2026",
@@ -1463,7 +1475,14 @@ display:none !important;
       },
       {
         id: 25, brand: "XPENG", model: "G6 Core+ RWD", year: "2026",
-        image: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/XPeng_G6_001.jpg/800px-XPeng_G6_001.jpg",
+        image: "https://i.postimg.cc/LJ7C2CT8/autodealer-g6-showroom.png",
+        gallery: [
+          "https://i.postimg.cc/LJ7C2CT8/autodealer-g6-showroom.png",
+          "https://i.postimg.cc/0zrXgRpb/xpeng-g6-full-block-img-03-d-jpg.webp",
+          "https://i.postimg.cc/DSmpVkq0/xpeng-g6-full-block-img-06-d-jpg.webp",
+          "https://i.postimg.cc/75btv8g5/xpeng-g6-full-block-img-08-d-jpg.webp",
+          "https://i.postimg.cc/LJhQdKzg/xpeng-g6-tabs-img-01-jpg.webp"
+        ],
         badge: "דיל חם", category: "", engine: "חשמל מלא", range: "",
         catalogPriceNumber: 212712, autodealerPriceNumber: 196000,
         summary: "", stockStatus: "זמין מיידי"
@@ -1743,15 +1762,17 @@ display:none !important;
       return null;
     }
 
+    function cleanCars(arr){ return arr.map(c=>({...c,image:(c.image&&c.image.includes('supabase.co'))?'':c.image,gallery:(c.gallery||[]).filter(g=>g&&!g.includes('supabase.co'))})); }
     async function initCars(){
-      try {
-        const fromSupabase = await loadCarsFromSupabase();
-        if(fromSupabase && fromSupabase.length > 0){
-          cars = fromSupabase;
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(cars));
-        }
-      } catch(e) {}
-      if(!cars || cars.length === 0) cars = loadSharedCars() || [];
+      // Try cloud first, then localStorage, then seed data
+      const fromCloud = await loadFromCloud();
+      if(fromCloud && fromCloud.length > 0){
+        cars = cleanCars(fromCloud);
+        try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(cars)); }catch(e){}
+      } else {
+        const fromLocal = loadSharedCars();
+        if(fromLocal && fromLocal.length > 0) cars = cleanCars(fromLocal);
+      }
       renderCars();
       // Handle deep link: #car-10
       const hash = window.location.hash;
@@ -1813,7 +1834,7 @@ display:none !important;
       return `
       <div class="card">
         <div class="relative">
-          <img src="${car.image}" alt="${car.brand} ${car.model}">
+          ${(car.image && !car.image.startsWith("data:image/svg")) ? `<img src="${car.image}" alt="${car.brand} ${car.model}" referrerpolicy="no-referrer">` : ""}
           <div class="badge-dark">${car.badge}</div>
           ${car.stockStatus === 'זמין מיידי' ? `<div style="position:absolute;bottom:12px;right:12px;background:#16a34a;color:#fff;font-weight:900;font-size:15px;padding:5px 10px;border-radius:999px;">⚡ אספקה מידית</div>` : car.stockStatus === 'אזל במלאי' ? `<div style="position:absolute;bottom:12px;right:12px;background:#6b7280;color:#fff;font-weight:900;font-size:15px;padding:5px 10px;border-radius:999px;">אזל במלאי</div>` : `<div style="position:absolute;bottom:12px;right:12px;background:#2563eb;color:#fff;font-weight:900;font-size:15px;padding:5px 10px;border-radius:999px;">🕐 ${car.stockStatus}</div>`}
         </div>
@@ -2012,11 +2033,18 @@ display:none !important;
       selectedCar = enrich(cars.find(c => c.id === id));
       selectedTrack = "";
       document.getElementById('carBreadcrumb').textContent = `${selectedCar.brand} ${selectedCar.model}`;
-      document.getElementById('carImage').src = selectedCar.image;
-      document.getElementById('carImage').alt = `${selectedCar.brand} ${selectedCar.model}`;
+      const hasRealImage = selectedCar.image && !selectedCar.image.startsWith('data:image/svg');
+      const carImageWrap = document.getElementById('carImage').parentElement;
+      if(hasRealImage){
+        document.getElementById('carImage').src = selectedCar.image;
+        document.getElementById('carImage').alt = `${selectedCar.brand} ${selectedCar.model}`;
+        carImageWrap.style.display = '';
+      } else {
+        carImageWrap.style.display = 'none';
+      }
 
       // Gallery
-      const allImgs = [selectedCar.image, ...(selectedCar.gallery||[]).filter(Boolean)];
+      const allImgs = hasRealImage ? [selectedCar.image, ...(selectedCar.gallery||[]).filter(g => g && !g.startsWith('data:image/svg'))] : (selectedCar.gallery||[]).filter(g => g && !g.startsWith('data:image/svg'));
       window._galleryImgs = allImgs;
       window._galleryIdx = 0;
       const thumbs = document.getElementById('galleryThumbs');

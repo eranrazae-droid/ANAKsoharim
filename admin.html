@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;800;900&display=swap" rel="stylesheet">
-  <title>אוטודילר - ניהול</title>
+  <title>אוטודילר - ניהול v24</title>
   <style>
     :root{
       --bg:#f4f4f6;--card:#fff;--text:#111827;--muted:#6b7280;
@@ -121,7 +121,12 @@
       <div class="nav-item" onclick="showTab('vouchers')"><span class="nav-icon">🎟</span><span>שוברים</span></div>
     </nav>
     <div class="sidebar-footer">
-      <button class="btn btn-line btn-sm" style="width:100%;margin-bottom:8px;background:#ca8a04;color:#fff;border:none" onclick="syncAllToSupabase()">🔄 סנכרן הכל ל-Supabase</button>
+      <button class="btn btn-line btn-sm" style="width:100%;margin-bottom:8px;background:#0369a1;color:#fff;border:none" onclick="openCloudinarySettings()">☁️ הגדרות Cloudinary</button>
+      <button class="btn btn-line btn-sm" style="width:100%;margin-bottom:8px;background:#15803d;color:#fff;border:none" onclick="exportData()">📥 ייצוא נתונים (גיבוי)</button>
+      <label style="width:100%;margin-bottom:8px;display:block;cursor:pointer">
+        <div class="btn btn-line btn-sm" style="width:100%;background:#7c3aed;color:#fff;border:none;text-align:center;box-sizing:border-box">📤 ייבוא נתונים (שחזור)</div>
+        <input type="file" accept=".json" style="display:none" onchange="importData(this)"/>
+      </label>
       <button class="btn btn-line btn-sm" style="width:100%" onclick="logout()">התנתקות</button>
     </div>
   </aside>
@@ -447,13 +452,17 @@
         <div style="border:2px dashed var(--line);border-radius:14px;padding:16px;background:#fafafa">
           <div style="margin-bottom:12px">
             <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px">תמונה ראשית</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+              <input id="e-image-url" type="text" placeholder="הדבק לינק ישיר לתמונה (https://...)" style="flex:1;padding:9px 12px;border:1.5px solid var(--line);border-radius:10px;font-size:13px;direction:ltr" oninput="applyImageUrl(this.value)"/>
+            </div>
             <div style="display:flex;align-items:center;gap:12px">
               <label style="cursor:pointer">
-                <div style="background:#0d0d0d;color:#fff;padding:9px 16px;border-radius:10px;font-size:13px;font-weight:700">📁 החלף תמונה</div>
+                <div style="background:#0d0d0d;color:#fff;padding:9px 16px;border-radius:10px;font-size:13px;font-weight:700">📁 העלה קובץ</div>
                 <input type="file" accept="image/*" style="display:none" onchange="handleEditImage(this)"/>
               </label>
               <img id="e-img-thumb" style="height:60px;border-radius:8px;object-fit:cover;border:2px solid var(--gold)"/>
               <span id="e-main-img-name" style="font-size:13px;color:var(--muted)"></span>
+              <button type="button" id="e-img-delete-btn" onclick="deleteMainImage()" style="display:none;background:#fee2e2;color:#dc2626;border:none;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer">🗑️ מחק</button>
             </div>
           </div>
           <div>
@@ -531,7 +540,8 @@
   async function loadCarsFromSupabase(){ return null; }
   async function saveCarsToSupabase(){ return; }
 
-  let cars=JSON.parse(localStorage.getItem(STORAGE_KEY)||'null')||seedCars;
+  function cleanCars(arr){ return arr.map(c=>({...c, image:(c.image&&c.image.includes('supabase.co'))?'':c.image, gallery:(c.gallery||[]).filter(g=>g&&!g.includes('supabase.co'))})); }
+  let cars=cleanCars(JSON.parse(localStorage.getItem(STORAGE_KEY)||'null')||seedCars);
 
   let leads = JSON.parse(localStorage.getItem('autodealer_leads')||'[]');
   let vouchers = JSON.parse(localStorage.getItem('autodealer_vouchers')||'[]');
@@ -546,12 +556,43 @@
       document.getElementById('appWrapper').classList.remove('hidden');
       document.getElementById('loginErr').classList.add('hidden');
       loadCarsFromSupabase().then(data => {
-        if(data && data.length > 0) { cars = data; localStorage.setItem(STORAGE_KEY, JSON.stringify(cars)); }
+        if(data && data.length > 0) { cars = cleanCars(data); localStorage.setItem(STORAGE_KEY, JSON.stringify(cars)); }
+        saveCars();
         renderAll();
       });
     } else {
       document.getElementById('loginErr').classList.remove('hidden');
     }
+  }
+
+  function exportData(){
+    const data = { cars: cars, exportDate: new Date().toISOString() };
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'autodealer_backup_' + new Date().toISOString().slice(0,10) + '.json';
+    a.click();
+    toast('✅ גיבוי הורד בהצלחה!');
+  }
+
+  function importData(input){
+    const file = input.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e){
+      try{
+        const data = JSON.parse(e.target.result);
+        if(!data.cars || !Array.isArray(data.cars)) throw new Error('פורמט שגוי');
+        cars = data.cars;
+        saveCars();
+        renderCars();
+        toast('✅ נתונים שוחזרו בהצלחה! ' + cars.length + ' רכבים');
+      }catch(err){
+        toast('❌ שגיאה בקובץ: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+    input.value = '';
   }
 
   function logout(){
@@ -601,10 +642,32 @@
   async function saveCarToDB(){ return; }
   async function deleteCarFromDB(){ return; }
 
+  async function saveToCloud(data){
+    const cfg = getCloudinaryConfig();
+    if(!cfg.cloudName || !cfg.uploadPreset) return;
+    try{
+      const blob = new Blob([JSON.stringify(data)], {type:'application/json'});
+      const file = new File([blob], 'autodealer_data.json', {type:'application/json'});
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('upload_preset', cfg.uploadPreset);
+      fd.append('public_id', 'autodealer_data');
+      fd.append('resource_type', 'raw');
+      await fetch('https://api.cloudinary.com/v1_1/'+cfg.cloudName+'/raw/upload', {method:'POST',body:fd});
+    }catch(e){ console.warn('Cloud sync failed', e); }
+  }
+
+  function isBadUrl(u){ return !u || u.startsWith('data:') || u.startsWith('blob:') || u.includes('supabase.co'); }
   function saveCars(){
-    localStorage.setItem(STORAGE_KEY,JSON.stringify(cars));
-    // dispatch event so index.html in same browser updates live
-    window.dispatchEvent(new StorageEvent('storage',{key:STORAGE_KEY,newValue:JSON.stringify(cars)}));
+    const cleaned = cars.map(c=>({
+      ...c,
+      image: isBadUrl(c.image) ? '' : c.image,
+      gallery: (c.gallery||[]).filter(g=>!isBadUrl(g))
+    }));
+    cars = cleaned;
+    try{ localStorage.setItem(STORAGE_KEY,JSON.stringify(cleaned)); }catch(e){}
+    window.dispatchEvent(new StorageEvent('storage',{key:STORAGE_KEY,newValue:JSON.stringify(cleaned)}));
+    saveToCloud(cleaned);
   }
 
   function addCar(){
@@ -688,7 +751,7 @@
       const avail=(c.stockStatus||'זמין מיידי')==='זמין מיידי';
       const disc=Math.round((c.catalogPriceNumber-c.autodealerPriceNumber)/c.catalogPriceNumber*100);
       return `<div class="inv-item">
-        <img src="${c.image}" alt="${c.brand} ${c.model}" onerror="this.src='https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&w=400&q=60'">
+        <img src="${c.image}" alt="${c.brand} ${c.model}" referrerpolicy="no-referrer" onerror="this.src='https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&w=400&q=60'">
         <div>
           <div style="font-size:18px;font-weight:900">${c.brand} ${c.model} <span style="font-size:13px;color:var(--muted);font-weight:400">${c.year}</span></div>
           <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap">
@@ -782,13 +845,60 @@
 
   let galleryImages=[];
 
-  async function uploadToStorage(file, folder){
+  function compressImage(file, maxPx, quality){
     return new Promise((resolve) => {
       const reader = new FileReader();
-      reader.onload = e => resolve(e.target.result);
+      reader.onload = function(e){
+        const img = new Image();
+        img.onload = function(){
+          const canvas = document.createElement('canvas');
+          let w = img.width, h = img.height;
+          if(w > maxPx || h > maxPx){
+            if(w > h){ h = Math.round(h * maxPx / w); w = maxPx; }
+            else { w = Math.round(w * maxPx / h); h = maxPx; }
+          }
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = () => resolve(e.target.result);
+        img.src = e.target.result;
+      };
       reader.onerror = () => resolve(null);
       reader.readAsDataURL(file);
     });
+  }
+
+  function getCloudinaryConfig(){
+    return {
+      cloudName: localStorage.getItem('cld_cloud_name')||'',
+      uploadPreset: localStorage.getItem('cld_upload_preset')||''
+    };
+  }
+
+  async function uploadToStorage(file, folder){
+    const cfg = getCloudinaryConfig();
+    if(cfg.cloudName && cfg.uploadPreset){
+      try{
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('upload_preset', cfg.uploadPreset);
+        const res = await fetch('https://api.cloudinary.com/v1_1/'+cfg.cloudName+'/image/upload', {method:'POST',body:fd});
+        const data = await res.json();
+        if(data.secure_url){
+          return data.secure_url;
+        } else {
+          toast('⚠️ Cloudinary: ' + (data.error && data.error.message ? data.error.message : 'שגיאה לא ידועה'));
+          return null;
+        }
+      }catch(e){
+        toast('⚠️ שגיאת רשת ב-Cloudinary: ' + e.message);
+        return null;
+      }
+    } else {
+      toast('⚠️ Cloudinary לא מוגדר — לחץ ☁️ הגדרות Cloudinary');
+      return null;
+    }
   }
 
   function handleMainImage(input){
@@ -802,18 +912,18 @@
         document.getElementById('main-img-thumb').src=url;
         document.getElementById('main-img-preview').style.display='block';
         document.getElementById('main-img-name').textContent='✅ '+file.name;
-        toast('✅ תמונה ראשית הועלתה!');
+        toast('✅ תמונה ראשית הועלתה ל-Cloudinary!');
       } else {
-        // fallback to base64
-        const reader=new FileReader();
+        document.getElementById('main-img-name').textContent='❌ ההעלאה נכשלה';
+        // fallback to base64 (DISABLED - causes localStorage quota issues)
+        if(false){ const reader=new FileReader();
         reader.onload=function(e){
           document.getElementById('f-image').value=e.target.result;
           document.getElementById('main-img-thumb').src=e.target.result;
           document.getElementById('main-img-preview').style.display='block';
           document.getElementById('main-img-name').textContent='✅ '+file.name;
           toast('✅ תמונה נטענה');
-        };
-        reader.readAsDataURL(file);
+        }; } // end disabled fallback
       }
     });
   }
@@ -983,6 +1093,9 @@
     document.getElementById('e-specLink').value = c.specLink||'';
     document.getElementById('e-image').value = c.image||'';
     document.getElementById('e-img-thumb').src = c.image||'';
+    const urlField = document.getElementById('e-image-url'); if(urlField) urlField.value = (c.image && !c.image.startsWith('data:')) ? c.image : '';
+    const delBtn = document.getElementById('e-img-delete-btn');
+    if(delBtn) delBtn.style.display = c.image ? 'inline-block' : 'none';
     editGalleryImages = [];
     const editGalleryPreview = document.getElementById('e-gallery-preview');
     const editGalleryCount = document.getElementById('e-gallery-count');
@@ -1021,6 +1134,33 @@
 
   let editGalleryImages = [];
 
+  function applyImageUrl(url){
+    url = url.trim();
+    document.getElementById('e-image').value = url;
+    document.getElementById('e-img-thumb').src = url;
+    const db = document.getElementById('e-img-delete-btn');
+    if(db) db.style.display = url ? 'inline-block' : 'none';
+  }
+
+  function openCloudinarySettings(){
+    const cn = prompt('שם Cloud (Cloud name) מ-cloudinary.com:', localStorage.getItem('cld_cloud_name')||'');
+    if(cn === null) return;
+    const up = prompt('שם Upload Preset (Unsigned):', localStorage.getItem('cld_upload_preset')||'');
+    if(up === null) return;
+    localStorage.setItem('cld_cloud_name', cn.trim());
+    localStorage.setItem('cld_upload_preset', up.trim());
+    toast(cn && up ? '✅ Cloudinary מוגדר! העלאות יישמרו חינם לנצח' : '⚠️ Cloudinary נוקה — שומר מקומי');
+  }
+
+  function deleteMainImage(){
+    document.getElementById('e-image').value = '';
+    document.getElementById('e-img-thumb').src = '';
+    document.getElementById('e-img-delete-btn').style.display = 'none';
+    const nameEl = document.getElementById('e-main-img-name');
+    if(nameEl) nameEl.textContent = 'אין תמונה';
+    toast('🗑️ תמונה ראשית נמחקה');
+  }
+
   function handleEditImage(input){
     const file = input.files[0];
     if(!file) return;
@@ -1032,6 +1172,7 @@
         document.getElementById('e-image').value = url;
         document.getElementById('e-img-thumb').src = url;
         if(nameEl) nameEl.textContent = '✅ ' + file.name;
+        const db = document.getElementById('e-img-delete-btn'); if(db) db.style.display='inline-block';
         toast('✅ תמונה הועלתה!');
       } else {
         const reader = new FileReader();
@@ -1039,6 +1180,7 @@
           document.getElementById('e-image').value = e.target.result;
           document.getElementById('e-img-thumb').src = e.target.result;
           if(nameEl) nameEl.textContent = '✅ ' + file.name;
+          const db2 = document.getElementById('e-img-delete-btn'); if(db2) db2.style.display='inline-block';
           toast('✅ תמונה נטענה');
         };
         reader.readAsDataURL(file);
@@ -1235,7 +1377,7 @@
         specData: specData,
         specText: '',
         specLink: document.getElementById('e-specLink').value.trim()||'',
-        image: finalImage||c.image,
+        image: (imageVal === '' ? '' : (finalImage||c.image)),
         gallery: editGalleryImages.filter(Boolean).length ? editGalleryImages.filter(Boolean) : (c.gallery||[]),
       };
     });
