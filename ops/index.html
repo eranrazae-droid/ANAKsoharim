@@ -4072,7 +4072,7 @@ async function _loadDriverContacts() {
 async function _sendWhatsApp(phone, apikey, message) {
   if (!phone || !apikey) return;
   const url = `https://api.callmebot.com/whatsapp.php?phone=${encodeURIComponent(phone)}&text=${encodeURIComponent(message)}&apikey=${encodeURIComponent(apikey)}`;
-  try { await fetch(url, { mode: 'no-cors' }); } catch(e) { console.warn('WhatsApp send error', e); }
+  new Image().src = url; // bypass CORS — works for GET requests
 }
 
 async function _notifyDriver(driverName, message) {
@@ -4099,6 +4099,7 @@ async function openNotifySettings() {
       <div style="display:flex;flex-direction:column;gap:6px">
         <input id="nc-phone-${name}" value="${c.phone||''}" placeholder="טלפון (972501234567)" style="border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:14px;direction:ltr;text-align:left">
         <input id="nc-key-${name}" value="${c.apikey||''}" placeholder="CallMeBot API Key" style="border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:14px;direction:ltr;text-align:left">
+        <button onclick="testWhatsApp('${name}')" style="background:#25d366;color:#fff;border:none;border-radius:8px;padding:7px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer">📲 שלח הודעת בדיקה</button>
       </div>
     </div>`;
   }).join('');
@@ -4121,8 +4122,16 @@ async function saveNotifySettings() {
   closeModal('modal-notify-settings');
   showToast('✅ הגדרות נשמרו');
 }
+async function testWhatsApp(name) {
+  const phone  = document.getElementById(`nc-phone-${name}`)?.value.trim();
+  const apikey = document.getElementById(`nc-key-${name}`)?.value.trim();
+  if (!phone || !apikey) return showToast('נא למלא טלפון ו-API Key תחילה');
+  _sendWhatsApp(phone, apikey, `✅ בדיקה — מערכת ענק הרכבים מחוברת ל-${name}`);
+  showToast(`📲 הודעת בדיקה נשלחה ל${name}`);
+}
 window.openNotifySettings = openNotifySettings;
 window.saveNotifySettings = saveNotifySettings;
+window.testWhatsApp = testWhatsApp;
 </script>
 </body>
 </html>
