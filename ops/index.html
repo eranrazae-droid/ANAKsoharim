@@ -1110,7 +1110,6 @@ function renderHome() {
       ]
     : [
         { icon: '📋', title: 'המשימות שלי', sub: 'משימות שהוקצו לך', screen: 'tasks' },
-        { icon: '🚗', title: 'קליטות רכב שלי', sub: 'קליטות ממתינות לביצוע', screen: 'vehicles' },
         { icon: '📦', title: 'בדיקות מלאי שלי', sub: 'רשימות מלאי לסימון', screen: 'driver-inventory' },
         { icon: '🅿️', title: 'סידור מגרש', sub: 'צפייה בטבלת חניות', screen: 'yard' },
         { icon: '🕳️', title: 'בורות', sub: 'בדיקות ממתינות לביצוע', screen: 'pits' },
@@ -1150,8 +1149,11 @@ function loadStats() {
     document.getElementById('stat-parts').textContent = '—';
     return;
   }
-  // tasks open
-  const tq = _query(_colRef('tasks'), _where('status','!=','done'));
+  // tasks open — manager sees all, driver sees only their own
+  const isManager = currentUser?.role === 'manager';
+  const tq = isManager
+    ? _query(_colRef('tasks'), _where('status','!=','done'))
+    : _query(_colRef('tasks'), _where('assignedTo','==', currentUser.name), _where('status','!=','done'));
   _onSnap(tq, snap => {
     document.getElementById('stat-tasks').textContent = snap.size;
   });
