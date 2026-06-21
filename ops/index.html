@@ -894,6 +894,16 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
+<!-- ====== NOTIFY SETTINGS MODAL ====== -->
+<div class="modal-overlay" id="modal-notify-settings">
+  <div class="modal-box" style="max-height:85vh;overflow-y:auto">
+    <div class="modal-title">📲 הגדרות WhatsApp לנהגים <button class="modal-close" onclick="closeModal('modal-notify-settings')">✕</button></div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">לכל נהג הזן מספר טלפון (כולל קידומת מדינה, ללא +, לדוג׳ <strong>972501234567</strong>) ו-API Key מ-CallMeBot.<br>לקבלת API Key: שלח "I allow callmebot to send me messages" למספר <strong>+34 644 52 74 88</strong> ב-WhatsApp.</p>
+    <div id="notify-settings-body"></div>
+    <button class="btn-submit" onclick="saveNotifySettings()" style="width:100%;margin-top:4px">💾 שמור הגדרות</button>
+  </div>
+</div>
+
 <!-- ====== TOAST ====== -->
 <div class="toast" id="toast"></div>
 
@@ -1152,6 +1162,7 @@ function renderHome() {
         { icon: '🅿️', title: 'סידור מגרש', sub: 'טבלת חניות', screen: 'yard' },
         { icon: '📦', title: 'בדיקת מלאי', sub: 'סימון רכבים במגרש', screen: 'inventory' },
         { icon: '🕳️', title: 'בורות', sub: 'ניהול בדיקות בבורות', screen: 'pits' },
+        { icon: '📲', title: 'הודעות WhatsApp', sub: 'הגדרות טלפון לנהגים', screen: '_notify' },
       ]
     : [
         { icon: '📋', title: 'המשימות שלי', sub: 'משימות שהוקצו לך', screen: 'tasks' },
@@ -1186,6 +1197,7 @@ function goToScreen(name) {
   else if (name === 'inventory') openInventoryScreen();
   else if (name === 'pits') openPitsScreen();
   else if (name === 'driver-inventory') openDriverInventoryScreen();
+  else if (name === '_notify') openNotifySettings();
 }
 
 function loadStats() {
@@ -1792,6 +1804,12 @@ async function submitTask() {
   });
   closeModal('modal-task');
   showToast('✅ משימה נפתחה!');
+  const taskLabel = document.getElementById('task-label').value;
+  if (taskLabel && taskLabel !== 'משימות כלליות') {
+    _notifyDriver(taskLabel, `📋 משימה חדשה ממתינה לך: "${title}". כנס לאפליקציה ענק הרכבים.`);
+  } else {
+    _notifyAllDrivers(`📋 משימה חדשה ב"משימות כלליות": "${title}". כנס לאפליקציה ענק הרכבים.`);
+  }
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -2741,10 +2759,12 @@ async function submitVehicle() {
   closeModal('modal-vehicle');
   showToast('✅ נשלח לנהג!');
 
+  const _brand = document.getElementById('v-brand').value.trim();
+  const _model = document.getElementById('v-model').value.trim();
   await _addDoc(_colRef('intake_assignments'), {
     plate,
-    brand:      document.getElementById('v-brand').value.trim(),
-    model:      document.getElementById('v-model').value.trim(),
+    brand:      _brand,
+    model:      _model,
     color:      document.getElementById('v-color').value.trim(),
     year:       document.getElementById('v-year').value,
     spot:       document.getElementById('v-spot').value.trim(),
@@ -2753,6 +2773,7 @@ async function submitVehicle() {
     status:     'pending',
     createdAt:  _serverTs()
   });
+  _notifyDriver(driver, `🚗 קליטת רכב חדשה ממתינה לך — ${plate} ${_brand} ${_model}. כנס לאפליקציה ענק הרכבים.`);
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -3188,6 +3209,7 @@ async function submitInventory() {
     _invMode = 'live';
     document.getElementById('inv-submit-wrap').style.display = 'none';
     showToast(`✅ נשלח ל${driver} לבדיקה!`);
+    _notifyDriver(driver, `📦 נשלחה אליך בדיקת מלאי חדשה. כנס לאפליקציה ענק הרכבים.`);
   } catch(e) {
     console.error('submitInventory error', e);
     showToast('שגיאה: ' + (e.code || e.message));
@@ -3679,6 +3701,7 @@ async function addPitCheck() {
 
   const vehicleData = window._pitVehicleData || {};
   await _addDoc(_colRef('pit_checks'), { plate, checkType, ...vehicleData, status: 'pending', createdAt: _serverTs() });
+  _notifyAllDrivers(`🕳️ בור/בדיקה חדשה נוספה — ${plate} (${checkType}). כנס לאפליקציה ענק הרכבים.`);
   document.getElementById('pit-plate').value = '';
   document.getElementById('pit-type').value = '';
   document.getElementById('pit-fetch-status').textContent = '';
@@ -3989,6 +4012,7 @@ async function publishYard() {
   if (!window._CONFIG_DONE) return showToast('Firebase לא מחובר');
   await _yardUpdate({ data: yardData, updatedAt: _serverTs(), publishedAt: _serverTs(), status: 'pending' });
   showToast('📤 הטבלה נשלחה לנהגים!');
+  _notifyAllDrivers('🅿️ סידור מגרש חדש נשלח. כנס לאפליקציה ענק הרכבים לצפייה בטבלה.');
   const btn = document.getElementById('yard-publish-btn');
   if (btn) {
     btn.textContent = '✅ בוצע';
@@ -4025,6 +4049,76 @@ async function resetYard() {
   if (btn) { btn.textContent = '📤 שלח לנהגים'; btn.style.background = 'var(--gold)'; btn.style.color = '#000'; btn.onclick = publishYard; btn.disabled = false; }
   showToast('🔄 הטבלה אופסה אצל כולם');
 }
+
+/* ═══════════════════════════════════════════════════════
+   WHATSAPP NOTIFICATIONS
+═══════════════════════════════════════════════════════ */
+let _driverContacts = null; // cache: { name: { phone, apikey } }
+
+async function _loadDriverContacts() {
+  if (_driverContacts) return _driverContacts;
+  try {
+    const { getDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const snap = await getDoc(doc(window._db, 'config', 'driver_contacts'));
+    _driverContacts = snap.exists() ? snap.data() : {};
+  } catch(e) { _driverContacts = {}; }
+  return _driverContacts;
+}
+
+async function _sendWhatsApp(phone, apikey, message) {
+  if (!phone || !apikey) return;
+  const url = `https://api.callmebot.com/whatsapp.php?phone=${encodeURIComponent(phone)}&text=${encodeURIComponent(message)}&apikey=${encodeURIComponent(apikey)}`;
+  try { await fetch(url, { mode: 'no-cors' }); } catch(e) { console.warn('WhatsApp send error', e); }
+}
+
+async function _notifyDriver(driverName, message) {
+  const contacts = await _loadDriverContacts();
+  const c = contacts[driverName];
+  if (c?.phone && c?.apikey) await _sendWhatsApp(c.phone, c.apikey, message);
+}
+
+async function _notifyAllDrivers(message) {
+  const contacts = await _loadDriverContacts();
+  for (const [,c] of Object.entries(contacts)) {
+    if (c?.phone && c?.apikey) _sendWhatsApp(c.phone, c.apikey, message);
+  }
+}
+
+// ─── Settings screen ───────────────────────────────────
+async function openNotifySettings() {
+  const contacts = await _loadDriverContacts();
+  const drivers = ['עופר','גיל','איתי','חביב','ולאדי','רדארים'];
+  const rows = drivers.map(name => {
+    const c = contacts[name] || {};
+    return `<div style="border:1.5px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:10px;background:#fff">
+      <div style="font-weight:900;font-size:15px;margin-bottom:8px">👤 ${name}</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <input id="nc-phone-${name}" value="${c.phone||''}" placeholder="טלפון (972501234567)" style="border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:14px;direction:ltr;text-align:left">
+        <input id="nc-key-${name}" value="${c.apikey||''}" placeholder="CallMeBot API Key" style="border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:14px;direction:ltr;text-align:left">
+      </div>
+    </div>`;
+  }).join('');
+  const modal = document.getElementById('modal-notify-settings');
+  document.getElementById('notify-settings-body').innerHTML = rows;
+  openModal('modal-notify-settings');
+}
+
+async function saveNotifySettings() {
+  const drivers = ['עופר','גיל','איתי','חביב','ולאדי','רדארים'];
+  const data = {};
+  drivers.forEach(name => {
+    const phone  = document.getElementById(`nc-phone-${name}`)?.value.trim();
+    const apikey = document.getElementById(`nc-key-${name}`)?.value.trim();
+    if (phone || apikey) data[name] = { phone: phone||'', apikey: apikey||'' };
+  });
+  const { setDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  await setDoc(doc(window._db, 'config', 'driver_contacts'), data);
+  _driverContacts = data;
+  closeModal('modal-notify-settings');
+  showToast('✅ הגדרות נשמרו');
+}
+window.openNotifySettings = openNotifySettings;
+window.saveNotifySettings = saveNotifySettings;
 </script>
 </body>
 </html>
