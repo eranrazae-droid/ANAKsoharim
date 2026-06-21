@@ -637,7 +637,14 @@ if ('serviceWorker' in navigator) {
   <div id="pits-manager-toolbar" style="display:none;padding:12px 16px;background:#fff;border-bottom:1px solid var(--border);gap:8px;justify-content:flex-end">
     <button onclick="openModal('modal-add-pit')" style="background:var(--gold);color:#000;border:none;border-radius:10px;padding:8px 18px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">+ הוסף בדיקה</button>
   </div>
-  <div id="pits-list" style="padding:16px;display:flex;flex-direction:column;gap:10px"></div>
+  <div id="pits-list" style="padding:16px 16px 8px;display:flex;flex-direction:column;gap:10px"></div>
+  <div id="pits-archive-wrap" style="display:none;padding:0 16px 80px">
+    <div onclick="document.getElementById('pits-archive-body').style.display=document.getElementById('pits-archive-body').style.display==='none'?'flex':'none'" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-top:1px solid var(--border)">
+      <span style="font-weight:800;font-size:15px">📁 ארכיון בורות</span>
+      <span style="font-size:12px;color:var(--muted)">לחץ להצגה/הסתרה</span>
+    </div>
+    <div id="pits-archive-body" style="display:none;flex-direction:column;gap:10px"></div>
+  </div>
 </div>
 
 <!-- Modal: Add pit check -->
@@ -3211,6 +3218,45 @@ function openPitsScreen() {
   loadPits();
 }
 
+function _pitCard(p, isManager, showArchiveBtn) {
+  const ts = p.createdAt?.toDate ? p.createdAt.toDate().toLocaleString('he-IL') : '';
+  const sent = p.status === 'sent';
+  const archived = p.status === 'archived';
+  const borderColor = archived ? '#94a3b8' : sent ? '#22c55e' : 'var(--gold)';
+  const statusBadge = archived
+    ? `<span style="background:#94a3b8;color:#fff;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700">📁 בארכיון</span>`
+    : sent
+      ? `<span style="background:#22c55e;color:#fff;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700">✅ נשלח</span>`
+      : `<span style="background:var(--gold);color:#000;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700">⏳ ממתין לביצוע</span>`;
+  const sentBtn = !sent && !archived && !isManager
+    ? `<button onclick="markPitSent('${p.id}')" style="background:#22c55e;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;flex-shrink:0">✅ נשלח</button>`
+    : '';
+  const archiveBtn = isManager && sent && showArchiveBtn
+    ? `<button onclick="archivePit('${p.id}')" style="background:#6366f1;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;flex-shrink:0;white-space:nowrap">📋 קיבלתי טופס</button>`
+    : '';
+  const deleteBtn = isManager
+    ? `<button onclick="deletePitCheck('${p.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;flex-shrink:0">🗑️</button>`
+    : '';
+  const archiveTs = p.archivedAt?.toDate ? p.archivedAt.toDate().toLocaleString('he-IL') : '';
+  return `<div class="vehicle-card" style="border-right:5px solid ${borderColor}${archived?';opacity:.75':''}">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <div style="flex:1">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <div class="vehicle-plate">${esc(p.plate)}</div>
+          ${statusBadge}
+        </div>
+        ${[p.brand,p.model,p.color,p.year].filter(Boolean).length ? `<div class="vehicle-info" style="margin-top:2px">${[p.brand,p.model,p.color,p.year].filter(Boolean).map(esc).join(' · ')}</div>` : ''}
+        <div class="vehicle-info" style="margin-top:4px">🔧 ${esc(p.checkType)}</div>
+        ${ts ? `<div class="task-time" style="margin-top:4px">${ts}</div>` : ''}
+        ${archiveTs ? `<div class="task-time" style="margin-top:2px">📁 הועבר לארכיון: ${archiveTs}</div>` : ''}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+        ${sentBtn}${archiveBtn}${deleteBtn}
+      </div>
+    </div>
+  </div>`;
+}
+
 function loadPits() {
   if (!window._CONFIG_DONE) return;
   if (pitsUnsub) pitsUnsub();
@@ -3218,45 +3264,34 @@ function loadPits() {
   const q = _query(_colRef('pit_checks'), _orderBy('createdAt','desc'));
   pitsUnsub = _onSnap(q, snap => {
     const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    const items = isManager ? all : all.filter(p => p.status !== 'sent');
     const list = document.getElementById('pits-list');
-    const emptyMsg = isManager ? '<p>לחץ + הוסף בדיקה</p>' : '<p>אין בדיקות ממתינות</p>';
-    if (!items.length) {
-      list.innerHTML = `<div class="empty-state"><div class="es-icon">🕳️</div><h3>אין בדיקות</h3>${emptyMsg}</div>`;
-      return;
+    const archiveWrap = document.getElementById('pits-archive-wrap');
+    const archiveBody = document.getElementById('pits-archive-body');
+
+    if (isManager) {
+      const active   = all.filter(p => p.status !== 'archived');
+      const archived = all.filter(p => p.status === 'archived');
+      list.innerHTML = active.length
+        ? active.map(p => _pitCard(p, true, true)).join('')
+        : `<div class="empty-state"><div class="es-icon">🕳️</div><h3>אין בדיקות</h3><p>לחץ + הוסף בדיקה</p></div>`;
+      if (archiveWrap) archiveWrap.style.display = archived.length ? 'block' : 'none';
+      if (archiveBody) archiveBody.innerHTML = archived.map(p => _pitCard(p, true, false)).join('');
+    } else {
+      const items = all.filter(p => p.status === 'pending');
+      list.innerHTML = items.length
+        ? items.map(p => _pitCard(p, false, false)).join('')
+        : `<div class="empty-state"><div class="es-icon">🕳️</div><h3>אין בדיקות ממתינות</h3></div>`;
+      if (archiveWrap) archiveWrap.style.display = 'none';
     }
-    list.innerHTML = items.map(p => {
-      const ts = p.createdAt?.toDate ? p.createdAt.toDate().toLocaleString('he-IL') : '';
-      const sent = p.status === 'sent';
-      const borderColor = sent ? '#22c55e' : 'var(--gold)';
-      const statusBadge = sent
-        ? `<span style="background:#22c55e;color:#fff;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700">✅ נשלח</span>`
-        : `<span style="background:var(--gold);color:#000;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700">⏳ ממתין לביצוע</span>`;
-      const sentBtn = !sent
-        ? `<button onclick="markPitSent('${p.id}')" style="background:#22c55e;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;flex-shrink:0">✅ נשלח</button>`
-        : '';
-      const deleteBtn = isManager
-        ? `<button onclick="deletePitCheck('${p.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;flex-shrink:0">🗑️</button>`
-        : '';
-      return `<div class="vehicle-card" style="border-right:5px solid ${borderColor}">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-          <div style="flex:1">
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-              <div class="vehicle-plate">${esc(p.plate)}</div>
-              ${statusBadge}
-            </div>
-            ${[p.brand,p.model,p.color,p.year].filter(Boolean).length ? `<div class="vehicle-info" style="margin-top:2px">${[p.brand,p.model,p.color,p.year].filter(Boolean).map(esc).join(' · ')}</div>` : ''}
-            <div class="vehicle-info" style="margin-top:4px">🔧 ${esc(p.checkType)}</div>
-            ${ts ? `<div class="task-time" style="margin-top:4px">${ts}</div>` : ''}
-          </div>
-          <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
-            ${sentBtn}${deleteBtn}
-          </div>
-        </div>
-      </div>`;
-    }).join('');
   });
 }
+
+async function archivePit(id) {
+  const { updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  await updateDoc(doc(window._db, 'pit_checks', id), { status: 'archived', archivedAt: _serverTs() });
+  showToast('📁 הועבר לארכיון');
+}
+window.archivePit = archivePit;
 
 async function markPitSent(id) {
   const { updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
