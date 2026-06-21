@@ -647,7 +647,12 @@ if ('serviceWorker' in navigator) {
     <div style="display:flex;flex-direction:column;gap:12px;margin-top:8px">
       <div>
         <label style="font-size:13px;font-weight:700;color:var(--dark);display:block;margin-bottom:4px">מספר רכב</label>
-        <input id="pit-plate" placeholder="מספר לוחית רישוי" style="width:100%;border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;font-family:Heebo,sans-serif;font-size:15px;font-weight:700;outline:none;box-sizing:border-box">
+        <div style="display:flex;gap:8px">
+          <input id="pit-plate" inputmode="numeric" placeholder="מספר לוחית רישוי" oninput="this.value=this.value.replace(/[^0-9]/g,'')" style="flex:1;border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;font-family:Heebo,sans-serif;font-size:15px;font-weight:700;outline:none;box-sizing:border-box">
+          <button type="button" id="btn-fetch-pit" onclick="fetchPitVehicle()" style="background:var(--dark);color:#fff;border:none;border-radius:10px;padding:10px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">🔍 שליפה</button>
+        </div>
+        <div id="pit-fetch-status" style="font-size:12px;margin-top:4px;color:var(--muted)"></div>
+        <div id="pit-vehicle-info" style="display:none;background:#f8f9ff;border-radius:10px;padding:10px 12px;margin-top:6px;font-size:13px;font-weight:700;color:var(--dark)"></div>
       </div>
       <div>
         <label style="font-size:13px;font-weight:700;color:var(--dark);display:block;margin-bottom:4px">סוג בדיקה</label>
@@ -3194,6 +3199,7 @@ function loadPits() {
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
           <div>
             <div class="vehicle-plate">${esc(p.plate)}</div>
+            ${[p.brand,p.model,p.color,p.year].filter(Boolean).length ? `<div class="vehicle-info" style="margin-top:2px">${[p.brand,p.model,p.color,p.year].filter(Boolean).map(esc).join(' · ')}</div>` : ''}
             <div class="vehicle-info" style="margin-top:4px">🔧 ${esc(p.checkType)}</div>
             ${ts ? `<div class="task-time" style="margin-top:4px">${ts}</div>` : ''}
           </div>
@@ -3203,6 +3209,32 @@ function loadPits() {
     }).join('');
   });
 }
+
+async function fetchPitVehicle() {
+  const raw = document.getElementById('pit-plate').value.trim().replace(/[^0-9]/g,'');
+  if (!raw) return showToast('נא להזין מספר לוחית');
+  const status = document.getElementById('pit-fetch-status');
+  const btn = document.getElementById('btn-fetch-pit');
+  const info = document.getElementById('pit-vehicle-info');
+  status.style.color = 'var(--muted)'; status.textContent = '⏳ מחפש...';
+  btn.disabled = true; info.style.display = 'none';
+  try {
+    const filters = encodeURIComponent(JSON.stringify({ mispar_rechev: raw }));
+    const url = `https://data.gov.il/api/3/action/datastore_search?resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3&filters=${filters}&limit=1`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('network');
+    const json = await res.json();
+    const rec = json?.result?.records?.[0];
+    if (!rec) { status.style.color='var(--danger)'; status.textContent='❌ לא נמצא רכב עם מספר זה'; return; }
+    window._pitVehicleData = { brand: rec.tozeret_nm||'', model: rec.kinuy_mishari||rec.degem_nm||'', color: rec.tzeva_rechev||'', year: rec.shnat_yitzur||'' };
+    status.style.color='var(--success)'; status.textContent='✅ פרטים נטענו';
+    info.style.display='block';
+    info.textContent = [rec.tozeret_nm, rec.kinuy_mishari||rec.degem_nm, rec.tzeva_rechev, rec.shnat_yitzur].filter(Boolean).join(' · ');
+  } catch(e) {
+    status.style.color='var(--danger)'; status.textContent='❌ שגיאה בחיבור לשרת';
+  } finally { btn.disabled=false; }
+}
+window.fetchPitVehicle = fetchPitVehicle;
 
 function selectPitType(el) {
   document.querySelectorAll('.pit-type-btn').forEach(b => { b.style.background='#fff'; b.style.borderColor='var(--border)'; b.style.color='inherit'; });
@@ -3215,10 +3247,14 @@ async function addPitCheck() {
   const plate = document.getElementById('pit-plate').value.trim();
   const checkType = document.getElementById('pit-type').value.trim();
   if (!plate) return showToast('נא להזין מספר רכב');
-  if (!checkType) return showToast('נא להזין סוג בדיקה');
-  await _addDoc(_colRef('pit_checks'), { plate, checkType, createdAt: _serverTs() });
+  if (!checkType) return showToast('נא לבחור סוג בדיקה');
+  const vehicleData = window._pitVehicleData || {};
+  await _addDoc(_colRef('pit_checks'), { plate, checkType, ...vehicleData, createdAt: _serverTs() });
   document.getElementById('pit-plate').value = '';
   document.getElementById('pit-type').value = '';
+  document.getElementById('pit-fetch-status').textContent = '';
+  document.getElementById('pit-vehicle-info').style.display = 'none';
+  window._pitVehicleData = null;
   document.querySelectorAll('.pit-type-btn').forEach(b => { b.style.background='#fff'; b.style.borderColor='var(--border)'; b.style.color='inherit'; });
   closeModal('modal-add-pit');
   showToast('✅ הבדיקה נוספה');
