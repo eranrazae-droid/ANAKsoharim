@@ -1416,28 +1416,46 @@ function _onDragEnd() {
   document.getElementById('task-list-container')?.classList.remove('dragging-active');
   _dragTaskId = null;
   _dragTaskEl = null;
-  clearInterval(_autoScrollInterval);
+  _stopAutoScroll();
   document.querySelectorAll('.task-drop-zone').forEach(z => z.classList.remove('drag-over'));
 }
-let _autoScrollInterval = null;
+let _autoScrollRAF = null;
+let _autoScrollDir = 0;
+
+function _startAutoScroll(dir) {
+  _autoScrollDir = dir;
+  if (_autoScrollRAF) return;
+  function step() {
+    const container = document.getElementById('task-list-container');
+    if (container && _autoScrollDir !== 0) {
+      container.scrollLeft += _autoScrollDir * 14;
+      _autoScrollRAF = requestAnimationFrame(step);
+    } else {
+      _autoScrollRAF = null;
+    }
+  }
+  _autoScrollRAF = requestAnimationFrame(step);
+}
+
+function _stopAutoScroll() {
+  _autoScrollDir = 0;
+  if (_autoScrollRAF) { cancelAnimationFrame(_autoScrollRAF); _autoScrollRAF = null; }
+}
+
 function _onDragOver(e) {
   e.preventDefault();
   e.dataTransfer.dropEffect = 'move';
   e.currentTarget.classList.add('drag-over');
-
-  // Auto-scroll the task list container when dragging near edges
   const container = document.getElementById('task-list-container');
-  if (!container) return;
-  const rect = container.getBoundingClientRect();
-  const ZONE = 90, SPEED = 14;
-  clearInterval(_autoScrollInterval);
-  if (e.clientX < rect.left + ZONE) {
-    _autoScrollInterval = setInterval(() => { container.scrollLeft -= SPEED; }, 16);
-  } else if (e.clientX > rect.right - ZONE) {
-    _autoScrollInterval = setInterval(() => { container.scrollLeft += SPEED; }, 16);
+  if (container) {
+    const rect = container.getBoundingClientRect();
+    const ZONE = 80;
+    if (e.clientX < rect.left + ZONE) _startAutoScroll(-1);
+    else if (e.clientX > rect.right - ZONE) _startAutoScroll(1);
+    else _stopAutoScroll();
   }
 }
-function _onDragLeave(e) { e.currentTarget.classList.remove('drag-over'); clearInterval(_autoScrollInterval); }
+function _onDragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
 async function _onDrop(e, newLabel, beforeId, afterId) {
   e.preventDefault();
   e.currentTarget.classList.remove('drag-over');
