@@ -588,6 +588,27 @@ if ('serviceWorker' in navigator) {
       <input type="file" accept="image/*" capture="environment" id="file-c-steering" style="display:none" onchange="addPhotos('c-steering',this)">
     </div>
 
+    <!-- Battery photo -->
+    <div class="section-title" style="margin-top:14px">🔋 מצבר</div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <button type="button" onclick="document.getElementById('file-battery').click()" style="background:var(--dark);color:#fff;border:none;border-radius:10px;padding:10px 18px;font-family:Heebo,sans-serif;font-weight:700;font-size:14px;cursor:pointer">📷 צלם מצבר</button>
+      <span id="battery-photo-count" style="font-size:13px;color:var(--muted)"></span>
+    </div>
+    <input type="file" accept="image/*" capture="environment" id="file-battery" style="display:none" onchange="addBatteryPhoto(this)">
+    <div id="battery-photos" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px"></div>
+
+    <!-- Battery date: month + hour (required) -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+      <div class="form-group" style="margin:0">
+        <label>חודש מצבר <span style="color:#ef4444">*</span></label>
+        <input type="month" class="form-input" id="di-battery-month" style="font-family:Heebo,sans-serif">
+      </div>
+      <div class="form-group" style="margin:0">
+        <label>שעת בדיקה <span style="color:#ef4444">*</span></label>
+        <input type="time" class="form-input" id="di-battery-time" style="font-family:Heebo,sans-serif">
+      </div>
+    </div>
+
     <div class="form-group" style="margin-top:12px">
       <label>הערות נוספות</label>
       <textarea class="form-textarea" id="di-notes" placeholder="כל דבר חשוב שנמצא..." rows="3"></textarea>
@@ -1994,6 +2015,18 @@ async function submitDriverIntake() {
     showToast('⚠️ נא למלא קוד רכב');
     return;
   }
+  const batteryMonth = document.getElementById('di-battery-month').value;
+  const batteryTime  = document.getElementById('di-battery-time').value;
+  if (!batteryMonth) {
+    document.getElementById('di-battery-month')?.scrollIntoView({ behavior:'smooth', block:'center' });
+    showToast('⚠️ נא למלא חודש מצבר');
+    return;
+  }
+  if (!batteryTime) {
+    document.getElementById('di-battery-time')?.scrollIntoView({ behavior:'smooth', block:'center' });
+    showToast('⚠️ נא למלא שעת בדיקה');
+    return;
+  }
   const now = new Date();
   const intakeDateTime = now.toLocaleDateString('he-IL', { day:'numeric', month:'numeric', year:'numeric' }) +
     ' · ' + now.toLocaleTimeString('he-IL', { hour:'2-digit', minute:'2-digit' });
@@ -2022,6 +2055,9 @@ async function submitDriverIntake() {
       code,
       photoUrls,
       intakeDateTime,
+      batteryMonth,
+      batteryTime,
+      batteryPhotoUrls: window._batteryPhotoUrls || {},
       status: 'done',
       completedBy: currentUser.name,
       completedAt: _serverTs()
@@ -2038,6 +2074,14 @@ async function submitDriverIntake() {
   clearIntakeDraft(_currentIntakeId);
   _currentIntakeId = null;
   _currentIntakeVehicle = null;
+  _batteryPhotoFiles = [];
+  window._batteryPhotoUrls = {};
+  const bpGrid = document.getElementById('battery-photos');
+  if (bpGrid) bpGrid.innerHTML = '';
+  const bpCount = document.getElementById('battery-photo-count');
+  if (bpCount) bpCount.textContent = '';
+  const bm = document.getElementById('di-battery-month'); if (bm) bm.value = '';
+  const bt = document.getElementById('di-battery-time');  if (bt) bt.value = '';
   closeModal('modal-driver-intake');
   showToast('✅ הטופס נשלח בהצלחה!');
   openVehiclesScreen();
@@ -2260,6 +2304,24 @@ function generateIntakePDF(v) {
 
 /* ── PHOTO UPLOAD ── */
 const ciPhotoFiles = {}; // { 'c-upholstery': [File,...], ... }
+
+let _batteryPhotoFiles = [];
+window._batteryPhotoUrls = {};
+
+function addBatteryPhoto(input) {
+  const files = [...input.files];
+  _batteryPhotoFiles.push(...files.slice(0, 4 - _batteryPhotoFiles.length));
+  input.value = '';
+  const grid = document.getElementById('battery-photos');
+  const count = document.getElementById('battery-photo-count');
+  if (count) count.textContent = _batteryPhotoFiles.length ? `${_batteryPhotoFiles.length} תמונה נבחרה` : '';
+  if (!grid) return;
+  grid.innerHTML = _batteryPhotoFiles.map((f, i) => {
+    const url = URL.createObjectURL(f);
+    return `<div class="ci-photo-box"><img src="${url}"><button class="rm-btn" onclick="_batteryPhotoFiles.splice(${i},1);addBatteryPhoto({files:[]})">✕</button></div>`;
+  }).join('');
+}
+window.addBatteryPhoto = addBatteryPhoto;
 
 function addPhotos(key, input) {
   if (!ciPhotoFiles[key]) ciPhotoFiles[key] = [];
