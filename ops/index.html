@@ -639,9 +639,12 @@ if ('serviceWorker' in navigator) {
   </div>
   <div id="pits-list" style="padding:16px 16px 8px;display:flex;flex-direction:column;gap:10px"></div>
   <div id="pits-archive-wrap" style="display:none;padding:0 16px 80px">
-    <div onclick="document.getElementById('pits-archive-body').style.display=document.getElementById('pits-archive-body').style.display==='none'?'flex':'none'" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-top:1px solid var(--border)">
+    <div onclick="const b=document.getElementById('pits-archive-body');b.style.display=b.style.display==='none'?'flex':'none'" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-top:1px solid var(--border)">
       <span style="font-weight:800;font-size:15px">📁 ארכיון בורות</span>
       <span style="font-size:12px;color:var(--muted)">לחץ להצגה/הסתרה</span>
+    </div>
+    <div id="pits-archive-search" style="display:none;margin-bottom:10px">
+      <input id="pits-archive-q" placeholder="🔍 חיפוש לפי מספר רכב..." oninput="filterPitsArchive()" inputmode="numeric" style="width:100%;border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;font-family:Heebo,sans-serif;font-size:15px;font-weight:700;outline:none;box-sizing:border-box">
     </div>
     <div id="pits-archive-body" style="display:none;flex-direction:column;gap:10px"></div>
   </div>
@@ -3285,6 +3288,9 @@ function loadPits() {
         ? active.map(p => _pitCard(p, true, true)).join('')
         : `<div class="empty-state"><div class="es-icon">🕳️</div><h3>אין בדיקות</h3><p>לחץ + הוסף בדיקה</p></div>`;
       if (archiveWrap) archiveWrap.style.display = archived.length ? 'block' : 'none';
+      const archiveSearch = document.getElementById('pits-archive-search');
+      if (archiveSearch) archiveSearch.style.display = archived.length ? 'block' : 'none';
+      window._pitsArchiveAll = archived;
       if (archiveBody) archiveBody.innerHTML = archived.map(p => _pitCard(p, true, false)).join('');
     } else {
       const items = all.filter(p => p.status === 'pending');
@@ -3295,6 +3301,18 @@ function loadPits() {
     }
   });
 }
+
+function filterPitsArchive() {
+  const q = (document.getElementById('pits-archive-q')?.value || '').trim();
+  const body = document.getElementById('pits-archive-body');
+  if (!body) return;
+  const all = window._pitsArchiveAll || [];
+  const filtered = q ? all.filter(p => (p.plate || '').includes(q)) : all;
+  body.innerHTML = filtered.length
+    ? filtered.map(p => _pitCard(p, true, false)).join('')
+    : `<div style="text-align:center;padding:20px;color:var(--muted);font-weight:700">לא נמצאו תוצאות</div>`;
+}
+window.filterPitsArchive = filterPitsArchive;
 
 async function archivePit(id) {
   const { updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
