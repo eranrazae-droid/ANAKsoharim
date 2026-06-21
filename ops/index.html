@@ -2193,6 +2193,8 @@ async function submitDriverIntake() {
   // auto-create tasks for X-marked items
   await createIntakeTasks(checklist, notes, _currentIntakeVehicle);
 
+  const _donePlate = _currentIntakeVehicle?.plate || '';
+  const _doneDriver = currentUser.name;
   clearIntakeDraft(_currentIntakeId);
   _currentIntakeId = null;
   _currentIntakeVehicle = null;
@@ -2206,6 +2208,7 @@ async function submitDriverIntake() {
   const bds = document.getElementById('battery-date-section'); if (bds) bds.style.display = 'block';
   closeModal('modal-driver-intake');
   showToast('✅ הטופס נשלח בהצלחה!');
+  _notifyDriver('ליאל', `✅ ${_doneDriver} סיים קליטת רכב — ${_donePlate}`);
   openVehiclesScreen();
 }
 
@@ -3355,6 +3358,7 @@ async function submitDriverInv() {
     _driverInvRows = [];
     const notesEl = document.getElementById('dinv-notes');
     if (notesEl) notesEl.value = '';
+    _notifyDriver('ליאל', `📦 ${currentUser.name} סיים בדיקת מלאי`);
     const btn = document.getElementById('dinv-submit-btn');
     if (btn) {
       btn.textContent = '🏠 חזור למסך הבית';
