@@ -519,7 +519,7 @@ if ('serviceWorker' in navigator) {
       <input type="file" accept="image/*" capture="environment" id="file-battery" style="display:none" onchange="addBatteryPhoto(this)">
       <div id="battery-photos" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;width:100%"></div>
     </div>
-    <div id="battery-date-section" style="display:none" class="ci-note-row">
+    <div id="battery-date-section" style="display:block" class="ci-note-row">
       <div class="form-group" style="margin:0">
         <label style="font-size:12px">חודש מצבר <span style="color:#ef4444">*</span></label>
         <input type="month" class="form-input" id="di-battery-month" style="font-family:Heebo,sans-serif">
@@ -2086,8 +2086,7 @@ async function submitDriverIntake() {
     return;
   }
   const batteryMonth = document.getElementById('di-battery-month').value;
-  const dateVisible = document.getElementById('battery-date-section')?.style.display !== 'none';
-  if (dateVisible && !batteryMonth) {
+  if (!batteryMonth) {
     document.getElementById('di-battery-month')?.scrollIntoView({ behavior:'smooth', block:'center' });
     showToast('⚠️ נא למלא חודש מצבר');
     return;
@@ -2163,7 +2162,7 @@ async function submitDriverIntake() {
   const bpCount = document.getElementById('battery-photo-count');
   if (bpCount) bpCount.textContent = '';
   const bm = document.getElementById('di-battery-month'); if (bm) bm.value = '';
-  const bds = document.getElementById('battery-date-section'); if (bds) bds.style.display = 'none';
+  const bds = document.getElementById('battery-date-section'); if (bds) bds.style.display = 'block';
   closeModal('modal-driver-intake');
   showToast('✅ הטופס נשלח בהצלחה!');
   openVehiclesScreen();
@@ -2390,16 +2389,7 @@ const ciPhotoFiles = {}; // { 'c-upholstery': [File,...], ... }
 let _batteryPhotoFiles = [];
 window._batteryPhotoUrls = {};
 
-function batteryOriginalToggle(btn) {
-  const dateSection = document.getElementById('battery-date-section');
-  if (!dateSection) return;
-  // show date section when either ✓ or ✕ is clicked (any active selection)
-  const hasSelection = btn.classList.contains('v-active') || btn.classList.contains('x-active');
-  dateSection.style.display = hasSelection ? 'block' : 'none';
-  if (!hasSelection) {
-    const bm = document.getElementById('di-battery-month'); if (bm) bm.value = '';
-  }
-}
+function batteryOriginalToggle(btn) { /* date section always visible */ }
 window.batteryOriginalToggle = batteryOriginalToggle;
 
 function addBatteryPhoto(input) {
