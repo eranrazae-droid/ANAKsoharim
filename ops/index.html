@@ -3291,9 +3291,14 @@ async function fetchPitVehicle() {
 window.fetchPitVehicle = fetchPitVehicle;
 
 function selectPitType(el) {
-  document.querySelectorAll('.pit-type-btn').forEach(b => { b.style.background='#fff'; b.style.borderColor='var(--border)'; b.style.color='inherit'; });
-  el.style.background = 'var(--dark)'; el.style.borderColor = 'var(--dark)'; el.style.color = '#fff';
-  document.getElementById('pit-type').value = el.dataset.type;
+  const active = el.dataset.selected === '1';
+  el.dataset.selected = active ? '0' : '1';
+  el.style.background = active ? '#fff' : 'var(--dark)';
+  el.style.borderColor = active ? 'var(--border)' : 'var(--dark)';
+  el.style.color = active ? 'inherit' : '#fff';
+  const selected = Array.from(document.querySelectorAll('.pit-type-btn'))
+    .filter(b => b.dataset.selected === '1').map(b => b.dataset.type);
+  document.getElementById('pit-type').value = selected.join(', ');
 }
 window.selectPitType = selectPitType;
 
@@ -3309,7 +3314,7 @@ async function addPitCheck() {
   document.getElementById('pit-fetch-status').textContent = '';
   document.getElementById('pit-vehicle-info').style.display = 'none';
   window._pitVehicleData = null;
-  document.querySelectorAll('.pit-type-btn').forEach(b => { b.style.background='#fff'; b.style.borderColor='var(--border)'; b.style.color='inherit'; });
+  document.querySelectorAll('.pit-type-btn').forEach(b => { b.style.background='#fff'; b.style.borderColor='var(--border)'; b.style.color='inherit'; b.dataset.selected='0'; });
   closeModal('modal-add-pit');
   showToast('✅ הבדיקה נוספה');
 }
