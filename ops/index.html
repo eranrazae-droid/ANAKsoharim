@@ -3371,6 +3371,25 @@ async function addPitCheck() {
   const checkType = document.getElementById('pit-type').value.trim();
   if (!plate) return showToast('נא להזין מספר רכב');
   if (!checkType) return showToast('נא לבחור סוג בדיקה');
+
+  // Block duplicate בור/בדיקה מלאה for same plate if already active
+  const blockedTypes = ['בור', 'בדיקה מלאה'];
+  const selectedTypes = checkType.split(',').map(t => t.trim());
+  const hasBlocked = selectedTypes.some(t => blockedTypes.includes(t));
+  if (hasBlocked) {
+    const { getDocs, query, collection, where } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const snap = await getDocs(query(collection(window._db, 'pit_checks'), where('plate','==',plate)));
+    const active = snap.docs.map(d => d.data()).filter(d => d.status !== 'archived');
+    const conflict = active.find(d => {
+      const existing = (d.checkType || '').split(',').map(t => t.trim());
+      return existing.some(t => blockedTypes.includes(t));
+    });
+    if (conflict) {
+      const statusLabel = conflict.status === 'sent' ? 'נשלח — ממתין לאישור' : 'ממתין לביצוע';
+      return showToast(`⚠️ לרכב ${plate} כבר קיימת בדיקה פעילה (${statusLabel})`, 5000);
+    }
+  }
+
   const vehicleData = window._pitVehicleData || {};
   await _addDoc(_colRef('pit_checks'), { plate, checkType, ...vehicleData, status: 'pending', createdAt: _serverTs() });
   document.getElementById('pit-plate').value = '';
