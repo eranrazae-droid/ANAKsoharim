@@ -586,7 +586,16 @@ if ('serviceWorker' in navigator) {
     <div id="note-c-ac" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="cn-c-ac" placeholder="הערה..." rows="2"></textarea></div>
 
     <div class="checklist-item"><span class="ci-label">מנורות לוח שעונים</span><div class="ci-btns"><button type="button" class="ci-box" data-key="c-dashboard" data-val="v" onclick="ciClick(this)">✓</button><button type="button" class="ci-box" data-key="c-dashboard" data-val="x" onclick="ciClick(this)">✕</button></div></div>
-    <div id="note-c-dashboard" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="cn-c-dashboard" placeholder="הערה..." rows="2"></textarea></div>
+    <div id="note-c-dashboard" class="ci-note-row" style="display:none">
+      <div style="display:flex;flex-direction:column;gap:8px;padding:4px 0">
+        <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer"><input type="checkbox" id="dash-check-engine" style="width:18px;height:18px;accent-color:var(--dark)"> מנורת צ׳ק אנג׳ין</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer"><input type="checkbox" id="dash-tire-pressure" style="width:18px;height:18px;accent-color:var(--dark)"> לחץ אוויר</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer"><input type="checkbox" id="dash-service" style="width:18px;height:18px;accent-color:var(--dark)"> טיפול</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer"><input type="checkbox" id="dash-collision" style="width:18px;height:18px;accent-color:var(--dark)"> מנורת התגשות</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer"><input type="checkbox" id="dash-other" style="width:18px;height:18px;accent-color:var(--dark)" onchange="document.getElementById('cn-c-dashboard').style.display=this.checked?'block':'none';if(!this.checked)document.getElementById('cn-c-dashboard').value=''"> אחר</label>
+        <textarea class="form-textarea" id="cn-c-dashboard" placeholder="פרט..." rows="2" style="display:none"></textarea>
+      </div>
+    </div>
 
     <div class="checklist-item"><span class="ci-label">גג נפתח</span><div class="ci-btns"><button type="button" class="ci-box" data-key="c-sunroof" data-val="v" onclick="ciClick(this)">✓</button><button type="button" class="ci-box" data-key="c-sunroof" data-val="x" onclick="ciClick(this)">✕</button></div></div>
     <div id="note-c-sunroof" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="cn-c-sunroof" placeholder="הערה..." rows="2"></textarea></div>
@@ -2038,6 +2047,21 @@ const _photoKeys = ['c-lights-break','c-glass-break','c-upholstery','c-mats','c-
 async function submitDriverIntake() {
   if (!_currentIntakeId) { showToast('שגיאה: אין קליטה פתוחה'); return; }
   if (!window._CONFIG_DONE) { showToast('Firebase לא מחובר'); return; }
+  // Build dashboard note from checkboxes
+  const dashX = document.querySelector('.ci-box[data-key="c-dashboard"].x-active');
+  if (dashX) {
+    const labels = [
+      [document.getElementById('dash-check-engine'), 'מנורת צ׳ק אנג׳ין'],
+      [document.getElementById('dash-tire-pressure'), 'לחץ אוויר'],
+      [document.getElementById('dash-service'), 'טיפול'],
+      [document.getElementById('dash-collision'), 'מנורת התגשות'],
+    ];
+    const checked = labels.filter(([el]) => el?.checked).map(([,l]) => l);
+    const otherText = document.getElementById('cn-c-dashboard')?.value.trim();
+    if (otherText) checked.push('אחר: ' + otherText);
+    const dashNoteEl = document.getElementById('cn-c-dashboard');
+    if (dashNoteEl) dashNoteEl.value = checked.join(', ');
+  }
 
   // validate all checklist items are marked
   for (const [key, label] of Object.entries(_ciLabels)) {
@@ -2482,7 +2506,11 @@ function ciClick(btn) {
   const noteRow = document.getElementById('note-' + key);
   if (noteRow) {
     noteRow.style.display = val === 'x' ? 'block' : 'none';
-    if (val === 'v') { const ta = noteRow.querySelector('textarea'); if (ta) ta.value = ''; }
+    if (val === 'v') {
+      const ta = noteRow.querySelector('textarea'); if (ta) ta.value = '';
+      noteRow.querySelectorAll('input[type=checkbox]').forEach(cb => cb.checked = false);
+      const otherTa = document.getElementById('cn-c-dashboard'); if (otherTa) { otherTa.style.display = 'none'; otherTa.value = ''; }
+    }
   }
   saveIntakeDraft();
 }
