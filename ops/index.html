@@ -627,6 +627,37 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
+<!-- ====== SCREEN: PITS ====== -->
+<div id="screen-pits" class="screen">
+  <div class="app-header">
+    <button class="back-btn" onclick="goHome()">→</button>
+    <div class="logo">בורות</div>
+    <div class="user-badge" id="pits-user-badge" onclick="logout()"></div>
+  </div>
+  <div style="padding:12px 16px;background:#fff;border-bottom:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end">
+    <button onclick="openModal('modal-add-pit')" style="background:var(--gold);color:#000;border:none;border-radius:10px;padding:8px 18px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">+ הוסף בדיקה</button>
+  </div>
+  <div id="pits-list" style="padding:16px;display:flex;flex-direction:column;gap:10px"></div>
+</div>
+
+<!-- Modal: Add pit check -->
+<div class="modal-overlay" id="modal-add-pit">
+  <div class="modal-box">
+    <div class="modal-title">הוסף בדיקה בבור <button class="modal-close" onclick="closeModal('modal-add-pit')">✕</button></div>
+    <div style="display:flex;flex-direction:column;gap:12px;margin-top:8px">
+      <div>
+        <label style="font-size:13px;font-weight:700;color:var(--dark);display:block;margin-bottom:4px">מספר רכב</label>
+        <input id="pit-plate" placeholder="מספר לוחית רישוי" style="width:100%;border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;font-family:Heebo,sans-serif;font-size:15px;font-weight:700;outline:none;box-sizing:border-box">
+      </div>
+      <div>
+        <label style="font-size:13px;font-weight:700;color:var(--dark);display:block;margin-bottom:4px">סוג בדיקה</label>
+        <input id="pit-type" placeholder="לדוגמה: טסט, שמן, בלמים..." style="width:100%;border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;font-family:Heebo,sans-serif;font-size:15px;outline:none;box-sizing:border-box">
+      </div>
+      <button onclick="addPitCheck()" style="background:var(--dark);color:#fff;border:none;border-radius:12px;padding:12px;font-family:Heebo,sans-serif;font-weight:700;font-size:15px;cursor:pointer;margin-top:4px">✅ הוסף</button>
+    </div>
+  </div>
+</div>
+
 <!-- ====== SCREEN: YARD ====== -->
 <div id="screen-yard" class="screen">
   <div class="app-header">
@@ -1062,6 +1093,7 @@ function renderHome() {
         { icon: '🔧', title: 'הזמנת חלקים', sub: 'בקשות ועדכונים', screen: 'parts' },
         { icon: '🅿️', title: 'סידור מגרש', sub: 'טבלת חניות', screen: 'yard' },
         { icon: '📦', title: 'בדיקת מלאי', sub: 'סימון רכבים במגרש', screen: 'inventory' },
+        { icon: '🕳️', title: 'בורות', sub: 'ניהול בדיקות בבורות', screen: 'pits' },
       ]
     : [
         { icon: '📋', title: 'המשימות שלי', sub: 'משימות שהוקצו לך', screen: 'tasks' },
@@ -1093,6 +1125,7 @@ function goToScreen(name) {
   else if (name === 'parts') openPartsScreen();
   else if (name === 'yard') openYardScreen();
   else if (name === 'inventory') openInventoryScreen();
+  else if (name === 'pits') openPitsScreen();
   else if (name === 'driver-inventory') openDriverInventoryScreen();
 }
 
@@ -3126,6 +3159,64 @@ window.openYardScreen = openYardScreen;
 window.startYard = startYard;
 window.saveYard = saveYard;
 window.resetYard = resetYard;
+
+/* ═══════════════════════════════════════════════════════
+   PITS SCREEN
+═══════════════════════════════════════════════════════ */
+
+var pitsUnsub = null;
+
+function openPitsScreen() {
+  document.getElementById('pits-user-badge').textContent = currentUser.name;
+  showScreen('pits');
+  loadPits();
+}
+
+function loadPits() {
+  if (!window._CONFIG_DONE) return;
+  if (pitsUnsub) pitsUnsub();
+  const q = _query(_colRef('pit_checks'), _orderBy('createdAt','desc'));
+  pitsUnsub = _onSnap(q, snap => {
+    const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const list = document.getElementById('pits-list');
+    if (!items.length) {
+      list.innerHTML = '<div class="empty-state"><div class="es-icon">🕳️</div><h3>אין בדיקות</h3><p>לחץ + הוסף בדיקה</p></div>';
+      return;
+    }
+    list.innerHTML = items.map(p => {
+      const ts = p.createdAt?.toDate ? p.createdAt.toDate().toLocaleString('he-IL') : '';
+      return `<div class="vehicle-card" style="border-right:5px solid var(--gold)">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div>
+            <div class="vehicle-plate">${esc(p.plate)}</div>
+            <div class="vehicle-info" style="margin-top:4px">🔧 ${esc(p.checkType)}</div>
+            ${ts ? `<div class="task-time" style="margin-top:4px">${ts}</div>` : ''}
+          </div>
+          <button onclick="deletePitCheck('${p.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;flex-shrink:0">🗑️</button>
+        </div>
+      </div>`;
+    }).join('');
+  });
+}
+
+async function addPitCheck() {
+  const plate = document.getElementById('pit-plate').value.trim();
+  const checkType = document.getElementById('pit-type').value.trim();
+  if (!plate) return showToast('נא להזין מספר רכב');
+  if (!checkType) return showToast('נא להזין סוג בדיקה');
+  await _addDoc(_colRef('pit_checks'), { plate, checkType, createdAt: _serverTs() });
+  document.getElementById('pit-plate').value = '';
+  document.getElementById('pit-type').value = '';
+  closeModal('modal-add-pit');
+  showToast('✅ הבדיקה נוספה');
+}
+
+async function deletePitCheck(id) {
+  if (!confirm('למחוק בדיקה זו?')) return;
+  const { deleteDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  await deleteDoc(doc(window._db, 'pit_checks', id));
+  showToast('🗑️ נמחק');
+}
 
 /* ═══════════════════════════════════════════════════════
    YARD SCREEN
