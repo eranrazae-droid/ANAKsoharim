@@ -1203,6 +1203,9 @@ function loadDriverBadges() {
       const status = snap.exists() ? snap.data().status : null;
       _setCardBadge('yard', status === 'pending' ? 1 : 0);
     });
+    _onSnap(_query(_colRef('pit_checks'), _where('status','==','pending')), snap => {
+      _setCardBadge('pits', snap.size);
+    });
   } catch(e) { console.warn('loadDriverBadges error', e); }
 }
 
@@ -3286,7 +3289,7 @@ async function addPitCheck() {
   if (!plate) return showToast('נא להזין מספר רכב');
   if (!checkType) return showToast('נא לבחור סוג בדיקה');
   const vehicleData = window._pitVehicleData || {};
-  await _addDoc(_colRef('pit_checks'), { plate, checkType, ...vehicleData, createdAt: _serverTs() });
+  await _addDoc(_colRef('pit_checks'), { plate, checkType, ...vehicleData, status: 'pending', createdAt: _serverTs() });
   document.getElementById('pit-plate').value = '';
   document.getElementById('pit-type').value = '';
   document.getElementById('pit-fetch-status').textContent = '';
