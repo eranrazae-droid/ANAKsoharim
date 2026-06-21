@@ -773,6 +773,10 @@ if ('serviceWorker' in navigator) {
     <input type="hidden" id="dinv-headers-cache" value="[]">
     <button onclick="dinvMarkAll('v')" style="width:100%;background:#22c55e;color:#fff;border:none;border-radius:12px;padding:10px;font-family:Heebo,sans-serif;font-weight:900;font-size:14px;cursor:pointer;margin-bottom:10px">✅ סמן הכל V</button>
     <div style="overflow-x:auto;-webkit-overflow-scrolling:touch" id="dinv-rows-container"></div>
+    <div style="margin-top:14px">
+      <label style="font-size:13px;font-weight:700;color:var(--dark);display:block;margin-bottom:6px">📝 הערות</label>
+      <textarea id="dinv-notes" placeholder="הערות חופשיות..." rows="3" style="width:100%;border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;font-family:Heebo,sans-serif;font-size:14px;resize:vertical;outline:none;box-sizing:border-box"></textarea>
+    </div>
     <button id="dinv-submit-btn" class="btn-submit" onclick="submitDriverInv()" style="margin-top:14px">✅ שלח בדיקה</button>
   </div>
 </div>
@@ -3002,11 +3006,15 @@ async function submitDriverInv() {
   try {
     const present = _driverInvRows.filter(r => r.status === 'v').map(r => r.cells.join(' | '));
     const absent  = _driverInvRows.filter(r => r.status === 'x').map(r => r.cells.join(' | '));
+    const notes = (document.getElementById('dinv-notes')?.value || '').trim();
     await _updateDoc(_docRef('inventory_assignments', _driverInvDocId), {
-      status: 'done', completedBy: currentUser.name, completedAt: _serverTs(), present, absent
+      status: 'done', completedBy: currentUser.name, completedAt: _serverTs(), present, absent,
+      ...(notes ? { notes } : {})
     });
     _driverInvDocId = null;
     _driverInvRows = [];
+    const notesEl = document.getElementById('dinv-notes');
+    if (notesEl) notesEl.value = '';
     const btn = document.getElementById('dinv-submit-btn');
     if (btn) {
       btn.textContent = '🏠 חזור למסך הבית';
