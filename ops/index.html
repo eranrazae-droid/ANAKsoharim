@@ -505,29 +505,20 @@ if ('serviceWorker' in navigator) {
     <!-- צ'קליסט -->
     <div class="section-title">🔍 בדיקות חוץ</div>
 
-    <!-- Battery section (under external checks) -->
-    <div style="background:#f8f9ff;border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:10px">
-      <div style="font-weight:700;font-size:14px;margin-bottom:8px">🔋 מצבר</div>
-      <div class="checklist-item" style="margin-bottom:6px">
-        <span class="ci-label">מצבר מקורי</span>
-        <div class="ci-btns">
-          <button type="button" class="ci-box" data-key="c-battery-original" data-val="v" onclick="ciClick(this);batteryOriginalToggle(this)">✓</button>
-          <button type="button" class="ci-box" data-key="c-battery-original" data-val="x" onclick="ciClick(this);batteryOriginalToggle(this)">✕</button>
-        </div>
+    <!-- Battery row -->
+    <div class="checklist-item">
+      <span class="ci-label">בדיקת מצבר</span>
+      <div class="ci-btns">
+        <button type="button" class="ci-box" data-key="c-battery-original" data-val="v" onclick="ciClick(this);batteryOriginalToggle(this)">✓</button>
+        <button type="button" class="ci-box" data-key="c-battery-original" data-val="x" onclick="ciClick(this);batteryOriginalToggle(this)">✕</button>
       </div>
-      <div id="battery-date-section">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-          <div class="form-group" style="margin:0">
-            <label style="font-size:12px">חודש מצבר <span style="color:#ef4444">*</span></label>
-            <input type="month" class="form-input" id="di-battery-month" style="font-family:Heebo,sans-serif">
-          </div>
-          <div class="form-group" style="margin:0">
-            <label style="font-size:12px">שעת בדיקה <span style="color:#ef4444">*</span></label>
-            <input type="time" class="form-input" id="di-battery-time" style="font-family:Heebo,sans-serif">
-          </div>
-        </div>
+    </div>
+    <div id="battery-date-section" style="display:none" class="ci-note-row">
+      <div class="form-group" style="margin:0">
+        <label style="font-size:12px">חודש מצבר <span style="color:#ef4444">*</span></label>
+        <input type="month" class="form-input" id="di-battery-month" style="font-family:Heebo,sans-serif">
       </div>
-      <button type="button" onclick="document.getElementById('file-battery').click()" style="background:var(--dark);color:#fff;border:none;border-radius:10px;padding:8px 16px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">📷 צלם מצבר</button>
+      <button type="button" onclick="document.getElementById('file-battery').click()" style="background:var(--dark);color:#fff;border:none;border-radius:10px;padding:8px 16px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;margin-top:8px">📷 צלם מצבר</button>
       <span id="battery-photo-count" style="font-size:12px;color:var(--muted);margin-right:8px"></span>
       <input type="file" accept="image/*" capture="environment" id="file-battery" style="display:none" onchange="addBatteryPhoto(this)">
       <div id="battery-photos" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
@@ -1997,7 +1988,7 @@ const _ciLabels = {
   'c-lights-break':'שברים בפנסים','c-glass-break':'שברים בשמשות','c-bulbs':'מנורות שרופות',
   'c-frames-ext':'מסגרות','c-tires':'מצב צמיגים','c-glove':'ניקיון תא כפפות',
   'c-windows':'מתגי חלונות','c-ac':'מזגן','c-dashboard':'מנורות לוח שעונים',
-  'c-sunroof':'גג נפתח','c-upholstery':'ריפודים','c-mats':'שטיחים','c-steering':'הגה – קילופים','c-battery-original':'מצבר מקורי'
+  'c-sunroof':'גג נפתח','c-upholstery':'ריפודים','c-mats':'שטיחים','c-steering':'הגה – קילופים','c-battery-original':'בדיקת מצבר'
 };
 const _photoKeys = ['c-lights-break','c-glass-break','c-upholstery','c-mats','c-windows','c-steering'];
 
@@ -2048,15 +2039,10 @@ async function submitDriverIntake() {
     return;
   }
   const batteryMonth = document.getElementById('di-battery-month').value;
-  const batteryTime  = document.getElementById('di-battery-time').value;
-  if (!batteryMonth) {
+  const dateVisible = document.getElementById('battery-date-section')?.style.display !== 'none';
+  if (dateVisible && !batteryMonth) {
     document.getElementById('di-battery-month')?.scrollIntoView({ behavior:'smooth', block:'center' });
     showToast('⚠️ נא למלא חודש מצבר');
-    return;
-  }
-  if (!batteryTime) {
-    document.getElementById('di-battery-time')?.scrollIntoView({ behavior:'smooth', block:'center' });
-    showToast('⚠️ נא למלא שעת בדיקה');
     return;
   }
   const now = new Date();
@@ -2088,7 +2074,6 @@ async function submitDriverIntake() {
       photoUrls,
       intakeDateTime,
       batteryMonth,
-      batteryTime,
       batteryPhotoUrls: window._batteryPhotoUrls || {},
       status: 'done',
       completedBy: currentUser.name,
@@ -2131,7 +2116,7 @@ async function submitDriverIntake() {
   const bpCount = document.getElementById('battery-photo-count');
   if (bpCount) bpCount.textContent = '';
   const bm = document.getElementById('di-battery-month'); if (bm) bm.value = '';
-  const bt = document.getElementById('di-battery-time');  if (bt) bt.value = '';
+  const bds = document.getElementById('battery-date-section'); if (bds) bds.style.display = 'none';
   closeModal('modal-driver-intake');
   showToast('✅ הטופס נשלח בהצלחה!');
   openVehiclesScreen();
@@ -2359,12 +2344,13 @@ let _batteryPhotoFiles = [];
 window._batteryPhotoUrls = {};
 
 function batteryOriginalToggle(btn) {
-  const isV = btn.dataset.val === 'v' && btn.classList.contains('v-active');
   const dateSection = document.getElementById('battery-date-section');
-  if (dateSection) dateSection.style.display = isV ? 'none' : 'block';
-  if (isV) {
+  if (!dateSection) return;
+  // show date section only when ✕ (x) is clicked
+  const isX = btn.dataset.val === 'x' && btn.classList.contains('x-active');
+  dateSection.style.display = isX ? 'block' : 'none';
+  if (!isX) {
     const bm = document.getElementById('di-battery-month'); if (bm) bm.value = '';
-    const bt = document.getElementById('di-battery-time');  if (bt) bt.value = '';
   }
 }
 window.batteryOriginalToggle = batteryOriginalToggle;
@@ -3191,6 +3177,7 @@ async function submitDriverInv() {
       ...(notes ? { notes } : {})
     });
     localStorage.removeItem('_dinvProgress_' + _driverInvDocId);
+    _setCardBadge('driver-inventory', 0);
     _driverInvDocId = null;
     _driverInvRows = [];
     const notesEl = document.getElementById('dinv-notes');
