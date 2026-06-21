@@ -2947,14 +2947,22 @@ function loadDriverInventoryAssignments() {
   });
 }
 
+function _dinvSaveProgress() {
+  if (!_driverInvDocId) return;
+  const statuses = _driverInvRows.map(r => r.status);
+  localStorage.setItem('_dinvProgress_' + _driverInvDocId, JSON.stringify(statuses));
+}
+
 function openDriverInvModal(docId) {
-  const q = _colRef('inventory_assignments');
   _onSnap(_docRef('inventory_assignments', docId), snap => {
     if (!snap.exists()) return;
     const data = snap.data();
     _driverInvDocId = docId;
     const parsedRows = data.rowsJson ? JSON.parse(data.rowsJson) : (data.rows || []);
-    _driverInvRows = parsedRows.map(cells => ({ cells, status: null }));
+    // restore saved progress if exists
+    const saved = localStorage.getItem('_dinvProgress_' + docId);
+    const savedStatuses = saved ? JSON.parse(saved) : null;
+    _driverInvRows = parsedRows.map((cells, i) => ({ cells, status: savedStatuses?.[i] ?? null }));
     renderDriverInvModal(data.headers || []);
     openModal('modal-driver-inv');
   });
@@ -3007,6 +3015,7 @@ function renderDriverInvModal(headers) {
 
 function dinvClick(idx, val) {
   _driverInvRows[idx].status = _driverInvRows[idx].status === val ? null : val;
+  _dinvSaveProgress();
   const headers = JSON.parse(document.getElementById('dinv-headers-cache').value || '[]');
   renderDriverInvModal(headers);
   document.getElementById(`dinv-row-${idx}`)?.scrollIntoView({ block: 'nearest' });
@@ -3037,6 +3046,7 @@ async function submitDriverInv() {
       status: 'done', completedBy: currentUser.name, completedAt: _serverTs(), present, absent,
       ...(notes ? { notes } : {})
     });
+    localStorage.removeItem('_dinvProgress_' + _driverInvDocId);
     _driverInvDocId = null;
     _driverInvRows = [];
     const notesEl = document.getElementById('dinv-notes');
