@@ -1105,6 +1105,8 @@ function renderHome() {
   document.getElementById('home-date').textContent =
     now.toLocaleDateString('he-IL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   document.getElementById('home-user-badge').textContent = currentUser.name;
+  document.getElementById('stat-vehicles').parentElement.style.display = isManager ? '' : 'none';
+  document.getElementById('stat-parts').parentElement.style.display    = isManager ? '' : 'none';
 
   const menuItems = isManager
     ? [
@@ -1153,8 +1155,6 @@ function goToScreen(name) {
 function loadStats() {
   if (!window._CONFIG_DONE) {
     document.getElementById('stat-tasks').textContent = '—';
-    document.getElementById('stat-vehicles').textContent = '—';
-    document.getElementById('stat-parts').textContent = '—';
     return;
   }
   // tasks open — manager sees all, driver sees only their own
@@ -1163,17 +1163,17 @@ function loadStats() {
     ? _query(_colRef('tasks'), _where('status','!=','done'))
     : _query(_colRef('tasks'), _where('assignedTo','==', currentUser.name), _where('status','!=','done'));
   _onSnap(tq, snap => {
-    document.getElementById('stat-tasks').textContent = snap.size;
+    document.getElementById('stat-tasks').textContent = snap.size || '0';
   });
-  // vehicles
-  _onSnap(_colRef('vehicles'), snap => {
-    document.getElementById('stat-vehicles').textContent = snap.size;
-  });
-  // parts pending
-  const pq = _query(_colRef('parts'), _where('status','==','pending'));
-  _onSnap(pq, snap => {
-    document.getElementById('stat-parts').textContent = snap.size;
-  });
+  if (isManager) {
+    _onSnap(_colRef('vehicles'), snap => {
+      document.getElementById('stat-vehicles').textContent = snap.size;
+    });
+    const pq = _query(_colRef('parts'), _where('status','==','pending'));
+    _onSnap(pq, snap => {
+      document.getElementById('stat-parts').textContent = snap.size;
+    });
+  }
 }
 
 function _setCardBadge(screen, count) {
