@@ -4187,8 +4187,23 @@ async function testWhatsApp(name) {
   const phone      = document.getElementById(`nc-phone-${name}`)?.value.trim();
   if (!instanceId || !token) return showToast('נא למלא Instance ID ו-Token תחילה');
   if (!phone) return showToast(`נא להזין מספר טלפון עבור ${name}`);
-  await _sendWhatsApp(instanceId, token, phone, `✅ בדיקה — מערכת ענק הרכבים מחוברת ל-${name}`);
-  showToast(`📲 הודעת בדיקה נשלחה ל${name}`);
+  const chatId = phone.replace(/\D/g,'') + '@c.us';
+  const url = `https://api.green-api.com/waInstance${instanceId}/sendMessage/${token}`;
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chatId, message: `✅ בדיקה — מערכת ענק הרכבים מחוברת ל-${name}` })
+    });
+    const data = await res.json();
+    if (res.ok && data.idMessage) {
+      showToast(`✅ נשלח! ID: ${data.idMessage}`, 4000);
+    } else {
+      showToast(`❌ שגיאה: ${JSON.stringify(data)}`, 6000);
+    }
+  } catch(e) {
+    showToast(`❌ שגיאת רשת: ${e.message}`, 6000);
+  }
 }
 async function resendIntakeNotify(driver, plate, brand, model) {
   await _notifyDriver(driver, `🚗 קליטת רכב ממתינה לך — ${plate} ${brand} ${model}. כנס לאפליקציה ענק הרכבים.`);
