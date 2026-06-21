@@ -642,20 +642,44 @@
   async function saveCarToDB(){ return; }
   async function deleteCarFromDB(){ return; }
 
+  function jsonToPngBlob(jsonStr){
+    return new Promise(function(resolve){
+      const bytes = new TextEncoder().encode(jsonStr);
+      const n = bytes.length;
+      const totalBytes = 4 + n;
+      const pixels = Math.ceil(totalBytes / 3);
+      const w = Math.ceil(Math.sqrt(pixels));
+      const h = Math.ceil(pixels / w);
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      const img = ctx.createImageData(w, h);
+      const d = img.data;
+      for(let i=0;i<d.length;i+=4){d[i]=255;d[i+1]=255;d[i+2]=255;d[i+3]=255;}
+      const all = new Uint8Array(4+n);
+      all[0]=(n>>24)&255; all[1]=(n>>16)&255; all[2]=(n>>8)&255; all[3]=n&255;
+      all.set(bytes, 4);
+      for(let i=0;i<all.length;i++){
+        const px=Math.floor(i/3), ch=i%3;
+        d[px*4+ch]=all[i];
+      }
+      ctx.putImageData(img,0,0);
+      canvas.toBlob(resolve,'image/png');
+    });
+  }
+
   async function saveToCloud(data){
     const cfg = getCloudinaryConfig();
     if(!cfg.cloudName || !cfg.uploadPreset) return;
     try{
-      const blob = new Blob([JSON.stringify(data)], {type:'application/json'});
-      const file = new File([blob], 'autodealer_data.json', {type:'application/json'});
+      const blob = await jsonToPngBlob(JSON.stringify(data));
+      const file = new File([blob], 'autodealer_sync.png', {type:'image/png'});
       const fd = new FormData();
       fd.append('file', file);
       fd.append('upload_preset', cfg.uploadPreset);
-      fd.append('public_id', 'autodealer_data.json');
-      fd.append('resource_type', 'auto');
-      fd.append('invalidate', 'true');
+      fd.append('public_id', 'autodealer_sync');
       fd.append('overwrite', 'true');
-      const r = await fetch('https://api.cloudinary.com/v1_1/'+cfg.cloudName+'/auto/upload', {method:'POST',body:fd});
+      const r = await fetch('https://api.cloudinary.com/v1_1/'+cfg.cloudName+'/image/upload', {method:'POST',body:fd});
       const j = await r.json();
       if(j.secure_url) toast('☁️ נתונים סונכרנו לענן');
       else console.warn('Cloud sync response:', j);
