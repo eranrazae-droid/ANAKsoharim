@@ -1179,8 +1179,8 @@ function loadStats() {
       const total = Object.values(counts).reduce((a,b) => a+b, 0);
       document.getElementById('stat-tasks').textContent = total || '0';
     };
-    _onSnap(_query(_colRef('tasks'), _where('assignedTo','==',name), _where('status','!=','done')), snap => {
-      counts.tasks = snap.size; update();
+    _onSnap(_query(_colRef('tasks'), _where('assignedTo','==',name)), snap => {
+      counts.tasks = snap.docs.filter(d => d.data().status !== 'done').length; update();
     });
     _onSnap(_query(_colRef('intake_assignments'), _where('assignedTo','==',name), _where('status','==','pending')), snap => {
       counts.intake = snap.size; update();
