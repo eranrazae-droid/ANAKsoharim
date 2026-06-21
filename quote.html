@@ -92,6 +92,19 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
 .btn-reset:hover{background:#f0f4fa}
 
 /* ── HISTORY ── */
+.results-label{font-size:11px;font-weight:700;color:#5a7aa5;letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px;padding-right:4px}
+.fcards{display:flex;flex-direction:column;gap:10px}
+.fcard{background:#fff;border:2px solid #dce6f5;border-radius:14px;overflow:hidden;box-shadow:0 2px 8px rgba(13,31,60,.06)}
+.fcard.kal{border-color:#1a56db}.fcard.yasir{border-color:#e02d2d}
+.fcard-top{background:#f5f8ff;padding:8px 14px;font-size:13px;font-weight:700;color:#0d1f3c;border-bottom:1px solid #eef2fb}
+.fcard.kal .fcard-top{background:#eef3ff}.fcard.yasir .fcard-top{background:#fff0f0}
+.fcard-body{display:flex;align-items:center;padding:12px 14px;gap:12px}
+.fcard-amount{min-width:90px;text-align:center;border-left:1px solid #eef2fb;padding-left:12px}
+.fcard-monthly{font-size:26px;font-weight:900;color:#0d1f3c;line-height:1}
+.fcard.best .fcard-monthly{color:#1a56db}
+.fcard-lbl{font-size:11px;color:#5a7aa5}
+.fcard-info{flex:1;display:flex;flex-direction:column;gap:3px;font-size:11px;color:#7a9ab8}
+.fcard-val{font-weight:700;color:#0d1f3c}
 .history-section{margin-top:24px}
 .history-title{font-size:11px;font-weight:700;color:#5a7aa5;letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px}
 .history-list{display:flex;flex-direction:column;gap:8px}
@@ -150,8 +163,9 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
 
   <!-- שם לקוח -->
   <div class="customer-card">
-    <label>שם לקוח</label>
+    <label>שם לקוח <span style="color:#e02d2d">*</span></label>
     <input type="text" id="customer-name" placeholder="הזן שם לקוח..." oninput="calc()">
+    <div id="customer-err" style="display:none;font-size:12px;color:#e02d2d;margin-top:4px;font-weight:700">⚠️ יש למלא שם לקוח כדי להמשיך</div>
   </div>
 
   <div class="deal-card">
@@ -263,6 +277,12 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
 
   <button class="btn-reset" onclick="resetAll()">נקה הכל</button>
 
+  <!-- FINANCE CARDS -->
+  <div id="finance-cards-section" style="display:none;margin-top:24px">
+    <div class="results-label">השוואת מסלולי מימון</div>
+    <div id="finance-cards"></div>
+  </div>
+
   <!-- HISTORY -->
   <div class="history-section" id="history-section"></div>
 </div>
@@ -273,6 +293,64 @@ var currentMonthly = 0;
 var currentN = 100;
 var currentRate = 4.2;
 var currentTrackName = '';
+var currentCarYear = 0;
+
+var YASIR_MAX = {
+  2026:100,2025:100,2024:100,2023:100,2022:84,2021:72,2020:60,2019:58,
+  2018:46,2017:34,2016:22,2015:36,2014:36,2013:36,2012:24,2011:12
+};
+
+function feeKal(loan){ return loan<=100000 ? 345 : Math.round(345+loan*0.01); }
+function feeYasir(loan){ return Math.round(loan*0.015+400); }
+
+function renderFinanceCards(loan) {
+  var y = currentCarYear;
+  var PRIME = 5.5;
+  var tracks;
+  if (y >= 2024 || !y) {
+    var maxYasir = loan > 400000 ? 120 : 100;
+    tracks = [
+      {company:'כאל', track:'צמוד מדד', rate:4.2, rateStr:'4.2%', fee:'kal', maxN:100},
+      {company:'כאל', track:'פריים+1.6%', rate:PRIME+1.6, rateStr:(PRIME+1.6).toFixed(1)+'%', fee:'kal', maxN:100},
+      {company:'מימון ישיר', track:'ריבית קבועה', rate:7.0, rateStr:'7%', fee:'yasir', maxN:maxYasir},
+      {company:'מימון ישיר', track:'ריבית קבועה', rate:9.0, rateStr:'9%', fee:'yasir', maxN:maxYasir}
+    ];
+  } else {
+    var maxKal = KAL_MAX[y] || 12;
+    var maxYasirU = YASIR_MAX[y] || 12;
+    tracks = [
+      {company:'כאל', track:'צמוד מדד', rate:5.8, rateStr:'5.8%', fee:'kal', maxN:maxKal},
+      {company:'מימון ישיר', track:'ריבית קבועה', rate:9.0, rateStr:'9%', fee:'yasir', maxN:maxYasirU}
+    ];
+  }
+
+  var results = tracks.map(function(t) {
+    var monthly = pmt(loan, t.rate, t.maxN);
+    var fee = t.fee === 'kal' ? feeKal(loan) : feeYasir(loan);
+    var interest = Math.round(monthly - loan / t.maxN);
+    return {t:t, monthly:monthly, fee:fee, interest:interest};
+  });
+  results.sort(function(a,b){ return a.monthly - b.monthly; });
+  var minM = results[0].monthly;
+
+  var html = '<div class="fcards">';
+  results.forEach(function(r) {
+    var cls = r.t.fee === 'kal' ? 'kal' : 'yasir';
+    var best = r.monthly === minM ? ' best' : '';
+    html += '<div class="fcard ' + cls + best + '">';
+    html += '<div class="fcard-top">' + r.t.company + ' · ' + r.t.track + ' ' + r.t.rateStr + ' · ' + r.t.maxN + ' תשלומים</div>';
+    html += '<div class="fcard-body">';
+    html += '<div class="fcard-info">';
+    html += '<div><span>עלות ריבית: </span><span class="fcard-val">₪ ' + r.interest.toLocaleString('he-IL') + '/חודש</span></div>';
+    html += '<div><span>עמלת פתיחת תיק: </span><span class="fcard-val">₪ ' + Math.round(r.fee).toLocaleString('he-IL') + '</span></div>';
+    html += '</div>';
+    html += '<div class="fcard-amount"><div class="fcard-monthly">₪' + r.monthly.toLocaleString('he-IL') + '</div><div class="fcard-lbl">לחודש</div></div>';
+    html += '</div></div>';
+  });
+  html += '</div>';
+  document.getElementById('finance-cards').innerHTML = html;
+  document.getElementById('finance-cards-section').style.display = 'block';
+}
 
 var KAL_MAX = {
   2026:84, 2025:84, 2024:84, 2023:84, 2022:84,
@@ -321,6 +399,7 @@ function checkTest(rec, nameId) {
 function applyYearDefaults(year) {
   var y = parseInt(year);
   if (!y) return;
+  currentCarYear = y;
   var trackSel = document.getElementById('track-sel');
   var nSel = document.getElementById('n-sel');
   var maxN, defaultTrack;
@@ -360,6 +439,17 @@ function pmt(principal, rate, n) {
 }
 
 function calc() {
+  var customerName = document.getElementById('customer-name').value.trim();
+  var errEl = document.getElementById('customer-err');
+  if (!customerName) {
+    errEl.style.display = 'block';
+    document.getElementById('monthly-box').style.display = 'none';
+    document.getElementById('action-row').style.display = 'none';
+    document.getElementById('finance-cards-section').style.display = 'none';
+    return;
+  }
+  errEl.style.display = 'none';
+
   var newPrice = parseFloat(document.getElementById('new-price').value) || 0;
   var tradeIn  = parseFloat(document.getElementById('trade-in').value)  || 0;
   var oldLoan  = parseFloat(document.getElementById('old-loan').value)  || 0;
@@ -393,10 +483,12 @@ function calc() {
     document.getElementById('monthly-sub').textContent = currentN + ' תשלומים · ' + fmtNum(financeAmt) + ' מימון';
     var monthlyInterest = Math.round(currentMonthly - (financeAmt / currentN));
     document.getElementById('monthly-cost').textContent = 'עלות ריבית: ' + fmtNum(monthlyInterest) + '/חודש · סה"כ: ' + fmtNum(costFinance);
+    renderFinanceCards(financeAmt);
     scheduleAutoSave();
   } else {
     box.style.display = 'none';
     actions.style.display = 'none';
+    document.getElementById('finance-cards-section').style.display = 'none';
   }
 }
 
