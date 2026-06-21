@@ -1160,21 +1160,39 @@ function loadStats() {
     document.getElementById('stat-tasks').textContent = '—';
     return;
   }
-  // tasks open — manager sees all, driver sees only their own
   const isManager = currentUser?.role === 'manager';
-  const tq = isManager
-    ? _query(_colRef('tasks'), _where('status','!=','done'))
-    : _query(_colRef('tasks'), _where('assignedTo','==', currentUser.name), _where('status','!=','done'));
-  _onSnap(tq, snap => {
-    document.getElementById('stat-tasks').textContent = snap.size || '0';
-  });
   if (isManager) {
+    _onSnap(_query(_colRef('tasks'), _where('status','!=','done')), snap => {
+      document.getElementById('stat-tasks').textContent = snap.size || '0';
+    });
     _onSnap(_colRef('vehicles'), snap => {
       document.getElementById('stat-vehicles').textContent = snap.size;
     });
-    const pq = _query(_colRef('parts'), _where('status','==','pending'));
-    _onSnap(pq, snap => {
+    _onSnap(_query(_colRef('parts'), _where('status','==','pending')), snap => {
       document.getElementById('stat-parts').textContent = snap.size;
+    });
+  } else {
+    // Driver: sum of all pending items across all modules
+    const name = currentUser.name;
+    const counts = { tasks: 0, intake: 0, inventory: 0, yard: 0, pits: 0 };
+    const update = () => {
+      const total = Object.values(counts).reduce((a,b) => a+b, 0);
+      document.getElementById('stat-tasks').textContent = total || '0';
+    };
+    _onSnap(_query(_colRef('tasks'), _where('assignedTo','==',name), _where('status','!=','done')), snap => {
+      counts.tasks = snap.size; update();
+    });
+    _onSnap(_query(_colRef('intake_assignments'), _where('assignedTo','==',name), _where('status','==','pending')), snap => {
+      counts.intake = snap.size; update();
+    });
+    _onSnap(_query(_colRef('inventory_assignments'), _where('assignedTo','==',name), _where('status','==','pending')), snap => {
+      counts.inventory = snap.size; update();
+    });
+    _onSnap(_query(_colRef('pit_checks'), _where('status','==','pending')), snap => {
+      counts.pits = snap.size; update();
+    });
+    _onSnap(_docRef('yard','current'), snap => {
+      counts.yard = (snap.exists() && snap.data().status === 'pending') ? 1 : 0; update();
     });
   }
 }
