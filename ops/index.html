@@ -644,9 +644,15 @@ if ('serviceWorker' in navigator) {
   <!-- Reset info banner -->
   <div id="yard-reset-banner" style="display:none;padding:8px 16px;background:#eff6ff;border-bottom:1px solid #bfdbfe;font-size:12px;color:#1e40af;font-weight:700;text-align:right"></div>
   <!-- Vehicles to place panel -->
-  <div id="yard-to-place-panel" style="padding:12px 16px;background:#f8f9ff;border-bottom:1px solid var(--border)">
-    <div style="font-weight:700;font-size:14px;color:var(--dark);margin-bottom:8px">🚗 רכבים שצריך להכניס לחניות</div>
-    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px" id="yard-to-place-grid"></div>
+  <div id="yard-to-place-panel" style="padding:12px 16px;background:#f8f9ff;border-bottom:1px solid var(--border);display:flex;gap:16px">
+    <div style="flex:1">
+      <div style="font-weight:700;font-size:14px;color:var(--dark);margin-bottom:8px">🚗 רכבים שצריך להכניס לחניות</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px" id="yard-to-place-grid"></div>
+    </div>
+    <div style="flex:1;border-right:1px solid var(--border);padding-right:16px">
+      <div style="font-weight:700;font-size:14px;color:var(--dark);margin-bottom:8px">🏷️ מכוניות מכורות</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px" id="yard-sold-grid"></div>
+    </div>
   </div>
   <div id="yard-table-wrap" style="overflow:auto;padding:8px 8px 80px">
     <div id="yard-no-data-msg" style="display:none;text-align:center;padding:60px 20px;color:var(--muted);font-size:16px;font-weight:700">אין סידור מגרש פעיל כרגע</div>
@@ -3306,8 +3312,9 @@ function renderYardTable() {
 
 function renderToPlaceGrid(isManager) {
   const grid = document.getElementById('yard-to-place-grid');
-  let html = '';
-  for (let i = 1; i <= 10; i++) {
+  const soldGrid = document.getElementById('yard-sold-grid');
+  let html = '', soldHtml = '';
+  for (let i = 1; i <= 6; i++) {
     const key = 'TO_PLACE_' + i;
     if (isManager) {
       const tpVal = yardData[key] || '';
@@ -3323,7 +3330,24 @@ function renderToPlaceGrid(isManager) {
       html += `<div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:6px 8px;font-size:13px;text-align:center;min-height:32px;color:${val?'var(--dark)':'#ccc'}">${val||'—'}</div>`;
     }
   }
+  for (let i = 1; i <= 6; i++) {
+    const key = 'SOLD_' + i;
+    if (isManager) {
+      const sVal = yardData[key] || '';
+      const sBg = sVal ? '#fef9c3' : '#fff';
+      const sBorder = sVal ? '#ca8a04' : 'var(--border)';
+      soldHtml += `<input data-key="${key}" value="${esc(sVal)}" placeholder="מכונית ${i}"
+        onchange="yardData[this.dataset.key]=this.value;this.style.background=this.value?'#fef9c3':'#fff';this.style.borderColor=this.value?'#ca8a04':'var(--border)';_autoSaveYard()"
+        onkeydown="if(event.key==='Enter'||event.keyCode===13){event.preventDefault();yardData[this.dataset.key]=this.value;clearTimeout(_yardSaveTimer);_yardUpdate({data:yardData,updatedAt:_serverTs(),status:'draft'});this.blur();}"
+        style="background:${sBg};border:1px solid ${sBorder};border-radius:8px;padding:6px 8px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;color:#854d0e;text-align:center;outline:none"
+        onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor=this.value?'#ca8a04':'var(--border)'">`;
+    } else {
+      const val = yardData[key] || '';
+      soldHtml += `<div style="background:#fef9c3;border:1px solid #ca8a04;border-radius:8px;padding:6px 8px;font-size:13px;text-align:center;min-height:32px;color:${val?'#854d0e':'#d4a017'}">${val||'—'}</div>`;
+    }
+  }
   grid.innerHTML = html;
+  if (soldGrid) soldGrid.innerHTML = soldHtml;
 }
 
 function spotInput(key, editable) {
@@ -3344,11 +3368,11 @@ function tdStyle(align) {
 }
 
 function renderYardInputValues() {
-  document.querySelectorAll('#yard-tbody input[data-key], #yard-to-place-grid input[data-key]').forEach(inp => {
+  document.querySelectorAll('#yard-tbody input[data-key], #yard-to-place-grid input[data-key], #yard-sold-grid input[data-key]').forEach(inp => {
     inp.value = yardData[inp.dataset.key] || '';
   });
   // Update read-only display divs
-  document.querySelectorAll('#yard-tbody div[data-key], #yard-to-place-grid div[data-key]').forEach(div => {
+  document.querySelectorAll('#yard-tbody div[data-key], #yard-to-place-grid div[data-key], #yard-sold-grid div[data-key]').forEach(div => {
     const val = yardData[div.dataset.key] || '';
     div.textContent = val || '—';
     div.style.color = val ? 'var(--dark)' : '#bbb';
@@ -3356,7 +3380,7 @@ function renderYardInputValues() {
 }
 
 function _collectYardInputs() {
-  document.querySelectorAll('#yard-tbody input[data-key], #yard-to-place-grid input[data-key]').forEach(inp => {
+  document.querySelectorAll('#yard-tbody input[data-key], #yard-to-place-grid input[data-key], #yard-sold-grid input[data-key]').forEach(inp => {
     yardData[inp.dataset.key] = inp.value;
   });
 }
