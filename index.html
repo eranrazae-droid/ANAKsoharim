@@ -1365,11 +1365,16 @@ display:none !important;
     async function loadFromCloud(){
       try{
         const cloudName = localStorage.getItem('cld_cloud_name') || 'dcvdvp6pt';
-        const url = 'https://res.cloudinary.com/'+cloudName+'/raw/upload/autodealer_data.json?t='+Date.now();
-        const res = await fetch(url);
-        if(!res.ok) return null;
-        const data = await res.json();
-        return Array.isArray(data) ? data : null;
+        const t = Date.now();
+        // try auto (uploaded via auto/upload), fallback to raw
+        for(const rt of ['auto','raw']){
+          try{
+            const url = 'https://res.cloudinary.com/'+cloudName+'/'+rt+'/upload/autodealer_data.json?t='+t;
+            const res = await fetch(url);
+            if(res.ok){ const data=await res.json(); if(Array.isArray(data)) return data; }
+          }catch(e){}
+        }
+        return null;
       }catch(e){ return null; }
     }
 
