@@ -498,7 +498,7 @@ if ('serviceWorker' in navigator) {
   <div class="modal-box">
     <div class="modal-title">
       <span id="di-title">קליטת רכב</span>
-      <button class="modal-close" onclick="closeModal('modal-driver-intake')">✕</button>
+      <button class="modal-close" onclick="saveIntakeDraft();saveIntakeDraftPhotos();closeModal('modal-driver-intake')">✕</button>
     </div>
     <div id="di-vehicle-info" style="background:#f0f2ff;border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:14px;line-height:1.8"></div>
 
@@ -2051,18 +2051,13 @@ async function submitDriverIntake() {
   // Build dashboard note from checkboxes
   const dashX = document.querySelector('.ci-box[data-key="c-dashboard"].x-active');
   if (dashX) {
-    const labels = [
-      [document.getElementById('dash-check-engine'), 'מנורת צ׳ק אנג׳ין'],
-      [document.getElementById('dash-tire-pressure'), 'לחץ אוויר'],
-      [document.getElementById('dash-service'), 'טיפול'],
-      [document.getElementById('dash-collision'), 'מנורת התגשות'],
-      [document.getElementById('dash-fuel'), 'מנורת דלק'],
-    ];
-    const checked = labels.filter(([el]) => el?.checked).map(([,l]) => l);
-    const otherText = document.getElementById('cn-c-dashboard')?.value.trim();
-    if (otherText) checked.push('אחר: ' + otherText);
-    const dashNoteEl = document.getElementById('cn-c-dashboard');
-    if (dashNoteEl) dashNoteEl.value = checked.join(', ');
+    const dashCheckIds = ['dash-check-engine','dash-tire-pressure','dash-service','dash-collision','dash-fuel','dash-other'];
+    const anyChecked = dashCheckIds.some(id => document.getElementById(id)?.checked);
+    if (!anyChecked) {
+      document.getElementById('note-c-dashboard')?.scrollIntoView({ behavior:'smooth', block:'center' });
+      showToast('⚠️ נא לסמן לפחות מנורה אחת ממנורות לוח שעונים');
+      return;
+    }
   }
 
   // validate all checklist items are marked
@@ -2208,7 +2203,6 @@ async function createIntakeTasks(checklist, allNotes, vehicle) {
     { key: 'c-upholstery',  col: 'רפד',              title: 'ריפודים (חורים/קרעים)' },
     { key: 'c-mats',        col: 'משימות כלליות',    title: 'שטיחים' },
     { key: 'c-sunroof',     col: 'זגג',              title: 'גג נפתח' },
-    { key: 'c-dashboard',   col: 'משימות כלליות',    title: 'מנורות לוח שעונים' },
     { key: 'c-ac',          col: 'משימות כלליות',    title: 'מזגן' },
     { key: 'c-windows',     col: 'חביב',             title: 'מתגי חלונות' },
     { key: 'c-glove',       col: driverName,         title: 'ניקיון תא כפפות' },
@@ -2237,17 +2231,32 @@ async function createIntakeTasks(checklist, allNotes, vehicle) {
     if (checklist[rule.key] !== 'x') continue;
     const note = getNoteForKey(rule.key);
     const taskTitle = `${prefix} – ${rule.title}${note ? ': ' + note : ''}`;
-    const isDriverCol = !colToAssigned[rule.col]; // driver name column
-    const label     = isDriverCol ? rule.col      : rule.col;
-    const assignedTo = isDriverCol ? rule.col     : colToAssigned[rule.col];
-    await _addDoc(_colRef('tasks'), {
-      title: taskTitle,
-      assignedTo,
-      label,
-      status: 'open',
-      createdBy: driverName,
-      createdAt: _serverTs()
-    });
+    const isDriverCol = !colToAssigned[rule.col];
+    const label      = rule.col;
+    const assignedTo = isDriverCol ? rule.col : colToAssigned[rule.col];
+    await _addDoc(_colRef('tasks'), { title: taskTitle, assignedTo, label, status: 'open', createdBy: driverName, createdAt: _serverTs() });
+  }
+
+  // Dashboard checkboxes — each sends to its own column
+  if (checklist['c-dashboard'] === 'x') {
+    const dashChecks = [
+      { id: 'dash-check-engine',  col: 'משימות כלליות', title: 'מנורת צ׳ק אנג׳ין' },
+      { id: 'dash-tire-pressure', col: driverName,        title: 'לחץ אוויר' },
+      { id: 'dash-service',       col: 'משימות כלליות', title: 'מנורת טיפול' },
+      { id: 'dash-collision',     col: 'רדארים',          title: 'מנורת התגשות' },
+      { id: 'dash-fuel',          col: driverName,        title: 'מנורת דלק' },
+      { id: 'dash-other',         col: 'משימות כלליות', title: 'מנורות לוח שעונים – אחר' },
+    ];
+    for (const dc of dashChecks) {
+      const el = document.getElementById(dc.id);
+      if (!el?.checked) continue;
+      const extraText = dc.id === 'dash-other' ? (document.getElementById('cn-c-dashboard')?.value.trim() || '') : '';
+      const taskTitle = `${prefix} – ${dc.title}${extraText ? ': ' + extraText : ''}`;
+      const isDriverCol = !colToAssigned[dc.col];
+      const label      = dc.col;
+      const assignedTo = isDriverCol ? dc.col : colToAssigned[dc.col];
+      await _addDoc(_colRef('tasks'), { title: taskTitle, assignedTo, label, status: 'open', createdBy: driverName, createdAt: _serverTs() });
+    }
   }
 }
 
@@ -2527,14 +2536,45 @@ function saveIntakeDraft() {
   document.querySelectorAll('#modal-driver-intake textarea[id^="cn-"]').forEach(ta => {
     if (ta.value.trim()) notes[ta.id.replace('cn-','')] = ta.value;
   });
+  // save dashboard checkboxes
+  const dashChecks = {};
+  ['dash-check-engine','dash-tire-pressure','dash-service','dash-collision','dash-fuel','dash-other'].forEach(id => {
+    const el = document.getElementById(id); if (el) dashChecks[id] = el.checked;
+  });
   const draft = {
     checks,
     notes,
+    dashChecks,
     km:   document.getElementById('di-km')?.value   || '',
     code: document.getElementById('di-code')?.value || '',
-    general: document.getElementById('di-notes')?.value || ''
+    general: document.getElementById('di-notes')?.value || '',
+    batteryMonth: document.getElementById('di-battery-month')?.value || ''
   };
   try { localStorage.setItem('intake_draft_' + _currentIntakeId, JSON.stringify(draft)); } catch(e) {}
+}
+
+async function saveIntakeDraftPhotos() {
+  if (!_currentIntakeId) return;
+  try {
+    // save battery photos as base64
+    if (_batteryPhotoFiles?.length) {
+      const b64s = await Promise.all(_batteryPhotoFiles.map(f => new Promise((res,rej) => {
+        const r = new FileReader(); r.onload = e => res(e.target.result); r.onerror = rej; r.readAsDataURL(f);
+      })));
+      localStorage.setItem('intake_draft_battery_' + _currentIntakeId, JSON.stringify(b64s));
+    }
+    // save ci photo files as base64
+    const photoData = {};
+    for (const key of Object.keys(ciPhotoFiles)) {
+      const files = ciPhotoFiles[key] || [];
+      if (!files.length) continue;
+      photoData[key] = await Promise.all(files.map(f => new Promise((res,rej) => {
+        const r = new FileReader(); r.onload = e => res(e.target.result); r.onerror = rej; r.readAsDataURL(f);
+      })));
+    }
+    if (Object.keys(photoData).length)
+      localStorage.setItem('intake_draft_photos_' + _currentIntakeId, JSON.stringify(photoData));
+  } catch(e) { console.warn('photo draft save error', e); }
 }
 
 function restoreIntakeDraft(id) {
@@ -2560,12 +2600,54 @@ function restoreIntakeDraft(id) {
     if (draft.km)      { const el = document.getElementById('di-km');    if (el) el.value = draft.km; }
     if (draft.code)    { const el = document.getElementById('di-code');  if (el) el.value = draft.code; }
     if (draft.general) { const el = document.getElementById('di-notes'); if (el) el.value = draft.general; }
+    if (draft.batteryMonth) { const el = document.getElementById('di-battery-month'); if (el) el.value = draft.batteryMonth; }
+    // restore dashboard checkboxes
+    Object.entries(draft.dashChecks || {}).forEach(([id, checked]) => {
+      const el = document.getElementById(id); if (el) { el.checked = checked; }
+    });
+    if (draft.dashChecks?.['dash-other']) {
+      const ta = document.getElementById('cn-c-dashboard'); if (ta) ta.style.display = 'block';
+    }
     showToast('✏️ ממשיך מהמצב השמור');
+    // restore photos from base64
+    const batteryB64s = localStorage.getItem('intake_draft_battery_' + id);
+    if (batteryB64s) {
+      try {
+        const b64s = JSON.parse(batteryB64s);
+        _batteryPhotoFiles = [];
+        window._batteryPhotoUrls = {};
+        b64s.forEach(b64 => {
+          fetch(b64).then(r=>r.blob()).then(blob => {
+            _batteryPhotoFiles.push(new File([blob],'battery.jpg',{type:blob.type}));
+            addBatteryPhoto({files:[]});
+          });
+        });
+      } catch(e) {}
+    }
+    const photosB64 = localStorage.getItem('intake_draft_photos_' + id);
+    if (photosB64) {
+      try {
+        const photoData = JSON.parse(photosB64);
+        Object.entries(photoData).forEach(([key, b64s]) => {
+          ciPhotoFiles[key] = [];
+          b64s.forEach(b64 => {
+            fetch(b64).then(r=>r.blob()).then(blob => {
+              ciPhotoFiles[key].push(new File([blob],'photo.jpg',{type:blob.type}));
+              renderPhotoGrid(key);
+            });
+          });
+        });
+      } catch(e) {}
+    }
   } catch(e) {}
 }
 
 function clearIntakeDraft(id) {
-  try { localStorage.removeItem('intake_draft_' + id); } catch(e) {}
+  try {
+    localStorage.removeItem('intake_draft_' + id);
+    localStorage.removeItem('intake_draft_battery_' + id);
+    localStorage.removeItem('intake_draft_photos_' + id);
+  } catch(e) {}
 }
 
 function getChecklist() {
