@@ -1459,6 +1459,20 @@ function renderTasksFromCache() {
   const statusLabel = { open:'פתוחה', inprog:'בביצוע', done:'הושלמה' };
 
   function makeCard(t) {
+    // Divider card
+    if (t.type === 'divider') {
+      const div = document.createElement('div');
+      div.dataset.id = t.id;
+      div.draggable = isManager;
+      div.style.cssText = 'display:flex;align-items:center;gap:8px;margin:6px 0;cursor:grab;user-select:none';
+      if (isManager) {
+        div.addEventListener('dragstart', e => _onDragStart(e, t.id));
+        div.addEventListener('dragend',   _onDragEnd);
+      }
+      div.innerHTML = `<div style="flex:1;border-top:2px dashed #94a3b8"></div><span style="font-size:11px;font-weight:900;color:#64748b;white-space:nowrap;background:#e8eaf4;padding:2px 8px;border-radius:999px">רכבים שמחוץ למגרש ↓</span><div style="flex:1;border-top:2px dashed #94a3b8"></div>${isManager?`<button onclick="event.stopPropagation();deleteTask('${t.id}')" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:13px;padding:0 2px" title="מחק חוצץ">✕</button>`:''}`;
+
+      return div;
+    }
     const done = t.status === 'done';
     const card = document.createElement('div');
     card.className = `task-card${t.color?' color-'+t.color:''}${done?' done':''}`;
@@ -1506,15 +1520,26 @@ function renderTasksFromCache() {
   }
 
 
+  async function addDivider(label, sortOrder) {
+    const { addDoc, collection } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    await addDoc(collection(window._db, 'tasks'), { type:'divider', label, sortOrder, createdAt: _serverTs() });
+  }
+
   function makeCol(label, color, tasks, { title, minWidth } = {}) {
-    const openCount = tasks.filter(t => t.status !== 'done').length;
+    const hasDivider = ['חביב','ולאדי'].includes(label);
+    const realTasks = tasks.filter(t => t.type !== 'divider');
+    const openCount = realTasks.filter(t => t.status !== 'done').length;
     const col = document.createElement('div');
     col.className = 'task-col';
     if (minWidth) { col.style.minWidth = minWidth; col.style.maxWidth = minWidth; }
 
     const header = document.createElement('div');
     header.className = 'task-col-header';
-    header.innerHTML = `<span class="task-col-title" style="color:${color}">${title||label}</span><span class="task-col-count">${openCount}</span>`;
+    const dividerExists = tasks.some(t => t.type === 'divider');
+    const dividerBtn = (hasDivider && isManager && !dividerExists)
+      ? `<button onclick="window._addDivider('${label}').then(()=>showToast('חוצץ נוסף'))" style="background:#e2e8f0;border:none;border-radius:8px;padding:2px 8px;font-size:11px;font-weight:700;cursor:pointer;color:#475569;margin-right:6px">+ חוצץ</button>`
+      : '';
+    header.innerHTML = `<span class="task-col-title" style="color:${color}">${title||label}</span><div style="display:flex;align-items:center;gap:4px">${dividerBtn}<span class="task-col-count">${openCount}</span></div>`;
     col.appendChild(header);
 
     const cards = document.createElement('div');
@@ -1678,7 +1703,8 @@ window.driverCompleteTask = driverCompleteTask;
 
 async function deleteTask(id) {
   if (!window._CONFIG_DONE) return;
-  if (!confirm('למחוק את המשימה?')) return;
+  const t = tasksCache.find(x => x.id === id);
+  if (t?.type !== 'divider' && !confirm('למחוק את המשימה?')) return;
   const { deleteDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
   await deleteDoc(doc(window._db, 'tasks', id));
 }
@@ -3353,6 +3379,14 @@ window.submitVehicle = submitVehicle;
 window.submitPart = submitPart;
 window.toggleTaskDone = toggleTaskDone;
 window.deleteTask = deleteTask;
+window._addDivider = async (label) => {
+  // Place divider in the middle of current tasks in this column
+  const colTasks = tasksCache.filter(t => t.label === label && t.type !== 'divider' && t.status !== 'done');
+  const orders = colTasks.map(t => t.sortOrder ?? t.createdAt?.toMillis?.() ?? Date.now()).sort((a,b)=>a-b);
+  const mid = orders.length ? orders[Math.floor(orders.length/2)] + 0.5 : Date.now();
+  const { addDoc, collection } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  await addDoc(collection(window._db, 'tasks'), { type:'divider', label, sortOrder: mid, createdAt: _serverTs() });
+};
 window.filterTasks = filterTasks;
 window.filterParts = filterParts;
 window.updatePartStatus = updatePartStatus;
