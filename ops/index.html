@@ -1202,8 +1202,14 @@ function loadStats() {
       const total = Object.values(counts).reduce((a,b) => a+b, 0);
       document.getElementById('stat-tasks').textContent = total || '0';
     };
+    const _taskIds = new Set();
     _onSnap(_query(_colRef('tasks'), _where('assignedTo','==',name)), snap => {
-      counts.tasks = snap.docs.filter(d => d.data().status !== 'done').length; update();
+      snap.docs.forEach(d => { if (d.data().status !== 'done') _taskIds.add(d.id); else _taskIds.delete(d.id); });
+      counts.tasks = _taskIds.size; update();
+    });
+    _onSnap(_query(_colRef('tasks'), _where('label','==',name)), snap => {
+      snap.docs.forEach(d => { if (d.data().status !== 'done') _taskIds.add(d.id); else _taskIds.delete(d.id); });
+      counts.tasks = _taskIds.size; update();
     });
     _onSnap(_query(_colRef('intake_assignments'), _where('assignedTo','==',name), _where('status','==','pending')), snap => {
       counts.intake = snap.size; update();
@@ -1243,8 +1249,14 @@ function loadDriverBadges() {
   if (!window._CONFIG_DONE || !currentUser) return;
   const name = currentUser.name;
   try {
+    const _badgeTaskIds = new Set();
     _onSnap(_query(_colRef('tasks'), _where('assignedTo','==',name)), snap => {
-      _setCardBadge('tasks', snap.docs.filter(d => d.data().status === 'pending').length);
+      snap.docs.forEach(d => { if (d.data().status !== 'done') _badgeTaskIds.add(d.id); else _badgeTaskIds.delete(d.id); });
+      _setCardBadge('tasks', _badgeTaskIds.size);
+    });
+    _onSnap(_query(_colRef('tasks'), _where('label','==',name)), snap => {
+      snap.docs.forEach(d => { if (d.data().status !== 'done') _badgeTaskIds.add(d.id); else _badgeTaskIds.delete(d.id); });
+      _setCardBadge('tasks', _badgeTaskIds.size);
     });
     _onSnap(_query(_colRef('intake_assignments'), _where('assignedTo','==',name)), snap => {
       _setCardBadge('vehicles', snap.docs.filter(d => d.data().status === 'pending').length);
