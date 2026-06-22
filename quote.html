@@ -656,17 +656,11 @@ function calc() {
   document.getElementById('rep-err').style.display      = rep   ? 'none' : 'block';
   document.getElementById('customer-err').style.display = cust  ? 'none' : 'block';
   document.getElementById('phone-err').style.display    = phone ? 'none' : 'block';
-  if (!rep || !cust || !phone) {
-    document.getElementById('monthly-box').style.display = 'none';
-    document.getElementById('action-row').style.display = 'none';
-    document.getElementById('finance-cards-section').style.display = 'none';
-    return;
-  }
 
+  // חישוב סכום מימון תמיד — ללא תלות בשדות חובה
   var totalDeal  = parseFloat(document.getElementById('total-deal-input').value) || 0;
   var cash       = parseFloat(document.getElementById('cash').value) || 0;
   var financeAmt = totalDeal - cash;
-
   var financeDisplay = totalDeal > 0 ? Math.max(0, financeAmt) : 0;
   document.getElementById('finance-amount').textContent = totalDeal ? fmtNum(financeDisplay) : '—';
   var pctEl = document.getElementById('finance-pct');
@@ -674,6 +668,13 @@ function calc() {
     pctEl.textContent = Math.round(financeDisplay / totalDeal * 100) + '% מימון מסה"כ העסקה';
   } else {
     pctEl.textContent = '';
+  }
+
+  if (!rep || !cust || !phone) {
+    document.getElementById('monthly-box').style.display = 'none';
+    document.getElementById('action-row').style.display = 'none';
+    document.getElementById('finance-cards-section').style.display = 'none';
+    return;
   }
 
   var box = document.getElementById('monthly-box');
@@ -853,6 +854,12 @@ function resetAll() {
 }
 
 // init
+if (!currentStatus) {
+  currentStatus = STATUS_FLOW[0].status;
+  var _ssel = document.getElementById('status-sel');
+  if (_ssel) _ssel.value = currentStatus;
+  updateStatusBtn();
+}
 renderHistory();
 </script>
 </body>
