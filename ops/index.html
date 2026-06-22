@@ -3611,8 +3611,8 @@ function _pitCard(p, isManager, showArchiveBtn) {
     : sent
       ? `<span style="background:#22c55e;color:#fff;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700">✅ נשלח</span>`
       : `<span style="background:var(--gold);color:#000;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700">⏳ ממתין לביצוע</span>`;
-  const notifyBtn = isManager && !archived
-    ? `<button onclick="resendPitNotify('${esc(p.plate)}','${esc(p.checkType)}')" style="background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;flex-shrink:0;white-space:nowrap">📲 שלח התראה</button>`
+  const notifyBtn = isManager && !sent && !archived && showArchiveBtn
+    ? `<button onclick="managerPitSent('${p.id}','${esc(p.plate)}','${esc(p.checkType)}')" style="background:#22c55e;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;flex-shrink:0;white-space:nowrap">✅ נשלח</button>`
     : '';
   const sentBtn = !sent && !archived && !isManager
     ? `<button onclick="markPitSent('${p.id}')" style="background:#22c55e;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;flex-shrink:0">✅ נשלח</button>`
@@ -3706,6 +3706,14 @@ async function resendPitNotify(plate, checkType) {
   showToast('📲 התראה נשלחה לנהגים');
 }
 window.resendPitNotify = resendPitNotify;
+
+async function managerPitSent(id, plate, checkType) {
+  await _notifyAllDrivers(`🕳️ בור/בדיקה חדשה נוספה — ${plate} (${checkType}). כנס לאפליקציה ענק הרכבים.`);
+  const { updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  await updateDoc(doc(window._db, 'pit_checks', id), { status: 'sent', sentAt: _serverTs() });
+  showToast('✅ נשלח לנהגים');
+}
+window.managerPitSent = managerPitSent;
 
 async function fetchPitVehicle() {
   const raw = document.getElementById('pit-plate').value.trim().replace(/[^0-9]/g,'');
