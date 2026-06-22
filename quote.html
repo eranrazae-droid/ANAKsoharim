@@ -207,24 +207,27 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
     </div>
     <div class="customer-card" style="flex:1;margin-bottom:0">
       <label>סטטוס</label>
-      <select id="status-sel" onchange="currentStatus=this.value;scheduleAutoSave()" style="flex:1;border:none;outline:none;font-family:'Heebo',sans-serif;font-size:13px;font-weight:700;color:#0d1f3c;background:transparent;cursor:pointer;appearance:none;-webkit-appearance:none;width:100%">
+      <select id="status-sel" onchange="currentStatus=this.value;updateStatusBtn();scheduleAutoSave()" style="flex:1;border:none;outline:none;font-family:'Heebo',sans-serif;font-size:13px;font-weight:700;color:#0d1f3c;background:transparent;cursor:pointer;appearance:none;-webkit-appearance:none;width:100%">
         <option value="">בחר סטטוס...</option>
         <option value="ממתין להקמת עסקה">⏳ ממתין להקמת עסקה</option>
         <option value="מחכה לאישור מימון">🏦 מחכה לאישור מימון</option>
-        <option value="חתם חוזה — המתנה לביטוח">📝 חתם חוזה — המתנה לביטוח</option>
+        <option value="חתימת חוזה ושליחת ביטוח">📝 חתימת חוזה ושליחת ביטוח</option>
         <option value="ממתין למסירה">🚗 ממתין למסירה</option>
+        <option value="עסקה הושלמה">✅ עסקה הושלמה</option>
       </select>
     </div>
   </div>
-  <div class="customer-card">
-    <label>שם לקוח <span style="color:#e02d2d">*</span></label>
-    <input type="text" id="customer-name" placeholder="הזן שם לקוח..." oninput="calc()">
-    <div id="customer-err" style="display:none;font-size:12px;color:#e02d2d;margin-top:4px;font-weight:700">⚠️ יש למלא שם לקוח</div>
-  </div>
-  <div class="customer-card">
-    <label>טלפון לקוח <span style="color:#e02d2d">*</span></label>
-    <input type="tel" id="customer-phone" placeholder="050-0000000" oninput="calc()" inputmode="tel">
-    <div id="phone-err" style="display:none;font-size:12px;color:#e02d2d;margin-top:4px;font-weight:700">⚠️ יש למלא טלפון לקוח</div>
+  <div style="display:flex;gap:12px;margin-bottom:16px">
+    <div class="customer-card" style="flex:1;margin-bottom:0;flex-direction:column;align-items:flex-start;gap:4px">
+      <label>שם לקוח <span style="color:#e02d2d">*</span></label>
+      <input type="text" id="customer-name" placeholder="הזן שם לקוח..." oninput="calc()" style="width:100%">
+      <div id="customer-err" style="display:none;font-size:12px;color:#e02d2d;font-weight:700">⚠️ יש למלא שם לקוח</div>
+    </div>
+    <div class="customer-card" style="flex:1;margin-bottom:0;flex-direction:column;align-items:flex-start;gap:4px">
+      <label>טלפון לקוח <span style="color:#e02d2d">*</span></label>
+      <input type="tel" id="customer-phone" placeholder="050-0000000" oninput="calc()" inputmode="tel" style="width:100%">
+      <div id="phone-err" style="display:none;font-size:12px;color:#e02d2d;font-weight:700">⚠️ יש למלא טלפון לקוח</div>
+    </div>
   </div>
 
   <!-- שליפת פרטי רכב -->
@@ -267,6 +270,24 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
         <div style="display:flex;gap:10px">
           <button class="status-opt" id="ti-safe-yes" onclick="setTradeInSafe(true)">✅ כן</button>
           <button class="status-opt" id="ti-safe-no"  onclick="setTradeInSafe(false)">❌ לא</button>
+        </div>
+        <!-- מוצג כשהחלפה בטוחה = לא -->
+        <div id="ti-no-safe-details" style="display:none;margin-top:12px;flex-direction:column;gap:10px">
+          <div>
+            <div class="plate-lookup-title" style="margin-bottom:6px">פרטי מימון רכב ישן</div>
+            <textarea id="ti-old-finance-text" placeholder="פרט את פרטי המימון על הרכב הישן..." rows="3" style="width:100%;border:1.5px solid #dce6f5;border-radius:10px;padding:10px 12px;font-family:'Heebo',sans-serif;font-size:14px;color:#0d1f3c;outline:none;resize:vertical" oninput="scheduleAutoSave()"></textarea>
+          </div>
+          <div>
+            <div class="plate-lookup-title" style="margin-bottom:6px">📎 העלאת קובץ</div>
+            <input type="file" id="ti-file-upload" accept="*/*" style="font-family:'Heebo',sans-serif;font-size:13px;color:#5a7aa5">
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;background:#f5f8ff;border-radius:10px;padding:10px 14px">
+            <input type="checkbox" id="ti-intent-check" onchange="document.getElementById('ti-intent-date-wrap').style.display=this.checked?'block':'none'" style="width:18px;height:18px;cursor:pointer;accent-color:#1a56db">
+            <label for="ti-intent-check" style="font-size:14px;font-weight:700;color:#0d1f3c;cursor:pointer">תוקף מכתב כוונות</label>
+            <div id="ti-intent-date-wrap" style="display:none;margin-right:auto">
+              <input type="date" id="ti-intent-date" style="border:1.5px solid #dce6f5;border-radius:8px;padding:6px 10px;font-family:'Heebo',sans-serif;font-size:13px;color:#0d1f3c;outline:none" oninput="scheduleAutoSave()">
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -333,6 +354,9 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
   </div>
   <div id="autosave-indicator" style="font-size:11px;color:#16a34a;text-align:center;min-height:16px;margin-top:4px"></div>
 
+  <!-- כפתור התקדמות סטטוס -->
+  <button id="status-advance-btn" onclick="advanceStatus()" style="display:none;width:100%;border:none;border-radius:14px;padding:18px;font-family:'Heebo',sans-serif;font-size:18px;font-weight:900;cursor:pointer;margin-bottom:10px;background:#16a34a;color:#fff;box-shadow:0 4px 16px rgba(22,163,74,.3);transition:opacity .15s"></button>
+
   <button class="btn-reset" onclick="resetAll()">נקה הכל</button>
 
   <!-- FINANCE CARDS -->
@@ -348,6 +372,44 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
 <script>
 var currentFinanceAmt = 0;
 var currentStatus = '';
+
+var STATUS_FLOW = [
+  { status: 'ממתין להקמת עסקה',        btn: '✅ עסקה הוקמה',           color: '#1a56db' },
+  { status: 'מחכה לאישור מימון',        btn: '🏦 מימון מאושר',          color: '#c9a227' },
+  { status: 'חתימת חוזה ושליחת ביטוח', btn: '📝 חוזה חתום ונשלח ביטוח', color: '#7c3aed' },
+  { status: 'ממתין למסירה',            btn: '🚗 סיום העסקה',            color: '#e02d2d' },
+  { status: 'עסקה הושלמה',            btn: null,                       color: '#16a34a' }
+];
+
+function statusFlowIdx(s) {
+  for (var i = 0; i < STATUS_FLOW.length; i++) { if (STATUS_FLOW[i].status === s) return i; }
+  return -1;
+}
+
+function updateStatusBtn() {
+  var btn = document.getElementById('status-advance-btn');
+  if (!btn) return;
+  var idx = statusFlowIdx(currentStatus);
+  if (idx < 0 || idx >= STATUS_FLOW.length - 1) {
+    // final or unknown — hide
+    btn.style.display = 'none';
+    return;
+  }
+  var next = STATUS_FLOW[idx + 1];
+  btn.textContent = STATUS_FLOW[idx].btn;
+  btn.style.background = STATUS_FLOW[idx].color;
+  btn.style.display = 'block';
+}
+
+function advanceStatus() {
+  var idx = statusFlowIdx(currentStatus);
+  if (idx < 0 || idx >= STATUS_FLOW.length - 1) return;
+  currentStatus = STATUS_FLOW[idx + 1].status;
+  var sel = document.getElementById('status-sel');
+  if (sel) sel.value = currentStatus;
+  updateStatusBtn();
+  autoSave();
+}
 var _lookupTimer = null;
 
 function debounceLookup() {
@@ -402,6 +464,8 @@ function setTradeInLoan(val) {
 function setTradeInSafe(val) {
   document.getElementById('ti-safe-yes').classList.toggle('active', val);
   document.getElementById('ti-safe-no').classList.toggle('active', !val);
+  var noSafe = document.getElementById('ti-no-safe-details');
+  if (noSafe) noSafe.style.display = val ? 'none' : 'flex';
   scheduleAutoSave();
 }
 
@@ -693,14 +757,23 @@ function autoSave() {
     status: currentStatus || ''
   };
   var hist = JSON.parse(localStorage.getItem('anak-quotes') || '[]');
+  var isNew = !(hist.length && hist[0].customer === item.customer && hist[0].date.slice(0,16) === item.date.slice(0,16));
   // replace top entry if same customer within same minute, else prepend
-  if (hist.length && hist[0].customer === item.customer && hist[0].date.slice(0,16) === item.date.slice(0,16)) {
+  if (!isNew) {
     item.createdAt = hist[0].createdAt || Date.now(); // keep original timer
     hist[0] = item;
   } else {
     item.createdAt = Date.now();
+    // auto-set status to first step on new quote
+    if (!currentStatus) {
+      currentStatus = STATUS_FLOW[0].status;
+      item.status = currentStatus;
+      var sel = document.getElementById('status-sel');
+      if (sel) sel.value = currentStatus;
+    }
     hist.unshift(item);
   }
+  updateStatusBtn();
   if (hist.length > 500) hist = hist.slice(0, 500);
   localStorage.setItem('anak-quotes', JSON.stringify(hist));
   renderHistory();
@@ -718,6 +791,7 @@ function loadHistoryItem(item) {
   currentStatus = item.status || '';
   var ssel = document.getElementById('status-sel');
   if (ssel) ssel.value = currentStatus;
+  updateStatusBtn();
   calc();
   window.scrollTo(0,0);
 }
