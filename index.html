@@ -1362,29 +1362,23 @@ display:none !important;
     async function loadCarsFromSupabase(){ return null; }
     async function saveCarsToSupabase(){ return; }
 
-    function pngToJson(url){
-      return new Promise(function(resolve){
-        const img = new Image();
-        img.crossOrigin='anonymous';
-        img.onload=function(){
-          try{
-            const c=document.createElement('canvas');
-            c.width=img.width; c.height=img.height;
-            const ctx=c.getContext('2d');
-            ctx.drawImage(img,0,0);
-            const d=ctx.getImageData(0,0,img.width,img.height).data;
-            const n=(d[0]<<24)|(d[1]<<16)|(d[2]<<8)|d[3];
-            if(n<=0||n>10000000){resolve(null);return;}
-            const all=new Uint8Array(4+n);
-            all[0]=d[0];all[1]=d[1];all[2]=d[2];all[3]=d[3];
-            for(let i=0;i<n;i++){const px=Math.floor((i+4)/3),ch=(i+4)%3;all[i+4]=d[px*4+ch];}
-            const json=new TextDecoder().decode(all.slice(4));
-            resolve(JSON.parse(json));
-          }catch(e){resolve(null);}
-        };
-        img.onerror=function(){resolve(null);};
-        img.src=url+'?t='+Date.now();
-      });
+    async function pngToJson(url){
+      try{
+        const res = await fetch(url+'?t='+Date.now(), {mode:'cors',cache:'no-store'});
+        if(!res.ok) return null;
+        const blob = await res.blob();
+        const bitmap = await createImageBitmap(blob);
+        const c = document.createElement('canvas');
+        c.width=bitmap.width; c.height=bitmap.height;
+        const ctx=c.getContext('2d');
+        ctx.drawImage(bitmap,0,0);
+        const d=ctx.getImageData(0,0,bitmap.width,bitmap.height).data;
+        const n=(d[0]<<24)|(d[1]<<16)|(d[2]<<8)|d[3];
+        if(n<=0||n>10000000) return null;
+        const bytes=new Uint8Array(n);
+        for(let i=0;i<n;i++){const px=Math.floor((i+4)/3),ch=(i+4)%3;bytes[i]=d[px*4+ch];}
+        return JSON.parse(new TextDecoder().decode(bytes));
+      }catch(e){ return null; }
     }
 
     async function loadFromCloud(){
