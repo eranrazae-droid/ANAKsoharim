@@ -613,8 +613,10 @@ function autoSave() {
   var hist = JSON.parse(localStorage.getItem('anak-quotes') || '[]');
   // replace top entry if same customer within same minute, else prepend
   if (hist.length && hist[0].customer === item.customer && hist[0].date.slice(0,16) === item.date.slice(0,16)) {
+    item.createdAt = hist[0].createdAt || Date.now(); // keep original timer
     hist[0] = item;
   } else {
+    item.createdAt = Date.now();
     hist.unshift(item);
   }
   if (hist.length > 500) hist = hist.slice(0, 500);

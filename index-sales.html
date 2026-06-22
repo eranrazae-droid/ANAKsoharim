@@ -78,29 +78,40 @@ body{
 .tool-btn.status { border-right:5px solid #e02d2d; }
 
 /* ── QUOTES MODAL ── */
+.q-new-btn{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  width:100%;background:#16a34a;color:#fff;border:none;border-radius:12px;
+  font-family:'Heebo',sans-serif;font-size:15px;font-weight:900;
+  padding:14px;margin-bottom:14px;cursor:pointer;text-decoration:none;
+  box-shadow:0 3px 10px rgba(22,163,74,.3);
+}
 .q-list{display:flex;flex-direction:column;gap:10px}
 .q-item{
-  border:1.5px solid #dce6f5;border-radius:12px;
-  padding:12px 14px;cursor:pointer;
-  transition:background .1s;
+  border:1.5px solid #dce6f5;border-radius:14px;
+  overflow:hidden;
 }
-.q-item:hover{background:#f5f8ff}
-.q-item-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.q-timer{
+  background:#0d1f3c;color:#fff;
+  padding:6px 14px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.q-timer-label{font-size:11px;color:#7a9ccf;font-weight:600}
+.q-timer-val{font-size:15px;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:.04em}
+.q-timer-val.fast{color:#e02d2d}
+.q-timer-val.mid {color:#c9a227}
+.q-timer-val.ok  {color:#4ade80}
+.q-body{padding:12px 14px;cursor:pointer;transition:background .1s}
+.q-body:hover{background:#f5f8ff}
+.q-item-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:3px}
 .q-name{font-size:15px;font-weight:900;color:#0d1f3c}
-.q-date{font-size:11px;color:#7a9ab8}
-.q-detail{font-size:12px;color:#5a7aa5;margin-bottom:4px}
-.q-monthly{font-size:20px;font-weight:900;color:#1a56db}
-.q-rep{font-size:11px;color:#7a9ab8;margin-top:2px}
+.q-detail{font-size:12px;color:#5a7aa5;margin-bottom:5px}
+.q-monthly{font-size:22px;font-weight:900;color:#1a56db;display:inline}
+.q-monthly-lbl{font-size:12px;color:#5a7aa5;font-weight:400}
+.q-rep{font-size:11px;color:#7a9ab8;margin-top:3px}
 .q-empty{text-align:center;color:#7a9ab8;font-size:14px;padding:32px 0}
-.q-open-btn{
-  display:block;width:100%;
-  background:#1a56db;color:#fff;border:none;border-radius:10px;
-  font-family:'Heebo',sans-serif;font-size:14px;font-weight:700;
-  padding:11px;margin-top:14px;cursor:pointer;text-decoration:none;text-align:center;
-}
 .q-delete-btn{
-  background:none;border:none;color:#c0cfe8;font-size:16px;cursor:pointer;
-  padding:2px 6px;line-height:1;border-radius:6px;
+  background:none;border:none;color:#c0cfe8;font-size:15px;cursor:pointer;
+  padding:2px 6px;line-height:1;border-radius:6px;flex-shrink:0;
 }
 .q-delete-btn:hover{color:#e02d2d;background:#fff0f0}
 
@@ -249,15 +260,15 @@ body{
 <div class="footer">ענק הרכבים · כלי פנימי לאנשי מכירות</div>
 
 <!-- QUOTES MODAL -->
-<div class="modal-overlay" id="quotesModal" onclick="if(event.target===this)this.classList.remove('open')">
+<div class="modal-overlay" id="quotesModal" onclick="if(event.target===this)closeQuotes()">
   <div class="modal">
     <div class="modal-hdr">
       <div class="modal-hdr-title">סטטוס הצעות</div>
-      <button class="modal-close" onclick="document.getElementById('quotesModal').classList.remove('open')">✕</button>
+      <button class="modal-close" onclick="closeQuotes()">✕</button>
     </div>
     <div class="modal-body">
+      <a class="q-new-btn" href="quote.html">＋ הקמת הצעה חדשה</a>
       <div class="q-list" id="q-list"></div>
-      <a class="q-open-btn" href="quote.html">+ הצעה חדשה</a>
     </div>
   </div>
 </div>
@@ -389,10 +400,42 @@ function printBank(key) {
 
 function fmtQ(n){ return '₪ ' + Math.round(n||0).toLocaleString('he-IL'); }
 
+var qTimerInterval = null;
+
 function openQuotes() {
   renderQuotes();
   document.getElementById('quotesModal').classList.add('open');
+  qTimerInterval = setInterval(tickTimers, 1000);
 }
+
+function closeQuotes() {
+  document.getElementById('quotesModal').classList.remove('open');
+  if (qTimerInterval) { clearInterval(qTimerInterval); qTimerInterval = null; }
+}
+
+function tickTimers() {
+  var now = Date.now();
+  document.querySelectorAll('[data-createdat]').forEach(function(el) {
+    var ms = now - parseInt(el.dataset.createdat, 10);
+    el.textContent = fmtElapsed(ms);
+    var mins = ms / 60000;
+    el.className = 'q-timer-val ' + (mins < 30 ? 'ok' : mins < 60 ? 'mid' : 'fast');
+  });
+}
+
+function fmtElapsed(ms) {
+  var s = Math.floor(ms / 1000);
+  var h = Math.floor(s / 3600);
+  var m = Math.floor((s % 3600) / 60);
+  var sec = s % 60;
+  var parts = [];
+  if (h) parts.push(h + 'ש');
+  parts.push(pad(m) + 'ד');
+  parts.push(pad(sec) + 'ש"');
+  return parts.join(' ');
+}
+
+function pad(n){ return n < 10 ? '0'+n : ''+n; }
 
 function deleteQuote(i, e) {
   e.stopPropagation();
@@ -410,17 +453,29 @@ function renderQuotes() {
     el.innerHTML = '<div class="q-empty">אין הצעות שמורות</div>';
     return;
   }
+  var now = Date.now();
   var html = '';
   hist.forEach(function(item, i) {
-    var encoded = encodeURIComponent(JSON.stringify(item));
-    html += '<div class="q-item" onclick="location.href=\'quote.html\'">';
+    var createdAt = item.createdAt || now;
+    var ms = now - createdAt;
+    var mins = ms / 60000;
+    var timerCls = mins < 30 ? 'ok' : mins < 60 ? 'mid' : 'fast';
+    html += '<div class="q-item">';
+    // timer bar
+    html += '<div class="q-timer">';
+    html += '<span class="q-timer-label">⏱ זמן מאז הקמה</span>';
+    html += '<span class="q-timer-val ' + timerCls + '" data-createdat="' + createdAt + '">' + fmtElapsed(ms) + '</span>';
+    html += '</div>';
+    // body
+    html += '<div class="q-body" onclick="location.href=\'quote.html\'">';
     html += '<div class="q-item-top">';
     html += '<span class="q-name">' + (item.customer || 'לא ידוע') + '</span>';
     html += '<button class="q-delete-btn" onclick="deleteQuote(' + i + ',event)">🗑</button>';
     html += '</div>';
-    if (item.newCar) html += '<div class="q-detail">' + item.newCar + '</div>';
-    html += '<div class="q-monthly">' + fmtQ(item.monthly) + '<span style="font-size:13px;font-weight:400;color:#5a7aa5"> /חודש</span></div>';
+    if (item.newCar) html += '<div class="q-detail">' + item.newCar + (item.newPlate ? ' · ' + item.newPlate : '') + '</div>';
+    html += '<span class="q-monthly">' + fmtQ(item.monthly) + '</span><span class="q-monthly-lbl"> /חודש</span>';
     html += '<div class="q-rep">' + (item.rep ? 'נציג: ' + item.rep + ' · ' : '') + (item.date || '') + '</div>';
+    html += '</div>';
     html += '</div>';
   });
   el.innerHTML = html;
