@@ -528,11 +528,12 @@ if ('serviceWorker' in navigator) {
         <button type="button" class="ci-box" data-key="c-battery-is-original" data-val="x" onclick="ciClick(this);batteryIsOriginalToggle(this)">✕</button>
       </div>
     </div>
-    <div id="battery-is-original-note-row" style="display:none;padding-right:24px" class="ci-note-row">
-      <textarea class="form-textarea" id="cn-c-battery-is-original" placeholder="הערה על מצבר..." rows="2"></textarea>
-    </div>
     <div class="ci-note-row" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       <label for="file-battery" style="background:var(--dark);color:#fff;border:none;border-radius:10px;padding:8px 16px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;display:inline-block">📷 צלם מצבר <span style="color:#ef4444">*</span></label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;cursor:pointer;color:var(--dark)">
+        <input type="checkbox" id="battery-no-date-cb" style="width:18px;height:18px;accent-color:var(--dark)" onchange="batteryNoDateToggle(this)">
+        לא רואים תאריך מצבר
+      </label>
       <span id="battery-photo-count" style="font-size:12px;color:var(--muted)"></span>
       <input type="file" accept="image/*" capture="environment" id="file-battery" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" onchange="addBatteryPhoto(this)">
       <div id="battery-photos" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;width:100%"></div>
@@ -2232,6 +2233,7 @@ async function submitDriverIntake() {
       photoUrls,
       intakeDateTime,
       batteryMonth,
+      batteryNoDate: !!(document.getElementById('battery-no-date-cb')?.checked),
       batteryPhotoUrls: window._batteryPhotoUrls || {},
       status: 'done',
       completedBy: currentUser.name,
@@ -2277,6 +2279,7 @@ async function submitDriverIntake() {
   if (bpCount) bpCount.textContent = '';
   const bm = document.getElementById('di-battery-month'); if (bm) bm.value = '';
   const bds = document.getElementById('battery-date-section'); if (bds) bds.style.display = 'none';
+  const bndcb = document.getElementById('battery-no-date-cb'); if (bndcb) bndcb.checked = false;
   closeModal('modal-driver-intake');
   showToast('✅ הטופס נשלח בהצלחה!');
   _notifyDriver('ליאל', `✅ ${_doneDriver} סיים קליטת רכב — ${_donePlate}`);
@@ -2532,12 +2535,26 @@ function batteryOriginalToggle(btn) {
 }
 window.batteryOriginalToggle = batteryOriginalToggle;
 function batteryIsOriginalToggle(btn) {
+  const cb = document.getElementById('battery-no-date-cb');
+  const noDate = cb && cb.checked;
   const sec = document.getElementById('battery-date-section');
-  if (sec) sec.style.display = btn.dataset.val === 'x' ? 'block' : 'none';
-  const noteRow = document.getElementById('battery-is-original-note-row');
-  if (noteRow) noteRow.style.display = btn.dataset.val === 'x' ? 'block' : 'none';
+  if (sec) sec.style.display = (btn.dataset.val === 'x' && !noDate) ? 'block' : 'none';
 }
 window.batteryIsOriginalToggle = batteryIsOriginalToggle;
+
+function batteryNoDateToggle(cb) {
+  const sec = document.getElementById('battery-date-section');
+  if (!sec) return;
+  if (cb.checked) {
+    sec.style.display = 'none';
+    const m = document.getElementById('di-battery-month'); if (m) m.value = '';
+  } else {
+    // only show if מצבר מקורי is ✕
+    const xActive = document.querySelector('#modal-driver-intake .ci-box[data-key="c-battery-is-original"].x-active');
+    if (xActive) sec.style.display = 'block';
+  }
+}
+window.batteryNoDateToggle = batteryNoDateToggle;
 
 function addBatteryPhoto(input) {
   const files = [...input.files];
