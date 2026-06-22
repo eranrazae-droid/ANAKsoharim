@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>מעדכן...</title>
+<style>
+body{font-family:Arial,sans-serif;background:#0d1f3c;color:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;flex-direction:column;gap:16px;text-align:center}
+.msg{font-size:22px;font-weight:700}
+.sub{font-size:14px;color:#7a9ccf}
+</style>
+</head>
+<body>
+<div class="msg">⏳ מנקה גרסה ישנה...</div>
+<div class="sub" id="sub">אנא המתן</div>
+<script>
+(async function(){
+  var sub = document.getElementById('sub');
+  try {
+    var regs = await navigator.serviceWorker.getRegistrations();
+    for (var r of regs) await r.unregister();
+    var keys = await caches.keys();
+    for (var k of keys) await caches.delete(k);
+    sub.textContent = 'הושלם! מעביר לדף הבית...';
+  } catch(e) {
+    sub.textContent = 'מעביר לדף הבית...';
+  }
+  setTimeout(function(){ window.location.href = '/index-sales.html?v=' + Date.now(); }, 1000);
+})();
+</script>
+</body>
+</html>
