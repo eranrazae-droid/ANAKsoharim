@@ -193,16 +193,28 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
 
   <div class="page-title">הצעת <span>מחיר</span></div>
 
-  <!-- נציג מכירות + לקוח + טלפון -->
-  <div class="customer-card">
-    <label>נציג מטפל <span style="color:#e02d2d">*</span></label>
-    <select id="sales-rep" onchange="calc()" style="flex:1;border:none;outline:none;font-family:'Heebo',sans-serif;font-size:18px;font-weight:700;color:#0d1f3c;background:transparent;cursor:pointer;appearance:none;-webkit-appearance:none">
-      <option value="">בחר נציג...</option>
-      <option value="ביטון">ביטון</option>
-      <option value="שני">שני</option>
-      <option value="יהלי / ליאל / אוראל">יהלי / ליאל / אוראל</option>
-    </select>
-    <div id="rep-err" style="display:none;font-size:12px;color:#e02d2d;margin-top:4px;font-weight:700">⚠️ יש לבחור נציג מטפל</div>
+  <!-- נציג מטפל + סטטוס בשורה אחת -->
+  <div style="display:flex;gap:12px;margin-bottom:16px">
+    <div class="customer-card" style="flex:1;margin-bottom:0">
+      <label>נציג מטפל <span style="color:#e02d2d">*</span></label>
+      <select id="sales-rep" onchange="calc()" style="flex:1;border:none;outline:none;font-family:'Heebo',sans-serif;font-size:16px;font-weight:700;color:#0d1f3c;background:transparent;cursor:pointer;appearance:none;-webkit-appearance:none;width:100%">
+        <option value="">בחר...</option>
+        <option value="ביטון">ביטון</option>
+        <option value="שני">שני</option>
+        <option value="יהלי / ליאל / אוראל">יהלי / ליאל / אוראל</option>
+      </select>
+      <div id="rep-err" style="display:none;font-size:11px;color:#e02d2d;margin-top:4px;font-weight:700">⚠️ יש לבחור נציג</div>
+    </div>
+    <div class="customer-card" style="flex:1;margin-bottom:0">
+      <label>סטטוס</label>
+      <select id="status-sel" onchange="currentStatus=this.value;scheduleAutoSave()" style="flex:1;border:none;outline:none;font-family:'Heebo',sans-serif;font-size:13px;font-weight:700;color:#0d1f3c;background:transparent;cursor:pointer;appearance:none;-webkit-appearance:none;width:100%">
+        <option value="">בחר סטטוס...</option>
+        <option value="ממתין להקמת עסקה">⏳ ממתין להקמת עסקה</option>
+        <option value="מחכה לאישור מימון">🏦 מחכה לאישור מימון</option>
+        <option value="חתם חוזה — המתנה לביטוח">📝 חתם חוזה — המתנה לביטוח</option>
+        <option value="ממתין למסירה">🚗 ממתין למסירה</option>
+      </select>
+    </div>
   </div>
   <div class="customer-card">
     <label>שם לקוח <span style="color:#e02d2d">*</span></label>
@@ -213,17 +225,6 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
     <label>טלפון לקוח <span style="color:#e02d2d">*</span></label>
     <input type="tel" id="customer-phone" placeholder="050-0000000" oninput="calc()" inputmode="tel">
     <div id="phone-err" style="display:none;font-size:12px;color:#e02d2d;margin-top:4px;font-weight:700">⚠️ יש למלא טלפון לקוח</div>
-  </div>
-
-  <!-- סטטוס הצעה -->
-  <div class="customer-card" style="flex-direction:column;align-items:flex-start;gap:8px">
-    <label>סטטוס הצעה</label>
-    <div style="display:flex;flex-wrap:wrap;gap:8px;width:100%" id="status-btns">
-      <button class="status-opt" data-status="ממתין להקמת עסקה"   onclick="setStatus(this)">⏳ ממתין להקמת עסקה</button>
-      <button class="status-opt" data-status="מחכה לאישור מימון"  onclick="setStatus(this)">🏦 מחכה לאישור מימון</button>
-      <button class="status-opt" data-status="חתם חוזה — המתנה לביטוח" onclick="setStatus(this)">📝 חתם חוזה — המתנה לביטוח</button>
-      <button class="status-opt" data-status="ממתין למסירה"        onclick="setStatus(this)">🚗 ממתין למסירה</button>
-    </div>
   </div>
 
   <!-- שליפת פרטי רכב -->
@@ -404,11 +405,11 @@ function setTradeInSafe(val) {
   scheduleAutoSave();
 }
 
-function setStatus(btn) {
-  currentStatus = btn.dataset.status;
-  document.querySelectorAll('.status-opt').forEach(function(b){ b.classList.remove('active'); });
-  btn.classList.add('active');
-  autoSave();
+function setStatus(val) {
+  currentStatus = val || '';
+  var sel = document.getElementById('status-sel');
+  if (sel) sel.value = currentStatus;
+  scheduleAutoSave();
 }
 var currentMonthly = 0;
 var currentN = 100;
@@ -715,9 +716,8 @@ function loadHistoryItem(item) {
   document.getElementById('total-deal-input').value = item.totalDeal || '';
   document.getElementById('cash').value             = item.cash     || '';
   currentStatus = item.status || '';
-  document.querySelectorAll('.status-opt').forEach(function(b){
-    b.classList.toggle('active', b.dataset.status === currentStatus);
-  });
+  var ssel = document.getElementById('status-sel');
+  if (ssel) ssel.value = currentStatus;
   calc();
   window.scrollTo(0,0);
 }
