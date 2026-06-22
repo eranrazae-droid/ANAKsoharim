@@ -2620,10 +2620,32 @@ async function uploadPhotos(key) {
 function ciClick(btn) {
   const key = btn.dataset.key;
   const val = btn.dataset.val;
-  document.querySelectorAll(`.ci-box[data-key="${key}"]`).forEach(b => {
-    b.classList.remove('v-active','x-active');
-  });
-  btn.classList.add(val === 'v' ? 'v-active' : 'x-active');
+  const activeClass = val === 'v' ? 'v-active' : 'x-active';
+  const isAlreadyActive = btn.classList.contains(activeClass);
+
+  // deactivate all buttons for this key
+  document.querySelectorAll(`.ci-box[data-key="${key}"]`).forEach(b => b.classList.remove('v-active','x-active'));
+
+  if (isAlreadyActive) {
+    // double-click: clear selection, hide note row
+    const noteRow = document.getElementById('note-' + key);
+    if (noteRow) {
+      noteRow.style.display = 'none';
+      const ta = noteRow.querySelector('textarea'); if (ta) ta.value = '';
+      noteRow.querySelectorAll('input[type=checkbox]').forEach(cb => cb.checked = false);
+    }
+    // hide special rows for battery
+    const battOrigRow = document.getElementById('battery-original-note-row');
+    if (battOrigRow && key === 'c-battery-original') battOrigRow.style.display = 'none';
+    const battIsOrigRow = document.getElementById('battery-is-original-note-row');
+    if (battIsOrigRow && key === 'c-battery-is-original') battIsOrigRow.style.display = 'none';
+    const battDateSec = document.getElementById('battery-date-section');
+    if (battDateSec && key === 'c-battery-is-original') battDateSec.style.display = 'none';
+    saveIntakeDraft();
+    return;
+  }
+
+  btn.classList.add(activeClass);
   const noteRow = document.getElementById('note-' + key);
   if (noteRow) {
     noteRow.style.display = val === 'x' ? 'block' : 'none';
