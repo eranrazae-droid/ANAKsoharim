@@ -525,6 +525,9 @@ if ('serviceWorker' in navigator) {
         <button type="button" class="ci-box" data-key="c-battery-is-original" data-val="x" onclick="ciClick(this);batteryIsOriginalToggle(this)">✕</button>
       </div>
     </div>
+    <div id="battery-is-original-note-row" style="display:none;padding-right:24px" class="ci-note-row">
+      <textarea class="form-textarea" id="cn-c-battery-is-original" placeholder="הערה על מצבר..." rows="2"></textarea>
+    </div>
     <div class="ci-note-row" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       <label for="file-battery" style="background:var(--dark);color:#fff;border:none;border-radius:10px;padding:8px 16px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;display:inline-block">📷 צלם מצבר <span style="color:#ef4444">*</span></label>
       <span id="battery-photo-count" style="font-size:12px;color:var(--muted)"></span>
@@ -2386,6 +2389,9 @@ async function viewIntakeForm(id) {
   collectUrls(photos);
   // also check top-level photos field
   if (v.photos) collectUrls(v.photos);
+  // remove battery photos from top gallery (they show in checklist row only)
+  const batteryUrls = new Set(Object.values(v.batteryPhotoUrls || {}).flat());
+  const filteredUrls = allUrls.filter(u => !batteryUrls.has(u));
 
   let rows = '';
   for (const [key, label] of Object.entries(checklistLabels)) {
@@ -2409,9 +2415,9 @@ async function viewIntakeForm(id) {
     </div>`;
   }
 
-  const extraPhotos = allUrls.length
-    ? `<div style="margin-bottom:14px"><div style="font-weight:900;font-size:13px;color:var(--muted);margin-bottom:8px">📸 תמונות (${allUrls.length})</div>
-       <div style="display:flex;gap:8px;flex-wrap:wrap">${allUrls.map(url =>
+  const extraPhotos = filteredUrls.length
+    ? `<div style="margin-bottom:14px"><div style="font-weight:900;font-size:13px;color:var(--muted);margin-bottom:8px">📸 תמונות (${filteredUrls.length})</div>
+       <div style="display:flex;gap:8px;flex-wrap:wrap">${filteredUrls.map(url =>
          `<img src="${url}" onclick="openPhotoZoom('${url}','${esc(v.plate||'')}')" style="width:90px;height:90px;object-fit:cover;border-radius:10px;cursor:pointer;border:2px solid #ccc">`
        ).join('')}</div></div>` : '';
 
@@ -2507,8 +2513,9 @@ function batteryOriginalToggle(btn) { /* no-op */ }
 window.batteryOriginalToggle = batteryOriginalToggle;
 function batteryIsOriginalToggle(btn) {
   const sec = document.getElementById('battery-date-section');
-  if (!sec) return;
-  sec.style.display = btn.dataset.val === 'x' ? 'block' : 'none';
+  if (sec) sec.style.display = btn.dataset.val === 'x' ? 'block' : 'none';
+  const noteRow = document.getElementById('battery-is-original-note-row');
+  if (noteRow) noteRow.style.display = btn.dataset.val === 'x' ? 'block' : 'none';
 }
 window.batteryIsOriginalToggle = batteryIsOriginalToggle;
 
