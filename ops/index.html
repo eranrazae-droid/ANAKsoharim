@@ -4298,6 +4298,181 @@ function openTestBoard() {
 }
 
 function renderTestBoard() {
+  const container = document.getElementById('testboard-list');
+  if (!container) return;
+  const allTasks = _testTasksCache;
+
+  const statusLabel = { open:'פתוחה', inprog:'בביצוע', done:'הושלמה' };
+
+  function makeCard(t) {
+    if (t.type === 'divider') {
+      const div = document.createElement('div');
+      div.dataset.id = t.id;
+      div.draggable = true;
+      div.style.cssText = 'display:flex;align-items:center;gap:8px;margin:6px 0;cursor:grab;user-select:none';
+      div.addEventListener('dragstart', e => _onDragStart(e, t.id));
+      div.addEventListener('dragend',   _onDragEnd);
+      div.innerHTML = `<div style="flex:1;border-top:2px dashed #94a3b8"></div><span style="font-size:11px;font-weight:900;color:#64748b;white-space:nowrap;background:#e8eaf4;padding:2px 8px;border-radius:999px">רכבים שמחוץ למגרש ↓</span><div style="flex:1;border-top:2px dashed #94a3b8"></div><button onclick="event.stopPropagation();deleteTask('${t.id}')" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:13px;padding:0 2px">✕</button>`;
+      return div;
+    }
+    const done = t.status === 'done';
+    const card = document.createElement('div');
+    card.className = `task-card${t.color?' color-'+t.color:''}${done?' done':''}`;
+    card.draggable = !done;
+    card.dataset.id = t.id;
+    if (!done) {
+      card.addEventListener('dragstart', e => _onDragStart(e, t.id));
+      card.addEventListener('dragend',   _onDragEnd);
+      card.addEventListener('click', e => { if (!e.target.closest('button')) openEditTask(t.id); });
+      card.style.cursor = 'pointer';
+    }
+    card.innerHTML = `
+      <div class="task-top">
+        <div class="task-title">${esc(t.title)}</div>
+        <div style="display:flex;gap:4px;flex-shrink:0;align-items:center">
+          ${!done ? `<button onclick="openEditTask('${t.id}')" style="background:#6366f1;color:#fff;border:none;border-radius:999px;width:24px;height:24px;cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0">✏️</button>` : ''}
+          <button onclick="deleteTask('${t.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:999px;width:24px;height:24px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0">🗑</button>
+        </div>
+      </div>
+      ${t.notes ? `<div class="task-notes" style="font-size:12px;color:var(--muted);margin-bottom:6px">${esc(t.notes)}</div>` : ''}
+      <div class="task-meta">
+        <span class="tag assignee" style="font-size:11px">👤 ${esc(t.assignedTo)}</span>
+        <span class="tag status-${t.status}" style="font-size:11px">${statusLabel[t.status]||t.status}</span>
+      </div>`;
+    return card;
+  }
+
+  function makeDropZone(label, afterId, beforeId) {
+    const zone = document.createElement('div');
+    zone.className = 'task-drop-zone';
+    zone.dataset.label = label;
+    zone.addEventListener('dragover',  _onDragOver);
+    zone.addEventListener('dragleave', _onDragLeave);
+    zone.addEventListener('drop',      e => _onDrop(e, label, beforeId, afterId));
+    return zone;
+  }
+
+  function sortTasks(tasks) {
+    return [...tasks].sort((a,b) => {
+      const dA = a.status==='done'?1:0, dB = b.status==='done'?1:0;
+      if (dA !== dB) return dA - dB;
+      const sA = a.sortOrder ?? a.createdAt?.toMillis?.() ?? 0;
+      const sB = b.sortOrder ?? b.createdAt?.toMillis?.() ?? 0;
+      return sA - sB;
+    });
+  }
+
+  function makeCol(label, color, tasks) {
+    const hasDivider = ['חביב','ולאדי'].includes(label);
+    const realTasks = tasks.filter(t => t.type !== 'divider');
+    const openCount = realTasks.filter(t => t.status !== 'done').length;
+    const col = document.createElement('div');
+    col.className = 'task-col';
+    const header = document.createElement('div');
+    header.className = 'task-col-header';
+    const dividerExists = tasks.some(t => t.type === 'divider');
+    const dividerBtn = (hasDivider && !dividerExists)
+      ? `<button onclick="window._addDivider('${label}').then(()=>showToast('חוצץ נוסף'))" style="background:#e2e8f0;border:none;border-radius:8px;padding:2px 8px;font-size:11px;font-weight:700;cursor:pointer;color:#475569;margin-right:6px">+ חוצץ</button>` : '';
+    header.innerHTML = `<span class="task-col-title" style="color:${color}">${label}</span><div style="display:flex;align-items:center;gap:4px">${dividerBtn}<span class="task-col-count">${openCount}</span></div>`;
+    col.appendChild(header);
+    const cards = document.createElement('div');
+    cards.className = 'task-col-cards';
+    if (tasks.length === 0) {
+      const zone = makeDropZone(label, null, null);
+      zone.innerHTML = `<div style="text-align:center;color:var(--muted);font-size:13px;padding:20px 0">אין משימות</div>`;
+      cards.appendChild(zone);
+    } else {
+      cards.appendChild(makeDropZone(label, null, tasks[0].id));
+      tasks.forEach((t, i) => {
+        cards.appendChild(makeCard(t));
+        cards.appendChild(makeDropZone(label, t.id, tasks[i+1]?.id ?? null));
+      });
+    }
+    col.appendChild(cards);
+    return col;
+  }
+
+  const colColors = {
+    'משימות כלליות':'#6366f1','חביב':'#f59e0b','ולאדי':'#3b82f6',
+    'רפד':'#ec4899','זגג':'#10b981','רדארים':'#8b5cf6',
+    'עופר':'#0ea5e9','גיל':'#f97316','איתי':'#84cc16','משתמש בדיקות':'#a855f7',
+  };
+
+  container.innerHTML = '';
+
+  if (allTasks.length === 0) {
+    container.innerHTML = `<div style="text-align:center;padding:60px 20px;color:var(--muted);width:100%">
+      <div style="font-size:48px;margin-bottom:12px">🧪</div>
+      <div style="font-weight:700;font-size:16px">אין משימות טסטים</div>
+      <div style="font-size:13px;margin-top:6px">משימות יופיעו כאן לאחר קליטה של משתמש בדיקות</div>
+    </div>`;
+    return;
+  }
+
+  ['משימות כלליות','חביב','ולאדי','רדארים'].forEach(label => {
+    container.appendChild(makeCol(label, colColors[label], sortTasks(allTasks.filter(t => t.label === label))));
+  });
+
+  // Combined זגג/רפד column
+  const zagRafadCol = document.createElement('div');
+  zagRafadCol.className = 'task-col';
+  zagRafadCol.style.minWidth = '260px'; zagRafadCol.style.maxWidth = '260px';
+  const zrOpenCount = ['רפד','זגג'].reduce((s,l) => s + allTasks.filter(t=>t.label===l&&t.status!=='done').length, 0);
+  zagRafadCol.innerHTML = `<div class="task-col-header"><span class="task-col-title" style="color:#475569">זגג / רפד</span><span class="task-col-count">${zrOpenCount}</span></div>`;
+  const zrCards = document.createElement('div');
+  zrCards.className = 'task-col-cards';
+  ['רפד','זגג'].forEach(name => {
+    const colTasks = sortTasks(allTasks.filter(t => t.label === name));
+    const sub = document.createElement('div');
+    sub.style.marginBottom = '10px';
+    const subHeader = document.createElement('div');
+    subHeader.style.cssText = `font-size:12px;font-weight:900;color:${colColors[name]};padding:4px 2px 6px;border-bottom:2px solid ${colColors[name]};margin-bottom:6px`;
+    subHeader.textContent = name;
+    sub.appendChild(subHeader);
+    if (colTasks.length === 0) {
+      const zone = makeDropZone(name, null, null);
+      zone.innerHTML = `<div style="text-align:center;color:var(--muted);font-size:12px;padding:8px 0">אין משימות</div>`;
+      sub.appendChild(zone);
+    } else {
+      sub.appendChild(makeDropZone(name, null, colTasks[0].id));
+      colTasks.forEach((t,i) => { sub.appendChild(makeCard(t)); sub.appendChild(makeDropZone(name, t.id, colTasks[i+1]?.id??null)); });
+    }
+    zrCards.appendChild(sub);
+  });
+  zagRafadCol.appendChild(zrCards);
+  container.appendChild(zagRafadCol);
+
+  // Combined נהגים column
+  const driversCol = document.createElement('div');
+  driversCol.className = 'task-col';
+  driversCol.style.minWidth = '260px'; driversCol.style.maxWidth = '260px';
+  const drOpenCount = ['עופר','גיל','איתי','משתמש בדיקות'].reduce((s,l) => s + allTasks.filter(t=>t.label===l&&t.status!=='done').length, 0);
+  driversCol.innerHTML = `<div class="task-col-header"><span class="task-col-title" style="color:#475569">נהגים</span><span class="task-col-count">${drOpenCount}</span></div>`;
+  const drCards = document.createElement('div');
+  drCards.className = 'task-col-cards';
+  ['עופר','גיל','איתי','משתמש בדיקות'].forEach(driver => {
+    const colTasks = sortTasks(allTasks.filter(t => t.label === driver));
+    const sub = document.createElement('div');
+    sub.style.marginBottom = '10px';
+    const subHeader = document.createElement('div');
+    subHeader.style.cssText = `font-size:12px;font-weight:900;color:${colColors[driver]};padding:4px 2px 6px;border-bottom:2px solid ${colColors[driver]};margin-bottom:6px`;
+    subHeader.textContent = driver;
+    sub.appendChild(subHeader);
+    if (colTasks.length === 0) {
+      const zone = makeDropZone(driver, null, null);
+      zone.innerHTML = `<div style="text-align:center;color:var(--muted);font-size:12px;padding:8px 0">אין משימות</div>`;
+      sub.appendChild(zone);
+    } else {
+      sub.appendChild(makeDropZone(driver, null, colTasks[0].id));
+      colTasks.forEach((t,i) => { sub.appendChild(makeCard(t)); sub.appendChild(makeDropZone(driver, t.id, colTasks[i+1]?.id??null)); });
+    }
+    drCards.appendChild(sub);
+  });
+  driversCol.appendChild(drCards);
+  container.appendChild(driversCol);
+}
+window.openTestBoard = openTestBoard;
+
   const el = document.getElementById('testboard-list');
   if (!el) return;
   const tasks = _testTasksCache;
