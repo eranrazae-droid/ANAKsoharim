@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>סטטוס הצעות — ענק הרכבים</title>
+<link rel="manifest" href="manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ענק הרכבים">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="theme-color" content="#0d1f3c">
+<script>if("serviceWorker"in navigator)navigator.serviceWorker.register("/sw.js");</script>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:100vh}
+
+.hdr{background:#0d1f3c;padding:16px 24px;display:flex;align-items:center;justify-content:space-between}
+.hdr-logo{font-size:18px;font-weight:900;color:#fff}
+.hdr-logo span{color:#c9a227}
+.hdr-title{font-size:13px;color:#7a9ccf;margin-top:2px}
+
+.page{max-width:600px;margin:0 auto;padding:24px 16px 80px}
+
+.page-title{font-size:24px;font-weight:900;color:#0d1f3c;margin-bottom:20px;text-align:center}
+.page-title span{color:#e02d2d}
+
+.q-list{display:flex;flex-direction:column;gap:12px}
+
+.q-item{background:#fff;border:1.5px solid #dce6f5;border-radius:14px;overflow:hidden;box-shadow:0 2px 8px rgba(13,31,60,.06)}
+
+.q-timer{
+  background:#0d1f3c;color:#fff;
+  padding:8px 14px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.q-timer-label{font-size:11px;color:#7a9ccf;font-weight:600}
+.q-timer-val{font-size:16px;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:.04em}
+.q-timer-val.ok  {color:#4ade80}
+.q-timer-val.mid {color:#facc15}
+.q-timer-val.fast{color:#f87171}
+
+.q-body{padding:14px 16px;cursor:pointer;transition:background .1s}
+.q-body:hover{background:#f5f8ff}
+
+.q-item-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px}
+.q-name{font-size:17px;font-weight:900;color:#0d1f3c}
+.q-delete-btn{background:none;border:none;color:#c0cfe8;font-size:17px;cursor:pointer;padding:2px 6px;border-radius:6px;line-height:1}
+.q-delete-btn:hover{color:#e02d2d;background:#fff0f0}
+
+.q-car{font-size:13px;color:#5a7aa5;margin-bottom:8px}
+.q-monthly{font-size:26px;font-weight:900;color:#1a56db}
+.q-monthly-lbl{font-size:13px;color:#5a7aa5;font-weight:400}
+.q-rep{font-size:11px;color:#7a9ab8;margin-top:4px}
+
+.empty-state{
+  text-align:center;
+  padding:60px 20px;
+  color:#7a9ab8;
+}
+.empty-icon{font-size:48px;margin-bottom:12px}
+.empty-text{font-size:18px;font-weight:700;color:#5a7aa5;margin-bottom:6px}
+.empty-sub{font-size:14px;color:#a0b4cc}
+
+.new-btn{
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  background:#16a34a;color:#fff;border:none;border-radius:14px;
+  font-family:'Heebo',sans-serif;font-size:17px;font-weight:900;
+  padding:16px;width:100%;cursor:pointer;text-decoration:none;
+  box-shadow:0 4px 16px rgba(22,163,74,.3);
+  margin-top:20px;
+}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div>
+    <div class="hdr-logo">ענק <span>הרכבים</span></div>
+    <div class="hdr-title">סטטוס הצעות</div>
+  </div>
+  <a href="index-sales.html" style="color:#7a9ccf;font-size:13px;font-weight:700;text-decoration:none;background:#1a2f54;padding:8px 16px;border-radius:8px;">→ דף הבית</a>
+</div>
+
+<div class="page">
+  <div class="page-title">הצעות <span>פעילות</span></div>
+  <div class="q-list" id="q-list"></div>
+  <a class="new-btn" href="quote.html">＋ הקמת הצעה חדשה</a>
+</div>
+
+<script>
+function fmtQ(n){ return '₪ ' + Math.round(n||0).toLocaleString('he-IL'); }
+
+function fmtElapsed(ms) {
+  var s = Math.floor(ms / 1000);
+  var h = Math.floor(s / 3600);
+  var m = Math.floor((s % 3600) / 60);
+  var sec = s % 60;
+  var parts = [];
+  if (h) parts.push(h + 'ש\'');
+  parts.push(pad(m) + 'ד\'');
+  parts.push(pad(sec) + 'ש"');
+  return parts.join(' ');
+}
+function pad(n){ return n < 10 ? '0'+n : ''+n; }
+
+function deleteQuote(i, e) {
+  e.stopPropagation();
+  if (!confirm('למחוק את ההצעה?')) return;
+  var hist = JSON.parse(localStorage.getItem('anak-quotes') || '[]');
+  hist.splice(i, 1);
+  localStorage.setItem('anak-quotes', JSON.stringify(hist));
+  render();
+}
+
+function render() {
+  var hist = JSON.parse(localStorage.getItem('anak-quotes') || '[]');
+  var el = document.getElementById('q-list');
+  if (!hist.length) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-text">אין הצעות שמורות</div><div class="empty-sub">לחץ על הכפתור למטה כדי להקים הצעה</div></div>';
+    return;
+  }
+  var now = Date.now();
+  var html = '';
+  hist.forEach(function(item, i) {
+    var createdAt = item.createdAt || now;
+    var ms = now - createdAt;
+    var mins = ms / 60000;
+    var timerCls = mins < 30 ? 'ok' : mins < 60 ? 'mid' : 'fast';
+    html += '<div class="q-item">';
+    html += '<div class="q-timer">';
+    html += '<span class="q-timer-label">⏱ זמן מאז הקמה</span>';
+    html += '<span class="q-timer-val ' + timerCls + '" data-createdat="' + createdAt + '">' + fmtElapsed(ms) + '</span>';
+    html += '</div>';
+    html += '<div class="q-body" onclick="location.href=\'quote.html\'">';
+    html += '<div class="q-item-top">';
+    html += '<span class="q-name">' + (item.customer || 'לא ידוע') + '</span>';
+    html += '<button class="q-delete-btn" onclick="deleteQuote(' + i + ',event)">🗑</button>';
+    html += '</div>';
+    if (item.newCar) html += '<div class="q-car">' + item.newCar + (item.newPlate ? ' · ' + item.newPlate : '') + '</div>';
+    html += '<div><span class="q-monthly">' + fmtQ(item.monthly) + '</span><span class="q-monthly-lbl"> /חודש</span></div>';
+    html += '<div class="q-rep">' + (item.rep ? 'נציג: ' + item.rep + ' · ' : '') + (item.date || '') + '</div>';
+    html += '</div>';
+    html += '</div>';
+  });
+  el.innerHTML = html;
+}
+
+function tickTimers() {
+  var now = Date.now();
+  document.querySelectorAll('[data-createdat]').forEach(function(el) {
+    var ms = now - parseInt(el.dataset.createdat, 10);
+    el.textContent = fmtElapsed(ms);
+    var mins = ms / 60000;
+    el.className = 'q-timer-val ' + (mins < 30 ? 'ok' : mins < 60 ? 'mid' : 'fast');
+  });
+}
+
+render();
+setInterval(tickTimers, 1000);
+</script>
+</body>
+</html>
