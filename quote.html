@@ -161,11 +161,21 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
 
   <div class="page-title">הצעת <span>מחיר</span></div>
 
-  <!-- שם לקוח -->
+  <!-- נציג מכירות + לקוח + טלפון -->
+  <div class="customer-card">
+    <label>נציג מכירות <span style="color:#e02d2d">*</span></label>
+    <input type="text" id="sales-rep" placeholder="שם הנציג..." oninput="calc()">
+    <div id="rep-err" style="display:none;font-size:12px;color:#e02d2d;margin-top:4px;font-weight:700">⚠️ יש למלא שם נציג מכירות</div>
+  </div>
   <div class="customer-card">
     <label>שם לקוח <span style="color:#e02d2d">*</span></label>
     <input type="text" id="customer-name" placeholder="הזן שם לקוח..." oninput="calc()">
-    <div id="customer-err" style="display:none;font-size:12px;color:#e02d2d;margin-top:4px;font-weight:700">⚠️ יש למלא שם לקוח כדי להמשיך</div>
+    <div id="customer-err" style="display:none;font-size:12px;color:#e02d2d;margin-top:4px;font-weight:700">⚠️ יש למלא שם לקוח</div>
+  </div>
+  <div class="customer-card">
+    <label>טלפון <span style="color:#e02d2d">*</span></label>
+    <input type="tel" id="customer-phone" placeholder="050-0000000" oninput="calc()" inputmode="tel">
+    <div id="phone-err" style="display:none;font-size:12px;color:#e02d2d;margin-top:4px;font-weight:700">⚠️ יש למלא טלפון לקוח</div>
   </div>
 
   <div class="deal-card">
@@ -439,16 +449,18 @@ function pmt(principal, rate, n) {
 }
 
 function calc() {
-  var customerName = document.getElementById('customer-name').value.trim();
-  var errEl = document.getElementById('customer-err');
-  if (!customerName) {
-    errEl.style.display = 'block';
+  var rep   = document.getElementById('sales-rep').value.trim();
+  var cust  = document.getElementById('customer-name').value.trim();
+  var phone = document.getElementById('customer-phone').value.trim();
+  document.getElementById('rep-err').style.display      = rep   ? 'none' : 'block';
+  document.getElementById('customer-err').style.display = cust  ? 'none' : 'block';
+  document.getElementById('phone-err').style.display    = phone ? 'none' : 'block';
+  if (!rep || !cust || !phone) {
     document.getElementById('monthly-box').style.display = 'none';
     document.getElementById('action-row').style.display = 'none';
     document.getElementById('finance-cards-section').style.display = 'none';
     return;
   }
-  errEl.style.display = 'none';
 
   var newPrice = parseFloat(document.getElementById('new-price').value) || 0;
   var tradeIn  = parseFloat(document.getElementById('trade-in').value)  || 0;
@@ -505,8 +517,11 @@ function shareWA() {
   var diff    = newPrice - tradeIn;
   var totalDeal = diff + oldLoan;
 
+  var rep   = document.getElementById('sales-rep').value || '—';
+  var phone = document.getElementById('customer-phone').value || '';
   var msg = '🚗 *הצעת מחיר — ענק הרכבים*\n';
-  msg += '👤 לקוח: ' + name + '\n\n';
+  msg += '🧑‍💼 נציג: ' + rep + '\n';
+  msg += '👤 לקוח: ' + name + (phone ? ' · 📞 ' + phone : '') + '\n\n';
   msg += '🆕 *רכב חדש*\n';
   msg += newCar + (newPlate ? ' · ' + newPlate : '') + '\n';
   msg += 'מחיר: ' + fmtNum(newPrice) + '\n\n';
@@ -577,6 +592,8 @@ function autoSave() {
   var now = new Date();
   var item = {
     date: now.toLocaleDateString('he-IL') + ' ' + now.toLocaleTimeString('he-IL', {hour:'2-digit',minute:'2-digit'}),
+    rep: document.getElementById('sales-rep').value || '',
+    phone: document.getElementById('customer-phone').value || '',
     customer: customer || 'לא ידוע',
     newCar: newCar,
     newPrice: parseFloat(document.getElementById('new-price').value) || 0,
@@ -607,7 +624,9 @@ function autoSave() {
 }
 
 function loadHistoryItem(item) {
+  document.getElementById('sales-rep').value     = item.rep      || '';
   document.getElementById('customer-name').value = item.customer || '';
+  document.getElementById('customer-phone').value= item.phone   || '';
   document.getElementById('new-car-name').value  = item.newCar  || '';
   document.getElementById('new-car-plate').value = item.newPlate|| '';
   document.getElementById('new-price').value     = item.newPrice|| '';
@@ -637,7 +656,7 @@ function renderHistory() {
 }
 
 function resetAll() {
-  ['customer-name','new-car-name','new-car-plate','old-car-name','old-car-plate','new-price','trade-in','old-loan','cash'].forEach(function(id){
+  ['sales-rep','customer-name','customer-phone','new-car-name','new-car-plate','old-car-name','old-car-plate','new-price','trade-in','old-loan','cash'].forEach(function(id){
     document.getElementById(id).value = '';
   });
   document.getElementById('track-sel').selectedIndex = 0;
