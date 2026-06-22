@@ -3609,6 +3609,9 @@ function _pitCard(p, isManager, showArchiveBtn) {
     : sent
       ? `<span style="background:#22c55e;color:#fff;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700">✅ נשלח</span>`
       : `<span style="background:var(--gold);color:#000;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700">⏳ ממתין לביצוע</span>`;
+  const notifyBtn = isManager && !archived
+    ? `<button onclick="resendPitNotify('${esc(p.plate)}','${esc(p.checkType)}')" style="background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;flex-shrink:0;white-space:nowrap">📲 שלח התראה</button>`
+    : '';
   const sentBtn = !sent && !archived && !isManager
     ? `<button onclick="markPitSent('${p.id}')" style="background:#22c55e;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;flex-shrink:0">✅ נשלח</button>`
     : '';
@@ -3632,7 +3635,7 @@ function _pitCard(p, isManager, showArchiveBtn) {
         ${archiveTs ? `<div class="task-time" style="margin-top:2px">📁 הועבר לארכיון: ${archiveTs}</div>` : ''}
       </div>
       <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
-        ${sentBtn}${archiveBtn}${deleteBtn}
+        ${notifyBtn}${sentBtn}${archiveBtn}${deleteBtn}
       </div>
     </div>
   </div>`;
@@ -3695,6 +3698,12 @@ async function markPitSent(id) {
   showToast('✅ סומן כנשלח');
 }
 window.markPitSent = markPitSent;
+
+async function resendPitNotify(plate, checkType) {
+  await _notifyAllDrivers(`🕳️ תזכורת — בור/בדיקה ממתינה: ${plate} (${checkType}). כנס לאפליקציה ענק הרכבים.`);
+  showToast('📲 התראה נשלחה לנהגים');
+}
+window.resendPitNotify = resendPitNotify;
 
 async function fetchPitVehicle() {
   const raw = document.getElementById('pit-plate').value.trim().replace(/[^0-9]/g,'');
