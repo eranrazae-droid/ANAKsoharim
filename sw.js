@@ -1,4 +1,4 @@
-var CACHE = 'anak-sales-v28';
+var CACHE = 'anak-sales-v29';
 var FILES = [
   '/index.html',
   '/index-sales.html',

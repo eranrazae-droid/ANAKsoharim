@@ -43,6 +43,28 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
 }
 .customer-card input::placeholder{color:#c0cfe8;font-weight:400;font-size:15px}
 
+/* ── PLATE LOOKUP ── */
+.plate-lookup-card{
+  background:#fff;border-radius:14px;border:1px solid #dce6f5;
+  padding:16px 18px;margin-bottom:16px;
+  box-shadow:0 2px 8px rgba(13,31,60,.06);
+}
+.plate-lookup-title{font-size:13px;font-weight:700;color:#5a7aa5;margin-bottom:10px;letter-spacing:.04em;text-transform:uppercase}
+.plate-lookup-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.plate-lookup-input{
+  flex:1;border:1.5px solid #dce6f5;border-radius:10px;
+  padding:11px 14px;font-family:'Heebo',sans-serif;
+  font-size:20px;font-weight:700;color:#0d1f3c;outline:none;
+  transition:border-color .15s;
+}
+.plate-lookup-input:focus{border-color:#1a56db}
+.plate-lookup-spinner{font-size:20px}
+.plate-result{border-top:1px solid #eef2fb;padding-top:10px;display:flex;flex-direction:column;gap:6px}
+.plate-result-row{display:flex;justify-content:space-between;align-items:center}
+.plate-result-lbl{font-size:12px;color:#5a7aa5;font-weight:600}
+.plate-result-val{font-size:14px;font-weight:900;color:#0d1f3c}
+.plate-not-found{font-size:13px;color:#e02d2d;font-weight:700;padding-top:8px;border-top:1px solid #eef2fb}
+
 .status-opt{
   border:2px solid #dce6f5;border-radius:10px;
   background:#f5f8ff;color:#5a7aa5;
@@ -204,6 +226,47 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
     </div>
   </div>
 
+  <!-- שליפת פרטי רכב -->
+  <div class="plate-lookup-card">
+    <div class="plate-lookup-title">🔍 שליפת פרטי רכב</div>
+    <div class="plate-lookup-row">
+      <input type="text" id="lookup-plate" class="plate-lookup-input" placeholder="מספר רישוי..." inputmode="numeric" oninput="debounceLookup()">
+      <div class="plate-lookup-spinner" id="lookup-spinner" style="display:none">⏳</div>
+    </div>
+    <div class="plate-result" id="plate-result" style="display:none">
+      <div class="plate-result-row"><span class="plate-result-lbl">יצרן</span><span class="plate-result-val" id="pr-make">—</span></div>
+      <div class="plate-result-row"><span class="plate-result-lbl">דגם</span><span class="plate-result-val" id="pr-model">—</span></div>
+      <div class="plate-result-row"><span class="plate-result-lbl">שנת ייצור</span><span class="plate-result-val" id="pr-year">—</span></div>
+      <div class="plate-result-row"><span class="plate-result-lbl">עלייה לכביש</span><span class="plate-result-val" id="pr-date">—</span></div>
+    </div>
+    <div class="plate-not-found" id="plate-not-found" style="display:none">⚠️ לא נמצא רכב עבור לוחית זו</div>
+  </div>
+
+  <!-- טרייד אין -->
+  <div class="plate-lookup-card" id="tradein-card">
+    <div class="plate-lookup-title">🔄 טרייד אין</div>
+    <div style="display:flex;gap:10px;margin-bottom:10px">
+      <button class="status-opt" id="ti-yes" onclick="setTradeIn(true)">✅ כן</button>
+      <button class="status-opt" id="ti-no"  onclick="setTradeIn(false)">❌ לא</button>
+    </div>
+    <div id="ti-details" style="display:none;flex-direction:column;gap:10px">
+      <div>
+        <div class="plate-lookup-title" style="margin-bottom:6px">יש מימון על הרכב הישן?</div>
+        <div style="display:flex;gap:10px">
+          <button class="status-opt" id="ti-loan-yes" onclick="setTradeInLoan(true)">✅ כן</button>
+          <button class="status-opt" id="ti-loan-no"  onclick="setTradeInLoan(false)">❌ לא</button>
+        </div>
+      </div>
+      <div id="ti-safe-wrap">
+        <div class="plate-lookup-title" style="margin-bottom:6px">החלפה בטוחה?</div>
+        <div style="display:flex;gap:10px">
+          <button class="status-opt" id="ti-safe-yes" onclick="setTradeInSafe(true)">✅ כן</button>
+          <button class="status-opt" id="ti-safe-no"  onclick="setTradeInSafe(false)">❌ לא</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="deal-card">
     <!-- פרטי הצעה -->
     <div class="deal-section">פרטי הצעה</div>
@@ -280,6 +343,61 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
 <script>
 var currentFinanceAmt = 0;
 var currentStatus = '';
+var _lookupTimer = null;
+
+function debounceLookup() {
+  clearTimeout(_lookupTimer);
+  var plate = document.getElementById('lookup-plate').value.replace(/\D/g,'');
+  if (plate.length < 6) {
+    document.getElementById('plate-result').style.display = 'none';
+    document.getElementById('plate-not-found').style.display = 'none';
+    return;
+  }
+  _lookupTimer = setTimeout(function(){ doLookup(plate); }, 600);
+}
+
+function doLookup(plate) {
+  var spinner = document.getElementById('lookup-spinner');
+  var result  = document.getElementById('plate-result');
+  var notFound= document.getElementById('plate-not-found');
+  spinner.style.display = 'block';
+  result.style.display  = 'none';
+  notFound.style.display= 'none';
+  fetch('https://data.gov.il/api/3/action/datastore_search?resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3&filters={"mispar_rechev":"' + plate + '"}&limit=1')
+    .then(function(r){ return r.json(); })
+    .then(function(data) {
+      spinner.style.display = 'none';
+      var rec = data.result && data.result.records && data.result.records[0];
+      if (!rec) { notFound.style.display = 'block'; return; }
+      var make  = rec.tozeret_nm    || '—';
+      var model = rec.kinuy_mishari || rec.degem_nm || '—';
+      var year  = rec.shnat_yitzur  || '—';
+      var date  = rec.moed_aliya_lakvish ? rec.moed_aliya_lakvish.slice(0,10) : '—';
+      document.getElementById('pr-make').textContent  = make;
+      document.getElementById('pr-model').textContent = model;
+      document.getElementById('pr-year').textContent  = year;
+      document.getElementById('pr-date').textContent  = date;
+      result.style.display = 'flex';
+    })
+    .catch(function(){ spinner.style.display='none'; notFound.style.display='block'; });
+}
+
+function setTradeIn(val) {
+  document.getElementById('ti-yes').classList.toggle('active', val);
+  document.getElementById('ti-no').classList.toggle('active', !val);
+  document.getElementById('ti-details').style.display = val ? 'flex' : 'none';
+  scheduleAutoSave();
+}
+function setTradeInLoan(val) {
+  document.getElementById('ti-loan-yes').classList.toggle('active', val);
+  document.getElementById('ti-loan-no').classList.toggle('active', !val);
+  scheduleAutoSave();
+}
+function setTradeInSafe(val) {
+  document.getElementById('ti-safe-yes').classList.toggle('active', val);
+  document.getElementById('ti-safe-no').classList.toggle('active', !val);
+  scheduleAutoSave();
+}
 
 function setStatus(btn) {
   currentStatus = btn.dataset.status;
