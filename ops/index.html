@@ -525,6 +525,9 @@ if ('serviceWorker' in navigator) {
         <button type="button" class="ci-box" data-key="c-battery-is-original" data-val="x" onclick="ciClick(this);batteryIsOriginalToggle(this)">✕</button>
       </div>
     </div>
+    <div id="battery-original-note-row" style="display:none" class="ci-note-row">
+      <textarea class="form-textarea" id="cn-c-battery-original" placeholder="הערה על בדיקת מצבר..." rows="2"></textarea>
+    </div>
     <div id="battery-is-original-note-row" style="display:none;padding-right:24px" class="ci-note-row">
       <textarea class="form-textarea" id="cn-c-battery-is-original" placeholder="הערה על מצבר..." rows="2"></textarea>
     </div>
@@ -2142,7 +2145,19 @@ async function submitDriverIntake() {
 
   // x-marked items: must have note; photo items must also have photo
   for (const key of Object.keys(_ciLabels)) {
-    if (key === 'c-battery-original') continue; // battery has its own date/photo fields
+    if (key === 'c-battery-original') {
+      const xActive = document.querySelector('#modal-driver-intake .ci-box[data-key="c-battery-original"].x-active');
+      if (xActive) {
+        const noteEl = document.getElementById('cn-c-battery-original');
+        if (!noteEl || !noteEl.value.trim()) {
+          document.getElementById('battery-original-note-row')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          noteEl?.focus();
+          showToast('נא למלא הערה עבור: בדיקת מצבר');
+          return;
+        }
+      }
+      continue;
+    }
     if (key === 'c-battery-is-original') continue;
     if (key === 'c-frames-ext') continue; // no note field for frames
     const xActive = document.querySelector(`#modal-driver-intake .ci-box[data-key="${key}"].x-active`);
@@ -2509,7 +2524,11 @@ const ciPhotoFiles = {}; // { 'c-upholstery': [File,...], ... }
 let _batteryPhotoFiles = [];
 window._batteryPhotoUrls = {};
 
-function batteryOriginalToggle(btn) { /* no-op */ }
+function batteryOriginalToggle(btn) {
+  const noteRow = document.getElementById('battery-original-note-row');
+  if (noteRow) noteRow.style.display = btn.dataset.val === 'x' ? 'block' : 'none';
+  if (btn.dataset.val === 'v') { const t = document.getElementById('cn-c-battery-original'); if (t) t.value = ''; }
+}
 window.batteryOriginalToggle = batteryOriginalToggle;
 function batteryIsOriginalToggle(btn) {
   const sec = document.getElementById('battery-date-section');
