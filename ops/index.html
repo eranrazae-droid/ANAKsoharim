@@ -2224,8 +2224,22 @@ async function submitDriverIntake() {
     }
   }
 
+  // upload battery photos
+  if (_batteryPhotoFiles?.length) {
+    try {
+      const b64s = [];
+      for (let i = 0; i < _batteryPhotoFiles.length; i++) {
+        showToast(`⏳ מעבד תמונת מצבר ${i+1}/${_batteryPhotoFiles.length}...`);
+        b64s.push(await compressToBase64(_batteryPhotoFiles[i]));
+      }
+      window._batteryPhotoUrls = { battery: b64s };
+    } catch(pe) {
+      console.warn('battery photo upload failed', pe);
+      showToast('⚠️ תמונת מצבר לא הועלתה: ' + (pe.code || pe.message), 4000);
+    }
+  }
+
   try {
-    await _updateDoc(_docRef('intake_assignments', _currentIntakeId), {
       checklist,
       notes,
       km,
