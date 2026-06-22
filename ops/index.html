@@ -843,6 +843,18 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
+<!-- ====== SCREEN: TEST BOARD ====== -->
+<div id="screen-testboard" class="screen">
+  <div class="app-header">
+    <button class="back-btn" onclick="goHome()">→</button>
+    <div class="logo">🧪 לוח טסטים</div>
+    <div class="user-badge" id="testboard-user-badge" onclick="logout()"></div>
+  </div>
+  <div style="padding:16px 16px 100px" id="testboard-list">
+    <div class="loading"><div class="spinner"></div> טוען...</div>
+  </div>
+</div>
+
 <!-- ====== MODAL: EDIT INTAKE ====== -->
 <div class="modal-overlay" id="modal-edit-intake">
   <div class="modal-box">
@@ -1183,6 +1195,7 @@ function renderHome() {
         { icon: '📦', title: 'בדיקת מלאי', sub: 'סימון רכבים במגרש', screen: 'inventory' },
         { icon: '🕳️', title: 'בורות', sub: 'ניהול בדיקות בבורות', screen: 'pits' },
         { icon: '📲', title: 'הודעות WhatsApp', sub: 'הגדרות התראות לנהגים', screen: '_notify' },
+        { icon: '🧪', title: 'לוח טסטים', sub: 'משימות משתמש בדיקות', screen: 'testboard' },
       ]
     : [
         { icon: '📋', title: 'המשימות שלי', sub: 'משימות שהוקצו לך', screen: 'tasks' },
@@ -1218,6 +1231,7 @@ function goToScreen(name) {
   else if (name === 'pits') openPitsScreen();
   else if (name === 'driver-inventory') openDriverInventoryScreen();
   else if (name === '_notify') openNotifySettings();
+  else if (name === 'testboard') openTestBoard();
 }
 
 function loadStats() {
@@ -4262,6 +4276,71 @@ async function _notifyAllDrivers(message) {
     if (!key.startsWith('_') && key !== 'ליאל' && c?.phone) _sendWhatsApp(c.phone, message);
   }
 }
+
+// ─── Test board screen ─────────────────────────────────
+function openTestBoard() {
+  if (currentUser?.role !== 'manager') return;
+  showScreen('testboard');
+  document.getElementById('testboard-user-badge').textContent = currentUser.name;
+  const el = document.getElementById('testboard-list');
+  el.innerHTML = '<div class="loading"><div class="spinner"></div> טוען...</div>';
+
+  const TEST_USER = 'משתמש בדיקות';
+  const sections = { intakes: [], tasks: [] };
+  let loaded = 0;
+  const tryRender = () => { if (++loaded === 3) renderTestBoard(sections); };
+
+  // pending intakes assigned to test user
+  _onSnap(_query(_colRef('intake_assignments'), _where('assignedTo','==',TEST_USER)), snap => {
+    sections.intakes = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderTestBoard(sections);
+  });
+  // tasks assigned to test user
+  _onSnap(_query(_colRef('tasks'), _where('assignedTo','==',TEST_USER)), snap => {
+    sections.tasks = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderTestBoard(sections);
+  });
+  renderTestBoard(sections);
+}
+
+function renderTestBoard(sections) {
+  const el = document.getElementById('testboard-list');
+  if (!el) return;
+  let html = '';
+
+  if (sections.intakes.length) {
+    html += `<div style="font-weight:900;font-size:15px;margin:12px 0 8px">🚗 קליטות רכב</div>`;
+    html += sections.intakes.map(v => {
+      const status = v.status === 'done' ? '✅ הושלמה' : '⏳ ממתינה';
+      const bg = v.status === 'done' ? '#f0fff4' : '#fff';
+      return `<div style="background:${bg};border:2px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:8px;cursor:pointer" onclick="viewIntake('${v.id}')">
+        <div style="font-weight:800;font-size:16px">${esc(v.plate||'')} — ${esc(v.brand||'')} ${esc(v.model||'')}</div>
+        <div style="font-size:13px;color:var(--muted);margin-top:4px">${status} ${v.intakeDateTime ? '· ' + esc(v.intakeDateTime) : ''}</div>
+      </div>`;
+    }).join('');
+  }
+
+  if (sections.tasks.length) {
+    html += `<div style="font-weight:900;font-size:15px;margin:12px 0 8px">📋 משימות</div>`;
+    html += sections.tasks.map(t => {
+      const done = t.status === 'done';
+      return `<div style="background:${done?'#f0fff4':'#fff'};border:2px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:8px">
+        <div style="font-weight:700;font-size:15px;${done?'text-decoration:line-through;color:var(--muted)':''}">${esc(t.title||'')}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px">${done?'✅ הושלמה':'⏳ פתוחה'} ${t.label?'· '+esc(t.label):''}</div>
+      </div>`;
+    }).join('');
+  }
+
+  if (!html) {
+    html = `<div style="text-align:center;padding:60px 20px;color:var(--muted)">
+      <div style="font-size:48px;margin-bottom:12px">🧪</div>
+      <div style="font-weight:700;font-size:16px">אין משימות טסטים</div>
+    </div>`;
+  }
+
+  el.innerHTML = html;
+}
+window.openTestBoard = openTestBoard;
 
 // ─── Settings screen ───────────────────────────────────
 async function openNotifySettings() {
