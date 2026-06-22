@@ -2395,8 +2395,10 @@ async function viewIntakeForm(id) {
     const bg = val === 'v' ? '#f0fff4' : '#fff0f0';
     const note = cl[key+'_note'] ? `<div style="font-size:12px;color:#555;margin-top:4px">📝 ${esc(cl[key+'_note'])}</div>` : '';
     // match photos by exact key or any key that starts with the same prefix
-    const keyPhotos = (photos[key]||[]).length ? photos[key]
-      : Object.entries(photos).filter(([k]) => k.startsWith(key) || key.startsWith(k)).flatMap(([,v]) => v);
+    const keyPhotos = key === 'c-battery-original'
+      ? Object.values(v.batteryPhotoUrls || {}).flat()
+      : (photos[key]||[]).length ? photos[key]
+        : Object.entries(photos).filter(([k]) => k.startsWith(key) || key.startsWith(k)).flatMap(([,v]) => v);
     const plate = esc(v.plate || '');
     const imgs = keyPhotos.length
       ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${keyPhotos.map(url =>
