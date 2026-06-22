@@ -249,6 +249,7 @@ if ('serviceWorker' in navigator) {
         <option value="איתי">איתי</option>
         <option value="משתמש בדיקות">משתמש בדיקות</option>
         <option value="ליאל">ליאל</option>
+
       </select>
     </div>
     <div id="manager-password-wrap" style="display:none;margin-top:14px">
@@ -365,6 +366,7 @@ if ('serviceWorker' in navigator) {
         <option value="עופר">עופר</option>
         <option value="גיל">גיל</option>
         <option value="איתי">איתי</option>
+        <option value="משתמש בדיקות">משתמש בדיקות</option>
       </select>
     </div>
     <div class="form-group">
@@ -406,6 +408,7 @@ if ('serviceWorker' in navigator) {
         <option value="עופר">עופר</option>
         <option value="גיל">גיל</option>
         <option value="איתי">איתי</option>
+        <option value="משתמש בדיקות">משתמש בדיקות</option>
       </select>
     </div>
     <div class="form-group">
@@ -857,6 +860,7 @@ if ('serviceWorker' in navigator) {
         <option value="עופר">עופר</option>
         <option value="גיל">גיל</option>
         <option value="איתי">איתי</option>
+        <option value="משתמש בדיקות">משתמש בדיקות</option>
       </select>
     </div>
     <button class="btn-submit" onclick="saveEditIntake()">💾 שמור שינויים</button>
@@ -1497,7 +1501,7 @@ async function _onDrop(e, newLabel, beforeId, afterId) {
   // Update assignedTo based on new label
   const colToAssigned = {
     'רפד':'רפד','זגג':'זגג','חביב':'חביב','ולאדי':'ולאדי','גיל':'גיל',
-    'עופר':'עופר','איתי':'איתי','רדארים':'רדארים','משימות כלליות':'כולם',
+    'עופר':'עופר','איתי':'איתי','משתמש בדיקות':'משתמש בדיקות','רדארים':'רדארים','משימות כלליות':'כולם',
   };
   if (newLabel && colToAssigned[newLabel]) updates.assignedTo = colToAssigned[newLabel];
 
@@ -1513,7 +1517,7 @@ function renderTasksFromCache() {
   const isManager = currentUser?.role === 'manager';
   const myName = currentUser?.name || '';
 
-  const _driverNames = ['עופר','גיל','איתי'];
+  const _driverNames = ['עופר','גיל','איתי','משתמש בדיקות'];
   let allTasks = tasksCache;
   if (!isManager) {
     allTasks = allTasks.filter(t => t.label === myName || t.assignedTo === myName);
@@ -1650,7 +1654,7 @@ function renderTasksFromCache() {
   const colColors = {
     'משימות כלליות':'#6366f1','חביב':'#f59e0b','ולאדי':'#3b82f6',
     'רפד':'#ec4899','זגג':'#10b981','רדארים':'#8b5cf6',
-    'עופר':'#0ea5e9','גיל':'#f97316','איתי':'#84cc16',
+    'עופר':'#0ea5e9','גיל':'#f97316','איתי':'#84cc16','משתמש בדיקות':'#a855f7',
   };
 
   // Regular single-label columns
@@ -1691,11 +1695,11 @@ function renderTasksFromCache() {
   const driversCol = document.createElement('div');
   driversCol.className = 'task-col';
   driversCol.style.minWidth = '260px'; driversCol.style.maxWidth = '260px';
-  const drOpenCount = ['עופר','גיל','איתי'].reduce((s,l) => s + allTasks.filter(t=>t.label===l&&t.status!=='done').length, 0);
+  const drOpenCount = ['עופר','גיל','איתי','משתמש בדיקות'].reduce((s,l) => s + allTasks.filter(t=>t.label===l&&t.status!=='done').length, 0);
   driversCol.innerHTML = `<div class="task-col-header"><span class="task-col-title" style="color:#475569">נהגים</span><span class="task-col-count">${drOpenCount}</span></div>`;
   const drCards = document.createElement('div');
   drCards.className = 'task-col-cards';
-  ['עופר','גיל','איתי'].forEach(driver => {
+  ['עופר','גיל','איתי','משתמש בדיקות'].forEach(driver => {
     const tasks = sortTasks(allTasks.filter(t => t.label === driver));
     const sub = document.createElement('div');
     sub.style.marginBottom = '10px';
@@ -1953,7 +1957,7 @@ function loadVehicles() {
     }
 
     if (isManager) {
-      const drivers = ['ליאל','עופר','גיל','איתי'];
+      const drivers = ['ליאל','עופר','גיל','איתי','משתמש בדיקות'];
       summary.style.display = 'grid';
       const activeFilter = window._vehicleDriverFilter || null;
       summary.innerHTML = drivers.map(name => {
@@ -4161,7 +4165,7 @@ async function openNotifySettings() {
   const token   = contacts['_token']?.value  || '';
   const from    = contacts['_from']?.value   || '';
   const funcUrl = contacts['_funcUrl']?.value || '';
-  const drivers = ['ליאל','עופר','גיל','איתי'];
+  const drivers = ['ליאל','עופר','גיל','איתי','משתמש בדיקות'];
   const apiRow = `
     <div style="border:2px solid #f22f46;border-radius:12px;padding:12px 14px;margin-bottom:14px;background:#fff5f5">
       <div style="font-weight:900;font-size:14px;margin-bottom:8px;color:#f22f46">📱 Twilio — פרטי חיבור</div>
@@ -4185,7 +4189,7 @@ async function openNotifySettings() {
 }
 
 async function saveNotifySettings() {
-  const drivers = ['ליאל','עופר','גיל','איתי'];
+  const drivers = ['ליאל','עופר','גיל','איתי','משתמש בדיקות'];
   const data = {};
   const sid     = document.getElementById('nc-sid')?.value.trim();
   const token   = document.getElementById('nc-token')?.value.trim();
