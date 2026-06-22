@@ -2446,7 +2446,12 @@ async function viewIntakeForm(id) {
     if (!val) continue;
     const icon = val === 'v' ? '✅' : '❌';
     const bg = val === 'v' ? '#f0fff4' : '#fff0f0';
-    const note = cl[key+'_note'] ? `<div style="font-size:12px;color:#555;margin-top:4px">📝 ${esc(cl[key+'_note'])}</div>` : '';
+    let noteText = cl[key+'_note'] || '';
+    // special: when מצבר מקורי is ✕ and driver checked "לא רואים תאריך"
+    if (key === 'c-battery-is-original' && val === 'x' && v.batteryNoDate) {
+      noteText = noteText ? noteText + ' · לא ניתן לראות תאריך מצבר' : 'לא ניתן לראות תאריך מצבר';
+    }
+    const note = noteText ? `<div style="font-size:12px;color:#555;margin-top:4px">📝 ${esc(noteText)}</div>` : '';
     // match photos by exact key or any key that starts with the same prefix
     const keyPhotos = key === 'c-battery-original'
       ? Object.values(v.batteryPhotoUrls || {}).flat()
@@ -2462,11 +2467,6 @@ async function viewIntakeForm(id) {
     </div>`;
   }
 
-  const extraPhotos = filteredUrls.length
-    ? `<div style="margin-bottom:14px"><div style="font-weight:900;font-size:13px;color:var(--muted);margin-bottom:8px">📸 תמונות (${filteredUrls.length})</div>
-       <div style="display:flex;gap:8px;flex-wrap:wrap">${filteredUrls.map(url =>
-         `<img src="${url}" onclick="openPhotoZoom('${url}','${esc(v.plate||'')}')" style="width:90px;height:90px;object-fit:cover;border-radius:10px;cursor:pointer;border:2px solid #ccc">`
-       ).join('')}</div></div>` : '';
 
   const km = v.km ? `<span style="margin-left:16px;background:#fef08a;padding:2px 8px;border-radius:6px;font-weight:700"><strong>ק"מ:</strong> ${esc(v.km)}</span>` : '';
   const code = v.code ? `<span style="background:#fef08a;padding:2px 8px;border-radius:6px;font-weight:700"><strong>קוד:</strong> ${esc(v.code)}</span>` : '';
@@ -2479,7 +2479,6 @@ async function viewIntakeForm(id) {
       נהג קולט: <strong>${esc(v.completedBy||v.assignedTo||'')}</strong> · ${ts}${v.intakeDateTime ? '<br>תאריך קליטה: <strong>' + esc(v.intakeDateTime) + '</strong>' : ''}
     </div>
     ${notes}
-    ${extraPhotos}
     <div style="font-weight:900;font-size:13px;color:var(--muted);margin-bottom:8px">🔍 ממצאי בדיקה</div>
     ${rows || '<div style="color:var(--muted);text-align:center;padding:20px">אין נתוני צ׳קליסט</div>'}
   `;
