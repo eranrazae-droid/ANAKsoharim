@@ -516,8 +516,8 @@ if ('serviceWorker' in navigator) {
     <div class="checklist-item" style="padding-right:24px;background:rgba(0,0,0,0.03);border-radius:8px;margin-top:2px">
       <span class="ci-label" style="font-size:13px;color:var(--muted)">מצבר מקורי</span>
       <div class="ci-btns">
-        <button type="button" class="ci-box" data-key="c-battery-is-original" data-val="v" onclick="ciClick(this)">✓</button>
-        <button type="button" class="ci-box" data-key="c-battery-is-original" data-val="x" onclick="ciClick(this)">✕</button>
+        <button type="button" class="ci-box" data-key="c-battery-is-original" data-val="v" onclick="ciClick(this);batteryIsOriginalToggle(this)">✓</button>
+        <button type="button" class="ci-box" data-key="c-battery-is-original" data-val="x" onclick="ciClick(this);batteryIsOriginalToggle(this)">✕</button>
       </div>
     </div>
     <div class="ci-note-row" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -526,7 +526,7 @@ if ('serviceWorker' in navigator) {
       <input type="file" accept="image/*" capture="environment" id="file-battery" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" onchange="addBatteryPhoto(this)">
       <div id="battery-photos" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;width:100%"></div>
     </div>
-    <div id="battery-date-section" style="display:block" class="ci-note-row">
+    <div id="battery-date-section" style="display:none" class="ci-note-row">
       <div class="form-group" style="margin:0">
         <label style="font-size:12px">חודש מצבר <span style="color:#ef4444">*</span></label>
         <input type="month" class="form-input" id="di-battery-month" style="font-family:Heebo,sans-serif">
@@ -2169,7 +2169,8 @@ async function submitDriverIntake() {
     return;
   }
   const batteryMonth = document.getElementById('di-battery-month').value;
-  if (!batteryMonth) {
+  const batteryDateVisible = document.getElementById('battery-date-section')?.style.display !== 'none';
+  if (batteryDateVisible && !batteryMonth) {
     document.getElementById('di-battery-month')?.scrollIntoView({ behavior:'smooth', block:'center' });
     showToast('⚠️ נא למלא חודש מצבר');
     return;
@@ -2247,7 +2248,7 @@ async function submitDriverIntake() {
   const bpCount = document.getElementById('battery-photo-count');
   if (bpCount) bpCount.textContent = '';
   const bm = document.getElementById('di-battery-month'); if (bm) bm.value = '';
-  const bds = document.getElementById('battery-date-section'); if (bds) bds.style.display = 'block';
+  const bds = document.getElementById('battery-date-section'); if (bds) bds.style.display = 'none';
   closeModal('modal-driver-intake');
   showToast('✅ הטופס נשלח בהצלחה!');
   _notifyDriver('ליאל', `✅ ${_doneDriver} סיים קליטת רכב — ${_donePlate}`);
@@ -2489,8 +2490,14 @@ const ciPhotoFiles = {}; // { 'c-upholstery': [File,...], ... }
 let _batteryPhotoFiles = [];
 window._batteryPhotoUrls = {};
 
-function batteryOriginalToggle(btn) { /* date section always visible */ }
+function batteryOriginalToggle(btn) { /* no-op */ }
 window.batteryOriginalToggle = batteryOriginalToggle;
+function batteryIsOriginalToggle(btn) {
+  const sec = document.getElementById('battery-date-section');
+  if (!sec) return;
+  sec.style.display = btn.dataset.val === 'x' ? 'block' : 'none';
+}
+window.batteryIsOriginalToggle = batteryIsOriginalToggle;
 
 function addBatteryPhoto(input) {
   const files = [...input.files];
