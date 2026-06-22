@@ -677,11 +677,12 @@
       const fd = new FormData();
       fd.append('file', file);
       fd.append('upload_preset', cfg.uploadPreset);
-      fd.append('public_id', 'autodealer_sync');
       const r = await fetch('https://api.cloudinary.com/v1_1/'+cfg.cloudName+'/image/upload', {method:'POST',body:fd});
       const j = await r.json();
-      if(j.secure_url) toast('☁️ נתונים סונכרנו לענן');
-      else toast('❌ Cloudinary: ' + (j.error&&j.error.message||JSON.stringify(j)));
+      if(j.secure_url){
+        localStorage.setItem('cld_sync_url', j.secure_url.split('?')[0]);
+        toast('☁️ נתונים סונכרנו לענן');
+      } else toast('❌ Cloudinary: ' + (j.error&&j.error.message||JSON.stringify(j)));
     }catch(e){ console.warn('Cloud sync failed', e); }
   }
 
