@@ -535,10 +535,12 @@ function shareWA() {
   msg += '📊 סה"כ עסקה: ' + fmtNum(totalDeal) + '\n';
   if (cash > 0) msg += '💵 כסף מהלקוח: ' + fmtNum(cash) + '\n';
   msg += '🏦 *מימון: ' + fmtNum(currentFinanceAmt) + '*\n\n';
-  if (currentMonthly > 0) {
-    msg += '📅 *החזר חודשי: ' + fmtNum(currentMonthly) + '*\n';
+  var monthly = currentMonthly || pmt(currentFinanceAmt, currentRate, currentN);
+  if (monthly > 0) {
+    var interest = Math.round(monthly - currentFinanceAmt / currentN);
+    msg += '📅 *החזר חודשי: ' + fmtNum(monthly) + '*\n';
     msg += currentTrackName + ' · ' + currentN + ' תשלומים\n';
-    msg += 'עלות מימון: ' + fmtNum(currentMonthly * currentN - currentFinanceAmt);
+    msg += 'עלות ריבית: ' + fmtNum(interest) + '/חודש\n';
   }
 
   window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
