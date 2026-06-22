@@ -71,10 +71,38 @@ body{
 .tool-title{font-size:18px;font-weight:900;color:#0d1f3c}
 .tool-desc{font-size:13px;color:#5a7aa5;margin-top:3px}
 
-.tool-btn.new   { border-right:5px solid #1a56db; }
-.tool-btn.used  { border-right:5px solid #c9a227; }
-.tool-btn.quote { border-right:5px solid #16a34a; }
-.tool-btn.bank  { border-right:5px solid #7c3aed; }
+.tool-btn.new    { border-right:5px solid #1a56db; }
+.tool-btn.used   { border-right:5px solid #c9a227; }
+.tool-btn.quote  { border-right:5px solid #16a34a; }
+.tool-btn.bank   { border-right:5px solid #7c3aed; }
+.tool-btn.status { border-right:5px solid #e02d2d; }
+
+/* ── QUOTES MODAL ── */
+.q-list{display:flex;flex-direction:column;gap:10px}
+.q-item{
+  border:1.5px solid #dce6f5;border-radius:12px;
+  padding:12px 14px;cursor:pointer;
+  transition:background .1s;
+}
+.q-item:hover{background:#f5f8ff}
+.q-item-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.q-name{font-size:15px;font-weight:900;color:#0d1f3c}
+.q-date{font-size:11px;color:#7a9ab8}
+.q-detail{font-size:12px;color:#5a7aa5;margin-bottom:4px}
+.q-monthly{font-size:20px;font-weight:900;color:#1a56db}
+.q-rep{font-size:11px;color:#7a9ab8;margin-top:2px}
+.q-empty{text-align:center;color:#7a9ab8;font-size:14px;padding:32px 0}
+.q-open-btn{
+  display:block;width:100%;
+  background:#1a56db;color:#fff;border:none;border-radius:10px;
+  font-family:'Heebo',sans-serif;font-size:14px;font-weight:700;
+  padding:11px;margin-top:14px;cursor:pointer;text-decoration:none;text-align:center;
+}
+.q-delete-btn{
+  background:none;border:none;color:#c0cfe8;font-size:16px;cursor:pointer;
+  padding:2px 6px;line-height:1;border-radius:6px;
+}
+.q-delete-btn:hover{color:#e02d2d;background:#fff0f0}
 
 .footer{
   text-align:center;
@@ -200,6 +228,14 @@ body{
     </div>
   </a>
 
+  <button class="tool-btn status" onclick="openQuotes()">
+    <div class="tool-icon">📊</div>
+    <div class="tool-text">
+      <div class="tool-title">סטטוס הצעות</div>
+      <div class="tool-desc" id="quotes-count">טוען...</div>
+    </div>
+  </button>
+
   <button class="tool-btn bank" onclick="document.getElementById('bankModal').classList.add('open')">
     <div class="tool-icon">🏦</div>
     <div class="tool-text">
@@ -211,6 +247,20 @@ body{
 </div>
 
 <div class="footer">ענק הרכבים · כלי פנימי לאנשי מכירות</div>
+
+<!-- QUOTES MODAL -->
+<div class="modal-overlay" id="quotesModal" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div class="modal-hdr-title">סטטוס הצעות</div>
+      <button class="modal-close" onclick="document.getElementById('quotesModal').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="q-list" id="q-list"></div>
+      <a class="q-open-btn" href="quote.html">+ הצעה חדשה</a>
+    </div>
+  </div>
+</div>
 
 <!-- BANK MODAL -->
 <div class="modal-overlay" id="bankModal" onclick="if(event.target===this)this.classList.remove('open')">
@@ -336,6 +386,53 @@ function printBank(key) {
   w.document.close();
   w.print();
 }
+
+function fmtQ(n){ return '₪ ' + Math.round(n||0).toLocaleString('he-IL'); }
+
+function openQuotes() {
+  renderQuotes();
+  document.getElementById('quotesModal').classList.add('open');
+}
+
+function deleteQuote(i, e) {
+  e.stopPropagation();
+  var hist = JSON.parse(localStorage.getItem('anak-quotes') || '[]');
+  hist.splice(i, 1);
+  localStorage.setItem('anak-quotes', JSON.stringify(hist));
+  renderQuotes();
+  updateQuoteCount();
+}
+
+function renderQuotes() {
+  var hist = JSON.parse(localStorage.getItem('anak-quotes') || '[]');
+  var el = document.getElementById('q-list');
+  if (!hist.length) {
+    el.innerHTML = '<div class="q-empty">אין הצעות שמורות</div>';
+    return;
+  }
+  var html = '';
+  hist.forEach(function(item, i) {
+    var encoded = encodeURIComponent(JSON.stringify(item));
+    html += '<div class="q-item" onclick="location.href=\'quote.html\'">';
+    html += '<div class="q-item-top">';
+    html += '<span class="q-name">' + (item.customer || 'לא ידוע') + '</span>';
+    html += '<button class="q-delete-btn" onclick="deleteQuote(' + i + ',event)">🗑</button>';
+    html += '</div>';
+    if (item.newCar) html += '<div class="q-detail">' + item.newCar + '</div>';
+    html += '<div class="q-monthly">' + fmtQ(item.monthly) + '<span style="font-size:13px;font-weight:400;color:#5a7aa5"> /חודש</span></div>';
+    html += '<div class="q-rep">' + (item.rep ? 'נציג: ' + item.rep + ' · ' : '') + (item.date || '') + '</div>';
+    html += '</div>';
+  });
+  el.innerHTML = html;
+}
+
+function updateQuoteCount() {
+  var hist = JSON.parse(localStorage.getItem('anak-quotes') || '[]');
+  var el = document.getElementById('quotes-count');
+  if (el) el.textContent = hist.length ? hist.length + ' הצעות שמורות' : 'אין הצעות עדיין';
+}
+
+updateQuoteCount();
 </script>
 
 </body>
