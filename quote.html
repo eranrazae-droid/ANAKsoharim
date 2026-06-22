@@ -304,7 +304,10 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
     </div>
     <div class="deal-row finance-row">
       <div class="deal-label">סכום מימון</div>
-      <div class="deal-val computed" id="finance-amount">—</div>
+      <div class="deal-val computed" style="flex-direction:column;gap:2px">
+        <span id="finance-amount">—</span>
+        <span id="finance-pct" style="font-size:12px;color:#5a7aa5;font-weight:600"></span>
+      </div>
     </div>
   </div>
 
@@ -666,6 +669,12 @@ function calc() {
 
   var financeDisplay = totalDeal > 0 ? Math.max(0, financeAmt) : 0;
   document.getElementById('finance-amount').textContent = totalDeal ? fmtNum(financeDisplay) : '—';
+  var pctEl = document.getElementById('finance-pct');
+  if (totalDeal > 0 && financeDisplay > 0) {
+    pctEl.textContent = Math.round(financeDisplay / totalDeal * 100) + '% מימון מסה"כ העסקה';
+  } else {
+    pctEl.textContent = '';
+  }
 
   var box = document.getElementById('monthly-box');
   var actions = document.getElementById('action-row');
