@@ -850,7 +850,7 @@ if ('serviceWorker' in navigator) {
     <div class="logo">🧪 לוח טסטים</div>
     <div class="user-badge" id="testboard-user-badge" onclick="logout()"></div>
   </div>
-  <div style="padding:16px 16px 100px" id="testboard-list">
+  <div id="testboard-list" class="task-board">
     <div class="loading"><div class="spinner"></div> טוען...</div>
   </div>
 </div>
@@ -1190,7 +1190,6 @@ function renderHome() {
     ? [
         { icon: '📋', title: 'לוח משימות', sub: 'ניהול משימות לנהגים', screen: 'tasks' },
         { icon: '🚗', title: 'קליטת רכב', sub: 'רכבים במגרש', screen: 'vehicles' },
-        { icon: '🔧', title: 'הזמנת חלקים', sub: 'בקשות ועדכונים', screen: 'parts' },
         { icon: '🅿️', title: 'סידור מגרש', sub: 'טבלת חניות', screen: 'yard' },
         { icon: '📦', title: 'בדיקת מלאי', sub: 'סימון רכבים במגרש', screen: 'inventory' },
         { icon: '🕳️', title: 'בורות', sub: 'ניהול בדיקות בבורות', screen: 'pits' },
@@ -4278,67 +4277,152 @@ async function _notifyAllDrivers(message) {
 }
 
 // ─── Test board screen ─────────────────────────────────
+let _testBoardUnsub = null;
+let _testTasksCache = [];
+
 function openTestBoard() {
   if (currentUser?.role !== 'manager') return;
   showScreen('testboard');
   document.getElementById('testboard-user-badge').textContent = currentUser.name;
   const el = document.getElementById('testboard-list');
+  el.className = 'task-board';
   el.innerHTML = '<div class="loading"><div class="spinner"></div> טוען...</div>';
 
-  const TEST_USER = 'משתמש בדיקות';
-  const sections = { intakes: [], tasks: [] };
-  let loaded = 0;
-  const tryRender = () => { if (++loaded === 3) renderTestBoard(sections); };
-
-  // pending intakes assigned to test user
-  _onSnap(_query(_colRef('intake_assignments'), _where('assignedTo','==',TEST_USER)), snap => {
-    sections.intakes = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    renderTestBoard(sections);
+  if (_testBoardUnsub) _testBoardUnsub();
+  _testBoardUnsub = _onSnap(_colRef('tasks'), snap => {
+    _testTasksCache = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .filter(t => t.createdBy === 'משתמש בדיקות')
+      .sort((a,b) => (b.createdAt?.toMillis?.()??0) - (a.createdAt?.toMillis?.()??0));
+    renderTestBoard();
   });
-  // tasks assigned to test user
-  _onSnap(_query(_colRef('tasks'), _where('assignedTo','==',TEST_USER)), snap => {
-    sections.tasks = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    renderTestBoard(sections);
-  });
-  renderTestBoard(sections);
 }
 
-function renderTestBoard(sections) {
+function renderTestBoard() {
   const el = document.getElementById('testboard-list');
   if (!el) return;
-  let html = '';
+  const tasks = _testTasksCache;
 
-  if (sections.intakes.length) {
-    html += `<div style="font-weight:900;font-size:15px;margin:12px 0 8px">🚗 קליטות רכב</div>`;
-    html += sections.intakes.map(v => {
-      const status = v.status === 'done' ? '✅ הושלמה' : '⏳ ממתינה';
-      const bg = v.status === 'done' ? '#f0fff4' : '#fff';
-      return `<div style="background:${bg};border:2px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:8px;cursor:pointer" onclick="viewIntake('${v.id}')">
-        <div style="font-weight:800;font-size:16px">${esc(v.plate||'')} — ${esc(v.brand||'')} ${esc(v.model||'')}</div>
-        <div style="font-size:13px;color:var(--muted);margin-top:4px">${status} ${v.intakeDateTime ? '· ' + esc(v.intakeDateTime) : ''}</div>
-      </div>`;
-    }).join('');
+  const colColors = {
+    'משימות כלליות':'#6366f1','חביב':'#f59e0b','ולאדי':'#3b82f6',
+    'רפד':'#ec4899','זגג':'#10b981','רדארים':'#8b5cf6',
+    'עופר':'#0ea5e9','גיל':'#f97316','איתי':'#84cc16','משתמש בדיקות':'#a855f7',
+  };
+
+  const statusLabel = { open:'פתוחה', inprog:'בביצוע', done:'הושלמה' };
+
+  function sortCol(arr) {
+    return [...arr].sort((a,b) => {
+      const dA = a.status==='done'?1:0, dB = b.status==='done'?1:0;
+      if (dA !== dB) return dA - dB;
+      return (a.sortOrder ?? a.createdAt?.toMillis?.() ?? 0) - (b.sortOrder ?? b.createdAt?.toMillis?.() ?? 0);
+    });
   }
 
-  if (sections.tasks.length) {
-    html += `<div style="font-weight:900;font-size:15px;margin:12px 0 8px">📋 משימות</div>`;
-    html += sections.tasks.map(t => {
-      const done = t.status === 'done';
-      return `<div style="background:${done?'#f0fff4':'#fff'};border:2px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:8px">
-        <div style="font-weight:700;font-size:15px;${done?'text-decoration:line-through;color:var(--muted)':''}">${esc(t.title||'')}</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:4px">${done?'✅ הושלמה':'⏳ פתוחה'} ${t.label?'· '+esc(t.label):''}</div>
+  function makeCard(t) {
+    const done = t.status === 'done';
+    const card = document.createElement('div');
+    card.className = `task-card${t.color?' color-'+t.color:''}${done?' done':''}`;
+    card.innerHTML = `
+      <div class="task-top">
+        <div class="task-title">${esc(t.title)}</div>
+        <div style="display:flex;gap:4px;flex-shrink:0">
+          <button onclick="deleteTask('${t.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:999px;width:24px;height:24px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center">🗑</button>
+        </div>
+      </div>
+      ${t.notes ? `<div class="task-notes">${esc(t.notes)}</div>` : ''}
+      <div class="task-meta">
+        <span class="tag status-${t.status}" style="font-size:11px">${statusLabel[t.status]||t.status}</span>
+        <span class="tag" style="font-size:11px;background:#ede9fe;color:#5b21b6">${esc(t.label||'')}</span>
       </div>`;
-    }).join('');
+    return card;
   }
 
-  if (!html) {
-    html = `<div style="text-align:center;padding:60px 20px;color:var(--muted)">
+  function makeCol(label, color, colTasks) {
+    const col = document.createElement('div');
+    col.className = 'task-col';
+    const openCount = colTasks.filter(t => t.status !== 'done').length;
+    const header = document.createElement('div');
+    header.className = 'task-col-header';
+    header.innerHTML = `<span class="task-col-title" style="color:${color}">${label}</span><span class="task-col-count">${openCount}</span>`;
+    col.appendChild(header);
+    const cards = document.createElement('div');
+    cards.className = 'task-col-cards';
+    if (colTasks.length === 0) {
+      cards.innerHTML = `<div style="text-align:center;color:var(--muted);font-size:13px;padding:20px 0">אין משימות</div>`;
+    } else {
+      colTasks.forEach(t => cards.appendChild(makeCard(t)));
+    }
+    col.appendChild(cards);
+    return col;
+  }
+
+  el.innerHTML = '';
+
+  if (tasks.length === 0) {
+    el.innerHTML = `<div style="text-align:center;padding:60px 20px;color:var(--muted);width:100%">
       <div style="font-size:48px;margin-bottom:12px">🧪</div>
       <div style="font-weight:700;font-size:16px">אין משימות טסטים</div>
+      <div style="font-size:13px;margin-top:6px">משימות יופיעו כאן לאחר קליטה של משתמש בדיקות</div>
     </div>`;
+    return;
   }
 
-  el.innerHTML = html;
+  // Same columns as main board
+  ['משימות כלליות','חביב','ולאדי','רדארים'].forEach(label => {
+    el.appendChild(makeCol(label, colColors[label], sortCol(tasks.filter(t => t.label === label))));
+  });
+
+  // Combined זגג/רפד
+  const zagRafadCol = document.createElement('div');
+  zagRafadCol.className = 'task-col';
+  zagRafadCol.style.cssText = 'min-width:260px;max-width:260px';
+  const zrOpen = ['רפד','זגג'].reduce((s,l) => s + tasks.filter(t=>t.label===l&&t.status!=='done').length, 0);
+  zagRafadCol.innerHTML = `<div class="task-col-header"><span class="task-col-title" style="color:#475569">זגג / רפד</span><span class="task-col-count">${zrOpen}</span></div>`;
+  const zrCards = document.createElement('div');
+  zrCards.className = 'task-col-cards';
+  ['רפד','זגג'].forEach(name => {
+    const sub = document.createElement('div');
+    sub.style.marginBottom = '10px';
+    const subH = document.createElement('div');
+    subH.style.cssText = `font-size:12px;font-weight:900;color:${colColors[name]};padding:4px 2px 6px;border-bottom:2px solid ${colColors[name]};margin-bottom:6px`;
+    subH.textContent = name;
+    sub.appendChild(subH);
+    const colTasks = sortCol(tasks.filter(t => t.label === name));
+    if (!colTasks.length) {
+      sub.innerHTML += `<div style="text-align:center;color:var(--muted);font-size:12px;padding:8px 0">אין משימות</div>`;
+    } else {
+      colTasks.forEach(t => sub.appendChild(makeCard(t)));
+    }
+    zrCards.appendChild(sub);
+  });
+  zagRafadCol.appendChild(zrCards);
+  el.appendChild(zagRafadCol);
+
+  // Combined נהגים
+  const driversCol = document.createElement('div');
+  driversCol.className = 'task-col';
+  driversCol.style.cssText = 'min-width:260px;max-width:260px';
+  const drOpen = ['עופר','גיל','איתי','משתמש בדיקות'].reduce((s,l) => s + tasks.filter(t=>t.label===l&&t.status!=='done').length, 0);
+  driversCol.innerHTML = `<div class="task-col-header"><span class="task-col-title" style="color:#475569">נהגים</span><span class="task-col-count">${drOpen}</span></div>`;
+  const drCards = document.createElement('div');
+  drCards.className = 'task-col-cards';
+  ['עופר','גיל','איתי','משתמש בדיקות'].forEach(driver => {
+    const sub = document.createElement('div');
+    sub.style.marginBottom = '10px';
+    const subH = document.createElement('div');
+    subH.style.cssText = `font-size:12px;font-weight:900;color:${colColors[driver]};padding:4px 2px 6px;border-bottom:2px solid ${colColors[driver]};margin-bottom:6px`;
+    subH.textContent = driver;
+    sub.appendChild(subH);
+    const colTasks = sortCol(tasks.filter(t => t.label === driver));
+    if (!colTasks.length) {
+      sub.innerHTML += `<div style="text-align:center;color:var(--muted);font-size:12px;padding:8px 0">אין משימות</div>`;
+    } else {
+      colTasks.forEach(t => sub.appendChild(makeCard(t)));
+    }
+    drCards.appendChild(sub);
+  });
+  driversCol.appendChild(drCards);
+  el.appendChild(driversCol);
 }
 window.openTestBoard = openTestBoard;
 
