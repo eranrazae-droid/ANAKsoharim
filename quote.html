@@ -43,6 +43,16 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
 }
 .customer-card input::placeholder{color:#c0cfe8;font-weight:400;font-size:15px}
 
+.status-opt{
+  border:2px solid #dce6f5;border-radius:10px;
+  background:#f5f8ff;color:#5a7aa5;
+  font-family:'Heebo',sans-serif;font-size:13px;font-weight:700;
+  padding:8px 14px;cursor:pointer;transition:all .15s;
+  white-space:nowrap;
+}
+.status-opt:hover{border-color:#1a56db;color:#1a56db;background:#eef3ff}
+.status-opt.active{border-color:#1a56db;background:#1a56db;color:#fff}
+
 /* ── DEAL TABLE ── */
 .deal-card{background:#fff;border-radius:16px;border:1px solid #dce6f5;box-shadow:0 2px 12px rgba(13,31,60,.07);overflow:hidden;margin-bottom:16px}
 .deal-row{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #eef2fb}
@@ -163,9 +173,16 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
 
   <!-- נציג מכירות + לקוח + טלפון -->
   <div class="customer-card">
-    <label>נציג מכירות <span style="color:#e02d2d">*</span></label>
-    <input type="text" id="sales-rep" placeholder="שם הנציג..." oninput="calc()">
-    <div id="rep-err" style="display:none;font-size:12px;color:#e02d2d;margin-top:4px;font-weight:700">⚠️ יש למלא שם נציג מכירות</div>
+    <label>נציג מטפל <span style="color:#e02d2d">*</span></label>
+    <select id="sales-rep" onchange="calc()" style="flex:1;border:none;outline:none;font-family:'Heebo',sans-serif;font-size:18px;font-weight:700;color:#0d1f3c;background:transparent;cursor:pointer;appearance:none;-webkit-appearance:none">
+      <option value="">בחר נציג...</option>
+      <option value="ביטון">ביטון</option>
+      <option value="שני">שני</option>
+      <option value="יהלי">יהלי</option>
+      <option value="ליאל">ליאל</option>
+      <option value="אוראל">אוראל</option>
+    </select>
+    <div id="rep-err" style="display:none;font-size:12px;color:#e02d2d;margin-top:4px;font-weight:700">⚠️ יש לבחור נציג מטפל</div>
   </div>
   <div class="customer-card">
     <label>שם לקוח <span style="color:#e02d2d">*</span></label>
@@ -173,9 +190,20 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
     <div id="customer-err" style="display:none;font-size:12px;color:#e02d2d;margin-top:4px;font-weight:700">⚠️ יש למלא שם לקוח</div>
   </div>
   <div class="customer-card">
-    <label>טלפון <span style="color:#e02d2d">*</span></label>
+    <label>טלפון לקוח <span style="color:#e02d2d">*</span></label>
     <input type="tel" id="customer-phone" placeholder="050-0000000" oninput="calc()" inputmode="tel">
     <div id="phone-err" style="display:none;font-size:12px;color:#e02d2d;margin-top:4px;font-weight:700">⚠️ יש למלא טלפון לקוח</div>
+  </div>
+
+  <!-- סטטוס הצעה -->
+  <div class="customer-card" style="flex-direction:column;align-items:flex-start;gap:8px">
+    <label>סטטוס הצעה</label>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;width:100%" id="status-btns">
+      <button class="status-opt" data-status="ממתין להקמת עסקה"   onclick="setStatus(this)">⏳ ממתין להקמת עסקה</button>
+      <button class="status-opt" data-status="מחכה לאישור מימון"  onclick="setStatus(this)">🏦 מחכה לאישור מימון</button>
+      <button class="status-opt" data-status="חתם חוזה — המתנה לביטוח" onclick="setStatus(this)">📝 חתם חוזה — המתנה לביטוח</button>
+      <button class="status-opt" data-status="ממתין למסירה"        onclick="setStatus(this)">🚗 ממתין למסירה</button>
+    </div>
   </div>
 
   <div class="deal-card">
@@ -299,6 +327,14 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
 
 <script>
 var currentFinanceAmt = 0;
+var currentStatus = '';
+
+function setStatus(btn) {
+  currentStatus = btn.dataset.status;
+  document.querySelectorAll('.status-opt').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  autoSave();
+}
 var currentMonthly = 0;
 var currentN = 100;
 var currentRate = 4.2;
@@ -606,6 +642,7 @@ function autoSave() {
     monthly: currentMonthly,
     n: currentN,
     track: currentTrackName,
+    status: currentStatus || '',
     oldCar: document.getElementById('old-car-name').value || '',
     newPlate: document.getElementById('new-car-plate').value || '',
     oldPlate: document.getElementById('old-car-plate').value || ''
@@ -639,6 +676,10 @@ function loadHistoryItem(item) {
   document.getElementById('trade-in').value      = item.tradeIn || '';
   document.getElementById('old-loan').value      = item.oldLoan || '';
   document.getElementById('cash').value          = item.cash    || '';
+  currentStatus = item.status || '';
+  document.querySelectorAll('.status-opt').forEach(function(b){
+    b.classList.toggle('active', b.dataset.status === currentStatus);
+  });
   calc();
   window.scrollTo(0,0);
 }
