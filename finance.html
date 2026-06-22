@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>מימון לרכב חדש — ענק הרכבים</title>
+<link rel="manifest" href="manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ענק הרכבים">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="theme-color" content="#0d1f3c">
+<script>if("serviceWorker"in navigator)navigator.serviceWorker.register("/sw.js");</script>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:'Heebo',sans-serif;
+  background:#f0f4fa;
+  color:#0d1f3c;
+  min-height:100vh;
+}
+
+/* ── HEADER ── */
+.hdr{
+  background:#0d1f3c;
+  padding:16px 24px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.hdr-logo{font-size:18px;font-weight:900;color:#fff}
+.hdr-logo span{color:#c9a227}
+.hdr-title{font-size:13px;color:#7a9ccf;margin-top:2px}
+
+/* ── PAGE ── */
+.page{max-width:1100px;margin:0 auto;padding:28px 16px 60px}
+
+/* ── MAIN TITLE ── */
+.page-title{
+  font-size:26px;font-weight:900;color:#0d1f3c;
+  margin-bottom:24px;text-align:center;
+}
+.page-title span{color:#1a56db}
+
+/* ── INPUT CARD ── */
+.input-card{
+  background:#fff;
+  border-radius:14px;
+  border:1px solid #dce6f5;
+  padding:20px;
+  margin-bottom:24px;
+  box-shadow:0 2px 12px rgba(13,31,60,.07);
+  max-width:520px;
+}
+.input-row{display:flex;gap:12px}
+.fld{flex:1;display:flex;flex-direction:column;gap:6px}
+.fld label{
+  font-size:12px;font-weight:700;color:#5a7aa5;
+  letter-spacing:.04em;text-transform:uppercase;
+}
+.fld input{
+  background:#f5f8ff;border:1.5px solid #dce6f5;
+  border-radius:10px;padding:12px 14px;
+  font-size:20px;font-weight:700;font-family:'Heebo',sans-serif;
+  color:#0d1f3c;outline:none;width:100%;
+  transition:border-color .15s;
+}
+.fld input:focus{border-color:#1a56db;background:#fff}
+.fld input::placeholder{color:#bcc8dc;font-weight:400;font-size:17px}
+
+/* balloon row — smaller */
+.balloon-row{margin-top:12px;padding-top:12px;border-top:1px solid #eef2fb}
+.balloon-row .fld input{font-size:16px;padding:9px 14px}
+
+/* ── RESULTS TITLE ── */
+.results-label{
+  font-size:11px;font-weight:700;color:#5a7aa5;
+  letter-spacing:.08em;text-transform:uppercase;
+  margin-bottom:12px;padding-right:4px;
+}
+
+/* ── CARDS GRID — 5 in a row ── */
+.cards{
+  display:grid;
+  grid-template-columns:repeat(5,1fr);
+  gap:10px;
+  overflow-x:auto;
+}
+
+/* ── SINGLE RESULT CARD ── */
+.rcard{
+  background:#fff;
+  border:2px solid #dce6f5;
+  border-radius:14px;
+  padding:0 0 12px;
+  text-align:center;
+  box-shadow:0 2px 10px rgba(13,31,60,.06);
+  display:flex;flex-direction:column;gap:0;
+  min-width:160px;
+}
+.rcard.kal  { border-color:#1a56db; }
+.rcard.yasir{ border-color:#e02d2d; }
+
+/* ── PER-CARD N SELECTOR ── */
+.rcard-nsel{
+  width:100%;
+  border:none;
+  border-bottom:1px solid #eef2fb;
+  border-radius:12px 12px 0 0;
+  background:#f5f8ff;
+  font-family:'Heebo',sans-serif;
+  font-size:13px;font-weight:700;
+  color:#0d1f3c;
+  padding:8px 10px;
+  outline:none;
+  cursor:pointer;
+  text-align:center;
+  margin-bottom:10px;
+}
+.rcard.kal  .rcard-nsel{background:#eef3ff;border-bottom-color:#dce6f5}
+.rcard.yasir .rcard-nsel{background:#fff0f0;border-bottom-color:#f5d0d0}
+
+.rcard-body{padding:0 12px}
+
+.rcard-company{
+  font-size:13px;font-weight:900;color:#0d1f3c;
+  margin-bottom:1px;
+}
+.rcard-track{
+  font-size:11px;color:#5a7aa5;
+  margin-bottom:10px;line-height:1.3;
+}
+.rcard-monthly{
+  font-size:28px;font-weight:900;color:#0d1f3c;
+  line-height:1;margin-bottom:2px;
+}
+.rcard-monthly-sym{font-size:15px;font-weight:700}
+.rcard-label{font-size:11px;color:#5a7aa5;margin-bottom:10px}
+
+.rcard-divider{border:none;border-top:1px solid #eef2fb;margin:0 -2px 8px}
+
+/* one-line info row */
+.rcard-inline{
+  display:flex;flex-direction:column;align-items:center;
+  gap:4px;font-size:11px;color:#7a9ab8;
+}
+.rcard-inline-item{display:flex;align-items:center;gap:3px}
+.rcard-val{font-weight:700;color:#0d1f3c;font-size:11px}
+
+/* highlight card (lowest monthly) */
+.rcard.best .rcard-monthly{color:#1a56db}
+
+/* ── RATE INFO ── */
+.rate-info{
+  margin-top:16px;background:#fff;border:1px solid #dce6f5;
+  border-radius:10px;padding:12px 16px;
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+}
+.rate-chip{
+  font-size:12px;font-weight:700;color:#5a7aa5;
+  background:#f0f4fa;border-radius:6px;padding:4px 10px;
+}
+.rate-chip span{color:#0d1f3c}
+
+/* ── MOBILE HORIZONTAL CARDS ── */
+@media(max-width:700px){
+  .input-row{flex-direction:column}
+  .page-title{font-size:22px}
+  .cards{
+    grid-template-columns:1fr;
+    gap:10px;
+  }
+  .rcard{
+    display:grid;
+    grid-template-rows:auto auto;
+    padding:0;
+    min-width:unset;
+  }
+  .rcard-nsel{
+    border-radius:12px 12px 0 0;
+    margin-bottom:0;
+  }
+  .rcard-body{
+    display:flex;
+    flex-direction:row;
+    align-items:center;
+    padding:12px 14px;
+    gap:12px;
+  }
+  .rcard-amount{
+    display:flex;flex-direction:column;align-items:center;
+    min-width:100px;
+    border-left:1px solid #eef2fb;
+    padding-left:12px;
+  }
+  .rcard-info{flex:1}
+  .rcard-monthly{font-size:30px}
+  .rcard-company{text-align:right}
+  .rcard-track{text-align:right;margin-bottom:6px}
+  .rcard-divider{display:none}
+  .rcard-inline{align-items:flex-start}
+  .rcard-inline-item{flex-direction:row-reverse;gap:4px}
+}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div style="flex:1">
+    <div class="hdr-logo">ענק <span>הרכבים</span></div>
+    <div class="hdr-title">כלי מכירות פנימי</div>
+  </div>
+  <a href="index.html" style="color:#7a9ccf;font-size:13px;font-weight:700;text-decoration:none;background:#1a2f54;padding:8px 16px;border-radius:8px;">→ דף הבית</a>
+  <div style="flex:1"></div>
+</div>
+
+<div class="page">
+
+  <div class="page-title">מימון לרכב <span>חדש</span></div>
+
+  <!-- INPUT -->
+  <div class="input-card">
+    <div class="input-row">
+      <div class="fld">
+        <label>סכום מימון (₪)</label>
+        <input type="number" id="loan" placeholder="170,000" value="170000" oninput="calc()" inputmode="numeric">
+      </div>
+    </div>
+
+    <!-- balloon row — for בלון track only -->
+    <div class="balloon-row">
+      <div class="fld">
+        <label>סכום בלון לכרטיסיית הבלון (₪)</label>
+        <input type="number" id="balloon" placeholder="ברירת מחדל: 50% מהסכום" oninput="calc()" inputmode="numeric">
+      </div>
+    </div>
+  </div>
+
+  <!-- RESULTS -->
+  <div class="results-label">תוצאות השוואה</div>
+  <div class="cards" id="cards"></div>
+
+
+</div>
+
+<script>
+var PRIME = 5.5;
+var cardNSel = {}; // per-card selected n, keyed by track index
+
+function feeKal(loan) {
+  if (loan <= 100000) return 345;
+  return Math.round(345 + loan * 0.01);
+}
+function feeYasir(loan) {
+  return Math.round(loan * 0.015 + 400);
+}
+
+function pmt(principal, rate, n, balloon) {
+  balloon = balloon || 0;
+  if (!principal || !n) return 0;
+  var r = rate / 100 / 12;
+  if (r === 0) return Math.round((principal - balloon) / n);
+  var pvB = balloon / Math.pow(1 + r, n);
+  return Math.round((principal - pvB) * r / (1 - Math.pow(1 + r, -n)));
+}
+
+function fmt(n) {
+  return '₪ ' + Math.round(n).toLocaleString('he-IL');
+}
+
+function makeOptions(maxN, selectedN) {
+  var steps = [];
+  for (var i = 12; i <= Math.min(96, maxN); i += 12) steps.push(i);
+  if (maxN >= 100) steps.push(100);
+  if (maxN > 100) steps.push(maxN); // e.g. 120 for ישיר >400K
+  // render highest first
+  var opts = '';
+  for (var j = steps.length - 1; j >= 0; j--) {
+    var v = steps[j];
+    opts += '<option value="' + v + '"' + (v === selectedN ? ' selected' : '') + '>' + v + ' תשלומים</option>';
+  }
+  return opts;
+}
+
+function onNChange(idx, val) {
+  cardNSel[idx] = parseInt(val);
+  calc();
+}
+
+function calc() {
+  var loan = parseFloat(document.getElementById('loan').value) || 0;
+  var balloonInput = document.getElementById('balloon').value;
+  var balloon = balloonInput !== '' ? parseFloat(balloonInput) : Math.round(loan * 0.5);
+  var el = document.getElementById('cards');
+
+  if (!loan) { el.innerHTML = ''; return; }
+
+  var maxYasir = loan > 400000 ? 120 : 100;
+
+  var tracks = [
+    { company:'כאל',        track:'צמוד מדד',       rate:4.2,        rateStr:'4.2%',                    balloon:0,       fee:'kal',   maxN:100      },
+    { company:'כאל',        track:'צמוד מדד + בלון', rate:4.2,        rateStr:'4.2%',                    balloon:balloon, fee:'kal',   maxN:60       },
+    { company:'כאל',        track:'פריים + 1.6%',    rate:PRIME+1.6,  rateStr:(PRIME+1.6).toFixed(1)+'%',balloon:0,       fee:'kal',   maxN:100      },
+    { company:'מימון ישיר', track:'ריבית קבועה',     rate:7.0,        rateStr:'7%',                      balloon:0,       fee:'yasir', maxN:maxYasir },
+    { company:'מימון ישיר', track:'ריבית קבועה',     rate:9.0,        rateStr:'9%',                      balloon:0,       fee:'yasir', maxN:maxYasir }
+  ];
+
+  var results = tracks.map(function(t, idx) {
+    var defaultN = t.maxN;
+    var selN = (cardNSel[idx] !== undefined && cardNSel[idx] <= t.maxN) ? cardNSel[idx] : defaultN;
+    var monthly = pmt(loan, t.rate, selN, t.balloon);
+    var fee = t.fee === 'kal' ? feeKal(loan) : feeYasir(loan);
+    return { t: t, idx: idx, selN: selN, monthly: monthly, fee: fee };
+  });
+
+  var minMonthly = Math.min.apply(null, results.map(function(r){ return r.monthly; }));
+
+  // sort cheap → expensive
+  results.sort(function(a,b){ return a.monthly - b.monthly; });
+
+  var html = '';
+  results.forEach(function(r) {
+    var isBest   = r.monthly === minMonthly;
+    var colorCls = r.t.fee === 'kal' ? 'kal' : 'yasir';
+    var monthlyInterest = Math.round(r.monthly - (loan / r.selN));
+    html += '<div class="rcard ' + colorCls + (isBest ? ' best' : '') + '">';
+    html += '<select class="rcard-nsel" onchange="onNChange(' + r.idx + ',this.value)">';
+    html += makeOptions(r.t.maxN, r.selN);
+    html += '</select>';
+    html += '<div class="rcard-body">';
+    // info side
+    html += '<div class="rcard-info">';
+    html += '<div class="rcard-company">' + r.t.company + '</div>';
+    html += '<div class="rcard-track">' + r.t.track + ' · ' + r.t.rateStr + '</div>';
+    html += '<hr class="rcard-divider">';
+    html += '<div class="rcard-inline">';
+    if (r.t.balloon > 0) {
+      html += '<div class="rcard-inline-item"><span>בלון</span> <span class="rcard-val">' + fmt(r.t.balloon) + '</span></div>';
+    }
+    html += '<div class="rcard-inline-item"><span>עלות ריבית</span> <span class="rcard-val">' + fmt(monthlyInterest) + '/חודש</span></div>';
+    html += '<div class="rcard-inline-item"><span>עמלת פתיחת תיק</span> <span class="rcard-val">' + fmt(r.fee) + '</span></div>';
+    html += '</div>';
+    html += '</div>';
+    // amount side
+    html += '<div class="rcard-amount">';
+    html += '<div class="rcard-monthly"><span class="rcard-monthly-sym">₪</span>' + r.monthly.toLocaleString('he-IL') + '</div>';
+    html += '<div class="rcard-label">לחודש</div>';
+    html += '</div>';
+    html += '</div>';
+    html += '</div>';
+  });
+
+  el.innerHTML = html;
+}
+// read loan from URL param (coming from quote page), else show default
+(function(){
+  var p = new URLSearchParams(window.location.search);
+  var loanEl = document.getElementById('loan');
+  if (p.get('loan')) {
+    loanEl.value = p.get('loan');
+  } else {
+    loanEl.value = 170000;
+  }
+  calc();
+})();
+</script>
+</body>
+</html>

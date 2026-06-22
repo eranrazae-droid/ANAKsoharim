@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>ענק הרכבים — כלי מכירות</title>
+<link rel="manifest" href="manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ענק הרכבים">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="theme-color" content="#0d1f3c">
+<script>if("serviceWorker"in navigator)navigator.serviceWorker.register("/sw.js");</script>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:'Heebo',sans-serif;
+  background:#0d1f3c;
+  color:#fff;
+  min-height:100vh;
+  display:flex;flex-direction:column;
+}
+
+.hdr{
+  padding:28px 24px 0;
+  text-align:center;
+}
+.hdr-logo{font-size:28px;font-weight:900;color:#fff}
+.hdr-logo span{color:#c9a227}
+.hdr-sub{font-size:14px;color:#7a9ccf;margin-top:6px}
+
+.page{
+  flex:1;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  padding:40px 24px 60px;
+  gap:16px;
+  max-width:480px;
+  margin:0 auto;
+  width:100%;
+}
+
+.tool-btn{
+  display:flex;align-items:center;gap:20px;
+  width:100%;
+  background:#fff;
+  border-radius:18px;
+  padding:22px 24px;
+  text-decoration:none;
+  color:#0d1f3c;
+  box-shadow:0 4px 20px rgba(0,0,0,.25);
+  transition:transform .12s, box-shadow .12s;
+  cursor:pointer;
+  border:none;
+}
+.tool-btn:hover{
+  transform:translateY(-2px);
+  box-shadow:0 8px 28px rgba(0,0,0,.35);
+}
+.tool-btn:active{transform:translateY(0)}
+
+.tool-icon{
+  font-size:36px;
+  line-height:1;
+  flex-shrink:0;
+}
+
+.tool-text{}
+.tool-title{font-size:18px;font-weight:900;color:#0d1f3c}
+.tool-desc{font-size:13px;color:#5a7aa5;margin-top:3px}
+
+.tool-btn.new    { border-right:5px solid #1a56db; }
+.tool-btn.used   { border-right:5px solid #c9a227; }
+.tool-btn.quote  { border-right:5px solid #16a34a; }
+.tool-btn.bank   { border-right:5px solid #7c3aed; }
+.tool-btn.status { border-right:5px solid #e02d2d; }
+
+/* ── QUOTES MODAL ── */
+.q-new-btn{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  width:100%;background:#16a34a;color:#fff;border:none;border-radius:12px;
+  font-family:'Heebo',sans-serif;font-size:15px;font-weight:900;
+  padding:14px;margin-bottom:14px;cursor:pointer;text-decoration:none;
+  box-shadow:0 3px 10px rgba(22,163,74,.3);
+}
+.q-list{display:flex;flex-direction:column;gap:10px}
+.q-item{
+  border:1.5px solid #dce6f5;border-radius:14px;
+  overflow:hidden;
+}
+.q-timer{
+  background:#0d1f3c;color:#fff;
+  padding:6px 14px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.q-timer-label{font-size:11px;color:#7a9ccf;font-weight:600}
+.q-timer-val{font-size:15px;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:.04em}
+.q-timer-val.fast{color:#e02d2d}
+.q-timer-val.mid {color:#c9a227}
+.q-timer-val.ok  {color:#4ade80}
+.q-body{padding:12px 14px;cursor:pointer;transition:background .1s}
+.q-body:hover{background:#f5f8ff}
+.q-item-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:3px}
+.q-name{font-size:15px;font-weight:900;color:#0d1f3c}
+.q-detail{font-size:12px;color:#5a7aa5;margin-bottom:5px}
+.q-monthly{font-size:22px;font-weight:900;color:#1a56db;display:inline}
+.q-monthly-lbl{font-size:12px;color:#5a7aa5;font-weight:400}
+.q-rep{font-size:11px;color:#7a9ab8;margin-top:3px}
+.q-empty{text-align:center;color:#7a9ab8;font-size:14px;padding:32px 0}
+.q-delete-btn{
+  background:none;border:none;color:#c0cfe8;font-size:15px;cursor:pointer;
+  padding:2px 6px;line-height:1;border-radius:6px;flex-shrink:0;
+}
+.q-delete-btn:hover{color:#e02d2d;background:#fff0f0}
+
+.footer{
+  text-align:center;
+  padding:20px;
+  font-size:12px;
+  color:#2a4a7a;
+}
+
+/* ── MODAL ── */
+.modal-overlay{
+  display:none;
+  position:fixed;inset:0;
+  background:rgba(0,0,0,.65);
+  z-index:1000;
+  align-items:center;justify-content:center;
+  padding:16px;
+}
+.modal-overlay.open{display:flex}
+
+.modal{
+  background:#fff;
+  border-radius:20px;
+  width:100%;max-width:460px;
+  max-height:90vh;
+  overflow-y:auto;
+  color:#0d1f3c;
+  box-shadow:0 12px 48px rgba(0,0,0,.4);
+}
+
+.modal-hdr{
+  background:#0d1f3c;
+  border-radius:20px 20px 0 0;
+  padding:18px 20px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.modal-hdr-title{font-size:17px;font-weight:900;color:#fff}
+.modal-close{
+  background:none;border:none;color:#7a9ccf;
+  font-size:22px;cursor:pointer;line-height:1;padding:0 4px;
+}
+
+.modal-body{padding:16px}
+
+.bank-section{
+  border:1.5px solid #dce6f5;
+  border-radius:14px;
+  padding:14px 16px;
+  margin-bottom:12px;
+}
+.bank-section:last-child{margin-bottom:0}
+
+.bank-name{
+  font-size:14px;font-weight:900;color:#0d1f3c;
+  margin-bottom:10px;
+  display:flex;align-items:center;gap:8px;
+}
+.bank-tag{
+  font-size:11px;font-weight:700;
+  padding:2px 8px;border-radius:999px;
+  background:#f0f4fa;color:#5a7aa5;
+}
+.bank-tag.primary{background:#eef3ff;color:#1a56db}
+
+.bank-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:6px 0;
+  border-bottom:1px solid #f0f4fa;
+  gap:8px;
+}
+.bank-row:last-child{border-bottom:none}
+.bank-lbl{font-size:12px;color:#5a7aa5;white-space:nowrap}
+.bank-val{font-size:13px;font-weight:700;color:#0d1f3c;text-align:left;direction:ltr;word-break:break-all}
+
+.bank-btns{display:flex;gap:8px;margin-top:12px}
+.bank-action-btn{
+  flex:1;
+  border:none;border-radius:10px;
+  font-size:13px;font-weight:700;font-family:'Heebo',sans-serif;
+  padding:10px 8px;cursor:pointer;
+  transition:opacity .15s;
+  text-decoration:none;display:flex;align-items:center;justify-content:center;gap:5px;
+}
+.bank-action-btn:active{opacity:.75}
+.bank-btn-wa{background:#25D366;color:#fff}
+.bank-btn-print{background:#f0f4fa;color:#0d1f3c;border:1.5px solid #dce6f5}
+
+.bank-note{
+  font-size:11px;color:#e02d2d;font-weight:700;
+  margin-top:8px;
+}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="hdr-logo">ענק <span>הרכבים</span></div>
+  <div class="hdr-sub">כלי מכירות פנימי</div>
+</div>
+
+<div class="page">
+
+  <a class="tool-btn new" href="finance.html">
+    <div class="tool-icon">🚗</div>
+    <div class="tool-text">
+      <div class="tool-title">מימון רכב חדש</div>
+      <div class="tool-desc">השוואת מסלולי כאל ומימון ישיר</div>
+    </div>
+  </a>
+
+  <a class="tool-btn used" href="finance-used.html">
+    <div class="tool-icon">🔑</div>
+    <div class="tool-text">
+      <div class="tool-title">מימון רכב משומש</div>
+      <div class="tool-desc">לפי שנתון — כאל ומימון ישיר</div>
+    </div>
+  </a>
+
+  <a class="tool-btn quote" href="quote.html">
+    <div class="tool-icon">📋</div>
+    <div class="tool-text">
+      <div class="tool-title">הצעת מחיר</div>
+      <div class="tool-desc">טרייד אין, מימון והחזר חודשי</div>
+    </div>
+  </a>
+
+  <button class="tool-btn status" onclick="openQuotes()">
+    <div class="tool-icon">📊</div>
+    <div class="tool-text">
+      <div class="tool-title">סטטוס הצעות</div>
+      <div class="tool-desc" id="quotes-count">טוען...</div>
+    </div>
+  </button>
+
+  <button class="tool-btn bank" onclick="document.getElementById('bankModal').classList.add('open')">
+    <div class="tool-icon">🏦</div>
+    <div class="tool-text">
+      <div class="tool-title">פרטי חשבון בנק</div>
+      <div class="tool-desc">דיסקונט · פועלים · לאומי</div>
+    </div>
+  </button>
+
+</div>
+
+<div class="footer">ענק הרכבים · כלי פנימי לאנשי מכירות</div>
+
+<!-- QUOTES MODAL -->
+<div class="modal-overlay" id="quotesModal" onclick="if(event.target===this)closeQuotes()">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div class="modal-hdr-title">סטטוס הצעות</div>
+      <button class="modal-close" onclick="closeQuotes()">✕</button>
+    </div>
+    <div class="modal-body">
+      <a class="q-new-btn" href="quote.html">＋ הקמת הצעה חדשה</a>
+      <div class="q-list" id="q-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- BANK MODAL -->
+<div class="modal-overlay" id="bankModal" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div class="modal-hdr-title">פרטי חשבונות בנק</div>
+      <button class="modal-close" onclick="document.getElementById('bankModal').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- 1. זה"ב לדיסקונט -->
+      <div class="bank-section">
+        <div class="bank-name">
+          1️⃣ העברת זה"ב — דיסקונט
+          <span class="bank-tag primary">כל הבנקים</span>
+        </div>
+        <div class="bank-row"><span class="bank-lbl">בנק</span><span class="bank-val">דיסקונט</span></div>
+        <div class="bank-row"><span class="bank-lbl">שם (עברית)</span><span class="bank-val">ענק הרכבים ( רז ) בע"מ</span></div>
+        <div class="bank-row"><span class="bank-lbl">שם (אנגלית)</span><span class="bank-val">ANAK HAREHAVIM RAZ LTD</span></div>
+        <div class="bank-row"><span class="bank-lbl">IBAN</span><span class="bank-val">IL86-0115-0600-0015-2696-352</span></div>
+        <div class="bank-row"><span class="bank-lbl">SWIFT</span><span class="bank-val">IDBLILIT</span></div>
+        <div class="bank-btns">
+          <button class="bank-action-btn bank-btn-print" onclick="printBank('zehav')">🖨️ הדפס</button>
+          <button class="bank-action-btn bank-btn-wa" onclick="waBank('zehav')">📲 שלח בוואטסאפ</button>
+        </div>
+      </div>
+
+      <!-- 2. דיסקונט רגיל -->
+      <div class="bank-section">
+        <div class="bank-name">
+          2️⃣ העברה רגילה — דיסקונט
+          <span class="bank-tag primary">כל הבנקים</span>
+        </div>
+        <div class="bank-row"><span class="bank-lbl">בנק</span><span class="bank-val">דיסקונט</span></div>
+        <div class="bank-row"><span class="bank-lbl">שם (עברית)</span><span class="bank-val">ענק הרכבים ( רז ) בע"מ</span></div>
+        <div class="bank-row"><span class="bank-lbl">סניף</span><span class="bank-val">506</span></div>
+        <div class="bank-row"><span class="bank-lbl">מספר חשבון</span><span class="bank-val">152696352</span></div>
+        <div class="bank-btns">
+          <button class="bank-action-btn bank-btn-print" onclick="printBank('discount')">🖨️ הדפס</button>
+          <button class="bank-action-btn bank-btn-wa" onclick="waBank('discount')">📲 שלח בוואטסאפ</button>
+        </div>
+      </div>
+
+      <!-- 3. פועלים -->
+      <div class="bank-section">
+        <div class="bank-name">
+          3️⃣ בנק הפועלים (12)
+          <span class="bank-tag">פועלים לפועלים בלבד</span>
+        </div>
+        <div class="bank-row"><span class="bank-lbl">שם (עברית)</span><span class="bank-val">ענק הרכבים ( רז ) בע"מ</span></div>
+        <div class="bank-row"><span class="bank-lbl">סניף</span><span class="bank-val">300 (עסקים בת ים)</span></div>
+        <div class="bank-row"><span class="bank-lbl">מספר חשבון</span><span class="bank-val">8961</span></div>
+        <div class="bank-row"><span class="bank-lbl">IBAN</span><span class="bank-val">IL70-0123-0000-0000-0008-961</span></div>
+        <div class="bank-note">⚠️ להעברות מפועלים לפועלים בלבד</div>
+        <div class="bank-btns">
+          <button class="bank-action-btn bank-btn-print" onclick="printBank('poalim')">🖨️ הדפס</button>
+          <button class="bank-action-btn bank-btn-wa" onclick="waBank('poalim')">📲 שלח בוואטסאפ</button>
+        </div>
+      </div>
+
+      <!-- 4. לאומי -->
+      <div class="bank-section">
+        <div class="bank-name">
+          4️⃣ בנק לאומי (10)
+          <span class="bank-tag">לאומי ללאומי בלבד</span>
+        </div>
+        <div class="bank-row"><span class="bank-lbl">שם (עברית)</span><span class="bank-val">ענק הרכבים ( רז ) בע"מ</span></div>
+        <div class="bank-row"><span class="bank-lbl">סניף</span><span class="bank-val">827 (אזור)</span></div>
+        <div class="bank-row"><span class="bank-lbl">מספר חשבון</span><span class="bank-val">566500/15</span></div>
+        <div class="bank-row"><span class="bank-lbl">IBAN</span><span class="bank-val">IL29-0108-2700-0005-6650-015</span></div>
+        <div class="bank-note">⚠️ להעברות מלאומי ללאומי בלבד</div>
+        <div class="bank-btns">
+          <button class="bank-action-btn bank-btn-print" onclick="printBank('leumi')">🖨️ הדפס</button>
+          <button class="bank-action-btn bank-btn-wa" onclick="waBank('leumi')">📲 שלח בוואטסאפ</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+var BANK_TEXTS = {
+  zehav: [
+    'העברת זה"ב — בנק דיסקונט',
+    'שם: ענק הרכבים ( רז ) בע"מ',
+    'ANAK HAREHAVIM RAZ LTD',
+    'IBAN: IL86-0115-0600-0015-2696-352',
+    'SWIFT: IDBLILIT'
+  ].join('\n'),
+  discount: [
+    'העברה רגילה — בנק דיסקונט',
+    'שם: ענק הרכבים ( רז ) בע"מ',
+    'סניף: 506',
+    'חשבון: 152696352'
+  ].join('\n'),
+  poalim: [
+    'בנק הפועלים (12) — פועלים לפועלים בלבד',
+    'שם: ענק הרכבים ( רז ) בע"מ',
+    'סניף: 300 (עסקים בת ים)',
+    'חשבון: 8961',
+    'IBAN: IL70-0123-0000-0000-0008-961'
+  ].join('\n'),
+  leumi: [
+    'בנק לאומי (10) — לאומי ללאומי בלבד',
+    'שם: ענק הרכבים ( רז ) בע"מ',
+    'סניף: 827 (אזור)',
+    'חשבון: 566500/15',
+    'IBAN: IL29-0108-2700-0005-6650-015'
+  ].join('\n')
+};
+
+function waBank(key) {
+  var text = BANK_TEXTS[key];
+  window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+}
+
+function printBank(key) {
+  var text = BANK_TEXTS[key];
+  var lines = text.split('\n').map(function(l){ return '<p>' + l + '</p>'; }).join('');
+  var w = window.open('', '_blank');
+  w.document.write('<html dir="rtl"><head><meta charset="UTF-8"><style>body{font-family:Arial,sans-serif;padding:32px;font-size:16px;direction:rtl}h2{margin-bottom:16px}p{margin:6px 0;line-height:1.6}</style></head><body><h2>פרטי בנק — ענק הרכבים</h2>' + lines + '</body></html>');
+  w.document.close();
+  w.print();
+}
+
+function fmtQ(n){ return '₪ ' + Math.round(n||0).toLocaleString('he-IL'); }
+
+var qTimerInterval = null;
+
+function openQuotes() {
+  renderQuotes();
+  document.getElementById('quotesModal').classList.add('open');
+  qTimerInterval = setInterval(tickTimers, 1000);
+}
+
+function closeQuotes() {
+  document.getElementById('quotesModal').classList.remove('open');
+  if (qTimerInterval) { clearInterval(qTimerInterval); qTimerInterval = null; }
+}
+
+function tickTimers() {
+  var now = Date.now();
+  document.querySelectorAll('[data-createdat]').forEach(function(el) {
+    var ms = now - parseInt(el.dataset.createdat, 10);
+    el.textContent = fmtElapsed(ms);
+    var mins = ms / 60000;
+    el.className = 'q-timer-val ' + (mins < 30 ? 'ok' : mins < 60 ? 'mid' : 'fast');
+  });
+}
+
+function fmtElapsed(ms) {
+  var s = Math.floor(ms / 1000);
+  var h = Math.floor(s / 3600);
+  var m = Math.floor((s % 3600) / 60);
+  var sec = s % 60;
+  var parts = [];
+  if (h) parts.push(h + 'ש');
+  parts.push(pad(m) + 'ד');
+  parts.push(pad(sec) + 'ש"');
+  return parts.join(' ');
+}
+
+function pad(n){ return n < 10 ? '0'+n : ''+n; }
+
+function deleteQuote(i, e) {
+  e.stopPropagation();
+  var hist = JSON.parse(localStorage.getItem('anak-quotes') || '[]');
+  hist.splice(i, 1);
+  localStorage.setItem('anak-quotes', JSON.stringify(hist));
+  renderQuotes();
+  updateQuoteCount();
+}
+
+function renderQuotes() {
+  var hist = JSON.parse(localStorage.getItem('anak-quotes') || '[]');
+  var el = document.getElementById('q-list');
+  if (!hist.length) {
+    el.innerHTML = '<div class="q-empty">אין הצעות שמורות</div>';
+    return;
+  }
+  var now = Date.now();
+  var html = '';
+  hist.forEach(function(item, i) {
+    var createdAt = item.createdAt || now;
+    var ms = now - createdAt;
+    var mins = ms / 60000;
+    var timerCls = mins < 30 ? 'ok' : mins < 60 ? 'mid' : 'fast';
+    html += '<div class="q-item">';
+    // timer bar
+    html += '<div class="q-timer">';
+    html += '<span class="q-timer-label">⏱ זמן מאז הקמה</span>';
+    html += '<span class="q-timer-val ' + timerCls + '" data-createdat="' + createdAt + '">' + fmtElapsed(ms) + '</span>';
+    html += '</div>';
+    // body
+    html += '<div class="q-body" onclick="location.href=\'quote.html\'">';
+    html += '<div class="q-item-top">';
+    html += '<span class="q-name">' + (item.customer || 'לא ידוע') + '</span>';
+    html += '<button class="q-delete-btn" onclick="deleteQuote(' + i + ',event)">🗑</button>';
+    html += '</div>';
+    if (item.newCar) html += '<div class="q-detail">' + item.newCar + (item.newPlate ? ' · ' + item.newPlate : '') + '</div>';
+    html += '<span class="q-monthly">' + fmtQ(item.monthly) + '</span><span class="q-monthly-lbl"> /חודש</span>';
+    html += '<div class="q-rep">' + (item.rep ? 'נציג: ' + item.rep + ' · ' : '') + (item.date || '') + '</div>';
+    html += '</div>';
+    html += '</div>';
+  });
+  el.innerHTML = html;
+}
+
+function updateQuoteCount() {
+  var hist = JSON.parse(localStorage.getItem('anak-quotes') || '[]');
+  var el = document.getElementById('quotes-count');
+  if (el) el.textContent = hist.length ? hist.length + ' הצעות שמורות' : 'אין הצעות עדיין';
+}
+
+updateQuoteCount();
+</script>
+
+</body>
+</html>
