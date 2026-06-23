@@ -356,6 +356,7 @@ if ('serviceWorker' in navigator) {
     <div class="form-group">
       <label>תווית</label>
       <select class="form-select" id="et-label">
+        <option value="משימות בעדיפות עליונה">משימות בעדיפות עליונה</option>
         <option value="משימות כלליות">משימות כלליות</option>
         <option value="חביב">חביב</option>
         <option value="ולאדי">ולאדי</option>
@@ -397,6 +398,7 @@ if ('serviceWorker' in navigator) {
     <div class="form-group">
       <label>תווית</label>
       <select class="form-select" id="task-label">
+        <option value="משימות בעדיפות עליונה">משימות בעדיפות עליונה</option>
         <option value="משימות כלליות">משימות כלליות</option>
         <option value="חביב">חביב</option>
         <option value="ולאדי">ולאדי</option>
@@ -1329,7 +1331,7 @@ function getSeenTasks() {
 }
 function markLabelSeen(label) {
   const seen = getSeenTasks();
-  const labelFilters = ['משימות כלליות','חביב','ולאדי','רפד','זגג','רדארים'];
+  const labelFilters = ['משימות בעדיפות עליונה','משימות כלליות','חביב','ולאדי','רפד','זגג','רדארים'];
   let tasks = tasksCache;
   if (labelFilters.includes(label)) tasks = tasks.filter(t => t.label === label);
   tasks.forEach(t => seen.add(t.id));
@@ -1349,7 +1351,7 @@ function renderTaskTabs() {
   const tabEl = document.getElementById('task-filter-tabs');
   if (!tabEl) return;
   const isManager = currentUser?.role === 'manager';
-  const labelTabs = ['משימות כלליות','חביב','ולאדי','רפד','זגג','רדארים'];
+  const labelTabs = ['משימות בעדיפות עליונה','משימות כלליות','חביב','ולאדי','רפד','זגג','רדארים'];
   const tabs = isManager ? labelTabs : ['שלי', ...labelTabs];
   const counts = isManager ? unreadCountByLabel() : {};
   tabEl.innerHTML = tabs.map(t => {
@@ -1503,7 +1505,7 @@ async function _onDrop(e, newLabel, beforeId, afterId) {
   // Update assignedTo based on new label
   const colToAssigned = {
     'רפד':'רפד','זגג':'זגג','חביב':'חביב','ולאדי':'ולאדי','גיל':'גיל',
-    'עופר':'עופר','איתי':'איתי','רדארים':'רדארים','משימות כלליות':'כולם',
+    'עופר':'עופר','איתי':'איתי','רדארים':'רדארים','משימות בעדיפות עליונה':'כולם','משימות כלליות':'כולם',
   };
   if (newLabel && colToAssigned[newLabel]) updates.assignedTo = colToAssigned[newLabel];
 
@@ -1654,13 +1656,13 @@ function renderTasksFromCache() {
   }
 
   const colColors = {
-    'משימות כלליות':'#6366f1','חביב':'#f59e0b','ולאדי':'#3b82f6',
+    'משימות בעדיפות עליונה':'#dc2626','משימות כלליות':'#6366f1','חביב':'#f59e0b','ולאדי':'#3b82f6',
     'רפד':'#ec4899','זגג':'#10b981','רדארים':'#8b5cf6',
     'עופר':'#0ea5e9','גיל':'#f97316','איתי':'#84cc16',
   };
 
   // Regular single-label columns
-  ['משימות כלליות','חביב','ולאדי','רדארים'].forEach(label => {
+  ['משימות בעדיפות עליונה','משימות כלליות','חביב','ולאדי','רדארים'].forEach(label => {
     container.appendChild(makeCol(label, colColors[label], sortTasks(allTasks.filter(t => t.label === label))));
   });
 
@@ -4238,22 +4240,23 @@ async function _sendWhatsApp(phone, message) {
   const contacts = await _loadDriverContacts();
   const accountSid = contacts['_sid']?.value;
   const authToken  = contacts['_token']?.value;
-  const from       = contacts['_from']?.value || 'whatsapp:+14155238886';
-  if (!accountSid || !authToken) { console.warn('WhatsApp: missing credentials'); return; }
+  const from       = contacts['_from']?.value || '+14244176289';
+  if (!accountSid || !authToken) { console.warn('SMS: missing credentials'); return; }
+  const toNum = '+' + phone.replace(/\D/g, '');
   try {
     const res = await fetch('https://winter-unit-0af8.lielraz1912.workers.dev', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accountSid, authToken, from, to: phone, message })
+      body: JSON.stringify({ accountSid, authToken, from, to: phone, message, sms: true })
     });
     if (!res.ok) {
       const txt = await res.text().catch(() => res.status);
-      console.error('WhatsApp worker error', res.status, txt);
-      showToast('⚠️ שגיאה בשליחת וואטסאפ: ' + res.status, 4000);
+      console.error('SMS worker error', res.status, txt);
+      showToast('⚠️ שגיאה בשליחת SMS: ' + res.status, 4000);
     }
   } catch(e) {
-    console.error('WhatsApp fetch error', e);
-    showToast('⚠️ שגיאת חיבור וואטסאפ', 4000);
+    console.error('SMS fetch error', e);
+    showToast('⚠️ שגיאת חיבור SMS', 4000);
   }
 }
 
