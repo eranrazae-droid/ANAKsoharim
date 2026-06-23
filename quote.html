@@ -715,12 +715,12 @@ function renderExistingQuotes() {
   var html = '';
   hist.forEach(function(item, i) {
     html += '<div style="background:#fff;border:1.5px solid #dce6f5;border-radius:14px;overflow:hidden;box-shadow:0 2px 8px rgba(13,31,60,.06)">';
-    html += '<div style="background:#0d1f3c;padding:10px 14px;display:flex;justify-content:space-between;align-items:center">';
+    html += '<div style="background:#0d1f3c;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px">';
     html += '<span style="font-size:16px;font-weight:900;color:#fff">' + (item.customer || 'לא ידוע') + '</span>';
-    if (item.status) html += '<span style="background:#1a2f54;color:#7a9ccf;border-radius:8px;padding:3px 10px;font-size:11px;font-weight:700">' + item.status + '</span>';
+    if (item.inProcess) html += '<span style="background:#16a34a;color:#fff;border-radius:8px;padding:3px 10px;font-size:11px;font-weight:900">✓ בתהליך מימון</span>';
     html += '</div>';
     html += '<div style="padding:12px 16px;cursor:pointer" onclick="loadQuoteFromList(' + JSON.stringify(item).replace(/"/g,'&quot;') + ')">';
-    if (item.newCar) html += '<div style="font-size:13px;color:#16a34a;font-weight:700;margin-bottom:6px">' + item.newCar + '</div>';
+    if (item.newCar) html += '<div style="font-size:13px;color:#c9a227;font-weight:700;margin-bottom:6px">' + item.newCar + '</div>';
     html += '<div style="font-size:24px;font-weight:900;color:#1a56db">' + fmtQ(item.monthly) + '<span style="font-size:13px;color:#5a7aa5;font-weight:400"> /חודש</span></div>';
     html += '<div style="font-size:11px;color:#7a9ab8;margin-top:4px">' + (item.rep ? 'נציג: ' + item.rep + ' · ' : '') + (item.date || '') + '</div>';
     html += '</div>';
@@ -734,6 +734,10 @@ function advanceDeal() {
   var hist = JSON.parse(localStorage.getItem('anak-quotes') || '[]');
   if (!hist.length) { alert('אין הצעה פעילה לעדכון'); return; }
   var item = hist[0];
+  // סמן כבתהליך מימון ב-anak-quotes
+  item.inProcess = true;
+  hist[0] = item;
+  localStorage.setItem('anak-quotes', JSON.stringify(hist));
   // הוסף לרשימת העסקאות הפעילות (deals)
   var deals = JSON.parse(localStorage.getItem('anak-deals') || '[]');
   var exists = deals.findIndex(function(d){ return d.createdAt === item.createdAt; });
