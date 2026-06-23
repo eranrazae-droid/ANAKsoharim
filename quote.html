@@ -43,38 +43,6 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
 }
 .customer-card input::placeholder{color:#c0cfe8;font-weight:400;font-size:15px}
 
-/* ── PLATE LOOKUP ── */
-.plate-lookup-card{
-  background:#fff;border-radius:14px;border:1px solid #dce6f5;
-  padding:16px 18px;margin-bottom:16px;
-  box-shadow:0 2px 8px rgba(13,31,60,.06);
-}
-.plate-lookup-title{font-size:13px;font-weight:700;color:#5a7aa5;margin-bottom:10px;letter-spacing:.04em;text-transform:uppercase}
-.plate-lookup-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
-.plate-lookup-input{
-  flex:1;border:1.5px solid #dce6f5;border-radius:10px;
-  padding:11px 14px;font-family:'Heebo',sans-serif;
-  font-size:20px;font-weight:700;color:#0d1f3c;outline:none;
-  transition:border-color .15s;
-}
-.plate-lookup-input:focus{border-color:#1a56db}
-.plate-lookup-spinner{font-size:20px}
-.plate-result{border-top:1px solid #eef2fb;padding-top:10px;display:flex;flex-direction:column;gap:6px}
-.plate-result-row{display:flex;justify-content:space-between;align-items:center}
-.plate-result-lbl{font-size:12px;color:#5a7aa5;font-weight:600}
-.plate-result-val{font-size:14px;font-weight:900;color:#0d1f3c}
-.plate-not-found{font-size:13px;color:#e02d2d;font-weight:700;padding-top:8px;border-top:1px solid #eef2fb}
-
-.status-opt{
-  border:2px solid #dce6f5;border-radius:10px;
-  background:#f5f8ff;color:#5a7aa5;
-  font-family:'Heebo',sans-serif;font-size:13px;font-weight:700;
-  padding:8px 14px;cursor:pointer;transition:all .15s;
-  white-space:nowrap;
-}
-.status-opt:hover{border-color:#1a56db;color:#1a56db;background:#eef3ff}
-.status-opt.active{border-color:#1a56db;background:#1a56db;color:#fff}
-
 /* ── DEAL TABLE ── */
 .deal-card{background:#fff;border-radius:16px;border:1px solid #dce6f5;box-shadow:0 2px 12px rgba(13,31,60,.07);overflow:hidden;margin-bottom:16px}
 .deal-row{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #eef2fb}
@@ -193,28 +161,11 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
 
   <div class="page-title">הצעת <span>מחיר</span></div>
 
-  <!-- נציג מטפל + סטטוס בשורה אחת -->
-  <div style="display:flex;gap:12px;margin-bottom:16px">
-    <div class="customer-card" style="flex:1;margin-bottom:0">
-      <label>נציג מטפל <span style="color:#e02d2d">*</span></label>
-      <select id="sales-rep" onchange="calc()" style="flex:1;border:none;outline:none;font-family:'Heebo',sans-serif;font-size:16px;font-weight:700;color:#0d1f3c;background:transparent;cursor:pointer;appearance:none;-webkit-appearance:none;width:100%">
-        <option value="">בחר...</option>
-        <option value="ביטון">ביטון</option>
-        <option value="שני">שני</option>
-        <option value="יהלי / ליאל / אוראל">יהלי / ליאל / אוראל</option>
-      </select>
-      <div id="rep-err" style="display:none;font-size:11px;color:#e02d2d;margin-top:4px;font-weight:700">⚠️ יש לבחור נציג</div>
-    </div>
-    <div class="customer-card" style="flex:1;margin-bottom:0">
-      <label>סטטוס</label>
-      <select id="status-sel" onchange="currentStatus=this.value;scheduleAutoSave()" style="flex:1;border:none;outline:none;font-family:'Heebo',sans-serif;font-size:13px;font-weight:700;color:#0d1f3c;background:transparent;cursor:pointer;appearance:none;-webkit-appearance:none;width:100%">
-        <option value="">בחר סטטוס...</option>
-        <option value="ממתין להקמת עסקה">⏳ ממתין להקמת עסקה</option>
-        <option value="מחכה לאישור מימון">🏦 מחכה לאישור מימון</option>
-        <option value="חתם חוזה — המתנה לביטוח">📝 חתם חוזה — המתנה לביטוח</option>
-        <option value="ממתין למסירה">🚗 ממתין למסירה</option>
-      </select>
-    </div>
+  <!-- נציג מכירות + לקוח + טלפון -->
+  <div class="customer-card">
+    <label>נציג מכירות <span style="color:#e02d2d">*</span></label>
+    <input type="text" id="sales-rep" placeholder="שם הנציג..." oninput="calc()">
+    <div id="rep-err" style="display:none;font-size:12px;color:#e02d2d;margin-top:4px;font-weight:700">⚠️ יש למלא שם נציג מכירות</div>
   </div>
   <div class="customer-card">
     <label>שם לקוח <span style="color:#e02d2d">*</span></label>
@@ -222,62 +173,63 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
     <div id="customer-err" style="display:none;font-size:12px;color:#e02d2d;margin-top:4px;font-weight:700">⚠️ יש למלא שם לקוח</div>
   </div>
   <div class="customer-card">
-    <label>טלפון לקוח <span style="color:#e02d2d">*</span></label>
+    <label>טלפון <span style="color:#e02d2d">*</span></label>
     <input type="tel" id="customer-phone" placeholder="050-0000000" oninput="calc()" inputmode="tel">
     <div id="phone-err" style="display:none;font-size:12px;color:#e02d2d;margin-top:4px;font-weight:700">⚠️ יש למלא טלפון לקוח</div>
   </div>
 
-  <!-- שליפת פרטי רכב -->
-  <div class="plate-lookup-card">
-    <div class="plate-lookup-title">🔍 שליפת פרטי רכב</div>
-    <div class="plate-lookup-row">
-      <input type="text" id="lookup-plate" class="plate-lookup-input" placeholder="מספר רישוי..." inputmode="numeric"
-        onkeypress="if(!/[0-9]/.test(event.key))event.preventDefault()"
-        oninput="this.value=this.value.replace(/\D/g,'')"
-        onpaste="setTimeout(function(){var el=document.getElementById('lookup-plate');el.value=el.value.replace(/\D/g,'')},0)"
-        onkeydown="if(event.key==='Enter'){var p=this.value.replace(/\D/g,'');if(p.length>=5)doLookup(p);this.blur();}">
-      <div class="plate-lookup-spinner" id="lookup-spinner" style="display:none">⏳</div>
-    </div>
-    <div class="plate-result" id="plate-result" style="display:none">
-      <div class="plate-result-row"><span class="plate-result-lbl">יצרן</span><span class="plate-result-val" id="pr-make">—</span></div>
-      <div class="plate-result-row"><span class="plate-result-lbl">דגם</span><span class="plate-result-val" id="pr-model">—</span></div>
-      <div class="plate-result-row"><span class="plate-result-lbl">שנת ייצור</span><span class="plate-result-val" id="pr-year">—</span></div>
-      <div class="plate-result-row"><span class="plate-result-lbl">עלייה לכביש</span><span class="plate-result-val" id="pr-date">—</span></div>
-    </div>
-    <div class="plate-not-found" id="plate-not-found" style="display:none">⚠️ לא נמצא רכב עבור לוחית זו</div>
-  </div>
-
-  <!-- טרייד אין -->
-  <div class="plate-lookup-card" id="tradein-card">
-    <div class="plate-lookup-title">🔄 טרייד אין</div>
-    <div style="display:flex;gap:10px;margin-bottom:10px">
-      <button class="status-opt" id="ti-yes" onclick="setTradeIn(true)">✅ כן</button>
-      <button class="status-opt" id="ti-no"  onclick="setTradeIn(false)">❌ לא</button>
-    </div>
-    <div id="ti-details" style="display:none;flex-direction:column;gap:10px">
-      <div>
-        <div class="plate-lookup-title" style="margin-bottom:6px">יש מימון על הרכב הישן?</div>
-        <div style="display:flex;gap:10px">
-          <button class="status-opt" id="ti-loan-yes" onclick="setTradeInLoan(true)">✅ כן</button>
-          <button class="status-opt" id="ti-loan-no"  onclick="setTradeInLoan(false)">❌ לא</button>
-        </div>
-      </div>
-      <div id="ti-safe-wrap" style="display:none">
-        <div class="plate-lookup-title" style="margin-bottom:6px">החלפה בטוחה?</div>
-        <div style="display:flex;gap:10px">
-          <button class="status-opt" id="ti-safe-yes" onclick="setTradeInSafe(true)">✅ כן</button>
-          <button class="status-opt" id="ti-safe-no"  onclick="setTradeInSafe(false)">❌ לא</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <div class="deal-card">
-    <!-- פרטי הצעה -->
-    <div class="deal-section">פרטי הצעה</div>
+    <!-- רכב חדש -->
+    <div class="deal-section">רכב חדש</div>
+    <div class="deal-row">
+      <div class="deal-label">מספר רישוי</div>
+      <div class="deal-val" style="display:flex;gap:6px;align-items:center">
+        <input class="deal-input name-input" id="new-car-plate" type="text" placeholder="000-00-000" oninput="calc()" style="flex:1">
+        <button onclick="lookupPlate('new-car-plate','new-car-name',this)" style="background:#1a56db;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:Heebo,sans-serif">🔍 שלוף</button>
+      </div>
+    </div>
+    <div class="deal-row">
+      <div class="deal-label">פרטי רכב</div>
+      <div class="deal-val"><input class="deal-input name-input" id="new-car-name" type="text" placeholder="שם הרכב" oninput="calc()"></div>
+    </div>
+    <div id="test-alert-new" style="display:none;margin:0 16px 8px;padding:8px 12px;border-radius:8px;border:1px solid;font-size:13px;font-weight:700;align-items:center"></div>
+    <div class="deal-row">
+      <div class="deal-label">מחיר</div>
+      <div class="deal-val"><input class="deal-input" id="new-price" type="number" placeholder="260,000" oninput="calc()" inputmode="numeric"></div>
+    </div>
+
+    <!-- טרייד אין -->
+    <div class="deal-section">טרייד אין (רכב ישן)</div>
+    <div class="deal-row">
+      <div class="deal-label">מספר רישוי</div>
+      <div class="deal-val" style="display:flex;gap:6px;align-items:center">
+        <input class="deal-input name-input" id="old-car-plate" type="text" placeholder="000-00-000" oninput="calc()" style="flex:1">
+        <button onclick="lookupPlate('old-car-plate','old-car-name',this)" style="background:#c9a227;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:Heebo,sans-serif">🔍 שלוף</button>
+      </div>
+    </div>
+    <div class="deal-row">
+      <div class="deal-label">פרטי רכב</div>
+      <div class="deal-val"><input class="deal-input name-input" id="old-car-name" type="text" placeholder="שם הרכב" oninput="calc()"></div>
+    </div>
+    <div id="test-alert-old" style="display:none;margin:0 16px 8px;padding:8px 12px;border-radius:8px;border:1px solid;font-size:13px;font-weight:700;align-items:center"></div>
+    <div class="deal-row">
+      <div class="deal-label">זיכוי טרייד אין</div>
+      <div class="deal-val"><input class="deal-input" id="trade-in" type="number" placeholder="110,000" oninput="calc()" inputmode="numeric"></div>
+    </div>
+    <div class="deal-row">
+      <div class="deal-label sub">הפרש</div>
+      <div class="deal-val computed diff" id="diff">—</div>
+    </div>
+
+    <!-- פרטי עסקה -->
+    <div class="deal-section">פרטי עסקה</div>
+    <div class="deal-row">
+      <div class="deal-label">חוב מימון על רכב ישן</div>
+      <div class="deal-val"><input class="deal-input" id="old-loan" type="number" placeholder="0" oninput="calc()" inputmode="numeric"></div>
+    </div>
     <div class="deal-row total-deal">
       <div class="deal-label">סה"כ עסקה</div>
-      <div class="deal-val"><input class="deal-input" id="total-deal-input" type="number" placeholder="0" oninput="calc()" inputmode="numeric"></div>
+      <div class="deal-val computed" id="total-deal">—</div>
     </div>
     <div class="deal-row">
       <div class="deal-label">כסף שהלקוח מביא</div>
@@ -328,7 +280,7 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
   <!-- ACTIONS -->
   <div class="action-row" id="action-row" style="display:none">
     <button class="btn btn-wa" onclick="shareWA()">📲 שלח ב-WhatsApp</button>
-    <button class="btn btn-finance" onclick="openFinance()">🔢 מחשבון מימון</button>
+    <button class="btn btn-finance" onclick="openFinance()">🚀 התקדם לעסקה</button>
     <button class="btn btn-print" onclick="printQuote()">🖨️ הדפסה</button>
   </div>
   <div id="autosave-indicator" style="font-size:11px;color:#16a34a;text-align:center;min-height:16px;margin-top:4px"></div>
@@ -347,70 +299,6 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
 
 <script>
 var currentFinanceAmt = 0;
-var currentStatus = '';
-var _lookupTimer = null;
-
-function debounceLookup() {
-  clearTimeout(_lookupTimer);
-  var plate = document.getElementById('lookup-plate').value.replace(/\D/g,'');
-  if (plate.length < 6) {
-    document.getElementById('plate-result').style.display = 'none';
-    document.getElementById('plate-not-found').style.display = 'none';
-    return;
-  }
-  _lookupTimer = setTimeout(function(){ doLookup(plate); }, 600);
-}
-
-function doLookup(plate) {
-  var spinner = document.getElementById('lookup-spinner');
-  var result  = document.getElementById('plate-result');
-  var notFound= document.getElementById('plate-not-found');
-  spinner.style.display = 'block';
-  result.style.display  = 'none';
-  notFound.style.display= 'none';
-  fetch('https://data.gov.il/api/3/action/datastore_search?resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3&filters={"mispar_rechev":"' + plate + '"}&limit=1')
-    .then(function(r){ return r.json(); })
-    .then(function(data) {
-      spinner.style.display = 'none';
-      var rec = data.result && data.result.records && data.result.records[0];
-      if (!rec) { notFound.style.display = 'block'; return; }
-      var make  = rec.tozeret_nm    || '—';
-      var model = rec.kinuy_mishari || rec.degem_nm || '—';
-      var year  = rec.shnat_yitzur  || '—';
-      var date  = rec.moed_aliya_lakvish ? rec.moed_aliya_lakvish.slice(0,10) : '—';
-      document.getElementById('pr-make').textContent  = make;
-      document.getElementById('pr-model').textContent = model;
-      document.getElementById('pr-year').textContent  = year;
-      document.getElementById('pr-date').textContent  = date;
-      result.style.display = 'flex';
-    })
-    .catch(function(){ spinner.style.display='none'; notFound.style.display='block'; });
-}
-
-function setTradeIn(val) {
-  document.getElementById('ti-yes').classList.toggle('active', val);
-  document.getElementById('ti-no').classList.toggle('active', !val);
-  document.getElementById('ti-details').style.display = val ? 'flex' : 'none';
-  scheduleAutoSave();
-}
-function setTradeInLoan(val) {
-  document.getElementById('ti-loan-yes').classList.toggle('active', val);
-  document.getElementById('ti-loan-no').classList.toggle('active', !val);
-  document.getElementById('ti-safe-wrap').style.display = val ? 'block' : 'none';
-  scheduleAutoSave();
-}
-function setTradeInSafe(val) {
-  document.getElementById('ti-safe-yes').classList.toggle('active', val);
-  document.getElementById('ti-safe-no').classList.toggle('active', !val);
-  scheduleAutoSave();
-}
-
-function setStatus(val) {
-  currentStatus = val || '';
-  var sel = document.getElementById('status-sel');
-  if (sel) sel.value = currentStatus;
-  scheduleAutoSave();
-}
 var currentMonthly = 0;
 var currentN = 100;
 var currentRate = 4.2;
@@ -574,23 +462,29 @@ function calc() {
     return;
   }
 
-  var totalDeal  = parseFloat(document.getElementById('total-deal-input').value) || 0;
-  var cash       = parseFloat(document.getElementById('cash').value) || 0;
+  var newPrice = parseFloat(document.getElementById('new-price').value) || 0;
+  var tradeIn  = parseFloat(document.getElementById('trade-in').value)  || 0;
+  var oldLoan  = parseFloat(document.getElementById('old-loan').value)  || 0;
+  var cash     = parseFloat(document.getElementById('cash').value)      || 0;
+
+  var diff       = newPrice - tradeIn;
+  var totalDeal  = diff + oldLoan;
   var financeAmt = totalDeal - cash;
 
-  var financeDisplay = totalDeal > 0 ? Math.max(0, financeAmt) : 0;
-  document.getElementById('finance-amount').textContent = totalDeal ? fmtNum(financeDisplay) : '—';
+  document.getElementById('diff').textContent       = newPrice ? fmtNum(diff)      : '—';
+  document.getElementById('total-deal').textContent = newPrice ? fmtNum(totalDeal) : '—';
+  document.getElementById('finance-amount').textContent = newPrice ? fmtNum(financeAmt) : '—';
 
   var box = document.getElementById('monthly-box');
   var actions = document.getElementById('action-row');
 
-  if (financeDisplay > 0) {
-    currentFinanceAmt = financeDisplay;
+  if (financeAmt > 0) {
+    currentFinanceAmt = financeAmt;
     var sel = document.getElementById('track-sel');
     currentRate = parseFloat(sel.value);
     currentTrackName = sel.options[sel.selectedIndex].text;
     currentN = parseInt(document.getElementById('n-sel').value);
-    currentMonthly = pmt(financeDisplay, currentRate, currentN);
+    currentMonthly = pmt(financeAmt, currentRate, currentN);
 
     var totalPay = currentMonthly * currentN;
     var costFinance = totalPay - financeAmt;
@@ -598,10 +492,10 @@ function calc() {
     box.style.display = 'flex';
     actions.style.display = 'flex';
     document.getElementById('monthly-val').textContent = currentMonthly.toLocaleString('he-IL');
-    document.getElementById('monthly-sub').textContent = currentN + ' תשלומים · ' + fmtNum(financeDisplay) + ' מימון';
-    var monthlyInterest = Math.round(currentMonthly - (financeDisplay / currentN));
+    document.getElementById('monthly-sub').textContent = currentN + ' תשלומים · ' + fmtNum(financeAmt) + ' מימון';
+    var monthlyInterest = Math.round(currentMonthly - (financeAmt / currentN));
     document.getElementById('monthly-cost').textContent = 'עלות ריבית: ' + fmtNum(monthlyInterest) + '/חודש';
-    renderFinanceCards(financeDisplay);
+    renderFinanceCards(financeAmt);
     scheduleAutoSave();
   } else {
     box.style.display = 'none';
@@ -611,16 +505,34 @@ function calc() {
 }
 
 function shareWA() {
-  var name      = document.getElementById('customer-name').value || '—';
-  var totalDeal = parseFloat(document.getElementById('total-deal-input').value) || 0;
-  var cash      = parseFloat(document.getElementById('cash').value) || 0;
-  var rep       = document.getElementById('sales-rep').value || '—';
-  var phone     = document.getElementById('customer-phone').value || '';
+  var name    = document.getElementById('customer-name').value || '—';
+  var newCar  = document.getElementById('new-car-name').value || '—';
+  var newPlate= document.getElementById('new-car-plate').value;
+  var newPrice= parseFloat(document.getElementById('new-price').value) || 0;
+  var oldCar  = document.getElementById('old-car-name').value || '—';
+  var oldPlate= document.getElementById('old-car-plate').value;
+  var tradeIn = parseFloat(document.getElementById('trade-in').value) || 0;
+  var oldLoan = parseFloat(document.getElementById('old-loan').value) || 0;
+  var cash    = parseFloat(document.getElementById('cash').value) || 0;
+  var diff    = newPrice - tradeIn;
+  var totalDeal = diff + oldLoan;
 
+  var rep   = document.getElementById('sales-rep').value || '—';
+  var phone = document.getElementById('customer-phone').value || '';
   var msg = '🚗 *הצעת מחיר — ענק הרכבים*\n';
   msg += '🧑‍💼 נציג: ' + rep + '\n';
   msg += '👤 לקוח: ' + name + (phone ? ' · 📞 ' + phone : '') + '\n\n';
-  if (totalDeal > 0) msg += '📊 סה"כ עסקה: ' + fmtNum(totalDeal) + '\n';
+  msg += '🆕 *רכב חדש*\n';
+  msg += newCar + (newPlate ? ' · ' + newPlate : '') + '\n';
+  msg += 'מחיר: ' + fmtNum(newPrice) + '\n\n';
+  if (tradeIn > 0) {
+    msg += '🔄 *טרייד אין*\n';
+    msg += oldCar + (oldPlate ? ' · ' + oldPlate : '') + '\n';
+    msg += 'זיכוי: ' + fmtNum(tradeIn) + '\n';
+    msg += 'הפרש: ' + fmtNum(diff) + '\n\n';
+  }
+  if (oldLoan > 0) msg += '💳 חוב מימון ישן: ' + fmtNum(oldLoan) + '\n';
+  msg += '📊 סה"כ עסקה: ' + fmtNum(totalDeal) + '\n';
   if (cash > 0) msg += '💵 כסף מהלקוח: ' + fmtNum(cash) + '\n';
   msg += '🏦 *מימון: ' + fmtNum(currentFinanceAmt) + '*\n\n';
   var monthly = currentMonthly || pmt(currentFinanceAmt, currentRate, currentN);
@@ -677,28 +589,32 @@ function scheduleAutoSave() {
 
 function autoSave() {
   var customer = document.getElementById('customer-name').value || '';
-  if (!customer && !currentFinanceAmt) return; // nothing worth saving
+  var newCar   = document.getElementById('new-car-name').value  || '';
+  if (!customer && !newCar && !currentFinanceAmt) return; // nothing worth saving
   var now = new Date();
   var item = {
     date: now.toLocaleDateString('he-IL') + ' ' + now.toLocaleTimeString('he-IL', {hour:'2-digit',minute:'2-digit'}),
     rep: document.getElementById('sales-rep').value || '',
     phone: document.getElementById('customer-phone').value || '',
     customer: customer || 'לא ידוע',
-    totalDeal: parseFloat(document.getElementById('total-deal-input').value) || 0,
+    newCar: newCar,
+    newPrice: parseFloat(document.getElementById('new-price').value) || 0,
+    tradeIn: parseFloat(document.getElementById('trade-in').value) || 0,
+    oldLoan: parseFloat(document.getElementById('old-loan').value) || 0,
     cash: parseFloat(document.getElementById('cash').value) || 0,
     finance: currentFinanceAmt,
     monthly: currentMonthly,
     n: currentN,
     track: currentTrackName,
-    status: currentStatus || ''
+    oldCar: document.getElementById('old-car-name').value || '',
+    newPlate: document.getElementById('new-car-plate').value || '',
+    oldPlate: document.getElementById('old-car-plate').value || ''
   };
   var hist = JSON.parse(localStorage.getItem('anak-quotes') || '[]');
   // replace top entry if same customer within same minute, else prepend
   if (hist.length && hist[0].customer === item.customer && hist[0].date.slice(0,16) === item.date.slice(0,16)) {
-    item.createdAt = hist[0].createdAt || Date.now(); // keep original timer
     hist[0] = item;
   } else {
-    item.createdAt = Date.now();
     hist.unshift(item);
   }
   if (hist.length > 500) hist = hist.slice(0, 500);
@@ -713,11 +629,14 @@ function loadHistoryItem(item) {
   document.getElementById('sales-rep').value     = item.rep      || '';
   document.getElementById('customer-name').value = item.customer || '';
   document.getElementById('customer-phone').value= item.phone   || '';
-  document.getElementById('total-deal-input').value = item.totalDeal || '';
-  document.getElementById('cash').value             = item.cash     || '';
-  currentStatus = item.status || '';
-  var ssel = document.getElementById('status-sel');
-  if (ssel) ssel.value = currentStatus;
+  document.getElementById('new-car-name').value  = item.newCar  || '';
+  document.getElementById('new-car-plate').value = item.newPlate|| '';
+  document.getElementById('new-price').value     = item.newPrice|| '';
+  document.getElementById('old-car-name').value  = item.oldCar  || '';
+  document.getElementById('old-car-plate').value = item.oldPlate|| '';
+  document.getElementById('trade-in').value      = item.tradeIn || '';
+  document.getElementById('old-loan').value      = item.oldLoan || '';
+  document.getElementById('cash').value          = item.cash    || '';
   calc();
   window.scrollTo(0,0);
 }
@@ -739,7 +658,7 @@ function renderHistory() {
 }
 
 function resetAll() {
-  ['sales-rep','customer-name','customer-phone','total-deal-input','cash'].forEach(function(id){
+  ['sales-rep','customer-name','customer-phone','new-car-name','new-car-plate','old-car-name','old-car-plate','new-price','trade-in','old-loan','cash'].forEach(function(id){
     document.getElementById(id).value = '';
   });
   document.getElementById('track-sel').selectedIndex = 0;

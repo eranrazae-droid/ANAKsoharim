@@ -1,7 +1,7 @@
 var CACHE = 'anak-sales-v33';
 var FILES = [
   '/index.html',
-  '/index-sales.html',
+  
   '/finance.html',
   '/finance-used.html',
   '/quote.html',
@@ -10,14 +10,12 @@ var FILES = [
   '/icon-192.png',
   '/icon-512.png'
 ];
-
 self.addEventListener('install', function(e) {
   e.waitUntil(
     caches.open(CACHE).then(function(c) { return c.addAll(FILES); })
   );
   self.skipWaiting();
 });
-
 self.addEventListener('activate', function(e) {
   e.waitUntil(
     caches.keys().then(function(keys) {
@@ -26,7 +24,6 @@ self.addEventListener('activate', function(e) {
   );
   self.clients.claim();
 });
-
 self.addEventListener('fetch', function(e) {
   e.respondWith(
     caches.match(e.request).then(function(r) {
