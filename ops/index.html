@@ -1882,7 +1882,6 @@ function openVehiclesScreen() {
   document.getElementById('fab-new-vehicle').style.display = isManager ? 'flex' : 'none';
   const liveBtn = document.getElementById('btn-live-intake');
   if (liveBtn) liveBtn.style.display = isManager ? 'flex' : 'none';
-  if (isManager) setTimeout(() => { if (typeof _startLiveIntakeListener === 'function') _startLiveIntakeListener(); }, 0);
   showScreen('vehicles');
   loadVehicles();
   if (isManager) loadBatteryAlerts();
@@ -4371,32 +4370,29 @@ const _liveChecklistLabels = {
   'c-body-damage':'תגרות ושריטות','c-tires':'צמיגים','c-lights':'פנסים'
 };
 
-function _startLiveIntakeListener() {
-  if (_liveIntakeUnsub) return;
+function openLiveIntakeView() {
+  const modal = document.getElementById('modal-live-intake');
+  modal.style.display = 'flex';
+  document.getElementById('live-intake-body').innerHTML = '<div style="text-align:center;padding:40px"><div class="spinner"></div></div>';
+  document.getElementById('live-intake-tabs').innerHTML = '';
+
+  if (_liveIntakeUnsub) _liveIntakeUnsub();
   _liveIntakeUnsub = _onSnap(
     _query(_colRef('intake_assignments'), _where('status','==','pending')),
     snap => {
-      _liveIntakeDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-        .filter(d => d.liveDraft || d.plate);
-      const badge = document.getElementById('live-intake-badge');
-      const btn = document.getElementById('btn-live-intake');
-      if (_liveIntakeDocs.length > 0) {
-        if (badge) { badge.textContent = _liveIntakeDocs.length; badge.style.display = ''; }
-        if (btn) btn.style.display = 'flex';
-      } else {
-        if (badge) badge.style.display = 'none';
+      _liveIntakeDocs = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .sort((a,b) => {
+          const ta = a.createdAt?.toMillis?.() ?? (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+          const tb = b.createdAt?.toMillis?.() ?? (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+          return ta - tb;
+        });
+      if (!_liveIntakeActive || !_liveIntakeDocs.find(d => d.id === _liveIntakeActive)) {
+        _liveIntakeActive = _liveIntakeDocs[0]?.id || null;
       }
-      if (document.getElementById('modal-live-intake')?.style.display !== 'none') {
-        _renderLiveIntakeModal();
-      }
+      _renderLiveIntakeModal();
     }
   );
-}
-
-function openLiveIntakeView() {
-  _startLiveIntakeListener();
-  document.getElementById('modal-live-intake').style.display = 'flex';
-  _renderLiveIntakeModal();
 }
 
 function _renderLiveIntakeModal() {
@@ -4406,17 +4402,17 @@ function _renderLiveIntakeModal() {
 
   if (_liveIntakeDocs.length === 0) {
     tabs.innerHTML = '';
-    body.innerHTML = '<div style="text-align:center;padding:40px;color:#94a3b8">אין קליטות פעילות כרגע</div>';
+    body.innerHTML = '<div style="text-align:center;padding:40px;color:#94a3b8;font-size:15px">אין קליטות פעילות כרגע</div>';
     return;
   }
 
-  if (!_liveIntakeActive || !_liveIntakeDocs.find(d => d.id === _liveIntakeActive)) {
-    _liveIntakeActive = _liveIntakeDocs[0].id;
-  }
-
-  tabs.innerHTML = _liveIntakeDocs.map(d =>
-    `<button onclick="window._setLiveTab('${d.id}')" style="background:${d.id===_liveIntakeActive?'#0f172a':'#e2e8f0'};color:${d.id===_liveIntakeActive?'#fff':'#334155'};border:none;border-radius:999px;padding:6px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">${esc(d.plate||d.assignedTo)}</button>`
-  ).join('');
+  tabs.innerHTML = _liveIntakeDocs.map(d => {
+    const active = d.id === _liveIntakeActive;
+    const hasDraft = !!(d.liveDraft && Object.keys(d.liveDraft.checks||{}).length);
+    return `<button onclick="window._setLiveTab('${d.id}')" style="background:${active?'#0f172a':'#e2e8f0'};color:${active?'#fff':'#334155'};border:none;border-radius:999px;padding:6px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;position:relative">
+      ${esc(d.plate||d.assignedTo)}${hasDraft?'<span style="position:absolute;top:-4px;right:-4px;width:8px;height:8px;background:#22c55e;border-radius:50%;border:2px solid #fff"></span>':''}
+    </button>`;
+  }).join('');
 
   const doc = _liveIntakeDocs.find(d => d.id === _liveIntakeActive);
   if (!doc) return;
@@ -4424,38 +4420,52 @@ function _renderLiveIntakeModal() {
   const draft = doc.liveDraft || {};
   const checks = draft.checks || {};
   const notes = draft.notes || {};
-  const ts = doc.liveUpdatedAt ? new Date(doc.liveUpdatedAt).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit',second:'2-digit'}) : '—';
+  const ts = doc.liveUpdatedAt ? new Date(doc.liveUpdatedAt).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit',second:'2-digit'}) : null;
+  const totalChecked = Object.values(checks).filter(Boolean).length;
+  const totalLabels = Object.keys(_liveChecklistLabels).length;
 
-  let html = `<div style="background:#f0fdf4;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px">
-    <strong>🚗 ${esc(doc.plate||'')}</strong> · ${esc(doc.assignedTo||'')}
-    ${doc.brand||doc.model ? ` · ${esc(doc.brand||'')} ${esc(doc.model||'')}` : ''}
-    <div style="color:#64748b;margin-top:4px">עדכון אחרון: ${ts}</div>
-    ${draft.km ? `<div>ק"מ: <strong>${esc(draft.km)}</strong></div>` : ''}
-    ${draft.code ? `<div>קוד: <strong>${esc(draft.code)}</strong></div>` : ''}
+  let html = `<div style="background:#f8fafc;border-radius:12px;padding:12px 16px;margin-bottom:12px;font-size:14px;border:2px solid #e2e8f0">
+    <div style="font-weight:900;font-size:16px">🚗 ${esc(doc.plate||'—')}</div>
+    <div style="color:#475569;margin-top:2px">נהג: <strong>${esc(doc.assignedTo||'')}</strong>${doc.brand||doc.model?` · ${esc(doc.brand||'')} ${esc(doc.model||'')}`:''}</div>
+    ${draft.km?`<div>ק"מ: <strong>${esc(draft.km)}</strong></div>`:''}
+    ${draft.code?`<div>קוד: <strong>${esc(draft.code)}</strong></div>`:''}
+    <div style="margin-top:6px;background:#e2e8f0;border-radius:999px;height:6px"><div style="width:${Math.round(totalChecked/totalLabels*100)}%;background:#22c55e;height:6px;border-radius:999px;transition:width .3s"></div></div>
+    <div style="font-size:12px;color:#64748b;margin-top:4px">${totalChecked}/${totalLabels} בדיקות${ts?' · עדכון: '+ts:' · טרם עודכן'}</div>
   </div>`;
 
-  html += '<div style="display:flex;flex-direction:column;gap:6px">';
-  for (const [key, label] of Object.entries(_liveChecklistLabels)) {
-    const val = checks[key];
-    if (!val) continue;
-    const icon = val === 'v' ? '✅' : '❌';
-    const bg = val === 'v' ? '#f0fff4' : '#fff0f0';
-    const note = notes[key] ? `<span style="font-size:12px;color:#555"> · ${esc(notes[key])}</span>` : '';
-    html += `<div style="background:${bg};border-radius:8px;padding:8px 12px">${icon} ${label}${note}</div>`;
+  const allChecked = Object.entries(_liveChecklistLabels);
+  const done = allChecked.filter(([k]) => checks[k]);
+  const pending = allChecked.filter(([k]) => !checks[k]);
+
+  if (done.length) {
+    html += '<div style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px">';
+    for (const [key, label] of done) {
+      const val = checks[key];
+      const icon = val === 'v' ? '✅' : '❌';
+      const bg = val === 'v' ? '#f0fff4' : '#fff0f0';
+      const note = notes[key] ? `<div style="font-size:12px;color:#555;margin-top:2px">📝 ${esc(notes[key])}</div>` : '';
+      html += `<div style="background:${bg};border-radius:8px;padding:8px 12px;font-size:14px">${icon} ${label}${note}</div>`;
+    }
+    html += '</div>';
   }
-  html += '</div>';
+
+  if (pending.length) {
+    html += `<div style="color:#94a3b8;font-size:12px;font-weight:700;margin:8px 0 4px">ממתין:</div>`;
+    html += '<div style="display:flex;flex-wrap:wrap;gap:4px">';
+    for (const [, label] of pending) {
+      html += `<span style="background:#f1f5f9;border-radius:6px;padding:4px 8px;font-size:12px;color:#64748b">⬜ ${label}</span>`;
+    }
+    html += '</div>';
+  }
 
   if (draft.general) {
-    html += `<div style="margin-top:10px;background:#fefce8;border-radius:8px;padding:8px 12px;font-size:13px">📝 הערות: ${esc(draft.general)}</div>`;
+    html += `<div style="margin-top:10px;background:#fefce8;border-radius:8px;padding:8px 12px;font-size:13px">📝 ${esc(draft.general)}</div>`;
   }
 
   body.innerHTML = html;
 }
 
-window._setLiveTab = function(id) {
-  _liveIntakeActive = id;
-  _renderLiveIntakeModal();
-};
+window._setLiveTab = function(id) { _liveIntakeActive = id; _renderLiveIntakeModal(); };
 window.openLiveIntakeView = openLiveIntakeView;
 </script>
 </body>
