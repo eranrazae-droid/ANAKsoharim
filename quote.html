@@ -295,7 +295,7 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
   <!-- ACTIONS -->
   <div class="action-row" id="action-row" style="display:none">
     <button class="btn btn-wa" onclick="shareWA()">📲 שלח ב-WhatsApp</button>
-    <button class="btn btn-finance" onclick="advanceDeal()">🚀 התקדם לעסקה</button>
+    <button class="btn btn-finance" id="btn-advance-top" onclick="advanceDeal()">🚀 התקדם לעסקה</button>
     <button class="btn btn-print" onclick="printQuote()">🖨️ הדפסה</button>
   </div>
   <div id="autosave-indicator" style="font-size:11px;color:#16a34a;text-align:center;min-height:16px;margin-top:4px"></div>
@@ -313,7 +313,7 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
 
   <!-- כפתורי סיום -->
   <div style="margin-top:24px;display:flex;flex-direction:column;gap:10px">
-    <button onclick="advanceDeal()" style="width:100%;background:#16a34a;color:#fff;border:none;border-radius:14px;padding:18px;font-family:'Heebo',sans-serif;font-size:18px;font-weight:900;cursor:pointer;box-shadow:0 4px 16px rgba(22,163,74,.25)">📈 התקדמות בעסקה</button>
+    <button id="btn-advance-bottom" onclick="advanceDeal()" style="width:100%;background:#16a34a;color:#fff;border:none;border-radius:14px;padding:18px;font-family:'Heebo',sans-serif;font-size:18px;font-weight:900;cursor:pointer;box-shadow:0 4px 16px rgba(22,163,74,.25)">📈 התקדמות בעסקה</button>
     <button onclick="archiveDeal()" style="width:100%;background:#f5f8ff;color:#5a7aa5;border:1.5px solid #dce6f5;border-radius:14px;padding:16px;font-family:'Heebo',sans-serif;font-size:16px;font-weight:900;cursor:pointer">🗄️ ארכיון</button>
     <button onclick="closeQuoteForm()" style="width:100%;background:transparent;border:1.5px solid #dce6f5;border-radius:14px;padding:12px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:700;color:#5a7aa5;cursor:pointer">← חזרה לרשימה</button>
   </div>
@@ -663,6 +663,7 @@ function loadHistoryItem(item) {
   document.getElementById('old-loan').value      = item.oldLoan || '';
   document.getElementById('cash').value          = item.cash    || '';
   calc();
+  if (item.inProcess) { hideAdvanceBtns(); }
   window.scrollTo(0,0);
 }
 
@@ -738,6 +739,13 @@ function renderExistingQuotes() {
   el.innerHTML = html;
 }
 
+function hideAdvanceBtns() {
+  var t = document.getElementById('btn-advance-top');
+  var b = document.getElementById('btn-advance-bottom');
+  if (t) t.style.display = 'none';
+  if (b) b.style.display = 'none';
+}
+
 function advanceDeal() {
   var hist = JSON.parse(localStorage.getItem('anak-quotes') || '[]');
   if (!hist.length) { alert('אין הצעה פעילה לעדכון'); return; }
@@ -746,6 +754,7 @@ function advanceDeal() {
   item.inProcess = true;
   hist[0] = item;
   localStorage.setItem('anak-quotes', JSON.stringify(hist));
+  hideAdvanceBtns();
   // הוסף לרשימת העסקאות הפעילות (deals)
   var deals = JSON.parse(localStorage.getItem('anak-deals') || '[]');
   var exists = deals.findIndex(function(d){ return d.createdAt === item.createdAt; });
