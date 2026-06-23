@@ -159,6 +159,15 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
     <p id="print-date"></p>
   </div>
 
+  <!-- רשימת הצעות קיימות -->
+  <div id="quotes-list-section">
+    <div class="page-title" style="margin-bottom:12px">הצעות <span>קיימות</span></div>
+    <div id="existing-quotes-list" style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px"></div>
+    <button onclick="openNewQuote()" style="width:100%;background:#1a56db;color:#fff;border:none;border-radius:14px;padding:16px;font-family:'Heebo',sans-serif;font-size:17px;font-weight:900;cursor:pointer;box-shadow:0 4px 16px rgba(26,86,219,.25);margin-bottom:8px">＋ הצעת מחיר חדשה</button>
+  </div>
+
+  <!-- טופס הצעת מחיר — מוסתר עד לחיצה -->
+  <div id="quote-form-section" style="display:none">
   <div class="page-title">הצעת <span>מחיר</span></div>
 
   <!-- נציג מכירות + לקוח + טלפון -->
@@ -300,7 +309,9 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
   <div style="margin-top:24px;display:flex;flex-direction:column;gap:10px">
     <button onclick="advanceDeal()" style="width:100%;background:#16a34a;color:#fff;border:none;border-radius:14px;padding:18px;font-family:'Heebo',sans-serif;font-size:18px;font-weight:900;cursor:pointer;box-shadow:0 4px 16px rgba(22,163,74,.25)">📈 התקדמות בעסקה</button>
     <button onclick="archiveDeal()" style="width:100%;background:#f5f8ff;color:#5a7aa5;border:1.5px solid #dce6f5;border-radius:14px;padding:16px;font-family:'Heebo',sans-serif;font-size:16px;font-weight:900;cursor:pointer">🗄️ ארכיון</button>
+    <button onclick="closeQuoteForm()" style="width:100%;background:transparent;border:1.5px solid #dce6f5;border-radius:14px;padding:12px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:700;color:#5a7aa5;cursor:pointer">← חזרה לרשימה</button>
   </div>
+  </div><!-- /quote-form-section -->
 </div>
 
 <script>
@@ -663,6 +674,62 @@ function renderHistory() {
   sec.innerHTML = html;
 }
 
+function openNewQuote() {
+  document.getElementById('quotes-list-section').style.display = 'none';
+  document.getElementById('quote-form-section').style.display = 'block';
+  window.scrollTo(0, 0);
+}
+
+function closeQuoteForm() {
+  document.getElementById('quote-form-section').style.display = 'none';
+  document.getElementById('quotes-list-section').style.display = 'block';
+  renderExistingQuotes();
+  window.scrollTo(0, 0);
+}
+
+function fmtQ(n){ return '₪ ' + Math.round(n||0).toLocaleString('he-IL'); }
+
+function deleteExistingQuote(i, e) {
+  e.stopPropagation();
+  if (!confirm('למחוק את ההצעה?')) return;
+  var hist = JSON.parse(localStorage.getItem('anak-quotes') || '[]');
+  hist.splice(i, 1);
+  localStorage.setItem('anak-quotes', JSON.stringify(hist));
+  renderExistingQuotes();
+}
+
+function loadQuoteFromList(item) {
+  loadHistoryItem(item);
+  document.getElementById('quotes-list-section').style.display = 'none';
+  document.getElementById('quote-form-section').style.display = 'block';
+  window.scrollTo(0, 0);
+}
+
+function renderExistingQuotes() {
+  var hist = JSON.parse(localStorage.getItem('anak-quotes') || '[]');
+  var el = document.getElementById('existing-quotes-list');
+  if (!hist.length) {
+    el.innerHTML = '<div style="text-align:center;padding:30px;color:#7a9ab8;font-size:14px;font-weight:600">אין הצעות שמורות עדיין</div>';
+    return;
+  }
+  var html = '';
+  hist.forEach(function(item, i) {
+    html += '<div style="background:#fff;border:1.5px solid #dce6f5;border-radius:14px;overflow:hidden;box-shadow:0 2px 8px rgba(13,31,60,.06)">';
+    html += '<div style="background:#0d1f3c;padding:10px 14px;display:flex;justify-content:space-between;align-items:center">';
+    html += '<span style="font-size:16px;font-weight:900;color:#fff">' + (item.customer || 'לא ידוע') + '</span>';
+    if (item.status) html += '<span style="background:#1a2f54;color:#7a9ccf;border-radius:8px;padding:3px 10px;font-size:11px;font-weight:700">' + item.status + '</span>';
+    html += '</div>';
+    html += '<div style="padding:12px 16px;cursor:pointer" onclick="loadQuoteFromList(' + JSON.stringify(item).replace(/"/g,'&quot;') + ')">';
+    if (item.newCar) html += '<div style="font-size:13px;color:#5a7aa5;margin-bottom:6px">' + item.newCar + '</div>';
+    html += '<div style="font-size:24px;font-weight:900;color:#1a56db">' + fmtQ(item.monthly) + '<span style="font-size:13px;color:#5a7aa5;font-weight:400"> /חודש</span></div>';
+    html += '<div style="font-size:11px;color:#7a9ab8;margin-top:4px">' + (item.rep ? 'נציג: ' + item.rep + ' · ' : '') + (item.date || '') + '</div>';
+    html += '</div>';
+    html += '<button onclick="deleteExistingQuote(' + i + ',event)" style="width:100%;border:none;background:#fff0f0;color:#e02d2d;font-family:\'Heebo\',sans-serif;font-size:14px;font-weight:900;padding:10px;cursor:pointer;border-top:1px solid #ffd6d6;">🗑 מחיקה</button>';
+    html += '</div>';
+  });
+  el.innerHTML = html;
+}
+
 function advanceDeal() {
   var hist = JSON.parse(localStorage.getItem('anak-quotes') || '[]');
   if (!hist.length) { alert('אין הצעה פעילה לעדכון'); return; }
@@ -705,6 +772,7 @@ function resetAll() {
 
 // init
 renderHistory();
+renderExistingQuotes();
 </script>
 </body>
 </html>
