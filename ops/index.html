@@ -4365,34 +4365,32 @@ let _liveIntakeActive = null;
 
 const _liveChecklistLabels = {
   'c-battery-original':'בדיקת מצבר','c-battery-is-original':'מצבר מקורי',
-  'c-oil':'שמן מנוע','c-coolant':'נוזל קירור','c-spare':'ג\'ק, אפוד, משולש, גלגל ספייר',
+  'c-oil':'שמן מנוע','c-coolant':'נוזל קירור','c-spare':"ג'\u05e7, אפוד, משולש, גלגל ספייר",
   'c-interior-damage':'שברים בפנסים','c-windshield':'שברים בשמשות',
   'c-body-damage':'תגרות ושריטות','c-tires':'צמיגים','c-lights':'פנסים'
 };
 
-function openLiveIntakeView() {
+async function openLiveIntakeView() {
   const modal = document.getElementById('modal-live-intake');
   modal.style.display = 'flex';
-  document.getElementById('live-intake-body').innerHTML = '<div style="text-align:center;padding:40px"><div class="spinner"></div></div>';
   document.getElementById('live-intake-tabs').innerHTML = '';
+  document.getElementById('live-intake-body').innerHTML = '<div style="text-align:center;padding:40px"><div class="spinner"></div></div>';
 
-  if (_liveIntakeUnsub) _liveIntakeUnsub();
-  _liveIntakeUnsub = _onSnap(
-    _query(_colRef('intake_assignments'), _where('status','==','pending')),
-    snap => {
-      _liveIntakeDocs = snap.docs
-        .map(d => ({ id: d.id, ...d.data() }))
-        .sort((a,b) => {
-          const ta = a.createdAt?.toMillis?.() ?? (a.createdAt ? new Date(a.createdAt).getTime() : 0);
-          const tb = b.createdAt?.toMillis?.() ?? (b.createdAt ? new Date(b.createdAt).getTime() : 0);
-          return ta - tb;
-        });
-      if (!_liveIntakeActive || !_liveIntakeDocs.find(d => d.id === _liveIntakeActive)) {
+  if (_liveIntakeUnsub) { _liveIntakeUnsub(); _liveIntakeUnsub = null; }
+
+  try {
+    const { collection, query, where, onSnapshot } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const q = query(collection(window._db, 'intake_assignments'), where('status', '==', 'pending'));
+    _liveIntakeUnsub = onSnapshot(q, snap => {
+      _liveIntakeDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        .sort((a,b) => (a.createdAt?.toMillis?.()??0) - (b.createdAt?.toMillis?.()??0));
+      if (!_liveIntakeActive || !_liveIntakeDocs.find(d => d.id === _liveIntakeActive))
         _liveIntakeActive = _liveIntakeDocs[0]?.id || null;
-      }
       _renderLiveIntakeModal();
-    }
-  );
+    });
+  } catch(e) {
+    document.getElementById('live-intake-body').innerHTML = '<div style="color:red;padding:20px">שגיאה: ' + e.message + '</div>';
+  }
 }
 
 function _renderLiveIntakeModal() {
@@ -4409,9 +4407,9 @@ function _renderLiveIntakeModal() {
   tabs.innerHTML = _liveIntakeDocs.map(d => {
     const active = d.id === _liveIntakeActive;
     const hasDraft = !!(d.liveDraft && Object.keys(d.liveDraft.checks||{}).length);
-    return `<button onclick="window._setLiveTab('${d.id}')" style="background:${active?'#0f172a':'#e2e8f0'};color:${active?'#fff':'#334155'};border:none;border-radius:999px;padding:6px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;position:relative">
-      ${esc(d.plate||d.assignedTo)}${hasDraft?'<span style="position:absolute;top:-4px;right:-4px;width:8px;height:8px;background:#22c55e;border-radius:50%;border:2px solid #fff"></span>':''}
-    </button>`;
+    return '<button onclick="window._setLiveTab(\'' + d.id + '\')" style="background:' + (active?'#0f172a':'#e2e8f0') + ';color:' + (active?'#fff':'#334155') + ';border:none;border-radius:999px;padding:6px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;position:relative">' +
+      esc(d.plate||d.assignedTo) + (hasDraft?'<span style="position:absolute;top:-3px;right:-3px;width:9px;height:9px;background:#22c55e;border-radius:50%;border:2px solid #fff"></span>':'') +
+    '</button>';
   }).join('');
 
   const doc = _liveIntakeDocs.find(d => d.id === _liveIntakeActive);
@@ -4423,45 +4421,28 @@ function _renderLiveIntakeModal() {
   const ts = doc.liveUpdatedAt ? new Date(doc.liveUpdatedAt).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit',second:'2-digit'}) : null;
   const totalChecked = Object.values(checks).filter(Boolean).length;
   const totalLabels = Object.keys(_liveChecklistLabels).length;
+  const pct = Math.round(totalChecked / totalLabels * 100);
 
-  let html = `<div style="background:#f8fafc;border-radius:12px;padding:12px 16px;margin-bottom:12px;font-size:14px;border:2px solid #e2e8f0">
-    <div style="font-weight:900;font-size:16px">🚗 ${esc(doc.plate||'—')}</div>
-    <div style="color:#475569;margin-top:2px">נהג: <strong>${esc(doc.assignedTo||'')}</strong>${doc.brand||doc.model?` · ${esc(doc.brand||'')} ${esc(doc.model||'')}`:''}</div>
-    ${draft.km?`<div>ק"מ: <strong>${esc(draft.km)}</strong></div>`:''}
-    ${draft.code?`<div>קוד: <strong>${esc(draft.code)}</strong></div>`:''}
-    <div style="margin-top:6px;background:#e2e8f0;border-radius:999px;height:6px"><div style="width:${Math.round(totalChecked/totalLabels*100)}%;background:#22c55e;height:6px;border-radius:999px;transition:width .3s"></div></div>
-    <div style="font-size:12px;color:#64748b;margin-top:4px">${totalChecked}/${totalLabels} בדיקות${ts?' · עדכון: '+ts:' · טרם עודכן'}</div>
-  </div>`;
+  let html = '<div style="background:#f8fafc;border-radius:12px;padding:12px 16px;margin-bottom:12px;border:2px solid #e2e8f0">' +
+    '<div style="font-weight:900;font-size:17px">🚗 ' + esc(doc.plate||'—') + '</div>' +
+    '<div style="color:#475569;margin-top:2px">נהג: <strong>' + esc(doc.assignedTo||'') + '</strong>' + (doc.brand||doc.model?' · '+esc(((doc.brand||'')+' '+(doc.model||'')).trim()):'') + '</div>' +
+    (draft.km?'<div style="font-size:13px">ק"מ: <strong>'+esc(draft.km)+'</strong></div>':'') +
+    (draft.code?'<div style="font-size:13px">קוד: <strong>'+esc(draft.code)+'</strong></div>':'') +
+    '<div style="margin-top:8px;background:#e2e8f0;border-radius:999px;height:8px"><div style="width:'+pct+'%;background:#22c55e;height:8px;border-radius:999px;transition:width .4s"></div></div>' +
+    '<div style="font-size:12px;color:#64748b;margin-top:4px">'+totalChecked+' מתוך '+totalLabels+' בדיקות'+(ts?' · עדכון: '+ts:' · טרם התחיל')+'</div>' +
+    '</div><div style="display:flex;flex-direction:column;gap:6px">';
 
-  const allChecked = Object.entries(_liveChecklistLabels);
-  const done = allChecked.filter(([k]) => checks[k]);
-  const pending = allChecked.filter(([k]) => !checks[k]);
-
-  if (done.length) {
-    html += '<div style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px">';
-    for (const [key, label] of done) {
-      const val = checks[key];
-      const icon = val === 'v' ? '✅' : '❌';
-      const bg = val === 'v' ? '#f0fff4' : '#fff0f0';
-      const note = notes[key] ? `<div style="font-size:12px;color:#555;margin-top:2px">📝 ${esc(notes[key])}</div>` : '';
-      html += `<div style="background:${bg};border-radius:8px;padding:8px 12px;font-size:14px">${icon} ${label}${note}</div>`;
-    }
-    html += '</div>';
+  for (const [key, label] of Object.entries(_liveChecklistLabels)) {
+    const val = checks[key];
+    const icon = val === 'v' ? '✅' : val === 'x' ? '❌' : '⬜';
+    const bg = val === 'v' ? '#f0fff4' : val === 'x' ? '#fff0f0' : '#f8fafc';
+    const border = val ? '' : 'border:1.5px dashed #e2e8f0;';
+    const note = notes[key] ? '<div style="font-size:12px;color:#555;margin-top:3px">📝 '+esc(notes[key])+'</div>' : '';
+    html += '<div style="background:'+bg+';'+border+'border-radius:8px;padding:9px 13px;font-size:14px;font-weight:'+(val?'700':'400')+';color:'+(val?'inherit':'#94a3b8')+'">'+icon+' '+label+note+'</div>';
   }
 
-  if (pending.length) {
-    html += `<div style="color:#94a3b8;font-size:12px;font-weight:700;margin:8px 0 4px">ממתין:</div>`;
-    html += '<div style="display:flex;flex-wrap:wrap;gap:4px">';
-    for (const [, label] of pending) {
-      html += `<span style="background:#f1f5f9;border-radius:6px;padding:4px 8px;font-size:12px;color:#64748b">⬜ ${label}</span>`;
-    }
-    html += '</div>';
-  }
-
-  if (draft.general) {
-    html += `<div style="margin-top:10px;background:#fefce8;border-radius:8px;padding:8px 12px;font-size:13px">📝 ${esc(draft.general)}</div>`;
-  }
-
+  html += '</div>';
+  if (draft.general) html += '<div style="margin-top:10px;background:#fefce8;border-radius:8px;padding:9px 13px;font-size:13px">📝 הערות כלליות: '+esc(draft.general)+'</div>';
   body.innerHTML = html;
 }
 
