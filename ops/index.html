@@ -293,7 +293,6 @@ if ('serviceWorker' in navigator) {
     <div class="loading"><div class="spinner"></div> טוען...</div>
   </div>
   <button class="fab" id="fab-new-task" onclick="openNewTaskModal()" style="display:none">+ משימה חדשה</button>
-  <button id="btn-live-intake" onclick="openLiveIntakeView()" style="position:fixed;bottom:80px;left:16px;background:#059669;color:#fff;border:none;border-radius:999px;padding:12px 20px;font-family:Heebo,sans-serif;font-weight:900;font-size:14px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,0.2);z-index:100;align-items:center;gap:8px;display:none">👁 צפייה בזמן אמת <span id="live-intake-badge" style="background:#fff;color:#059669;border-radius:999px;padding:1px 8px;font-size:12px;display:none">0</span></button>
 </div>
 
 <!-- ====== MODAL: LIVE INTAKE VIEW ====== -->
@@ -333,6 +332,7 @@ if ('serviceWorker' in navigator) {
     </div>
   </div>
   <button class="fab" id="fab-new-vehicle" onclick="openNewVehicleModal()" style="display:none">+ קליטת רכב</button>
+  <button id="btn-live-intake" onclick="openLiveIntakeView()" style="position:fixed;bottom:80px;left:16px;background:#059669;color:#fff;border:none;border-radius:999px;padding:12px 20px;font-family:Heebo,sans-serif;font-weight:900;font-size:14px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,0.2);z-index:100;align-items:center;gap:8px;display:none">👁 צפייה בזמן אמת <span id="live-intake-badge" style="background:#fff;color:#059669;border-radius:999px;padding:1px 8px;font-size:12px;display:none">0</span></button>
 </div>
 
 <!-- ====== SCREEN: PARTS ====== -->
@@ -1376,7 +1376,6 @@ function openTasksScreen() {
   const isManager = currentUser.role === 'manager';
   document.getElementById('tasks-user-badge').textContent = currentUser.name;
   document.getElementById('fab-new-task').style.display = isManager ? 'flex' : 'none';
-  if (isManager) { document.getElementById('btn-live-intake').style.display = 'flex'; setTimeout(() => { if (typeof _startLiveIntakeListener === 'function') _startLiveIntakeListener(); }, 0); }
   activeTaskFilter = isManager ? 'משימות כלליות' : 'שלי';
   showScreen('tasks');
   loadTasks();
@@ -1881,6 +1880,9 @@ function openVehiclesScreen() {
   const isManager = currentUser.role === 'manager';
   document.getElementById('vehicles-user-badge').textContent = currentUser.name;
   document.getElementById('fab-new-vehicle').style.display = isManager ? 'flex' : 'none';
+  const liveBtn = document.getElementById('btn-live-intake');
+  if (liveBtn) liveBtn.style.display = isManager ? 'flex' : 'none';
+  if (isManager) setTimeout(() => { if (typeof _startLiveIntakeListener === 'function') _startLiveIntakeListener(); }, 0);
   showScreen('vehicles');
   loadVehicles();
   if (isManager) loadBatteryAlerts();
