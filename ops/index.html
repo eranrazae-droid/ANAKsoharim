@@ -4452,7 +4452,17 @@ function _renderLiveIntakeModal() {
     const bg = val === 'v' ? '#f0fff4' : val === 'x' ? '#fff0f0' : '#f8fafc';
     const border = val ? '' : 'border:1.5px dashed #e2e8f0;';
     const note = notes[key] ? '<div style="font-size:12px;color:#555;margin-top:3px">📝 '+esc(notes[key])+'</div>' : '';
-    html += '<div style="background:'+bg+';'+border+'border-radius:8px;padding:9px 13px;font-size:14px;font-weight:'+(val?'700':'400')+';color:'+(val?'inherit':'#94a3b8')+'">'+icon+' '+label+note+'</div>';
+    let extra = '';
+    if (key === 'c-battery-is-original' && val === 'x') {
+      if (draft.batteryNoDate) {
+        extra = '<div style="font-size:12px;color:#b45309;margin-top:3px;font-weight:700">📅 לא רואים תאריך מצבר</div>';
+      } else if (draft.batteryMonth) {
+        const parts = draft.batteryMonth.split('-');
+        const formatted = parts.length === 2 ? parts[1]+'/'+parts[0] : draft.batteryMonth;
+        extra = '<div style="font-size:12px;color:#b45309;margin-top:3px;font-weight:700">📅 חודש מצבר: '+esc(formatted)+'</div>';
+      }
+    }
+    html += '<div style="background:'+bg+';'+border+'border-radius:8px;padding:9px 13px;font-size:14px;font-weight:'+(val?'700':'400')+';color:'+(val?'inherit':'#94a3b8')+'">'+icon+' '+label+note+extra+'</div>';
   }
 
   html += '</div>';
