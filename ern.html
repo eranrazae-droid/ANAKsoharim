@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>מחשבון ERN — ענק הרכבים</title>
+<link rel="manifest" href="manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ענק הרכבים">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="theme-color" content="#0d1f3c">
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:100vh}
+
+.hdr{background:#0d1f3c;padding:16px 24px;display:flex;align-items:center;justify-content:space-between}
+.hdr-logo{font-size:18px;font-weight:900;color:#fff}
+.hdr-logo span{color:#c9a227}
+.hdr-title{font-size:13px;color:#7a9ccf;margin-top:2px}
+
+.page{max-width:680px;margin:0 auto;padding:20px 16px 60px}
+.page-title{font-size:26px;font-weight:900;color:#0d1f3c;margin-bottom:20px;text-align:center}
+.page-title span{color:#0ea5e9}
+
+.card{background:#fff;border-radius:16px;border:1px solid #dce6f5;box-shadow:0 2px 10px rgba(13,31,60,.07);padding:18px;margin-bottom:16px}
+.card-title{font-size:11px;font-weight:700;color:#5a7aa5;letter-spacing:.08em;text-transform:uppercase;margin-bottom:14px}
+
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.field-row.three{grid-template-columns:1fr 1fr 1fr}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:12px;font-weight:700;color:#5a7aa5}
+.field input,.field select{
+  border:1.5px solid #dce6f5;border-radius:10px;
+  padding:10px 12px;font-family:'Heebo',sans-serif;
+  font-size:15px;font-weight:700;color:#0d1f3c;outline:none;
+  background:#fff;width:100%;transition:border-color .15s;
+}
+.field input:focus,.field select:focus{border-color:#0ea5e9}
+.field input[type="date"]{font-size:13px}
+.field input[readonly]{background:#f5f8ff;color:#0ea5e9}
+
+/* RESULT */
+.result-box{background:#0d1f3c;border-radius:16px;padding:20px 22px;color:#fff;margin-bottom:16px}
+.result-title{font-size:11px;color:#7a9ccf;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:16px}
+
+/* MAIN PAYMENT - big display */
+.monthly-hero{text-align:center;background:#1a2f54;border-radius:14px;padding:20px;margin-bottom:14px}
+.monthly-hero-lbl{font-size:12px;color:#7a9ccf;font-weight:700;letter-spacing:.05em;margin-bottom:6px}
+.monthly-hero-val{font-size:48px;font-weight:900;color:#fff;line-height:1}
+.monthly-hero-val span{font-size:24px;color:#c9a227}
+.monthly-hero-sub{font-size:17px;font-weight:800;color:#f87171;margin-top:8px}
+
+.result-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.ritem{background:#1a2f54;border-radius:12px;padding:12px 14px}
+.ritem-lbl{font-size:11px;color:#7a9ccf;font-weight:600;margin-bottom:4px}
+.ritem-val{font-size:16px;font-weight:900;color:#fff}
+.ritem-val.gold{color:#c9a227}
+.ritem-val.blue{color:#38bdf8}
+.ritem-val.green{color:#4ade80}
+.ritem-val.red{color:#f87171}
+
+.divider{border:none;border-top:1px solid #2a4a7a;margin:12px 0}
+
+.sum-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0}
+.sum-row+.sum-row{border-top:1px solid #2a4a7a}
+.sum-lbl{font-size:13px;color:#a0bcd8}
+.sum-val{font-size:14px;font-weight:900;color:#fff}
+.sum-val.big{color:#c9a227;font-size:20px}
+
+/* TABLE */
+.tbl-toggle{background:none;border:1.5px solid #dce6f5;border-radius:10px;padding:10px 16px;font-family:'Heebo',sans-serif;font-size:13px;font-weight:700;color:#5a7aa5;cursor:pointer;width:100%;margin-bottom:8px}
+.tbl-toggle:hover{background:#f0f4fa}
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{background:#0d1f3c;color:#7a9ccf;font-weight:700;padding:8px 10px;text-align:center;white-space:nowrap}
+td{padding:7px 10px;text-align:center;border-bottom:1px solid #f0f4fa;color:#0d1f3c}
+tr:nth-child(even) td{background:#f8fafd}
+tr.sum-row-tbl td{font-weight:900;background:#eef3ff}
+
+@media(max-width:480px){
+  .field-row,.field-row.three{grid-template-columns:1fr 1fr}
+  .monthly-hero-val{font-size:38px}
+}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div>
+    <div class="hdr-logo">ענק <span>הרכבים</span></div>
+    <div class="hdr-title">מחשבון ERN</div>
+  </div>
+  <a href="index.html" style="color:#7a9ccf;font-size:13px;font-weight:700;text-decoration:none;background:#1a2f54;padding:8px 16px;border-radius:8px;">→ מרכז</a>
+</div>
+
+<div class="page">
+  <div class="page-title">מחשבון <span>ERN</span></div>
+
+  <div class="card">
+    <div class="card-title">פרטי עסקה</div>
+    <div class="field-row">
+      <div class="field">
+        <label>סכום עסקה (₪)</label>
+        <input type="number" id="loan" placeholder="0" value="1000" inputmode="numeric" oninput="calc()">
+      </div>
+      <div class="field">
+        <label>כמות תשלומים</label>
+        <select id="n-payments" onchange="calc()">
+          <option value="12">12 תשלומים</option>
+          <option value="24">24 תשלומים</option>
+          <option value="36" selected>36 תשלומים</option>
+        </select>
+      </div>
+    </div>
+    <div class="field-row three">
+      <div class="field">
+        <label>ריבית פריים (%)</label>
+        <input type="number" id="prime" value="6" step="0.1" oninput="calc()">
+      </div>
+      <div class="field">
+        <label>תוספת (%)</label>
+        <input type="number" id="addition" value="7.1" step="0.1" oninput="calc()">
+      </div>
+      <div class="field">
+        <label>ריבית כוללת</label>
+        <input type="text" id="total-rate-disp" readonly>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>תאריך קובע</label>
+        <input type="date" id="key-date" oninput="calc()">
+      </div>
+      <div class="field">
+        <label>תאריך תשלום ראשון</label>
+        <input type="date" id="first-pay" oninput="calc()">
+      </div>
+    </div>
+  </div>
+
+  <!-- תוצאה -->
+  <div class="result-box" id="result-box" style="display:none">
+    <div class="result-title">תוצאות ERN</div>
+
+    <!-- תשלום חודשי — ראשי -->
+    <div class="monthly-hero">
+      <div class="monthly-hero-lbl">החזר חודשי ללקוח</div>
+      <div class="monthly-hero-val"><span>₪ </span><span id="r-monthly">—</span></div>
+      <div class="monthly-hero-sub" id="r-monthly-sub"></div>
+    </div>
+
+    <div class="result-grid">
+      <div class="ritem">
+        <div class="ritem-lbl">סכום צ'ק</div>
+        <div class="ritem-val gold" id="r-check">—</div>
+      </div>
+      <div class="ritem">
+        <div class="ritem-lbl">ימי אשראי ראשון</div>
+        <div class="ritem-val blue" id="r-days">—</div>
+      </div>
+      <div class="ritem">
+        <div class="ritem-lbl">עמלת הו"ק פלוס</div>
+        <div class="ritem-val" id="r-hokk">—</div>
+      </div>
+      <div class="ritem">
+        <div class="ritem-lbl">עלות מימון (ריבית)</div>
+        <div class="ritem-val" id="r-interest">—</div>
+      </div>
+    </div>
+
+    <div style="background:#1a2f54;border-radius:12px;padding:14px 16px">
+      <div class="sum-row">
+        <span class="sum-lbl">עלות ERN ללא מע"מ</span>
+        <span class="sum-val" id="r-ern-ex">—</span>
+      </div>
+      <div class="sum-row">
+        <span class="sum-lbl">עלות ERN כולל מע"מ 17%</span>
+        <span class="sum-val" id="r-ern-inc">—</span>
+      </div>
+      <div class="sum-row">
+        <span class="sum-lbl">הבטחה ומימון</span>
+        <span class="sum-val" id="r-havtacha">—</span>
+      </div>
+      <div class="sum-row">
+        <span class="sum-lbl">סה"כ (קרן + הבטחה ומימון)</span>
+        <span class="sum-val big" id="r-total">—</span>
+      </div>
+      <div class="sum-row" style="border-top:2px solid #f87171;margin-top:6px;padding-top:10px">
+        <span style="font-size:15px;font-weight:900;color:#f87171">סכום להגשה</span>
+        <span style="font-size:22px;font-weight:900;color:#f87171" id="r-submission">—</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- פירוט חודשי -->
+  <div id="table-section" style="display:none">
+    <button class="tbl-toggle" onclick="toggleTbl()">📊 פירוט חודשי</button>
+    <div class="card" id="tbl-card" style="display:none;padding:12px">
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>חודש</th>
+              <th>ימי אשראי</th>
+              <th>ריבית לימי אשראי</th>
+              <th>סכום צ'ק</th>
+              <th>עלות מימון</th>
+            </tr>
+          </thead>
+          <tbody id="tbl-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+var ERN_FACTOR = 1.505; // מכפיל ERN קבוע
+var tblOpen = false;
+
+function toggleTbl(){
+  tblOpen = !tblOpen;
+  document.getElementById('tbl-card').style.display = tblOpen ? 'block' : 'none';
+}
+
+function fmt(n){ return '₪ ' + Math.round(n).toLocaleString('he-IL'); }
+function fmtD(n){ return '₪ ' + n.toLocaleString('he-IL',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function fmtP(n){ return (n*100).toFixed(4)+'%'; }
+function pad(n){ return n<10?'0'+n:''+n; }
+function dateStr(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+
+// ברירות מחדל
+(function(){
+  var today = new Date();
+  var fp = new Date(today); fp.setDate(fp.getDate()+35);
+  document.getElementById('key-date').value = dateStr(today);
+  document.getElementById('first-pay').value = dateStr(fp);
+})();
+
+function daysBetween(d1,d2){ return Math.round((d2-d1)/(1000*60*60*24)); }
+
+function hokk(n){ return n<=12?0.085:n<=24?0.105:0.125; }
+
+function calc(){
+  var loan = parseFloat(document.getElementById('loan').value)||0;
+  var n    = parseInt(document.getElementById('n-payments').value)||36;
+  var prime= parseFloat(document.getElementById('prime').value)||0;
+  var add  = parseFloat(document.getElementById('addition').value)||0;
+  var rate = (prime+add)/100;
+  document.getElementById('total-rate-disp').value = (prime+add).toFixed(2)+'%';
+
+  if(!loan){ hide(); return; }
+  var kd = document.getElementById('key-date').value;
+  var fp = document.getElementById('first-pay').value;
+  if(!kd||!fp) return;
+  var days1 = daysBetween(new Date(kd), new Date(fp));
+  if(days1<=0) return;
+
+  var payment = loan/n;
+  var ernInterest = 0;
+  var rows = [];
+  for(var i=1;i<=n;i++){
+    var days = days1+(i-1)*30;
+    var rd   = days/365*rate;
+    var cost = payment*rd;
+    ernInterest += cost;
+    rows.push({i:i, days:days, rd:rd, payment:payment, cost:cost});
+  }
+
+  var hokkRate  = hokk(n);
+  var hokkFee   = loan*hokkRate;
+  var ernNoVat  = ernInterest+hokkFee;
+  var ernWithVat= ernNoVat*1.17;
+  var havtacha  = ernNoVat*ERN_FACTOR;
+  var total     = loan+havtacha;
+  var monthly   = total/n;
+
+  document.getElementById('result-box').style.display='block';
+  document.getElementById('table-section').style.display='block';
+
+  document.getElementById('r-monthly').textContent = Math.round(monthly).toLocaleString('he-IL');
+  document.getElementById('r-monthly-sub').textContent = n+' תשלומים · סה"כ '+fmt(total);
+  document.getElementById('r-check').textContent    = fmtD(payment);
+  document.getElementById('r-days').textContent     = days1+' ימים';
+  document.getElementById('r-hokk').textContent     = fmt(hokkFee)+' ('+( hokkRate*100)+'%)';
+  document.getElementById('r-interest').textContent = fmtD(ernInterest);
+  document.getElementById('r-ern-ex').textContent   = fmtD(ernNoVat);
+  document.getElementById('r-ern-inc').textContent  = fmtD(ernWithVat);
+  document.getElementById('r-havtacha').textContent = fmtD(havtacha);
+  document.getElementById('r-total').textContent      = fmt(total);
+  document.getElementById('r-submission').textContent = fmt(total);
+
+  // table
+  var html='';
+  rows.forEach(function(r){
+    html+='<tr><td>'+r.i+'</td><td>'+r.days+'</td><td>'+fmtP(r.rd)+'</td><td>'+fmtD(r.payment)+'</td><td>'+fmtD(r.cost)+'</td></tr>';
+  });
+  html+='<tr class="sum-row-tbl"><td colspan="4">סה"כ עלות מימון (ריבית)</td><td>'+fmtD(ernInterest)+'</td></tr>';
+  document.getElementById('tbl-body').innerHTML=html;
+}
+
+function hide(){
+  document.getElementById('result-box').style.display='none';
+  document.getElementById('table-section').style.display='none';
+}
+
+calc();
+</script>
+</body>
+</html>
