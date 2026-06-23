@@ -293,6 +293,16 @@ if ('serviceWorker' in navigator) {
     <div class="loading"><div class="spinner"></div> טוען...</div>
   </div>
   <button class="fab" id="fab-new-task" onclick="openNewTaskModal()" style="display:none">+ משימה חדשה</button>
+  <button id="btn-live-intake" onclick="openLiveIntakeView()" style="display:none;position:fixed;bottom:80px;left:16px;background:#059669;color:#fff;border:none;border-radius:999px;padding:12px 20px;font-family:Heebo,sans-serif;font-weight:900;font-size:14px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,0.2);z-index:100;display:flex;align-items:center;gap:8px">👁 צפייה בזמן אמת <span id="live-intake-badge" style="background:#fff;color:#059669;border-radius:999px;padding:1px 8px;font-size:12px;display:none">0</span></button>
+</div>
+
+<!-- ====== MODAL: LIVE INTAKE VIEW ====== -->
+<div class="modal-overlay" id="modal-live-intake" style="display:none;z-index:1100">
+  <div class="modal-box" style="max-width:480px;max-height:85vh;overflow-y:auto">
+    <div class="modal-title">👁 קליטה בזמן אמת <button class="modal-close" onclick="closeModal('modal-live-intake')">✕</button></div>
+    <div id="live-intake-tabs" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"></div>
+    <div id="live-intake-body" style="font-size:14px"></div>
+  </div>
 </div>
 
 <!-- ====== SCREEN: VEHICLES ====== -->
@@ -1366,6 +1376,7 @@ function openTasksScreen() {
   const isManager = currentUser.role === 'manager';
   document.getElementById('tasks-user-badge').textContent = currentUser.name;
   document.getElementById('fab-new-task').style.display = isManager ? 'flex' : 'none';
+  if (isManager) { document.getElementById('btn-live-intake').style.display = 'flex'; _startLiveIntakeListener(); }
   activeTaskFilter = isManager ? 'משימות כלליות' : 'שלי';
   showScreen('tasks');
   loadTasks();
@@ -2716,6 +2727,12 @@ function saveIntakeDraft() {
     batteryMonth: document.getElementById('di-battery-month')?.value || ''
   };
   try { localStorage.setItem('intake_draft_' + _currentIntakeId, JSON.stringify(draft)); } catch(e) {}
+  // sync draft to Firestore for real-time manager view (debounced)
+  clearTimeout(window._draftSyncTimer);
+  window._draftSyncTimer = setTimeout(async () => {
+    if (!_currentIntakeId || !_updateDoc || !_docRef) return;
+    try { await _updateDoc(_docRef('intake_assignments', _currentIntakeId), { liveDraft: draft, liveUpdatedAt: new Date().toISOString() }); } catch(e) {}
+  }, 1500);
 }
 
 async function saveIntakeDraftPhotos() {
@@ -4339,6 +4356,105 @@ window.resendIntakeNotify = resendIntakeNotify;
 window.openNotifySettings = openNotifySettings;
 window.saveNotifySettings = saveNotifySettings;
 window.testWhatsApp = testWhatsApp;
+
+// ─── Live Intake View ─────────────────────────────────
+let _liveIntakeUnsub = null;
+let _liveIntakeDocs = [];
+let _liveIntakeActive = null;
+
+const _liveChecklistLabels = {
+  'c-battery-original':'בדיקת מצבר','c-battery-is-original':'מצבר מקורי',
+  'c-oil':'שמן מנוע','c-coolant':'נוזל קירור','c-spare':'ג\'ק, אפוד, משולש, גלגל ספייר',
+  'c-interior-damage':'שברים בפנסים','c-windshield':'שברים בשמשות',
+  'c-body-damage':'תגרות ושריטות','c-tires':'צמיגים','c-lights':'פנסים'
+};
+
+function _startLiveIntakeListener() {
+  if (_liveIntakeUnsub) return;
+  _liveIntakeUnsub = _onSnap(
+    _query(_colRef('intake_assignments'), _where('status','==','pending')),
+    snap => {
+      _liveIntakeDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        .filter(d => d.liveDraft || d.plate);
+      const badge = document.getElementById('live-intake-badge');
+      const btn = document.getElementById('btn-live-intake');
+      if (_liveIntakeDocs.length > 0) {
+        if (badge) { badge.textContent = _liveIntakeDocs.length; badge.style.display = ''; }
+        if (btn) btn.style.display = 'flex';
+      } else {
+        if (badge) badge.style.display = 'none';
+      }
+      if (document.getElementById('modal-live-intake')?.style.display !== 'none') {
+        _renderLiveIntakeModal();
+      }
+    }
+  );
+}
+
+function openLiveIntakeView() {
+  _startLiveIntakeListener();
+  document.getElementById('modal-live-intake').style.display = 'flex';
+  _renderLiveIntakeModal();
+}
+
+function _renderLiveIntakeModal() {
+  const tabs = document.getElementById('live-intake-tabs');
+  const body = document.getElementById('live-intake-body');
+  if (!tabs || !body) return;
+
+  if (_liveIntakeDocs.length === 0) {
+    tabs.innerHTML = '';
+    body.innerHTML = '<div style="text-align:center;padding:40px;color:#94a3b8">אין קליטות פעילות כרגע</div>';
+    return;
+  }
+
+  if (!_liveIntakeActive || !_liveIntakeDocs.find(d => d.id === _liveIntakeActive)) {
+    _liveIntakeActive = _liveIntakeDocs[0].id;
+  }
+
+  tabs.innerHTML = _liveIntakeDocs.map(d =>
+    `<button onclick="window._setLiveTab('${d.id}')" style="background:${d.id===_liveIntakeActive?'#0f172a':'#e2e8f0'};color:${d.id===_liveIntakeActive?'#fff':'#334155'};border:none;border-radius:999px;padding:6px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">${esc(d.plate||d.assignedTo)}</button>`
+  ).join('');
+
+  const doc = _liveIntakeDocs.find(d => d.id === _liveIntakeActive);
+  if (!doc) return;
+
+  const draft = doc.liveDraft || {};
+  const checks = draft.checks || {};
+  const notes = draft.notes || {};
+  const ts = doc.liveUpdatedAt ? new Date(doc.liveUpdatedAt).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit',second:'2-digit'}) : '—';
+
+  let html = `<div style="background:#f0fdf4;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px">
+    <strong>🚗 ${esc(doc.plate||'')}</strong> · ${esc(doc.assignedTo||'')}
+    ${doc.brand||doc.model ? ` · ${esc(doc.brand||'')} ${esc(doc.model||'')}` : ''}
+    <div style="color:#64748b;margin-top:4px">עדכון אחרון: ${ts}</div>
+    ${draft.km ? `<div>ק"מ: <strong>${esc(draft.km)}</strong></div>` : ''}
+    ${draft.code ? `<div>קוד: <strong>${esc(draft.code)}</strong></div>` : ''}
+  </div>`;
+
+  html += '<div style="display:flex;flex-direction:column;gap:6px">';
+  for (const [key, label] of Object.entries(_liveChecklistLabels)) {
+    const val = checks[key];
+    if (!val) continue;
+    const icon = val === 'v' ? '✅' : '❌';
+    const bg = val === 'v' ? '#f0fff4' : '#fff0f0';
+    const note = notes[key] ? `<span style="font-size:12px;color:#555"> · ${esc(notes[key])}</span>` : '';
+    html += `<div style="background:${bg};border-radius:8px;padding:8px 12px">${icon} ${label}${note}</div>`;
+  }
+  html += '</div>';
+
+  if (draft.general) {
+    html += `<div style="margin-top:10px;background:#fefce8;border-radius:8px;padding:8px 12px;font-size:13px">📝 הערות: ${esc(draft.general)}</div>`;
+  }
+
+  body.innerHTML = html;
+}
+
+window._setLiveTab = function(id) {
+  _liveIntakeActive = id;
+  _renderLiveIntakeModal();
+};
+window.openLiveIntakeView = openLiveIntakeView;
 </script>
 </body>
 </html>
