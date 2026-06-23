@@ -4379,10 +4379,24 @@ let _liveIntakeDocs = [];
 let _liveIntakeActive = null;
 
 const _liveChecklistLabels = {
-  'c-battery-original':'בדיקת מצבר','c-battery-is-original':'מצבר מקורי',
-  'c-oil':'שמן מנוע','c-coolant':'נוזל קירור','c-spare':"ג'\u05e7, אפוד, משולש, גלגל ספייר",
-  'c-interior-damage':'שברים בפנסים','c-windshield':'שברים בשמשות',
-  'c-body-damage':'תגרות ושריטות','c-tires':'צמיגים','c-lights':'פנסים'
+  'c-battery-original':  'בדיקת מצבר',
+  'c-battery-is-original':'מצבר מקורי',
+  'c-oil':       'שמן מנוע',
+  'c-coolant':   'נוזל קירור',
+  'c-safety':    "ג'ק, אפוד, משולש, גלגל ספייר",
+  'c-lights-break':'שברים בפנסים',
+  'c-glass-break':'שברים בשמשות',
+  'c-bulbs':     'מנורות שרופות',
+  'c-frames-ext':'מסגרות',
+  'c-tires':     'מצב צמיגים',
+  'c-glove':     'ניקיון תא כפפות',
+  'c-windows':   'מתגי חלונות',
+  'c-ac':        'מזגן',
+  'c-dashboard': 'מנורות לוח שעונים',
+  'c-sunroof':   'גג נפתח',
+  'c-upholstery':'ריפודים (חורים/קרעים)',
+  'c-mats':      'שטיחים',
+  'c-steering':  'הגה – קילופים'
 };
 
 async function openLiveIntakeView() {
@@ -4461,6 +4475,11 @@ function _renderLiveIntakeModal() {
         const formatted = parts.length === 2 ? parts[1]+'/'+parts[0] : draft.batteryMonth;
         extra = '<div style="font-size:12px;color:#b45309;margin-top:3px;font-weight:700">📅 חודש מצבר: '+esc(formatted)+'</div>';
       }
+    }
+    if (key === 'c-dashboard' && val === 'x' && draft.dashChecks) {
+      const dashLabels = {'dash-check-engine':"צ'ק אנג'ין",'dash-tire-pressure':'לחץ אוויר','dash-service':'טיפול','dash-collision':'התגשות','dash-fuel':'דלק','dash-other':'אחר'};
+      const active = Object.entries(draft.dashChecks).filter(([,v])=>v).map(([k])=>dashLabels[k]||k);
+      if (active.length) extra = '<div style="font-size:12px;color:#dc2626;margin-top:3px;font-weight:700">🔴 '+active.join(' · ')+'</div>';
     }
     html += '<div style="background:'+bg+';'+border+'border-radius:8px;padding:9px 13px;font-size:14px;font-weight:'+(val?'700':'400')+';color:'+(val?'inherit':'#94a3b8')+'">'+icon+' '+label+note+extra+'</div>';
   }
