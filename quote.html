@@ -604,6 +604,7 @@ function lookupPlate(plateId, nameId, btn) {
 }
 
 var _autoSaveTimer = null;
+var _currentQuoteId = null; // מזהה קבוע לכל הצעה פעילה
 
 function scheduleAutoSave() {
   clearTimeout(_autoSaveTimer);
@@ -613,9 +614,14 @@ function scheduleAutoSave() {
 function autoSave() {
   var customer = document.getElementById('customer-name').value || '';
   var newCar   = document.getElementById('new-car-name').value  || '';
-  if (!customer && !newCar && !currentFinanceAmt) return; // nothing worth saving
+  if (!customer && !newCar && !currentFinanceAmt) return;
+
+  // צור מזהה חדש רק אם אין כזה (הצעה חדשה)
+  if (!_currentQuoteId) _currentQuoteId = Date.now();
+
   var now = new Date();
   var item = {
+    id: _currentQuoteId,
     date: now.toLocaleDateString('he-IL') + ' ' + now.toLocaleTimeString('he-IL', {hour:'2-digit',minute:'2-digit'}),
     rep: document.getElementById('sales-rep').value || '',
     financeRep: document.getElementById('finance-rep').value || '',
@@ -635,9 +641,11 @@ function autoSave() {
     oldPlate: document.getElementById('old-car-plate').value || ''
   };
   var hist = JSON.parse(localStorage.getItem('anak-quotes') || '[]');
-  // replace top entry if same customer within same minute, else prepend
-  if (hist.length && hist[0].customer === item.customer && hist[0].date.slice(0,16) === item.date.slice(0,16)) {
-    hist[0] = item;
+  var idx = hist.findIndex(function(h){ return h.id === _currentQuoteId; });
+  if (idx >= 0) {
+    // שמור על inProcess אם כבר הוגדר
+    item.inProcess = hist[idx].inProcess || false;
+    hist[idx] = item;
   } else {
     hist.unshift(item);
   }
@@ -650,6 +658,7 @@ function autoSave() {
 }
 
 function loadHistoryItem(item) {
+  _currentQuoteId = item.id || null; // טען את המזהה הקבוע של ההצעה
   document.getElementById('sales-rep').value     = item.rep      || '';
   document.getElementById('finance-rep').value  = item.financeRep || '';
   document.getElementById('customer-name').value = item.customer || '';
@@ -684,6 +693,7 @@ function renderHistory() {
 }
 
 function openNewQuote() {
+  _currentQuoteId = null; // הצעה חדשה — מזהה חדש יווצר בשמירה הראשונה
   document.getElementById('quotes-list-section').style.display = 'none';
   document.getElementById('quote-form-section').style.display = 'block';
   window.scrollTo(0, 0);
