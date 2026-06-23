@@ -1200,17 +1200,17 @@
 
   function handleEditGallery(input){
     const files = Array.from(input.files).slice(0,8);
-    editGalleryImages = [];
     const preview = document.getElementById('e-gallery-preview');
     const count = document.getElementById('e-gallery-count');
-    if(preview) preview.innerHTML = '';
+    const startIdx = editGalleryImages.filter(Boolean).length;
     if(count) count.textContent = '⏳ מעלה תמונות...';
     files.forEach((file,i)=>{
       if(file.size>8*1024*1024) return;
+      const idx = startIdx + i;
       uploadToStorage(file,'gallery').then(function(url){
         const src = url || null;
         if(!src) return;
-        editGalleryImages[i] = src;
+        editGalleryImages[idx] = src;
         if(count) count.textContent = editGalleryImages.filter(Boolean).length + ' תמונות הועלו';
         if(!preview) return;
         const wrap = document.createElement('div');
@@ -1221,7 +1221,7 @@
         const del = document.createElement('button');
         del.textContent = '✕';
         del.style.cssText = 'position:absolute;top:-6px;right:-6px;background:#dc2626;color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer;padding:0';
-        del.onclick = ()=>{ editGalleryImages[i]=null; wrap.remove(); if(count) count.textContent = editGalleryImages.filter(Boolean).length + ' תמונות הועלו'; };
+        del.onclick = ()=>{ editGalleryImages[idx]=null; wrap.remove(); if(count) count.textContent = editGalleryImages.filter(Boolean).length + ' תמונות'; };
         wrap.appendChild(img); wrap.appendChild(del);
         preview.appendChild(wrap);
       });
