@@ -22,10 +22,17 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
 .hdr-logo span{color:#c9a227}
 .hdr-title{font-size:13px;color:#7a9ccf;margin-top:2px}
 
-/* רשימת עסקאות עליונה */
-.deals-bar{display:flex;gap:10px;overflow-x:auto;padding:16px;background:#fff;border-bottom:1px solid #dce6f5}
-.deal-chip{background:#f0f4fa;border:1.5px solid #dce6f5;border-radius:10px;padding:8px 14px;cursor:pointer;white-space:nowrap;font-size:13px;font-weight:700;color:#0d1f3c;flex-shrink:0}
-.deal-chip.active{background:#0d1f3c;color:#fff;border-color:#0d1f3c}
+/* גריד חלוניות עסקאות */
+.deals-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;padding:16px;background:#f0f4fa;border-bottom:1px solid #dce6f5}
+.deal-card{background:#fff;border:2px solid #dce6f5;border-radius:14px;overflow:hidden;cursor:pointer;box-shadow:0 2px 8px rgba(13,31,60,.06);transition:border-color .15s}
+.deal-card:hover{border-color:#0ea5e9}
+.deal-card.active{border-color:#1a56db;box-shadow:0 0 0 3px rgba(26,86,219,.15)}
+.deal-card-hdr{background:#0d1f3c;padding:10px 12px}
+.deal-card-name{font-size:14px;font-weight:900;color:#fff}
+.deal-card-status{font-size:10px;color:#7a9ccf;margin-top:3px;font-weight:600}
+.deal-card-body{padding:10px 12px}
+.deal-card-monthly{font-size:20px;font-weight:900;color:#1a56db}
+.deal-card-car{font-size:11px;font-weight:700;background:#fde047;color:#000;border-radius:4px;padding:2px 6px;display:inline-block;margin-top:4px}
 
 /* split layout */
 .split{display:flex;gap:0;min-height:calc(100vh - 120px)}
@@ -77,8 +84,8 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
   <a href="index.html" style="color:#7a9ccf;font-size:13px;font-weight:700;text-decoration:none;background:#1a2f54;padding:8px 16px;border-radius:8px;">→ דף הבית</a>
 </div>
 
-<!-- רשימת עסקאות בראש -->
-<div class="deals-bar" id="deals-bar"></div>
+<!-- גריד חלוניות עסקאות -->
+<div class="deals-grid" id="deals-bar"></div>
 
 <div class="split">
   <!-- פרטי הצעה — ימין -->
@@ -153,10 +160,20 @@ function selectDeal(i) {
 function renderBar() {
   var deals = getDeals();
   var el = document.getElementById('deals-bar');
-  if (!deals.length) { el.innerHTML = '<span style="color:#7a9ab8;font-size:13px;padding:4px">אין עסקאות</span>'; return; }
+  if (!deals.length) { el.innerHTML = '<span style="color:#7a9ab8;font-size:13px;padding:4px">אין עסקאות פעילות</span>'; return; }
   el.innerHTML = deals.map(function(d, i) {
-    return '<div class="deal-chip' + (i === selectedIdx ? ' active' : '') + '" onclick="selectDeal(' + i + ')">' +
-      (d.customer || 'לא ידוע') + (d.newCar ? ' · ' + d.newCar : '') + '</div>';
+    var status = d.dealStatus || 'טרם הוקמה הלוואה';
+    return '<div class="deal-card' + (i === selectedIdx ? ' active' : '') + '" onclick="selectDeal(' + i + ')">' +
+      '<div class="deal-card-hdr">' +
+        '<div class="deal-card-name">' + (d.customer || 'לא ידוע') + '</div>' +
+        '<div class="deal-card-status">' + status + '</div>' +
+      '</div>' +
+      '<div class="deal-card-body">' +
+        '<div class="deal-card-monthly">₪ ' + Math.round(d.monthly||0).toLocaleString('he-IL') + '</div>' +
+        (d.newCar ? '<div class="deal-card-car">' + d.newCar + '</div>' : '') +
+        (d.financeRep ? '<div style="font-size:11px;color:#5a7aa5;margin-top:6px;font-weight:600">נציג: ' + d.financeRep + '</div>' : '') +
+      '</div>' +
+    '</div>';
   }).join('');
 }
 
