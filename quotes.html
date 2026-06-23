@@ -107,8 +107,16 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
       </div>
       <div>
         <label>אחוז ריבית מאושר (%)</label>
-        <input type="number" id="approved-rate" placeholder="0.00" step="0.01" inputmode="decimal" min="0" onkeypress="return event.charCode>=48&&event.charCode<=57||event.charCode===46" oninput="this.value=this.value.replace(/[^0-9.]/g,'');saveApproval()">
+        <input type="number" id="approved-rate" placeholder="0.00" step="0.01" inputmode="decimal" min="0" onkeypress="return event.charCode>=48&&event.charCode<=57||event.charCode===46" oninput="this.value=this.value.replace(/[^0-9.]/g,'')">
       </div>
+      <button class="save-approval-btn" onclick="saveAndShowSummary()">💾 שמור</button>
+    </div>
+
+    <!-- חלונית סיכום מסלול -->
+    <div id="approval-summary" style="display:none;background:#0d1f3c;border-radius:14px;padding:16px;color:#fff">
+      <div style="font-size:12px;color:#7a9ccf;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">✓ פרטי מסלול שנשמר</div>
+      <div id="summary-content"></div>
+      <button onclick="choosePlan()" style="width:100%;margin-top:14px;background:#c9a227;color:#fff;border:none;border-radius:10px;padding:14px;font-family:'Heebo',sans-serif;font-size:16px;font-weight:900;cursor:pointer">⭐ בחירה במסלול זה</button>
     </div>
 
     <button class="action-btn red" onclick="deleteDeal()">🗑 מחיקת עסקה</button>
@@ -224,6 +232,44 @@ function renderDetail() {
 function toggleApproval() {
   var f = document.getElementById('approval-form');
   f.style.display = f.style.display === 'none' ? 'flex' : 'none';
+}
+
+function saveAndShowSummary() {
+  var company = document.getElementById('finance-company').value.trim();
+  var amount  = document.getElementById('approved-amount').value;
+  var rate    = document.getElementById('approved-rate').value;
+  if (!company && !amount && !rate) { alert('יש למלא לפחות שדה אחד'); return; }
+
+  // שמירה
+  var deals = getDeals();
+  if (!deals.length) return;
+  var d = deals[selectedIdx] || deals[0];
+  d.financeCompany = company;
+  d.approvedAmount = parseFloat(amount) || 0;
+  d.approvedRate   = parseFloat(rate)   || 0;
+  deals[selectedIdx] = d;
+  saveDeals(deals);
+
+  // הצג סיכום
+  var html = '';
+  if (company) html += '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #1a2f54"><span style="color:#7a9ccf;font-size:13px">חברת מימון</span><span style="font-weight:900;font-size:15px">' + company + '</span></div>';
+  if (amount)  html += '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #1a2f54"><span style="color:#7a9ccf;font-size:13px">סכום מאושר</span><span style="font-weight:900;font-size:15px;color:#c9a227">₪ ' + parseFloat(amount).toLocaleString('he-IL') + '</span></div>';
+  if (rate)    html += '<div style="display:flex;justify-content:space-between;padding:6px 0"><span style="color:#7a9ccf;font-size:13px">ריבית מאושרת</span><span style="font-weight:900;font-size:15px;color:#38bdf8">' + rate + '%</span></div>';
+  document.getElementById('summary-content').innerHTML = html;
+  document.getElementById('approval-summary').style.display = 'block';
+  renderDetail();
+}
+
+function choosePlan() {
+  var deals = getDeals();
+  if (!deals.length) return;
+  var d = deals[selectedIdx] || deals[0];
+  d.chosenPlan = true;
+  deals[selectedIdx] = d;
+  saveDeals(deals);
+  document.getElementById('approval-summary').style.backgroundColor = '#16a34a';
+  var btn = document.getElementById('approval-summary').querySelector('button');
+  if (btn) { btn.textContent = '✓ מסלול נבחר!'; btn.disabled = true; btn.style.background = '#fff'; btn.style.color = '#16a34a'; }
 }
 
 function saveApproval() {
