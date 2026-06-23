@@ -295,6 +295,12 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
 
   <!-- HISTORY -->
   <div class="history-section" id="history-section"></div>
+
+  <!-- כפתורי סיום -->
+  <div style="margin-top:24px;display:flex;flex-direction:column;gap:10px">
+    <button onclick="advanceDeal()" style="width:100%;background:#16a34a;color:#fff;border:none;border-radius:14px;padding:18px;font-family:'Heebo',sans-serif;font-size:18px;font-weight:900;cursor:pointer;box-shadow:0 4px 16px rgba(22,163,74,.25)">📈 התקדמות בעסקה</button>
+    <button onclick="archiveDeal()" style="width:100%;background:#f5f8ff;color:#5a7aa5;border:1.5px solid #dce6f5;border-radius:14px;padding:16px;font-family:'Heebo',sans-serif;font-size:16px;font-weight:900;cursor:pointer">🗄️ ארכיון</button>
+  </div>
 </div>
 
 <script>
@@ -655,6 +661,38 @@ function renderHistory() {
   });
   html += '</div>';
   sec.innerHTML = html;
+}
+
+function advanceDeal() {
+  var hist = JSON.parse(localStorage.getItem('anak-quotes') || '[]');
+  if (!hist.length) { alert('אין הצעה פעילה לעדכון'); return; }
+  var item = hist[0];
+  var STATUS_FLOW = ['ממתין להקמת עסקה','מחכה לאישור מימון','חתימת חוזה ושליחת ביטוח','ממתין למסירה','עסקה הושלמה'];
+  var idx = STATUS_FLOW.indexOf(item.status || '');
+  if (idx < 0) idx = 0;
+  if (idx >= STATUS_FLOW.length - 1) { alert('העסקה כבר הושלמה ✅'); return; }
+  item.status = STATUS_FLOW[idx + 1];
+  hist[0] = item;
+  localStorage.setItem('anak-quotes', JSON.stringify(hist));
+  var sel = document.getElementById('status-sel');
+  if (sel) sel.value = item.status;
+  currentStatus = item.status;
+  if (typeof updateStatusBtn === 'function') updateStatusBtn();
+  alert('סטטוס עודכן ל: ' + item.status);
+}
+
+function archiveDeal() {
+  if (!confirm('להעביר את ההצעה לארכיון?')) return;
+  var hist = JSON.parse(localStorage.getItem('anak-quotes') || '[]');
+  if (!hist.length) { alert('אין הצעה פעילה'); return; }
+  var archived = JSON.parse(localStorage.getItem('anak-archive') || '[]');
+  var item = hist.shift();
+  item.archivedAt = new Date().toLocaleString('he-IL');
+  archived.unshift(item);
+  localStorage.setItem('anak-quotes', JSON.stringify(hist));
+  localStorage.setItem('anak-archive', JSON.stringify(archived));
+  alert('ההצעה הועברה לארכיון ✅');
+  resetAll();
 }
 
 function resetAll() {
