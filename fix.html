@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>מנקה קאש...</title>
+<style>
+body{font-family:Arial,sans-serif;background:#0d1f3c;color:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;flex-direction:column;gap:16px;text-align:center}
+.msg{font-size:24px;font-weight:700}
+.sub{font-size:15px;color:#7a9ccf}
+.bar{width:200px;height:6px;background:#1a2f54;border-radius:3px;overflow:hidden;margin-top:8px}
+.bar-fill{height:100%;background:#16a34a;border-radius:3px;animation:fill 2s linear forwards}
+@keyframes fill{from{width:0}to{width:100%}}
+</style>
+</head>
+<body>
+<div class="msg">🧹 מנקה קאש ישן...</div>
+<div class="sub" id="sub">מבטל service worker...</div>
+<div class="bar"><div class="bar-fill"></div></div>
+<script>
+(async function(){
+  var sub = document.getElementById('sub');
+  try {
+    sub.textContent = 'מבטל service workers...';
+    if('serviceWorker' in navigator) {
+      var regs = await navigator.serviceWorker.getRegistrations();
+      for(var r of regs) await r.unregister();
+    }
+    sub.textContent = 'מוחק קאש...';
+    if('caches' in window) {
+      var keys = await caches.keys();
+      for(var k of keys) await caches.delete(k);
+    }
+    sub.textContent = 'הושלם! מעביר...';
+  } catch(e) {
+    sub.textContent = 'מעביר...';
+  }
+  setTimeout(function(){ window.location.replace('/quotes.html?fresh=1'); }, 1500);
+})();
+</script>
+</body>
+</html>
