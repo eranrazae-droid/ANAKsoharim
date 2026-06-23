@@ -1,7 +1,6 @@
-var CACHE = 'anak-sales-v40';
+var CACHE = 'anak-sales-v41';
 var FILES = [
   '/index.html',
-  
   '/finance.html',
   '/finance-used.html',
   '/quote.html',
@@ -25,6 +24,21 @@ self.addEventListener('activate', function(e) {
   self.clients.claim();
 });
 self.addEventListener('fetch', function(e) {
+  var url = e.request.url;
+  // HTML — network first, fallback to cache
+  if (e.request.destination === 'document' || url.endsWith('.html')) {
+    e.respondWith(
+      fetch(e.request).then(function(resp) {
+        var clone = resp.clone();
+        caches.open(CACHE).then(function(c){ c.put(e.request, clone); });
+        return resp;
+      }).catch(function() {
+        return caches.match(e.request).then(function(r){ return r || caches.match('/index.html'); });
+      })
+    );
+    return;
+  }
+  // שאר הקבצים — cache first
   e.respondWith(
     caches.match(e.request).then(function(r) {
       return r || fetch(e.request).catch(function(){ return caches.match('/index.html'); });
