@@ -246,6 +246,22 @@ function renderDetail() {
   document.getElementById('finance-company').value  = d.financeCompany  || '';
   document.getElementById('approved-amount').value  = d.approvedAmount  || '';
   document.getElementById('approved-rate').value    = d.approvedRate    || '';
+
+  // שחזר חלונית סיכום אם יש נתונים שמורים
+  var sumEl = document.getElementById('approval-summary');
+  var sumContent = document.getElementById('summary-content');
+  if (d.financeCompany || d.approvedAmount || d.approvedRate) {
+    var html = '<div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">';
+    if (d.financeCompany) html += '<div><span style="color:#7a9ccf;font-size:11px;display:block;margin-bottom:2px">חברת מימון</span><span style="font-weight:900;font-size:16px;color:#fff">' + d.financeCompany + '</span></div>';
+    if (d.approvedAmount) html += '<div style="border-right:1px solid #2a4a7a;padding-right:18px"><span style="color:#7a9ccf;font-size:11px;display:block;margin-bottom:2px">סכום מאושר</span><span style="font-weight:900;font-size:16px;color:#c9a227">₪ ' + parseFloat(d.approvedAmount).toLocaleString('he-IL') + '</span></div>';
+    if (d.approvedRate)  html += '<div style="border-right:1px solid #2a4a7a;padding-right:18px"><span style="color:#7a9ccf;font-size:11px;display:block;margin-bottom:2px">ריבית מאושרת</span><span style="font-weight:900;font-size:16px;color:#38bdf8">' + d.approvedRate + '%</span></div>';
+    html += '</div>';
+    sumContent.innerHTML = html;
+    sumEl.style.display = 'block';
+    sumEl.style.backgroundColor = d.chosenPlan ? '#16a34a' : '#0d1f3c';
+  } else {
+    sumEl.style.display = 'none';
+  }
 }
 
 function toggleApproval() {
