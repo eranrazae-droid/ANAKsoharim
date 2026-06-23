@@ -296,7 +296,7 @@ if ('serviceWorker' in navigator) {
 </div>
 
 <!-- ====== MODAL: LIVE INTAKE VIEW ====== -->
-<div class="modal-overlay" id="modal-live-intake" style="display:none;z-index:1100">
+<div class="modal-overlay" id="modal-live-intake" style="z-index:1100">
   <div class="modal-box" style="max-width:480px;max-height:85vh;overflow-y:auto">
     <div class="modal-title">👁 קליטה בזמן אמת <button class="modal-close" onclick="closeModal('modal-live-intake')">✕</button></div>
     <div id="live-intake-tabs" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"></div>
@@ -1119,11 +1119,19 @@ function logout() {
 function showScreen(name) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('screen-' + name).classList.add('active');
+  sessionStorage.setItem('anak_screen', name);
 }
 
 function enterApp() {
   renderHome();
-  showScreen('home');
+  const savedScreen = sessionStorage.getItem('anak_screen');
+  if (savedScreen && savedScreen !== 'home' && savedScreen !== 'login') {
+    const screenFns = { vehicles: openVehiclesScreen, tasks: openTasksScreen, parts: openPartsScreen, inventory: openInventoryScreen, pits: openPitsScreen, yard: openYardScreen, 'driver-inventory': openDriverInventoryScreen };
+    if (screenFns[savedScreen]) { screenFns[savedScreen](); }
+    else { showScreen('home'); }
+  } else {
+    showScreen('home');
+  }
   if (currentUser.role === 'manager') {
     requestNotifPermission();
     listenForNewVehicles();
@@ -4371,8 +4379,7 @@ const _liveChecklistLabels = {
 };
 
 async function openLiveIntakeView() {
-  const modal = document.getElementById('modal-live-intake');
-  modal.style.display = 'flex';
+  openModal('modal-live-intake');
   document.getElementById('live-intake-tabs').innerHTML = '';
   document.getElementById('live-intake-body').innerHTML = '<div style="text-align:center;padding:40px"><div class="spinner"></div></div>';
 
