@@ -123,7 +123,10 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
     <div id="approval-summary" style="display:none;background:#0d1f3c;border-radius:14px;padding:16px;color:#fff">
       <div style="font-size:12px;color:#7a9ccf;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">✓ פרטי מסלול שנשמר</div>
       <div id="summary-content"></div>
-      <button onclick="choosePlan()" style="width:100%;margin-top:14px;background:#c9a227;color:#fff;border:none;border-radius:10px;padding:14px;font-family:'Heebo',sans-serif;font-size:16px;font-weight:900;cursor:pointer">⭐ בחירה במסלול זה</button>
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button onclick="choosePlan()" style="flex:1;background:#c9a227;color:#fff;border:none;border-radius:10px;padding:14px;font-family:'Heebo',sans-serif;font-size:15px;font-weight:900;cursor:pointer">⭐ בחירה במסלול זה</button>
+        <button onclick="deletePlan()" style="flex:1;background:#e02d2d;color:#fff;border:none;border-radius:10px;padding:14px;font-family:'Heebo',sans-serif;font-size:15px;font-weight:900;cursor:pointer">🗑 מחיקת מסלול</button>
+      </div>
     </div>
 
     <button class="action-btn red" onclick="deleteDeal()">🗑 מחיקת עסקה</button>
@@ -282,6 +285,19 @@ function saveAndShowSummary() {
   document.getElementById('approval-form').style.display = 'none';
 
   renderDetail();
+}
+
+function deletePlan() {
+  var deals = getDeals();
+  if (!deals.length) return;
+  var d = deals[selectedIdx] || deals[0];
+  delete d.financeCompany;
+  delete d.approvedAmount;
+  delete d.approvedRate;
+  delete d.chosenPlan;
+  deals[selectedIdx] = d;
+  saveDeals(deals);
+  document.getElementById('approval-summary').style.display = 'none';
 }
 
 function choosePlan() {
