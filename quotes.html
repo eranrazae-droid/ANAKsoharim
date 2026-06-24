@@ -615,18 +615,28 @@ function renderDealsArchive() {
   if (!arch.length) { el.innerHTML = '<div style="color:#7a9ccf;font-size:13px;padding:8px">אין מימונים בארכיון</div>'; return; }
   el.innerHTML = arch.map(function(d, i) {
     var dateStr = d.archivedAt ? new Date(d.archivedAt).toLocaleDateString('he-IL') : (d.date || '');
-    return '<div style="background:#1a2f54;border-radius:14px;overflow:hidden;opacity:.85;cursor:pointer" onclick="openArchivedDeal(' + i + ')">' +
-      '<div style="padding:10px 14px;border-bottom:1px solid #243550">' +
+    return '<div style="background:#1a2f54;border-radius:14px;overflow:hidden;opacity:.85">' +
+      '<div style="padding:10px 14px;border-bottom:1px solid #243550;cursor:pointer" onclick="openArchivedDeal(' + i + ')">' +
         '<div style="font-size:15px;font-weight:900;color:#fff;margin-bottom:4px">' + (d.customer || 'לא ידוע') + '</div>' +
         '<span style="background:#374151;color:#9ca3af;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700">📦 ארכיון · ' + (d.dealStatus || '') + '</span>' +
       '</div>' +
-      '<div style="padding:10px 14px">' +
+      '<div style="padding:10px 14px;cursor:pointer" onclick="openArchivedDeal(' + i + ')">' +
         (d.newCar ? '<div style="font-size:11px;font-weight:700;margin-bottom:4px;color:#0d1f3c">' + d.newCar + '</div><br>' : '') +
         '<div style="font-size:18px;font-weight:900;color:#4ade80">' + fmt(d.monthly) + '<span style="font-size:11px;color:#7a9ccf;font-weight:400"> /חודש</span></div>' +
         '<div style="font-size:11px;color:#7a9ccf;margin-top:4px">' + (d.financeRep ? 'נציג מימון: ' + d.financeRep + ' · ' : '') + dateStr + '</div>' +
       '</div>' +
+      '<div style="padding:8px 14px;border-top:1px solid #243550;text-align:center">' +
+        '<button onclick="deleteArchiveDeal(' + i + ')" style="background:#7f1d1d;color:#fca5a5;border:none;border-radius:8px;padding:6px 18px;font-family:\'Heebo\',sans-serif;font-size:13px;font-weight:700;cursor:pointer;width:100%">מחק מהארכיון</button>' +
+      '</div>' +
     '</div>';
   }).join('');
+}
+
+function deleteArchiveDeal(i) {
+  var arch = JSON.parse(localStorage.getItem('anak-archive') || '[]');
+  arch.splice(i, 1);
+  localStorage.setItem('anak-archive', JSON.stringify(arch));
+  renderDealsArchive();
 }
 
 function openArchivedDeal(i) {
