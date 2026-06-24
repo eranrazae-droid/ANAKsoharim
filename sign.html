@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>תהליך חתימה — ענק הרכבים</title>
+<link rel="manifest" href="manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0d1f3c">
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:100vh}
+
+.hdr{background:#0d1f3c;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;position:relative}
+.hdr-logo{font-size:18px;font-weight:900;color:#fff}
+.hdr-logo span{color:#c9a227}
+.hdr-title{font-size:13px;color:#7a9ccf;margin-top:2px}
+
+.page{max-width:680px;margin:0 auto;padding:20px 16px 100px}
+
+/* STATUS BANNER */
+.status-banner{background:#fde047;border-radius:14px;padding:14px 20px;text-align:center;margin-bottom:20px}
+.status-banner-lbl{font-size:11px;font-weight:700;color:#78350f;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px}
+.status-banner-val{font-size:16px;font-weight:900;color:#000}
+
+/* CHOSEN PLAN */
+.plan-box{background:#16a34a;border-radius:16px;padding:20px;color:#fff;margin-bottom:20px}
+.plan-box-title{font-size:11px;color:rgba(255,255,255,.7);font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:14px}
+.plan-row{display:flex;gap:24px;flex-wrap:wrap}
+.plan-item{display:flex;flex-direction:column;gap:3px}
+.plan-item-lbl{font-size:11px;color:rgba(255,255,255,.65);font-weight:600}
+.plan-item-val{font-size:20px;font-weight:900;color:#fff}
+.plan-item-val.gold{color:#fde047}
+
+/* CHECKLIST */
+.checklist{display:flex;flex-direction:column;gap:10px;margin-bottom:20px}
+.check-item{background:#fff;border:2px solid #dce6f5;border-radius:14px;display:flex;align-items:center;gap:14px;padding:16px 18px;cursor:pointer;transition:border-color .15s,background .15s}
+.check-item:hover{border-color:#0ea5e9}
+.check-item.done{background:#f0fdf4;border-color:#16a34a}
+.check-item.missing{border-color:#e02d2d;background:#fff0f0;animation:shake .3s}
+.check-box{width:32px;height:32px;border:2.5px solid #dce6f5;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px;transition:all .15s;background:#f5f8ff}
+.check-item.done .check-box{background:#16a34a;border-color:#16a34a;color:#fff}
+.check-label{font-size:15px;font-weight:700;color:#0d1f3c;flex:1}
+.check-item.done .check-label{color:#166534}
+.check-sub{font-size:12px;color:#5a7aa5;margin-top:2px}
+
+@keyframes shake{
+  0%,100%{transform:translateX(0)}
+  20%{transform:translateX(-6px)}
+  40%{transform:translateX(6px)}
+  60%{transform:translateX(-4px)}
+  80%{transform:translateX(4px)}
+}
+
+/* COMPLETE BUTTON */
+.complete-btn{position:fixed;bottom:0;right:0;left:0;padding:16px 20px;background:#fff;border-top:1px solid #dce6f5;display:flex;justify-content:center}
+.complete-btn button{width:100%;max-width:640px;background:#16a34a;color:#fff;border:none;border-radius:14px;padding:18px;font-family:'Heebo',sans-serif;font-size:18px;font-weight:900;cursor:pointer;box-shadow:0 4px 16px rgba(22,163,74,.3)}
+
+/* MODAL */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:100;display:flex;align-items:flex-end;justify-content:center}
+.modal{background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:680px;max-height:80vh;overflow-y:auto;padding:24px 20px 40px}
+.modal-title{font-size:18px;font-weight:900;color:#0d1f3c;margin-bottom:16px;text-align:center}
+.modal-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f0f4fa}
+.modal-row:last-child{border-bottom:none}
+.modal-lbl{font-size:13px;color:#7a9ab8;font-weight:600}
+.modal-val{font-size:15px;font-weight:900;color:#0d1f3c}
+.modal-close{width:100%;background:#0d1f3c;color:#fff;border:none;border-radius:12px;padding:14px;font-family:'Heebo',sans-serif;font-size:16px;font-weight:900;cursor:pointer;margin-top:16px}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div>
+    <div class="hdr-logo">ענק <span>הרכבים</span></div>
+    <div class="hdr-title">תהליך חתימה</div>
+  </div>
+  <a href="quotes.html" style="color:#7a9ccf;font-size:13px;font-weight:700;text-decoration:none;background:#1a2f54;padding:8px 16px;border-radius:8px">← חזרה</a>
+</div>
+
+<div class="page">
+
+  <!-- סטטוס -->
+  <div class="status-banner">
+    <div class="status-banner-lbl">סטטוס עסקה</div>
+    <div class="status-banner-val">ממתין לחתימת חוזים, ביטוח מקיף, העברת יתרה</div>
+  </div>
+
+  <!-- כפתורי מידע -->
+  <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px">
+    <button onclick="showDetails()" style="width:100%;background:#fff;border:1.5px solid #dce6f5;border-radius:12px;padding:14px;font-family:'Heebo',sans-serif;font-size:15px;font-weight:700;color:#0d1f3c;cursor:pointer;box-shadow:0 2px 8px rgba(13,31,60,.06)">📋 פרטי הצעה</button>
+    <button onclick="showRejected()" style="width:100%;background:#fff;border:1.5px solid #ffd6d6;border-radius:12px;padding:14px;font-family:'Heebo',sans-serif;font-size:15px;font-weight:700;color:#e02d2d;cursor:pointer;box-shadow:0 2px 8px rgba(13,31,60,.06)">🔴 מסלולים שלא נבחרו</button>
+  </div>
+
+  <!-- מסלול נבחר -->
+  <div class="plan-box" id="plan-box">
+    <div class="plan-box-title">✓ מסלול מימון נבחר</div>
+    <div class="plan-row" id="plan-row"></div>
+  </div>
+
+  <!-- צ'ק ליסט -->
+  <div class="checklist" id="checklist">
+    <div class="check-item" id="ci-0" onclick="toggle(0)">
+      <div class="check-box" id="cb-0"></div>
+      <div><div class="check-label">חתימת חוזה מימון</div></div>
+    </div>
+    <div class="check-item" id="ci-1" onclick="toggle(1)">
+      <div class="check-box" id="cb-1"></div>
+      <div><div class="check-label">חתימת חוזה ענק הרכבים</div></div>
+    </div>
+    <div class="check-item" id="ci-2" onclick="toggle(2)">
+      <div class="check-box" id="cb-2"></div>
+      <div><div class="check-label">שליחת ביטוח מקיף למימון</div></div>
+    </div>
+    <div class="check-item" id="ci-3" onclick="toggle(3)">
+      <div class="check-box" id="cb-3"></div>
+      <div>
+        <div class="check-label">העברת יתרה</div>
+        <div class="check-sub" id="balance-sub"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- כפתור השלמה -->
+<div class="complete-btn">
+  <button onclick="complete()">✅ התהליך הושלם</button>
+</div>
+
+<!-- מודל פרטי הצעה -->
+<div class="modal-backdrop" id="modal" style="display:none" onclick="if(event.target===this)closeDetails()">
+  <div class="modal">
+    <div class="modal-title">פרטי הצעה</div>
+    <div id="modal-content"></div>
+    <button class="modal-close" onclick="closeDetails()">סגור</button>
+  </div>
+</div>
+
+<!-- מודל מסלולים שלא נבחרו -->
+<div class="modal-backdrop" id="modal-rejected" style="display:none" onclick="if(event.target===this)closeRejected()">
+  <div class="modal">
+    <div class="modal-title">מסלולים שלא נבחרו</div>
+    <div id="rejected-content"></div>
+    <button class="modal-close" onclick="closeRejected()">סגור</button>
+  </div>
+</div>
+
+<script>
+var checks = [false, false, false, false];
+var deal = null;
+var chosenPlan = null;
+var dealIdx = 0;
+
+function fmt(n){ return '₪ ' + Math.round(n||0).toLocaleString('he-IL'); }
+
+function getDeals(){ return JSON.parse(localStorage.getItem('anak-deals') || '[]'); }
+function saveDeals(d){ localStorage.setItem('anak-deals', JSON.stringify(d)); }
+
+function init() {
+  var params = new URLSearchParams(location.search);
+  dealIdx = parseInt(params.get('i') || '0');
+
+  var deals = getDeals();
+  deal = deals[dealIdx];
+  if (!deal) { document.body.innerHTML = '<p style="padding:40px;text-align:center">לא נמצאה עסקה</p>'; return; }
+
+  // עדכן סטטוס
+  deal.dealStatus = 'ממתין לחתימת חוזים, ביטוח מקיף, העברת יתרה';
+  deal.statusChangedAt = Date.now();
+  deals[dealIdx] = deal;
+  saveDeals(deals);
+
+  // מסלול נבחר
+  chosenPlan = null;
+  if (deal.approvalPlans) {
+    deal.approvalPlans.forEach(function(p){ if (p.chosen) chosenPlan = p; });
+  }
+
+  renderPlan();
+  renderBalance();
+  loadCheckState();
+}
+
+function renderPlan() {
+  var row = document.getElementById('plan-row');
+  if (!chosenPlan) { row.innerHTML = '<div style="color:rgba(255,255,255,.7)">לא נבחר מסלול</div>'; return; }
+  var html = '';
+  if (chosenPlan.company) html += '<div class="plan-item"><div class="plan-item-lbl">חברת מימון</div><div class="plan-item-val">' + chosenPlan.company + '</div></div>';
+  if (chosenPlan.amount)  html += '<div class="plan-item"><div class="plan-item-lbl">סכום מאושר</div><div class="plan-item-val gold">' + chosenPlan.amount + '</div></div>';
+  if (chosenPlan.rate)    html += '<div class="plan-item"><div class="plan-item-lbl">ריבית מאושרת</div><div class="plan-item-val">' + chosenPlan.rate + '%</div></div>';
+  row.innerHTML = html;
+}
+
+function renderBalance() {
+  // יתרה = סכום מימון נדרש - סכום מאושר מחברת מימון
+  var needed = deal.finance || 0;
+  var approved = chosenPlan ? (parseFloat(chosenPlan.amount) || 0) : 0;
+  var balance = needed - approved;
+  var sub = document.getElementById('balance-sub');
+  if (balance > 0) {
+    sub.textContent = 'סכום להעברה: ' + fmt(balance);
+  } else if (approved > 0) {
+    sub.textContent = 'כוסה במלואו על ידי המימון';
+  } else {
+    sub.textContent = 'סכום מימון: ' + fmt(needed);
+  }
+}
+
+function getCheckKey() { return 'anak-sign-checks-' + (deal ? (deal.id || deal.createdAt || dealIdx) : dealIdx); }
+
+function loadCheckState() {
+  var saved = JSON.parse(localStorage.getItem(getCheckKey()) || '[]');
+  if (saved.length === 4) checks = saved;
+  renderChecks();
+}
+
+function saveCheckState() {
+  localStorage.setItem(getCheckKey(), JSON.stringify(checks));
+}
+
+function toggle(i) {
+  checks[i] = !checks[i];
+  saveCheckState();
+  renderChecks();
+}
+
+function renderChecks() {
+  for (var i = 0; i < 4; i++) {
+    var ci = document.getElementById('ci-' + i);
+    var cb = document.getElementById('cb-' + i);
+    if (checks[i]) {
+      ci.className = 'check-item done';
+      cb.textContent = '✓';
+    } else {
+      ci.className = 'check-item';
+      cb.textContent = '';
+    }
+  }
+}
+
+function complete() {
+  var first = -1;
+  for (var i = 0; i < 4; i++) {
+    if (!checks[i]) { first = i; break; }
+  }
+  if (first >= 0) {
+    // הדגש את התיבה החסרה וגלול אליה
+    var ci = document.getElementById('ci-' + first);
+    ci.className = 'check-item missing';
+    ci.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(function() {
+      ci.className = checks[first] ? 'check-item done' : 'check-item';
+    }, 1200);
+    return;
+  }
+  // הכל מסומן
+  var deals = getDeals();
+  deal.dealStatus = 'הושלם';
+  deal.statusChangedAt = Date.now();
+  deals[dealIdx] = deal;
+  saveDeals(deals);
+  alert('✅ התהליך הושלם בהצלחה!');
+  location.href = 'quotes.html';
+}
+
+function showDetails() {
+  if (!deal) return;
+  var html = '';
+  function row(lbl, val) { if (val) html += '<div class="modal-row"><span class="modal-lbl">' + lbl + '</span><span class="modal-val">' + val + '</span></div>'; }
+  row('שם לקוח', deal.customer);
+  row('טלפון', deal.phone);
+  row('נציג מכירות', deal.rep);
+  row('נציג מימון', deal.financeRep);
+  row('רכב חדש', deal.newCar);
+  row('מספר רישוי', deal.newPlate);
+  if (deal.newPrice) row('מחיר רכב', fmt(deal.newPrice));
+  if (deal.tradeIn)  row('זיכוי טרייד אין', fmt(deal.tradeIn));
+  if (deal.oldLoan)  row('חוב מימון ישן', fmt(deal.oldLoan));
+  if (deal.cash)     row('כסף מהלקוח', fmt(deal.cash));
+  if (deal.finance)  row('סכום מימון', fmt(deal.finance));
+  if (deal.monthly)  row('החזר חודשי', fmt(deal.monthly));
+  document.getElementById('modal-content').innerHTML = html;
+  document.getElementById('modal').style.display = 'flex';
+}
+
+function closeDetails() {
+  document.getElementById('modal').style.display = 'none';
+}
+
+function showRejected() {
+  if (!deal || !deal.approvalPlans) return;
+  var rejected = deal.approvalPlans.filter(function(p){ return !p.chosen; });
+  if (!rejected.length) {
+    document.getElementById('rejected-content').innerHTML = '<p style="text-align:center;color:#7a9ab8;padding:20px">אין מסלולים שנדחו</p>';
+  } else {
+    var html = '';
+    rejected.forEach(function(p) {
+      html += '<div style="background:#e02d2d;border-radius:14px;padding:16px;color:#fff;margin-bottom:10px">';
+      html += '<div style="display:flex;gap:20px;flex-wrap:wrap">';
+      if (p.company) html += '<div><div style="font-size:11px;color:rgba(255,255,255,.65);margin-bottom:3px">חברת מימון</div><div style="font-size:16px;font-weight:900">' + p.company + '</div></div>';
+      if (p.amount)  html += '<div><div style="font-size:11px;color:rgba(255,255,255,.65);margin-bottom:3px">סכום מאושר</div><div style="font-size:16px;font-weight:900">' + p.amount + '</div></div>';
+      if (p.rate)    html += '<div><div style="font-size:11px;color:rgba(255,255,255,.65);margin-bottom:3px">ריבית</div><div style="font-size:16px;font-weight:900">' + p.rate + '%</div></div>';
+      html += '</div></div>';
+    });
+    document.getElementById('rejected-content').innerHTML = html;
+  }
+  document.getElementById('modal-rejected').style.display = 'flex';
+}
+
+function closeRejected() {
+  document.getElementById('modal-rejected').style.display = 'none';
+}
+
+init();
+</script>
+</body>
+</html>
