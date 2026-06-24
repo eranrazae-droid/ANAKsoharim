@@ -393,14 +393,30 @@ function choosePlan(i) {
 }
 
 function archiveDeal(i) {
-  if (!confirm('להעביר עסקה זו לארכיון?')) return;
+  if (!confirm('להעביר עסקה זו לארכיון? היא תוסר גם ממסך ההצעות.')) return;
   var deals = getDeals();
   var d = deals.splice(i, 1)[0];
-  d.archivedAt = new Date().toLocaleString('he-IL');
-  var archive = JSON.parse(localStorage.getItem('anak-archive') || '[]');
-  archive.unshift(d);
-  localStorage.setItem('anak-archive', JSON.stringify(archive));
+  var now = new Date().toLocaleString('he-IL');
+  d.archivedAt = now;
+
+  // ארכיון מימונים
+  var archD = JSON.parse(localStorage.getItem('anak-archive') || '[]');
+  archD.unshift(d);
+  localStorage.setItem('anak-archive', JSON.stringify(archD));
   saveDeals(deals);
+
+  // ארכיון הצעות — מצא ומחק לפי id
+  var hist = JSON.parse(localStorage.getItem('anak-quotes') || '[]');
+  var qi = hist.findIndex(function(q){ return q.id === d.id || q.createdAt === d.createdAt; });
+  if (qi >= 0) {
+    var archQ = JSON.parse(localStorage.getItem('anak-archive-quotes') || '[]');
+    var q = hist.splice(qi, 1)[0];
+    q.archivedAt = now;
+    archQ.unshift(q);
+    localStorage.setItem('anak-archive-quotes', JSON.stringify(archQ));
+    localStorage.setItem('anak-quotes', JSON.stringify(hist));
+  }
+
   selectedIdx = 0;
   renderBar();
   document.getElementById('split-panel').style.display = 'none';

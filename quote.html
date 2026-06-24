@@ -726,6 +726,43 @@ function loadQuoteFromList(item) {
   window.scrollTo(0, 0);
 }
 
+function archiveQuoteAndDeal(i, e) {
+  e.stopPropagation();
+  if (!confirm('להעביר הצעה זו לארכיון? היא תוסר גם ממסך המימונים.')) return;
+  var hist  = JSON.parse(localStorage.getItem('anak-quotes') || '[]');
+  var deals = JSON.parse(localStorage.getItem('anak-deals')  || '[]');
+  var item  = hist[i];
+  var now   = new Date().toLocaleString('he-IL');
+
+  // מצא deal תואם
+  var dealIdx = -1;
+  deals.forEach(function(d, di){
+    if (d.id === item.id || d.createdAt === item.createdAt) dealIdx = di;
+  });
+
+  // ארכיון הצעות
+  var archQ = JSON.parse(localStorage.getItem('anak-archive-quotes') || '[]');
+  item.archivedAt = now;
+  archQ.unshift(item);
+  localStorage.setItem('anak-archive-quotes', JSON.stringify(archQ));
+  hist.splice(i, 1);
+  localStorage.setItem('anak-quotes', JSON.stringify(hist));
+
+  // ארכיון מימונים
+  if (dealIdx >= 0) {
+    var archD = JSON.parse(localStorage.getItem('anak-archive') || '[]');
+    var d = deals.splice(dealIdx, 1)[0];
+    d.archivedAt = now;
+    archD.unshift(d);
+    localStorage.setItem('anak-archive', JSON.stringify(archD));
+    localStorage.setItem('anak-deals', JSON.stringify(deals));
+  }
+
+  renderExistingQuotes();
+}
+
+var DONE_STATUSES = ['הושלם', 'הושלם וממתין למסירה'];
+
 function renderExistingQuotes() {
   var hist  = JSON.parse(localStorage.getItem('anak-quotes') || '[]');
   var deals = JSON.parse(localStorage.getItem('anak-deals')  || '[]');
@@ -736,20 +773,22 @@ function renderExistingQuotes() {
   }
   var html = '';
   hist.forEach(function(item, i) {
-    // find matching deal for status
     var deal = null;
     deals.forEach(function(d){
       if (d.id === item.id || d.createdAt === item.createdAt) deal = d;
     });
-    var dealStatus = deal ? (deal.dealStatus || 'טרם הוקמה הלוואה') : null;
+    var dealStatus = deal ? (deal.dealStatus || '') : '';
+    var isDone = DONE_STATUSES.indexOf(dealStatus) >= 0;
 
-    html += '<div style="background:#fff;border:1.5px solid #dce6f5;border-radius:14px;overflow:hidden;box-shadow:0 2px 8px rgba(13,31,60,.06)">';
+    html += '<div style="background:#fff;border:1.5px solid ' + (isDone ? '#16a34a' : '#dce6f5') + ';border-radius:14px;overflow:hidden;box-shadow:0 2px 8px rgba(13,31,60,.06)">';
     html += '<div style="background:#0d1f3c;padding:10px 14px">';
     html += '<div style="font-size:16px;font-weight:900;color:#fff;margin-bottom:4px">' + (item.customer || 'לא ידוע') + '</div>';
-    if (item.inProcess && dealStatus) {
-      html += '<span style="background:#fde047;color:#000;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:900">סטטוס: ' + dealStatus + '</span>';
+    if (dealStatus) {
+      var bg = isDone ? '#16a34a' : '#fde047';
+      var col = isDone ? '#fff' : '#000';
+      html += '<span style="background:' + bg + ';color:' + col + ';border-radius:6px;padding:2px 8px;font-size:11px;font-weight:900">סטטוס: ' + dealStatus + '</span>';
     } else if (item.inProcess) {
-      html += '<span style="background:#16a34a;color:#fff;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:900">✓ בתהליך מימון</span>';
+      html += '<span style="background:#1a56db;color:#fff;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:900">✓ בתהליך מימון</span>';
     }
     html += '</div>';
     html += '<div style="padding:12px 16px;cursor:pointer" onclick="loadQuoteFromList(' + JSON.stringify(item).replace(/"/g,'&quot;') + ')">';
@@ -757,7 +796,11 @@ function renderExistingQuotes() {
     html += '<div style="font-size:24px;font-weight:900;color:#1a56db">' + fmtQ(item.monthly) + '<span style="font-size:13px;color:#5a7aa5;font-weight:400"> /חודש</span></div>';
     html += '<div style="font-size:11px;color:#7a9ab8;margin-top:4px">' + (item.rep ? 'נציג: ' + item.rep + ' · ' : '') + (item.date || '') + '</div>';
     html += '</div>';
-    html += '<button onclick="deleteExistingQuote(' + i + ',event)" style="width:100%;border:none;background:#fff0f0;color:#e02d2d;font-family:\'Heebo\',sans-serif;font-size:14px;font-weight:900;padding:10px;cursor:pointer;border-top:1px solid #ffd6d6;">🗑 מחיקה</button>';
+    if (isDone) {
+      html += '<button onclick="archiveQuoteAndDeal(' + i + ',event)" style="width:100%;border:none;background:#f0fdf4;color:#16a34a;font-family:\'Heebo\',sans-serif;font-size:14px;font-weight:900;padding:10px;cursor:pointer;border-top:1px solid #bbf7d0;">📦 שליחה לארכיון</button>';
+    } else {
+      html += '<button onclick="deleteExistingQuote(' + i + ',event)" style="width:100%;border:none;background:#fff0f0;color:#e02d2d;font-family:\'Heebo\',sans-serif;font-size:14px;font-weight:900;padding:10px;cursor:pointer;border-top:1px solid #ffd6d6;">🗑 מחיקה</button>';
+    }
     html += '</div>';
   });
   el.innerHTML = html;
