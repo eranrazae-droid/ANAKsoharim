@@ -211,9 +211,20 @@ function renderBar() {
         '<div class="deal-card-status"><span style="background:' + statusBg + ';color:' + statusColor + ';border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">סטטוס: ' + status + '</span></div>' +
       '</div>' +
       '<div class="deal-card-body" onclick="' + clickAction + '" style="cursor:pointer">' +
-        '<div class="deal-card-monthly">₪ ' + Math.round(d.monthly||0).toLocaleString('he-IL') + '</div>' +
-        (d.newCar ? '<div style="font-size:11px;font-weight:700;color:#0d1f3c;margin-top:4px">' + d.newCar + '</div>' : '') +
-        (d.financeRep ? '<div style="font-size:11px;color:#5a7aa5;margin-top:6px;font-weight:600">נציג: ' + d.financeRep + '</div>' : '') +
+        (function() {
+          if (!d.dealStatus) {
+            // טרם הוקמה הצעה — הצג פרטים בסגנון חלונית הצעה
+            var inner = '';
+            if (d.newCar) inner += '<div style="font-size:12px;color:#000;font-weight:700;margin-bottom:6px;background:#fde047;border-radius:5px;padding:2px 7px;display:inline-block">' + d.newCar + '</div><br>';
+            inner += '<div style="font-size:22px;font-weight:900;color:#1a56db">' + fmt(d.monthly) + '<span style="font-size:13px;color:#5a7aa5;font-weight:400"> /חודש</span></div>';
+            if (d.rep || d.date) inner += '<div style="font-size:11px;color:#7a9ab8;margin-top:4px">' + (d.rep ? 'נציג: ' + d.rep + ' · ' : '') + (d.date || '') + '</div>';
+            if (d.finance) inner += '<div style="font-size:11px;color:#5a7aa5;margin-top:4px">מימון: ' + fmt(d.finance) + '</div>';
+            return inner;
+          }
+          return '<div class="deal-card-monthly">₪ ' + Math.round(d.monthly||0).toLocaleString('he-IL') + '</div>' +
+            (d.newCar ? '<div style="font-size:11px;font-weight:700;color:#0d1f3c;margin-top:4px">' + d.newCar + '</div>' : '') +
+            (d.financeRep ? '<div style="font-size:11px;color:#5a7aa5;margin-top:6px;font-weight:600">נציג: ' + d.financeRep + '</div>' : '');
+        }()) +
       '</div>' +
       '<div style="background:#0d1f3c;padding:8px 10px;display:grid;grid-template-columns:1fr 1fr;gap:6px">' +
         '<div style="background:#1a2f54;border-radius:8px;padding:6px 8px;text-align:center">' +
