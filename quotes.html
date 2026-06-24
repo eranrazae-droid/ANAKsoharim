@@ -188,12 +188,25 @@ function renderBar() {
   if (fixed) saveDeals(deals);
   el.innerHTML = deals.map(function(d, i) {
     var status = d.dealStatus || 'טרם הוקמה הלוואה';
-    return '<div class="deal-card' + (i === selectedIdx ? ' active' : '') + '" onclick="selectDeal(' + i + ')">' +
-      '<div class="deal-card-hdr">' +
+    var done = status === 'הושלם';
+    var ref = d.completedAt || Date.now();
+    var createdMs  = done ? (ref - (d.createdAt || ref)) : null;
+    var statusMs   = done ? (ref - (d.statusChangedAt || d.createdAt || ref)) : null;
+    var timerCreated = done
+      ? '<div style="font-size:12px;font-weight:900;color:#9ca3af;font-variant-numeric:tabular-nums">' + fmtElapsed(createdMs) + '</div>'
+      : '<div class="timer-created" style="font-size:12px;font-weight:900;color:#4ade80;font-variant-numeric:tabular-nums" data-createdat="' + d.createdAt + '">' + fmtElapsed(Date.now() - d.createdAt) + '</div>';
+    var timerStatus = done
+      ? '<div style="font-size:12px;font-weight:900;color:#9ca3af;font-variant-numeric:tabular-nums">' + fmtElapsed(statusMs) + '</div>'
+      : '<div class="timer-status" style="font-size:12px;font-weight:900;color:#facc15;font-variant-numeric:tabular-nums" data-statusat="' + (d.statusChangedAt||d.createdAt) + '">' + fmtElapsed(Date.now() - (d.statusChangedAt||d.createdAt)) + '</div>';
+    var clickAction = done ? 'location.href=\'view.html?i=' + i + '\'' : 'selectDeal(' + i + ')';
+    var statusBg = done ? '#16a34a' : '#fde047';
+    var statusColor = done ? '#fff' : '#000';
+    return '<div class="deal-card' + (i === selectedIdx && !done ? ' active' : '') + '" style="' + (done ? 'opacity:.85' : '') + '">' +
+      '<div class="deal-card-hdr" onclick="' + clickAction + '" style="cursor:pointer">' +
         '<div class="deal-card-name">' + (d.customer || 'לא ידוע') + '</div>' +
-        '<div class="deal-card-status"><span style="background:#fde047;color:#000;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">סטטוס: ' + status + '</span></div>' +
+        '<div class="deal-card-status"><span style="background:' + statusBg + ';color:' + statusColor + ';border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">סטטוס: ' + status + '</span></div>' +
       '</div>' +
-      '<div class="deal-card-body">' +
+      '<div class="deal-card-body" onclick="' + clickAction + '" style="cursor:pointer">' +
         '<div class="deal-card-monthly">₪ ' + Math.round(d.monthly||0).toLocaleString('he-IL') + '</div>' +
         (d.newCar ? '<div style="font-size:11px;font-weight:700;color:#0d1f3c;margin-top:4px">' + d.newCar + '</div>' : '') +
         (d.financeRep ? '<div style="font-size:11px;color:#5a7aa5;margin-top:6px;font-weight:600">נציג: ' + d.financeRep + '</div>' : '') +
@@ -201,13 +214,14 @@ function renderBar() {
       '<div style="background:#0d1f3c;padding:8px 10px;display:grid;grid-template-columns:1fr 1fr;gap:6px">' +
         '<div style="background:#1a2f54;border-radius:8px;padding:6px 8px;text-align:center">' +
           '<div style="font-size:9px;color:#7a9ccf;font-weight:600;margin-bottom:2px">מאז הקמה</div>' +
-          '<div class="timer-created" style="font-size:12px;font-weight:900;color:#4ade80;font-variant-numeric:tabular-nums" data-createdat="' + (d.createdAt||Date.now()) + '">' + fmtElapsed(Date.now()-(d.createdAt||Date.now())) + '</div>' +
+          timerCreated +
         '</div>' +
         '<div style="background:#1a2f54;border-radius:8px;padding:6px 8px;text-align:center">' +
           '<div style="font-size:9px;color:#7a9ccf;font-weight:600;margin-bottom:2px">בסטטוס</div>' +
-          '<div class="timer-status" style="font-size:12px;font-weight:900;color:#facc15;font-variant-numeric:tabular-nums" data-statusat="' + (d.statusChangedAt||d.createdAt||Date.now()) + '">' + fmtElapsed(Date.now()-(d.statusChangedAt||d.createdAt||Date.now())) + '</div>' +
+          timerStatus +
         '</div>' +
       '</div>' +
+      (done ? '<button onclick="archiveDeal(' + i + ')" style="width:100%;border:none;background:#0d1f3c;color:#7a9ccf;font-family:\'Heebo\',sans-serif;font-size:12px;font-weight:700;padding:8px;cursor:pointer;border-top:1px solid #1a2f54">📦 שליחה לארכיון</button>' : '') +
     '</div>';
   }).join('');
 }
@@ -376,6 +390,22 @@ function choosePlan(i) {
   renderPlans(d);
   // נווט לדף החתימה
   setTimeout(function(){ location.href = 'sign.html?i=' + selectedIdx; }, 300);
+}
+
+function archiveDeal(i) {
+  if (!confirm('להעביר עסקה זו לארכיון?')) return;
+  var deals = getDeals();
+  var d = deals.splice(i, 1)[0];
+  d.archivedAt = new Date().toLocaleString('he-IL');
+  var archive = JSON.parse(localStorage.getItem('anak-archive') || '[]');
+  archive.unshift(d);
+  localStorage.setItem('anak-archive', JSON.stringify(archive));
+  saveDeals(deals);
+  selectedIdx = 0;
+  renderBar();
+  document.getElementById('split-panel').style.display = 'none';
+  document.getElementById('btn-back').style.display = 'none';
+  document.getElementById('deals-bar').style.display = 'grid';
 }
 
 function deleteDeal() {
