@@ -249,7 +249,7 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
     </div>
     <div class="deal-row">
       <div class="deal-label">מחירון <span style="font-size:10px;color:#7a9ab8;font-weight:400">(0 ק"מ לפני רישוי)</span></div>
-      <div class="deal-val"><input class="deal-input" id="new-list-price" type="number" placeholder="0" oninput="scheduleAutoSave()" inputmode="numeric"></div>
+      <div class="deal-val"><input class="deal-input" id="new-list-price" type="number" placeholder="0" oninput="calc()" inputmode="numeric"></div>
     </div>
 
     <!-- טרייד אין -->
@@ -292,6 +292,10 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
     <div class="deal-row finance-row">
       <div class="deal-label">סכום מימון</div>
       <div class="deal-val computed" id="finance-amount">—</div>
+    </div>
+    <div class="deal-row" id="finance-pct-row" style="display:none">
+      <div class="deal-label" style="font-size:13px;color:#7a9ab8">אחוז מימון ממחירון</div>
+      <div class="deal-val computed" id="finance-pct" style="font-size:18px;color:#1a56db;font-weight:900">—</div>
     </div>
   </div>
 
@@ -533,6 +537,17 @@ function calc() {
   document.getElementById('total-deal').textContent = newPrice ? fmtNum(totalDeal) : '—';
   document.getElementById('finance-amount').textContent = newPrice ? fmtNum(financeAmt) : '—';
 
+  var listPrice = parseFloat(document.getElementById('new-list-price').value) || 0;
+  var pctRow = document.getElementById('finance-pct-row');
+  var pctEl  = document.getElementById('finance-pct');
+  if (listPrice > 0 && financeAmt > 0) {
+    var pct = Math.round((financeAmt / listPrice) * 100);
+    pctEl.textContent = pct + '%';
+    pctRow.style.display = '';
+  } else {
+    pctRow.style.display = 'none';
+  }
+
   var box = document.getElementById('monthly-box');
 
   if (financeAmt > 0) {
@@ -641,13 +656,14 @@ function autoSave() { /* לא בשימוש */ }
 
 // שדות חובה: [id, סוג ('input'/'select')]
 var REQUIRED_FIELDS = [
-  {id:'sales-rep',      type:'select'},
-  {id:'finance-rep',    type:'select'},
-  {id:'customer-name',  type:'input'},
-  {id:'customer-phone', type:'input'},
-  {id:'new-car-plate',  type:'input'},
-  {id:'new-car-name',   type:'input'},
-  {id:'new-price',      type:'input'}
+  {id:'sales-rep',       type:'select'},
+  {id:'finance-rep',     type:'select'},
+  {id:'customer-name',   type:'input'},
+  {id:'customer-phone',  type:'input'},
+  {id:'new-car-plate',   type:'input'},
+  {id:'new-car-name',    type:'input'},
+  {id:'new-price',       type:'input'},
+  {id:'new-list-price',  type:'input'}
 ];
 
 function validateRequiredFields() {
