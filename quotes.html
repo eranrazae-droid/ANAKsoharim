@@ -299,11 +299,33 @@ function renderDetail() {
   html += '<div class="detail-row"><span class="detail-lbl">סכום מימון</span><span class="detail-val big">' + fmt(d.finance || (d.newPrice - (d.cash||0))) + '</span></div>';
   html += '</div>';
 
-  // החזר חודשי
-  html += '<div class="detail-card" style="background:#0d1f3c;border-color:#0d1f3c">';
-  html += '<div class="detail-row" style="border-color:#1a2f54"><span class="detail-lbl" style="color:#7a9ccf">החזר חודשי</span><span class="detail-val big" style="color:#fff;font-size:28px">' + fmt(d.monthly) + '</span></div>';
-  if (d.status) html += '<div class="detail-row" style="border:none"><span class="detail-lbl" style="color:#7a9ccf">סטטוס</span><span style="background:#1a56db;color:#fff;border-radius:8px;padding:3px 10px;font-size:12px;font-weight:700">' + d.status + '</span></div>';
-  html += '</div>';
+  // החזר חודשי — monthly-box style
+  if (d.monthly) {
+    var finAmt = d.finance || 0;
+    var nPay = d.n || 0;
+    var trackName = d.track || '';
+    var monthlyInterest = (finAmt && nPay) ? Math.round(d.monthly - finAmt / nPay) : 0;
+    html += '<div style="background:#0d1f3c;border-radius:16px;padding:20px 24px;color:#fff;display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:12px">';
+    html += '<div style="display:flex;flex-direction:column;gap:3px">';
+    html += '<div style="font-size:11px;color:#7a9ccf;font-weight:600;letter-spacing:.05em;text-transform:uppercase">החזר חודשי משוער</div>';
+    html += '<div style="font-size:44px;font-weight:900;color:#fff;line-height:1"><span style="font-size:22px">₪</span>' + Math.round(d.monthly).toLocaleString('he-IL') + '</div>';
+    if (nPay) html += '<div style="font-size:12px;color:#7a9ccf;margin-top:2px">' + nPay + ' תשלומים · ' + fmt(finAmt) + ' מימון</div>';
+    if (monthlyInterest > 0) html += '<div style="font-size:12px;color:#c9a227;margin-top:4px;font-weight:700">עלות ריבית: ' + fmt(monthlyInterest) + '/חודש</div>';
+    html += '</div>';
+    if (trackName) {
+      html += '<div style="display:flex;flex-direction:column;gap:4px;min-width:140px">';
+      html += '<div style="font-size:11px;color:#7a9ccf;font-weight:600;text-transform:uppercase">מסלול</div>';
+      html += '<div style="background:#1a2f54;border-radius:8px;padding:7px 12px;font-size:13px;font-weight:700;color:#fff">' + trackName + '</div>';
+      html += '</div>';
+    }
+    if (d.status) {
+      html += '<div style="display:flex;flex-direction:column;gap:4px">';
+      html += '<div style="font-size:11px;color:#7a9ccf;font-weight:600;text-transform:uppercase">סטטוס</div>';
+      html += '<div style="background:#1a56db;color:#fff;border-radius:8px;padding:7px 12px;font-size:13px;font-weight:700">' + d.status + '</div>';
+      html += '</div>';
+    }
+    html += '</div>';
+  }
 
 
   right.innerHTML = html;

@@ -339,18 +339,21 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
   </div>
   <div id="autosave-indicator" style="font-size:11px;color:#16a34a;text-align:center;min-height:16px;margin-top:4px"></div>
 
-  <button class="btn-reset" onclick="resetAll()">נקה הכל</button>
+  <!-- כפתורי סיום -->
+  <div style="margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
+    <button id="btn-advance-bottom" onclick="advanceDeal()" style="background:#16a34a;color:#fff;border:none;border-radius:14px;padding:18px;font-family:'Heebo',sans-serif;font-size:16px;font-weight:900;cursor:pointer;box-shadow:0 4px 16px rgba(22,163,74,.25)">📈 התקדמות בעסקה</button>
+    <button onclick="closeQuoteForm()" style="background:#7c3aed;color:#fff;border:none;border-radius:14px;padding:18px;font-family:'Heebo',sans-serif;font-size:16px;font-weight:700;cursor:pointer">← מסך הצעות מחיר</button>
+  </div>
+  <div style="margin-top:10px">
+    <button id="btn-save-manual" onclick="manualSave()" style="width:100%;background:#1a56db;color:#fff;border:none;border-radius:14px;padding:16px;font-family:'Heebo',sans-serif;font-size:16px;font-weight:700;cursor:pointer">💾 שמור</button>
+  </div>
+
+  <button class="btn-reset" onclick="resetAll()" style="margin-top:10px">נקה הכל</button>
 
   <!-- FINANCE CARDS -->
   <div id="finance-cards-section" style="display:none;margin-top:24px">
     <div class="results-label">השוואת מסלולי מימון</div>
     <div id="finance-cards"></div>
-  </div>
-
-  <!-- כפתורי סיום -->
-  <div style="margin-top:24px;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-    <button id="btn-advance-bottom" onclick="advanceDeal()" style="background:#16a34a;color:#fff;border:none;border-radius:14px;padding:18px;font-family:'Heebo',sans-serif;font-size:16px;font-weight:900;cursor:pointer;box-shadow:0 4px 16px rgba(22,163,74,.25)">📈 התקדמות בעסקה</button>
-    <button onclick="closeQuoteForm()" style="background:#f0f4fa;color:#5a7aa5;border:1.5px solid #dce6f5;border-radius:14px;padding:18px;font-family:'Heebo',sans-serif;font-size:16px;font-weight:700;cursor:pointer">← מסך הצעות מחיר</button>
   </div>
   </div><!-- /quote-form-section -->
 </div>
@@ -693,6 +696,12 @@ function autoSave() {
   setTimeout(function(){ ind.textContent = ''; }, 2000);
 }
 
+function manualSave() {
+  autoSave();
+  var ind = document.getElementById('autosave-indicator');
+  if (ind) { ind.textContent = '✓ נשמר'; setTimeout(function(){ ind.textContent = ''; }, 2000); }
+}
+
 function loadHistoryItem(item) {
   _currentQuoteId = item.id || null; // טען את המזהה הקבוע של ההצעה
   document.getElementById('sales-rep').value     = item.rep      || '';
@@ -775,7 +784,7 @@ function setReadOnly(on) {
   });
   // הסתר / הצג כפתורי עריכה
   // במצב צפייה: הסתר התקדם+שמור, השאר ווצאפ והדפסה
-  var hideIds = ['btn-advance-top','btn-advance-bottom','autosave-indicator'];
+  var hideIds = ['btn-advance-top','btn-advance-bottom','btn-save-manual','autosave-indicator'];
   hideIds.forEach(function(id) {
     var el = document.getElementById(id);
     if (el) el.style.display = on ? 'none' : '';
