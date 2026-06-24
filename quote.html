@@ -990,10 +990,10 @@ function renderQuoteArchive() {
   var el = document.getElementById('quote-archive-list');
   if (!el) return;
   if (!arch.length) { el.innerHTML = '<div style="color:#7a9ab8;font-size:13px;padding:8px">אין הצעות בארכיון</div>'; return; }
-  el.innerHTML = arch.map(function(item) {
+  el.innerHTML = arch.map(function(item, i) {
     var d = new Date(item.archivedAt || item.createdAt || 0);
     var dateStr = item.archivedAt ? d.toLocaleDateString('he-IL') : (item.date || '');
-    return '<div style="background:#f5f8ff;border:1.5px solid #dce6f5;border-radius:14px;overflow:hidden;opacity:.85">' +
+    return '<div style="background:#f5f8ff;border:1.5px solid #dce6f5;border-radius:14px;overflow:hidden;opacity:.85;cursor:pointer" onclick="openArchivedQuote(' + i + ')">' +
       '<div style="background:#4b5563;padding:10px 14px">' +
         '<div style="font-size:15px;font-weight:900;color:#fff;margin-bottom:4px">' + (item.customer || 'לא ידוע') + '</div>' +
         '<span style="background:#9ca3af;color:#fff;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700">📦 ארכיון</span>' +
@@ -1005,6 +1005,20 @@ function renderQuoteArchive() {
       '</div>' +
     '</div>';
   }).join('');
+}
+
+function openArchivedQuote(i) {
+  var arch = JSON.parse(localStorage.getItem('anak-archive-quotes') || '[]');
+  var item = arch[i];
+  if (!item) return;
+  loadHistoryItem(item);
+  document.getElementById('quotes-list-section').style.display = 'none';
+  document.getElementById('quote-form-section').style.display = 'block';
+  document.getElementById('btn-quotes-screen').style.display = 'inline-block';
+  document.getElementById('view-only-banner').style.display = 'block';
+  document.getElementById('view-only-banner').textContent = '📦 מצב צפייה בלבד — הצעה מהארכיון';
+  setReadOnly(true);
+  window.scrollTo(0, 0);
 }
 
 // init

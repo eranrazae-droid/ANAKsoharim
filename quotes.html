@@ -486,9 +486,9 @@ function renderDealsArchive() {
   var el = document.getElementById('deals-archive-list');
   if (!el) return;
   if (!arch.length) { el.innerHTML = '<div style="color:#7a9ccf;font-size:13px;padding:8px">אין מימונים בארכיון</div>'; return; }
-  el.innerHTML = arch.map(function(d) {
+  el.innerHTML = arch.map(function(d, i) {
     var dateStr = d.archivedAt ? new Date(d.archivedAt).toLocaleDateString('he-IL') : (d.date || '');
-    return '<div style="background:#1a2f54;border-radius:14px;overflow:hidden;opacity:.85">' +
+    return '<div style="background:#1a2f54;border-radius:14px;overflow:hidden;opacity:.85;cursor:pointer" onclick="openArchivedDeal(' + i + ')">' +
       '<div style="padding:10px 14px;border-bottom:1px solid #243550">' +
         '<div style="font-size:15px;font-weight:900;color:#fff;margin-bottom:4px">' + (d.customer || 'לא ידוע') + '</div>' +
         '<span style="background:#374151;color:#9ca3af;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700">📦 ארכיון · ' + (d.dealStatus || '') + '</span>' +
@@ -502,6 +502,38 @@ function renderDealsArchive() {
   }).join('');
 }
 
+function openArchivedDeal(i) {
+  var arch = JSON.parse(localStorage.getItem('anak-archive') || '[]');
+  var d = arch[i];
+  if (!d) return;
+  var chosen = null;
+  if (d.approvalPlans) d.approvalPlans.forEach(function(p){ if (p.chosen) chosen = p; });
+  function r(lbl, val) { return val ? '<div class="detail-row"><span class="detail-lbl">' + lbl + '</span><span class="detail-val">' + val + '</span></div>' : ''; }
+  var html = '';
+  html += r('שם לקוח', d.customer);
+  html += r('טלפון', d.phone);
+  html += r('נציג מכירות', d.rep);
+  html += r('נציג מימון', d.financeRep);
+  html += r('רכב חדש', d.newCar);
+  html += r('מספר רישוי', d.newPlate);
+  if (d.newPrice) html += r('מחיר רכב', fmt(d.newPrice));
+  if (d.tradeIn)  html += r('זיכוי טרייד אין', fmt(d.tradeIn));
+  if (d.oldLoan)  html += r('חוב מימון ישן', fmt(d.oldLoan));
+  if (d.cash)     html += r('כסף מהלקוח', fmt(d.cash));
+  if (d.finance)  html += r('סכום מימון', fmt(d.finance));
+  if (d.monthly)  html += r('החזר חודשי', fmt(d.monthly));
+  if (chosen) {
+    html += '<div style="height:1px;background:#dce6f5;margin:8px 0"></div>';
+    html += r('חברת מימון נבחרת', chosen.company);
+    html += r('סכום מאושר', chosen.amount);
+    if (chosen.rate) html += r('ריבית', chosen.rate + '%');
+  }
+  html += r('סטטוס', d.dealStatus);
+  document.getElementById('arch-modal-content').innerHTML = html;
+  document.getElementById('arch-modal-title').textContent = (d.customer || 'עסקה') + ' — ארכיון';
+  document.getElementById('arch-modal').style.display = 'flex';
+}
+
 renderBar();
 (function initDealsArchiveBadge(){
   var arch = JSON.parse(localStorage.getItem('anak-archive') || '[]');
@@ -509,5 +541,13 @@ renderBar();
   if (badge) badge.textContent = arch.length;
 })();
 </script>
+<!-- מודל ארכיון -->
+<div id="arch-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;align-items:flex-end;justify-content:center" onclick="if(event.target===this)document.getElementById('arch-modal').style.display='none'">
+  <div style="background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:680px;max-height:82vh;overflow-y:auto;padding:24px 20px 40px">
+    <div id="arch-modal-title" style="font-size:18px;font-weight:900;color:#0d1f3c;margin-bottom:16px;text-align:center"></div>
+    <div id="arch-modal-content"></div>
+    <button onclick="document.getElementById('arch-modal').style.display='none'" style="width:100%;background:#0d1f3c;color:#fff;border:none;border-radius:12px;padding:14px;font-family:'Heebo',sans-serif;font-size:16px;font-weight:900;cursor:pointer;margin-top:16px">סגור</button>
+  </div>
+</div>
 </body>
 </html>
