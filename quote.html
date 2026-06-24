@@ -192,7 +192,7 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
   <!-- נציג מכירות + נציג מימון -->
   <div style="display:flex;gap:12px;margin-bottom:16px">
     <div class="customer-card" style="flex:1;margin-bottom:0;flex-direction:column;align-items:flex-start;gap:4px">
-      <label>נציג מכירות <span style="color:#e02d2d">*</span></label>
+      <label>נציג מכירות</label>
       <select id="sales-rep" onchange="calc()" style="width:100%">
         <option value="">בחר נציג...</option>
         <option>ערן</option>
@@ -203,7 +203,7 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
         <option>חיים</option>
         <option>ליאל</option>
       </select>
-      <div id="rep-err" style="display:none;font-size:12px;color:#e02d2d;margin-top:4px;font-weight:700">⚠️ יש למלא שם נציג מכירות</div>
+      <div id="rep-err" style="display:none"></div>
     </div>
     <div class="customer-card" style="flex:1;margin-bottom:0;flex-direction:column;align-items:flex-start;gap:4px">
       <label>נציג מימון</label>
@@ -217,14 +217,14 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
     </div>
   </div>
   <div class="customer-card">
-    <label>שם לקוח <span style="color:#e02d2d">*</span></label>
+    <label>שם לקוח</label>
     <input type="text" id="customer-name" placeholder="הזן שם לקוח..." oninput="calc()">
-    <div id="customer-err" style="display:none;font-size:12px;color:#e02d2d;margin-top:4px;font-weight:700">⚠️ יש למלא שם לקוח</div>
+    <div id="customer-err" style="display:none"></div>
   </div>
   <div class="customer-card">
-    <label>טלפון <span style="color:#e02d2d">*</span></label>
+    <label>טלפון</label>
     <input type="tel" id="customer-phone" placeholder="050-0000000" oninput="calc()" inputmode="tel" onpaste="handlePhonePaste(event)">
-    <div id="phone-err" style="display:none;font-size:12px;color:#e02d2d;margin-top:4px;font-weight:700">⚠️ יש למלא טלפון לקוח</div>
+    <div id="phone-err" style="display:none"></div>
   </div>
 
   <div class="deal-card">
@@ -331,16 +331,14 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
     </div>
   </div>
 
-  <!-- ACTIONS -->
-  <div class="action-row" id="action-row" style="display:none">
+  <!-- ACTIONS — ווצאפ + הדפסה, מוצגים רק לאחר שמירה -->
+  <div class="action-row" id="action-row" style="display:none;margin-top:16px">
     <button class="btn btn-wa" onclick="shareWA()">📲 שלח ב-WhatsApp</button>
-    <button class="btn btn-finance" id="btn-advance-top" onclick="advanceDeal()">🚀 התקדם לעסקה</button>
     <button class="btn btn-print" onclick="printQuote()">🖨️ הדפסה</button>
   </div>
-  <div id="autosave-indicator" style="font-size:11px;color:#16a34a;text-align:center;min-height:16px;margin-top:4px"></div>
 
   <!-- כפתורי סיום -->
-  <div style="margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
+  <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
     <button id="btn-save-manual" onclick="manualSave()" style="background:#1a56db;color:#fff;border:none;border-radius:14px;padding:18px;font-family:'Heebo',sans-serif;font-size:16px;font-weight:700;cursor:pointer">💾 שמור</button>
     <button onclick="closeQuoteForm()" style="background:#7c3aed;color:#fff;border:none;border-radius:14px;padding:18px;font-family:'Heebo',sans-serif;font-size:16px;font-weight:700;cursor:pointer">← מסך הצעות מחיר</button>
   </div>
@@ -516,12 +514,8 @@ function calc() {
   var rep   = document.getElementById('sales-rep').value.trim();
   var cust  = document.getElementById('customer-name').value.trim();
   var phone = document.getElementById('customer-phone').value.trim();
-  document.getElementById('rep-err').style.display      = rep   ? 'none' : 'block';
-  document.getElementById('customer-err').style.display = cust  ? 'none' : 'block';
-  document.getElementById('phone-err').style.display    = phone ? 'none' : 'block';
   if (!rep || !cust || !phone) {
     document.getElementById('monthly-box').style.display = 'none';
-    document.getElementById('action-row').style.display = 'none';
     document.getElementById('finance-cards-section').style.display = 'none';
     return;
   }
@@ -540,7 +534,6 @@ function calc() {
   document.getElementById('finance-amount').textContent = newPrice ? fmtNum(financeAmt) : '—';
 
   var box = document.getElementById('monthly-box');
-  var actions = document.getElementById('action-row');
 
   if (financeAmt > 0) {
     currentFinanceAmt = financeAmt;
@@ -554,16 +547,13 @@ function calc() {
     var costFinance = totalPay - financeAmt;
 
     box.style.display = 'flex';
-    actions.style.display = 'flex';
     document.getElementById('monthly-val').textContent = currentMonthly.toLocaleString('he-IL');
     document.getElementById('monthly-sub').textContent = currentN + ' תשלומים · ' + fmtNum(financeAmt) + ' מימון';
     var monthlyInterest = Math.round(currentMonthly - (financeAmt / currentN));
     document.getElementById('monthly-cost').textContent = 'עלות ריבית: ' + fmtNum(monthlyInterest) + '/חודש';
     renderFinanceCards(financeAmt);
-    scheduleAutoSave();
   } else {
     box.style.display = 'none';
-    actions.style.display = 'none';
     document.getElementById('finance-cards-section').style.display = 'none';
   }
 }
@@ -644,20 +634,56 @@ function lookupPlate(plateId, nameId, btn) {
     .finally(function(){ btn.textContent = orig; btn.disabled = false; });
 }
 
-var _currentQuoteId = null; // מזהה קבוע לטעינת הצעה קיימת
-var _sessionSaves = []; // שמירות ידניות של הסשן הנוכחי
+var _currentQuoteId = null;
 
-function scheduleAutoSave() { /* שמירה ידנית בלבד — אין אוטומטי */ }
-
+function scheduleAutoSave() { /* שמירה ידנית בלבד */ }
 function autoSave() { /* לא בשימוש */ }
 
-function buildQuoteItem(id) {
+// שדות חובה: [id, סוג ('input'/'select')]
+var REQUIRED_FIELDS = [
+  {id:'sales-rep',      type:'select'},
+  {id:'finance-rep',    type:'select'},
+  {id:'customer-name',  type:'input'},
+  {id:'customer-phone', type:'input'},
+  {id:'new-car-plate',  type:'input'},
+  {id:'new-car-name',   type:'input'},
+  {id:'new-price',      type:'input'}
+];
+
+function validateRequiredFields() {
+  var ok = true;
+  REQUIRED_FIELDS.forEach(function(f) {
+    var el = document.getElementById(f.id);
+    if (!el) return;
+    var empty = !el.value.trim();
+    el.style.borderColor  = empty ? '#fca5a5' : '';
+    el.style.background   = empty ? '#fff5f5' : '';
+    if (empty) ok = false;
+  });
+  return ok;
+}
+
+function clearFieldErrors() {
+  REQUIRED_FIELDS.forEach(function(f) {
+    var el = document.getElementById(f.id);
+    if (el) { el.style.borderColor = ''; el.style.background = ''; }
+  });
+}
+
+function buildQuoteItem(id, existingSaves) {
   var customer = document.getElementById('customer-name').value || '';
   var newCar   = document.getElementById('new-car-name').value  || '';
   var now = new Date();
+  var datetime = now.toLocaleDateString('he-IL') + ' ' + now.toLocaleTimeString('he-IL', {hour:'2-digit',minute:'2-digit'});
+  var saves = existingSaves ? existingSaves.slice() : [];
+  saves.push({
+    num: saves.length + 1,
+    carName: newCar || customer || 'הצעה',
+    datetime: datetime
+  });
   return {
     id: id,
-    date: now.toLocaleDateString('he-IL') + ' ' + now.toLocaleTimeString('he-IL', {hour:'2-digit',minute:'2-digit'}),
+    date: datetime,
     rep: document.getElementById('sales-rep').value || '',
     financeRep: document.getElementById('finance-rep').value || '',
     phone: document.getElementById('customer-phone').value || '',
@@ -674,42 +700,37 @@ function buildQuoteItem(id) {
     track: currentTrackName,
     oldCar: document.getElementById('old-car-name').value || '',
     newPlate: document.getElementById('new-car-plate').value || '',
-    oldPlate: document.getElementById('old-car-plate').value || ''
+    oldPlate: document.getElementById('old-car-plate').value || '',
+    saves: saves
   };
 }
 
 function manualSave() {
-  var newId = Date.now();
-  var item = buildQuoteItem(newId);
-  // שמור ב-anak-quotes
+  if (!validateRequiredFields()) return;
+  clearFieldErrors();
+
   var hist = JSON.parse(localStorage.getItem('anak-quotes') || '[]');
-  // אם נטענה הצעה קיימת — עדכן אותה במקום להוסיף
+  var item;
   if (_currentQuoteId) {
     var idx = hist.findIndex(function(h){ return h.id === _currentQuoteId; });
     if (idx >= 0) {
-      item.id = _currentQuoteId;
+      item = buildQuoteItem(_currentQuoteId, hist[idx].saves || []);
       item.inProcess = hist[idx].inProcess || false;
       hist[idx] = item;
     } else {
-      item.id = _currentQuoteId;
+      item = buildQuoteItem(_currentQuoteId, []);
       hist.unshift(item);
     }
   } else {
+    _currentQuoteId = Date.now();
+    item = buildQuoteItem(_currentQuoteId, []);
     hist.unshift(item);
   }
   if (hist.length > 500) hist = hist.slice(0, 500);
   localStorage.setItem('anak-quotes', JSON.stringify(hist));
   renderHistory();
-
-  // הוסף לרשימת שמירות הסשן
-  var saveNum = _sessionSaves.length + 1;
-  var now = new Date();
-  _sessionSaves.push({
-    num: saveNum,
-    carName: item.newCar || item.customer || 'הצעה',
-    datetime: now.toLocaleDateString('he-IL') + ' ' + now.toLocaleTimeString('he-IL', {hour:'2-digit',minute:'2-digit'})
-  });
-  renderSessionSaves();
+  renderSessionSaves(item.saves);
+  document.getElementById('action-row').style.display = 'flex';
 }
 
 function loadHistoryItem(item) {
@@ -729,6 +750,10 @@ function loadHistoryItem(item) {
   document.getElementById('cash').value          = item.cash    || '';
   calc();
   if (item.inProcess) { hideAdvanceBtns(); }
+  renderSessionSaves(item.saves || []);
+  if (item.saves && item.saves.length) {
+    document.getElementById('action-row').style.display = 'flex';
+  }
   window.scrollTo(0,0);
 }
 
@@ -794,7 +819,7 @@ function setReadOnly(on) {
   });
   // הסתר / הצג כפתורי עריכה
   // במצב צפייה: הסתר התקדם+שמור, השאר ווצאפ והדפסה
-  var hideIds = ['btn-advance-top','btn-advance-bottom','btn-save-manual','autosave-indicator'];
+  var hideIds = ['btn-advance-bottom','btn-save-manual','autosave-indicator'];
   hideIds.forEach(function(id) {
     var el = document.getElementById(id);
     if (el) el.style.display = on ? 'none' : '';
@@ -951,12 +976,12 @@ function archiveDeal() {
   resetAll();
 }
 
-function renderSessionSaves() {
+function renderSessionSaves(saves) {
   var el = document.getElementById('session-saves-list');
   if (!el) return;
-  if (!_sessionSaves.length) { el.innerHTML = ''; return; }
+  if (!saves || !saves.length) { el.innerHTML = ''; return; }
   var html = '';
-  _sessionSaves.forEach(function(s) {
+  saves.forEach(function(s) {
     html += '<div style="display:flex;align-items:center;justify-content:space-between;background:#f0f4fa;border:1px solid #dce6f5;border-radius:10px;padding:10px 14px;margin-bottom:6px">';
     html += '<span style="font-size:14px;font-weight:700;color:#0d1f3c">' + s.carName + ' ' + s.num + '</span>';
     html += '<span style="font-size:12px;color:#7a9ccf">' + s.datetime + '</span>';
@@ -974,8 +999,8 @@ function resetAll() {
   document.getElementById('track-sel').selectedIndex = 0;
   document.getElementById('n-sel').selectedIndex = 0;
   _currentQuoteId = null;
-  _sessionSaves = [];
-  renderSessionSaves();
+  clearFieldErrors();
+  renderSessionSaves([]);
   calc();
 }
 
