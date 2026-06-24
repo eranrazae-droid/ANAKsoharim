@@ -163,17 +163,26 @@ function renderProgress() {
   document.getElementById('progress').innerHTML = html;
 }
 
+function timingBox(label, ms, color) {
+  color = color || '#4ade80';
+  return '<div class="timing-box"><div class="timing-lbl">' + label + '</div><div class="timing-val" style="color:' + color + '">' + fmtElapsed(ms) + '</div></div>';
+}
+
 function renderSlide1() {
   var d = deal;
-  var completedAt = d.completedAt || Date.now();
-  var elapsed = completedAt - (d.createdAt || completedAt);
+  var completedAt  = d.completedAt      || Date.now();
+  var createdAt    = d.createdAt        || completedAt;
+  var statusAt     = d.statusChangedAt  || completedAt;
+  // שלב הצעת מחיר: מרגע הקמה עד שנכנסו לחתימה
+  var stageMs = statusAt - createdAt;
+  var totalMs = completedAt - createdAt;
   var html = '';
 
   html += '<div class="status-pill">✅ הושלם</div>';
 
   html += '<div class="timing-grid">';
-  html += '<div class="timing-box"><div class="timing-lbl">זמן כולל</div><div class="timing-val">' + fmtElapsed(elapsed) + '</div></div>';
-  html += '<div class="timing-box"><div class="timing-lbl">תאריך</div><div class="timing-val" style="font-size:13px">' + new Date(completedAt).toLocaleDateString('he-IL') + '</div></div>';
+  html += timingBox('זמן בשלב זה', stageMs, '#38bdf8');
+  html += timingBox('זמן כולל לעסקה', totalMs, '#4ade80');
   html += '</div>';
 
   html += '<div class="card"><div class="card-title">פרטי לקוח</div>';
@@ -204,7 +213,18 @@ function renderSlide1() {
 
 function renderSlide2() {
   var d = deal;
+  var completedAt = d.completedAt     || Date.now();
+  var createdAt   = d.createdAt       || completedAt;
+  var statusAt    = d.statusChangedAt || completedAt;
+  // שלב אישור מסלול: מהקמה עד בחירת מסלול (=כניסה לחתימה)
+  var stageMs = statusAt - createdAt;
   var html = '';
+
+  html += '<div class="timing-grid" style="margin-bottom:14px">';
+  html += timingBox('זמן בשלב זה', stageMs, '#38bdf8');
+  html += timingBox('זמן כולל', completedAt - createdAt, '#4ade80');
+  html += '</div>';
+
   var chosen = null;
   var rejected = [];
   if (d.approvalPlans) {
@@ -256,6 +276,15 @@ function renderSlide3() {
   var labels = ['חתימת חוזה מימון', 'חתימת חוזה ענק הרכבים', 'שליחת ביטוח מקיף למימון', 'העברת יתרה'];
   var html = '';
 
+  var ref      = d.completedAt     || Date.now();
+  var statusAt = d.statusChangedAt || d.createdAt || ref;
+  var signingMs = ref - statusAt;
+
+  html += '<div class="timing-grid" style="margin-bottom:14px">';
+  html += timingBox('זמן בשלב זה', signingMs, '#38bdf8');
+  html += timingBox('זמן כולל', ref - (d.createdAt || ref), '#4ade80');
+  html += '</div>';
+
   html += '<div class="status-pill">✅ כל השלבים הושלמו</div>';
   html += '<div style="margin-top:12px">';
   labels.forEach(function(lbl, i) {
@@ -267,10 +296,8 @@ function renderSlide3() {
   html += '</div>';
 
   // זמן בסטטוס
-  var ref = d.completedAt || Date.now();
-  var statusMs = ref - (d.statusChangedAt || d.createdAt || ref);
   html += '<div class="card" style="margin-top:14px"><div class="card-title">תזמון</div>';
-  html += row('זמן בסטטוס חתימות', fmtElapsed(statusMs));
+  html += row('זמן בשלב חתימות', fmtElapsed(signingMs));
   html += row('הושלם בתאריך', new Date(ref).toLocaleString('he-IL'));
   html += '</div>';
 
@@ -294,7 +321,7 @@ function updateNav() {
   var next = document.getElementById('btn-next');
   prev.style.display = current === 0 ? 'none' : 'block';
   if (current === total - 1) {
-    next.textContent = '← חזרה למימונים';
+    next.textContent = 'מברוק !! סיימנו את העסקה 💯';
     next.className = 'nav-next done-btn';
     next.onclick = function(){ location.href = 'quotes.html'; };
   } else {
