@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>ממתין למסירה — ענק הרכבים</title>
+<link rel="manifest" href="manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0d1f3c">
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:100vh;display:flex;flex-direction:column}
+
+.hdr{background:#0d1f3c;padding:14px 20px;display:flex;align-items:center;justify-content:space-between}
+.hdr-logo{font-size:16px;font-weight:900;color:#fff}
+.hdr-logo span{color:#c9a227}
+.hdr-sub{font-size:12px;color:#7a9ccf;margin-top:2px}
+
+.page{max-width:680px;margin:0 auto;padding:30px 16px 40px;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;width:100%}
+
+.icon{font-size:64px;margin-bottom:24px}
+
+.main-title{font-size:22px;font-weight:900;color:#0d1f3c;line-height:1.5;margin-bottom:10px}
+.main-title .company{color:#1a56db}
+.main-title .plate{color:#c9a227;background:#fff8dc;border-radius:8px;padding:2px 10px;display:inline-block}
+.main-title .amount{color:#16a34a;font-size:24px}
+.main-title .customer{color:#0ea5e9}
+
+.sub-line{font-size:16px;font-weight:700;color:#5a7aa5;margin-top:16px;padding:14px 20px;background:#fff;border-radius:12px;border:1px solid #dce6f5;box-shadow:0 2px 8px rgba(13,31,60,.06)}
+
+.nav-btns{display:flex;flex-direction:column;gap:10px;width:100%;max-width:400px;margin-top:32px}
+.btn-home{background:#0d1f3c;color:#fff;border:none;border-radius:14px;padding:16px;font-family:'Heebo',sans-serif;font-size:16px;font-weight:900;cursor:pointer}
+.btn-back{background:#fff;color:#5a7aa5;border:1.5px solid #dce6f5;border-radius:14px;padding:14px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:700;cursor:pointer;text-decoration:none;display:block;text-align:center}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div>
+    <div class="hdr-logo">ענק <span>הרכבים</span></div>
+    <div class="hdr-sub">ממתין למסירה</div>
+  </div>
+  <a href="quotes.html" style="color:#7a9ccf;font-size:13px;font-weight:700;text-decoration:none;background:#1a2f54;padding:8px 14px;border-radius:8px">← מימונים</a>
+</div>
+
+<div class="page">
+  <div class="icon">🚗</div>
+  <div class="main-title" id="main-msg">טוען...</div>
+  <div class="sub-line">לאחר המסירה ניתן לעשות העברת בעלות</div>
+
+  <div class="nav-btns">
+    <button class="btn-home" onclick="location.href='quotes.html'">← חזרה למימונים בתהליך</button>
+    <a class="btn-back" href="index.html">דף הבית</a>
+  </div>
+</div>
+
+<script>
+function fmt(n){ return '₪ ' + Math.round(n||0).toLocaleString('he-IL'); }
+
+(function(){
+  var params = new URLSearchParams(location.search);
+  var idx = parseInt(params.get('i') || '0');
+  var deals = JSON.parse(localStorage.getItem('anak-deals') || '[]');
+  var d = deals[idx];
+  if (!d) { document.getElementById('main-msg').textContent = 'לא נמצאה עסקה'; return; }
+
+  var chosen = null;
+  if (d.approvalPlans) d.approvalPlans.forEach(function(p){ if (p.chosen) chosen = p; });
+
+  var company  = chosen ? chosen.company : '—';
+  var amount   = chosen ? chosen.amount  : (d.finance ? fmt(d.finance) : '—');
+  var plate    = d.newPlate || '—';
+  var customer = d.customer || '—';
+
+  var el = document.getElementById('main-msg');
+  el.innerHTML =
+    'ממתין לאישור מסירה מחברת המימון ' +
+    '<span class="company">' + company + '</span>' +
+    ' עבור רכב שמספרו ' +
+    '<span class="plate">' + plate + '</span>' +
+    ' בסכום של ' +
+    '<span class="amount">' + amount + '</span>' +
+    ' ללקוח ' +
+    '<span class="customer">' + customer + '</span>';
+})();
+</script>
+</body>
+</html>
