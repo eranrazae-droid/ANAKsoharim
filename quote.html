@@ -732,14 +732,24 @@ function validateRequiredFields() {
     if (empty && !firstBad) firstBad = el;
     if (empty) ok = false;
   });
-  // אם מולאה זיכוי טרייד אין — מספר רישוי טרייד אין חובה
+  // זיכוי טרייד אין ומספר רישוי — כל אחד מחייב את השני
   var tradeInEl = document.getElementById('trade-in');
   var plateEl   = document.getElementById('old-car-plate');
-  if (tradeInEl && plateEl && parseFloat(tradeInEl.value) > 0 && !plateEl.value.trim()) {
-    plateEl.style.borderColor = '#ef4444';
-    plateEl.style.background  = '#fee2e2';
-    if (!firstBad) firstBad = plateEl;
-    ok = false;
+  if (tradeInEl && plateEl) {
+    var hasTradeIn = parseFloat(tradeInEl.value) > 0;
+    var hasPlate   = !!plateEl.value.trim();
+    if (hasTradeIn && !hasPlate) {
+      plateEl.style.borderColor = '#ef4444';
+      plateEl.style.background  = '#fee2e2';
+      if (!firstBad) firstBad = plateEl;
+      ok = false;
+    }
+    if (hasPlate && !hasTradeIn) {
+      tradeInEl.style.borderColor = '#ef4444';
+      tradeInEl.style.background  = '#fee2e2';
+      if (!firstBad) firstBad = tradeInEl;
+      ok = false;
+    }
   }
   if (!ok && firstBad) {
     firstBad.scrollIntoView({ behavior: 'smooth', block: 'center' });
