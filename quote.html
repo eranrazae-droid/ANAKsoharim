@@ -788,6 +788,10 @@ function buildQuoteItem(id, existingSaves) {
   saves.push({
     num: saves.length + 1,
     carName: newCar || customer || 'הצעה',
+    customer: customer,
+    phone: document.getElementById('customer-phone').value || '',
+    newCar: newCar,
+    newPlate: document.getElementById('new-car-plate').value || '',
     datetime: datetime
   });
   return {
@@ -1176,9 +1180,14 @@ function renderSessionSaves(saves) {
   var html = '<div style="font-size:11px;font-weight:700;color:#5a7aa5;letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">היסטוריית הצעות</div>';
   saves.slice().reverse().forEach(function(s, ri) {
     var i = saves.length - 1 - ri;
-    html += '<div onclick="openSaveModal(' + i + ')" style="display:flex;align-items:center;justify-content:space-between;background:#f0f4fa;border:1px solid #dce6f5;border-radius:10px;padding:10px 14px;margin-bottom:6px;cursor:pointer;transition:border-color .15s" onmouseover="this.style.borderColor=\'#1a56db\'" onmouseout="this.style.borderColor=\'#dce6f5\'">';
-    html += '<span style="font-size:14px;font-weight:700;color:#0d1f3c">' + s.carName + ' ' + s.num + '</span>';
+    var nameLine = (s.customer || '') + (s.phone ? ' · ' + s.phone : '');
+    var carLine  = [s.newCar, s.newPlate].filter(Boolean).join(' ');
+    html += '<div onclick="openSaveModal(' + i + ')" style="background:#f0f4fa;border:1px solid #dce6f5;border-radius:10px;padding:10px 14px;margin-bottom:6px;cursor:pointer;transition:border-color .15s" onmouseover="this.style.borderColor=\'#1a56db\'" onmouseout="this.style.borderColor=\'#dce6f5\'">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center">';
+    html += '<span style="font-size:14px;font-weight:700;color:#0d1f3c">' + (nameLine || 'לא ידוע') + '</span>';
     html += '<span style="font-size:12px;color:#7a9ccf">' + s.datetime + '</span>';
+    html += '</div>';
+    if (carLine) html += '<div style="font-size:12px;color:#5a7aa5;margin-top:3px">' + carLine + '</div>';
     html += '</div>';
   });
   el.innerHTML = html;
@@ -1215,7 +1224,7 @@ function openSaveModal(saveIdx) {
     document.body.appendChild(modal);
   }
   modal.innerHTML = '<div style="background:#fff;border-radius:20px 20px 0 0;padding:24px 20px 32px;width:100%;max-width:540px;max-height:80vh;overflow-y:auto;direction:rtl">' +
-    '<div style="font-size:17px;font-weight:900;color:#0d1f3c;margin-bottom:4px">' + s.carName + ' ' + s.num + '</div>' +
+    '<div style="font-size:17px;font-weight:900;color:#0d1f3c;margin-bottom:4px">' + (s.customer || s.carName || '') + (s.phone ? ' · ' + s.phone : '') + '</div>' +
     '<div style="font-size:12px;color:#7a9ccf;margin-bottom:18px">' + s.datetime + '</div>' +
     rows +
     '<button onclick="document.getElementById(\'save-modal\').style.display=\'none\'" style="width:100%;margin-top:20px;background:#0d1f3c;color:#fff;border:none;border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:15px;font-weight:700;cursor:pointer">סגור</button>' +
