@@ -223,7 +223,7 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
   </div>
   <div class="customer-card">
     <label>טלפון <span style="color:#e02d2d">*</span></label>
-    <input type="tel" id="customer-phone" placeholder="050-0000000" oninput="calc()" inputmode="tel">
+    <input type="tel" id="customer-phone" placeholder="050-0000000" oninput="calc()" inputmode="tel" onpaste="handlePhonePaste(event)">
     <div id="phone-err" style="display:none;font-size:12px;color:#e02d2d;margin-top:4px;font-weight:700">⚠️ יש למלא טלפון לקוח</div>
   </div>
 
@@ -976,6 +976,15 @@ function resetAll() {
   _currentQuoteId = null;
   _sessionSaves = [];
   renderSessionSaves();
+  calc();
+}
+
+function handlePhonePaste(e) {
+  e.preventDefault();
+  var text = (e.clipboardData || window.clipboardData).getData('text').trim();
+  // +972XX... או 972XX... → 0XX...
+  text = text.replace(/^\+972/, '0').replace(/^972/, '0');
+  document.getElementById('customer-phone').value = text;
   calc();
 }
 
