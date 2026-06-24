@@ -298,22 +298,50 @@ function closeDetails() {
 
 function showRejected() {
   if (!deal || !deal.approvalPlans) return;
-  var rejected = deal.approvalPlans.filter(function(p){ return !p.chosen; });
-  if (!rejected.length) {
-    document.getElementById('rejected-content').innerHTML = '<p style="text-align:center;color:#7a9ab8;padding:20px">אין מסלולים שנדחו</p>';
-  } else {
-    var html = '';
-    rejected.forEach(function(p) {
-      html += '<div style="background:#e02d2d;border-radius:14px;padding:16px;color:#fff;margin-bottom:10px">';
-      html += '<div style="display:flex;gap:20px;flex-wrap:wrap">';
-      if (p.company) html += '<div><div style="font-size:11px;color:rgba(255,255,255,.65);margin-bottom:3px">חברת מימון</div><div style="font-size:16px;font-weight:900">' + p.company + '</div></div>';
-      if (p.amount)  html += '<div><div style="font-size:11px;color:rgba(255,255,255,.65);margin-bottom:3px">סכום מאושר</div><div style="font-size:16px;font-weight:900">' + p.amount + '</div></div>';
-      if (p.rate)    html += '<div><div style="font-size:11px;color:rgba(255,255,255,.65);margin-bottom:3px">ריבית</div><div style="font-size:16px;font-weight:900">' + p.rate + '%</div></div>';
-      html += '</div></div>';
-    });
-    document.getElementById('rejected-content').innerHTML = html;
-  }
+  var html = '';
+  var hasRejected = false;
+  deal.approvalPlans.forEach(function(p, i) {
+    if (p.chosen) return;
+    hasRejected = true;
+    html += '<div style="background:#e02d2d;border-radius:14px;padding:16px;color:#fff;margin-bottom:10px">';
+    html += '<div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:12px">';
+    if (p.company) html += '<div><div style="font-size:11px;color:rgba(255,255,255,.65);margin-bottom:3px">חברת מימון</div><div style="font-size:16px;font-weight:900">' + p.company + '</div></div>';
+    if (p.amount)  html += '<div><div style="font-size:11px;color:rgba(255,255,255,.65);margin-bottom:3px">סכום מאושר</div><div style="font-size:16px;font-weight:900">' + p.amount + '</div></div>';
+    if (p.rate)    html += '<div><div style="font-size:11px;color:rgba(255,255,255,.65);margin-bottom:3px">ריבית</div><div style="font-size:16px;font-weight:900">' + p.rate + '%</div></div>';
+    html += '</div>';
+    html += '<button onclick="swapPlan(' + i + ')" style="width:100%;background:#fff;color:#e02d2d;border:none;border-radius:10px;padding:11px;font-family:\'Heebo\',sans-serif;font-size:14px;font-weight:900;cursor:pointer">🔄 שינוי למסלול זה</button>';
+    html += '</div>';
+  });
+  if (!hasRejected) html = '<p style="text-align:center;color:#7a9ab8;padding:20px">אין מסלולים שנדחו</p>';
+  document.getElementById('rejected-content').innerHTML = html;
   document.getElementById('modal-rejected').style.display = 'flex';
+}
+
+function swapPlan(newIdx) {
+  var deals = getDeals();
+  if (!deals.length) return;
+  var d = deals[dealIdx];
+  if (!d.approvalPlans) return;
+  d.approvalPlans.forEach(function(p){ p.chosen = false; });
+  d.approvalPlans[newIdx].chosen = true;
+  deals[dealIdx] = d;
+  deal = d;
+  saveDeals(deals);
+  closeRejected();
+  renderPlan();
+  renderBalance();
+  // עדכן כפתור hokama
+  var btnHokama = document.getElementById('btn-hokama');
+  if (btnHokama) {
+    btnHokama.disabled = false;
+    btnHokama.style.background = '';
+    btnHokama.style.boxShadow = '';
+    btnHokama.style.cursor = '';
+  }
+  // אפס צ'קליסט
+  checks = [false, false, false, false];
+  localStorage.removeItem(getCheckKey());
+  renderChecks();
 }
 
 function closeRejected() {
