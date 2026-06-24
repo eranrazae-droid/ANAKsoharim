@@ -751,6 +751,11 @@ function manualSave() {
   renderHistory();
   renderSessionSaves(item.saves);
   document.getElementById('action-row').style.display = 'flex';
+  // גלול לרשימת השמירות
+  setTimeout(function(){
+    var el = document.getElementById('session-saves-list');
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, 100);
 }
 
 function loadHistoryItem(item) {
@@ -778,19 +783,11 @@ function loadHistoryItem(item) {
 }
 
 function renderHistory() {
-  var hist = JSON.parse(localStorage.getItem('anak-quotes') || '[]');
-  var sec = document.getElementById('history-section');
-  if (!hist.length) { sec.innerHTML = ''; return; }
-
-  var html = '<div class="history-title">הצעות אחרונות</div><div class="history-list">';
-  hist.forEach(function(item, i) {
-    html += '<div class="history-item" onclick="loadHistoryItem(' + JSON.stringify(item).replace(/"/g,'&quot;') + ')">';
-    html += '<div class="history-item-top"><span class="history-name">' + (item.customer || 'לא ידוע') + '</span><span class="history-date">' + item.date + '</span></div>';
-    html += '<div class="history-detail">' + (item.newCar || '—') + ' · מימון ' + fmtNum(item.finance) + ' · ' + fmtNum(item.monthly) + '/חודש</div>';
-    html += '</div>';
-  });
-  html += '</div>';
-  sec.innerHTML = html;
+  // מרנדר את רשימת ההצעות הקיימות בעמוד הרשימה (אם גלוי)
+  var sec = document.getElementById('existing-quotes-list');
+  if (sec && document.getElementById('quotes-list-section').style.display !== 'none') {
+    renderExistingQuotes();
+  }
 }
 
 function openNewQuote() {
@@ -1001,14 +998,53 @@ function renderSessionSaves(saves) {
   var el = document.getElementById('session-saves-list');
   if (!el) return;
   if (!saves || !saves.length) { el.innerHTML = ''; return; }
-  var html = '';
-  saves.forEach(function(s) {
-    html += '<div style="display:flex;align-items:center;justify-content:space-between;background:#f0f4fa;border:1px solid #dce6f5;border-radius:10px;padding:10px 14px;margin-bottom:6px">';
+  var savesJson = JSON.stringify(saves).replace(/'/g,"\\'");
+  var html = '<div style="font-size:11px;font-weight:700;color:#5a7aa5;letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">שמירות</div>';
+  saves.forEach(function(s, i) {
+    html += '<div onclick="openSaveModal(' + i + ')" style="display:flex;align-items:center;justify-content:space-between;background:#f0f4fa;border:1px solid #dce6f5;border-radius:10px;padding:10px 14px;margin-bottom:6px;cursor:pointer;transition:border-color .15s" onmouseover="this.style.borderColor=\'#1a56db\'" onmouseout="this.style.borderColor=\'#dce6f5\'">';
     html += '<span style="font-size:14px;font-weight:700;color:#0d1f3c">' + s.carName + ' ' + s.num + '</span>';
     html += '<span style="font-size:12px;color:#7a9ccf">' + s.datetime + '</span>';
     html += '</div>';
   });
   el.innerHTML = html;
+}
+
+function openSaveModal(saveIdx) {
+  if (!_currentQuoteId) return;
+  var hist = JSON.parse(localStorage.getItem('anak-quotes') || '[]');
+  var quote = hist.find(function(h){ return h.id === _currentQuoteId; });
+  if (!quote || !quote.saves || !quote.saves[saveIdx]) return;
+  var s = quote.saves[saveIdx];
+  var fmt = function(n){ return '₪ ' + Math.round(n||0).toLocaleString('he-IL'); };
+  var rows = '';
+  var r = function(lbl, val){ return val ? '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eef2fb"><span style="color:#5a7aa5;font-size:14px">' + lbl + '</span><span style="font-weight:700;font-size:14px;color:#0d1f3c">' + val + '</span></div>' : ''; };
+  rows += r('שם לקוח', quote.customer);
+  rows += r('טלפון', quote.phone);
+  rows += r('נציג מכירות', quote.rep);
+  rows += r('נציג מימון', quote.financeRep);
+  rows += r('רכב', quote.newCar);
+  rows += r('מחיר', quote.newPrice ? fmt(quote.newPrice) : '');
+  rows += r('זיכוי טרייד אין', quote.tradeIn ? fmt(quote.tradeIn) : '');
+  rows += r('סכום מימון', quote.finance ? fmt(quote.finance) : '');
+  rows += r('החזר חודשי', quote.monthly ? fmt(quote.monthly) : '');
+  rows += r('מסלול', quote.track);
+  rows += r('מספר תשלומים', quote.n ? quote.n + ' תשלומים' : '');
+
+  var modal = document.getElementById('save-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'save-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:500;display:flex;align-items:flex-end;justify-content:center';
+    modal.onclick = function(e){ if(e.target===modal) modal.style.display='none'; };
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML = '<div style="background:#fff;border-radius:20px 20px 0 0;padding:24px 20px 32px;width:100%;max-width:540px;max-height:80vh;overflow-y:auto;direction:rtl">' +
+    '<div style="font-size:17px;font-weight:900;color:#0d1f3c;margin-bottom:4px">' + s.carName + ' ' + s.num + '</div>' +
+    '<div style="font-size:12px;color:#7a9ccf;margin-bottom:18px">' + s.datetime + '</div>' +
+    rows +
+    '<button onclick="document.getElementById(\'save-modal\').style.display=\'none\'" style="width:100%;margin-top:20px;background:#0d1f3c;color:#fff;border:none;border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:15px;font-weight:700;cursor:pointer">סגור</button>' +
+    '</div>';
+  modal.style.display = 'flex';
 }
 
 function resetAll() {
@@ -1019,10 +1055,9 @@ function resetAll() {
   document.getElementById('finance-rep').selectedIndex = 0;
   document.getElementById('track-sel').selectedIndex = 0;
   document.getElementById('n-sel').selectedIndex = 0;
-  _currentQuoteId = null;
   clearFieldErrors();
-  renderSessionSaves([]);
   calc();
+  // שמור שמירות ו-id קיימים — נקה הכל מנקה רק שדות
 }
 
 function handlePhonePaste(e) {
