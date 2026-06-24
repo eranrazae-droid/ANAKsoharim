@@ -181,6 +181,18 @@ function selectDeal(i) {
     location.replace('sign.html?i=' + i);
     return;
   }
+  if (d && (d.dealStatus === 'הושלם וממתין למסירה' || d.dealStatus === 'הושלם')) {
+    location.replace('delivery.html?i=' + i);
+    return;
+  }
+  if (d && d.dealStatus === 'טרם הוקמה הלוואה') {
+    location.replace('quotes.html?deal=' + i);
+    return;
+  }
+  openDealPanel(i);
+}
+
+function openDealPanel(i) {
   selectedIdx = i;
   document.getElementById('deals-bar').style.display = 'none';
   document.getElementById('btn-back').style.display = 'block';
@@ -612,7 +624,23 @@ function openArchivedDeal(i) {
   document.getElementById('arch-modal').style.display = 'flex';
 }
 
-renderBar();
+(function initPage() {
+  var params = new URLSearchParams(location.search);
+  var dealParam = params.get('deal');
+  if (dealParam !== null) {
+    var idx = parseInt(dealParam);
+    renderBar();
+    openDealPanel(idx);
+    // מנע חזרה לגריד עם כפתור הדפדפן
+    history.pushState(null, '', location.href);
+    window.addEventListener('popstate', function() {
+      location.replace('quotes.html');
+    });
+    return;
+  }
+  renderBar();
+})();
+
 (function initDealsArchiveBadge(){
   var arch = JSON.parse(localStorage.getItem('anak-archive') || '[]');
   var badge = document.getElementById('deals-archive-badge');
