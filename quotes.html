@@ -97,6 +97,13 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
     <a href="index.html" style="color:#7a9ccf;font-size:13px;font-weight:700;text-decoration:none;background:#1a2f54;padding:8px 16px;border-radius:8px;">→ דף הבית</a>
   </div>
 </div>
+<!-- חיפוש -->
+<div style="padding:10px 12px 0;display:flex;justify-content:flex-end">
+  <button onclick="toggleDealsSearch()" style="background:#1a2f54;color:#7a9ccf;border:none;border-radius:10px;padding:8px 16px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer">🔍 חיפוש</button>
+</div>
+<div id="deals-search-panel" style="display:none;padding:8px 12px 0">
+  <input id="deals-search-input" type="text" placeholder="חיפוש לפי שם או טלפון..." oninput="searchDeals()" style="width:100%;border:1.5px solid #1a56db;border-radius:10px;padding:12px 14px;font-family:Heebo,sans-serif;font-size:15px;color:#0d1f3c;outline:none;box-sizing:border-box">
+</div>
 <!-- גריד חלוניות עסקאות -->
 <div class="deals-grid" id="deals-bar"></div>
 
@@ -207,18 +214,35 @@ function backToGrid() {
   document.getElementById('deals-bar').style.display = 'grid';
 }
 
-function renderBar() {
+function toggleDealsSearch() {
+  var panel = document.getElementById('deals-search-panel');
+  var open = panel.style.display !== 'none';
+  panel.style.display = open ? 'none' : 'block';
+  if (!open) {
+    document.getElementById('deals-search-input').value = '';
+    document.getElementById('deals-search-input').focus();
+    renderBar();
+  } else {
+    renderBar();
+  }
+}
+
+function searchDeals() {
+  var q = document.getElementById('deals-search-input').value.trim().toLowerCase();
   var deals = getDeals();
   var el = document.getElementById('deals-bar');
-  if (!deals.length) { el.innerHTML = '<span style="color:#7a9ab8;font-size:13px;padding:4px">אין עסקאות פעילות</span>'; return; }
-  // קבע timestamps חסרים פעם אחת — אחרת Date.now() יתאפס בכל רענון
-  var fixed = false;
-  deals.forEach(function(d) {
-    if (!d.createdAt) { d.createdAt = d.id || Date.now(); fixed = true; }
-    if (!d.statusChangedAt) { d.statusChangedAt = d.createdAt; fixed = true; }
+  if (!q) { renderBar(); return; }
+  var html = '';
+  deals.forEach(function(d, i) {
+    var name  = (d.customer || '').toLowerCase();
+    var phone = (d.phone    || '').toLowerCase();
+    if (name.indexOf(q) < 0 && phone.indexOf(q) < 0) return;
+    html += dealCardHTML(d, i);
   });
-  if (fixed) saveDeals(deals);
-  el.innerHTML = deals.map(function(d, i) {
+  el.innerHTML = html || '<span style="color:#7a9ab8;font-size:13px;padding:4px">לא נמצאו תוצאות</span>';
+}
+
+function dealCardHTML(d, i) {
     var status = d.dealStatus || 'טרם הוקמה הלוואה';
     var done = status === 'הושלם';
     var ref = d.completedAt || Date.now();
@@ -237,7 +261,8 @@ function renderBar() {
     return '<div class="deal-card' + (i === selectedIdx && !done ? ' active' : '') + '" style="' + (done ? 'opacity:.85' : '') + '">' +
       '<div class="deal-card-hdr" onclick="' + clickAction + '" style="cursor:pointer">' +
         '<div class="deal-card-name">' + (d.customer || 'לא ידוע') + '</div>' +
-        '<div class="deal-card-status"><span style="background:' + statusBg + ';color:' + statusColor + ';border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">סטטוס: ' + status + '</span></div>' +
+        (d.phone ? '<div style="font-size:11px;color:#7a9ccf;margin-top:2px;font-weight:500">' + d.phone + '</div>' : '') +
+        '<div class="deal-card-status" style="margin-top:4px"><span style="background:' + statusBg + ';color:' + statusColor + ';border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">סטטוס: ' + status + '</span></div>' +
       '</div>' +
       '<div class="deal-card-body" onclick="' + clickAction + '" style="cursor:pointer">' +
         (function() {
@@ -268,7 +293,19 @@ function renderBar() {
       ((done || rejected) ? '<button onclick="archiveDeal(' + i + ')" style="width:100%;border:none;background:#0d1f3c;color:#7a9ccf;font-family:\'Heebo\',sans-serif;font-size:12px;font-weight:700;padding:8px;cursor:pointer;border-top:1px solid #1a2f54">📦 שליחה לארכיון</button>' : '') +
       (!done && !rejected ? '<button onclick="deleteDealCard(event,' + i + ')" style="width:100%;border:none;background:#7f1d1d;color:#fca5a5;font-family:\'Heebo\',sans-serif;font-size:12px;font-weight:700;padding:8px;cursor:pointer;border-top:1px solid #1a2f54">🗑 מחיקת מימון</button>' : '') +
     '</div>';
-  }).join('');
+}
+
+function renderBar() {
+  var deals = getDeals();
+  var el = document.getElementById('deals-bar');
+  if (!deals.length) { el.innerHTML = '<span style="color:#7a9ab8;font-size:13px;padding:4px">אין עסקאות פעילות</span>'; return; }
+  var fixed = false;
+  deals.forEach(function(d) {
+    if (!d.createdAt) { d.createdAt = d.id || Date.now(); fixed = true; }
+    if (!d.statusChangedAt) { d.statusChangedAt = d.createdAt; fixed = true; }
+  });
+  if (fixed) saveDeals(deals);
+  el.innerHTML = deals.map(function(d, i) { return dealCardHTML(d, i); }).join('');
 }
 
 function renderDetail() {
