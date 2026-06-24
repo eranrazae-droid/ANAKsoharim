@@ -199,7 +199,7 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
     <div class="deal-row">
       <div class="deal-label">מספר רישוי</div>
       <div class="deal-val" style="display:flex;gap:6px;align-items:center">
-        <input class="deal-input name-input" id="new-car-plate" type="text" placeholder="000-00-000" oninput="calc()" style="flex:1">
+        <input class="deal-input name-input" id="new-car-plate" type="text" placeholder="000-00-000" oninput="calc();checkDuplicatePlate()" style="flex:1">
         <button onclick="lookupPlate('new-car-plate','new-car-name',this)" style="background:#1a56db;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:Heebo,sans-serif">🔍 שלוף</button>
       </div>
     </div>
@@ -207,6 +207,7 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
       <div class="deal-label">פרטי רכב</div>
       <div class="deal-val"><input class="deal-input name-input" id="new-car-name" type="text" placeholder="שם הרכב" oninput="calc()"></div>
     </div>
+    <div id="duplicate-plate-alert" style="display:none;margin:0 16px 8px;padding:10px 14px;border-radius:8px;background:#fff8dc;border:1.5px solid #fde047;font-size:13px;font-weight:700;color:#78350f"></div>
     <div id="test-alert-new" style="display:none;margin:0 16px 8px;padding:8px 12px;border-radius:8px;border:1px solid;font-size:13px;font-weight:700;align-items:center"></div>
     <div class="deal-row">
       <div class="deal-label">מחיר</div>
@@ -816,6 +817,25 @@ function resetAll() {
   document.getElementById('track-sel').selectedIndex = 0;
   document.getElementById('n-sel').selectedIndex = 0;
   calc();
+}
+
+function checkDuplicatePlate() {
+  var plate = document.getElementById('new-car-plate').value.trim().replace(/\D/g,'');
+  var el = document.getElementById('duplicate-plate-alert');
+  if (!plate || plate.length < 5) { el.style.display = 'none'; return; }
+  var hist = JSON.parse(localStorage.getItem('anak-quotes') || '[]');
+  var match = null;
+  hist.forEach(function(item) {
+    if (item.id === _currentQuoteId) return; // אל תתריע על ההצעה הנוכחית
+    var p = (item.newPlate || '').replace(/\D/g,'');
+    if (p && p === plate) match = item;
+  });
+  if (match) {
+    el.textContent = '⚠️ שים לב! קיימת הצעה פתוחה לרכב זה ע"י ' + (match.rep || 'נציג לא ידוע');
+    el.style.display = 'block';
+  } else {
+    el.style.display = 'none';
+  }
 }
 
 // init
