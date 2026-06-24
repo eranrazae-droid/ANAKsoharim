@@ -341,14 +341,17 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
 
   <!-- כפתורי סיום -->
   <div style="margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
+    <button id="btn-save-manual" onclick="manualSave()" style="background:#1a56db;color:#fff;border:none;border-radius:14px;padding:18px;font-family:'Heebo',sans-serif;font-size:16px;font-weight:700;cursor:pointer">💾 שמור</button>
     <button id="btn-advance-bottom" onclick="advanceDeal()" style="background:#16a34a;color:#fff;border:none;border-radius:14px;padding:18px;font-family:'Heebo',sans-serif;font-size:16px;font-weight:900;cursor:pointer;box-shadow:0 4px 16px rgba(22,163,74,.25)">📈 התקדמות בעסקה</button>
-    <button onclick="closeQuoteForm()" style="background:#7c3aed;color:#fff;border:none;border-radius:14px;padding:18px;font-family:'Heebo',sans-serif;font-size:16px;font-weight:700;cursor:pointer">← מסך הצעות מחיר</button>
   </div>
   <div style="margin-top:10px">
-    <button id="btn-save-manual" onclick="manualSave()" style="width:100%;background:#1a56db;color:#fff;border:none;border-radius:14px;padding:16px;font-family:'Heebo',sans-serif;font-size:16px;font-weight:700;cursor:pointer">💾 שמור</button>
+    <button onclick="closeQuoteForm()" style="width:100%;background:#7c3aed;color:#fff;border:none;border-radius:14px;padding:16px;font-family:'Heebo',sans-serif;font-size:16px;font-weight:700;cursor:pointer">← מסך הצעות מחיר</button>
   </div>
 
   <button class="btn-reset" onclick="resetAll()" style="margin-top:10px">נקה הכל</button>
+
+  <!-- רשימת שמירות -->
+  <div id="session-saves-list" style="margin-top:12px"></div>
 
   <!-- FINANCE CARDS -->
   <div id="finance-cards-section" style="display:none;margin-top:24px">
@@ -641,25 +644,19 @@ function lookupPlate(plateId, nameId, btn) {
     .finally(function(){ btn.textContent = orig; btn.disabled = false; });
 }
 
-var _autoSaveTimer = null;
-var _currentQuoteId = null; // מזהה קבוע לכל הצעה פעילה
+var _currentQuoteId = null; // מזהה קבוע לטעינת הצעה קיימת
+var _sessionSaves = []; // שמירות ידניות של הסשן הנוכחי
 
-function scheduleAutoSave() {
-  clearTimeout(_autoSaveTimer);
-  _autoSaveTimer = setTimeout(autoSave, 1500);
-}
+function scheduleAutoSave() { /* שמירה ידנית בלבד — אין אוטומטי */ }
 
-function autoSave() {
+function autoSave() { /* לא בשימוש */ }
+
+function buildQuoteItem(id) {
   var customer = document.getElementById('customer-name').value || '';
   var newCar   = document.getElementById('new-car-name').value  || '';
-  if (!customer && !newCar && !currentFinanceAmt) return;
-
-  // צור מזהה חדש רק אם אין כזה (הצעה חדשה)
-  if (!_currentQuoteId) _currentQuoteId = Date.now();
-
   var now = new Date();
-  var item = {
-    id: _currentQuoteId,
+  return {
+    id: id,
     date: now.toLocaleDateString('he-IL') + ' ' + now.toLocaleTimeString('he-IL', {hour:'2-digit',minute:'2-digit'}),
     rep: document.getElementById('sales-rep').value || '',
     financeRep: document.getElementById('finance-rep').value || '',
@@ -679,27 +676,40 @@ function autoSave() {
     newPlate: document.getElementById('new-car-plate').value || '',
     oldPlate: document.getElementById('old-car-plate').value || ''
   };
+}
+
+function manualSave() {
+  var newId = Date.now();
+  var item = buildQuoteItem(newId);
+  // שמור ב-anak-quotes
   var hist = JSON.parse(localStorage.getItem('anak-quotes') || '[]');
-  var idx = hist.findIndex(function(h){ return h.id === _currentQuoteId; });
-  if (idx >= 0) {
-    // שמור על inProcess אם כבר הוגדר
-    item.inProcess = hist[idx].inProcess || false;
-    hist[idx] = item;
+  // אם נטענה הצעה קיימת — עדכן אותה במקום להוסיף
+  if (_currentQuoteId) {
+    var idx = hist.findIndex(function(h){ return h.id === _currentQuoteId; });
+    if (idx >= 0) {
+      item.id = _currentQuoteId;
+      item.inProcess = hist[idx].inProcess || false;
+      hist[idx] = item;
+    } else {
+      item.id = _currentQuoteId;
+      hist.unshift(item);
+    }
   } else {
     hist.unshift(item);
   }
   if (hist.length > 500) hist = hist.slice(0, 500);
   localStorage.setItem('anak-quotes', JSON.stringify(hist));
   renderHistory();
-  var ind = document.getElementById('autosave-indicator');
-  ind.textContent = '✓ נשמר אוטומטית';
-  setTimeout(function(){ ind.textContent = ''; }, 2000);
-}
 
-function manualSave() {
-  autoSave();
-  var ind = document.getElementById('autosave-indicator');
-  if (ind) { ind.textContent = '✓ נשמר'; setTimeout(function(){ ind.textContent = ''; }, 2000); }
+  // הוסף לרשימת שמירות הסשן
+  var saveNum = _sessionSaves.length + 1;
+  var now = new Date();
+  _sessionSaves.push({
+    num: saveNum,
+    carName: item.newCar || item.customer || 'הצעה',
+    datetime: now.toLocaleDateString('he-IL') + ' ' + now.toLocaleTimeString('he-IL', {hour:'2-digit',minute:'2-digit'})
+  });
+  renderSessionSaves();
 }
 
 function loadHistoryItem(item) {
@@ -941,6 +951,20 @@ function archiveDeal() {
   resetAll();
 }
 
+function renderSessionSaves() {
+  var el = document.getElementById('session-saves-list');
+  if (!el) return;
+  if (!_sessionSaves.length) { el.innerHTML = ''; return; }
+  var html = '';
+  _sessionSaves.forEach(function(s) {
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;background:#f0f4fa;border:1px solid #dce6f5;border-radius:10px;padding:10px 14px;margin-bottom:6px">';
+    html += '<span style="font-size:14px;font-weight:700;color:#0d1f3c">' + s.carName + ' ' + s.num + '</span>';
+    html += '<span style="font-size:12px;color:#7a9ccf">' + s.datetime + '</span>';
+    html += '</div>';
+  });
+  el.innerHTML = html;
+}
+
 function resetAll() {
   ['customer-name','customer-phone','new-car-name','new-car-plate','old-car-name','old-car-plate','new-price','new-list-price','trade-in','old-loan','cash'].forEach(function(id){
     document.getElementById(id).value = '';
@@ -949,6 +973,9 @@ function resetAll() {
   document.getElementById('finance-rep').selectedIndex = 0;
   document.getElementById('track-sel').selectedIndex = 0;
   document.getElementById('n-sel').selectedIndex = 0;
+  _currentQuoteId = null;
+  _sessionSaves = [];
+  renderSessionSaves();
   calc();
 }
 
