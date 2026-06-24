@@ -256,11 +256,11 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
     <div id="test-alert-new" style="display:none;margin:0 16px 8px;padding:8px 12px;border-radius:8px;border:1px solid;font-size:13px;font-weight:700;align-items:center"></div>
     <div class="deal-row">
       <div class="deal-label">מחיר</div>
-      <div class="deal-val"><input class="deal-input" id="new-price" type="number" placeholder="260,000" oninput="calc()" inputmode="numeric"></div>
+      <div class="deal-val"><input class="deal-input" id="new-price" type="text" placeholder="260,000 ₪" oninput="calc()" onfocus="onNumFocus(this)" onblur="onNumBlur(this)" inputmode="numeric"></div>
     </div>
     <div class="deal-row">
       <div class="deal-label">מחירון <span style="font-size:10px;color:#7a9ab8;font-weight:400">(0 ק"מ לפני רישוי)</span></div>
-      <div class="deal-val"><input class="deal-input" id="new-list-price" type="number" placeholder="0" oninput="calc()" inputmode="numeric"></div>
+      <div class="deal-val"><input class="deal-input" id="new-list-price" type="text" placeholder="0 ₪" oninput="calc()" onfocus="onNumFocus(this)" onblur="onNumBlur(this)" inputmode="numeric"></div>
     </div>
 
     <!-- טרייד אין -->
@@ -279,7 +279,7 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
     <div id="test-alert-old" style="display:none;margin:0 16px 8px;padding:8px 12px;border-radius:8px;border:1px solid;font-size:13px;font-weight:700;align-items:center"></div>
     <div class="deal-row">
       <div class="deal-label">זיכוי טרייד אין</div>
-      <div class="deal-val"><input class="deal-input" id="trade-in" type="number" placeholder="110,000" oninput="calc()" inputmode="numeric"></div>
+      <div class="deal-val"><input class="deal-input" id="trade-in" type="text" placeholder="110,000 ₪" oninput="calc()" onfocus="onNumFocus(this)" onblur="onNumBlur(this)" inputmode="numeric"></div>
     </div>
     <div class="deal-row">
       <div class="deal-label sub">הפרש</div>
@@ -290,15 +290,15 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
     <div class="deal-section">פרטי עסקה</div>
     <div class="deal-row">
       <div class="deal-label">חוב מימון על רכב ישן</div>
-      <div class="deal-val"><input class="deal-input" id="old-loan" type="number" placeholder="0" oninput="calc()" inputmode="numeric"></div>
+      <div class="deal-val"><input class="deal-input" id="old-loan" type="text" placeholder="0 ₪" oninput="calc()" onfocus="onNumFocus(this)" onblur="onNumBlur(this)" inputmode="numeric"></div>
     </div>
     <div class="deal-row total-deal">
       <div class="deal-label">סה"כ עסקה</div>
       <div class="deal-val computed" id="total-deal">—</div>
     </div>
     <div class="deal-row">
-      <div class="deal-label" style="display:flex;align-items:center;gap:6px">כסף שהלקוח מביא<button id="btn-cash-100" onclick="toggleCash100()" title="השלם ל-100% מימון" style="background:#0d1f3c;color:#fde047;border:none;border-radius:7px;padding:2px 8px;font-size:12px;font-weight:900;cursor:pointer;font-family:Heebo,sans-serif;line-height:1.4">100%</button></div>
-      <div class="deal-val"><input class="deal-input" id="cash" type="number" placeholder="0" oninput="onCashInput()" inputmode="numeric"></div>
+      <div class="deal-label" style="display:flex;align-items:center;justify-content:space-between">כסף שהלקוח מביא<button id="btn-cash-100" onclick="toggleCash100()" title="השלם ל-100% מימון" style="background:#0d1f3c;color:#fde047;border:1.5px solid #fde047;border-radius:5px;width:22px;height:22px;font-size:14px;font-weight:900;cursor:pointer;font-family:Heebo,sans-serif;display:flex;align-items:center;justify-content:center;padding:0;flex-shrink:0">□</button></div>
+      <div class="deal-val"><input class="deal-input" id="cash" type="text" placeholder="0 ₪" oninput="onCashInput()" onfocus="onNumFocus(this)" onblur="onNumBlur(this)" inputmode="numeric"></div>
     </div>
     <div class="deal-row finance-row">
       <div class="deal-label">סכום מימון</div>
@@ -527,12 +527,23 @@ function pmt(principal, rate, n) {
 
 var _cash100Active = false;
 
+function parseNumInput(val) {
+  return parseFloat(String(val || '').replace(/[^0-9.]/g, '')) || 0;
+}
+function onNumFocus(el) {
+  var raw = parseNumInput(el.value);
+  el.value = raw || '';
+}
+function onNumBlur(el) {
+  var raw = parseNumInput(el.value);
+  el.value = raw ? Math.round(raw).toLocaleString('he-IL') + ' ₪' : '';
+}
+
 function onCashInput() {
-  // אם המשתמש שינה ידנית — בטל את הכפתור
   if (_cash100Active) {
     _cash100Active = false;
     var btn = document.getElementById('btn-cash-100');
-    if (btn) { btn.style.background = '#0d1f3c'; btn.style.color = '#fde047'; }
+    if (btn) { btn.textContent = '□'; btn.style.color = '#fde047'; btn.style.background = '#0d1f3c'; }
   }
   calc();
 }
@@ -541,24 +552,24 @@ function toggleCash100() {
   var btn      = document.getElementById('btn-cash-100');
   var cashEl   = document.getElementById('cash');
   if (_cash100Active) {
-    // לחיצה שנייה — מנקה
     _cash100Active = false;
     cashEl.value = '';
+    btn.textContent = '□';
     btn.style.background = '#0d1f3c';
     btn.style.color = '#fde047';
     calc();
     return;
   }
-  // חשב את הסכום הדרוש
-  var newPrice  = parseFloat(document.getElementById('new-price').value)      || 0;
-  var tradeIn   = parseFloat(document.getElementById('trade-in').value)       || 0;
-  var oldLoan   = parseFloat(document.getElementById('old-loan').value)       || 0;
-  var listPrice = parseFloat(document.getElementById('new-list-price').value) || 0;
+  var newPrice  = parseNumInput(document.getElementById('new-price').value);
+  var tradeIn   = parseNumInput(document.getElementById('trade-in').value);
+  var oldLoan   = parseNumInput(document.getElementById('old-loan').value);
+  var listPrice = parseNumInput(document.getElementById('new-list-price').value);
   if (!listPrice) { showToast('יש למלא מחירון כדי לחשב 100% מימון'); return; }
   var needed = newPrice - tradeIn + oldLoan - listPrice;
   if (needed < 0) needed = 0;
-  cashEl.value = needed;
+  cashEl.value = needed ? Math.round(needed).toLocaleString('he-IL') + ' ₪' : '';
   _cash100Active = true;
+  btn.textContent = '✓';
   btn.style.background = '#1a56db';
   btn.style.color = '#fff';
   calc();
@@ -578,10 +589,10 @@ function calc() {
     return;
   }
 
-  var newPrice = parseFloat(document.getElementById('new-price').value) || 0;
-  var tradeIn  = parseFloat(document.getElementById('trade-in').value)  || 0;
-  var oldLoan  = parseFloat(document.getElementById('old-loan').value)  || 0;
-  var cash     = parseFloat(document.getElementById('cash').value)      || 0;
+  var newPrice = parseNumInput(document.getElementById('new-price').value);
+  var tradeIn  = parseNumInput(document.getElementById('trade-in').value);
+  var oldLoan  = parseNumInput(document.getElementById('old-loan').value);
+  var cash     = parseNumInput(document.getElementById('cash').value);
 
   var diff       = newPrice - tradeIn;
   var totalDeal  = diff + oldLoan;
@@ -591,7 +602,7 @@ function calc() {
   document.getElementById('total-deal').textContent = newPrice ? fmtNum(totalDeal) : '—';
   document.getElementById('finance-amount').textContent = newPrice ? fmtNum(financeAmt) : '—';
 
-  var listPrice = parseFloat(document.getElementById('new-list-price').value) || 0;
+  var listPrice = parseNumInput(document.getElementById('new-list-price').value);
   var pctRow = document.getElementById('finance-pct-row');
   var pctEl  = document.getElementById('finance-pct');
   if (listPrice > 0 && financeAmt > 0) {
@@ -704,6 +715,11 @@ function lookupPlate(plateId, nameId, btn) {
 }
 
 var _currentQuoteId = null;
+function setCurrentQuoteId(id) {
+  _currentQuoteId = id;
+  if (id) sessionStorage.setItem('anak-current-quote-id', String(id));
+  else sessionStorage.removeItem('anak-current-quote-id');
+}
 
 function scheduleAutoSave() { /* שמירה ידנית בלבד */ }
 function autoSave() { /* לא בשימוש */ }
@@ -736,7 +752,7 @@ function validateRequiredFields() {
   var tradeInEl = document.getElementById('trade-in');
   var plateEl   = document.getElementById('old-car-plate');
   if (tradeInEl && plateEl) {
-    var hasTradeIn = parseFloat(tradeInEl.value) > 0;
+    var hasTradeIn = parseNumInput(tradeInEl.value) > 0;
     var hasPlate   = !!plateEl.value.trim();
     if (hasTradeIn && !hasPlate) {
       plateEl.style.borderColor = '#ef4444';
@@ -802,11 +818,11 @@ function buildQuoteItem(id, existingSaves) {
     phone: document.getElementById('customer-phone').value || '',
     customer: customer || 'לא ידוע',
     newCar: newCar,
-    newPrice: parseFloat(document.getElementById('new-price').value) || 0,
-    newListPrice: parseFloat(document.getElementById('new-list-price').value) || 0,
-    tradeIn: parseFloat(document.getElementById('trade-in').value) || 0,
-    oldLoan: parseFloat(document.getElementById('old-loan').value) || 0,
-    cash: parseFloat(document.getElementById('cash').value) || 0,
+    newPrice: parseNumInput(document.getElementById('new-price').value),
+    newListPrice: parseNumInput(document.getElementById('new-list-price').value),
+    tradeIn: parseNumInput(document.getElementById('trade-in').value),
+    oldLoan: parseNumInput(document.getElementById('old-loan').value),
+    cash: parseNumInput(document.getElementById('cash').value),
     finance: currentFinanceAmt,
     monthly: currentMonthly,
     n: currentN,
@@ -853,7 +869,7 @@ function manualSave() {
       hist.unshift(item);
     }
   } else {
-    _currentQuoteId = Date.now();
+    setCurrentQuoteId(Date.now());
     item = buildQuoteItem(_currentQuoteId, []);
     hist.unshift(item);
   }
@@ -870,20 +886,20 @@ function manualSave() {
 }
 
 function loadHistoryItem(item) {
-  _currentQuoteId = item.id || null; // טען את המזהה הקבוע של ההצעה
+  setCurrentQuoteId(item.id || null);
   document.getElementById('sales-rep').value     = item.rep      || '';
   document.getElementById('finance-rep').value  = item.financeRep || '';
   document.getElementById('customer-name').value = item.customer || '';
   document.getElementById('customer-phone').value= item.phone   || '';
   document.getElementById('new-car-name').value  = item.newCar  || '';
   document.getElementById('new-car-plate').value = item.newPlate|| '';
-  document.getElementById('new-price').value     = item.newPrice|| '';
-  document.getElementById('new-list-price').value= item.newListPrice|| '';
+  document.getElementById('new-price').value     = item.newPrice    ? Math.round(item.newPrice).toLocaleString('he-IL')    + ' ₪' : '';
+  document.getElementById('new-list-price').value= item.newListPrice? Math.round(item.newListPrice).toLocaleString('he-IL')+ ' ₪' : '';
   document.getElementById('old-car-name').value  = item.oldCar  || '';
   document.getElementById('old-car-plate').value = item.oldPlate|| '';
-  document.getElementById('trade-in').value      = item.tradeIn || '';
-  document.getElementById('old-loan').value      = item.oldLoan || '';
-  document.getElementById('cash').value          = item.cash    || '';
+  document.getElementById('trade-in').value      = item.tradeIn  ? Math.round(item.tradeIn).toLocaleString('he-IL')  + ' ₪' : '';
+  document.getElementById('old-loan').value      = item.oldLoan  ? Math.round(item.oldLoan).toLocaleString('he-IL')  + ' ₪' : '';
+  document.getElementById('cash').value          = item.cash     ? Math.round(item.cash).toLocaleString('he-IL')     + ' ₪' : '';
   calc();
   if (item.inProcess) { hideAdvanceBtns(); }
   renderSessionSaves(item.saves || []);
@@ -902,7 +918,7 @@ function renderHistory() {
 }
 
 function openNewQuote() {
-  _currentQuoteId = null;
+  setCurrentQuoteId(null);
   resetAll();
   renderSessionSaves([]);
   document.getElementById('action-row').style.display = 'none';
@@ -1180,14 +1196,14 @@ function renderSessionSaves(saves) {
   var html = '<div style="font-size:11px;font-weight:700;color:#5a7aa5;letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">היסטוריית הצעות</div>';
   saves.slice().reverse().forEach(function(s, ri) {
     var i = saves.length - 1 - ri;
-    var nameLine = (s.customer || '') + (s.phone ? ' · ' + s.phone : '');
     var carLine  = [s.newCar, s.newPlate].filter(Boolean).join(' ');
+    var nameLine = (s.customer || '') + (s.phone ? ' · ' + s.phone : '');
     html += '<div onclick="openSaveModal(' + i + ')" style="background:#f0f4fa;border:1px solid #dce6f5;border-radius:10px;padding:10px 14px;margin-bottom:6px;cursor:pointer;transition:border-color .15s" onmouseover="this.style.borderColor=\'#1a56db\'" onmouseout="this.style.borderColor=\'#dce6f5\'">';
     html += '<div style="display:flex;justify-content:space-between;align-items:center">';
-    html += '<span style="font-size:14px;font-weight:700;color:#0d1f3c">' + (nameLine || 'לא ידוע') + '</span>';
+    html += '<span style="font-size:14px;font-weight:700;color:#0d1f3c">' + (carLine || 'לא ידוע') + '</span>';
     html += '<span style="font-size:12px;color:#7a9ccf">' + s.datetime + '</span>';
     html += '</div>';
-    if (carLine) html += '<div style="font-size:12px;color:#5a7aa5;margin-top:3px">' + carLine + '</div>';
+    if (nameLine) html += '<div style="font-size:12px;color:#5a7aa5;margin-top:3px">' + nameLine + '</div>';
     html += '</div>';
   });
   el.innerHTML = html;
@@ -1242,7 +1258,7 @@ function resetAll() {
   document.getElementById('n-sel').selectedIndex = 0;
   _cash100Active = false;
   var btn = document.getElementById('btn-cash-100');
-  if (btn) { btn.style.background = '#0d1f3c'; btn.style.color = '#fde047'; }
+  if (btn) { btn.textContent = '□'; btn.style.background = '#0d1f3c'; btn.style.color = '#fde047'; }
   clearFieldErrors();
   calc();
   // שמור שמירות ו-id קיימים — נקה הכל מנקה רק שדות
@@ -1331,8 +1347,23 @@ function openArchivedQuote(i) {
   window.scrollTo(0, 0);
 }
 
-// init
-renderExistingQuotes();
+// init — שמור מיקום טופס בין רענונים
+(function initPage() {
+  var savedId = sessionStorage.getItem('anak-current-quote-id');
+  if (savedId) {
+    var hist = JSON.parse(localStorage.getItem('anak-quotes') || '[]');
+    var item = hist.find(function(h){ return String(h.id) === savedId; });
+    if (item) {
+      loadHistoryItem(item);
+      document.getElementById('quotes-list-section').style.display = 'none';
+      document.getElementById('quote-form-section').style.display = 'block';
+      document.getElementById('btn-quotes-screen').style.display = 'inline-block';
+      if (item.inProcess) { hideAdvanceBtns(); setTimeout(function(){ setReadOnly(true); }, 50); }
+      return;
+    }
+  }
+  renderExistingQuotes();
+})();
 (function initQuoteArchiveBadge(){
   var arch = JSON.parse(localStorage.getItem('anak-archive-quotes') || '[]');
   var badge = document.getElementById('quote-archive-badge');
