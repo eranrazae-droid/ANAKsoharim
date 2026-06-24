@@ -214,13 +214,20 @@ function renderBalance() {
 function getCheckKey() { return 'anak-sign-checks-' + (deal ? (deal.id || deal.createdAt || dealIdx) : dealIdx); }
 
 function loadCheckState() {
-  var saved = JSON.parse(localStorage.getItem(getCheckKey()) || '[]');
-  if (saved.length === 4) checks = saved;
+  // קרא מתוך אובייקט העסקה עצמה; אם אין — אפס
+  checks = (deal && deal.checklistState && deal.checklistState.length === 4)
+    ? deal.checklistState.slice()
+    : [false, false, false, false];
   renderChecks();
 }
 
 function saveCheckState() {
-  localStorage.setItem(getCheckKey(), JSON.stringify(checks));
+  var deals = getDeals();
+  if (deals[dealIdx]) {
+    deals[dealIdx].checklistState = checks;
+    saveDeals(deals);
+    deal = deals[dealIdx];
+  }
 }
 
 function toggle(i) {
