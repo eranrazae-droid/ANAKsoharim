@@ -114,7 +114,7 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
   <div class="panel-left" id="panel-left" style="display:none">
     <div class="section-title">פעולות עסקה</div>
 
-    <button class="action-btn green" onclick="toggleApproval()">🏦 הוקמה הצעה ב...</button>
+    <button class="action-btn green" id="btn-hokama" onclick="toggleApproval()">🏦 הוקמה הצעה ב...</button>
 
     <div class="approval-form" id="approval-form" style="display:none">
       <div>
@@ -123,7 +123,7 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
       </div>
       <div>
         <label>סכום מאושר (₪)</label>
-        <input type="number" id="approved-amount" placeholder="0" inputmode="numeric" min="0" onkeypress="return event.charCode>=48&&event.charCode<=57" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+        <input type="text" id="approved-amount" placeholder="סכום או טווח..." style="-webkit-appearance:none;-moz-appearance:textfield">
       </div>
       <div>
         <label>אחוז ריבית מאושר (%)</label>
@@ -274,13 +274,31 @@ function renderDetail() {
 function renderPlans(d) {
   var plans = d.approvalPlans || [];
   var container = document.getElementById('plans-container');
+  var anyChosen = plans.some(function(p){ return p.chosen; });
+
+  // update hokama button state
+  var btnHokama = document.getElementById('btn-hokama');
+  if (btnHokama) {
+    if (anyChosen) {
+      btnHokama.disabled = true;
+      btnHokama.style.background = '#9ca3af';
+      btnHokama.style.boxShadow = 'none';
+      btnHokama.style.cursor = 'not-allowed';
+    } else {
+      btnHokama.disabled = false;
+      btnHokama.style.background = '';
+      btnHokama.style.boxShadow = '';
+      btnHokama.style.cursor = '';
+    }
+  }
+
   if (!plans.length) { container.innerHTML = ''; return; }
   container.innerHTML = plans.map(function(p, i) {
-    var bg = p.chosen ? '#16a34a' : '#0d1f3c';
+    var bg = p.chosen ? '#16a34a' : (anyChosen ? '#e02d2d' : '#0d1f3c');
     var chosenLabel = p.chosen ? '✓ מסלול נבחר!' : '⭐ בחירה במסלול זה';
     var row = '<div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">';
     if (p.company) row += '<div><span style="color:#7a9ccf;font-size:11px;display:block;margin-bottom:2px">חברת מימון</span><span style="font-weight:900;font-size:16px;color:#fff">' + p.company + '</span></div>';
-    if (p.amount)  row += '<div style="border-right:1px solid #2a4a7a;padding-right:18px"><span style="color:#7a9ccf;font-size:11px;display:block;margin-bottom:2px">סכום מאושר</span><span style="font-weight:900;font-size:16px;color:#c9a227">₪ ' + parseFloat(p.amount).toLocaleString('he-IL') + '</span></div>';
+    if (p.amount)  row += '<div style="border-right:1px solid #2a4a7a;padding-right:18px"><span style="color:#7a9ccf;font-size:11px;display:block;margin-bottom:2px">סכום מאושר</span><span style="font-weight:900;font-size:16px;color:#c9a227">' + p.amount + '</span></div>';
     if (p.rate)    row += '<div style="border-right:1px solid #2a4a7a;padding-right:18px"><span style="color:#7a9ccf;font-size:11px;display:block;margin-bottom:2px">ריבית מאושרת</span><span style="font-weight:900;font-size:16px;color:#38bdf8">' + p.rate + '%</span></div>';
     row += '</div>';
     return '<div style="background:' + bg + ';border-radius:14px;padding:16px;color:#fff;margin-bottom:8px">' +
@@ -315,7 +333,7 @@ function saveAndShowSummary() {
   if (!deals.length) return;
   var d = deals[selectedIdx] || deals[0];
   if (!d.approvalPlans) d.approvalPlans = [];
-  d.approvalPlans.push({ company: company, amount: parseFloat(amount)||0, rate: parseFloat(rate)||0, chosen: false });
+  d.approvalPlans.push({ company: company, amount: amount, rate: parseFloat(rate)||0, chosen: false });
   deals[selectedIdx] = d;
   saveDeals(deals);
 
