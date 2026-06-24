@@ -248,6 +248,7 @@ function renderBar() {
         '</div>' +
       '</div>' +
       (done ? '<button onclick="archiveDeal(' + i + ')" style="width:100%;border:none;background:#0d1f3c;color:#7a9ccf;font-family:\'Heebo\',sans-serif;font-size:12px;font-weight:700;padding:8px;cursor:pointer;border-top:1px solid #1a2f54">📦 שליחה לארכיון</button>' : '') +
+      (!done ? '<button onclick="deleteDealCard(event,' + i + ')" style="width:100%;border:none;background:#7f1d1d;color:#fca5a5;font-family:\'Heebo\',sans-serif;font-size:12px;font-weight:700;padding:8px;cursor:pointer;border-top:1px solid #1a2f54">🗑 מחיקת מימון</button>' : '') +
     '</div>';
   }).join('');
 }
@@ -473,6 +474,29 @@ function archiveDeal(i) {
   document.getElementById('split-panel').style.display = 'none';
   document.getElementById('btn-back').style.display = 'none';
   document.getElementById('deals-bar').style.display = 'grid';
+}
+
+function deleteDealCard(e, idx) {
+  e.stopPropagation();
+  if (!confirm('למחוק את המימון? ההצעה תחזור לניתן לעריכה.')) return;
+  var deals = getDeals();
+  var deal = deals[idx];
+  deals.splice(idx, 1);
+  saveDeals(deals);
+
+  // שחרר את ההצעה המקורית מסטטוס inProcess
+  if (deal && deal.id) {
+    var quotes = JSON.parse(localStorage.getItem('anak-quotes') || '[]');
+    var qi = quotes.findIndex(function(q){ return q.id === deal.id; });
+    if (qi >= 0) {
+      quotes[qi].inProcess = false;
+      localStorage.setItem('anak-quotes', JSON.stringify(quotes));
+    }
+  }
+
+  selectedIdx = 0;
+  backToBar();
+  renderBar();
 }
 
 function rejectDeal() {
