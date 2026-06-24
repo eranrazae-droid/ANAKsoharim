@@ -532,6 +532,10 @@ function calc() {
   if (!rep || !cust || !phone) {
     document.getElementById('monthly-box').style.display = 'none';
     document.getElementById('finance-cards-section').style.display = 'none';
+    document.getElementById('diff').textContent = '—';
+    document.getElementById('total-deal').textContent = '—';
+    document.getElementById('finance-amount').textContent = '—';
+    document.getElementById('finance-pct-row').style.display = 'none';
     return;
   }
 
@@ -689,6 +693,15 @@ function validateRequiredFields() {
     if (empty && !firstBad) firstBad = el;
     if (empty) ok = false;
   });
+  // אם מולאה זיכוי טרייד אין — מספר רישוי טרייד אין חובה
+  var tradeInEl = document.getElementById('trade-in');
+  var plateEl   = document.getElementById('old-car-plate');
+  if (tradeInEl && plateEl && parseFloat(tradeInEl.value) > 0 && !plateEl.value.trim()) {
+    plateEl.style.borderColor = '#ef4444';
+    plateEl.style.background  = '#fee2e2';
+    if (!firstBad) firstBad = plateEl;
+    ok = false;
+  }
   if (!ok && firstBad) {
     firstBad.scrollIntoView({ behavior: 'smooth', block: 'center' });
     showToast('לא ניתן לבצע את הפעולה — שדות חובה לא מלאים');
@@ -1005,7 +1018,13 @@ function toggleSearch() {
 function searchQuotes() {
   var q = document.getElementById('search-input').value.trim().toLowerCase();
   var el = document.getElementById('search-results');
-  if (!q) { el.innerHTML = ''; return; }
+  var grid = document.getElementById('existing-quotes-list');
+  if (!q) {
+    el.innerHTML = '';
+    if (grid) grid.style.display = '';
+    return;
+  }
+  if (grid) grid.style.display = 'none';
 
   var hist  = JSON.parse(localStorage.getItem('anak-quotes')         || '[]');
   var archQ = JSON.parse(localStorage.getItem('anak-archive-quotes') || '[]');
