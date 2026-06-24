@@ -169,6 +169,12 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
 
   <!-- טופס הצעת מחיר — מוסתר עד לחיצה -->
   <div id="quote-form-section" style="display:none">
+
+  <!-- באנר מצב צפייה -->
+  <div id="view-only-banner" style="display:none;background:#fde047;border-radius:12px;padding:12px 16px;margin-bottom:16px;text-align:center;font-size:14px;font-weight:900;color:#78350f">
+    👁 מצב צפייה בלבד — ההצעה בתהליך מימון ולא ניתן לעריכה
+  </div>
+
   <div class="page-title">הצעת <span>מחיר</span></div>
 
   <!-- נציג מכירות + נציג מימון -->
@@ -703,6 +709,7 @@ function openNewQuote() {
 }
 
 function closeQuoteForm() {
+  setReadOnly(false);
   document.getElementById('quote-form-section').style.display = 'none';
   document.getElementById('quotes-list-section').style.display = 'block';
   renderExistingQuotes();
@@ -724,6 +731,37 @@ function loadQuoteFromList(item) {
   loadHistoryItem(item);
   document.getElementById('quotes-list-section').style.display = 'none';
   document.getElementById('quote-form-section').style.display = 'block';
+  window.scrollTo(0, 0);
+}
+
+function setReadOnly(on) {
+  // נעל / שחרר את כל שדות הקלט
+  var fields = document.querySelectorAll('#quote-form-section input, #quote-form-section select');
+  fields.forEach(function(f) {
+    if (on) { f.setAttribute('readonly', true); f.setAttribute('disabled', true); }
+    else    { f.removeAttribute('readonly');     f.removeAttribute('disabled'); }
+  });
+  // הסתר / הצג כפתורי עריכה
+  var hideIds = ['action-row','btn-advance-bottom','autosave-indicator'];
+  var hideClasses = ['btn-reset','save-approval-btn'];
+  hideIds.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.style.display = on ? 'none' : '';
+  });
+  document.querySelectorAll('.btn-reset, .btn-save').forEach(function(el){ el.style.display = on ? 'none' : ''; });
+  // כפתורי שלוף
+  document.querySelectorAll('[onclick*="lookupPlate"]').forEach(function(el){ el.style.display = on ? 'none' : ''; });
+  // באנר
+  document.getElementById('view-only-banner').style.display = on ? 'block' : 'none';
+  // כפתור "חזרה לרשימה" — תמיד גלוי
+}
+
+function loadQuoteReadOnly(item) {
+  loadHistoryItem(item);
+  document.getElementById('quotes-list-section').style.display = 'none';
+  document.getElementById('quote-form-section').style.display = 'block';
+  // המתן שהדום יתעדכן ואז נעל
+  setTimeout(function(){ setReadOnly(true); }, 50);
   window.scrollTo(0, 0);
 }
 
@@ -792,7 +830,8 @@ function renderExistingQuotes() {
       html += '<span style="background:#1a56db;color:#fff;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:900">✓ בתהליך מימון</span>';
     }
     html += '</div>';
-    html += '<div style="padding:12px 16px;cursor:pointer" onclick="loadQuoteFromList(' + JSON.stringify(item).replace(/"/g,'&quot;') + ')">';
+    var loadFn = item.inProcess ? 'loadQuoteReadOnly' : 'loadQuoteFromList';
+    html += '<div style="padding:12px 16px;cursor:pointer" onclick="' + loadFn + '(' + JSON.stringify(item).replace(/"/g,'&quot;') + ')">';
     if (item.newCar) html += '<div style="font-size:12px;color:#000;font-weight:700;margin-bottom:6px;background:#fde047;border-radius:5px;padding:2px 7px;display:inline-block">' + item.newCar + '</div>';
     html += '<div style="font-size:24px;font-weight:900;color:#1a56db">' + fmtQ(item.monthly) + '<span style="font-size:13px;color:#5a7aa5;font-weight:400"> /חודש</span></div>';
     html += '<div style="font-size:11px;color:#7a9ab8;margin-top:4px">' + (item.rep ? 'נציג: ' + item.rep + ' · ' : '') + (item.date || '') + '</div>';
