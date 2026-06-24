@@ -150,7 +150,7 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
   </div>
   <div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;gap:8px">
     <a href="index.html" style="color:#7a9ccf;font-size:13px;font-weight:700;text-decoration:none;background:#1a2f54;padding:8px 16px;border-radius:8px;min-width:90px;text-align:center">דף הבית</a>
-    <button id="btn-quotes-screen" onclick="closeQuoteForm()" style="color:#7a9ccf;font-size:13px;font-weight:700;background:#1a2f54;padding:8px 16px;border-radius:8px;border:none;cursor:pointer;min-width:90px;text-align:center;display:none">מסך הצעות</button>
+    <button id="btn-quotes-screen" onclick="closeQuoteForm()" style="color:#7a9ccf;font-size:13px;font-weight:700;background:#1a2f54;padding:8px 16px;border-radius:8px;border:none;cursor:pointer;min-width:90px;text-align:center;display:none">הצעות קיימות</button>
   </div>
   <div style="flex:1"></div>
 </div>
@@ -355,7 +355,7 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
   <!-- כפתורי סיום -->
   <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
     <button id="btn-save-manual" onclick="manualSave()" style="background:#1a56db;color:#fff;border:none;border-radius:14px;padding:18px;font-family:'Heebo',sans-serif;font-size:16px;font-weight:700;cursor:pointer">💾 שמור</button>
-    <button onclick="closeQuoteForm()" style="background:#7c3aed;color:#fff;border:none;border-radius:14px;padding:18px;font-family:'Heebo',sans-serif;font-size:16px;font-weight:700;cursor:pointer">← מסך הצעות מחיר</button>
+    <button onclick="closeQuoteForm()" style="background:#7c3aed;color:#fff;border:none;border-radius:14px;padding:18px;font-family:'Heebo',sans-serif;font-size:16px;font-weight:700;cursor:pointer">← הצעות קיימות</button>
   </div>
   <div style="margin-top:10px">
     <button id="btn-advance-bottom" onclick="advanceDeal()" style="width:100%;background:#16a34a;color:#fff;border:none;border-radius:14px;padding:18px;font-family:'Heebo',sans-serif;font-size:16px;font-weight:900;cursor:pointer;box-shadow:0 4px 16px rgba(22,163,74,.25)">📈 התקדמות לעסקה</button>
@@ -1349,6 +1349,12 @@ function openArchivedQuote(i) {
 
 // init — שמור מיקום טופס בין רענונים
 (function initPage() {
+  var params = new URLSearchParams(location.search);
+  if (params.get('screen') === 'list') {
+    sessionStorage.removeItem('anak-current-quote-id');
+    renderExistingQuotes();
+    return;
+  }
   var savedId = sessionStorage.getItem('anak-current-quote-id');
   if (savedId) {
     var hist = JSON.parse(localStorage.getItem('anak-quotes') || '[]');
