@@ -211,10 +211,16 @@ function renderBalance() {
   }
 }
 
+function getDealIdx() {
+  if (!deal || !deal.id) return dealIdx;
+  var deals = getDeals();
+  var idx = deals.findIndex(function(d){ return d.id === deal.id; });
+  return idx >= 0 ? idx : dealIdx;
+}
+
 function getCheckKey() { return 'anak-sign-checks-' + (deal ? (deal.id || deal.createdAt || dealIdx) : dealIdx); }
 
 function loadCheckState() {
-  // קרא מתוך אובייקט העסקה עצמה; אם אין — אפס
   checks = (deal && deal.checklistState && deal.checklistState.length === 4)
     ? deal.checklistState.slice()
     : [false, false, false, false];
@@ -223,10 +229,12 @@ function loadCheckState() {
 
 function saveCheckState() {
   var deals = getDeals();
-  if (deals[dealIdx]) {
-    deals[dealIdx].checklistState = checks;
+  var idx = getDealIdx();
+  if (deals[idx]) {
+    deals[idx].checklistState = checks;
     saveDeals(deals);
-    deal = deals[dealIdx];
+    deal = deals[idx];
+    dealIdx = idx;
   }
 }
 
@@ -273,10 +281,11 @@ function complete() {
     deal.statusChangedAt = now;
     deal.completedAt = now;
   }
+  var idx = getDealIdx();
   deal.checklistState = checks;
-  deals[dealIdx] = deal;
+  deals[idx] = deal;
   saveDeals(deals);
-  location.href = 'delivery.html?i=' + dealIdx;
+  location.href = 'delivery.html?i=' + idx;
 }
 
 function showDetails() {
@@ -328,12 +337,17 @@ function showRejected() {
 function swapPlan(newIdx) {
   var deals = getDeals();
   if (!deals.length) return;
-  var d = deals[dealIdx];
+  var idx = getDealIdx();
+  var d = deals[idx];
   if (!d.approvalPlans) return;
   d.approvalPlans.forEach(function(p){ p.chosen = false; });
   d.approvalPlans[newIdx].chosen = true;
-  deals[dealIdx] = d;
+  // אפס צ'קליסט עם החלפת מסלול
+  d.checklistState = [false, false, false, false];
+  checks = [false, false, false, false];
+  deals[idx] = d;
   deal = d;
+  dealIdx = idx;
   chosenPlan = d.approvalPlans[newIdx];
   saveDeals(deals);
   closeRejected();
