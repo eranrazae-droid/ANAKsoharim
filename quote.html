@@ -781,14 +781,17 @@ function advanceDeal() {
   hideAdvanceBtns();
   // הוסף לרשימת העסקאות הפעילות (deals)
   var deals = JSON.parse(localStorage.getItem('anak-deals') || '[]');
-  var exists = deals.findIndex(function(d){ return d.createdAt === item.createdAt; });
+  var exists = deals.findIndex(function(d){ return d.id === item.id || d.createdAt === item.id; });
   if (exists >= 0) {
-    // preserve original createdAt so timer doesn't reset
-    item.createdAt = deals[exists].createdAt || item.createdAt || Date.now();
+    // שמור createdAt המקורי — לעולם לא מתאפס
+    item.createdAt = deals[exists].createdAt;
+    // statusChangedAt מתאפס רק אם הסטטוס השתנה (מנוהל ב-sign.html)
+    item.statusChangedAt = deals[exists].statusChangedAt || deals[exists].createdAt;
     deals[exists] = item;
   } else {
-    item.createdAt = Date.now();
-    item.statusChangedAt = Date.now();
+    var now = Date.now();
+    item.createdAt = now;       // פעם אחת בלבד — לא משתנה
+    item.statusChangedAt = now; // יתאפס ב-sign.html כשהסטטוס ישתנה
     deals.unshift(item);
   }
   localStorage.setItem('anak-deals', JSON.stringify(deals));

@@ -166,9 +166,12 @@ function init() {
   deal = deals[dealIdx];
   if (!deal) { document.body.innerHTML = '<p style="padding:40px;text-align:center">לא נמצאה עסקה</p>'; return; }
 
-  // עדכן סטטוס
-  deal.dealStatus = 'ממתין לחתימת חוזים, ביטוח מקיף, העברת יתרה';
-  deal.statusChangedAt = Date.now();
+  // עדכן סטטוס — אפס statusChangedAt רק אם הסטטוס אכן משתנה
+  var newStatus = 'ממתין לחתימת חוזים, ביטוח מקיף, העברת יתרה';
+  if (deal.dealStatus !== newStatus) {
+    deal.dealStatus = newStatus;
+    deal.statusChangedAt = Date.now();
+  }
   deals[dealIdx] = deal;
   saveDeals(deals);
 
@@ -257,8 +260,10 @@ function complete() {
   }
   // הכל מסומן
   var deals = getDeals();
-  deal.dealStatus = 'הושלם';
-  deal.statusChangedAt = Date.now();
+  if (deal.dealStatus !== 'הושלם') {
+    deal.dealStatus = 'הושלם';
+    deal.statusChangedAt = Date.now();
+  }
   deals[dealIdx] = deal;
   saveDeals(deals);
   alert('✅ התהליך הושלם בהצלחה!');
