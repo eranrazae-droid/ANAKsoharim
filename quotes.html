@@ -152,7 +152,7 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
     <!-- מסלולים שנשמרו -->
     <div id="plans-container"></div>
 
-    <button class="action-btn red" onclick="deleteDeal()">🗑 מחיקת עסקה</button>
+    <button class="action-btn red" onclick="rejectDeal()">❌ ההלוואה לא אושרה</button>
   </div>
 </div>
 
@@ -213,8 +213,9 @@ function renderBar() {
       ? '<div style="font-size:12px;font-weight:900;color:#9ca3af;font-variant-numeric:tabular-nums">' + fmtElapsed(statusMs) + '</div>'
       : '<div class="timer-status" style="font-size:12px;font-weight:900;color:#facc15;font-variant-numeric:tabular-nums" data-statusat="' + (d.statusChangedAt||d.createdAt) + '">' + fmtElapsed(Date.now() - (d.statusChangedAt||d.createdAt)) + '</div>';
     var clickAction = done ? 'location.href=\'view.html?i=' + i + '\'' : 'selectDeal(' + i + ')';
-    var statusBg = done ? '#16a34a' : '#fde047';
-    var statusColor = done ? '#fff' : '#000';
+    var rejected = status === 'נדחה';
+    var statusBg = done ? '#16a34a' : rejected ? '#dc2626' : '#fde047';
+    var statusColor = done || rejected ? '#fff' : '#000';
     return '<div class="deal-card' + (i === selectedIdx && !done ? ' active' : '') + '" style="' + (done ? 'opacity:.85' : '') + '">' +
       '<div class="deal-card-hdr" onclick="' + clickAction + '" style="cursor:pointer">' +
         '<div class="deal-card-name">' + (d.customer || 'לא ידוע') + '</div>' +
@@ -266,9 +267,12 @@ function renderDetail() {
   left.style.display = 'flex';
 
   var status = d.dealStatus || 'טרם הוקמה הלוואה';
+  var isRejected = status === 'נדחה';
+  var statusBadgeBg = isRejected ? '#dc2626' : '#fde047';
+  var statusBadgeColor = isRejected ? '#fff' : '#000';
   var html = '<div style="text-align:center;padding:14px 0 18px">' +
     '<div style="font-size:11px;color:#7a9ab8;font-weight:600;margin-bottom:6px;letter-spacing:.06em;text-transform:uppercase">סטטוס עסקה</div>' +
-    '<span style="background:#fde047;color:#000;border-radius:10px;padding:8px 22px;font-size:18px;font-weight:900">' + status + '</span>' +
+    '<span style="background:' + statusBadgeBg + ';color:' + statusBadgeColor + ';border-radius:10px;padding:8px 22px;font-size:18px;font-weight:900">' + status + '</span>' +
   '</div>';
 
   // פרטי לקוח
@@ -471,14 +475,15 @@ function archiveDeal(i) {
   document.getElementById('deals-bar').style.display = 'grid';
 }
 
-function deleteDeal() {
-  if (!confirm('למחוק את העסקה?')) return;
+function rejectDeal() {
+  if (!confirm('לסמן את ההלוואה כנדחתה?')) return;
   var deals = getDeals();
-  deals.splice(selectedIdx, 1);
+  deals[selectedIdx].dealStatus = 'נדחה';
+  deals[selectedIdx].statusChangedAt = Date.now();
   saveDeals(deals);
-  selectedIdx = 0;
+  // סגור פאנל ורנדר מחדש
+  backToBar();
   renderBar();
-  renderDetail();
 }
 
 function tickTimers() {
