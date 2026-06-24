@@ -206,7 +206,7 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
     <div class="deal-row">
       <div class="deal-label">מספר רישוי</div>
       <div class="deal-val" style="display:flex;gap:6px;align-items:center">
-        <input class="deal-input name-input" id="new-car-plate" type="text" placeholder="000-00-000" oninput="calc();checkDuplicatePlate()" style="flex:1">
+        <input class="deal-input name-input" id="new-car-plate" type="text" placeholder="000-00-000" oninput="calc();checkDuplicatePlate()" onpaste="pastePlateDigits(event,'new-car-plate',function(){calc();checkDuplicatePlate()})" style="flex:1">
         <button onclick="lookupPlate('new-car-plate','new-car-name',this)" style="background:#1a56db;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:Heebo,sans-serif">🔍 שלוף</button>
       </div>
     </div>
@@ -226,7 +226,7 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
     <div class="deal-row">
       <div class="deal-label">מספר רישוי</div>
       <div class="deal-val" style="display:flex;gap:6px;align-items:center">
-        <input class="deal-input name-input" id="old-car-plate" type="text" placeholder="000-00-000" oninput="calc()" style="flex:1">
+        <input class="deal-input name-input" id="old-car-plate" type="text" placeholder="000-00-000" oninput="calc()" onpaste="pastePlateDigits(event,'old-car-plate',calc)" style="flex:1">
         <button onclick="lookupPlate('old-car-plate','old-car-name',this)" style="background:#c9a227;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:Heebo,sans-serif">🔍 שלוף</button>
       </div>
     </div>
@@ -906,6 +906,14 @@ function resetAll() {
   document.getElementById('track-sel').selectedIndex = 0;
   document.getElementById('n-sel').selectedIndex = 0;
   calc();
+}
+
+function pastePlateDigits(e, fieldId, cb) {
+  e.preventDefault();
+  var text = (e.clipboardData || window.clipboardData).getData('text');
+  var digits = text.replace(/\D/g, '');
+  document.getElementById(fieldId).value = digits;
+  if (cb) cb();
 }
 
 function checkDuplicatePlate() {
