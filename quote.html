@@ -165,6 +165,16 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
     <div class="page-title" style="margin-bottom:12px">הצעות <span>קיימות</span></div>
     <div id="existing-quotes-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:16px"></div>
     <button onclick="openNewQuote()" style="width:100%;background:#1a56db;color:#fff;border:none;border-radius:14px;padding:16px;font-family:'Heebo',sans-serif;font-size:17px;font-weight:900;cursor:pointer;box-shadow:0 4px 16px rgba(26,86,219,.25);margin-bottom:8px">＋ הצעת מחיר חדשה</button>
+
+    <!-- ארכיון הצעות -->
+    <div style="margin-top:24px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;cursor:pointer" onclick="toggleQuoteArchive()">
+        <div style="font-size:16px;font-weight:900;color:#5a7aa5">📦 ארכיון הצעות</div>
+        <div id="quote-archive-badge" style="background:#dce6f5;color:#5a7aa5;border-radius:20px;padding:2px 10px;font-size:12px;font-weight:700">0</div>
+        <div id="quote-archive-chevron" style="color:#7a9ab8;font-size:14px;margin-right:auto">▼</div>
+      </div>
+      <div id="quote-archive-list" style="display:none;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px"></div>
+    </div>
   </div>
 
   <!-- טופס הצעת מחיר — מוסתר עד לחיצה -->
@@ -956,9 +966,47 @@ function checkDuplicatePlate() {
   }
 }
 
+var _quoteArchiveOpen = false;
+function toggleQuoteArchive() {
+  _quoteArchiveOpen = !_quoteArchiveOpen;
+  var list = document.getElementById('quote-archive-list');
+  var chev = document.getElementById('quote-archive-chevron');
+  list.style.display = _quoteArchiveOpen ? 'grid' : 'none';
+  chev.textContent = _quoteArchiveOpen ? '▲' : '▼';
+  if (_quoteArchiveOpen) renderQuoteArchive();
+}
+function renderQuoteArchive() {
+  var arch = JSON.parse(localStorage.getItem('anak-archive-quotes') || '[]');
+  var badge = document.getElementById('quote-archive-badge');
+  if (badge) badge.textContent = arch.length;
+  var el = document.getElementById('quote-archive-list');
+  if (!el) return;
+  if (!arch.length) { el.innerHTML = '<div style="color:#7a9ab8;font-size:13px;padding:8px">אין הצעות בארכיון</div>'; return; }
+  el.innerHTML = arch.map(function(item) {
+    var d = new Date(item.archivedAt || item.createdAt || 0);
+    var dateStr = item.archivedAt ? d.toLocaleDateString('he-IL') : (item.date || '');
+    return '<div style="background:#f5f8ff;border:1.5px solid #dce6f5;border-radius:14px;overflow:hidden;opacity:.85">' +
+      '<div style="background:#4b5563;padding:10px 14px">' +
+        '<div style="font-size:15px;font-weight:900;color:#fff;margin-bottom:4px">' + (item.customer || 'לא ידוע') + '</div>' +
+        '<span style="background:#9ca3af;color:#fff;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700">📦 ארכיון</span>' +
+      '</div>' +
+      '<div style="padding:10px 14px">' +
+        (item.newCar ? '<div style="font-size:12px;color:#000;font-weight:700;margin-bottom:6px;background:#fde047;border-radius:5px;padding:2px 7px;display:inline-block">' + item.newCar + '</div><br>' : '') +
+        '<div style="font-size:18px;font-weight:900;color:#6b7280">' + fmtQ(item.monthly) + '<span style="font-size:12px;color:#9ca3af;font-weight:400"> /חודש</span></div>' +
+        '<div style="font-size:11px;color:#9ca3af;margin-top:4px">' + (item.rep ? 'נציג: ' + item.rep + ' · ' : '') + dateStr + '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
 // init
 renderHistory();
 renderExistingQuotes();
+(function initQuoteArchiveBadge(){
+  var arch = JSON.parse(localStorage.getItem('anak-archive-quotes') || '[]');
+  var badge = document.getElementById('quote-archive-badge');
+  if (badge) badge.textContent = arch.length;
+})();
 </script>
 </body>
 </html>
