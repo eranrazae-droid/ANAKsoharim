@@ -60,7 +60,10 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
     <div class="hdr-logo">ענק <span>הרכבים</span></div>
     <div class="hdr-sub">ממתין למסירה</div>
   </div>
-  <div style="width:80px"></div>
+  <div style="display:flex;gap:8px">
+    <a href="quotes.html" style="color:#7a9ccf;font-size:13px;font-weight:700;text-decoration:none;background:#1a2f54;padding:8px 14px;border-radius:8px">← מימונים</a>
+    <a href="index.html" style="color:#7a9ccf;font-size:13px;font-weight:700;text-decoration:none;background:#1a2f54;padding:8px 14px;border-radius:8px">→ דף הבית</a>
+  </div>
 </div>
 
 <div class="page">
@@ -90,15 +93,24 @@ var dealIdx = 0;
 
 function fmt(n){ return '₪ ' + Math.round(n||0).toLocaleString('he-IL'); }
 
-function getCheckKey(d){ return 'anak-delivery-checks-' + (d.id || d.createdAt || dealIdx); }
+var _deal = null;
+
+function getDealIdx() {
+  if (!_deal || !_deal.id) return dealIdx;
+  var deals = JSON.parse(localStorage.getItem('anak-deals') || '[]');
+  var idx = deals.findIndex(function(d){ return d.id === _deal.id; });
+  return idx >= 0 ? idx : dealIdx;
+}
 
 function toggle(i) {
   checks[i] = !checks[i];
   render();
-  // שמור
   var deals = JSON.parse(localStorage.getItem('anak-deals') || '[]');
-  if (deals[dealIdx]) {
-    localStorage.setItem(getCheckKey(deals[dealIdx]), JSON.stringify(checks));
+  var idx = getDealIdx();
+  if (deals[idx]) {
+    deals[idx].deliveryChecks = checks;
+    localStorage.setItem('anak-deals', JSON.stringify(deals));
+    _deal = deals[idx];
   }
 }
 
@@ -126,10 +138,11 @@ function finish() {
   }
   // עדכן סטטוס סופי
   var deals = JSON.parse(localStorage.getItem('anak-deals') || '[]');
-  if (deals[dealIdx]) {
-    deals[dealIdx].dealStatus = 'הושלם';
-    deals[dealIdx].statusChangedAt = Date.now();
-    deals[dealIdx].completedAt = deals[dealIdx].completedAt || Date.now();
+  var idx = getDealIdx();
+  if (deals[idx]) {
+    deals[idx].dealStatus = 'הושלם';
+    deals[idx].statusChangedAt = Date.now();
+    deals[idx].completedAt = deals[idx].completedAt || Date.now();
     localStorage.setItem('anak-deals', JSON.stringify(deals));
   }
   location.href = 'quotes.html';
@@ -141,10 +154,11 @@ function finish() {
   var deals = JSON.parse(localStorage.getItem('anak-deals') || '[]');
   var d = deals[dealIdx];
   if (!d) { document.getElementById('main-msg').textContent = 'לא נמצאה עסקה'; return; }
+  _deal = d;
 
-  // טען מצב שמור
-  var saved = JSON.parse(localStorage.getItem(getCheckKey(d)) || '[]');
-  if (saved.length === 2) checks = saved;
+  checks = (d.deliveryChecks && d.deliveryChecks.length === 2)
+    ? d.deliveryChecks.slice()
+    : [false, false];
   render();
 
   var chosen = null;
