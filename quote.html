@@ -782,8 +782,12 @@ function advanceDeal() {
   var deals = JSON.parse(localStorage.getItem('anak-deals') || '[]');
   var exists = deals.findIndex(function(d){ return d.createdAt === item.createdAt; });
   if (exists >= 0) {
+    // preserve original createdAt so timer doesn't reset
+    item.createdAt = deals[exists].createdAt || item.createdAt || Date.now();
     deals[exists] = item;
   } else {
+    item.createdAt = Date.now();
+    item.statusChangedAt = Date.now();
     deals.unshift(item);
   }
   localStorage.setItem('anak-deals', JSON.stringify(deals));
