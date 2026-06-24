@@ -247,8 +247,8 @@ function renderBar() {
           timerStatus +
         '</div>' +
       '</div>' +
-      (done ? '<button onclick="archiveDeal(' + i + ')" style="width:100%;border:none;background:#0d1f3c;color:#7a9ccf;font-family:\'Heebo\',sans-serif;font-size:12px;font-weight:700;padding:8px;cursor:pointer;border-top:1px solid #1a2f54">📦 שליחה לארכיון</button>' : '') +
-      (!done ? '<button onclick="deleteDealCard(event,' + i + ')" style="width:100%;border:none;background:#7f1d1d;color:#fca5a5;font-family:\'Heebo\',sans-serif;font-size:12px;font-weight:700;padding:8px;cursor:pointer;border-top:1px solid #1a2f54">🗑 מחיקת מימון</button>' : '') +
+      ((done || rejected) ? '<button onclick="archiveDeal(' + i + ')" style="width:100%;border:none;background:#0d1f3c;color:#7a9ccf;font-family:\'Heebo\',sans-serif;font-size:12px;font-weight:700;padding:8px;cursor:pointer;border-top:1px solid #1a2f54">📦 שליחה לארכיון</button>' : '') +
+      (!done && !rejected ? '<button onclick="deleteDealCard(event,' + i + ')" style="width:100%;border:none;background:#7f1d1d;color:#fca5a5;font-family:\'Heebo\',sans-serif;font-size:12px;font-weight:700;padding:8px;cursor:pointer;border-top:1px solid #1a2f54">🗑 מחיקת מימון</button>' : '') +
     '</div>';
   }).join('');
 }
@@ -348,10 +348,22 @@ function renderPlans(d) {
   var plans = d.approvalPlans || [];
   var container = document.getElementById('plans-container');
   var anyChosen = plans.some(function(p){ return p.chosen; });
+  var isRejected = d.dealStatus === 'נדחה';
 
-  // update hokama button state
+  // gray out action buttons when rejected
   var btnHokama = document.getElementById('btn-hokama');
-  if (btnHokama) {
+  var btnReject = document.querySelector('.action-btn.red');
+  if (isRejected) {
+    [btnHokama, btnReject].forEach(function(b) {
+      if (!b) return;
+      b.disabled = true;
+      b.style.background = '#d1d5db';
+      b.style.color = '#9ca3af';
+      b.style.boxShadow = 'none';
+      b.style.cursor = 'not-allowed';
+      b.style.opacity = '.7';
+    });
+  } else if (btnHokama) {
     if (anyChosen) {
       btnHokama.disabled = true;
       btnHokama.style.background = '#9ca3af';
@@ -362,6 +374,15 @@ function renderPlans(d) {
       btnHokama.style.background = '';
       btnHokama.style.boxShadow = '';
       btnHokama.style.cursor = '';
+      btnHokama.style.color = '';
+      btnHokama.style.opacity = '';
+    }
+    if (btnReject) {
+      btnReject.disabled = false;
+      btnReject.style.background = '';
+      btnReject.style.color = '';
+      btnReject.style.cursor = '';
+      btnReject.style.opacity = '';
     }
   }
 
