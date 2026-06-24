@@ -166,7 +166,18 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
   <div id="quotes-list-section">
     <div class="page-title" style="margin-bottom:12px">הצעות <span>קיימות</span></div>
     <div id="existing-quotes-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:16px"></div>
-    <button onclick="openNewQuote()" style="width:100%;background:#1a56db;color:#fff;border:none;border-radius:14px;padding:16px;font-family:'Heebo',sans-serif;font-size:17px;font-weight:900;cursor:pointer;box-shadow:0 4px 16px rgba(26,86,219,.25);margin-bottom:8px">＋ הצעת מחיר חדשה</button>
+
+    <!-- כפתורי פעולה -->
+    <div style="display:grid;grid-template-columns:1fr auto;gap:10px;margin-bottom:8px">
+      <button onclick="openNewQuote()" style="background:#1a56db;color:#fff;border:none;border-radius:14px;padding:16px;font-family:'Heebo',sans-serif;font-size:17px;font-weight:900;cursor:pointer;box-shadow:0 4px 16px rgba(26,86,219,.25)">＋ הצעת מחיר חדשה</button>
+      <button onclick="toggleSearch()" style="background:#0d1f3c;color:#fff;border:none;border-radius:14px;padding:16px 18px;font-family:'Heebo',sans-serif;font-size:18px;cursor:pointer">🔍</button>
+    </div>
+
+    <!-- חיפוש -->
+    <div id="search-panel" style="display:none;margin-bottom:16px">
+      <input id="search-input" type="text" placeholder="חיפוש לפי שם או טלפון..." oninput="searchQuotes()" style="width:100%;border:1.5px solid #1a56db;border-radius:12px;padding:14px 16px;font-family:'Heebo',sans-serif;font-size:16px;color:#0d1f3c;outline:none;box-sizing:border-box">
+      <div id="search-results" style="margin-top:10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px"></div>
+    </div>
 
     <!-- ארכיון הצעות -->
     <div style="margin-top:24px">
@@ -954,7 +965,8 @@ function renderExistingQuotes() {
 
     html += '<div style="background:#fff;border:1.5px solid ' + (isDone ? '#16a34a' : '#dce6f5') + ';border-radius:14px;overflow:hidden;box-shadow:0 2px 8px rgba(13,31,60,.06)">';
     html += '<div style="background:#0d1f3c;padding:10px 14px">';
-    html += '<div style="font-size:16px;font-weight:900;color:#fff;margin-bottom:4px">' + (item.customer || 'לא ידוע') + '</div>';
+    html += '<div style="font-size:16px;font-weight:900;color:#fff;margin-bottom:2px">' + (item.customer || 'לא ידוע') + '</div>';
+    if (item.phone) html += '<div style="font-size:12px;color:#7a9ccf;margin-bottom:4px">' + item.phone + '</div>';
     if (dealStatus) {
       var bg = isDone ? '#16a34a' : '#fde047';
       var col = isDone ? '#fff' : '#000';
@@ -977,6 +989,64 @@ function renderExistingQuotes() {
     html += '</div>';
   });
   el.innerHTML = html;
+}
+
+function toggleSearch() {
+  var p = document.getElementById('search-panel');
+  var isOpen = p.style.display !== 'none';
+  p.style.display = isOpen ? 'none' : 'block';
+  if (!isOpen) {
+    document.getElementById('search-input').focus();
+    document.getElementById('search-results').innerHTML = '';
+    document.getElementById('search-input').value = '';
+  }
+}
+
+function searchQuotes() {
+  var q = document.getElementById('search-input').value.trim().toLowerCase();
+  var el = document.getElementById('search-results');
+  if (!q) { el.innerHTML = ''; return; }
+
+  var hist  = JSON.parse(localStorage.getItem('anak-quotes')         || '[]');
+  var archQ = JSON.parse(localStorage.getItem('anak-archive-quotes') || '[]');
+  var all = hist.map(function(i){ return {item: i, archived: false}; })
+    .concat(archQ.map(function(i){ return {item: i, archived: true}; }));
+
+  var matches = all.filter(function(e) {
+    var name  = (e.item.customer || '').toLowerCase();
+    var phone = (e.item.phone    || '').toLowerCase();
+    return name.indexOf(q) >= 0 || phone.indexOf(q) >= 0;
+  });
+
+  if (!matches.length) { el.innerHTML = '<div style="color:#7a9ab8;font-size:13px;padding:8px">לא נמצאו תוצאות</div>'; return; }
+
+  var html = '';
+  matches.forEach(function(e) {
+    var item = e.item;
+    var label = e.archived ? ' · ארכיון' : '';
+    var borderColor = e.archived ? '#c9a227' : '#1a56db';
+    var loadFn = e.archived ? 'loadArchivedQuoteFromSearch' : (item.inProcess ? 'loadQuoteReadOnly' : 'loadQuoteFromList');
+    html += '<div style="background:#fff;border:1.5px solid ' + borderColor + ';border-radius:14px;overflow:hidden;box-shadow:0 2px 8px rgba(13,31,60,.06)">';
+    html += '<div style="background:#0d1f3c;padding:10px 14px">';
+    html += '<div style="font-size:15px;font-weight:900;color:#fff;margin-bottom:2px">' + (item.customer || 'לא ידוע') + '</div>';
+    if (item.phone) html += '<div style="font-size:12px;color:#7a9ccf">' + item.phone + label + '</div>';
+    html += '</div>';
+    html += '<div style="padding:12px 16px;cursor:pointer" onclick="' + loadFn + '(' + JSON.stringify(item).replace(/"/g,'&quot;') + ')">';
+    if (item.newCar) html += '<div style="font-size:12px;font-weight:700;background:#fde047;border-radius:5px;padding:2px 7px;display:inline-block;margin-bottom:6px">' + item.newCar + '</div>';
+    html += '<div style="font-size:22px;font-weight:900;color:#1a56db">' + fmtQ(item.monthly) + '<span style="font-size:12px;color:#5a7aa5;font-weight:400"> /חודש</span></div>';
+    html += '<div style="font-size:11px;color:#7a9ab8;margin-top:4px">' + (item.date || '') + '</div>';
+    html += '</div></div>';
+  });
+  el.innerHTML = html;
+}
+
+function loadArchivedQuoteFromSearch(item) {
+  loadHistoryItem(item);
+  document.getElementById('quotes-list-section').style.display = 'none';
+  document.getElementById('quote-form-section').style.display = 'block';
+  document.getElementById('btn-quotes-screen').style.display = 'inline-block';
+  setReadOnly(true);
+  window.scrollTo(0, 0);
 }
 
 function hideAdvanceBtns() {
