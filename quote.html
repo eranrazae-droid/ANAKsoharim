@@ -652,15 +652,35 @@ var REQUIRED_FIELDS = [
 
 function validateRequiredFields() {
   var ok = true;
+  var firstBad = null;
   REQUIRED_FIELDS.forEach(function(f) {
     var el = document.getElementById(f.id);
     if (!el) return;
     var empty = !el.value.trim();
-    el.style.borderColor  = empty ? '#fca5a5' : '';
-    el.style.background   = empty ? '#fff5f5' : '';
+    el.style.borderColor  = empty ? '#ef4444' : '';
+    el.style.background   = empty ? '#fee2e2' : '';
+    if (empty && !firstBad) firstBad = el;
     if (empty) ok = false;
   });
+  if (!ok && firstBad) {
+    firstBad.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    showToast('לא ניתן לבצע את הפעולה — שדות חובה לא מלאים');
+  }
   return ok;
+}
+
+function showToast(msg) {
+  var t = document.getElementById('req-toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'req-toast';
+    t.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#dc2626;color:#fff;border-radius:12px;padding:12px 22px;font-family:Heebo,sans-serif;font-size:15px;font-weight:700;z-index:999;box-shadow:0 4px 20px rgba(0,0,0,.25);text-align:center;direction:rtl;white-space:nowrap';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.display = 'block';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(function(){ t.style.display = 'none'; }, 3000);
 }
 
 function clearFieldErrors() {
@@ -934,6 +954,7 @@ function hideAdvanceBtns() {
 }
 
 function advanceDeal() {
+  if (!validateRequiredFields()) return;
   var hist = JSON.parse(localStorage.getItem('anak-quotes') || '[]');
   if (!hist.length) { alert('אין הצעה פעילה לעדכון'); return; }
   var item = hist[0];
