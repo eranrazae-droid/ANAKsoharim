@@ -725,11 +725,29 @@ function buildQuoteItem(id, existingSaves) {
   };
 }
 
+function quoteValuesEqual(a, b) {
+  var keys = ['customer','phone','rep','financeRep','newCar','newPlate','newPrice','newListPrice','tradeIn','oldLoan','cash','oldCar','oldPlate','finance','monthly','n','track'];
+  return keys.every(function(k){ return String(a[k]||'') === String(b[k]||''); });
+}
+
 function manualSave() {
   if (!validateRequiredFields()) return;
   clearFieldErrors();
 
   var hist = JSON.parse(localStorage.getItem('anak-quotes') || '[]');
+
+  // בדוק זהות לגרסה הקיימת
+  if (_currentQuoteId) {
+    var existing = hist.find(function(h){ return h.id === _currentQuoteId; });
+    if (existing) {
+      var preview = buildQuoteItem(_currentQuoteId, existing.saves || []);
+      if (quoteValuesEqual(existing, preview)) {
+        showToast('לא ניתן לשמור — הערכים זהים לגרסה הקיימת');
+        return;
+      }
+    }
+  }
+
   var item;
   if (_currentQuoteId) {
     var idx = hist.findIndex(function(h){ return h.id === _currentQuoteId; });
