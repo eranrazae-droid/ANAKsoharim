@@ -297,8 +297,8 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
       <div class="deal-val computed" id="total-deal">—</div>
     </div>
     <div class="deal-row">
-      <div class="deal-label">כסף שהלקוח מביא</div>
-      <div class="deal-val"><input class="deal-input" id="cash" type="number" placeholder="0" oninput="calc()" inputmode="numeric"></div>
+      <div class="deal-label" style="display:flex;align-items:center;gap:6px">כסף שהלקוח מביא<button id="btn-cash-100" onclick="toggleCash100()" title="השלם ל-100% מימון" style="background:#0d1f3c;color:#fde047;border:none;border-radius:7px;padding:2px 8px;font-size:12px;font-weight:900;cursor:pointer;font-family:Heebo,sans-serif;line-height:1.4">100%</button></div>
+      <div class="deal-val"><input class="deal-input" id="cash" type="number" placeholder="0" oninput="onCashInput()" inputmode="numeric"></div>
     </div>
     <div class="deal-row finance-row">
       <div class="deal-label">סכום מימון</div>
@@ -523,6 +523,45 @@ function pmt(principal, rate, n) {
   var r = rate / 100 / 12;
   if (r === 0) return Math.round(principal / n);
   return Math.round(principal * r / (1 - Math.pow(1 + r, -n)));
+}
+
+var _cash100Active = false;
+
+function onCashInput() {
+  // אם המשתמש שינה ידנית — בטל את הכפתור
+  if (_cash100Active) {
+    _cash100Active = false;
+    var btn = document.getElementById('btn-cash-100');
+    if (btn) { btn.style.background = '#0d1f3c'; btn.style.color = '#fde047'; }
+  }
+  calc();
+}
+
+function toggleCash100() {
+  var btn      = document.getElementById('btn-cash-100');
+  var cashEl   = document.getElementById('cash');
+  if (_cash100Active) {
+    // לחיצה שנייה — מנקה
+    _cash100Active = false;
+    cashEl.value = '';
+    btn.style.background = '#0d1f3c';
+    btn.style.color = '#fde047';
+    calc();
+    return;
+  }
+  // חשב את הסכום הדרוש
+  var newPrice  = parseFloat(document.getElementById('new-price').value)      || 0;
+  var tradeIn   = parseFloat(document.getElementById('trade-in').value)       || 0;
+  var oldLoan   = parseFloat(document.getElementById('old-loan').value)       || 0;
+  var listPrice = parseFloat(document.getElementById('new-list-price').value) || 0;
+  if (!listPrice) { showToast('יש למלא מחירון כדי לחשב 100% מימון'); return; }
+  var needed = newPrice - tradeIn + oldLoan - listPrice;
+  if (needed < 0) needed = 0;
+  cashEl.value = needed;
+  _cash100Active = true;
+  btn.style.background = '#1a56db';
+  btn.style.color = '#fff';
+  calc();
 }
 
 function calc() {
@@ -1182,6 +1221,9 @@ function resetAll() {
   document.getElementById('finance-rep').selectedIndex = 0;
   document.getElementById('track-sel').selectedIndex = 0;
   document.getElementById('n-sel').selectedIndex = 0;
+  _cash100Active = false;
+  var btn = document.getElementById('btn-cash-100');
+  if (btn) { btn.style.background = '#0d1f3c'; btn.style.color = '#fde047'; }
   clearFieldErrors();
   calc();
   // שמור שמירות ו-id קיימים — נקה הכל מנקה רק שדות
