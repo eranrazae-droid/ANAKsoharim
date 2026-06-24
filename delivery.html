@@ -18,21 +18,39 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
 .hdr-logo span{color:#c9a227}
 .hdr-sub{font-size:12px;color:#7a9ccf;margin-top:2px}
 
-.page{max-width:680px;margin:0 auto;padding:30px 16px 40px;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;width:100%}
+.page{max-width:680px;margin:0 auto;padding:30px 16px 100px;width:100%}
 
-.icon{font-size:64px;margin-bottom:24px}
+.icon{font-size:56px;text-align:center;margin-bottom:20px}
 
-.main-title{font-size:22px;font-weight:900;color:#0d1f3c;line-height:1.5;margin-bottom:10px}
+.main-title{font-size:20px;font-weight:900;color:#0d1f3c;line-height:1.6;margin-bottom:10px;text-align:center}
 .main-title .company{color:#1a56db}
 .main-title .plate{color:#c9a227;background:#fff8dc;border-radius:8px;padding:2px 10px;display:inline-block}
-.main-title .amount{color:#16a34a;font-size:24px}
+.main-title .amount{color:#16a34a}
 .main-title .customer{color:#0ea5e9}
 
-.sub-line{font-size:16px;font-weight:700;color:#5a7aa5;margin-top:16px;padding:14px 20px;background:#fff;border-radius:12px;border:1px solid #dce6f5;box-shadow:0 2px 8px rgba(13,31,60,.06)}
+.sub-line{font-size:16px;font-weight:700;color:#5a7aa5;padding:14px 20px;background:#fff;border-radius:12px;border:1px solid #dce6f5;box-shadow:0 2px 8px rgba(13,31,60,.06);text-align:center;margin-bottom:20px}
 
-.nav-btns{display:flex;flex-direction:column;gap:10px;width:100%;max-width:400px;margin-top:32px}
-.btn-home{background:#0d1f3c;color:#fff;border:none;border-radius:14px;padding:16px;font-family:'Heebo',sans-serif;font-size:16px;font-weight:900;cursor:pointer}
-.btn-back{background:#fff;color:#5a7aa5;border:1.5px solid #dce6f5;border-radius:14px;padding:14px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:700;cursor:pointer;text-decoration:none;display:block;text-align:center}
+/* checklist */
+.check-item{background:#fff;border:2px solid #dce6f5;border-radius:14px;display:flex;align-items:center;gap:14px;padding:18px;cursor:pointer;transition:border-color .15s,background .15s;margin-bottom:10px}
+.check-item:hover{border-color:#0ea5e9}
+.check-item.done{background:#f0fdf4;border-color:#16a34a}
+.check-item.missing{border-color:#e02d2d;background:#fff0f0;animation:shake .3s}
+.check-box{width:32px;height:32px;border:2.5px solid #dce6f5;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px;transition:all .15s;background:#f5f8ff}
+.check-item.done .check-box{background:#16a34a;border-color:#16a34a;color:#fff}
+.check-label{font-size:16px;font-weight:700;color:#0d1f3c}
+.check-item.done .check-label{color:#166534}
+
+@keyframes shake{
+  0%,100%{transform:translateX(0)}
+  20%{transform:translateX(-6px)}
+  40%{transform:translateX(6px)}
+  60%{transform:translateX(-4px)}
+  80%{transform:translateX(4px)}
+}
+
+/* bottom fixed btn */
+.complete-btn{position:fixed;bottom:0;right:0;left:0;padding:16px 20px;background:#fff;border-top:1px solid #dce6f5}
+.complete-btn button{width:100%;max-width:640px;display:block;margin:0 auto;background:#16a34a;color:#fff;border:none;border-radius:14px;padding:18px;font-family:'Heebo',sans-serif;font-size:18px;font-weight:900;cursor:pointer;box-shadow:0 4px 16px rgba(22,163,74,.3)}
 </style>
 </head>
 <body>
@@ -48,23 +66,82 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
 <div class="page">
   <div class="icon">🚗</div>
   <div class="main-title" id="main-msg">טוען...</div>
+
   <div class="sub-line">לאחר המסירה ניתן לעשות העברת בעלות</div>
 
-  <div class="nav-btns">
-    <button class="btn-home" onclick="location.href='quotes.html'">← חזרה למימונים בתהליך</button>
-    <a class="btn-back" href="index.html">דף הבית</a>
+  <!-- צ'ק ליסט -->
+  <div id="ci-0" class="check-item" onclick="toggle(0)">
+    <div class="check-box" id="cb-0"></div>
+    <div class="check-label">בוצע בעלות</div>
+  </div>
+  <div id="ci-1" class="check-item" onclick="toggle(1)">
+    <div class="check-box" id="cb-1"></div>
+    <div class="check-label">נשלחה מסירה חתומה לחברת המימון</div>
   </div>
 </div>
 
+<div class="complete-btn">
+  <button onclick="finish()">מברוק !! סיימנו את העסקה 💯</button>
+</div>
+
 <script>
+var checks = [false, false];
+var dealIdx = 0;
+
 function fmt(n){ return '₪ ' + Math.round(n||0).toLocaleString('he-IL'); }
 
-(function(){
-  var params = new URLSearchParams(location.search);
-  var idx = parseInt(params.get('i') || '0');
+function getCheckKey(d){ return 'anak-delivery-checks-' + (d.id || d.createdAt || dealIdx); }
+
+function toggle(i) {
+  checks[i] = !checks[i];
+  render();
+  // שמור
   var deals = JSON.parse(localStorage.getItem('anak-deals') || '[]');
-  var d = deals[idx];
+  if (deals[dealIdx]) {
+    localStorage.setItem(getCheckKey(deals[dealIdx]), JSON.stringify(checks));
+  }
+}
+
+function render() {
+  for (var i = 0; i < 2; i++) {
+    var ci = document.getElementById('ci-' + i);
+    var cb = document.getElementById('cb-' + i);
+    if (checks[i]) { ci.className = 'check-item done'; cb.textContent = '✓'; }
+    else           { ci.className = 'check-item';      cb.textContent = '';  }
+  }
+}
+
+function finish() {
+  var first = checks.indexOf(false);
+  if (first >= 0) {
+    var ci = document.getElementById('ci-' + first);
+    ci.className = 'check-item missing';
+    ci.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(function(){ ci.className = checks[first] ? 'check-item done' : 'check-item'; }, 1200);
+    return;
+  }
+  // עדכן סטטוס סופי
+  var deals = JSON.parse(localStorage.getItem('anak-deals') || '[]');
+  if (deals[dealIdx]) {
+    deals[dealIdx].dealStatus = 'הושלם';
+    deals[dealIdx].statusChangedAt = Date.now();
+    deals[dealIdx].completedAt = deals[dealIdx].completedAt || Date.now();
+    localStorage.setItem('anak-deals', JSON.stringify(deals));
+  }
+  location.href = 'quotes.html';
+}
+
+(function init(){
+  var params = new URLSearchParams(location.search);
+  dealIdx = parseInt(params.get('i') || '0');
+  var deals = JSON.parse(localStorage.getItem('anak-deals') || '[]');
+  var d = deals[dealIdx];
   if (!d) { document.getElementById('main-msg').textContent = 'לא נמצאה עסקה'; return; }
+
+  // טען מצב שמור
+  var saved = JSON.parse(localStorage.getItem(getCheckKey(d)) || '[]');
+  if (saved.length === 2) checks = saved;
+  render();
 
   var chosen = null;
   if (d.approvalPlans) d.approvalPlans.forEach(function(p){ if (p.chosen) chosen = p; });
@@ -74,8 +151,7 @@ function fmt(n){ return '₪ ' + Math.round(n||0).toLocaleString('he-IL'); }
   var plate    = d.newPlate || '—';
   var customer = d.customer || '—';
 
-  var el = document.getElementById('main-msg');
-  el.innerHTML =
+  document.getElementById('main-msg').innerHTML =
     'ממתין לאישור מסירה מחברת המימון ' +
     '<span class="company">' + company + '</span>' +
     ' עבור רכב שמספרו ' +
