@@ -112,12 +112,16 @@ function render() {
 }
 
 function finish() {
-  var first = checks.indexOf(false);
-  if (first >= 0) {
-    var ci = document.getElementById('ci-' + first);
-    ci.className = 'check-item missing';
-    ci.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    setTimeout(function(){ ci.className = checks[first] ? 'check-item done' : 'check-item'; }, 1200);
+  var missing = [];
+  for (var i = 0; i < 2; i++) { if (!checks[i]) missing.push(i); }
+  if (missing.length > 0) {
+    missing.forEach(function(i) {
+      var ci = document.getElementById('ci-' + i);
+      ci.className = 'check-item missing';
+      setTimeout(function(idx){ return function(){ document.getElementById('ci-'+idx).className = checks[idx] ? 'check-item done' : 'check-item'; }; }(i), 1200);
+    });
+    var firstCi = document.getElementById('ci-' + missing[0]);
+    firstCi.scrollIntoView({ behavior: 'smooth', block: 'center' });
     return;
   }
   // עדכן סטטוס סופי
