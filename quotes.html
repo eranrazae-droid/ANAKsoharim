@@ -153,15 +153,12 @@ function fmt(n){ return '₪ ' + Math.round(n||0).toLocaleString('he-IL'); }
 function pad(n){ return n < 10 ? '0'+n : ''+n; }
 
 function fmtElapsed(ms) {
-  var s = Math.floor(ms / 1000);
-  var h = Math.floor(s / 3600);
-  var m = Math.floor((s % 3600) / 60);
-  var sec = s % 60;
-  var parts = [];
-  if (h) parts.push(h + 'ש\'');
-  parts.push(pad(m) + 'ד\'');
-  parts.push(pad(sec) + 'ש"');
-  return parts.join(' ');
+  if (ms < 0) ms = 0;
+  var totalMin = Math.floor(ms / 60000);
+  var d = Math.floor(totalMin / 1440);
+  var h = Math.floor((totalMin % 1440) / 60);
+  var m = totalMin % 60;
+  return d + ':' + h + ':' + m;
 }
 
 function getDeals(){ return JSON.parse(localStorage.getItem('anak-deals') || '[]'); }
