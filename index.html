@@ -349,9 +349,12 @@ function waBank(key) {
 function updateQuoteCount() {
   var deals = JSON.parse(localStorage.getItem('anak-deals') || '[]');
   var done = deals.filter(function(d){ return d.dealStatus === 'הושלם'; }).length;
-  var inProgress = deals.length - done;
+  var rejected = deals.filter(function(d){ return d.dealStatus === 'נדחה'; }).length;
+  var inProgress = deals.length - done - rejected;
   var el = document.getElementById('quotes-count');
-  if (el) el.innerHTML = inProgress + ' בתהליך &nbsp;·&nbsp; ' + done + ' הושלמו';
+  var txt = inProgress + ' בתהליך &nbsp;·&nbsp; ' + done + ' הושלמו';
+  if (rejected) txt += ' &nbsp;·&nbsp; <span style="color:#ef4444">' + rejected + ' נדחו</span>';
+  if (el) el.innerHTML = txt;
 }
 updateQuoteCount();
 
