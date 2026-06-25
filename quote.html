@@ -919,6 +919,7 @@ function renderHistory() {
 
 function openNewQuote() {
   setCurrentQuoteId(null);
+  sessionStorage.setItem('anak-new-quote', '1');
   resetAll();
   renderSessionSaves([]);
   document.getElementById('action-row').style.display = 'none';
@@ -929,6 +930,7 @@ function openNewQuote() {
 }
 
 function closeQuoteForm() {
+  sessionStorage.removeItem('anak-new-quote');
   setReadOnly(false);
   document.getElementById('quote-form-section').style.display = 'none';
   document.getElementById('quotes-list-section').style.display = 'block';
@@ -1352,6 +1354,7 @@ function openArchivedQuote(i) {
   var params = new URLSearchParams(location.search);
   if (params.get('screen') === 'list') {
     sessionStorage.removeItem('anak-current-quote-id');
+    sessionStorage.removeItem('anak-new-quote');
     renderExistingQuotes();
     return;
   }
@@ -1367,6 +1370,12 @@ function openArchivedQuote(i) {
       if (item.inProcess) { hideAdvanceBtns(); setTimeout(function(){ setReadOnly(true); }, 50); }
       return;
     }
+  }
+  if (sessionStorage.getItem('anak-new-quote')) {
+    document.getElementById('quotes-list-section').style.display = 'none';
+    document.getElementById('quote-form-section').style.display = 'block';
+    document.getElementById('btn-quotes-screen').style.display = 'inline-block';
+    return;
   }
   renderExistingQuotes();
 })();
