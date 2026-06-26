@@ -981,6 +981,17 @@ if ('serviceWorker' in navigator) {
 </div>
 
 <!-- ====== NOTIFY SETTINGS MODAL ====== -->
+<div class="modal-overlay" id="modal-broadcast">
+  <div class="modal-box">
+    <div class="modal-title">📢 הודעה לכל הנהגים <button class="modal-close" onclick="closeModal('modal-broadcast')">✕</button></div>
+    <div class="form-group">
+      <label>הודעה</label>
+      <textarea class="form-input" id="broadcast-text" rows="5" style="resize:vertical" placeholder="כתוב הודעה..."></textarea>
+    </div>
+    <button class="btn-submit" id="broadcast-send-btn" onclick="sendBroadcast()">📤 שלח לכל הנהגים</button>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-notify-settings">
   <div class="modal-box" style="max-height:85vh;overflow-y:auto">
     <div class="modal-title">📲 הגדרות הודעות WhatsApp <button class="modal-close" onclick="closeModal('modal-notify-settings')">✕</button></div>
@@ -1263,6 +1274,7 @@ function renderHome() {
         { icon: '📦', title: 'בדיקת מלאי', sub: 'סימון רכבים במגרש', screen: 'inventory' },
         { icon: '🕳️', title: 'בורות', sub: 'ניהול בדיקות בבורות', screen: 'pits' },
         { icon: '📲', title: 'הודעות WhatsApp', sub: 'הגדרות התראות לנהגים', screen: '_notify' },
+        { icon: '📢', title: 'הודעה לנהגים', sub: 'שלח SMS לכל הנהגים', screen: '_broadcast' },
       ]
     : [
         { icon: '📋', title: 'המשימות שלי', sub: 'משימות שהוקצו לך', screen: 'tasks' },
@@ -1298,6 +1310,7 @@ function goToScreen(name) {
   else if (name === 'pits') openPitsScreen();
   else if (name === 'driver-inventory') openDriverInventoryScreen();
   else if (name === '_notify') openNotifySettings();
+  else if (name === '_broadcast') openBroadcast();
 }
 
 function loadStats() {
@@ -4602,6 +4615,28 @@ async function resendIntakeNotify(driver, plate, brand, model) {
 window.resendIntakeNotify = resendIntakeNotify;
 window.openNotifySettings = openNotifySettings;
 window.saveNotifySettings = saveNotifySettings;
+
+function openBroadcast() {
+  document.getElementById('broadcast-text').value = '';
+  openModal('modal-broadcast');
+}
+async function sendBroadcast() {
+  const msg = document.getElementById('broadcast-text').value.trim();
+  if (!msg) return showToast('כתוב הודעה קודם');
+  const btn = document.getElementById('broadcast-send-btn');
+  btn.disabled = true; btn.textContent = '⏳ שולח...';
+  try {
+    await _notifyAllDrivers(msg);
+    showToast('✅ ההודעה נשלחה לכל הנהגים!');
+    closeModal('modal-broadcast');
+  } catch(e) {
+    showToast('⚠️ שגיאה בשליחה: ' + (e.message || e));
+  } finally {
+    btn.disabled = false; btn.textContent = '📤 שלח לכל הנהגים';
+  }
+}
+window.openBroadcast = openBroadcast;
+window.sendBroadcast = sendBroadcast;
 window.testWhatsApp = testWhatsApp;
 
 // ─── Live Intake View ─────────────────────────────────
