@@ -883,7 +883,7 @@ if ('serviceWorker' in navigator) {
 <!-- ====== MODAL: EDIT INTAKE ====== -->
 <div class="modal-overlay" id="modal-edit-intake">
   <div class="modal-box">
-    <div class="modal-title">עריכת קליטה <button class="modal-close" onclick="closeModal('modal-edit-intake')">✕</button></div>
+    <div class="modal-title">עריכת קליטה <button class="modal-close" onclick="if(_eiUnsub){_eiUnsub();_eiUnsub=null;}closeModal('modal-edit-intake')">✕</button></div>
     <input type="hidden" id="ei-id">
     <div class="form-group">
       <label>לוחית רישוי</label>
@@ -2119,19 +2119,25 @@ function loadVehicles() {
 }
 
 /* ── EDIT INTAKE (manager) ── */
+let _eiUnsub = null;
 function openEditIntake(id) {
-  import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(({getDoc, doc}) => {
-    getDoc(doc(window._db, 'intake_assignments', id)).then(snap => {
+  if (_eiUnsub) { _eiUnsub(); _eiUnsub = null; }
+  import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(({onSnapshot, doc}) => {
+    _eiUnsub = onSnapshot(doc(window._db, 'intake_assignments', id), snap => {
       if (!snap.exists()) return showToast('לא נמצאה קליטה');
       const v = snap.data();
-      document.getElementById('ei-id').value    = id;
-      document.getElementById('ei-plate').value = v.plate  || '';
-      document.getElementById('ei-brand').value = v.brand  || '';
-      document.getElementById('ei-model').value = v.model  || '';
-      document.getElementById('ei-color').value = v.color  || '';
-      document.getElementById('ei-year').value  = v.year   || '';
-      document.getElementById('ei-spot').value  = v.spot   || '';
-      document.getElementById('ei-driver').value = v.assignedTo || 'עופר';
+      // populate metadata fields only on first open (modal not yet shown)
+      if (!document.getElementById('modal-edit-intake').classList.contains('open')) {
+        document.getElementById('ei-id').value    = id;
+        document.getElementById('ei-plate').value = v.plate  || '';
+        document.getElementById('ei-brand').value = v.brand  || '';
+        document.getElementById('ei-model').value = v.model  || '';
+        document.getElementById('ei-color').value = v.color  || '';
+        document.getElementById('ei-year').value  = v.year   || '';
+        document.getElementById('ei-spot').value  = v.spot   || '';
+        document.getElementById('ei-driver').value = v.assignedTo || 'עופר';
+      }
+      document.getElementById('ei-id').value = id;
       // render liveDraft checklist
       const draft = v.liveDraft || {};
       const checks = draft.checks || {};
@@ -2204,7 +2210,9 @@ function openEditIntake(id) {
         </div>`;
       }).join('');
       document.getElementById('ei-intake-form').style.display = '';
-      openModal('modal-edit-intake');
+      if (!document.getElementById('modal-edit-intake').classList.contains('open')) {
+        openModal('modal-edit-intake');
+      }
     });
   });
 }
@@ -2262,6 +2270,7 @@ async function saveEditIntake() {
       assignedTo: document.getElementById('ei-driver').value,
       liveDraft,
     });
+    if (_eiUnsub) { _eiUnsub(); _eiUnsub = null; }
     closeModal('modal-edit-intake');
     showToast('✅ הקליטה עודכנה!');
   } catch(e) {
