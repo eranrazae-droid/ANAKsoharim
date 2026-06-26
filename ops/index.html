@@ -878,6 +878,15 @@ if ('serviceWorker' in navigator) {
         <option value="איתי">איתי</option>
       </select>
     </div>
+    <div id="ei-intake-form" style="margin-top:16px;border-top:2px solid var(--border);padding-top:14px;display:none">
+      <div style="font-weight:700;font-size:15px;margin-bottom:12px;color:var(--primary)">📋 טופס קליטה נוכחי</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+        <div class="form-group" style="margin:0"><label>ק"מ</label><input class="form-input" id="ei-km" placeholder="לא הוזן"></div>
+        <div class="form-group" style="margin:0"><label>קוד</label><input class="form-input" id="ei-code" placeholder="לא הוזן"></div>
+      </div>
+      <div id="ei-checklist" style="display:flex;flex-direction:column;gap:8px"></div>
+      <div class="form-group" style="margin-top:12px"><label>הערה כללית</label><textarea class="form-input" id="ei-general" rows="2" style="resize:vertical"></textarea></div>
+    </div>
     <button class="btn-submit" onclick="saveEditIntake()">💾 שמור שינויים</button>
   </div>
 </div>
@@ -2074,14 +2083,118 @@ function openEditIntake(id) {
       document.getElementById('ei-year').value  = v.year   || '';
       document.getElementById('ei-spot').value  = v.spot   || '';
       document.getElementById('ei-driver').value = v.assignedTo || 'עופר';
+      // render liveDraft checklist
+      const draft = v.liveDraft || {};
+      const checks = draft.checks || {};
+      const notes  = draft.notes  || {};
+      const dashChecks = draft.dashChecks || {};
+      document.getElementById('ei-km').value      = draft.km      || '';
+      document.getElementById('ei-code').value    = draft.code    || '';
+      document.getElementById('ei-general').value = draft.general || '';
+      const eiLabels = {
+        'c-battery-original':  'בדיקת מצבר',
+        'c-battery-is-original':'מצבר מקורי',
+        'c-oil':       'שמן מנוע',
+        'c-coolant':   'נוזל קירור',
+        'c-safety':    "ג'ק, אפוד, משולש, גלגל ספייר",
+        'c-lights-break':'שברים בפנסים',
+        'c-glass-break':'שברים בשמשות',
+        'c-bulbs':     'מנורות שרופות',
+        'c-frames-ext':'מסגרות',
+        'c-tires':     'מצב צמיגים',
+        'c-glove':     'ניקיון תא כפפות',
+        'c-windows':   'מתגי חלונות',
+        'c-ac':        'מזגן',
+        'c-dashboard': 'מנורות לוח שעונים',
+        'c-sunroof':   'גג נפתח',
+        'c-upholstery':'ריפודים (חורים/קרעים)',
+        'c-mats':      'שטיחים',
+        'c-steering':  'הגה – קילופים'
+      };
+      const dashLabels = {
+        'dash-check-engine':"צ'ק אנג'ין",
+        'dash-tire-pressure':'לחץ אוויר',
+        'dash-service':'טיפול',
+        'dash-collision':'התגשות',
+        'dash-fuel':'דלק',
+        'dash-other':'אחר'
+      };
+      const cl = document.getElementById('ei-checklist');
+      cl.innerHTML = Object.entries(eiLabels).map(([key, label]) => {
+        const val = checks[key] || '';
+        const note = notes[key] || '';
+        let extraHTML = '';
+        if (key === 'c-battery-is-original') {
+          const bMonth = draft.batteryMonth || '';
+          const bNoDate = draft.batteryNoDate || false;
+          extraHTML = `<div style="margin-top:6px;font-size:12px;display:flex;align-items:center;gap:8px">
+            <label style="font-size:12px"><input type="checkbox" id="ei-bnodate" ${bNoDate?'checked':''}> לא רואים תאריך</label>
+            <input type="month" id="ei-bmonth" class="form-input" style="font-size:12px;padding:3px 6px;height:auto;width:140px" value="${bMonth}">
+          </div>`;
+        }
+        if (key === 'c-dashboard') {
+          extraHTML = `<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px">` +
+            Object.entries(dashLabels).map(([dk, dl]) =>
+              `<label style="font-size:12px;display:flex;align-items:center;gap:3px"><input type="checkbox" data-dash="${dk}" ${dashChecks[dk]?'checked':''}> ${dl}</label>`
+            ).join('') + '</div>';
+        }
+        return `<div style="background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:10px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+            <span style="font-size:13px;font-weight:600">${label}</span>
+            <div style="display:flex;gap:6px">
+              <button onclick="_eiToggle(this,'v')" data-key="${key}" data-state="${val==='v'?'v':''}" style="padding:4px 12px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:700;background:${val==='v'?'#16a34a':'#e2e8f0'};color:${val==='v'?'#fff':'#475569'}">✅</button>
+              <button onclick="_eiToggle(this,'x')" data-key="${key}" data-state="${val==='x'?'x':''}" style="padding:4px 12px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:700;background:${val==='x'?'#dc2626':'#e2e8f0'};color:${val==='x'?'#fff':'#475569'}">❌</button>
+            </div>
+          </div>
+          ${extraHTML}
+          <input type="text" data-note-key="${key}" class="form-input" style="margin-top:6px;font-size:12px;padding:4px 8px;height:auto" placeholder="הערה..." value="${esc(note)}">
+        </div>`;
+      }).join('');
+      document.getElementById('ei-intake-form').style.display = '';
       openModal('modal-edit-intake');
     });
   });
+}
+function _eiToggle(btn, state) {
+  const key = btn.dataset.key;
+  const row = btn.closest('div[style*="background:var(--card-bg)"]');
+  const [vBtn, xBtn] = row.querySelectorAll('button[data-key]');
+  const isActive = btn.dataset.state === state;
+  // toggle
+  vBtn.dataset.state = ''; xBtn.dataset.state = '';
+  vBtn.style.background = '#e2e8f0'; vBtn.style.color = '#475569';
+  xBtn.style.background = '#e2e8f0'; xBtn.style.color = '#475569';
+  if (!isActive) {
+    btn.dataset.state = state;
+    if (state === 'v') { btn.style.background = '#16a34a'; btn.style.color = '#fff'; }
+    else               { btn.style.background = '#dc2626'; btn.style.color = '#fff'; }
+  }
 }
 
 async function saveEditIntake() {
   const id = document.getElementById('ei-id').value;
   if (!id) return;
+  // collect checklist
+  const checks = {}, notes = {}, dashChecks = {};
+  document.querySelectorAll('#ei-checklist button[data-key]').forEach(btn => {
+    if (btn.dataset.state) checks[btn.dataset.key] = btn.dataset.state;
+  });
+  document.querySelectorAll('#ei-checklist input[data-note-key]').forEach(inp => {
+    if (inp.value.trim()) notes[inp.dataset.noteKey] = inp.value.trim();
+  });
+  document.querySelectorAll('#ei-checklist input[data-dash]').forEach(cb => {
+    dashChecks[cb.dataset.dash] = cb.checked;
+  });
+  const bNoDate = document.getElementById('ei-bnodate')?.checked || false;
+  const bMonth  = document.getElementById('ei-bmonth')?.value || '';
+  const liveDraft = {
+    checks, notes, dashChecks,
+    km:      document.getElementById('ei-km').value.trim(),
+    code:    document.getElementById('ei-code').value.trim(),
+    general: document.getElementById('ei-general').value.trim(),
+    batteryNoDate: bNoDate,
+    batteryMonth:  bMonth,
+  };
   try {
     await _updateDoc(_docRef('intake_assignments', id), {
       plate:      document.getElementById('ei-plate').value.trim(),
@@ -2091,6 +2204,7 @@ async function saveEditIntake() {
       year:       document.getElementById('ei-year').value,
       spot:       document.getElementById('ei-spot').value.trim(),
       assignedTo: document.getElementById('ei-driver').value,
+      liveDraft,
     });
     closeModal('modal-edit-intake');
     showToast('✅ הקליטה עודכנה!');
@@ -3665,6 +3779,7 @@ window.viewIntakeForm = viewIntakeForm;
 window.deleteIntake = deleteIntake;
 window.openEditIntake = openEditIntake;
 window.saveEditIntake = saveEditIntake;
+window._eiToggle = _eiToggle;
 window.openDriverIntake = openDriverIntake;
 window.submitDriverIntake = submitDriverIntake;
 window.ciClick = ciClick;
