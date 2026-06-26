@@ -515,6 +515,33 @@ if ('serviceWorker' in navigator) {
     </div>
     <div id="di-vehicle-info" style="background:#f0f2ff;border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:14px;line-height:1.8"></div>
 
+    <!-- רכב חשמלי -->
+    <div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:12px;padding:12px 14px;margin-bottom:14px">
+      <label style="display:flex;align-items:center;gap:10px;font-size:15px;font-weight:700;cursor:pointer">
+        <input type="checkbox" id="di-is-electric" style="width:20px;height:20px;accent-color:#16a34a" onchange="evToggle(this)">
+        ⚡ רכב חשמלי
+      </label>
+      <div id="di-ev-fields" style="display:none;margin-top:10px;display:none">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div>
+            <label style="font-size:12px;font-weight:600;color:#15803d;display:block;margin-bottom:4px">אחוז טעינה</label>
+            <div style="position:relative;display:flex;align-items:center">
+              <input type="number" id="di-ev-charge" min="0" max="100" inputmode="numeric"
+                class="form-input" style="padding-left:28px" placeholder="0–100"
+                oninput="this.value=Math.min(100,Math.max(0,parseInt(this.value)||0))" onchange="saveIntakeDraft()">
+              <span style="position:absolute;left:10px;font-weight:700;color:#15803d;font-size:13px">%</span>
+            </div>
+          </div>
+          <div>
+            <label style="font-size:12px;font-weight:600;color:#15803d;display:block;margin-bottom:4px">טווח טעינה (ק"מ)</label>
+            <input type="number" id="di-ev-range" min="0" inputmode="numeric"
+              class="form-input" placeholder="קמ"
+              oninput="this.value=this.value.replace(/[^0-9]/g,'')" onchange="saveIntakeDraft()">
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- צ'קליסט -->
     <div class="section-title">🔍 בדיקות חוץ</div>
 
@@ -880,6 +907,27 @@ if ('serviceWorker' in navigator) {
     </div>
     <div id="ei-intake-form" style="margin-top:16px;border-top:2px solid var(--border);padding-top:14px;display:none">
       <div style="font-weight:700;font-size:15px;margin-bottom:12px;color:var(--primary)">📋 טופס קליטה נוכחי</div>
+      <div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:10px 12px;margin-bottom:12px">
+        <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;cursor:pointer">
+          <input type="checkbox" id="ei-is-electric" style="width:18px;height:18px;accent-color:#16a34a" onchange="eiEvToggle(this)">
+          ⚡ רכב חשמלי
+        </label>
+        <div id="ei-ev-fields" style="display:none;margin-top:8px;display:none">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div>
+              <label style="font-size:12px;font-weight:600;color:#15803d;display:block;margin-bottom:3px">אחוז טעינה</label>
+              <div style="position:relative;display:flex;align-items:center">
+                <input type="number" id="ei-ev-charge" min="0" max="100" class="form-input" style="padding-left:24px" placeholder="0–100">
+                <span style="position:absolute;left:8px;font-weight:700;color:#15803d;font-size:13px">%</span>
+              </div>
+            </div>
+            <div>
+              <label style="font-size:12px;font-weight:600;color:#15803d;display:block;margin-bottom:3px">טווח טעינה (ק"מ)</label>
+              <input type="number" id="ei-ev-range" min="0" class="form-input" placeholder="ק"מ">
+            </div>
+          </div>
+        </div>
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
         <div class="form-group" style="margin:0"><label>ק"מ</label><input class="form-input" id="ei-km" placeholder="לא הוזן"></div>
         <div class="form-group" style="margin:0"><label>קוד</label><input class="form-input" id="ei-code" placeholder="לא הוזן"></div>
@@ -2091,6 +2139,10 @@ function openEditIntake(id) {
       document.getElementById('ei-km').value      = draft.km      || '';
       document.getElementById('ei-code').value    = draft.code    || '';
       document.getElementById('ei-general').value = draft.general || '';
+      const eiEvCb = document.getElementById('ei-is-electric');
+      if (eiEvCb) { eiEvCb.checked = !!draft.isElectric; eiEvToggle(eiEvCb); }
+      const eiEvC = document.getElementById('ei-ev-charge'); if (eiEvC) eiEvC.value = draft.evCharge || '';
+      const eiEvR = document.getElementById('ei-ev-range');  if (eiEvR) eiEvR.value = draft.evRange  || '';
       const eiLabels = {
         'c-battery-original':  'בדיקת מצבר',
         'c-battery-is-original':'מצבר מקורי',
@@ -2192,6 +2244,9 @@ async function saveEditIntake() {
     km:      document.getElementById('ei-km').value.trim(),
     code:    document.getElementById('ei-code').value.trim(),
     general: document.getElementById('ei-general').value.trim(),
+    isElectric: !!(document.getElementById('ei-is-electric')?.checked),
+    evCharge: document.getElementById('ei-ev-charge')?.value || '',
+    evRange:  document.getElementById('ei-ev-range')?.value  || '',
     batteryNoDate: bNoDate,
     batteryMonth:  bMonth,
   };
@@ -2227,6 +2282,7 @@ function openDriverIntake(id) {
     r.style.display = 'none';
   });
   document.querySelectorAll('#modal-driver-intake textarea, #modal-driver-intake input[type=number], #di-code').forEach(t => t.value = '');
+  const evCb = document.getElementById('di-is-electric'); if (evCb) { evCb.checked = false; const f = document.getElementById('di-ev-fields'); if (f) f.style.display = 'none'; }
   ['c-lights-break','c-glass-break','c-upholstery','c-mats','c-windows','c-steering'].forEach(k => {
     ciPhotoFiles[k] = [];
     renderPhotoGrid(k);
@@ -2719,6 +2775,13 @@ function batteryNoDateToggle(cb) {
 }
 window.batteryNoDateToggle = batteryNoDateToggle;
 
+function evToggle(cb) {
+  const fields = document.getElementById('di-ev-fields');
+  if (fields) fields.style.display = cb.checked ? 'block' : 'none';
+  saveIntakeDraft();
+}
+window.evToggle = evToggle;
+
 function addBatteryPhoto(input) {
   const files = [...input.files];
   _batteryPhotoFiles.push(...files.slice(0, 4 - _batteryPhotoFiles.length));
@@ -2860,7 +2923,10 @@ function saveIntakeDraft() {
     km:   document.getElementById('di-km')?.value   || '',
     code: document.getElementById('di-code')?.value || '',
     general: document.getElementById('di-notes')?.value || '',
-    batteryMonth: document.getElementById('di-battery-month')?.value || ''
+    batteryMonth: document.getElementById('di-battery-month')?.value || '',
+    isElectric: !!(document.getElementById('di-is-electric')?.checked),
+    evCharge:   document.getElementById('di-ev-charge')?.value  || '',
+    evRange:    document.getElementById('di-ev-range')?.value   || '',
   };
   try { localStorage.setItem('intake_draft_' + _currentIntakeId, JSON.stringify(draft)); } catch(e) {}
   // sync draft to Firestore for real-time manager view (debounced)
@@ -2919,6 +2985,10 @@ function restoreIntakeDraft(id) {
     if (draft.code)    { const el = document.getElementById('di-code');  if (el) el.value = draft.code; }
     if (draft.general) { const el = document.getElementById('di-notes'); if (el) el.value = draft.general; }
     if (draft.batteryMonth) { const el = document.getElementById('di-battery-month'); if (el) el.value = draft.batteryMonth; }
+    const evCb = document.getElementById('di-is-electric');
+    if (evCb) { evCb.checked = !!draft.isElectric; evToggle(evCb); }
+    if (draft.evCharge) { const el = document.getElementById('di-ev-charge'); if (el) el.value = draft.evCharge; }
+    if (draft.evRange)  { const el = document.getElementById('di-ev-range');  if (el) el.value = draft.evRange; }
     // restore dashboard checkboxes
     Object.entries(draft.dashChecks || {}).forEach(([id, checked]) => {
       const el = document.getElementById(id); if (el) { el.checked = checked; }
@@ -3780,6 +3850,11 @@ window.deleteIntake = deleteIntake;
 window.openEditIntake = openEditIntake;
 window.saveEditIntake = saveEditIntake;
 window._eiToggle = _eiToggle;
+function eiEvToggle(cb) {
+  const f = document.getElementById('ei-ev-fields');
+  if (f) f.style.display = cb.checked ? 'block' : 'none';
+}
+window.eiEvToggle = eiEvToggle;
 window.openDriverIntake = openDriverIntake;
 window.submitDriverIntake = submitDriverIntake;
 window.ciClick = ciClick;
@@ -4580,6 +4655,7 @@ function _renderLiveIntakeModal() {
     '<div style="font-weight:900;font-size:17px">🚗 ' + esc(doc.plate||'—') + '</div>' +
     '<div style="color:#475569;margin-top:2px">נהג: <strong>' + esc(doc.assignedTo||'') + '</strong>' + (doc.brand||doc.model?' · '+esc(((doc.brand||'')+' '+(doc.model||'')).trim()):'') + '</div>' +
     '<div style="font-size:13px;margin-top:4px">ק"מ: <strong>'+(draft.km?esc(draft.km):'<span style="color:#94a3b8">לא הוזן</span>')+'</strong> &nbsp;|&nbsp; קוד: <strong>'+(draft.code?esc(draft.code):'<span style="color:#94a3b8">לא הוזן</span>')+'</strong></div>' +
+    (draft.isElectric ? '<div style="font-size:13px;margin-top:4px;color:#15803d;font-weight:700">⚡ רכב חשמלי'+(draft.evCharge?' · טעינה: '+esc(draft.evCharge)+'%':'')+(draft.evRange?' · טווח: '+esc(draft.evRange)+' ק"מ':'')+'</div>' : '') +
     '<div style="margin-top:8px;background:#e2e8f0;border-radius:999px;height:8px"><div style="width:'+pct+'%;background:#22c55e;height:8px;border-radius:999px;transition:width .4s"></div></div>' +
     '<div style="font-size:12px;color:#64748b;margin-top:4px">'+totalChecked+' מתוך '+totalLabels+' בדיקות'+(ts?' · עדכון: '+ts:' · טרם התחיל')+'</div>' +
     '</div><div style="display:flex;flex-direction:column;gap:6px">';
