@@ -918,13 +918,13 @@ if ('serviceWorker' in navigator) {
             <div>
               <label style="font-size:12px;font-weight:600;color:#15803d;display:block;margin-bottom:3px">אחוז טעינה</label>
               <div style="position:relative;display:flex;align-items:center">
-                <input type="number" id="ei-ev-charge" min="0" max="100" class="form-input no-spinner" style="padding-left:24px" placeholder="">
+                <input type="number" id="ei-ev-charge" min="0" max="100" class="form-input no-spinner" style="padding-left:24px" placeholder="" oninput="saveEiLive()">
                 <span style="position:absolute;left:8px;font-weight:700;color:#15803d;font-size:13px">%</span>
               </div>
             </div>
             <div>
               <label style="font-size:12px;font-weight:600;color:#15803d;display:block;margin-bottom:3px">טווח טעינה (ק"מ)</label>
-              <input type="number" id="ei-ev-range" min="0" class="form-input no-spinner" placeholder="">
+              <input type="number" id="ei-ev-range" min="0" class="form-input no-spinner" placeholder="" oninput="saveEiLive()">
             </div>
           </div>
         </div>
@@ -3854,8 +3854,29 @@ window._eiToggle = _eiToggle;
 function eiEvToggle(cb) {
   const f = document.getElementById('ei-ev-fields');
   if (f) f.style.display = cb.checked ? 'block' : 'none';
+  saveEiLive();
 }
 window.eiEvToggle = eiEvToggle;
+
+function saveEiLive() {
+  const id = document.getElementById('ei-id')?.value;
+  if (!id) return;
+  clearTimeout(window._eiLiveTimer);
+  window._eiLiveTimer = setTimeout(async () => {
+    try {
+      const snap = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js')
+        .then(({getDoc, doc}) => getDoc(doc(window._db, 'intake_assignments', id)));
+      const existing = snap.exists() ? (snap.data().liveDraft || {}) : {};
+      const merged = Object.assign({}, existing, {
+        isElectric: !!(document.getElementById('ei-is-electric')?.checked),
+        evCharge:   document.getElementById('ei-ev-charge')?.value  || '',
+        evRange:    document.getElementById('ei-ev-range')?.value   || '',
+      });
+      await _updateDoc(_docRef('intake_assignments', id), { liveDraft: merged, liveUpdatedAt: new Date().toISOString() });
+    } catch(e) { console.warn('saveEiLive error', e); }
+  }, 800);
+}
+window.saveEiLive = saveEiLive;
 window.openDriverIntake = openDriverIntake;
 window.submitDriverIntake = submitDriverIntake;
 window.ciClick = ciClick;
