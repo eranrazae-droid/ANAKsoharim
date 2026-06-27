@@ -2133,98 +2133,110 @@ function loadVehicles() {
 
 /* ── EDIT INTAKE (manager) ── */
 let _eiUnsub = null;
+let _eiLoaded = false;
+const _eiLabels = {
+  'c-battery-original':  'בדיקת מצבר',
+  'c-battery-is-original':'מצבר מקורי',
+  'c-oil':       'שמן מנוע',
+  'c-coolant':   'נוזל קירור',
+  'c-safety':    "ג'ק, אפוד, משולש, גלגל ספייר",
+  'c-lights-break':'שברים בפנסים',
+  'c-glass-break':'שברים בשמשות',
+  'c-bulbs':     'מנורות שרופות',
+  'c-frames-ext':'מסגרות',
+  'c-tires':     'מצב צמיגים',
+  'c-glove':     'ניקיון תא כפפות',
+  'c-windows':   'מתגי חלונות',
+  'c-ac':        'מזגן',
+  'c-dashboard': 'מנורות לוח שעונים',
+  'c-sunroof':   'גג נפתח',
+  'c-upholstery':'ריפודים (חורים/קרעים)',
+  'c-mats':      'שטיחים',
+  'c-steering':  'הגה – קילופים'
+};
+const _eiDashLabels = {
+  'dash-check-engine':"צ'ק אנג'ין",
+  'dash-tire-pressure':'לחץ אוויר',
+  'dash-service':'טיפול',
+  'dash-collision':'התגשות',
+  'dash-fuel':'דלק',
+  'dash-other':'אחר'
+};
+function _renderEiChecklist(draft) {
+  const checks = draft.checks || {};
+  const notes  = draft.notes  || {};
+  const dashChecks = draft.dashChecks || {};
+  const cl = document.getElementById('ei-checklist');
+  cl.innerHTML = Object.entries(_eiLabels).map(([key, label]) => {
+    const val = checks[key] || '';
+    const note = notes[key] || '';
+    let extraHTML = '';
+    if (key === 'c-battery-is-original') {
+      const bMonth = draft.batteryMonth || '';
+      const bNoDate = draft.batteryNoDate || false;
+      extraHTML = `<div style="margin-top:6px;font-size:12px;display:flex;align-items:center;gap:8px">
+        <label style="font-size:12px"><input type="checkbox" id="ei-bnodate" ${bNoDate?'checked':''}> לא רואים תאריך</label>
+        <input type="month" id="ei-bmonth" class="form-input" style="font-size:12px;padding:3px 6px;height:auto;width:140px" value="${bMonth}">
+      </div>`;
+    }
+    if (key === 'c-dashboard') {
+      extraHTML = `<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px">` +
+        Object.entries(_eiDashLabels).map(([dk, dl]) =>
+          `<label style="font-size:12px;display:flex;align-items:center;gap:3px"><input type="checkbox" data-dash="${dk}" ${dashChecks[dk]?'checked':''}> ${dl}</label>`
+        ).join('') + '</div>';
+    }
+    return `<div style="background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <span style="font-size:13px;font-weight:600">${label}</span>
+        <div style="display:flex;gap:6px">
+          <button onclick="_eiToggle(this,'v')" data-key="${key}" data-state="${val==='v'?'v':''}" style="padding:4px 12px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:700;background:${val==='v'?'#16a34a':'#e2e8f0'};color:${val==='v'?'#fff':'#475569'}">✅</button>
+          <button onclick="_eiToggle(this,'x')" data-key="${key}" data-state="${val==='x'?'x':''}" style="padding:4px 12px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:700;background:${val==='x'?'#dc2626':'#e2e8f0'};color:${val==='x'?'#fff':'#475569'}">❌</button>
+        </div>
+      </div>
+      ${extraHTML}
+      <input type="text" data-note-key="${key}" class="form-input" style="margin-top:6px;font-size:12px;padding:4px 8px;height:auto" placeholder="הערה..." value="${esc(note)}">
+    </div>`;
+  }).join('');
+}
 function openEditIntake(id) {
   if (_eiUnsub) { _eiUnsub(); _eiUnsub = null; }
+  _eiLoaded = false;
   import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(({onSnapshot, doc}) => {
     _eiUnsub = onSnapshot(doc(window._db, 'intake_assignments', id), snap => {
       if (!snap.exists()) return showToast('לא נמצאה קליטה');
       const v = snap.data();
-      // populate metadata fields only on first open (modal not yet shown)
-      if (!document.getElementById('modal-edit-intake').classList.contains('open')) {
-        document.getElementById('ei-id').value    = id;
-        document.getElementById('ei-plate').value = v.plate  || '';
-        document.getElementById('ei-brand').value = v.brand  || '';
-        document.getElementById('ei-model').value = v.model  || '';
-        document.getElementById('ei-color').value = v.color  || '';
-        document.getElementById('ei-year').value  = v.year   || '';
-        document.getElementById('ei-spot').value  = v.spot   || '';
-        document.getElementById('ei-driver').value = v.assignedTo || 'עופר';
-      }
-      document.getElementById('ei-id').value = id;
-      // render liveDraft checklist
       const draft = v.liveDraft || {};
-      const checks = draft.checks || {};
-      const notes  = draft.notes  || {};
-      const dashChecks = draft.dashChecks || {};
-      document.getElementById('ei-km').value      = draft.km      || '';
-      document.getElementById('ei-code').value    = draft.code    || '';
-      document.getElementById('ei-general').value = draft.general || '';
-      const eiEvCb = document.getElementById('ei-is-electric');
-      if (eiEvCb) { eiEvCb.checked = !!draft.isElectric; eiEvToggle(eiEvCb); }
-      const eiEvC = document.getElementById('ei-ev-charge'); if (eiEvC) eiEvC.value = draft.evCharge || '';
-      const eiEvR = document.getElementById('ei-ev-range');  if (eiEvR) eiEvR.value = draft.evRange  || '';
-      const eiLabels = {
-        'c-battery-original':  'בדיקת מצבר',
-        'c-battery-is-original':'מצבר מקורי',
-        'c-oil':       'שמן מנוע',
-        'c-coolant':   'נוזל קירור',
-        'c-safety':    "ג'ק, אפוד, משולש, גלגל ספייר",
-        'c-lights-break':'שברים בפנסים',
-        'c-glass-break':'שברים בשמשות',
-        'c-bulbs':     'מנורות שרופות',
-        'c-frames-ext':'מסגרות',
-        'c-tires':     'מצב צמיגים',
-        'c-glove':     'ניקיון תא כפפות',
-        'c-windows':   'מתגי חלונות',
-        'c-ac':        'מזגן',
-        'c-dashboard': 'מנורות לוח שעונים',
-        'c-sunroof':   'גג נפתח',
-        'c-upholstery':'ריפודים (חורים/קרעים)',
-        'c-mats':      'שטיחים',
-        'c-steering':  'הגה – קילופים'
-      };
-      const dashLabels = {
-        'dash-check-engine':"צ'ק אנג'ין",
-        'dash-tire-pressure':'לחץ אוויר',
-        'dash-service':'טיפול',
-        'dash-collision':'התגשות',
-        'dash-fuel':'דלק',
-        'dash-other':'אחר'
-      };
-      const cl = document.getElementById('ei-checklist');
-      cl.innerHTML = Object.entries(eiLabels).map(([key, label]) => {
-        const val = checks[key] || '';
-        const note = notes[key] || '';
-        let extraHTML = '';
-        if (key === 'c-battery-is-original') {
-          const bMonth = draft.batteryMonth || '';
-          const bNoDate = draft.batteryNoDate || false;
-          extraHTML = `<div style="margin-top:6px;font-size:12px;display:flex;align-items:center;gap:8px">
-            <label style="font-size:12px"><input type="checkbox" id="ei-bnodate" ${bNoDate?'checked':''}> לא רואים תאריך</label>
-            <input type="month" id="ei-bmonth" class="form-input" style="font-size:12px;padding:3px 6px;height:auto;width:140px" value="${bMonth}">
-          </div>`;
-        }
-        if (key === 'c-dashboard') {
-          extraHTML = `<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px">` +
-            Object.entries(dashLabels).map(([dk, dl]) =>
-              `<label style="font-size:12px;display:flex;align-items:center;gap:3px"><input type="checkbox" data-dash="${dk}" ${dashChecks[dk]?'checked':''}> ${dl}</label>`
-            ).join('') + '</div>';
-        }
-        return `<div style="background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:10px">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-            <span style="font-size:13px;font-weight:600">${label}</span>
-            <div style="display:flex;gap:6px">
-              <button onclick="_eiToggle(this,'v')" data-key="${key}" data-state="${val==='v'?'v':''}" style="padding:4px 12px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:700;background:${val==='v'?'#16a34a':'#e2e8f0'};color:${val==='v'?'#fff':'#475569'}">✅</button>
-              <button onclick="_eiToggle(this,'x')" data-key="${key}" data-state="${val==='x'?'x':''}" style="padding:4px 12px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:700;background:${val==='x'?'#dc2626':'#e2e8f0'};color:${val==='x'?'#fff':'#475569'}">❌</button>
-            </div>
-          </div>
-          ${extraHTML}
-          <input type="text" data-note-key="${key}" class="form-input" style="margin-top:6px;font-size:12px;padding:4px 8px;height:auto" placeholder="הערה..." value="${esc(note)}">
-        </div>`;
-      }).join('');
-      document.getElementById('ei-intake-form').style.display = '';
-      if (!document.getElementById('modal-edit-intake').classList.contains('open')) {
+      if (!_eiLoaded) {
+        // First load: populate everything
+        _eiLoaded = true;
+        document.getElementById('ei-id').value     = id;
+        document.getElementById('ei-plate').value  = v.plate  || '';
+        document.getElementById('ei-brand').value  = v.brand  || '';
+        document.getElementById('ei-model').value  = v.model  || '';
+        document.getElementById('ei-color').value  = v.color  || '';
+        document.getElementById('ei-year').value   = v.year   || '';
+        document.getElementById('ei-spot').value   = v.spot   || '';
+        document.getElementById('ei-driver').value = v.assignedTo || 'עופר';
+        document.getElementById('ei-km').value     = draft.km      || '';
+        document.getElementById('ei-code').value   = draft.code    || '';
+        document.getElementById('ei-general').value = draft.general || '';
+        const eiEvCb = document.getElementById('ei-is-electric');
+        if (eiEvCb) { eiEvCb.checked = !!draft.isElectric; eiEvToggle(eiEvCb); }
+        const eiEvC = document.getElementById('ei-ev-charge'); if (eiEvC) eiEvC.value = draft.evCharge || '';
+        const eiEvR = document.getElementById('ei-ev-range');  if (eiEvR) eiEvR.value = draft.evRange  || '';
+        _renderEiChecklist(draft);
+        document.getElementById('ei-intake-form').style.display = '';
         openModal('modal-edit-intake');
+      } else {
+        // Subsequent updates: only refresh EV/km/code from driver, never touch checklist
+        if (document.activeElement?.id !== 'ei-km')   document.getElementById('ei-km').value   = draft.km   || '';
+        if (document.activeElement?.id !== 'ei-code')  document.getElementById('ei-code').value  = draft.code  || '';
+        const eiEvCb = document.getElementById('ei-is-electric');
+        if (eiEvCb && document.activeElement !== eiEvCb) { eiEvCb.checked = !!draft.isElectric; eiEvToggle(eiEvCb); }
+        const eiEvC = document.getElementById('ei-ev-charge');
+        if (eiEvC && document.activeElement !== eiEvC) eiEvC.value = draft.evCharge || '';
+        const eiEvR = document.getElementById('ei-ev-range');
+        if (eiEvR && document.activeElement !== eiEvR) eiEvR.value = draft.evRange || '';
       }
     });
   });
