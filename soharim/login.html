@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>מחשבון מימונים — כניסה</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:'Heebo',sans-serif;
+  background:#0d1f3c;
+  min-height:100vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:24px 16px;
+}
+
+.box{
+  width:100%;
+  max-width:380px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:32px;
+}
+
+/* ── LOGO ── */
+.logo{text-align:center}
+.logo-main{font-size:36px;font-weight:900;color:#fff}
+.logo-main span{color:#c9a227}
+.logo-sub{font-size:14px;color:#7a9ccf;margin-top:6px}
+
+/* ── CARD ── */
+.card{
+  background:#fff;
+  border-radius:22px;
+  padding:32px 28px;
+  width:100%;
+  box-shadow:0 12px 50px rgba(0,0,0,.35);
+}
+.card-title{
+  font-size:16px;font-weight:700;color:#0d1f3c;
+  text-align:center;margin-bottom:24px;
+}
+
+/* ── INPUT ── */
+.fld{display:flex;flex-direction:column;gap:7px;margin-bottom:20px}
+.fld label{font-size:12px;font-weight:700;color:#5a7aa5;letter-spacing:.05em;text-transform:uppercase}
+.fld-wrap{position:relative}
+.fld input{
+  width:100%;
+  border:2px solid #dce6f5;
+  border-radius:12px;
+  padding:14px 48px 14px 16px;
+  font-family:'Heebo',sans-serif;
+  font-size:20px;
+  font-weight:700;
+  color:#0d1f3c;
+  outline:none;
+  background:#f5f8ff;
+  transition:border-color .15s;
+  letter-spacing:3px;
+}
+.fld input:focus{border-color:#1a56db;background:#fff}
+.fld input::placeholder{letter-spacing:0;font-weight:400;font-size:15px;color:#bcc8dc}
+.eye-btn{
+  position:absolute;
+  left:14px;top:50%;transform:translateY(-50%);
+  background:none;border:none;cursor:pointer;
+  font-size:20px;color:#7a9ccf;
+  padding:0;line-height:1;
+}
+
+/* ── SUBMIT ── */
+.submit-btn{
+  width:100%;
+  background:#1a56db;
+  color:#fff;
+  border:none;
+  border-radius:13px;
+  padding:16px;
+  font-family:'Heebo',sans-serif;
+  font-size:17px;
+  font-weight:900;
+  cursor:pointer;
+  transition:background .15s, transform .1s;
+  box-shadow:0 4px 20px rgba(26,86,219,.35);
+}
+.submit-btn:hover{background:#1448c0}
+.submit-btn:active{transform:scale(.98)}
+
+/* ── ERROR ── */
+.error{
+  display:none;
+  background:#fee2e2;
+  border:1.5px solid #fca5a5;
+  border-radius:10px;
+  padding:11px 14px;
+  font-size:14px;
+  font-weight:700;
+  color:#991b1b;
+  text-align:center;
+  margin-top:14px;
+}
+.error.show{display:block}
+
+/* ── FOOTER ── */
+.footer{font-size:12px;color:#2a4a7a;text-align:center}
+</style>
+</head>
+<body>
+
+<div class="box">
+
+  <div class="logo">
+    <div class="logo-main">מחשבון <span>מימונים</span></div>
+    <div class="logo-sub">כלי מקצועי לסוחרי רכב</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">כניסה למערכת</div>
+
+    <div class="fld">
+      <label>סיסמה</label>
+      <div class="fld-wrap">
+        <input type="password" id="pass" placeholder="הכנס סיסמה" onkeydown="if(event.key==='Enter')login()">
+        <button class="eye-btn" type="button" onclick="toggleEye()" id="eye-btn">👁</button>
+      </div>
+    </div>
+
+    <button class="submit-btn" onclick="login()">כניסה</button>
+
+    <div class="error" id="error">סיסמה שגויה — נסה שנית</div>
+  </div>
+
+  <div class="footer">מחשבון מימונים · גישה מורשית בלבד</div>
+
+</div>
+
+<script>
+var PASSWORD = '1234';
+var eyeOpen = false;
+
+function toggleEye(){
+  eyeOpen = !eyeOpen;
+  var inp = document.getElementById('pass');
+  inp.type = eyeOpen ? 'text' : 'password';
+  document.getElementById('eye-btn').textContent = eyeOpen ? '🙈' : '👁';
+}
+
+function login(){
+  var val = document.getElementById('pass').value;
+  if(val === PASSWORD){
+    sessionStorage.setItem('mm-auth','1');
+    window.location.href = 'מחשבון-מימונים.html';
+  } else {
+    var err = document.getElementById('error');
+    err.classList.add('show');
+    document.getElementById('pass').value = '';
+    document.getElementById('pass').focus();
+    setTimeout(function(){ err.classList.remove('show'); }, 3000);
+  }
+}
+
+// אם כבר מחובר — עבור ישירות
+if(sessionStorage.getItem('mm-auth') === '1'){
+  window.location.href = 'מחשבון-מימונים.html';
+}
+</script>
+</body>
+</html>
