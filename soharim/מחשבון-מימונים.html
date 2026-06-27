@@ -9,12 +9,12 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Heebo',sans-serif;background:#0d1f3c;min-height:100vh}
 
-/* ── SCREENS ── */
-#screen-login{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px 16px}
-#screen-calc {display:none;align-items:center;justify-content:center;flex-direction:column;min-height:100vh;padding:24px 16px 48px}
+.screen{display:none;min-height:100vh}
+.screen.active{display:flex}
 
 /* ══ LOGIN ══ */
-.login-box{width:100%;max-width:380px;display:flex;flex-direction:column;align-items:center;gap:32px}
+#screen-login{align-items:center;justify-content:center;padding:24px 16px}
+.login-box{width:100%;max-width:360px;display:flex;flex-direction:column;align-items:center;gap:32px}
 .logo-main{font-size:36px;font-weight:900;color:#fff;text-align:center}
 .logo-main span{color:#c9a227}
 .logo-sub{font-size:14px;color:#7a9ccf;margin-top:6px;text-align:center}
@@ -43,6 +43,7 @@ body{font-family:'Heebo',sans-serif;background:#0d1f3c;min-height:100vh}
 .login-error.show{display:block}
 
 /* ══ CALCULATOR ══ */
+#screen-calc{align-items:center;justify-content:center;flex-direction:column;padding:24px 16px 48px}
 .calc-logo{font-size:26px;font-weight:900;color:#fff;text-align:center;margin-bottom:24px}
 .calc-logo span{color:#c9a227}
 
@@ -93,7 +94,7 @@ body{font-family:'Heebo',sans-serif;background:#0d1f3c;min-height:100vh}
 <body>
 
 <!-- ══ LOGIN SCREEN ══ -->
-<div id="screen-login">
+<div id="screen-login" class="screen active">
   <div class="login-box">
     <div>
       <div class="logo-main">מחשבון <span>מימונים</span></div>
@@ -104,31 +105,31 @@ body{font-family:'Heebo',sans-serif;background:#0d1f3c;min-height:100vh}
       <div class="fld">
         <label>סיסמה</label>
         <div class="fld-wrap">
-          <input type="password" id="pass" placeholder="הכנס סיסמה" onkeydown="if(event.key==='Enter')login()">
-          <button class="eye-btn" type="button" onclick="toggleEye()" id="eye-btn">👁</button>
+          <input type="password" id="pass" placeholder="הכנס סיסמה" autocomplete="off">
+          <button class="eye-btn" type="button" id="eye-btn">👁</button>
         </div>
       </div>
-      <button class="submit-btn" onclick="login()">כניסה</button>
+      <button class="submit-btn" id="login-btn">כניסה</button>
       <div class="login-error" id="login-error">סיסמה שגויה — נסה שנית</div>
     </div>
   </div>
 </div>
 
 <!-- ══ CALCULATOR SCREEN ══ -->
-<div id="screen-calc">
+<div id="screen-calc" class="screen">
   <div class="calc-logo">מחשבון <span>מימונים</span></div>
 
   <div class="card">
 
     <div class="cfld">
       <label>סכום מימון (₪)</label>
-      <input type="number" id="loan" placeholder="200,000" inputmode="numeric" oninput="calc()">
+      <input type="number" id="loan" placeholder="200,000" inputmode="numeric">
     </div>
 
     <div class="row2">
       <div class="cfld">
         <label>ריבית שנתית</label>
-        <select id="rate" onchange="calc()">
+        <select id="rate">
           <option value="3.5">3.5%</option>
           <option value="3.8">3.8%</option>
           <option value="4.0">4.0%</option>
@@ -151,7 +152,7 @@ body{font-family:'Heebo',sans-serif;background:#0d1f3c;min-height:100vh}
       </div>
       <div class="cfld">
         <label>תשלומים</label>
-        <select id="n" onchange="calc()">
+        <select id="n">
           <option value="12">12</option>
           <option value="24">24</option>
           <option value="36">36</option>
@@ -166,13 +167,13 @@ body{font-family:'Heebo',sans-serif;background:#0d1f3c;min-height:100vh}
     </div>
 
     <label class="balloon-toggle">
-      <input type="checkbox" id="balloon-chk" onchange="toggleBalloon()">
+      <input type="checkbox" id="balloon-chk">
       <span>הוסף בלון</span>
     </label>
 
     <div class="balloon-field" id="balloon-field">
       <label>סכום בלון (₪)</label>
-      <input type="number" id="balloon" placeholder="ברירת מחדל: 50% מהסכום" inputmode="numeric" oninput="calc()">
+      <input type="number" id="balloon" placeholder="ברירת מחדל: 50% מהסכום" inputmode="numeric">
     </div>
 
     <div class="result" id="result">
@@ -193,87 +194,87 @@ body{font-family:'Heebo',sans-serif;background:#0d1f3c;min-height:100vh}
 
   </div>
 
-  <button class="logout-btn" onclick="logout()">יציאה</button>
+  <button class="logout-btn" id="logout-btn">יציאה</button>
 </div>
 
 <script>
-var PASSWORD = '1234';
+var PASS = '1234';
 var eyeOpen = false;
 
-function toggleEye(){
-  eyeOpen = !eyeOpen;
-  document.getElementById('pass').type = eyeOpen ? 'text' : 'password';
-  document.getElementById('eye-btn').textContent = eyeOpen ? '🙈' : '👁';
+function showScreen(id) {
+  document.getElementById('screen-login').className = 'screen' + (id === 'login' ? ' active' : '');
+  document.getElementById('screen-calc').className  = 'screen' + (id === 'calc'  ? ' active' : '');
 }
 
-function login(){
-  if(document.getElementById('pass').value === PASSWORD){
-    sessionStorage.setItem('mm-auth','1');
-    showCalc();
+function doLogin() {
+  var val = document.getElementById('pass').value.trim();
+  if (val === PASS) {
+    sessionStorage.setItem('mm', '1');
+    showScreen('calc');
   } else {
     var err = document.getElementById('login-error');
-    err.classList.add('show');
+    err.className = 'login-error show';
     document.getElementById('pass').value = '';
     document.getElementById('pass').focus();
-    setTimeout(function(){ err.classList.remove('show'); }, 3000);
+    setTimeout(function(){ err.className = 'login-error'; }, 3000);
   }
 }
 
-function logout(){
-  sessionStorage.removeItem('mm-auth');
-  document.getElementById('screen-calc').style.display = 'none';
-  document.getElementById('screen-login').style.display = 'flex';
+document.getElementById('login-btn').addEventListener('click', doLogin);
+document.getElementById('pass').addEventListener('keydown', function(e){ if(e.key==='Enter') doLogin(); });
+document.getElementById('eye-btn').addEventListener('click', function(){
+  eyeOpen = !eyeOpen;
+  document.getElementById('pass').type = eyeOpen ? 'text' : 'password';
+  document.getElementById('eye-btn').textContent = eyeOpen ? '🙈' : '👁';
+});
+document.getElementById('logout-btn').addEventListener('click', function(){
+  sessionStorage.removeItem('mm');
   document.getElementById('pass').value = '';
-}
+  showScreen('login');
+});
 
-function showCalc(){
-  document.getElementById('screen-login').style.display = 'none';
-  document.getElementById('screen-calc').style.display = 'flex';
-}
-
-// אם כבר מחובר
-if(sessionStorage.getItem('mm-auth') === '1') showCalc();
+if (sessionStorage.getItem('mm') === '1') showScreen('calc');
 
 /* ══ CALCULATOR ══ */
-function toggleBalloon(){
-  var on = document.getElementById('balloon-chk').checked;
+function pmt(p, r, n, b) {
+  b = b || 0;
+  if (!p || !n) return 0;
+  var mr = r / 100 / 12;
+  if (mr === 0) return Math.round((p - b) / n);
+  return Math.round((p - b / Math.pow(1+mr, n)) * mr / (1 - Math.pow(1+mr, -n)));
+}
+
+function fmt(n){ return '₪ ' + Math.round(n).toLocaleString('he-IL'); }
+
+function calc() {
+  var loan = parseFloat(document.getElementById('loan').value) || 0;
+  var rate = parseFloat(document.getElementById('rate').value);
+  var n    = parseInt(document.getElementById('n').value);
+  var hasBalloon = document.getElementById('balloon-chk').checked;
+  var bInput = document.getElementById('balloon').value;
+  var balloon = hasBalloon ? (bInput !== '' ? parseFloat(bInput) : Math.round(loan * 0.5)) : 0;
+  var res = document.getElementById('result');
+  if (!loan) { res.className = 'result'; return; }
+  var monthly = pmt(loan, rate, n, balloon);
+  var intMonth = Math.round(monthly - loan / n);
+  var totalInt = Math.max(0, monthly * n - loan + balloon);
+  res.className = 'result show';
+  document.getElementById('r-monthly').textContent = monthly.toLocaleString('he-IL');
+  document.getElementById('r-sub').textContent = n + ' תשלומים' + (hasBalloon ? ' · בלון ' + fmt(balloon) : '');
+  document.getElementById('r-interest').textContent = fmt(intMonth) + ' /חודש';
+  document.getElementById('r-total-interest').textContent = fmt(totalInt);
+}
+
+document.getElementById('loan').addEventListener('input', calc);
+document.getElementById('rate').addEventListener('change', calc);
+document.getElementById('n').addEventListener('change', calc);
+document.getElementById('balloon').addEventListener('input', calc);
+document.getElementById('balloon-chk').addEventListener('change', function(){
+  var on = this.checked;
   document.getElementById('balloon-field').className = 'balloon-field' + (on ? ' show' : '');
   document.getElementById('n').value = on ? '60' : '100';
   calc();
-}
-
-function pmt(p, rate, n, balloon){
-  balloon = balloon || 0;
-  if(!p || !n) return 0;
-  var r = rate / 100 / 12;
-  if(r === 0) return Math.round((p - balloon) / n);
-  var pvB = balloon / Math.pow(1 + r, n);
-  return Math.round((p - pvB) * r / (1 - Math.pow(1 + r, -n)));
-}
-
-function fmt(n){ return '₪ ' + Math.round(n).toLocaleString('he-IL'); }
-
-function calc(){
-  var loan    = parseFloat(document.getElementById('loan').value) || 0;
-  var rate    = parseFloat(document.getElementById('rate').value);
-  var n       = parseInt(document.getElementById('n').value);
-  var hasBalloon = document.getElementById('balloon-chk').checked;
-  var balloonInput = document.getElementById('balloon').value;
-  var balloon = hasBalloon ? (balloonInput !== '' ? parseFloat(balloonInput) : Math.round(loan * 0.5)) : 0;
-
-  var result = document.getElementById('result');
-  if(!loan){ result.classList.remove('show'); return; }
-
-  var monthly = pmt(loan, rate, n, balloon);
-  var interestPerMonth = Math.round(monthly - loan / n);
-  var totalInterest = Math.max(0, monthly * n - loan + balloon);
-
-  result.classList.add('show');
-  document.getElementById('r-monthly').textContent = monthly.toLocaleString('he-IL');
-  document.getElementById('r-sub').textContent = n + ' תשלומים' + (hasBalloon ? ' · בלון ' + fmt(balloon) : '');
-  document.getElementById('r-interest').textContent = fmt(interestPerMonth) + ' /חודש';
-  document.getElementById('r-total-interest').textContent = fmt(totalInterest);
-}
+});
 </script>
 </body>
 </html>
