@@ -214,6 +214,7 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
 .loading{display:flex;align-items:center;justify-content:center;padding:40px;color:var(--muted);gap:10px;font-size:14px}
 .spinner{width:20px;height:20px;border:3px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
+@keyframes slideDown{from{transform:translateY(-100%);opacity:0}to{transform:translateY(0);opacity:1}}
 
 /* ===== RESPONSIVE ===== */
 @media(min-width:600px){
@@ -265,6 +266,7 @@ if ('serviceWorker' in navigator) {
 
 <!-- ====== SCREEN: HOME ====== -->
 <div id="screen-home" class="screen">
+  <div id="task-notif-stack" style="position:fixed;top:0;left:0;right:0;z-index:9000;display:flex;flex-direction:column;align-items:center;pointer-events:none"></div>
   <div class="app-header">
     <div class="logo">ענק <span>הרכבים</span></div>
     <div class="user-badge" id="home-user-badge" onclick="logout()">יציאה</div>
@@ -1409,6 +1411,59 @@ function loadDriverBadges() {
   } catch(e) { console.warn('loadDriverBadges error', e); }
 }
 
+/* ── Task done notifications ── */
+const _taskNotifQueue = [];
+let _taskNotifSeenIds = null;
+function _getNotifSeenIds() {
+  if (_taskNotifSeenIds) return _taskNotifSeenIds;
+  try { _taskNotifSeenIds = new Set(JSON.parse(localStorage.getItem('anak_notif_done') || '[]')); }
+  catch { _taskNotifSeenIds = new Set(); }
+  return _taskNotifSeenIds;
+}
+function _saveNotifSeenIds() {
+  try { localStorage.setItem('anak_notif_done', JSON.stringify([..._taskNotifSeenIds].slice(-200))); } catch {}
+}
+function _pushTaskNotif(driverName, taskTitle) {
+  _taskNotifQueue.push({ driverName, taskTitle });
+  if (_taskNotifQueue.length === 1) _showNextTaskNotif();
+}
+function _showNextTaskNotif() {
+  const stack = document.getElementById('task-notif-stack');
+  if (!stack || !_taskNotifQueue.length) return;
+  const { driverName, taskTitle } = _taskNotifQueue[0];
+  const bar = document.createElement('div');
+  bar.style.cssText = 'width:100%;max-width:520px;background:#1e293b;color:#f8fafc;padding:13px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;pointer-events:all;box-shadow:0 4px 18px rgba(0,0,0,.35);border-bottom:3px solid #22c55e;font-family:Heebo,sans-serif;animation:slideDown .3s ease';
+  bar.innerHTML = `<span style="font-size:14px;font-weight:700;flex:1">✅ <strong style="color:#86efac">${esc(driverName)}</strong> סיים את המשימה: <span style="color:#fde68a">${esc(taskTitle)}</span></span><button onclick="this.closest('div').remove();_taskNotifQueue.shift();_showNextTaskNotif()" style="background:none;border:none;color:#94a3b8;font-size:20px;cursor:pointer;line-height:1;padding:0 4px;flex-shrink:0">✕</button>`;
+  stack.innerHTML = '';
+  stack.appendChild(bar);
+}
+let _taskDoneListenerInit = false;
+function listenForTaskDone() {
+  if (_taskDoneListenerInit || currentUser?.role !== 'manager') return;
+  _taskDoneListenerInit = true;
+  const seen = _getNotifSeenIds();
+  let firstRun = true;
+  _onSnap(_query(_colRef('tasks'), _where('status','==','done')), snap => {
+    if (firstRun) {
+      // seed seen IDs on first load so we don't flood on page open
+      snap.docs.forEach(d => seen.add(d.id));
+      _saveNotifSeenIds();
+      firstRun = false;
+      return;
+    }
+    snap.docs.forEach(d => {
+      if (!seen.has(d.id)) {
+        seen.add(d.id);
+        _saveNotifSeenIds();
+        const data = d.data();
+        const driver = data.doneBy || data.assignedTo || 'נהג';
+        const title  = data.title || 'משימה';
+        _pushTaskNotif(driver, title);
+      }
+    });
+  });
+}
+
 function loadManagerBadges() {
   if (!window._CONFIG_DONE) return;
   try {
@@ -1421,6 +1476,7 @@ function loadManagerBadges() {
     _onSnap(_query(_colRef('inventory_assignments'), _where('status','==','done')), snap => {
       _setCardBadge('inventory', snap.size);
     });
+    listenForTaskDone();
   } catch(e) { console.warn('loadManagerBadges error', e); }
 }
 
@@ -1887,7 +1943,10 @@ async function deleteTask(id) {
 function toggleTaskDone(id, currentStatus) {
   if (!window._CONFIG_DONE) return showToast('Firebase לא מחובר');
   const newStatus = currentStatus === 'done' ? 'open' : 'done';
-  _updateDoc(_docRef('tasks', id), { status: newStatus });
+  const extra = newStatus === 'done'
+    ? { doneBy: currentUser.name, doneAt: _serverTs() }
+    : { doneBy: '', doneAt: null };
+  _updateDoc(_docRef('tasks', id), { status: newStatus, ...extra });
 }
 
 function openNewTaskModal() {
