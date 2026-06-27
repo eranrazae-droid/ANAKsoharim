@@ -171,11 +171,13 @@ function pad(n){ return n < 10 ? '0'+n : ''+n; }
 
 function fmtElapsed(ms) {
   if (ms < 0) ms = 0;
-  var totalMin = Math.floor(ms / 60000);
-  var d = Math.floor(totalMin / 1440);
-  var h = Math.floor((totalMin % 1440) / 60);
-  var m = totalMin % 60;
-  return d + ':' + h + ':' + m;
+  var totalSec = Math.floor(ms / 1000);
+  var d = Math.floor(totalSec / 86400);
+  var h = Math.floor((totalSec % 86400) / 3600);
+  var m = Math.floor((totalSec % 3600) / 60);
+  var s = totalSec % 60;
+  function z(n){ return n < 10 ? '0' + n : String(n); }
+  return z(d) + ':' + z(h) + ':' + z(m) + ':' + z(s);
 }
 
 function getDeals(){ return JSON.parse(localStorage.getItem('anak-deals') || '[]'); }
@@ -249,8 +251,8 @@ function dealCardHTML(d, i) {
     var createdMs  = done ? (ref - (d.createdAt || ref)) : null;
     var statusMs   = done ? (ref - (d.statusChangedAt || d.createdAt || ref)) : null;
     var timerCreated = done
-      ? '<div style="font-size:12px;font-weight:900;color:#9ca3af;font-variant-numeric:tabular-nums">' + fmtElapsed(createdMs) + '</div>'
-      : '<div class="timer-created" style="font-size:12px;font-weight:900;color:#4ade80;font-variant-numeric:tabular-nums" data-createdat="' + d.createdAt + '">' + fmtElapsed(Date.now() - d.createdAt) + '</div>';
+      ? '<div style="font-size:16px;font-weight:900;color:#9ca3af;font-variant-numeric:tabular-nums;letter-spacing:2px">' + fmtElapsed(createdMs) + '</div>'
+      : '<div class="timer-created" style="font-size:16px;font-weight:900;color:#4ade80;font-variant-numeric:tabular-nums;letter-spacing:2px" data-createdat="' + d.createdAt + '">' + fmtElapsed(Date.now() - d.createdAt) + '</div>';
     var timerStatus = done
       ? '<div style="font-size:12px;font-weight:900;color:#9ca3af;font-variant-numeric:tabular-nums">' + fmtElapsed(statusMs) + '</div>'
       : '<div class="timer-status" style="font-size:12px;font-weight:900;color:#facc15;font-variant-numeric:tabular-nums" data-statusat="' + (d.statusChangedAt||d.createdAt) + '">' + fmtElapsed(Date.now() - (d.statusChangedAt||d.createdAt)) + '</div>';
@@ -280,14 +282,10 @@ function dealCardHTML(d, i) {
             (d.financeRep ? '<div style="font-size:11px;color:#5a7aa5;margin-top:6px;font-weight:600">נציג מימון: ' + d.financeRep + '</div>' : '');
         }()) +
       '</div>' +
-      '<div style="background:#0d1f3c;padding:8px 10px;display:grid;grid-template-columns:1fr 1fr;gap:6px">' +
-        '<div style="background:#1a2f54;border-radius:8px;padding:6px 8px;text-align:center">' +
-          '<div style="font-size:9px;color:#7a9ccf;font-weight:600;margin-bottom:2px">מאז הקמה</div>' +
+      '<div style="background:#0d1f3c;padding:8px 10px">' +
+        '<div style="background:#1a2f54;border-radius:8px;padding:8px 10px;text-align:center">' +
+          '<div style="font-size:9px;color:#7a9ccf;font-weight:600;margin-bottom:4px;letter-spacing:.5px">שעון עצר · ימים : שעות : דקות : שניות</div>' +
           timerCreated +
-        '</div>' +
-        '<div style="background:#1a2f54;border-radius:8px;padding:6px 8px;text-align:center">' +
-          '<div style="font-size:9px;color:#7a9ccf;font-weight:600;margin-bottom:2px">בסטטוס</div>' +
-          timerStatus +
         '</div>' +
       '</div>' +
       ((done || rejected) ? '<button onclick="archiveDeal(' + i + ')" style="width:100%;border:none;background:#0d1f3c;color:#7a9ccf;font-family:\'Heebo\',sans-serif;font-size:12px;font-weight:700;padding:8px;cursor:pointer;border-top:1px solid #1a2f54">📦 שליחה לארכיון</button>' : '') +
@@ -592,9 +590,6 @@ function tickTimers() {
   var now = Date.now();
   document.querySelectorAll('.timer-created').forEach(function(el) {
     el.textContent = fmtElapsed(now - parseInt(el.dataset.createdat, 10));
-  });
-  document.querySelectorAll('.timer-status').forEach(function(el) {
-    el.textContent = fmtElapsed(now - parseInt(el.dataset.statusat, 10));
   });
 }
 setInterval(tickTimers, 1000);
