@@ -4110,8 +4110,16 @@ async function captureAndScan() {
   try {
     const worker = await _getTesseract();
     const { data: { text } } = await worker.recognize(canvas);
-    // extract 7-8 digit sequences (Israeli plate)
-    const matches = (text.replace(/\s/g,'').match(/\d{7,8}/g) || []);
+    // extract digits — strip ALL non-digit chars first (handles 510·17·803 → 51017803)
+    const digitsOnly = text.replace(/\D/g, '');
+    const matches = [];
+    // sliding window: try all 8-digit then 7-digit substrings
+    for (let len of [8, 7]) {
+      for (let i = 0; i <= digitsOnly.length - len; i++) {
+        const candidate = digitsOnly.slice(i, i + len);
+        if (!matches.includes(candidate)) matches.push(candidate);
+      }
+    }
     if (!matches.length) {
       status.textContent = '❌ לא זוהתה לוחית — נסה שוב';
       btn.disabled = false;
