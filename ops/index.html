@@ -4649,7 +4649,12 @@ async function _sendWhatsApp(phone, message) {
 async function _notifyDriver(driverName, message) {
   const contacts = await _loadDriverContacts();
   const c = contacts[driverName];
-  if (c?.phone) _sendWhatsApp(c.phone, message);
+  if (c?.phone) { _sendWhatsApp(c.phone, message); return; }
+  // fallback: if notifying manager ('ליאל') and no phone set, try _managerPhone
+  if (driverName === 'ליאל') {
+    const mp = contacts['_managerPhone']?.value;
+    if (mp) _sendWhatsApp(mp, message);
+  }
 }
 
 async function _notifyAllDrivers(message) {
@@ -4666,6 +4671,7 @@ async function openNotifySettings() {
   const token   = contacts['_token']?.value  || '';
   const from    = contacts['_from']?.value   || '';
   const funcUrl = contacts['_funcUrl']?.value || '';
+  const managerPhone = contacts['_managerPhone']?.value || '';
   const drivers = ['ליאל','עופר','גיל','איתי'];
   const apiRow = `
     <div style="border:2px solid #f22f46;border-radius:12px;padding:12px 14px;margin-bottom:14px;background:#fff5f5">
@@ -4675,6 +4681,7 @@ async function openNotifySettings() {
         <input id="nc-token"   value="${token}"   placeholder="Auth Token" style="border:1.5px solid #f22f46;border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:12px;direction:ltr;text-align:left">
         <input id="nc-from"    value="${from}"    placeholder="מספר שולח: whatsapp:+14155238886" style="border:1.5px solid #f22f46;border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:12px;direction:ltr;text-align:left">
         <input id="nc-funcurl" value="${funcUrl}" placeholder="Function URL (לאחר deploy)" style="border:1.5px solid #f22f46;border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:12px;direction:ltr;text-align:left">
+        <input id="nc-manager-phone" value="${managerPhone}" placeholder="טלפון מנהל לקבלת התראות (972501234567)" style="border:1.5px solid #f22f46;border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:12px;direction:ltr;text-align:left">
       </div>
     </div>`;
   const rows = drivers.map(name => {
@@ -4700,6 +4707,8 @@ async function saveNotifySettings() {
   if (token)   data['_token']   = { value: token };
   if (from)    data['_from']    = { value: from };
   if (funcUrl) data['_funcUrl'] = { value: funcUrl };
+  const managerPhone = document.getElementById('nc-manager-phone')?.value.trim();
+  if (managerPhone) data['_managerPhone'] = { value: managerPhone };
   drivers.forEach(name => {
     const phone = document.getElementById(`nc-phone-${name}`)?.value.trim();
     if (phone) data[name] = { phone };
