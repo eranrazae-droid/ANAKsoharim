@@ -861,6 +861,9 @@ display:none !important;
                 PayBox
               </button>
             </div>
+            <button id="creditBtn" style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;background:linear-gradient(135deg,#1a1a1a,#333);border:none;color:#fff;font-weight:900;font-size:15px;padding:15px;border-radius:14px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.12);margin-bottom:10px">
+              💳 תשלום באשראי / Apple Pay / Google Pay
+            </button>
             <div style="font-size:16px;color:#6b7280;text-align:center;margin-bottom:10px">לאחר התשלום לחצו כאן:</div>
             <button id="paidWaBtn" style="width:100%;background:#25D366;color:#fff;border:none;border-radius:14px;padding:14px;font-size:15px;font-weight:900;cursor:pointer;margin-bottom:10px">✅ שילמתי - שלחו וואטסאפ</button>
             <button id="bankBtn" style="width:100%;background:#f8fafc;border:1px solid #e5e7eb;color:#374151;border-radius:14px;padding:12px;font-size:16px;font-weight:700;cursor:pointer">🏦 לתשלום בהעברה בנקאית - שלחו לי פרטים</button>
@@ -2017,6 +2020,7 @@ display:none !important;
     // Wire static payment buttons
     document.getElementById('bitBtn').addEventListener('click', openBitPayment);
     document.getElementById('payboxBtn').addEventListener('click', openPayboxPayment);
+    document.getElementById('creditBtn').addEventListener('click', openCreditPayment);
     document.getElementById('paidWaBtn').addEventListener('click', completeCheckout);
     document.getElementById('bankBtn').addEventListener('click', function(){
       window.open('https://wa.me/972508396030?text=%D7%94%D7%99%D7%99%2C%20%D7%90%D7%A0%D7%99%20%D7%A8%D7%95%D7%A6%D7%94%20%D7%9C%D7%A9%D7%9C%D7%9D%20%D7%A9%D7%95%D7%91%D7%A8%20%D7%91%D7%94%D7%A2%D7%91%D7%A8%D7%94%20%D7%91%D7%A0%D7%A7%D7%90%D7%99%D7%AA','_blank');
@@ -2267,6 +2271,36 @@ display:none !important;
       } else {
         showQR(payboxUrl, 'PayBox', '#5B2D8E');
       }
+    }
+
+    // לינק תשלום אשראי מ-Grow / משולם — להחליף בלינק האמיתי כשמתקבל
+    const CREDIT_PAY_LINK = '';
+    function openCreditPayment(e){
+      if(e) e.preventDefault();
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      if(CREDIT_PAY_LINK){
+        if(isMobile){ window.open(CREDIT_PAY_LINK, '_blank'); }
+        else { showQR(CREDIT_PAY_LINK, 'תשלום באשראי', '#1a1a1a'); }
+        return;
+      }
+      // עדיין אין לינק סליקה מוגדר
+      const modal = document.createElement('div');
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
+      const box = document.createElement('div');
+      box.style.cssText = 'background:#fff;border-radius:24px;padding:28px 24px;max-width:340px;width:100%;text-align:center;position:relative;direction:rtl;box-shadow:0 20px 60px rgba(0,0,0,.3)';
+      box.innerHTML =
+        '<div style="font-size:40px;margin-bottom:8px">💳</div>'
+        + '<div style="font-size:18px;font-weight:900;margin-bottom:10px">תשלום באשראי</div>'
+        + '<div style="font-size:15px;color:#6b7280;line-height:1.7;margin-bottom:16px">להשלמת התשלום באשראי, צרו איתנו קשר ונשלח לכם לינק תשלום מאובטח 👇</div>'
+        + '<button onclick="window.open(\'https://wa.me/9720528744107?text=%D7%94%D7%99%D7%99%2C%20%D7%90%D7%A0%D7%99%20%D7%A8%D7%95%D7%A6%D7%94%20%D7%9C%D7%A9%D7%9C%D7%9D%20%D7%A2%D7%91%D7%95%D7%A8%20%D7%94%D7%A9%D7%95%D7%91%D7%A8%20%D7%91%D7%90%D7%A9%D7%A8%D7%90%D7%99\',\'_blank\')" style="width:100%;background:#25D366;color:#fff;border:none;border-radius:14px;padding:14px;font-weight:900;font-size:15px;cursor:pointer">💬 שלחו וואטסאפ לקבלת לינק</button>';
+      const closeBtn = document.createElement('button');
+      closeBtn.textContent = '✕';
+      closeBtn.style.cssText = 'position:absolute;top:12px;left:12px;background:#f1f5f9;border:none;border-radius:50%;width:32px;height:32px;font-size:16px;cursor:pointer';
+      closeBtn.onclick = function(){ modal.remove(); };
+      box.appendChild(closeBtn);
+      modal.appendChild(box);
+      document.body.appendChild(modal);
+      modal.addEventListener('click', function(ev){ if(ev.target===modal) modal.remove(); });
     }
 
     function openBitPayment(e){
