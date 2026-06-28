@@ -375,6 +375,10 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
 </div>
 
 <script>
+var FB_URL = 'https://anak-sales-default-rtdb.firebaseio.com';
+function fbSet(path, data) {
+  fetch(FB_URL + path + '.json', {method:'PUT', body:JSON.stringify(data), headers:{'Content-Type':'application/json'}}).catch(function(){});
+}
 var currentFinanceAmt = 0;
 var currentMonthly = 0;
 var currentN = 100;
@@ -1022,7 +1026,9 @@ function archiveQuoteAndDeal(i, e) {
     d.archivedAt = now;
     archD.unshift(d);
     localStorage.setItem('anak-archive', JSON.stringify(archD));
+    fbSet('/archive', archD);
     localStorage.setItem('anak-deals', JSON.stringify(deals));
+    fbSet('/deals', deals);
   }
 
   renderExistingQuotes();
@@ -1173,6 +1179,7 @@ function advanceDeal() {
     deals.unshift(item);
   }
   localStorage.setItem('anak-deals', JSON.stringify(deals));
+  fbSet('/deals', deals);
   // פתח את דף העסקאות
   location.href = 'quotes.html';
 }

@@ -88,6 +88,10 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
 </div>
 
 <script>
+var FB_URL = 'https://anak-sales-default-rtdb.firebaseio.com';
+function fbSet(path, data) {
+  fetch(FB_URL + path + '.json', {method:'PUT', body:JSON.stringify(data), headers:{'Content-Type':'application/json'}}).catch(function(){});
+}
 var checks = [false, false];
 var dealIdx = 0;
 
@@ -110,6 +114,7 @@ function toggle(i) {
   if (deals[idx]) {
     deals[idx].deliveryChecks = checks;
     localStorage.setItem('anak-deals', JSON.stringify(deals));
+    fbSet('/deals', deals);
     _deal = deals[idx];
   }
 }
@@ -144,6 +149,7 @@ function finish() {
     deals[idx].statusChangedAt = Date.now();
     deals[idx].completedAt = deals[idx].completedAt || Date.now();
     localStorage.setItem('anak-deals', JSON.stringify(deals));
+    fbSet('/deals', deals);
   }
   location.href = 'quotes.html';
 }

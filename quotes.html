@@ -182,8 +182,12 @@ function fmtElapsed(ms) {
   return z(d) + ':' + z(h) + ':' + z(m) + ':' + z(s);
 }
 
+var FB_URL = 'https://anak-sales-default-rtdb.firebaseio.com';
+function fbSet(path, data) {
+  fetch(FB_URL + path + '.json', {method:'PUT', body:JSON.stringify(data), headers:{'Content-Type':'application/json'}}).catch(function(){});
+}
 function getDeals(){ return JSON.parse(localStorage.getItem('anak-deals') || '[]'); }
-function saveDeals(d){ localStorage.setItem('anak-deals', JSON.stringify(d)); }
+function saveDeals(d){ localStorage.setItem('anak-deals', JSON.stringify(d)); fbSet('/deals', d); }
 
 function selectDeal(i) {
   var deals = getDeals();
@@ -577,6 +581,7 @@ function archiveDeal(i) {
   var archD = JSON.parse(localStorage.getItem('anak-archive') || '[]');
   archD.unshift(d);
   localStorage.setItem('anak-archive', JSON.stringify(archD));
+  fbSet('/archive', archD);
   saveDeals(deals);
 
   // ארכיון הצעות — מצא ומחק לפי id
@@ -682,6 +687,7 @@ function deleteArchiveDeal(i) {
   var arch = JSON.parse(localStorage.getItem('anak-archive') || '[]');
   arch.splice(i, 1);
   localStorage.setItem('anak-archive', JSON.stringify(arch));
+  fbSet('/archive', arch);
   renderDealsArchive();
 }
 
@@ -731,13 +737,45 @@ function openArchivedDeal(i) {
     });
     return;
   }
-  renderBar();
+  // טען מ-Firebase ואז האזן לשינויים בזמן אמת
+  fetch(FB_URL + '/deals.json')
+    .then(function(r){ return r.json(); })
+    .then(function(data) {
+      if (data && Array.isArray(data) && data.length) {
+        localStorage.setItem('anak-deals', JSON.stringify(data));
+      }
+      renderBar();
+    })
+    .catch(function(){ renderBar(); });
+
+  var _fbEs = new EventSource(FB_URL + '/deals.json');
+  _fbEs.addEventListener('put', function(e) {
+    try {
+      var payload = JSON.parse(e.data);
+      if (payload && payload.data && Array.isArray(payload.data)) {
+        localStorage.setItem('anak-deals', JSON.stringify(payload.data));
+        renderBar();
+        if (typeof selectedIdx !== 'undefined' && selectedIdx >= 0 && document.getElementById('split-panel').style.display !== 'none') renderDetail();
+      }
+    } catch(err){}
+  });
 })();
 
 (function initDealsArchiveBadge(){
-  var arch = JSON.parse(localStorage.getItem('anak-archive') || '[]');
-  var badge = document.getElementById('deals-archive-badge');
-  if (badge) badge.textContent = arch.length;
+  fetch(FB_URL + '/archive.json')
+    .then(function(r){ return r.json(); })
+    .then(function(data) {
+      if (data && Array.isArray(data)) {
+        localStorage.setItem('anak-archive', JSON.stringify(data));
+      }
+      var arch = JSON.parse(localStorage.getItem('anak-archive') || '[]');
+      var badge = document.getElementById('deals-archive-badge');
+      if (badge) badge.textContent = arch.length;
+    }).catch(function(){
+      var arch = JSON.parse(localStorage.getItem('anak-archive') || '[]');
+      var badge = document.getElementById('deals-archive-badge');
+      if (badge) badge.textContent = arch.length;
+    });
 })();
 </script>
 <!-- מודל ארכיון -->

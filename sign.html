@@ -158,8 +158,12 @@ var dealIdx = 0;
 
 function fmt(n){ return '₪ ' + Math.round(n||0).toLocaleString('he-IL'); }
 
+var FB_URL = 'https://anak-sales-default-rtdb.firebaseio.com';
+function fbSet(path, data) {
+  fetch(FB_URL + path + '.json', {method:'PUT', body:JSON.stringify(data), headers:{'Content-Type':'application/json'}}).catch(function(){});
+}
 function getDeals(){ return JSON.parse(localStorage.getItem('anak-deals') || '[]'); }
-function saveDeals(d){ localStorage.setItem('anak-deals', JSON.stringify(d)); }
+function saveDeals(d){ localStorage.setItem('anak-deals', JSON.stringify(d)); fbSet('/deals', d); }
 
 function init() {
   var params = new URLSearchParams(location.search);
