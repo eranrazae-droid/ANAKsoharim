@@ -873,7 +873,12 @@ if ('serviceWorker' in navigator) {
 <!-- ====== MODAL: DRIVER INVENTORY CHECK ====== -->
 <div class="modal-overlay" id="modal-driver-inv">
   <div class="modal-box" style="max-height:90vh;overflow-y:auto">
-    <div class="modal-title">סימון מלאי <button class="modal-close" onclick="closeModal('modal-driver-inv')">✕</button></div>
+    <div class="modal-title">סימון מלאי
+      <div style="display:flex;gap:8px;align-items:center">
+        <button onclick="openPlateScanner()" style="background:#1e40af;color:#fff;border:none;border-radius:10px;padding:7px 13px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer">📷 סרוק לוחית</button>
+        <button class="modal-close" onclick="closeModal('modal-driver-inv')">✕</button>
+      </div>
+    </div>
     <input type="hidden" id="dinv-headers-cache" value="[]">
     <div style="overflow-x:auto;-webkit-overflow-scrolling:touch" id="dinv-rows-container"></div>
     <div style="margin-top:14px">
@@ -881,6 +886,27 @@ if ('serviceWorker' in navigator) {
       <textarea id="dinv-notes" placeholder="הערות חופשיות..." rows="3" style="width:100%;border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;font-family:Heebo,sans-serif;font-size:14px;resize:vertical;outline:none;box-sizing:border-box"></textarea>
     </div>
     <button id="dinv-submit-btn" class="btn-submit" onclick="submitDriverInv()" style="margin-top:14px">✅ שלח בדיקה</button>
+  </div>
+</div>
+
+<!-- ====== MODAL: PLATE SCANNER ====== -->
+<div class="modal-overlay" id="modal-plate-scanner" style="z-index:1200;background:rgba(0,0,0,.92)">
+  <div style="width:100%;max-width:520px;display:flex;flex-direction:column;align-items:center;padding:16px;box-sizing:border-box">
+    <div style="display:flex;justify-content:space-between;align-items:center;width:100%;margin-bottom:12px">
+      <span style="color:#fff;font-size:17px;font-weight:700">📷 סריקת לוחית רישוי</span>
+      <button onclick="closePlateScanner()" style="background:rgba(255,255,255,.15);border:none;color:#fff;font-size:20px;width:36px;height:36px;border-radius:50%;cursor:pointer">✕</button>
+    </div>
+    <div style="position:relative;width:100%;border-radius:14px;overflow:hidden;background:#000">
+      <video id="plate-video" autoplay playsinline style="width:100%;display:block;max-height:55vh;object-fit:cover"></video>
+      <!-- guide frame -->
+      <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none">
+        <div style="width:82%;height:22%;border:3px solid #facc15;border-radius:10px;box-shadow:0 0 0 2000px rgba(0,0,0,.35)"></div>
+      </div>
+      <canvas id="plate-canvas" style="display:none"></canvas>
+    </div>
+    <div id="plate-scan-status" style="color:#facc15;font-size:14px;font-weight:700;margin-top:12px;min-height:22px;text-align:center"></div>
+    <div id="plate-scan-result" style="display:none;background:#22c55e;color:#fff;border-radius:12px;padding:14px 20px;margin-top:10px;font-size:22px;font-weight:900;letter-spacing:3px;text-align:center"></div>
+    <button id="plate-capture-btn" onclick="captureAndScan()" style="margin-top:14px;background:#facc15;color:#1e293b;border:none;border-radius:14px;padding:14px 32px;font-family:Heebo,sans-serif;font-size:16px;font-weight:900;cursor:pointer;width:100%">📸 צלם וסרוק</button>
   </div>
 </div>
 
@@ -4020,6 +4046,118 @@ window.openDriverInvModal = openDriverInvModal;
 window.dinvClick = dinvClick;
 window.dinvMarkAll = dinvMarkAll;
 window.submitDriverInv = submitDriverInv;
+
+/* ── Plate Scanner ── */
+let _plateScanStream = null;
+let _tesseractWorker = null;
+
+async function openPlateScanner() {
+  openModal('modal-plate-scanner');
+  document.getElementById('plate-scan-status').textContent = '🎥 מפעיל מצלמה...';
+  document.getElementById('plate-scan-result').style.display = 'none';
+  document.getElementById('plate-capture-btn').disabled = false;
+  try {
+    _plateScanStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+    });
+    document.getElementById('plate-video').srcObject = _plateScanStream;
+    document.getElementById('plate-scan-status').textContent = 'כוון את המצלמה לכיוון הלוחית ולחץ צלם';
+  } catch(e) {
+    document.getElementById('plate-scan-status').textContent = '⚠️ לא ניתן לגשת למצלמה';
+  }
+}
+
+function closePlateScanner() {
+  if (_plateScanStream) { _plateScanStream.getTracks().forEach(t => t.stop()); _plateScanStream = null; }
+  closeModal('modal-plate-scanner');
+}
+
+async function _getTesseract() {
+  if (_tesseractWorker) return _tesseractWorker;
+  document.getElementById('plate-scan-status').textContent = '⏳ טוען מנוע זיהוי...';
+  await new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+    s.onload = res; s.onerror = rej;
+    document.head.appendChild(s);
+  });
+  _tesseractWorker = await Tesseract.createWorker('eng', 1, {
+    workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/worker.min.js',
+    corePath:   'https://cdn.jsdelivr.net/npm/tesseract.js-core@5/tesseract-core.wasm.js',
+    logger: () => {}
+  });
+  await _tesseractWorker.setParameters({ tessedit_char_whitelist: '0123456789', tessedit_pageseg_mode: '7' });
+  return _tesseractWorker;
+}
+
+async function captureAndScan() {
+  const video  = document.getElementById('plate-video');
+  const canvas = document.getElementById('plate-canvas');
+  const status = document.getElementById('plate-scan-status');
+  const btn    = document.getElementById('plate-capture-btn');
+  if (!video.srcObject) return;
+  btn.disabled = true;
+  status.textContent = '⏳ מזהה לוחית...';
+
+  // crop the guide box region (middle 82% width, center 22% height)
+  const vw = video.videoWidth, vh = video.videoHeight;
+  const cropW = Math.round(vw * 0.82), cropH = Math.round(vh * 0.22);
+  const cropX = Math.round((vw - cropW) / 2), cropY = Math.round((vh - cropH) / 2);
+  canvas.width = cropW; canvas.height = cropH;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+
+  try {
+    const worker = await _getTesseract();
+    const { data: { text } } = await worker.recognize(canvas);
+    // extract 7-8 digit sequences (Israeli plate)
+    const matches = (text.replace(/\s/g,'').match(/\d{7,8}/g) || []);
+    if (!matches.length) {
+      status.textContent = '❌ לא זוהתה לוחית — נסה שוב';
+      btn.disabled = false;
+      return;
+    }
+    // try each match against inventory rows
+    let found = false;
+    for (const plate of matches) {
+      const idx = _driverInvRows.findIndex(r =>
+        r.cells.some(c => c.replace(/[^0-9]/g,'') === plate)
+      );
+      if (idx !== -1) {
+        const resultEl = document.getElementById('plate-scan-result');
+        resultEl.textContent = plate;
+        resultEl.style.display = 'block';
+        status.textContent = '✅ נמצא ברשימה! מסמן...';
+        setTimeout(() => {
+          closePlateScanner();
+          const headers = JSON.parse(document.getElementById('dinv-headers-cache').value || '[]');
+          _driverInvRows[idx].status = 'v';
+          _dinvSaveProgress();
+          renderDriverInvModal(headers);
+          document.getElementById(`dinv-row-${idx}`)?.scrollIntoView({ behavior:'smooth', block:'center' });
+          showToast(`✅ לוחית ${plate} סומנה!`);
+        }, 900);
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      const resultEl = document.getElementById('plate-scan-result');
+      resultEl.textContent = matches[0];
+      resultEl.style.background = '#ef4444';
+      resultEl.style.display = 'block';
+      status.textContent = '⚠️ לוחית לא נמצאה ברשימת המלאי';
+      btn.disabled = false;
+    }
+  } catch(e) {
+    status.textContent = '⚠️ שגיאה בזיהוי: ' + (e.message || e);
+    btn.disabled = false;
+  }
+}
+window.openPlateScanner = openPlateScanner;
+window.closePlateScanner = closePlateScanner;
+window.captureAndScan = captureAndScan;
+
 window.pickDriver = pickDriver;
 window.selectCarType = selectCarType;
 
