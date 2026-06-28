@@ -215,6 +215,7 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
 .spinner{width:20px;height:20px;border:3px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes slideDown{from{transform:translateY(-100%);opacity:0}to{transform:translateY(0);opacity:1}}
+@keyframes platePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)}}
 
 /* ===== RESPONSIVE ===== */
 @media(min-width:600px){
@@ -904,9 +905,12 @@ if ('serviceWorker' in navigator) {
       </div>
       <canvas id="plate-canvas" style="display:none"></canvas>
     </div>
-    <div id="plate-scan-status" style="color:#facc15;font-size:14px;font-weight:700;margin-top:12px;min-height:22px;text-align:center"></div>
+    <div id="plate-scan-status" style="color:#facc15;font-size:14px;font-weight:700;margin-top:12px;min-height:22px;text-align:center">🎥 מפעיל מצלמה...</div>
     <div id="plate-scan-result" style="display:none;background:#22c55e;color:#fff;border-radius:12px;padding:14px 20px;margin-top:10px;font-size:22px;font-weight:900;letter-spacing:3px;text-align:center"></div>
-    <button id="plate-capture-btn" onclick="captureAndScan()" style="margin-top:14px;background:#facc15;color:#1e293b;border:none;border-radius:14px;padding:14px 32px;font-family:Heebo,sans-serif;font-size:16px;font-weight:900;cursor:pointer;width:100%">📸 צלם וסרוק</button>
+    <div style="margin-top:10px;display:flex;align-items:center;justify-content:center;gap:6px">
+      <div id="plate-scan-dot" style="width:10px;height:10px;border-radius:50%;background:#22c55e;animation:platePulse 1s infinite"></div>
+      <span style="color:#94a3b8;font-size:12px">סריקה אוטומטית פעילה</span>
+    </div>
   </div>
 </div>
 
@@ -4050,37 +4054,53 @@ window.submitDriverInv = submitDriverInv;
 /* ── Plate Scanner ── */
 let _plateScanStream = null;
 let _tesseractWorker = null;
+let _plateScanLoop = null;
+let _plateScanBusy = false;
 
 async function openPlateScanner() {
   openModal('modal-plate-scanner');
-  document.getElementById('plate-scan-status').textContent = '🎥 מפעיל מצלמה...';
   document.getElementById('plate-scan-result').style.display = 'none';
-  document.getElementById('plate-capture-btn').disabled = false;
+  document.getElementById('plate-scan-status').textContent = '🎥 מפעיל מצלמה...';
   try {
     _plateScanStream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
     });
-    document.getElementById('plate-video').srcObject = _plateScanStream;
-    document.getElementById('plate-scan-status').textContent = 'כוון את המצלמה לכיוון הלוחית ולחץ צלם';
+    const video = document.getElementById('plate-video');
+    video.srcObject = _plateScanStream;
+    await new Promise(r => { video.onloadedmetadata = r; });
+    video.play();
+    // load tesseract in background
+    _getTesseract().then(() => {
+      document.getElementById('plate-scan-status').textContent = '🔍 מחפש לוחית...';
+      _startScanLoop();
+    });
   } catch(e) {
     document.getElementById('plate-scan-status').textContent = '⚠️ לא ניתן לגשת למצלמה';
   }
 }
 
+function _startScanLoop() {
+  if (_plateScanLoop) clearInterval(_plateScanLoop);
+  _plateScanLoop = setInterval(_scanFrame, 1800);
+}
+
 function closePlateScanner() {
+  if (_plateScanLoop) { clearInterval(_plateScanLoop); _plateScanLoop = null; }
   if (_plateScanStream) { _plateScanStream.getTracks().forEach(t => t.stop()); _plateScanStream = null; }
   closeModal('modal-plate-scanner');
 }
 
 async function _getTesseract() {
   if (_tesseractWorker) return _tesseractWorker;
-  document.getElementById('plate-scan-status').textContent = '⏳ טוען מנוע זיהוי...';
-  await new Promise((res, rej) => {
-    const s = document.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
-    s.onload = res; s.onerror = rej;
-    document.head.appendChild(s);
-  });
+  document.getElementById('plate-scan-status').textContent = '⏳ טוען מנוע זיהוי (פעם ראשונה בלבד)...';
+  if (!window.Tesseract) {
+    await new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+      s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
+    });
+  }
   _tesseractWorker = await Tesseract.createWorker('eng', 1, {
     workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/worker.min.js',
     corePath:   'https://cdn.jsdelivr.net/npm/tesseract.js-core@5/tesseract-core.wasm.js',
@@ -4090,52 +4110,48 @@ async function _getTesseract() {
   return _tesseractWorker;
 }
 
-async function captureAndScan() {
+async function _scanFrame() {
+  if (_plateScanBusy) return;
   const video  = document.getElementById('plate-video');
   const canvas = document.getElementById('plate-canvas');
   const status = document.getElementById('plate-scan-status');
-  const btn    = document.getElementById('plate-capture-btn');
-  if (!video.srcObject) return;
-  btn.disabled = true;
-  status.textContent = '⏳ מזהה לוחית...';
-
-  // crop the guide box region (middle 82% width, center 22% height)
+  if (!video || !video.srcObject || !canvas) return;
+  _plateScanBusy = true;
+  // crop guide box: 82% wide, 22% tall, centered
   const vw = video.videoWidth, vh = video.videoHeight;
-  const cropW = Math.round(vw * 0.82), cropH = Math.round(vh * 0.22);
+  if (!vw || !vh) { _plateScanBusy = false; return; }
+  const cropW = Math.round(vw * 0.82), cropH = Math.round(vh * 0.26);
   const cropX = Math.round((vw - cropW) / 2), cropY = Math.round((vh - cropH) / 2);
   canvas.width = cropW; canvas.height = cropH;
   const ctx = canvas.getContext('2d');
+  // contrast boost for better OCR
+  ctx.filter = 'contrast(1.6) brightness(1.1)';
   ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
-
+  ctx.filter = 'none';
   try {
     const worker = await _getTesseract();
     const { data: { text } } = await worker.recognize(canvas);
-    // extract digits — strip ALL non-digit chars first (handles 510·17·803 → 51017803)
     const digitsOnly = text.replace(/\D/g, '');
-    const matches = [];
-    // sliding window: try all 8-digit then 7-digit substrings
+    const candidates = [];
     for (let len of [8, 7]) {
       for (let i = 0; i <= digitsOnly.length - len; i++) {
-        const candidate = digitsOnly.slice(i, i + len);
-        if (!matches.includes(candidate)) matches.push(candidate);
+        const c = digitsOnly.slice(i, i + len);
+        if (!candidates.includes(c)) candidates.push(c);
       }
     }
-    if (!matches.length) {
-      status.textContent = '❌ לא זוהתה לוחית — נסה שוב';
-      btn.disabled = false;
-      return;
-    }
-    // try each match against inventory rows
     let found = false;
-    for (const plate of matches) {
+    for (const plate of candidates) {
       const idx = _driverInvRows.findIndex(r =>
         r.cells.some(c => c.replace(/[^0-9]/g,'') === plate)
       );
       if (idx !== -1) {
+        // stop loop immediately
+        if (_plateScanLoop) { clearInterval(_plateScanLoop); _plateScanLoop = null; }
         const resultEl = document.getElementById('plate-scan-result');
+        resultEl.style.background = '#22c55e';
         resultEl.textContent = plate;
         resultEl.style.display = 'block';
-        status.textContent = '✅ נמצא ברשימה! מסמן...';
+        status.textContent = '✅ זוהה! מסמן...';
         setTimeout(() => {
           closePlateScanner();
           const headers = JSON.parse(document.getElementById('dinv-headers-cache').value || '[]');
@@ -4144,27 +4160,23 @@ async function captureAndScan() {
           renderDriverInvModal(headers);
           document.getElementById(`dinv-row-${idx}`)?.scrollIntoView({ behavior:'smooth', block:'center' });
           showToast(`✅ לוחית ${plate} סומנה!`);
-        }, 900);
+        }, 700);
         found = true;
         break;
       }
     }
-    if (!found) {
-      const resultEl = document.getElementById('plate-scan-result');
-      resultEl.textContent = matches[0];
-      resultEl.style.background = '#ef4444';
-      resultEl.style.display = 'block';
-      status.textContent = '⚠️ לוחית לא נמצאה ברשימת המלאי';
-      btn.disabled = false;
+    if (!found && candidates.length) {
+      status.textContent = `🔍 זוהה: ${candidates[0]} — לא ברשימה`;
+    } else if (!found) {
+      status.textContent = '🔍 מחפש לוחית...';
     }
   } catch(e) {
-    status.textContent = '⚠️ שגיאה בזיהוי: ' + (e.message || e);
-    btn.disabled = false;
+    status.textContent = '⚠️ שגיאת זיהוי';
   }
+  _plateScanBusy = false;
 }
 window.openPlateScanner = openPlateScanner;
 window.closePlateScanner = closePlateScanner;
-window.captureAndScan = captureAndScan;
 
 window.pickDriver = pickDriver;
 window.selectCarType = selectCarType;
