@@ -4058,6 +4058,7 @@ let _plateScanLoop = null;
 let _plateScanBusy = false;
 
 async function openPlateScanner() {
+  window._plateScanSeen = new Set();
   openModal('modal-plate-scanner');
   document.getElementById('plate-scan-result').style.display = 'none';
   document.getElementById('plate-scan-status').textContent = '🎥 מפעיל מצלמה...';
@@ -4080,12 +4081,12 @@ async function openPlateScanner() {
 }
 
 function _startScanLoop() {
-  if (_plateScanLoop) clearInterval(_plateScanLoop);
-  _plateScanLoop = setInterval(_scanFrame, 1800);
+  _plateScanLoop = true;
+  _scanFrame();
 }
 
 function closePlateScanner() {
-  if (_plateScanLoop) { clearInterval(_plateScanLoop); _plateScanLoop = null; }
+  _plateScanLoop = false;
   if (_plateScanStream) { _plateScanStream.getTracks().forEach(t => t.stop()); _plateScanStream = null; }
   closeModal('modal-plate-scanner');
 }
@@ -4106,29 +4107,52 @@ async function _getTesseract() {
     corePath:   'https://cdn.jsdelivr.net/npm/tesseract.js-core@5/tesseract-core.wasm.js',
     logger: () => {}
   });
-  await _tesseractWorker.setParameters({ tessedit_char_whitelist: '0123456789-. ', tessedit_pageseg_mode: '11' });
+  await _tesseractWorker.setParameters({ tessedit_char_whitelist: '0123456789-. ', tessedit_pageseg_mode: '8' });
   return _tesseractWorker;
 }
 
+if (!window._plateScanSeen) window._plateScanSeen = new Set();
+
+function _extractPlateCandidates(text) {
+  const runs = text.match(/\d+/g) || [];
+  const joined = runs.join('');
+  const out = [];
+  for (const len of [8, 7]) {
+    for (let i = 0; i <= joined.length - len; i++) {
+      const c = joined.slice(i, i + len);
+      if (!out.includes(c)) out.push(c);
+    }
+  }
+  for (let start = 0; start < runs.length; start++) {
+    let combined = '';
+    for (let end = start; end < runs.length && combined.length < 9; end++) {
+      combined += runs[end];
+      if ((combined.length === 7 || combined.length === 8) && !out.includes(combined))
+        out.push(combined);
+    }
+  }
+  return out;
+}
+
 async function _scanFrame() {
-  if (_plateScanBusy) return;
+  if (_plateScanBusy || !_plateScanLoop) return;
   const video  = document.getElementById('plate-video');
   const canvas = document.getElementById('plate-canvas');
   const status = document.getElementById('plate-scan-status');
   if (!video || !video.srcObject || !canvas) return;
   _plateScanBusy = true;
   const vw = video.videoWidth, vh = video.videoHeight;
-  if (!vw || !vh) { _plateScanBusy = false; return; }
-  // crop guide box region (tighter height = less noise), scale up 3x for better OCR
+  if (!vw || !vh) { _plateScanBusy = false; if (_plateScanLoop) setTimeout(_scanFrame, 200); return; }
+
+  // crop guide box, 2x upscale (faster than 3x, still good quality)
   const cropW = Math.round(vw * 0.84), cropH = Math.round(vh * 0.20);
   const cropX = Math.round((vw - cropW) / 2), cropY = Math.round((vh - cropH) / 2);
-  const scale = 3;
-  canvas.width  = cropW * scale;
-  canvas.height = cropH * scale;
+  canvas.width  = cropW * 2;
+  canvas.height = cropH * 2;
   const ctx = canvas.getContext('2d');
   ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, canvas.width, canvas.height);
 
-  // grayscale + threshold (dark on light, e.g. yellow Israeli plate)
+  // grayscale + threshold
   const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const d = imgData.data;
   for (let i = 0; i < d.length; i += 4) {
@@ -4138,66 +4162,31 @@ async function _scanFrame() {
   }
   ctx.putImageData(imgData, 0, 0);
 
-  function _extractCandidates(text) {
-    // collect runs of digits (separated by any non-digit)
-    const runs = text.match(/\d+/g) || [];
-    const joined = runs.join('');
-    const out = [];
-    for (const len of [8, 7]) {
-      for (let i = 0; i <= joined.length - len; i++) {
-        const c = joined.slice(i, i + len);
-        if (!out.includes(c)) out.push(c);
-      }
-    }
-    // also try concatenating adjacent short runs (e.g. "658" + "66" + "204" → "65866204")
-    for (let start = 0; start < runs.length; start++) {
-      let combined = '';
-      for (let end = start; end < runs.length && combined.length < 9; end++) {
-        combined += runs[end];
-        if (combined.length === 7 || combined.length === 8) {
-          if (!out.includes(combined)) out.push(combined);
-        }
-      }
-    }
-    return out;
-  }
-
   try {
     const worker = await _getTesseract();
-    // pass 1: thresholded (dark digits on white / yellow background)
-    const { data: { text: t1 } } = await worker.recognize(canvas);
-    // pass 2: inverted (light digits on dark background)
-    for (let i = 0; i < d.length; i += 4) {
-      d[i] = 255 - d[i]; d[i+1] = 255 - d[i+1]; d[i+2] = 255 - d[i+2];
-    }
-    ctx.putImageData(imgData, 0, 0);
-    const { data: { text: t2 } } = await worker.recognize(canvas);
-
-    // combine candidates from both passes
-    const candidates = [..._extractCandidates(t1), ..._extractCandidates(t2)]
-      .filter((v, i, a) => a.indexOf(v) === i);
+    const { data: { text } } = await worker.recognize(canvas);
+    const candidates = _extractPlateCandidates(text);
 
     let found = false;
     for (const plate of candidates) {
+      if (_plateScanSeen.has(plate)) { found = true; break; }
       const idx = _driverInvRows.findIndex(r =>
         r.cells.some(c => c.replace(/[^0-9]/g,'') === plate)
       );
       if (idx !== -1) {
-        if (_plateScanLoop) { clearInterval(_plateScanLoop); _plateScanLoop = null; }
+        _plateScanSeen.add(plate);
+        // mark in list without closing scanner
+        const headers = JSON.parse(document.getElementById('dinv-headers-cache').value || '[]');
+        _driverInvRows[idx].status = 'v';
+        _dinvSaveProgress();
+        renderDriverInvModal(headers);
+        // show small in-scanner notification
         const resultEl = document.getElementById('plate-scan-result');
         resultEl.style.background = '#22c55e';
-        resultEl.textContent = plate;
+        resultEl.textContent = `✅ ${plate} סומנה`;
         resultEl.style.display = 'block';
-        status.textContent = '✅ זוהה! מסמן...';
-        setTimeout(() => {
-          closePlateScanner();
-          const headers = JSON.parse(document.getElementById('dinv-headers-cache').value || '[]');
-          _driverInvRows[idx].status = 'v';
-          _dinvSaveProgress();
-          renderDriverInvModal(headers);
-          document.getElementById(`dinv-row-${idx}`)?.scrollIntoView({ behavior:'smooth', block:'center' });
-          showToast(`✅ לוחית ${plate} סומנה!`);
-        }, 700);
+        status.textContent = '🔍 מחפש לוחית...';
+        setTimeout(() => { resultEl.style.display = 'none'; }, 2500);
         found = true;
         break;
       }
@@ -4207,6 +4196,8 @@ async function _scanFrame() {
     status.textContent = '⚠️ שגיאת זיהוי';
   }
   _plateScanBusy = false;
+  // continue scanning immediately after this frame completes
+  if (_plateScanLoop) setTimeout(_scanFrame, 100);
 }
 window.openPlateScanner = openPlateScanner;
 window.closePlateScanner = closePlateScanner;
