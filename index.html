@@ -2271,16 +2271,37 @@ display:none !important;
 
     function openBitPayment(e){
       if(e) e.preventDefault();
-      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-      const BIT_PHONE = '0508396030';
+      const BIT_PHONE = '050-839-6030';
       const amount = 300;
-      const note = encodeURIComponent('שובר אוטודילר - ' + (selectedCar ? selectedCar.brand + ' ' + selectedCar.model : 'רכב'));
-      const bitUrl = 'https://www.bitpay.co.il/app/pay?to=' + BIT_PHONE + '&amount=' + amount + '&note=' + note;
-      if(isMobile){
-        window.open(bitUrl, '_blank');
-      } else {
-        showQR(bitUrl, 'ביט', '#FF4713');
-      }
+      const modal = document.createElement('div');
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
+      const box = document.createElement('div');
+      box.style.cssText = 'background:#fff;border-radius:24px;padding:28px 24px;max-width:340px;width:100%;text-align:center;position:relative;direction:rtl;box-shadow:0 20px 60px rgba(0,0,0,.3)';
+      box.innerHTML =
+        '<div style="font-size:30px;font-weight:900;color:#1a1a1a;margin-bottom:4px"><span style="color:#0099d6">b</span><span style="color:#7b4dff">i</span><span style="color:#ff4713">t</span></div>'
+        + '<div style="font-size:18px;font-weight:900;margin-bottom:16px">תשלום שובר בביט</div>'
+        + '<div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:16px;padding:16px;margin-bottom:16px">'
+        + '<div style="font-size:13px;color:#6b7280;font-weight:700;margin-bottom:4px">שלחו בביט למספר</div>'
+        + '<div id="bitPhoneVal" style="font-size:26px;font-weight:900;color:#1a1a1a;direction:ltr">' + BIT_PHONE + '</div>'
+        + '<div style="font-size:15px;color:#6b7280;margin-top:8px">סכום: <b style="color:#1a1a1a">300 ₪</b></div>'
+        + '</div>'
+        + '<button id="bitCopyBtn" style="width:100%;background:#1a1a1a;color:#fff;border:none;border-radius:14px;padding:14px;font-weight:900;font-size:15px;cursor:pointer;margin-bottom:10px">📋 העתקת המספר</button>'
+        + '<div style="font-size:13px;color:#9ca3af;line-height:1.6">פתחו את אפליקציית bit, בחרו "תשלום", הזינו את המספר והסכום</div>';
+      const closeBtn = document.createElement('button');
+      closeBtn.textContent = '✕';
+      closeBtn.style.cssText = 'position:absolute;top:12px;left:12px;background:#f1f5f9;border:none;border-radius:50%;width:32px;height:32px;font-size:16px;cursor:pointer';
+      closeBtn.onclick = function(){ modal.remove(); };
+      box.appendChild(closeBtn);
+      modal.appendChild(box);
+      document.body.appendChild(modal);
+      modal.addEventListener('click', function(ev){ if(ev.target===modal) modal.remove(); });
+      const copyBtn = document.getElementById('bitCopyBtn');
+      if(copyBtn) copyBtn.onclick = function(){
+        const num = '0508396030';
+        if(navigator.clipboard){ navigator.clipboard.writeText(num); }
+        copyBtn.textContent = '✅ המספר הועתק!';
+        setTimeout(function(){ copyBtn.textContent = '📋 העתקת המספר'; }, 2000);
+      };
     }
 
     function startCheckout(){
