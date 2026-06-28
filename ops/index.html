@@ -4106,7 +4106,7 @@ async function _getTesseract() {
     corePath:   'https://cdn.jsdelivr.net/npm/tesseract.js-core@5/tesseract-core.wasm.js',
     logger: () => {}
   });
-  await _tesseractWorker.setParameters({ tessedit_char_whitelist: '0123456789-. ', tessedit_pageseg_mode: '7' });
+  await _tesseractWorker.setParameters({ tessedit_char_whitelist: '0123456789-. ', tessedit_pageseg_mode: '11' });
   return _tesseractWorker;
 }
 
@@ -4139,12 +4139,24 @@ async function _scanFrame() {
   ctx.putImageData(imgData, 0, 0);
 
   function _extractCandidates(text) {
-    const digits = text.replace(/\D/g, '');
+    // collect runs of digits (separated by any non-digit)
+    const runs = text.match(/\d+/g) || [];
+    const joined = runs.join('');
     const out = [];
     for (const len of [8, 7]) {
-      for (let i = 0; i <= digits.length - len; i++) {
-        const c = digits.slice(i, i + len);
+      for (let i = 0; i <= joined.length - len; i++) {
+        const c = joined.slice(i, i + len);
         if (!out.includes(c)) out.push(c);
+      }
+    }
+    // also try concatenating adjacent short runs (e.g. "658" + "66" + "204" → "65866204")
+    for (let start = 0; start < runs.length; start++) {
+      let combined = '';
+      for (let end = start; end < runs.length && combined.length < 9; end++) {
+        combined += runs[end];
+        if (combined.length === 7 || combined.length === 8) {
+          if (!out.includes(combined)) out.push(combined);
+        }
       }
     }
     return out;
