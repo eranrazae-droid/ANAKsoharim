@@ -519,15 +519,18 @@ if ('serviceWorker' in navigator) {
     <div id="di-vehicle-info" style="background:#f0f2ff;border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:14px;line-height:1.8"></div>
 
     <!-- רכב חשמלי -->
-    <div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:12px;padding:12px 14px;margin-bottom:14px">
-      <label style="display:flex;align-items:center;gap:10px;font-size:15px;font-weight:700;cursor:pointer">
-        <input type="checkbox" id="di-is-electric" style="width:20px;height:20px;accent-color:#16a34a" onchange="evToggle(this)">
-        ⚡ רכב חשמלי
-      </label>
-      <div id="di-ev-fields" style="display:none;margin-top:10px;display:none">
+    <div id="di-ev-section" style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:12px;padding:12px 14px;margin-bottom:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:15px;font-weight:700">⚡ רכב חשמלי</span>
+        <div class="ci-btns" style="display:flex;gap:8px">
+          <button type="button" class="ci-box" id="di-ev-v" data-val="v" onclick="evClick('v')" style="width:36px;height:36px;font-size:22px">✓</button>
+          <button type="button" class="ci-box" id="di-ev-x" data-val="x" onclick="evClick('x')" style="width:36px;height:36px;font-size:22px">✕</button>
+        </div>
+      </div>
+      <div id="di-ev-fields" style="display:none;margin-top:12px">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div>
-            <label style="font-size:12px;font-weight:600;color:#15803d;display:block;margin-bottom:4px">אחוז טעינה</label>
+            <label style="font-size:12px;font-weight:600;color:#15803d;display:block;margin-bottom:4px">אחוז טעינה <span style="color:#dc2626">*</span></label>
             <div style="position:relative;display:flex;align-items:center">
               <input type="number" id="di-ev-charge" min="0" max="100" inputmode="numeric"
                 class="form-input no-spinner" style="padding-left:28px" placeholder=""
@@ -536,7 +539,7 @@ if ('serviceWorker' in navigator) {
             </div>
           </div>
           <div>
-            <label style="font-size:12px;font-weight:600;color:#15803d;display:block;margin-bottom:4px">טווח טעינה (ק"מ)</label>
+            <label style="font-size:12px;font-weight:600;color:#15803d;display:block;margin-bottom:4px">טווח טעינה (ק"מ) <span style="color:#dc2626">*</span></label>
             <input type="number" id="di-ev-range" min="0" inputmode="numeric"
               class="form-input no-spinner" placeholder=""
               oninput="this.value=this.value.replace(/[^0-9]/g,'')" onchange="saveIntakeDraft()">
@@ -2376,7 +2379,7 @@ function openDriverIntake(id) {
     r.style.display = 'none';
   });
   document.querySelectorAll('#modal-driver-intake textarea, #modal-driver-intake input[type=number], #di-code').forEach(t => t.value = '');
-  const evCb = document.getElementById('di-is-electric'); if (evCb) { evCb.checked = false; const f = document.getElementById('di-ev-fields'); if (f) f.style.display = 'none'; }
+  ['di-ev-v','di-ev-x'].forEach(id=>{const b=document.getElementById(id);if(b){b.classList.remove('v-active','x-active');b.style.color='transparent';}});const _evF=document.getElementById('di-ev-fields');if(_evF)_evF.style.display='none';
   ['c-lights-break','c-glass-break','c-upholstery','c-mats','c-windows','c-steering'].forEach(k => {
     ciPhotoFiles[k] = [];
     renderPhotoGrid(k);
@@ -2425,6 +2428,29 @@ async function submitDriverIntake() {
     if (!anyChecked) {
       document.getElementById('note-c-dashboard')?.scrollIntoView({ behavior:'smooth', block:'center' });
       showToast('⚠️ נא לסמן לפחות מנורה אחת ממנורות לוח שעונים');
+      return;
+    }
+  }
+
+  // validate electric vehicle selection
+  const evVActive = document.getElementById('di-ev-v')?.classList.contains('v-active');
+  const evXActive = document.getElementById('di-ev-x')?.classList.contains('x-active');
+  if (!evVActive && !evXActive) {
+    document.getElementById('di-ev-section')?.scrollIntoView({ behavior:'smooth', block:'center' });
+    showToast('⚠️ נא לסמן אם הרכב חשמלי');
+    return;
+  }
+  if (evVActive) {
+    const charge = document.getElementById('di-ev-charge')?.value;
+    const range  = document.getElementById('di-ev-range')?.value;
+    if (charge === '' || charge === null || charge === undefined) {
+      document.getElementById('di-ev-charge')?.scrollIntoView({ behavior:'smooth', block:'center' });
+      showToast('⚠️ נא למלא אחוז טעינה');
+      return;
+    }
+    if (!range) {
+      document.getElementById('di-ev-range')?.scrollIntoView({ behavior:'smooth', block:'center' });
+      showToast('⚠️ נא למלא טווח טעינה');
       return;
     }
   }
@@ -2869,11 +2895,22 @@ function batteryNoDateToggle(cb) {
 }
 window.batteryNoDateToggle = batteryNoDateToggle;
 
-function evToggle(cb) {
+function evClick(val) {
+  const vBtn = document.getElementById('di-ev-v');
+  const xBtn = document.getElementById('di-ev-x');
   const fields = document.getElementById('di-ev-fields');
-  if (fields) fields.style.display = cb.checked ? 'block' : 'none';
+  const isActive = (val === 'v' ? vBtn : xBtn).classList.contains('v-active') || (val === 'x' ? xBtn : vBtn).classList.contains('x-active');
+  // reset both
+  vBtn.classList.remove('v-active','x-active'); vBtn.style.color='transparent';
+  xBtn.classList.remove('v-active','x-active'); xBtn.style.color='transparent';
+  if (val === 'v') { vBtn.classList.add('v-active'); vBtn.style.color=''; }
+  else             { xBtn.classList.add('x-active'); xBtn.style.color=''; }
+  if (fields) fields.style.display = (val === 'v') ? 'block' : 'none';
   saveIntakeDraft();
 }
+window.evClick = evClick;
+// kept for draft restore
+function evToggle(cb) {}
 window.evToggle = evToggle;
 
 function addBatteryPhoto(input) {
@@ -3018,7 +3055,8 @@ function saveIntakeDraft() {
     code: document.getElementById('di-code')?.value || '',
     general: document.getElementById('di-notes')?.value || '',
     batteryMonth: document.getElementById('di-battery-month')?.value || '',
-    isElectric: !!(document.getElementById('di-is-electric')?.checked),
+    isElectric: !!(document.getElementById('di-ev-v')?.classList.contains('v-active')),
+evSelection: document.getElementById('di-ev-v')?.classList.contains('v-active') ? 'v' : document.getElementById('di-ev-x')?.classList.contains('x-active') ? 'x' : '',
     evCharge:   document.getElementById('di-ev-charge')?.value  || '',
     evRange:    document.getElementById('di-ev-range')?.value   || '',
   };
@@ -3079,8 +3117,8 @@ function restoreIntakeDraft(id) {
     if (draft.code)    { const el = document.getElementById('di-code');  if (el) el.value = draft.code; }
     if (draft.general) { const el = document.getElementById('di-notes'); if (el) el.value = draft.general; }
     if (draft.batteryMonth) { const el = document.getElementById('di-battery-month'); if (el) el.value = draft.batteryMonth; }
-    const evCb = document.getElementById('di-is-electric');
-    if (evCb) { evCb.checked = !!draft.isElectric; evToggle(evCb); }
+    const evCb = null; // replaced by evClick buttons
+    if (draft.evSelection === 'v') evClick('v'); else if (draft.evSelection === 'x') evClick('x'); else if (draft.isElectric === true) evClick('v');
     if (draft.evCharge) { const el = document.getElementById('di-ev-charge'); if (el) el.value = draft.evCharge; }
     if (draft.evRange)  { const el = document.getElementById('di-ev-range');  if (el) el.value = draft.evRange; }
     // restore dashboard checkboxes
