@@ -4120,16 +4120,19 @@ async function captureAndScan() {
   status.textContent = '🔍 מזהה...';
 
   const vw = video.videoWidth, vh = video.videoHeight;
-  // capture the guide frame area (82% width, 22% height, centered)
-  const cropW = Math.round(vw * 0.82), cropH = Math.round(vh * 0.22);
-  const cropX = Math.round((vw - cropW) / 2), cropY = Math.round((vh - cropH) / 2);
-  canvas.width  = cropW;
+  // capture bottom 60% of the guide frame area — where the plate actually sits
+  // guide frame is 82% wide, 22% tall, centered. We take only its lower portion.
+  const gW = Math.round(vw * 0.82), gH = Math.round(vh * 0.22);
+  const gX = Math.round((vw - gW) / 2), gY = Math.round((vh - gH) / 2);
+  const cropH = Math.round(gH * 0.6);  // bottom 60% = plate area
+  const cropY = gY + gH - cropH;
+  canvas.width  = gW;
   canvas.height = cropH;
   const ctx = canvas.getContext('2d');
-  ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+  ctx.drawImage(video, gX, cropY, gW, cropH, 0, 0, gW, cropH);
 
   try {
-    const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.95));
+    const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92));
     const fd = new FormData();
     fd.append('file', blob, 'plate.jpg');
     fd.append('language', 'eng');
