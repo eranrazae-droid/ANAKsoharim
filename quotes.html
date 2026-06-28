@@ -212,6 +212,45 @@ function openDealPanel(i) {
   renderDetail();
 }
 
+function printDeal() {
+  var deals = getDeals();
+  var d = deals[selectedIdx] || deals[0];
+  if (!d) return;
+  function r(lbl, val) { return val ? '<tr><td style="padding:6px 12px;font-size:13px;color:#7a9ab8;font-weight:600;white-space:nowrap">' + lbl + '</td><td style="padding:6px 12px;font-size:14px;font-weight:700;color:#0d1f3c">' + val + '</td></tr>' : ''; }
+  var rows = '';
+  rows += r('שם לקוח', d.customer);
+  rows += r('טלפון', d.phone);
+  rows += r('נציג מכירות', d.rep);
+  rows += r('נציג מימון', d.financeRep);
+  rows += r('רכב חדש', d.newCar);
+  rows += r('מספר רישוי', d.newPlate);
+  if (d.newPrice) rows += r('מחיר רכב', fmt(d.newPrice));
+  if (d.tradeIn)  rows += r('זיכוי טרייד אין', fmt(d.tradeIn));
+  if (d.oldPlate) rows += r('רישוי טרייד אין', d.oldPlate);
+  if (d.oldLoan)  rows += r('חוב מימון רכב ישן', fmt(d.oldLoan));
+  if (d.cash)     rows += r('כסף שהלקוח מביא', fmt(d.cash));
+  if (d.finance)  rows += r('סכום מימון', fmt(d.finance));
+  if (d.monthly)  rows += r('החזר חודשי', fmt(d.monthly));
+  if (d.n)        rows += r('מספר תשלומים', d.n);
+  if (d.track)    rows += r('מסלול', d.track);
+  rows += r('סטטוס', d.dealStatus);
+  var chosen = null;
+  if (d.approvalPlans) d.approvalPlans.forEach(function(p){ if (p.chosen) chosen = p; });
+  if (chosen) {
+    rows += r('חברת מימון נבחרת', chosen.company);
+    rows += r('סכום מאושר', chosen.amount);
+    if (chosen.rate) rows += r('ריבית', chosen.rate + '%');
+  }
+  var w = window.open('', '_blank', 'width=700,height=900');
+  w.document.write('<!DOCTYPE html><html dir="rtl" lang="he"><head><meta charset="UTF-8"><title>פרטי עסקה — ' + (d.customer||'') + '</title><style>body{font-family:Arial,sans-serif;padding:32px;direction:rtl}h1{font-size:22px;margin-bottom:4px}h2{font-size:14px;color:#5a7aa5;font-weight:400;margin-bottom:24px}table{width:100%;border-collapse:collapse}tr:nth-child(even){background:#f5f8ff}td{border-bottom:1px solid #e8edf5}@media print{button{display:none}}</style></head><body>');
+  w.document.write('<h1>ענק הרכבים — פרטי עסקה</h1>');
+  w.document.write('<h2>' + (d.customer || '') + ' · ' + new Date().toLocaleDateString('he-IL') + '</h2>');
+  w.document.write('<table>' + rows + '</table>');
+  w.document.write('<br><button onclick="window.print()" style="background:#0d1f3c;color:#fff;border:none;border-radius:8px;padding:12px 28px;font-size:15px;cursor:pointer">הדפס</button>');
+  w.document.write('</body></html>');
+  w.document.close();
+}
+
 function backToGrid() {
   document.getElementById('split-panel').style.display = 'none';
   document.getElementById('btn-back').style.display = 'none';
@@ -394,6 +433,7 @@ function renderDetail() {
   }
 
 
+  html += '<button onclick="printDeal()" style="width:100%;background:#1a2f54;color:#7a9ccf;border:1.5px solid #2a4a7a;border-radius:12px;padding:14px;font-family:\'Heebo\',sans-serif;font-size:15px;font-weight:700;cursor:pointer;margin-top:8px">🖨️ הדפסה</button>';
   right.innerHTML = html;
 
   // אפס טופס
