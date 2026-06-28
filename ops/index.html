@@ -891,30 +891,22 @@ if ('serviceWorker' in navigator) {
 </div>
 
 <!-- ====== MODAL: PLATE SCANNER ====== -->
-<div class="modal-overlay" id="modal-plate-scanner" style="z-index:1200;background:rgba(0,0,0,.92)">
-  <div style="width:100%;max-width:520px;display:flex;flex-direction:column;align-items:center;padding:16px;box-sizing:border-box">
-    <div style="display:flex;justify-content:space-between;align-items:center;width:100%;margin-bottom:12px">
-      <span style="color:#fff;font-size:17px;font-weight:700">📷 סריקת לוחית רישוי</span>
+<div class="modal-overlay" id="modal-plate-scanner" style="z-index:1200;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center">
+  <div style="width:100%;max-width:420px;display:flex;flex-direction:column;align-items:center;padding:24px;box-sizing:border-box">
+    <div style="display:flex;justify-content:space-between;align-items:center;width:100%;margin-bottom:20px">
+      <span style="color:#fff;font-size:18px;font-weight:700">📷 סריקת לוחית רישוי</span>
       <button onclick="closePlateScanner()" style="background:rgba(255,255,255,.15);border:none;color:#fff;font-size:20px;width:36px;height:36px;border-radius:50%;cursor:pointer">✕</button>
     </div>
-    <!-- tap-to-capture: tap anywhere on video to scan -->
-    <div style="position:relative;width:100%;border-radius:14px;overflow:hidden;background:#000" onclick="captureAndScan()">
-      <video id="plate-video" autoplay playsinline style="width:100%;display:block;max-height:55vh;object-fit:cover"></video>
-      <!-- guide frame -->
-      <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none">
-        <div style="width:82%;height:22%;border:3px solid #facc15;border-radius:10px;box-shadow:0 0 0 2000px rgba(0,0,0,.35)"></div>
-      </div>
-      <!-- tap hint -->
-      <div style="position:absolute;bottom:10px;left:0;right:0;text-align:center;pointer-events:none">
-        <span style="background:rgba(0,0,0,.6);color:#facc15;font-size:13px;font-weight:700;padding:5px 14px;border-radius:20px">הכנס לוחית למסגרת ולחץ</span>
-      </div>
-      <canvas id="plate-canvas" style="display:none"></canvas>
-    </div>
-    <div id="plate-scan-status" style="color:#facc15;font-size:14px;font-weight:700;margin-top:12px;min-height:22px;text-align:center">🎥 מפעיל מצלמה...</div>
-    <div id="plate-scan-result" style="display:none;background:#22c55e;color:#fff;border-radius:12px;padding:14px 20px;margin-top:10px;font-size:22px;font-weight:900;letter-spacing:3px;text-align:center"></div>
-    <!-- big capture button -->
-    <button onclick="captureAndScan()" id="plate-capture-btn" style="margin-top:14px;width:72px;height:72px;border-radius:50%;background:#facc15;border:4px solid #fff;font-size:28px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.4)">📷</button>
-    <span style="color:#94a3b8;font-size:12px;margin-top:6px">לחץ לסריקה</span>
+    <canvas id="plate-canvas" style="display:none"></canvas>
+    <!-- hidden native camera input -->
+    <input type="file" id="plate-file-input" accept="image/*" capture="environment" style="display:none" onchange="onPlatePhoto(this)">
+    <!-- status + result -->
+    <div id="plate-scan-status" style="color:#facc15;font-size:15px;font-weight:700;margin-bottom:20px;text-align:center;line-height:1.5">צלם את הלוחית מקרוב<br><span style="color:#94a3b8;font-size:13px;font-weight:400">הלוחית תזוהה אוטומטית</span></div>
+    <div id="plate-scan-result" style="display:none;background:#22c55e;color:#fff;border-radius:14px;padding:16px 24px;margin-bottom:20px;font-size:24px;font-weight:900;letter-spacing:3px;text-align:center;width:100%"></div>
+    <!-- big camera button -->
+    <button onclick="document.getElementById('plate-file-input').click()" id="plate-capture-btn"
+      style="width:100px;height:100px;border-radius:50%;background:#facc15;border:5px solid #fff;font-size:40px;cursor:pointer;box-shadow:0 6px 24px rgba(0,0,0,.5);margin-bottom:10px">📷</button>
+    <span style="color:#94a3b8;font-size:13px">לחץ לצילום הלוחית</span>
   </div>
 </div>
 
@@ -4056,51 +4048,39 @@ window.dinvMarkAll = dinvMarkAll;
 window.submitDriverInv = submitDriverInv;
 
 /* ── Plate Scanner ── */
-let _plateScanStream = null;
-let _plateScanBusy   = false;
+let _plateScanBusy = false;
 if (!window._plateScanSeen) window._plateScanSeen = new Set();
 
-async function openPlateScanner() {
+function openPlateScanner() {
   window._plateScanSeen = new Set();
-  openModal('modal-plate-scanner');
   document.getElementById('plate-scan-result').style.display = 'none';
-  document.getElementById('plate-scan-status').textContent = '🎥 מפעיל מצלמה...';
-  const btn = document.getElementById('plate-capture-btn');
-  if (btn) btn.disabled = true;
-  try {
-    _plateScanStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }
-    });
-    const video = document.getElementById('plate-video');
-    video.srcObject = _plateScanStream;
-    await new Promise(r => { video.onloadedmetadata = r; });
-    video.play();
-    document.getElementById('plate-scan-status').textContent = '📋 הכנס לוחית למסגרת ולחץ 📷';
-    if (btn) btn.disabled = false;
-  } catch(e) {
-    document.getElementById('plate-scan-status').textContent = '⚠️ לא ניתן לגשת למצלמה';
-  }
+  document.getElementById('plate-scan-status').innerHTML = 'צלם את הלוחית מקרוב<br><span style="color:#94a3b8;font-size:13px;font-weight:400">הלוחית תזוהה אוטומטית</span>';
+  // reset file input so same file can be re-selected
+  const inp = document.getElementById('plate-file-input');
+  if (inp) inp.value = '';
+  openModal('modal-plate-scanner');
 }
 
 function closePlateScanner() {
-  if (_plateScanStream) { _plateScanStream.getTracks().forEach(t => t.stop()); _plateScanStream = null; }
   closeModal('modal-plate-scanner');
 }
 
 function _extractPlateCandidates(text) {
   const runs = text.match(/\d+/g) || [];
-  const joined = runs.join('');
   const out = [];
+  // sliding window on all digits joined
+  const joined = runs.join('');
   for (const len of [8, 7]) {
     for (let i = 0; i <= joined.length - len; i++) {
       const c = joined.slice(i, i + len);
       if (!out.includes(c)) out.push(c);
     }
   }
-  for (let start = 0; start < runs.length; start++) {
+  // also concatenate adjacent runs (handles "295" "38" "902" → "29538902")
+  for (let s = 0; s < runs.length; s++) {
     let combined = '';
-    for (let end = start; end < runs.length && combined.length < 9; end++) {
-      combined += runs[end];
+    for (let e = s; e < runs.length && combined.length < 9; e++) {
+      combined += runs[e];
       if ((combined.length === 7 || combined.length === 8) && !out.includes(combined))
         out.push(combined);
     }
@@ -4108,36 +4088,23 @@ function _extractPlateCandidates(text) {
   return out;
 }
 
-async function captureAndScan() {
-  if (_plateScanBusy) return;
-  const video  = document.getElementById('plate-video');
-  const canvas = document.getElementById('plate-canvas');
+async function onPlatePhoto(input) {
+  const file = input.files[0];
+  if (!file || _plateScanBusy) return;
+  _plateScanBusy = true;
   const status = document.getElementById('plate-scan-status');
   const btn    = document.getElementById('plate-capture-btn');
-  if (!video || !video.srcObject) return;
-  _plateScanBusy = true;
+  const resultEl = document.getElementById('plate-scan-result');
   if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
-  status.textContent = '🔍 מזהה...';
-
-  const vw = video.videoWidth, vh = video.videoHeight;
-  // capture bottom 60% of the guide frame area — where the plate actually sits
-  // guide frame is 82% wide, 22% tall, centered. We take only its lower portion.
-  const gW = Math.round(vw * 0.82), gH = Math.round(vh * 0.22);
-  const gX = Math.round((vw - gW) / 2), gY = Math.round((vh - gH) / 2);
-  const cropH = Math.round(gH * 0.6);  // bottom 60% = plate area
-  const cropY = gY + gH - cropH;
-  canvas.width  = gW;
-  canvas.height = cropH;
-  const ctx = canvas.getContext('2d');
-  ctx.drawImage(video, gX, cropY, gW, cropH, 0, 0, gW, cropH);
+  status.innerHTML = '🔍 מזהה לוחית...';
+  resultEl.style.display = 'none';
 
   try {
-    const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92));
     const fd = new FormData();
-    fd.append('file', blob, 'plate.jpg');
+    fd.append('file', file, 'plate.jpg');
     fd.append('language', 'eng');
     fd.append('isOverlayRequired', 'false');
-    fd.append('detectOrientation', 'false');
+    fd.append('detectOrientation', 'true');
     fd.append('scale', 'true');
     fd.append('OCREngine', '2');
     const resp = await fetch('https://api.ocr.space/parse/image', {
@@ -4161,30 +4128,29 @@ async function captureAndScan() {
         _driverInvRows[idx].status = 'v';
         _dinvSaveProgress();
         renderDriverInvModal(headers);
-        const resultEl = document.getElementById('plate-scan-result');
         resultEl.style.background = '#22c55e';
-        resultEl.textContent = `✅ ${plate} סומנה`;
+        resultEl.textContent = `✅ ${plate} סומנה!`;
         resultEl.style.display = 'block';
-        setTimeout(() => { resultEl.style.display = 'none'; }, 3000);
-        status.textContent = '📋 הכנס לוחית למסגרת ולחץ 📷';
+        status.innerHTML = 'צלם את הלוחית הבאה 📷';
         found = true;
         break;
       }
     }
     if (!found) {
-      status.textContent = '❌ לא זוהתה — נסה שוב';
-      setTimeout(() => { status.textContent = '📋 הכנס לוחית למסגרת ולחץ 📷'; }, 2000);
+      status.innerHTML = '❌ לא זוהתה — נסה לצלם מקרוב יותר';
     }
   } catch(e) {
-    status.textContent = '⚠️ שגיאה — בדוק חיבור אינטרנט';
-    setTimeout(() => { status.textContent = '📋 הכנס לוחית למסגרת ולחץ 📷'; }, 2500);
+    status.innerHTML = '⚠️ שגיאה — בדוק חיבור אינטרנט';
   }
+  // reset for next photo
+  input.value = '';
   _plateScanBusy = false;
   if (btn) { btn.disabled = false; btn.textContent = '📷'; }
 }
+
 window.openPlateScanner = openPlateScanner;
 window.closePlateScanner = closePlateScanner;
-window.captureAndScan = captureAndScan;
+window.onPlatePhoto = onPlatePhoto;
 
 window.pickDriver = pickDriver;
 window.selectCarType = selectCarType;
