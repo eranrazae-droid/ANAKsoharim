@@ -263,32 +263,39 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
       <div class="deal-val"><input class="deal-input" id="new-list-price" type="text" placeholder="0 ₪" oninput="calc()" onfocus="onNumFocus(this)" onblur="onNumBlur(this)" inputmode="numeric"></div>
     </div>
 
-    <!-- טרייד אין -->
-    <div class="deal-section">טרייד אין (רכב ישן)</div>
-    <div class="deal-row">
-      <div class="deal-label">מספר רישוי</div>
-      <div class="deal-val" style="display:flex;gap:6px;align-items:center">
-        <input class="deal-input name-input" id="old-car-plate" type="text" placeholder="000-00-000" oninput="calc()" onpaste="pastePlateDigits(event,'old-car-plate',calc)" style="flex:1">
-        <button onclick="lookupPlate('old-car-plate','old-car-name',this)" style="background:#c9a227;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:Heebo,sans-serif">🔍 שלוף</button>
+    <!-- כפתור טרייד אין -->
+    <div style="padding:10px 16px">
+      <button id="btn-tradein-toggle" onclick="toggleTradeIn()" style="width:100%;background:#1a2f54;color:#7a9ccf;border:1.5px dashed #2a4a7a;border-radius:12px;padding:13px;font-family:'Heebo',sans-serif;font-size:15px;font-weight:700;cursor:pointer;transition:all .15s">＋ הוספת טרייד אין</button>
+    </div>
+
+    <!-- טרייד אין — נסתר ברירת מחדל -->
+    <div id="tradein-section" style="display:none">
+      <div class="deal-section">טרייד אין (רכב ישן)</div>
+      <div class="deal-row">
+        <div class="deal-label">מספר רישוי</div>
+        <div class="deal-val" style="display:flex;gap:6px;align-items:center">
+          <input class="deal-input name-input" id="old-car-plate" type="text" placeholder="000-00-000" oninput="calc()" onpaste="pastePlateDigits(event,'old-car-plate',calc)" style="flex:1">
+          <button onclick="lookupPlate('old-car-plate','old-car-name',this)" style="background:#c9a227;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:Heebo,sans-serif">🔍 שלוף</button>
+        </div>
       </div>
-    </div>
-    <div class="deal-row">
-      <div class="deal-label">פרטי רכב</div>
-      <div class="deal-val"><input class="deal-input name-input" id="old-car-name" type="text" placeholder="שם הרכב" oninput="calc()"></div>
-    </div>
-    <div id="test-alert-old" style="display:none;margin:0 16px 8px;padding:8px 12px;border-radius:8px;border:1px solid;font-size:13px;font-weight:700;align-items:center"></div>
-    <div class="deal-row">
-      <div class="deal-label">זיכוי טרייד אין</div>
-      <div class="deal-val"><input class="deal-input" id="trade-in" type="text" placeholder="110,000 ₪" oninput="calc()" onfocus="onNumFocus(this)" onblur="onNumBlur(this)" inputmode="numeric"></div>
-    </div>
-    <div class="deal-row">
-      <div class="deal-label sub">הפרש</div>
-      <div class="deal-val computed diff" id="diff">—</div>
+      <div class="deal-row">
+        <div class="deal-label">פרטי רכב</div>
+        <div class="deal-val"><input class="deal-input name-input" id="old-car-name" type="text" placeholder="שם הרכב" oninput="calc()"></div>
+      </div>
+      <div id="test-alert-old" style="display:none;margin:0 16px 8px;padding:8px 12px;border-radius:8px;border:1px solid;font-size:13px;font-weight:700;align-items:center"></div>
+      <div class="deal-row">
+        <div class="deal-label">זיכוי טרייד אין</div>
+        <div class="deal-val"><input class="deal-input" id="trade-in" type="text" placeholder="110,000 ₪" oninput="calc()" onfocus="onNumFocus(this)" onblur="onNumBlur(this)" inputmode="numeric"></div>
+      </div>
+      <div class="deal-row">
+        <div class="deal-label sub">הפרש</div>
+        <div class="deal-val computed diff" id="diff">—</div>
+      </div>
     </div>
 
     <!-- פרטי עסקה -->
     <div class="deal-section">פרטי עסקה</div>
-    <div class="deal-row">
+    <div id="old-loan-row" class="deal-row" style="display:none">
       <div class="deal-label">חוב מימון על רכב ישן</div>
       <div class="deal-val"><input class="deal-input" id="old-loan" type="text" placeholder="0 ₪" oninput="calc()" onfocus="onNumFocus(this)" onblur="onNumBlur(this)" inputmode="numeric"></div>
     </div>
@@ -550,6 +557,26 @@ function onCashInput() {
     if (btn) { btn.textContent = '□'; btn.style.color = '#fde047'; btn.style.background = '#0d1f3c'; }
   }
   calc();
+}
+
+var _tradeInOpen = false;
+function toggleTradeIn() {
+  _tradeInOpen = !_tradeInOpen;
+  var sec = document.getElementById('tradein-section');
+  var row = document.getElementById('old-loan-row');
+  var btn = document.getElementById('btn-tradein-toggle');
+  sec.style.display = _tradeInOpen ? 'block' : 'none';
+  row.style.display  = _tradeInOpen ? 'flex'  : 'none';
+  btn.textContent    = _tradeInOpen ? '✕ הסרת טרייד אין' : '＋ הוספת טרייד אין';
+  btn.style.color    = _tradeInOpen ? '#ef4444' : '#7a9ccf';
+  btn.style.borderColor = _tradeInOpen ? '#ef4444' : '#2a4a7a';
+  if (!_tradeInOpen) {
+    document.getElementById('old-car-plate').value = '';
+    document.getElementById('old-car-name').value  = '';
+    document.getElementById('trade-in').value      = '';
+    document.getElementById('old-loan').value      = '';
+    calc();
+  }
 }
 
 function toggleCash100() {
@@ -899,6 +926,10 @@ function loadHistoryItem(item) {
   document.getElementById('new-car-plate').value = item.newPlate|| '';
   document.getElementById('new-price').value     = item.newPrice    ? Math.round(item.newPrice).toLocaleString('he-IL')    + ' ₪' : '';
   document.getElementById('new-list-price').value= item.newListPrice? Math.round(item.newListPrice).toLocaleString('he-IL')+ ' ₪' : '';
+  // טרייד אין — פתח את הסעיף רק אם יש ערכים
+  var hasTradeIn = !!(item.tradeIn || item.oldPlate || item.oldCar || item.oldLoan);
+  if (hasTradeIn && !_tradeInOpen) toggleTradeIn();
+  if (!hasTradeIn && _tradeInOpen) toggleTradeIn();
   document.getElementById('old-car-name').value  = item.oldCar  || '';
   document.getElementById('old-car-plate').value = item.oldPlate|| '';
   document.getElementById('trade-in').value      = item.tradeIn  ? Math.round(item.tradeIn).toLocaleString('he-IL')  + ' ₪' : '';
@@ -1269,6 +1300,14 @@ function resetAll() {
   _cash100Active = false;
   var btn = document.getElementById('btn-cash-100');
   if (btn) { btn.textContent = '□'; btn.style.background = '#0d1f3c'; btn.style.color = '#fde047'; }
+  // סגור טרייד אין
+  if (_tradeInOpen) {
+    _tradeInOpen = false;
+    document.getElementById('tradein-section').style.display = 'none';
+    document.getElementById('old-loan-row').style.display    = 'none';
+    var tb = document.getElementById('btn-tradein-toggle');
+    if (tb) { tb.textContent = '＋ הוספת טרייד אין'; tb.style.color = '#7a9ccf'; tb.style.borderColor = '#2a4a7a'; }
+  }
   clearFieldErrors();
   calc();
   // שמור שמירות ו-id קיימים — נקה הכל מנקה רק שדות
