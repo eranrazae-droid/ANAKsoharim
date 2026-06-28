@@ -4106,7 +4106,7 @@ async function _getTesseract() {
     corePath:   'https://cdn.jsdelivr.net/npm/tesseract.js-core@5/tesseract-core.wasm.js',
     logger: () => {}
   });
-  await _tesseractWorker.setParameters({ tessedit_char_whitelist: '0123456789', tessedit_pageseg_mode: '7' });
+  await _tesseractWorker.setParameters({ tessedit_char_whitelist: '0123456789-. ', tessedit_pageseg_mode: '6' });
   return _tesseractWorker;
 }
 
@@ -4117,17 +4117,25 @@ async function _scanFrame() {
   const status = document.getElementById('plate-scan-status');
   if (!video || !video.srcObject || !canvas) return;
   _plateScanBusy = true;
-  // crop guide box: 82% wide, 22% tall, centered
   const vw = video.videoWidth, vh = video.videoHeight;
   if (!vw || !vh) { _plateScanBusy = false; return; }
+  // crop guide box region, scale up 2x for better OCR
   const cropW = Math.round(vw * 0.82), cropH = Math.round(vh * 0.26);
   const cropX = Math.round((vw - cropW) / 2), cropY = Math.round((vh - cropH) / 2);
-  canvas.width = cropW; canvas.height = cropH;
+  const scale = 2;
+  canvas.width  = cropW * scale;
+  canvas.height = cropH * scale;
   const ctx = canvas.getContext('2d');
-  // contrast boost for better OCR
-  ctx.filter = 'contrast(1.6) brightness(1.1)';
-  ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
-  ctx.filter = 'none';
+  ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, canvas.width, canvas.height);
+  // manual grayscale + threshold for yellow plate → black digits on white
+  const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const d = imgData.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const gray = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
+    const val = gray < 140 ? 0 : 255; // threshold: dark pixels → black, light → white
+    d[i] = d[i+1] = d[i+2] = val;
+  }
+  ctx.putImageData(imgData, 0, 0);
   try {
     const worker = await _getTesseract();
     const { data: { text } } = await worker.recognize(canvas);
