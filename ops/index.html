@@ -4761,27 +4761,34 @@ async function _sendWhatsApp(phone, message) {
   const accountSid = contacts['_sid']?.value;
   const authToken  = contacts['_token']?.value;
   const from       = contacts['_from']?.value || '';
-  const funcUrl    = contacts['_funcUrl']?.value || '';
   if (!accountSid || !authToken) {
     showToast('⚠️ SMS: חסרים פרטי Twilio בהגדרות הודעות', 5000);
     return;
   }
-  const toNum = '+' + phone.replace(/\D/g, '');
-  const endpoint = funcUrl || 'https://winter-unit-0af8.lielraz1912.workers.dev';
+  const toNum   = '+' + phone.replace(/\D/g, '');
+  const fromNum = from.startsWith('+') ? from : ('+' + from.replace(/\D/g, ''));
+  // call Twilio REST API directly — no middleware needed
+  const params = new URLSearchParams({ From: fromNum, To: toNum, Body: message });
   try {
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accountSid, authToken, from, to: toNum, message, sms: true })
-    });
-    const txt = await res.text().catch(() => '');
+    const res = await fetch(
+      `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Basic ' + btoa(`${accountSid}:${authToken}`),
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: params.toString()
+      }
+    );
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      console.error('SMS error', res.status, txt);
-      showToast(`⚠️ SMS שגיאה ${res.status}: ${txt.slice(0,80)}`, 6000);
+      console.error('Twilio error', res.status, data);
+      showToast(`⚠️ Twilio שגיאה ${res.status}: ${data.message || ''}`, 6000);
     }
   } catch(e) {
     console.error('SMS fetch error', e);
-    showToast(`⚠️ SMS: לא ניתן להגיע לשרת — ${e.message}`, 6000);
+    showToast(`⚠️ SMS: שגיאת חיבור — ${e.message}`, 6000);
   }
 }
 
@@ -4862,30 +4869,8 @@ async function saveNotifySettings() {
 async function testWhatsApp(name) {
   const phone = document.getElementById(`nc-phone-${name}`)?.value.trim();
   if (!phone) return showToast(`נא להזין מספר טלפון עבור ${name}`);
-  const contacts = await _loadDriverContacts();
-  const accountSid = contacts['_sid']?.value;
-  const authToken  = contacts['_token']?.value;
-  const from       = contacts['_from']?.value || '';
-  const funcUrl    = contacts['_funcUrl']?.value || '';
-  if (!accountSid || !authToken) return showToast('⚠️ חסרים Account SID / Auth Token', 5000);
-  const toNum = '+' + phone.replace(/\D/g, '');
-  const endpoint = funcUrl || 'https://winter-unit-0af8.lielraz1912.workers.dev';
-  showToast(`📤 שולח בדיקה ל-${toNum}...`, 3000);
-  try {
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accountSid, authToken, from, to: toNum, message: `✅ בדיקה — מערכת ענק הרכבים מחוברת ל-${name}`, sms: true })
-    });
-    const txt = await res.text().catch(() => '');
-    if (res.ok) {
-      showToast(`✅ נשלח בהצלחה ל-${name}`, 4000);
-    } else {
-      showToast(`❌ שגיאה ${res.status}: ${txt.slice(0,120)}`, 8000);
-    }
-  } catch(e) {
-    showToast(`❌ חיבור נכשל: ${e.message}`, 8000);
-  }
+  showToast(`📤 שולח בדיקה ל-${name}...`, 3000);
+  await _sendWhatsApp(phone, `✅ בדיקה — מערכת ענק הרכבים מחוברת ל-${name}`);
 }
 async function resendIntakeNotify(driver, plate, brand, model) {
   await _notifyDriver(driver, `🚗 קליטת רכב ממתינה לך — ${plate} ${brand} ${model}. כנס לאפליקציה ענק הרכבים.`);
