@@ -4758,15 +4758,15 @@ async function _loadDriverContacts() {
 async function _sendWhatsApp(phone, message) {
   if (!phone) return;
   const contacts = await _loadDriverContacts();
-  const accountSid = contacts['_sid']?.value;
-  const authToken  = contacts['_token']?.value;
-  const from       = contacts['_from']?.value || '';
+  const accountSid = (contacts['_sid']?.value   || '').trim();
+  const authToken  = (contacts['_token']?.value || '').trim();
+  const from       = (contacts['_from']?.value  || '').trim();
   if (!accountSid || !authToken) {
     showToast('⚠️ SMS: חסרים פרטי Twilio בהגדרות הודעות', 5000);
     return;
   }
   const toNum   = '+' + phone.replace(/\D/g, '');
-  const fromNum = from.startsWith('+') ? from : ('+' + from.replace(/\D/g, ''));
+  const fromNum = from ? (from.startsWith('+') ? from : ('+' + from.replace(/\D/g, ''))) : '';
   // call Twilio REST API directly — no middleware needed
   const params = new URLSearchParams({ From: fromNum, To: toNum, Body: message });
   try {
