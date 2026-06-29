@@ -4761,31 +4761,26 @@ async function _sendWhatsApp(phone, message) {
   const accountSid = (contacts['_sid']?.value   || '').trim();
   const authToken  = (contacts['_token']?.value || '').trim();
   const from       = (contacts['_from']?.value  || '').trim();
-  const workerUrl  = (contacts['_funcUrl']?.value || '').trim();
+  const workerUrl  = (contacts['_funcUrl']?.value || '').trim() || 'https://winter-unit-0af8.lielraz1912.workers.dev';
   if (!accountSid || !authToken) {
     showToast('⚠️ SMS: חסרים פרטי Twilio בהגדרות הודעות', 5000);
     return;
   }
-  if (!workerUrl) {
-    showToast('⚠️ SMS: חסר Worker URL בהגדרות הודעות', 5000);
-    return;
-  }
-  const toNum   = 'whatsapp:+' + phone.replace(/\D/g, '');
-  const fromNum = from ? (from.startsWith('whatsapp:') ? from : ('whatsapp:' + (from.startsWith('+') ? from : ('+' + from.replace(/\D/g, ''))))) : 'whatsapp:+14155238886';
+  const toNum = '+' + phone.replace(/\D/g, '');
   try {
     const res = await fetch(workerUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accountSid, authToken, from: fromNum, to: toNum, message })
+      body: JSON.stringify({ accountSid, authToken, from, to: toNum, message, sms: true })
     });
-    const data = await res.json().catch(() => ({}));
+    const txt = await res.text().catch(() => '');
     if (!res.ok) {
-      console.error('Twilio error', res.status, data);
-      showToast(`⚠️ Twilio שגיאה ${res.status}: ${data.message || data.error || ''}`, 6000);
+      console.error('SMS error', res.status, txt);
+      showToast(`⚠️ SMS שגיאה ${res.status}: ${txt.slice(0,80)}`, 6000);
     }
   } catch(e) {
     console.error('SMS fetch error', e);
-    showToast(`⚠️ SMS: שגיאת חיבור — ${e.message}`, 6000);
+    showToast(`⚠️ SMS: לא ניתן להגיע לשרת — ${e.message}`, 6000);
   }
 }
 
