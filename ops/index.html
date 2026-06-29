@@ -4761,7 +4761,9 @@ async function _sendWhatsApp(phone, message) {
   const accountSid = (contacts['_sid']?.value   || '').trim();
   const authToken  = (contacts['_token']?.value || '').trim();
   const from       = (contacts['_from']?.value  || '').trim();
-  const workerUrl  = (contacts['_funcUrl']?.value || '').trim() || 'https://winter-unit-0af8.lielraz1912.workers.dev';
+  const savedUrl   = (contacts['_funcUrl']?.value || '').trim();
+  // ignore Firebase Function URL (not deployed / no CORS); fall back to working Worker
+  const workerUrl  = (savedUrl && !savedUrl.includes('cloudfunctions.net')) ? savedUrl : 'https://winter-unit-0af8.lielraz1912.workers.dev';
   if (!accountSid || !authToken) {
     showToast('⚠️ SMS: חסרים פרטי Twilio בהגדרות הודעות', 5000);
     return;
