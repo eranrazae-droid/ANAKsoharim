@@ -4761,30 +4761,27 @@ async function _sendWhatsApp(phone, message) {
   const accountSid = (contacts['_sid']?.value   || '').trim();
   const authToken  = (contacts['_token']?.value || '').trim();
   const from       = (contacts['_from']?.value  || '').trim();
+  const workerUrl  = (contacts['_funcUrl']?.value || '').trim();
   if (!accountSid || !authToken) {
     showToast('⚠️ SMS: חסרים פרטי Twilio בהגדרות הודעות', 5000);
     return;
   }
-  const toNum   = '+' + phone.replace(/\D/g, '');
-  const fromNum = from ? (from.startsWith('+') ? from : ('+' + from.replace(/\D/g, ''))) : '';
-  // call Twilio REST API directly — no middleware needed
-  const params = new URLSearchParams({ From: fromNum, To: toNum, Body: message });
+  if (!workerUrl) {
+    showToast('⚠️ SMS: חסר Worker URL בהגדרות הודעות', 5000);
+    return;
+  }
+  const toNum   = 'whatsapp:+' + phone.replace(/\D/g, '');
+  const fromNum = from ? (from.startsWith('whatsapp:') ? from : ('whatsapp:' + (from.startsWith('+') ? from : ('+' + from.replace(/\D/g, ''))))) : 'whatsapp:+14155238886';
   try {
-    const res = await fetch(
-      `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Basic ' + btoa(`${accountSid}:${authToken}`),
-          'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: params.toString()
-      }
-    );
+    const res = await fetch(workerUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accountSid, authToken, from: fromNum, to: toNum, message })
+    });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       console.error('Twilio error', res.status, data);
-      showToast(`⚠️ Twilio שגיאה ${res.status}: ${data.message || ''}`, 6000);
+      showToast(`⚠️ Twilio שגיאה ${res.status}: ${data.message || data.error || ''}`, 6000);
     }
   } catch(e) {
     console.error('SMS fetch error', e);
@@ -4826,7 +4823,7 @@ async function openNotifySettings() {
         <input id="nc-sid"     value="${sid}"     placeholder="Account SID (ACxxx...)" style="border:1.5px solid #f22f46;border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:12px;direction:ltr;text-align:left">
         <input id="nc-token"   value="${token}"   placeholder="Auth Token" style="border:1.5px solid #f22f46;border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:12px;direction:ltr;text-align:left">
         <input id="nc-from"    value="${from}"    placeholder="מספר שולח: whatsapp:+14155238886" style="border:1.5px solid #f22f46;border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:12px;direction:ltr;text-align:left">
-        <input id="nc-funcurl" value="${funcUrl}" placeholder="Function URL (לאחר deploy)" style="border:1.5px solid #f22f46;border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:12px;direction:ltr;text-align:left">
+        <input id="nc-funcurl" value="${funcUrl}" placeholder="Cloudflare Worker URL (https://xxx.workers.dev)" style="border:1.5px solid #f22f46;border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:12px;direction:ltr;text-align:left">
         <input id="nc-manager-phone" value="${managerPhone}" placeholder="טלפון מנהל לקבלת התראות (972501234567)" style="border:1.5px solid #f22f46;border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:12px;direction:ltr;text-align:left">
       </div>
     </div>`;
