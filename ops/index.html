@@ -4764,8 +4764,23 @@ async function _sendWhatsApp(phone, message) {
     showToast('⚠️ WhatsApp: חסרים פרטי Green API בהגדרות הודעות', 5000);
     return;
   }
-  const chatId = phone.replace(/\D/g, '') + '@c.us';
+  const phoneDigits = phone.replace(/\D/g, '');
   try {
+    // resolve correct chatId via Green API check
+    let chatId = phoneDigits + '@c.us';
+    try {
+      const chk = await fetch(
+        `https://api.green-api.com/waInstance${instanceId}/checkWhatsapp/${apiToken}`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phoneNumber: phoneDigits }) }
+      );
+      const chkData = await chk.json().catch(() => ({}));
+      if (chkData.chatId) chatId = chkData.chatId;
+      else if (chkData.existsWhatsapp === false) {
+        showToast(`⚠️ המספר ${phone} לא רשום בוואטסאפ`, 5000);
+        return;
+      }
+    } catch(_) {}
+
     const res = await fetch(
       `https://api.green-api.com/waInstance${instanceId}/sendMessage/${apiToken}`,
       {
@@ -4777,7 +4792,7 @@ async function _sendWhatsApp(phone, message) {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       console.error('Green API error', res.status, data);
-      showToast(`⚠️ WhatsApp שגיאה ${res.status}: ${data.message || ''}`, 6000);
+      showToast(`⚠️ WhatsApp שגיאה ${res.status}: ${JSON.stringify(data).slice(0,80)}`, 6000);
     }
   } catch(e) {
     console.error('WhatsApp fetch error', e);
