@@ -4758,31 +4758,30 @@ async function _loadDriverContacts() {
 async function _sendWhatsApp(phone, message) {
   if (!phone) return;
   const contacts = await _loadDriverContacts();
-  const accountSid = (contacts['_sid']?.value   || '').trim();
-  const authToken  = (contacts['_token']?.value || '').trim();
-  const from       = (contacts['_from']?.value  || '').trim();
-  const savedUrl   = (contacts['_funcUrl']?.value || '').trim();
-  // ignore Firebase Function URL (not deployed / no CORS); fall back to working Worker
-  const workerUrl  = (savedUrl && !savedUrl.includes('cloudfunctions.net')) ? savedUrl : 'https://winter-unit-0af8.lielraz1912.workers.dev';
-  if (!accountSid || !authToken) {
-    showToast('⚠️ SMS: חסרים פרטי Twilio בהגדרות הודעות', 5000);
+  const instanceId = (contacts['_gaInstance']?.value || '').trim();
+  const apiToken   = (contacts['_gaToken']?.value   || '').trim();
+  if (!instanceId || !apiToken) {
+    showToast('⚠️ WhatsApp: חסרים פרטי Green API בהגדרות הודעות', 5000);
     return;
   }
-  const toNum = '+' + phone.replace(/\D/g, '');
+  const chatId = phone.replace(/\D/g, '') + '@c.us';
   try {
-    const res = await fetch(workerUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accountSid, authToken, from, to: toNum, message, sms: true })
-    });
-    const txt = await res.text().catch(() => '');
+    const res = await fetch(
+      `https://api.green-api.com/waInstance${instanceId}/sendMessage/${apiToken}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chatId, message })
+      }
+    );
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      console.error('SMS error', res.status, txt);
-      showToast(`⚠️ SMS שגיאה ${res.status}: ${txt.slice(0,80)}`, 6000);
+      console.error('Green API error', res.status, data);
+      showToast(`⚠️ WhatsApp שגיאה ${res.status}: ${data.message || ''}`, 6000);
     }
   } catch(e) {
-    console.error('SMS fetch error', e);
-    showToast(`⚠️ SMS: לא ניתן להגיע לשרת — ${e.message}`, 6000);
+    console.error('WhatsApp fetch error', e);
+    showToast(`⚠️ WhatsApp: שגיאת חיבור — ${e.message}`, 6000);
   }
 }
 
@@ -4810,21 +4809,18 @@ async function openNotifySettings() {
 }
 async function _openNotifySettingsInner() {
   const contacts = await _loadDriverContacts();
-  const sid     = contacts['_sid']?.value    || '';
-  const token   = contacts['_token']?.value  || '';
-  const from    = contacts['_from']?.value   || '';
-  const funcUrl = contacts['_funcUrl']?.value || '';
+  const gaInstance   = contacts['_gaInstance']?.value   || '';
+  const gaToken      = contacts['_gaToken']?.value      || '';
   const managerPhone = contacts['_managerPhone']?.value || '';
   const drivers = ['ליאל','עופר','גיל','איתי'];
   const apiRow = `
-    <div style="border:2px solid #f22f46;border-radius:12px;padding:12px 14px;margin-bottom:14px;background:#fff5f5">
-      <div style="font-weight:900;font-size:14px;margin-bottom:8px;color:#f22f46">📱 Twilio — פרטי חיבור</div>
+    <div style="border:2px solid #25d366;border-radius:12px;padding:12px 14px;margin-bottom:14px;background:#f0fff4">
+      <div style="font-weight:900;font-size:14px;margin-bottom:4px;color:#128c3e">📱 Green API — פרטי חיבור</div>
+      <div style="font-size:11px;color:#555;margin-bottom:8px;line-height:1.5">הירשם ב-<b>green-api.com</b> → צור Instance → סרוק QR עם WhatsApp → העתק ID וטוקן</div>
       <div style="display:flex;flex-direction:column;gap:6px">
-        <input id="nc-sid"     value="${sid}"     placeholder="Account SID (ACxxx...)" style="border:1.5px solid #f22f46;border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:12px;direction:ltr;text-align:left">
-        <input id="nc-token"   value="${token}"   placeholder="Auth Token" style="border:1.5px solid #f22f46;border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:12px;direction:ltr;text-align:left">
-        <input id="nc-from"    value="${from}"    placeholder="מספר שולח: whatsapp:+14155238886" style="border:1.5px solid #f22f46;border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:12px;direction:ltr;text-align:left">
-        <input id="nc-funcurl" value="${funcUrl}" placeholder="Cloudflare Worker URL (https://xxx.workers.dev)" style="border:1.5px solid #f22f46;border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:12px;direction:ltr;text-align:left">
-        <input id="nc-manager-phone" value="${managerPhone}" placeholder="טלפון מנהל לקבלת התראות (972501234567)" style="border:1.5px solid #f22f46;border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:12px;direction:ltr;text-align:left">
+        <input id="nc-ga-instance" value="${gaInstance}" placeholder="Instance ID (לדוגמה: 1101234567)" style="border:1.5px solid #25d366;border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:13px;direction:ltr;text-align:left">
+        <input id="nc-ga-token"    value="${gaToken}"    placeholder="API Token Instance" style="border:1.5px solid #25d366;border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:13px;direction:ltr;text-align:left">
+        <input id="nc-manager-phone" value="${managerPhone}" placeholder="טלפון מנהל לקבלת התראות (972501234567)" style="border:1.5px solid #25d366;border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:13px;direction:ltr;text-align:left">
       </div>
     </div>`;
   const rows = drivers.map(name => {
@@ -4842,14 +4838,10 @@ async function _openNotifySettingsInner() {
 async function saveNotifySettings() {
   const drivers = ['ליאל','עופר','גיל','איתי'];
   const data = {};
-  const sid     = document.getElementById('nc-sid')?.value.trim();
-  const token   = document.getElementById('nc-token')?.value.trim();
-  const from    = document.getElementById('nc-from')?.value.trim();
-  const funcUrl = document.getElementById('nc-funcurl')?.value.trim();
-  if (sid)     data['_sid']     = { value: sid };
-  if (token)   data['_token']   = { value: token };
-  if (from)    data['_from']    = { value: from };
-  if (funcUrl) data['_funcUrl'] = { value: funcUrl };
+  const gaInstance = document.getElementById('nc-ga-instance')?.value.trim();
+  const gaToken    = document.getElementById('nc-ga-token')?.value.trim();
+  if (gaInstance) data['_gaInstance'] = { value: gaInstance };
+  if (gaToken)    data['_gaToken']    = { value: gaToken };
   const managerPhone = document.getElementById('nc-manager-phone')?.value.trim();
   if (managerPhone) data['_managerPhone'] = { value: managerPhone };
   drivers.forEach(name => {
