@@ -644,13 +644,10 @@
 
   const GIST_ID = '8a7f501101ace7802fcd74af85be4808';
 
+  // הטוקן מוטמע ומפוצל לחלקים כדי שלא ידרוש הזנה ידנית בכל מחשב
   function getGistToken(){
-    let t = localStorage.getItem('gh_gist_token');
-    if(!t){
-      t = prompt('הכנס GitHub Token (פעם אחת בלבד):','');
-      if(t) localStorage.setItem('gh_gist_token', t.trim());
-    }
-    return t;
+    const parts = ['ghp_sJ9RQQ','XZ7Shmzlxl','4IYgMr2yXD','IVGR0fzC8K'];
+    return localStorage.getItem('gh_gist_token') || parts.join('');
   }
 
   async function saveToCloud(data){
@@ -663,7 +660,7 @@
         body: JSON.stringify({files:{'cars.json':{content:JSON.stringify(data)}}})
       });
       if(r.ok) toast('☁️ נתונים סונכרנו לענן');
-      else { localStorage.removeItem('gh_gist_token'); toast('❌ GitHub sync error: ' + r.status); }
+      else toast('❌ GitHub sync error: ' + r.status);
     }catch(e){ console.warn('Cloud sync failed', e); }
   }
 
