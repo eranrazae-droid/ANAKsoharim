@@ -1830,7 +1830,12 @@ display:none !important;
     }
     function indexed100(price){ return monthly(Number(price||0), INDEXED_RATE, 100); }
     function prime100(price){ return monthly(Number(price||0), PRIME_TRACK_RATE, 100); }
+    // תמחור אוטומטי: מחיר = עלות + 5,000 ₪ (עלויות כולל רישוי לפי מזהה רכב)
+    const COST_BY_ID = {10:272990, 12:182990, 14:151490, 15:156490, 17:116990, 18:118990, 19:136990, 20:135990, 21:156490, 22:155990, 23:176990, 24:215990, 25:194990, 27:188990, 29:153490, 31:148990, 32:281990, 33:166490, 34:184990, 35:161990, 36:220490, 37:194990, 39:126490, 40:158990, 41:133490, 42:153990, 43:122990, 44:139990, 45:126990, 46:164990, 47:187990, 48:203990, 49:160990, 50:160990, 51:99490, 52:155990, 53:152990, 54:178490, 55:167490, 59:166990};
+    const PRICE_MARKUP = 5000;
     function enrich(car){
+      const cost = Number(car.costPrice) || COST_BY_ID[car.id] || 0;
+      if(cost > 0){ car = {...car, autodealerPriceNumber: cost + PRICE_MARKUP}; }
       return {
         ...car,
         catalogPrice: fmt(car.catalogPriceNumber),
