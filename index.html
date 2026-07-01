@@ -2050,16 +2050,28 @@ display:none !important;
       }, 50);
     }
 
+    // קטגוריות שהרכב שייך אליהן — כולל הסקה מסוג ההנעה
+    function carCategories(c){
+      const cats = [];
+      if(c.category) cats.push(c.category);
+      const e = (c.engine||'');
+      if(e.includes('חשמל מלא')) cats.push('חשמלי מלא');
+      else if(e.includes('פלאג') || e.includes('נטען')) cats.push('היברידי פלאג-אין');
+      else if(e.includes('היברידי')) cats.push('היברידי');
+      if(e.includes('דיזל') && (c.category==='' )) { /* מסחריות מזוהות רק לפי קטגוריה מפורשת */ }
+      return cats;
+    }
     function filterCatalog(){
       const search = (document.getElementById('searchInput')||{}).value||'';
       const brand = (document.getElementById('filterBrand')||{}).value||'';
       const cat = (document.getElementById('filterCategory')||{}).value||'';
       const priceRange = (document.getElementById('filterPrice')||{}).value||'';
       const enriched = cars.map(enrich);
+      const anyFilter = search || brand || cat || priceRange;
       const filtered = enriched.filter(c=>{
         const matchSearch = !search || (c.brand+' '+c.model).toLowerCase().includes(search.toLowerCase());
         const matchBrand = !brand || c.brand === brand;
-        const matchCat = !cat || (c.category||'').includes(cat);
+        const matchCat = !cat || carCategories(c).some(x=>x.includes(cat)||cat.includes(x));
         let matchPrice = true;
         if(priceRange) {
           const [min,max] = priceRange.split('-').map(Number);
@@ -2068,7 +2080,12 @@ display:none !important;
         return matchSearch && matchBrand && matchCat && matchPrice;
       });
       const el = document.getElementById('catalogCars');
-      if(el) el.innerHTML = (filtered.length ? filtered : enriched).map(cardHtml).join('');
+      if(!el) return;
+      if(anyFilter && !filtered.length){
+        el.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:50px 20px;color:#6b7280"><div style="font-size:40px;margin-bottom:10px">🔍</div><div style="font-size:18px;font-weight:700">לא נמצאו רכבים בסינון הזה</div><div style="margin-top:6px">נסו לשנות את הסינון</div></div>';
+      } else {
+        el.innerHTML = (anyFilter ? filtered : enriched).map(cardHtml).join('');
+      }
       updateCompareTray();
     }
 
