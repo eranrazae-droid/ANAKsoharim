@@ -718,6 +718,14 @@ display:none !important;
                 <option value="180000-210000">180,000 – 210,000 ₪</option>
                 <option value="210000-999999">מעל 210,000 ₪</option>
               </select>
+              <select id="filterMonthly" onchange="filterCatalog()">
+                <option value="">כל החזר חודשי</option>
+                <option value="0-1500">עד 1,500 ₪</option>
+                <option value="1500-2000">1,500 – 2,000 ₪</option>
+                <option value="2000-2500">2,000 – 2,500 ₪</option>
+                <option value="2500-3000">2,500 – 3,000 ₪</option>
+                <option value="3000-999999">מעל 3,000 ₪</option>
+              </select>
             </div>
           </div>
           <div class="cards" id="catalogCars"></div>
@@ -2087,8 +2095,9 @@ display:none !important;
       const cat = (document.getElementById('filterCategory')||{}).value||'';
       const engine = (document.getElementById('filterEngine')||{}).value||'';
       const priceRange = (document.getElementById('filterPrice')||{}).value||'';
+      const monthlyRange = (document.getElementById('filterMonthly')||{}).value||'';
       const enriched = cars.map(enrich);
-      const anyFilter = search || brand || model || cat || engine || priceRange;
+      const anyFilter = search || brand || model || cat || engine || priceRange || monthlyRange;
       const filtered = enriched.filter(c=>{
         const matchSearch = !search || (c.brand+' '+c.model).toLowerCase().includes(search.toLowerCase());
         const matchBrand = !brand || c.brand === brand;
@@ -2100,7 +2109,13 @@ display:none !important;
           const [min,max] = priceRange.split('-').map(Number);
           matchPrice = c.autodealerPriceNumber >= min && c.autodealerPriceNumber <= max;
         }
-        return matchSearch && matchBrand && matchModel && matchCat && matchEngine && matchPrice;
+        let matchMonthly = true;
+        if(monthlyRange) {
+          const [min,max] = monthlyRange.split('-').map(Number);
+          const m = balloon50(c.autodealerPriceNumber);
+          matchMonthly = m >= min && m <= max;
+        }
+        return matchSearch && matchBrand && matchModel && matchCat && matchEngine && matchPrice && matchMonthly;
       });
       const el = document.getElementById('catalogCars');
       if(!el) return;
