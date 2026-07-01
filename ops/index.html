@@ -1308,6 +1308,7 @@ function renderHome() {
         { icon: '🕳️', title: 'בורות', sub: 'ניהול בדיקות בבורות', screen: 'pits' },
         { icon: '📲', title: 'הודעות WhatsApp', sub: 'הגדרות התראות לנהגים', screen: '_notify' },
         { icon: '📢', title: 'הודעה לנהגים', sub: 'שלח SMS לכל הנהגים', screen: '_broadcast' },
+        { icon: '🔄', title: 'רענון רכב', sub: 'ניהול רענוני רכבים', screen: '_refresh' },
       ]
     : [
         { icon: '📋', title: 'המשימות שלי', sub: 'משימות שהוקצו לך', screen: 'tasks' },
@@ -1315,6 +1316,7 @@ function renderHome() {
         { icon: '📦', title: 'בדיקות מלאי שלי', sub: 'רשימות מלאי לסימון', screen: 'driver-inventory' },
         { icon: '🅿️', title: 'סידור מגרש', sub: 'צפייה בטבלת חניות', screen: 'yard' },
         { icon: '🕳️', title: 'בורות', sub: 'בדיקות ממתינות לביצוע', screen: 'pits' },
+        { icon: '🔄', title: 'רענון רכב', sub: 'ניהול רענוני רכבים', screen: '_refresh' },
       ];
 
   document.getElementById('menu-grid').innerHTML = menuItems.map(m => `
@@ -1344,6 +1346,7 @@ function goToScreen(name) {
   else if (name === 'driver-inventory') openDriverInventoryScreen();
   else if (name === '_notify') openNotifySettings();
   else if (name === '_broadcast') openBroadcast();
+  else if (name === '_refresh') openRefreshScreen();
 }
 
 function loadStats() {
@@ -5025,6 +5028,234 @@ function _renderLiveIntakeModal() {
 
 window._setLiveTab = function(id) { _liveIntakeActive = id; _renderLiveIntakeModal(); };
 window.openLiveIntakeView = openLiveIntakeView;
+
+/* ═══════════════════════════════════════════════════════
+   רענון רכב
+═══════════════════════════════════════════════════════ */
+var _currentRefreshId = null;
+var _currentRefreshData = null;
+
+function rfClick(btn) {
+  const key = btn.dataset.key;
+  const val = btn.dataset.val;
+  document.querySelectorAll(`.rf-box[data-key="${key}"]`).forEach(b => b.classList.remove('v-active','x-active'));
+  btn.classList.add(val === 'v' ? 'v-active' : 'x-active');
+  const noteRow = document.getElementById('rfnote-' + key);
+  if (noteRow) noteRow.style.display = val === 'x' ? '' : 'none';
+}
+
+async function openRefreshScreen() {
+  const isManager = currentUser?.role === 'manager';
+  document.getElementById('refresh-list-manager-btn').style.display = isManager ? '' : 'none';
+  document.getElementById('refresh-list-body').innerHTML = '<div style="text-align:center;color:#94a3b8;padding:40px">טוען...</div>';
+  openModal('modal-refresh-list');
+  const { getDocs, query, collection, where, orderBy } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  let q = isManager
+    ? query(collection(window._db, 'refreshes'), orderBy('createdAt', 'desc'))
+    : query(collection(window._db, 'refreshes'), where('assignedTo', '==', currentUser.name), orderBy('createdAt', 'desc'));
+  const snap = await getDocs(q);
+  const body = document.getElementById('refresh-list-body');
+  if (snap.empty) { body.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:40px">אין רענונים</div>'; return; }
+  body.innerHTML = snap.docs.map(d => {
+    const r = d.data();
+    const done = r.status === 'done';
+    const ts = r.createdAt?.toDate ? new Date(r.createdAt.toDate()).toLocaleDateString('he-IL') : '';
+    return `<div onclick="openRefreshForm('${d.id}')" style="border:1.5px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px;background:${done?'#f0fff4':'#fff'};cursor:pointer">
+      <div style="font-weight:900;font-size:16px">${esc(r.plate||'')} <span style="font-size:12px;font-weight:400;color:#64748b">${esc(r.vehicleType||'')}</span></div>
+      <div style="font-size:13px;color:#64748b;margin-top:4px">נהג: ${esc(r.assignedTo||'')} · חניה: ${esc(r.parking||'')} · ${ts}</div>
+      <div style="margin-top:6px;font-size:13px;font-weight:700;color:${done?'#16a34a':'#f59e0b'}">${done?'✅ הושלם':'⏳ ממתין'}</div>
+    </div>`;
+  }).join('');
+}
+
+function openNewRefreshAssign() {
+  ['ra-plate','ra-type','ra-parking'].forEach(id => { const el=document.getElementById(id); if(el)el.value=''; });
+  openModal('modal-refresh-assign');
+}
+
+async function submitRefreshAssign() {
+  const plate = document.getElementById('ra-plate')?.value.trim();
+  const vehicleType = document.getElementById('ra-type')?.value.trim();
+  const parking = document.getElementById('ra-parking')?.value.trim();
+  const assignedTo = document.getElementById('ra-driver')?.value;
+  if (!plate) return showToast('נא להזין לוחית רישוי');
+  const { addDoc, collection, serverTimestamp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  await addDoc(collection(window._db, 'refreshes'), { plate, vehicleType, parking, assignedTo, status: 'pending', createdAt: serverTimestamp() });
+  closeModal('modal-refresh-assign');
+  showToast(`✅ רענון הוקצה ל${assignedTo}`);
+  _notifyDriver(assignedTo, `🔄 רענון רכב ממתין לך — ${plate}${vehicleType?' · '+vehicleType:''}${parking?' · חניה '+parking:''}. כנס לאפליקציה ענק הרכבים.`);
+  openRefreshScreen();
+}
+
+async function openRefreshForm(id) {
+  _currentRefreshId = id;
+  document.querySelectorAll('#modal-refresh-form .rf-box').forEach(b => b.classList.remove('v-active','x-active'));
+  document.querySelectorAll('#modal-refresh-form .ci-note-row').forEach(r => r.style.display = 'none');
+  ['rfcn-rf-oil','rfcn-rf-water','rfcn-rf-battery','rfcn-rf-bulbs','rfcn-rf-dashboard','rfcn-scratches','rfcn-rf-smell','rfcn-rf-plastic','rfcn-rf-upholstery','rfcn-rf-test-drive','rfcn-not-sold'].forEach(eid => { const el=document.getElementById(eid); if(el)el.value=''; });
+  ['rfd-check-engine','rfd-tire-pressure','rfd-service','rfd-collision','rfd-fuel','rfd-other'].forEach(eid => { const el=document.getElementById(eid); if(el)el.checked=false; });
+  const rfDash = document.getElementById('rfcn-rf-dashboard'); if(rfDash) rfDash.style.display='none';
+  const { getDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  const snap = await getDoc(doc(window._db, 'refreshes', id));
+  if (!snap.exists()) return showToast('רענון לא נמצא');
+  _currentRefreshData = snap.data();
+  const r = _currentRefreshData;
+  document.getElementById('rf-title').innerHTML = `רענון – ${esc(r.plate||'')} <button class="modal-close" onclick="closeModal('modal-refresh-form')">✕</button>`;
+  document.getElementById('rf-vehicle-info').innerHTML = `<strong>${esc(r.plate||'')}</strong>${r.vehicleType?' · '+esc(r.vehicleType):''}${r.parking?' · חניה '+esc(r.parking):''}`;
+  if (r.formData) {
+    const fd = r.formData;
+    ['rf-oil','rf-water','rf-battery','rf-bulbs','rf-dashboard','rf-smell','rf-plastic','rf-upholstery','rf-test-drive'].forEach(key => {
+      const val = fd.checks?.[key];
+      if (val) {
+        const btn = document.querySelector(`.rf-box[data-key="${key}"][data-val="${val}"]`);
+        if (btn) btn.classList.add(val==='v'?'v-active':'x-active');
+        if (val==='x') { const nr=document.getElementById('rfnote-'+key); if(nr)nr.style.display=''; }
+        const ta = document.getElementById('rfcn-'+key);
+        if (ta && fd.notes?.[key]) ta.value = fd.notes[key];
+      }
+    });
+    if (fd.scratches) { const el=document.getElementById('rfcn-scratches'); if(el)el.value=fd.scratches; }
+    if (fd.notSold) { const el=document.getElementById('rfcn-not-sold'); if(el)el.value=fd.notSold; }
+    if (fd.dashChecks) {
+      Object.entries(fd.dashChecks).forEach(([k,v]) => { const el=document.getElementById(k); if(el)el.checked=v; });
+      if (fd.dashChecks['rfd-other']) { const el=document.getElementById('rfcn-rf-dashboard'); if(el)el.style.display='block'; }
+    }
+  }
+  openModal('modal-refresh-form');
+}
+
+async function submitRefreshForm() {
+  if (!_currentRefreshId) return;
+  const xNoteKeys = ['rf-oil','rf-water','rf-battery','rf-bulbs','rf-smell','rf-plastic','rf-upholstery','rf-test-drive'];
+  for (const key of xNoteKeys) {
+    const isX = document.querySelector(`.rf-box[data-key="${key}"].x-active`);
+    if (isX) {
+      const ta = document.getElementById('rfcn-' + key);
+      if (!ta?.value.trim()) { ta?.scrollIntoView({behavior:'smooth',block:'center'}); showToast('⚠️ נא להזין הערה לסעיף שסומן ✕'); return; }
+    }
+  }
+  if (document.querySelector('.rf-box[data-key="rf-dashboard"].x-active')) {
+    const dashIds = ['rfd-check-engine','rfd-tire-pressure','rfd-service','rfd-collision','rfd-fuel','rfd-other'];
+    if (!dashIds.some(id => document.getElementById(id)?.checked)) {
+      document.getElementById('rfnote-rf-dashboard')?.scrollIntoView({behavior:'smooth',block:'center'});
+      showToast('⚠️ נא לסמן לפחות מנורה אחת'); return;
+    }
+  }
+  const checks = {}, notes = {};
+  ['rf-oil','rf-water','rf-battery','rf-bulbs','rf-dashboard','rf-smell','rf-plastic','rf-upholstery','rf-test-drive'].forEach(key => {
+    if (document.querySelector(`.rf-box[data-key="${key}"].v-active`)) checks[key]='v';
+    else if (document.querySelector(`.rf-box[data-key="${key}"].x-active`)) checks[key]='x';
+    const ta=document.getElementById('rfcn-'+key); if(ta?.value.trim()) notes[key]=ta.value.trim();
+  });
+  const dashChecks = {};
+  ['rfd-check-engine','rfd-tire-pressure','rfd-service','rfd-collision','rfd-fuel','rfd-other'].forEach(id => { const el=document.getElementById(id); if(el) dashChecks[id]=el.checked; });
+  const scratches = document.getElementById('rfcn-scratches')?.value.trim()||'';
+  const notSold = document.getElementById('rfcn-not-sold')?.value.trim()||'';
+  const { updateDoc, doc, addDoc, collection, serverTimestamp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  await updateDoc(doc(window._db, 'refreshes', _currentRefreshId), { formData: {checks,notes,dashChecks,scratches,notSold}, status:'done', completedAt:serverTimestamp(), completedBy:currentUser?.name||'' });
+  if (checks['rf-smell']==='x') {
+    const r = _currentRefreshData;
+    await addDoc(collection(window._db,'tasks'), { title:`טיפול בריח — ${r.plate||''}${r.vehicleType?' · '+r.vehicleType:''}${r.parking?' · חניה '+r.parking:''}`, notes:notes['rf-smell']||'', assignedTo:r.assignedTo||'', column:'משימות כלליות', status:'pending', createdAt:serverTimestamp() });
+  }
+  showToast('✅ רענון נשמר בהצלחה');
+  closeModal('modal-refresh-form');
+  openRefreshScreen();
+}
+window.openRefreshScreen = openRefreshScreen;
+window.openNewRefreshAssign = openNewRefreshAssign;
+window.submitRefreshAssign = submitRefreshAssign;
+window.openRefreshForm = openRefreshForm;
+window.submitRefreshForm = submitRefreshForm;
+window.rfClick = rfClick;
 </script>
+
+<!-- ═══ רענון רכב modals ═══ -->
+<div class="modal-overlay" id="modal-refresh-list">
+  <div class="modal-box" style="max-height:90vh;display:flex;flex-direction:column;overflow:hidden">
+    <div class="modal-title" style="position:sticky;top:0;z-index:10;background:#fff;flex-shrink:0">🔄 רענון רכב <button class="modal-close" onclick="closeModal('modal-refresh-list')">✕</button></div>
+    <div id="refresh-list-manager-btn" style="display:none;margin-bottom:12px"><button class="btn-submit" onclick="openNewRefreshAssign()" style="width:100%">+ הוסף רענון חדש</button></div>
+    <div style="overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch" id="refresh-list-body"><div style="text-align:center;color:#94a3b8;padding:40px">טוען...</div></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-refresh-assign">
+  <div class="modal-box">
+    <div class="modal-title">הקצאת רענון רכב <button class="modal-close" onclick="closeModal('modal-refresh-assign')">✕</button></div>
+    <div class="form-group"><label>לוחית רישוי</label><input id="ra-plate" class="form-input" placeholder="12-345-67"></div>
+    <div class="form-group"><label>סוג רכב</label><input id="ra-type" class="form-input" placeholder="פולקסוואגן גולף"></div>
+    <div class="form-group"><label>מסי חניה</label><input id="ra-parking" class="form-input" placeholder="מספר חניה"></div>
+    <div class="form-group"><label>נהג</label><select id="ra-driver" class="form-input"><option value="ליאל">ליאל</option><option value="עופר">עופר</option><option value="גיל">גיל</option><option value="איתי">איתי</option></select></div>
+    <button class="btn-submit" onclick="submitRefreshAssign()" style="width:100%;margin-top:8px">שמור והקצה ✅</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-refresh-form">
+  <div class="modal-box" style="max-height:90vh;display:flex;flex-direction:column;overflow:hidden">
+    <div class="modal-title" style="position:sticky;top:0;z-index:10;background:#fff;flex-shrink:0" id="rf-title">רענון רכב <button class="modal-close" onclick="closeModal('modal-refresh-form')">✕</button></div>
+    <div style="overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch;padding-bottom:20px">
+      <div id="rf-vehicle-info" style="background:#f8fafc;border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:14px"></div>
+
+      <!-- שמן -->
+      <div class="checklist-item"><span class="ci-label">שמן</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-oil" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-oil" data-val="x" onclick="rfClick(this)">✕</button></div></div>
+      <div id="rfnote-rf-oil" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="rfcn-rf-oil" placeholder="הערה..." rows="2"></textarea></div>
+
+      <!-- מים -->
+      <div class="checklist-item"><span class="ci-label">מים</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-water" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-water" data-val="x" onclick="rfClick(this)">✕</button></div></div>
+      <div id="rfnote-rf-water" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="rfcn-rf-water" placeholder="הערה..." rows="2"></textarea></div>
+
+      <!-- בדיקת מצבר -->
+      <div class="checklist-item"><span class="ci-label">בדיקת מצבר</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-battery" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-battery" data-val="x" onclick="rfClick(this)">✕</button></div></div>
+      <div id="rfnote-rf-battery" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="rfcn-rf-battery" placeholder="הערה..." rows="2"></textarea></div>
+
+      <!-- נורות -->
+      <div class="checklist-item"><span class="ci-label">נורות</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-bulbs" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-bulbs" data-val="x" onclick="rfClick(this)">✕</button></div></div>
+      <div id="rfnote-rf-bulbs" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="rfcn-rf-bulbs" placeholder="הערה..." rows="2"></textarea></div>
+
+      <!-- מנורות לוח שעונים -->
+      <div class="checklist-item"><span class="ci-label">מנורות לוח שעונים</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-dashboard" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-dashboard" data-val="x" onclick="rfClick(this)">✕</button></div></div>
+      <div id="rfnote-rf-dashboard" class="ci-note-row" style="display:none">
+        <div style="display:flex;flex-direction:column;gap:8px;padding:4px 0">
+          <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer"><input type="checkbox" id="rfd-check-engine" style="width:18px;height:18px;accent-color:var(--dark)"> צ'ק אנג'ין</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer"><input type="checkbox" id="rfd-tire-pressure" style="width:18px;height:18px;accent-color:var(--dark)"> לחץ אוויר</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer"><input type="checkbox" id="rfd-service" style="width:18px;height:18px;accent-color:var(--dark)"> טיפול</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer"><input type="checkbox" id="rfd-collision" style="width:18px;height:18px;accent-color:var(--dark)"> מנורת התגשות</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer"><input type="checkbox" id="rfd-fuel" style="width:18px;height:18px;accent-color:var(--dark)"> מנורת דלק</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer"><input type="checkbox" id="rfd-other" style="width:18px;height:18px;accent-color:var(--dark)" onchange="document.getElementById('rfcn-rf-dashboard').style.display=this.checked?'block':'none';if(!this.checked)document.getElementById('rfcn-rf-dashboard').value=''"> אחר</label>
+          <textarea class="form-textarea" id="rfcn-rf-dashboard" placeholder="פרט..." rows="2" style="display:none"></textarea>
+        </div>
+      </div>
+
+      <!-- שריטות -->
+      <div class="form-group" style="margin-top:12px">
+        <label>שריטות, פחתות, להוציא על יבש</label>
+        <textarea class="form-textarea" id="rfcn-scratches" placeholder="תיאור..." rows="3"></textarea>
+      </div>
+
+      <!-- ריח -->
+      <div class="checklist-item"><span class="ci-label">ריח</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-smell" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-smell" data-val="x" onclick="rfClick(this)">✕</button></div></div>
+      <div id="rfnote-rf-smell" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="rfcn-rf-smell" placeholder="הערה..." rows="2"></textarea></div>
+
+      <!-- פלסטיקים וחלקים שבורים -->
+      <div class="checklist-item"><span class="ci-label">פלסטיקים וחלקים שבורים</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-plastic" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-plastic" data-val="x" onclick="rfClick(this)">✕</button></div></div>
+      <div id="rfnote-rf-plastic" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="rfcn-rf-plastic" placeholder="הערה..." rows="2"></textarea></div>
+
+      <!-- מצב ריפודים ושטיחים -->
+      <div class="checklist-item"><span class="ci-label">מצב ריפודים ושטיחים</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-upholstery" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-upholstery" data-val="x" onclick="rfClick(this)">✕</button></div></div>
+      <div id="rfnote-rf-upholstery" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="rfcn-rf-upholstery" placeholder="הערה..." rows="2"></textarea></div>
+
+      <!-- נסיעת מבחן -->
+      <div class="checklist-item"><span class="ci-label">נסיעת מבחן</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-test-drive" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-test-drive" data-val="x" onclick="rfClick(this)">✕</button></div></div>
+      <div id="rfnote-rf-test-drive" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="rfcn-rf-test-drive" placeholder="הערה..." rows="2"></textarea></div>
+
+      <!-- מאיזו סיבה הרכב לא נמכר -->
+      <div class="form-group" style="margin-top:12px">
+        <label>מאיזו סיבה הרכב לא נמכר?</label>
+        <textarea class="form-textarea" id="rfcn-not-sold" placeholder="תיאור..." rows="3"></textarea>
+      </div>
+
+      <button class="btn-submit" onclick="submitRefreshForm()" style="width:100%;margin-top:16px">שמור רענון ✅</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
