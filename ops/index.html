@@ -5086,6 +5086,9 @@ function _renderRfBatteryPhotos() {
     return `<div class="ci-photo-box"><img src="${url}"><button class="rm-btn" type="button" onclick="removeRfBatteryPhoto(${i})">✕</button></div>`;
   }).join('');
   if (cnt) cnt.textContent = _rfBatteryPhotoFiles.length ? `${_rfBatteryPhotoFiles.length} תמונות` : '';
+  const noCb = document.getElementById('rf-battery-no-date-cb');
+  const ds = document.getElementById('rf-battery-date-section');
+  if (ds && !noCb?.checked) ds.style.display = _rfBatteryPhotoFiles.length ? '' : 'none';
 }
 function rfBatteryNoDateToggle(cb) {
   const ds = document.getElementById('rf-battery-date-section');
@@ -5140,6 +5143,49 @@ function _renderRfGenericPhotos(key) {
 }
 window.addRfGenericPhoto = addRfGenericPhoto;
 window.removeRfGenericPhoto = removeRfGenericPhoto;
+
+function _collectRfDraft() {
+  const checks = {}, notes = {};
+  ['rf-oil','rf-water','rf-battery','rf-battery-orig','rf-safety','rf-lights-break','rf-glass-break','rf-bulbs','rf-frames','rf-tires','rf-glove','rf-windows','rf-ac','rf-dashboard','rf-sunroof','rf-smell','rf-plastic','rf-upholstery','rf-steering','rf-test-drive'].forEach(key => {
+    if (document.querySelector(`.rf-box[data-key="${key}"].v-active`)) checks[key]='v';
+    else if (document.querySelector(`.rf-box[data-key="${key}"].x-active`)) checks[key]='x';
+    const ta=document.getElementById('rfcn-'+key); if(ta?.value.trim()) notes[key]=ta.value.trim();
+  });
+  const dashChecks = {};
+  ['rfd-check-engine','rfd-tire-pressure','rfd-service','rfd-collision','rfd-fuel','rfd-other'].forEach(id => { const el=document.getElementById(id); if(el) dashChecks[id]=el.checked; });
+  return {
+    checks, notes, dashChecks,
+    scratches: document.getElementById('rfcn-scratches')?.value||'',
+    notSold: document.getElementById('rfcn-not-sold')?.value||'',
+    km: document.getElementById('rf-km')?.value||'',
+    code: document.getElementById('rf-code')?.value||'',
+    batteryNoDate: document.getElementById('rf-battery-no-date-cb')?.checked||false,
+    batteryMonth: document.getElementById('rf-battery-month')?.value||'',
+  };
+}
+function _applyRfDraft(draft) {
+  draft.checks && Object.entries(draft.checks).forEach(([key,val]) => {
+    const btn = document.querySelector(`.rf-box[data-key="${key}"][data-val="${val}"]`);
+    if (btn) { btn.classList.add(val==='v'?'v-active':'x-active'); const nr=document.getElementById('rfnote-'+key); if(nr && val==='x') nr.style.display=''; }
+  });
+  draft.notes && Object.entries(draft.notes).forEach(([key,val]) => { const el=document.getElementById('rfcn-'+key); if(el) el.value=val; });
+  draft.dashChecks && Object.entries(draft.dashChecks).forEach(([k,v]) => { const el=document.getElementById(k); if(el)el.checked=v; });
+  if(draft.dashChecks?.['rfd-other']){const el=document.getElementById('rfcn-rf-dashboard');if(el)el.style.display='block';}
+  ['scratches','notSold','km','code'].forEach(f => { if(draft[f]){ const id=f==='scratches'?'rfcn-scratches':f==='notSold'?'rfcn-not-sold':'rf-'+f; const el=document.getElementById(id); if(el)el.value=draft[f]; }});
+  if (draft.batteryNoDate) { const el=document.getElementById('rf-battery-no-date-cb'); if(el)el.checked=true; }
+  if (draft.batteryMonth) { const el=document.getElementById('rf-battery-month'); if(el){el.value=draft.batteryMonth; const ds=document.getElementById('rf-battery-date-section'); if(ds)ds.style.display='';} }
+}
+function saveRfDraftAndClose() {
+  if (!_currentRefreshId) { closeModal('modal-refresh-form'); return; }
+  const draft = _collectRfDraft();
+  const hasContent = Object.keys(draft.checks||{}).length || Object.values(draft.notes||{}).some(v=>v) || draft.scratches || draft.km;
+  if (hasContent) {
+    localStorage.setItem('rf_draft_'+_currentRefreshId, JSON.stringify(draft));
+    showToast('💾 טיוטה נשמרה — תמשיך מאוחר יותר');
+  }
+  closeModal('modal-refresh-form');
+}
+window.saveRfDraftAndClose = saveRfDraftAndClose;
 
 var _rfSunroofVideo = null;
 function addRfSunroofVideo(input) {
@@ -5298,7 +5344,7 @@ async function openRefreshForm(id) {
   if (!snap.exists()) return showToast('רענון לא נמצא');
   _currentRefreshData = snap.data();
   const r = _currentRefreshData;
-  document.getElementById('rf-title').innerHTML = `רענון – ${esc(r.plate||'')} <button class="modal-close" onclick="closeModal('modal-refresh-form')">✕</button>`;
+  document.getElementById('rf-title').innerHTML = `רענון – ${esc(r.plate||'')} <button class="modal-close" onclick="saveRfDraftAndClose()">✕</button>`;
   document.getElementById('rf-vehicle-info').innerHTML = `<strong>${esc(r.plate||'')}</strong>${r.vehicleType?' · '+esc(r.vehicleType):''}${r.parking?' · חניה '+esc(r.parking):''}`;
   if (r.formData) {
     const fd = r.formData;
@@ -5346,6 +5392,18 @@ async function openRefreshForm(id) {
       if (preview) preview.innerHTML = `<video src="${fd.sunroofVideo}" controls style="max-width:100%;border-radius:8px;max-height:200px"></video>`;
       if (btn) btn.textContent = '🎥 החלף סרטון';
     }
+  }
+  const draftKey = 'rf_draft_' + id;
+  const savedDraft = localStorage.getItem(draftKey);
+  if (savedDraft && r.status !== 'done') {
+    try {
+      const draft = JSON.parse(savedDraft);
+      _applyRfDraft(draft);
+      const bar = document.createElement('div');
+      bar.style.cssText = 'background:#fef3c7;border:1px solid #f59e0b;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;font-weight:700;display:flex;justify-content:space-between;align-items:center;gap:8px';
+      bar.innerHTML = `<span>💾 נטענה טיוטה שמורה</span><button type="button" onclick="localStorage.removeItem('${draftKey}');this.parentNode.remove()" style="background:none;border:1px solid #f59e0b;border-radius:8px;padding:4px 10px;font-family:Heebo,sans-serif;font-size:12px;cursor:pointer">נקה</button>`;
+      document.getElementById('rf-vehicle-info')?.after(bar);
+    } catch(e) { localStorage.removeItem(draftKey); }
   }
   openModal('modal-refresh-form');
 }
@@ -5419,6 +5477,7 @@ async function submitRefreshForm() {
     const r = _currentRefreshData;
     await addDoc(collection(window._db,'tasks'), { title:`טיפול בריח — ${r.plate||''}${r.vehicleType?' · '+r.vehicleType:''}${r.parking?' · חניה '+r.parking:''}`, notes:notes['rf-smell']||'', assignedTo:r.assignedTo||'', column:'משימות כלליות', status:'pending', createdAt:serverTimestamp() });
   }
+  localStorage.removeItem('rf_draft_' + _currentRefreshId);
   showToast('✅ רענון נשמר בהצלחה');
   closeModal('modal-refresh-form');
   openRefreshScreen();
