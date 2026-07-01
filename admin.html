@@ -844,8 +844,13 @@
     el.innerHTML=list.map(c=>{
       const avail=(c.stockStatus||'זמין מיידי')==='זמין מיידי';
       const disc=Math.round((c.catalogPriceNumber-c.autodealerPriceNumber)/c.catalogPriceNumber*100);
+      const gallery=(c.gallery||[]).filter(g=>g && !g.startsWith('data:image/svg'));
+      const thumbs=gallery.length ? `<div style="display:flex;gap:5px;margin-top:6px;flex-wrap:wrap">${gallery.map(g=>`<img src="${g}" referrerpolicy="no-referrer" style="width:34px;height:26px;object-fit:cover;border-radius:6px;border:1px solid var(--line)">`).join('')}</div>` : '';
       return `<div class="inv-item">
-        <img src="${c.image}" alt="${c.brand} ${c.model}" referrerpolicy="no-referrer" onerror="this.src='https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&w=400&q=60'">
+        <div>
+          <img src="${c.image}" alt="${c.brand} ${c.model}" referrerpolicy="no-referrer" onerror="this.src='https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&w=400&q=60'" style="width:110px;height:80px;object-fit:cover;border-radius:12px;display:block">
+          ${thumbs}
+        </div>
         <div>
           <div style="font-size:18px;font-weight:900">${c.brand} ${c.model} <span style="font-size:13px;color:var(--muted);font-weight:400">${c.year}</span></div>
           <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap">
