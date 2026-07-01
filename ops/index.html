@@ -1574,6 +1574,7 @@ function openTasksScreen() {
   activeTaskFilter = isManager ? 'משימות כלליות' : 'שלי';
   showScreen('tasks');
   loadTasks();
+  if (!isManager) _checkDriverNotifications();
 }
 
 let activeTaskFilter = 'הכל';
@@ -2061,14 +2062,12 @@ async function submitTask() {
     createdBy:  currentUser.name,
     createdAt:  _serverTs()
   });
-  closeModal('modal-task');
-  showToast('✅ משימה נפתחה!');
   const taskLabel = document.getElementById('task-label').value;
   if (taskLabel && taskLabel !== 'משימות כלליות') {
-    _notifyDriver(taskLabel, `📋 משימה חדשה ממתינה לך: "${title}". כנס לאפליקציה ענק הרכבים.`);
-  } else {
-    _notifyAllDrivers(`📋 משימה חדשה ב"משימות כלליות": "${title}". כנס לאפליקציה ענק הרכבים.`);
+    await _addDriverNotification(taskLabel, `📋 משימה חדשה ממתינה לך: "${title}"`);
   }
+  closeModal('modal-task');
+  showToast('✅ משימה נפתחה!');
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -4814,6 +4813,26 @@ async function _sendWhatsApp(phone, message) {
     console.error('WhatsApp fetch error', e);
     showToast(`⚠️ WhatsApp: שגיאת חיבור — ${e.message}`, 6000);
   }
+}
+
+async function _addDriverNotification(driverName, message) {
+  try {
+    const { addDoc, collection, serverTimestamp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    await addDoc(collection(window._db, 'driver_notifications'), { to: driverName, message, seen: false, createdAt: serverTimestamp() });
+  } catch(e) { console.error('_addDriverNotification', e); }
+}
+
+async function _checkDriverNotifications() {
+  if (!window._CONFIG_DONE || !currentUser || currentUser.role === 'manager') return;
+  try {
+    const { getDocs, query, collection, where, updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const snap = await getDocs(query(collection(window._db, 'driver_notifications'), where('to','==',currentUser.name), where('seen','==',false)));
+    if (snap.empty) return;
+    snap.docs.forEach(async d => {
+      showToast(d.data().message, 6000);
+      await updateDoc(doc(window._db, 'driver_notifications', d.id), { seen: true });
+    });
+  } catch(e) { console.error('_checkDriverNotifications', e); }
 }
 
 async function _notifyDriver(driverName, message) {
