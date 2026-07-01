@@ -299,6 +299,19 @@ if ('serviceWorker' in navigator) {
   <button class="fab" id="fab-new-task" onclick="openNewTaskModal()" style="display:none">+ משימה חדשה</button>
 </div>
 
+<!-- ====== SCREEN: REFRESH ====== -->
+<div id="screen-refresh" class="screen">
+  <div class="app-header">
+    <button class="back-btn" onclick="goHome()">→</button>
+    <div class="logo">🔄 רענון רכב</div>
+    <div class="user-badge" id="refresh-user-badge" onclick="logout()"></div>
+  </div>
+  <div id="refresh-list-container" style="padding:12px 16px 100px">
+    <div class="loading"><div class="spinner"></div> טוען...</div>
+  </div>
+  <button class="fab" id="fab-new-refresh" onclick="openNewRefreshAssign()" style="display:none">+ רענון חדש</button>
+</div>
+
 <!-- ====== MODAL: LIVE INTAKE VIEW ====== -->
 <div class="modal-overlay" id="modal-live-intake" style="z-index:1100">
   <div class="modal-box" style="max-width:480px;max-height:85vh;overflow-y:auto">
@@ -5046,24 +5059,37 @@ function rfClick(btn) {
 
 async function openRefreshScreen() {
   const isManager = currentUser?.role === 'manager';
-  document.getElementById('refresh-list-manager-btn').style.display = isManager ? '' : 'none';
-  document.getElementById('refresh-list-body').innerHTML = '<div style="text-align:center;color:#94a3b8;padding:40px">טוען...</div>';
-  openModal('modal-refresh-list');
+  document.getElementById('refresh-user-badge').textContent = currentUser?.name || '';
+  document.getElementById('fab-new-refresh').style.display = isManager ? 'flex' : 'none';
+  showScreen('refresh');
+  const container = document.getElementById('refresh-list-container');
+  container.innerHTML = '<div class="loading"><div class="spinner"></div> טוען...</div>';
   const { getDocs, query, collection, where, orderBy } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
   let q = isManager
     ? query(collection(window._db, 'refreshes'), orderBy('createdAt', 'desc'))
     : query(collection(window._db, 'refreshes'), where('assignedTo', '==', currentUser.name), orderBy('createdAt', 'desc'));
   const snap = await getDocs(q);
-  const body = document.getElementById('refresh-list-body');
-  if (snap.empty) { body.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:40px">אין רענונים</div>'; return; }
-  body.innerHTML = snap.docs.map(d => {
+  if (snap.empty) {
+    container.innerHTML = `<div class="empty-state"><div class="es-icon">🔄</div><h3>אין רענונים</h3><p>${isManager ? 'לחץ + רענון חדש להוסיף' : 'אין רענונים ממתינים'}</p></div>`;
+    return;
+  }
+  container.innerHTML = snap.docs.map(d => {
     const r = d.data();
     const done = r.status === 'done';
     const ts = r.createdAt?.toDate ? new Date(r.createdAt.toDate()).toLocaleDateString('he-IL') : '';
-    return `<div onclick="openRefreshForm('${d.id}')" style="border:1.5px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px;background:${done?'#f0fff4':'#fff'};cursor:pointer">
-      <div style="font-weight:900;font-size:16px">${esc(r.plate||'')} <span style="font-size:12px;font-weight:400;color:#64748b">${esc(r.vehicleType||'')}</span></div>
-      <div style="font-size:13px;color:#64748b;margin-top:4px">נהג: ${esc(r.assignedTo||'')} · חניה: ${esc(r.parking||'')} · ${ts}</div>
-      <div style="margin-top:6px;font-size:13px;font-weight:700;color:${done?'#16a34a':'#f59e0b'}">${done?'✅ הושלם':'⏳ ממתין'}</div>
+    return `<div onclick="openRefreshForm('${d.id}')" class="vehicle-card" style="border-right:5px solid ${done?'var(--success)':'var(--warning)'};cursor:pointer">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div>
+          <div class="vehicle-plate">${esc(r.plate||'')}</div>
+          <div class="vehicle-info">${esc(r.vehicleType||'')}</div>
+          <div class="vehicle-meta" style="margin-top:4px">
+            <span class="tag assignee">👤 ${esc(r.assignedTo||'')}</span>
+            ${r.parking ? `<span class="tag assignee">🅿️ חניה ${esc(r.parking)}</span>` : ''}
+            ${ts ? `<span class="tag assignee">📅 ${ts}</span>` : ''}
+          </div>
+        </div>
+        <span style="background:${done?'var(--success)':'var(--warning)'};color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;white-space:nowrap;flex-shrink:0">${done ? '✅ הושלם' : '⏳ ממתין'}</span>
+      </div>
     </div>`;
   }).join('');
 }
@@ -5169,14 +5195,6 @@ window.rfClick = rfClick;
 </script>
 
 <!-- ═══ רענון רכב modals ═══ -->
-<div class="modal-overlay" id="modal-refresh-list">
-  <div class="modal-box" style="max-height:90vh;display:flex;flex-direction:column;overflow:hidden">
-    <div class="modal-title" style="position:sticky;top:0;z-index:10;background:#fff;flex-shrink:0">🔄 רענון רכב <button class="modal-close" onclick="closeModal('modal-refresh-list')">✕</button></div>
-    <div id="refresh-list-manager-btn" style="display:none;margin-bottom:12px"><button class="btn-submit" onclick="openNewRefreshAssign()" style="width:100%">+ הוסף רענון חדש</button></div>
-    <div style="overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch" id="refresh-list-body"><div style="text-align:center;color:#94a3b8;padding:40px">טוען...</div></div>
-  </div>
-</div>
-
 <div class="modal-overlay" id="modal-refresh-assign">
   <div class="modal-box">
     <div class="modal-title">הקצאת רענון רכב <button class="modal-close" onclick="closeModal('modal-refresh-assign')">✕</button></div>
