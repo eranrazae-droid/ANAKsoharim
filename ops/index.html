@@ -5189,6 +5189,7 @@ async function openRefreshScreen() {
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">
           <span style="background:${done?'var(--success)':'var(--warning)'};color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;white-space:nowrap">${done ? '✅ הושלם' : '⏳ ממתין'}</span>
           <button onclick="openEditRefresh('${d.id}')" style="background:#6366f1;color:#fff;border:none;border-radius:10px;padding:7px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">✏️ עריכה</button>
+          <button onclick="deleteRefresh('${d.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:10px;padding:7px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">🗑️ מחיקה</button>
         </div>
       </div>
     </div>`;
@@ -5405,6 +5406,14 @@ async function submitEditRefresh() {
   showToast('✅ פרטים עודכנו');
   openRefreshScreen();
 }
+async function deleteRefresh(id) {
+  if (!confirm('למחוק רענון זה?')) return;
+  const { deleteDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  await deleteDoc(doc(window._db, 'refreshes', id));
+  showToast('🗑️ רענון נמחק');
+  openRefreshScreen();
+}
+window.deleteRefresh = deleteRefresh;
 window.openEditRefresh = openEditRefresh;
 window.submitEditRefresh = submitEditRefresh;
 window.openRefreshScreen = openRefreshScreen;
