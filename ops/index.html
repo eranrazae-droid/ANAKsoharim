@@ -5069,6 +5069,78 @@ function _renderRfUpholsteryPhotos() {
 window.addRfUpholsteryPhoto = addRfUpholsteryPhoto;
 window.removeRfUpholsteryPhoto = removeRfUpholsteryPhoto;
 
+var _rfBatteryPhotoFiles = [];
+function addRfBatteryPhoto(input) {
+  const files = [...input.files];
+  _rfBatteryPhotoFiles.push(...files.slice(0, 4 - _rfBatteryPhotoFiles.length));
+  input.value = '';
+  _renderRfBatteryPhotos();
+}
+function removeRfBatteryPhoto(i) { _rfBatteryPhotoFiles.splice(i, 1); _renderRfBatteryPhotos(); }
+function _renderRfBatteryPhotos() {
+  const grid = document.getElementById('rf-battery-photos');
+  const cnt = document.getElementById('rf-battery-photo-count');
+  if (!grid) return;
+  grid.innerHTML = _rfBatteryPhotoFiles.map((f, i) => {
+    const url = URL.createObjectURL(f);
+    return `<div class="ci-photo-box"><img src="${url}"><button class="rm-btn" type="button" onclick="removeRfBatteryPhoto(${i})">✕</button></div>`;
+  }).join('');
+  if (cnt) cnt.textContent = _rfBatteryPhotoFiles.length ? `${_rfBatteryPhotoFiles.length} תמונות` : '';
+}
+function rfBatteryNoDateToggle(cb) {
+  const ds = document.getElementById('rf-battery-date-section');
+  if (ds) ds.style.display = cb.checked ? 'none' : (_rfBatteryPhotoFiles.length ? '' : 'none');
+  if (cb.checked) { const m = document.getElementById('rf-battery-month'); if(m)m.value=''; }
+}
+window.addRfBatteryPhoto = addRfBatteryPhoto;
+window.removeRfBatteryPhoto = removeRfBatteryPhoto;
+window.rfBatteryNoDateToggle = rfBatteryNoDateToggle;
+
+var _rfDashboardPhotos = [];
+function addRfDashboardPhoto(input) {
+  const files = [...input.files];
+  _rfDashboardPhotos.push(...files.slice(0, 4 - _rfDashboardPhotos.length));
+  input.value = '';
+  _renderRfDashboardPhotos();
+}
+function removeRfDashboardPhoto(i) { _rfDashboardPhotos.splice(i, 1); _renderRfDashboardPhotos(); }
+function _renderRfDashboardPhotos() {
+  const grid = document.getElementById('rf-dashboard-photos');
+  const btn = document.getElementById('btn-rf-dashboard-photo');
+  if (!grid) return;
+  grid.innerHTML = _rfDashboardPhotos.map((f, i) => {
+    const url = URL.createObjectURL(f);
+    return `<div class="ci-photo-box"><img src="${url}"><button class="rm-btn" type="button" onclick="removeRfDashboardPhoto(${i})">✕</button></div>`;
+  }).join('');
+  if (btn) btn.style.display = _rfDashboardPhotos.length >= 4 ? 'none' : 'block';
+}
+window.addRfDashboardPhoto = addRfDashboardPhoto;
+window.removeRfDashboardPhoto = removeRfDashboardPhoto;
+
+var _rfGenericPhotos = {};
+function addRfGenericPhoto(key, input) {
+  if (!_rfGenericPhotos[key]) _rfGenericPhotos[key] = [];
+  const files = [...input.files];
+  _rfGenericPhotos[key].push(...files.slice(0, 4 - _rfGenericPhotos[key].length));
+  input.value = '';
+  _renderRfGenericPhotos(key);
+}
+function removeRfGenericPhoto(key, i) {
+  if (_rfGenericPhotos[key]) _rfGenericPhotos[key].splice(i, 1);
+  _renderRfGenericPhotos(key);
+}
+function _renderRfGenericPhotos(key) {
+  const grid = document.getElementById('rf-photos-' + key);
+  if (!grid) return;
+  const arr = _rfGenericPhotos[key] || [];
+  grid.innerHTML = arr.map((f, i) => {
+    const url = URL.createObjectURL(f);
+    return `<div class="ci-photo-box"><img src="${url}"><button class="rm-btn" type="button" onclick="removeRfGenericPhoto('${key}',${i})">✕</button></div>`;
+  }).join('');
+}
+window.addRfGenericPhoto = addRfGenericPhoto;
+window.removeRfGenericPhoto = removeRfGenericPhoto;
+
 function rfClick(btn) {
   const key = btn.dataset.key;
   const val = btn.dataset.val;
@@ -5173,9 +5245,18 @@ async function openRefreshForm(id) {
   _currentRefreshId = id;
   document.querySelectorAll('#modal-refresh-form .rf-box').forEach(b => b.classList.remove('v-active','x-active'));
   document.querySelectorAll('#modal-refresh-form .ci-note-row').forEach(r => r.style.display = 'none');
-  ['rfcn-rf-oil','rfcn-rf-water','rfcn-rf-battery','rfcn-rf-battery-orig','rfcn-rf-dashboard','rfcn-scratches','rfcn-rf-smell','rfcn-rf-plastic','rfcn-rf-upholstery','rfcn-rf-test-drive','rfcn-not-sold'].forEach(eid => { const el=document.getElementById(eid); if(el)el.value=''; });
+  ['rfcn-rf-oil','rfcn-rf-water','rfcn-rf-battery','rfcn-rf-battery-orig','rfcn-rf-safety','rfcn-rf-lights-break','rfcn-rf-glass-break','rfcn-rf-bulbs','rfcn-rf-frames','rfcn-rf-tires','rfcn-rf-glove','rfcn-rf-windows','rfcn-rf-ac','rfcn-rf-dashboard','rfcn-rf-sunroof','rfcn-scratches','rfcn-rf-smell','rfcn-rf-plastic','rfcn-rf-upholstery','rfcn-rf-steering','rfcn-rf-test-drive','rfcn-not-sold'].forEach(eid => { const el=document.getElementById(eid); if(el)el.value=''; });
   ['rfd-check-engine','rfd-tire-pressure','rfd-service','rfd-collision','rfd-fuel','rfd-other'].forEach(eid => { const el=document.getElementById(eid); if(el)el.checked=false; });
   _rfUpholsteryPhotos = []; _renderRfUpholsteryPhotos();
+  _rfBatteryPhotoFiles = []; _renderRfBatteryPhotos();
+  _rfDashboardPhotos = []; _renderRfDashboardPhotos();
+  _rfGenericPhotos = {};
+  ['rf-lights-break','rf-glass-break','rf-windows','rf-steering'].forEach(k => _renderRfGenericPhotos(k));
+  const rfBatNoCb = document.getElementById('rf-battery-no-date-cb'); if(rfBatNoCb) rfBatNoCb.checked = false;
+  const rfBatDate = document.getElementById('rf-battery-date-section'); if(rfBatDate) rfBatDate.style.display = 'none';
+  const rfBatMonth = document.getElementById('rf-battery-month'); if(rfBatMonth) rfBatMonth.value = '';
+  const rfKm = document.getElementById('rf-km'); if(rfKm) rfKm.value='';
+  const rfCode = document.getElementById('rf-code'); if(rfCode) rfCode.value='';
   const rfDash = document.getElementById('rfcn-rf-dashboard'); if(rfDash) rfDash.style.display='none';
   const { getDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
   const snap = await getDoc(doc(window._db, 'refreshes', id));
@@ -5186,7 +5267,7 @@ async function openRefreshForm(id) {
   document.getElementById('rf-vehicle-info').innerHTML = `<strong>${esc(r.plate||'')}</strong>${r.vehicleType?' · '+esc(r.vehicleType):''}${r.parking?' · חניה '+esc(r.parking):''}`;
   if (r.formData) {
     const fd = r.formData;
-    ['rf-oil','rf-water','rf-battery','rf-battery-orig','rf-dashboard','rf-smell','rf-plastic','rf-upholstery','rf-test-drive'].forEach(key => {
+    ['rf-oil','rf-water','rf-battery','rf-battery-orig','rf-safety','rf-lights-break','rf-glass-break','rf-bulbs','rf-frames','rf-tires','rf-glove','rf-windows','rf-ac','rf-dashboard','rf-sunroof','rf-smell','rf-plastic','rf-upholstery','rf-steering','rf-test-drive'].forEach(key => {
       const val = fd.checks?.[key];
       if (val) {
         const btn = document.querySelector(`.rf-box[data-key="${key}"][data-val="${val}"]`);
@@ -5198,27 +5279,55 @@ async function openRefreshForm(id) {
     });
     if (fd.scratches) { const el=document.getElementById('rfcn-scratches'); if(el)el.value=fd.scratches; }
     if (fd.notSold) { const el=document.getElementById('rfcn-not-sold'); if(el)el.value=fd.notSold; }
+    if (fd.km) { const el=document.getElementById('rf-km'); if(el)el.value=fd.km; }
+    if (fd.code) { const el=document.getElementById('rf-code'); if(el)el.value=fd.code; }
     if (fd.dashChecks) {
       Object.entries(fd.dashChecks).forEach(([k,v]) => { const el=document.getElementById(k); if(el)el.checked=v; });
       if (fd.dashChecks['rfd-other']) { const el=document.getElementById('rfcn-rf-dashboard'); if(el)el.style.display='block'; }
     }
+    if (fd.batteryPhotos?.length) {
+      const grid = document.getElementById('rf-battery-photos');
+      if (grid) grid.innerHTML = fd.batteryPhotos.map(src => `<div class="ci-photo-box"><img src="${src}"></div>`).join('');
+    }
+    if (fd.batteryNoDate) { const el=document.getElementById('rf-battery-no-date-cb'); if(el)el.checked=true; }
+    if (fd.batteryMonth) { const el=document.getElementById('rf-battery-month'); if(el){el.value=fd.batteryMonth; const ds=document.getElementById('rf-battery-date-section'); if(ds)ds.style.display='';} }
     if (fd.upholsteryPhotos?.length) {
       const grid = document.getElementById('rf-upholstery-photos');
       if (grid) grid.innerHTML = fd.upholsteryPhotos.map(src => `<div class="ci-photo-box"><img src="${src}"></div>`).join('');
     }
+    if (fd.dashboardPhotos?.length) {
+      const grid = document.getElementById('rf-dashboard-photos');
+      if (grid) grid.innerHTML = fd.dashboardPhotos.map(src => `<div class="ci-photo-box"><img src="${src}"></div>`).join('');
+    }
+    ['rf-lights-break','rf-glass-break','rf-windows','rf-steering'].forEach(k => {
+      if (fd.genericPhotos?.[k]?.length) {
+        const grid = document.getElementById('rf-photos-'+k);
+        if (grid) grid.innerHTML = fd.genericPhotos[k].map(src => `<div class="ci-photo-box"><img src="${src}"></div>`).join('');
+      }
+    });
   }
   openModal('modal-refresh-form');
 }
 
 async function submitRefreshForm() {
   if (!_currentRefreshId) return;
-  const xNoteKeys = ['rf-oil','rf-water','rf-battery','rf-battery-orig','rf-smell','rf-plastic','rf-upholstery','rf-test-drive'];
+  const xNoteKeys = ['rf-oil','rf-water','rf-battery','rf-battery-orig','rf-safety','rf-lights-break','rf-glass-break','rf-bulbs','rf-frames','rf-tires','rf-glove','rf-windows','rf-ac','rf-sunroof','rf-smell','rf-plastic','rf-upholstery','rf-steering','rf-test-drive'];
   for (const key of xNoteKeys) {
     const isX = document.querySelector(`.rf-box[data-key="${key}"].x-active`);
     if (isX) {
       const ta = document.getElementById('rfcn-' + key);
       if (!ta?.value.trim()) { ta?.scrollIntoView({behavior:'smooth',block:'center'}); showToast('⚠️ נא להזין הערה לסעיף שסומן ✕'); return; }
     }
+  }
+  if (!_rfBatteryPhotoFiles.length) {
+    document.getElementById('rf-battery-photos')?.scrollIntoView({behavior:'smooth',block:'center'});
+    showToast('⚠️ נא לצלם תמונת מצבר'); return;
+  }
+  const rfBatNoCb = document.getElementById('rf-battery-no-date-cb');
+  const rfBatMonth = document.getElementById('rf-battery-month');
+  if (!rfBatNoCb?.checked && !rfBatMonth?.value) {
+    rfBatMonth?.scrollIntoView({behavior:'smooth',block:'center'});
+    showToast('⚠️ נא להזין חודש מצבר או לסמן "לא רואים תאריך"'); return;
   }
   if (!_rfUpholsteryPhotos.length) {
     document.getElementById('rf-upholstery-photos')?.scrollIntoView({behavior:'smooth',block:'center'});
@@ -5230,9 +5339,13 @@ async function submitRefreshForm() {
       document.getElementById('rfnote-rf-dashboard')?.scrollIntoView({behavior:'smooth',block:'center'});
       showToast('⚠️ נא לסמן לפחות מנורה אחת'); return;
     }
+    if (!_rfDashboardPhotos.length) {
+      document.getElementById('rf-dashboard-photos')?.scrollIntoView({behavior:'smooth',block:'center'});
+      showToast('⚠️ נא לצלם תמונת לוח שעונים'); return;
+    }
   }
   const checks = {}, notes = {};
-  ['rf-oil','rf-water','rf-battery','rf-battery-orig','rf-dashboard','rf-smell','rf-plastic','rf-upholstery','rf-test-drive'].forEach(key => {
+  ['rf-oil','rf-water','rf-battery','rf-battery-orig','rf-safety','rf-lights-break','rf-glass-break','rf-bulbs','rf-frames','rf-tires','rf-glove','rf-windows','rf-ac','rf-dashboard','rf-sunroof','rf-smell','rf-plastic','rf-upholstery','rf-steering','rf-test-drive'].forEach(key => {
     if (document.querySelector(`.rf-box[data-key="${key}"].v-active`)) checks[key]='v';
     else if (document.querySelector(`.rf-box[data-key="${key}"].x-active`)) checks[key]='x';
     const ta=document.getElementById('rfcn-'+key); if(ta?.value.trim()) notes[key]=ta.value.trim();
@@ -5241,10 +5354,21 @@ async function submitRefreshForm() {
   ['rfd-check-engine','rfd-tire-pressure','rfd-service','rfd-collision','rfd-fuel','rfd-other'].forEach(id => { const el=document.getElementById(id); if(el) dashChecks[id]=el.checked; });
   const scratches = document.getElementById('rfcn-scratches')?.value.trim()||'';
   const notSold = document.getElementById('rfcn-not-sold')?.value.trim()||'';
+  const km = document.getElementById('rf-km')?.value.trim()||'';
+  const code = document.getElementById('rf-code')?.value.trim()||'';
   const { updateDoc, doc, addDoc, collection, serverTimestamp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
   showToast('⏳ שולח...');
   const upholsteryPhotoB64s = await Promise.all(_rfUpholsteryPhotos.map(f => compressToBase64(f)));
-  await updateDoc(doc(window._db, 'refreshes', _currentRefreshId), { formData: {checks,notes,dashChecks,scratches,notSold,upholsteryPhotos:upholsteryPhotoB64s}, status:'done', completedAt:serverTimestamp(), completedBy:currentUser?.name||'' });
+  const batteryPhotoB64s = await Promise.all(_rfBatteryPhotoFiles.map(f => compressToBase64(f)));
+  const rfBatNoCbVal = document.getElementById('rf-battery-no-date-cb')?.checked || false;
+  const rfBatMonthVal = document.getElementById('rf-battery-month')?.value || '';
+  const dashboardPhotoB64s = document.querySelector('.rf-box[data-key="rf-dashboard"].x-active')
+    ? await Promise.all(_rfDashboardPhotos.map(f => compressToBase64(f))) : [];
+  const genericPhotoB64s = {};
+  for (const k of ['rf-lights-break','rf-glass-break','rf-windows','rf-steering']) {
+    if (_rfGenericPhotos[k]?.length) genericPhotoB64s[k] = await Promise.all(_rfGenericPhotos[k].map(f => compressToBase64(f)));
+  }
+  await updateDoc(doc(window._db, 'refreshes', _currentRefreshId), { formData: {checks,notes,dashChecks,scratches,notSold,km,code,upholsteryPhotos:upholsteryPhotoB64s,batteryPhotos:batteryPhotoB64s,batteryNoDate:rfBatNoCbVal,batteryMonth:rfBatMonthVal,dashboardPhotos:dashboardPhotoB64s,genericPhotos:genericPhotoB64s}, status:'done', completedAt:serverTimestamp(), completedBy:currentUser?.name||'' });
   if (checks['rf-smell']==='x') {
     const r = _currentRefreshData;
     await addDoc(collection(window._db,'tasks'), { title:`טיפול בריח — ${r.plate||''}${r.vehicleType?' · '+r.vehicleType:''}${r.parking?' · חניה '+r.parking:''}`, notes:notes['rf-smell']||'', assignedTo:r.assignedTo||'', column:'משימות כלליות', status:'pending', createdAt:serverTimestamp() });
@@ -5333,11 +5457,13 @@ window.rfClick = rfClick;
     <div style="overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch;padding-bottom:20px">
       <div id="rf-vehicle-info" style="background:#f8fafc;border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:14px"></div>
 
+      <div class="section-title">🔍 בדיקות חוץ</div>
+
       <!-- שמן -->
       <div class="checklist-item"><span class="ci-label">שמן</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-oil" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-oil" data-val="x" onclick="rfClick(this)">✕</button></div></div>
       <div id="rfnote-rf-oil" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="rfcn-rf-oil" placeholder="הערה..." rows="2"></textarea></div>
 
-      <!-- מים -->
+      <!-- נוזל קירור -->
       <div class="checklist-item"><span class="ci-label">נוזל קירור</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-water" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-water" data-val="x" onclick="rfClick(this)">✕</button></div></div>
       <div id="rfnote-rf-water" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="rfcn-rf-water" placeholder="הערה..." rows="2"></textarea></div>
 
@@ -5352,7 +5478,82 @@ window.rfClick = rfClick;
         </div>
       </div>
       <div id="rfnote-rf-battery-orig" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="rfcn-rf-battery-orig" placeholder="הערה על מצבר..." rows="2"></textarea></div>
+      <div class="ci-note-row" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px">
+        <label for="file-rf-battery" style="background:var(--dark);color:#fff;border:none;border-radius:10px;padding:8px 16px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;display:inline-block">📷 צלם מצבר <span style="color:#ef4444">*</span></label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;cursor:pointer;color:var(--dark)">
+          <input type="checkbox" id="rf-battery-no-date-cb" style="width:18px;height:18px;accent-color:var(--dark)" onchange="rfBatteryNoDateToggle(this)">
+          לא רואים תאריך מצבר
+        </label>
+        <span id="rf-battery-photo-count" style="font-size:12px;color:var(--muted)"></span>
+        <input type="file" accept="image/*" capture="environment" id="file-rf-battery" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" onchange="addRfBatteryPhoto(this)">
+        <div id="rf-battery-photos" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;width:100%"></div>
+      </div>
+      <div id="rf-battery-date-section" style="display:none" class="ci-note-row">
+        <div class="form-group" style="margin:0">
+          <label style="font-size:12px">חודש מצבר <span style="color:#ef4444">*</span></label>
+          <input type="month" class="form-input" id="rf-battery-month" style="font-family:Heebo,sans-serif">
+        </div>
+      </div>
 
+      <!-- ג׳ק, אפוד, משולש, גלגל ספייר -->
+      <div class="checklist-item"><span class="ci-label">ג׳ק, אפוד, משולש, גלגל ספייר</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-safety" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-safety" data-val="x" onclick="rfClick(this)">✕</button></div></div>
+      <div id="rfnote-rf-safety" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="rfcn-rf-safety" placeholder="הערה..." rows="2"></textarea></div>
+
+      <!-- שברים בפנסים -->
+      <div class="checklist-item"><span class="ci-label">שברים בפנסים</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-lights-break" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-lights-break" data-val="x" onclick="rfClick(this)">✕</button></div></div>
+      <div id="rfnote-rf-lights-break" class="ci-note-row" style="display:none">
+        <textarea class="form-textarea" id="rfcn-rf-lights-break" placeholder="הערה..." rows="2"></textarea>
+        <input type="file" accept="image/*" capture="environment" id="file-rf-lights-break" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" multiple onchange="addRfGenericPhoto('rf-lights-break',this)">
+        <div id="rf-photos-rf-lights-break" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px"></div>
+        <button type="button" onclick="document.getElementById('file-rf-lights-break').click()" style="width:100%;background:var(--dark);color:#fff;border:none;border-radius:10px;padding:8px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;margin-top:4px">📷 צלם</button>
+      </div>
+
+      <!-- שברים בשמשות -->
+      <div class="checklist-item"><span class="ci-label">שברים בשמשות</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-glass-break" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-glass-break" data-val="x" onclick="rfClick(this)">✕</button></div></div>
+      <div id="rfnote-rf-glass-break" class="ci-note-row" style="display:none">
+        <textarea class="form-textarea" id="rfcn-rf-glass-break" placeholder="הערה..." rows="2"></textarea>
+        <input type="file" accept="image/*" capture="environment" id="file-rf-glass-break" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" multiple onchange="addRfGenericPhoto('rf-glass-break',this)">
+        <div id="rf-photos-rf-glass-break" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px"></div>
+        <button type="button" onclick="document.getElementById('file-rf-glass-break').click()" style="width:100%;background:var(--dark);color:#fff;border:none;border-radius:10px;padding:8px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;margin-top:4px">📷 צלם</button>
+      </div>
+
+      <!-- מנורות שרופות -->
+      <div class="checklist-item"><span class="ci-label">מנורות שרופות</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-bulbs" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-bulbs" data-val="x" onclick="rfClick(this)">✕</button></div></div>
+      <div id="rfnote-rf-bulbs" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="rfcn-rf-bulbs" placeholder="הערה..." rows="2"></textarea></div>
+
+      <!-- מסגרות -->
+      <div class="checklist-item"><span class="ci-label">מסגרות</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-frames" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-frames" data-val="x" onclick="rfClick(this)">✕</button></div></div>
+      <div id="rfnote-rf-frames" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="rfcn-rf-frames" placeholder="הערה..." rows="2"></textarea></div>
+
+      <!-- מצב צמיגים -->
+      <div class="checklist-item"><span class="ci-label">מצב צמיגים</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-tires" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-tires" data-val="x" onclick="rfClick(this)">✕</button></div></div>
+      <div id="rfnote-rf-tires" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="rfcn-rf-tires" placeholder="הערה..." rows="2"></textarea></div>
+
+      <div class="section-title" style="margin-top:14px">🚗 בדיקות פנים</div>
+
+      <!-- ק"מ + קוד -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div class="form-group" style="margin:0"><label>ק"מ ברכב</label><input class="form-input" id="rf-km" type="tel" placeholder="0" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/[^0-9]/g,'')"></div>
+        <div class="form-group" style="margin:0"><label>קוד רכב</label><input class="form-input" id="rf-code" type="text" placeholder="קוד..."></div>
+      </div>
+
+      <!-- ניקיון תא כפפות -->
+      <div class="checklist-item"><span class="ci-label">ניקיון תא כפפות</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-glove" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-glove" data-val="x" onclick="rfClick(this)">✕</button></div></div>
+      <div id="rfnote-rf-glove" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="rfcn-rf-glove" placeholder="הערה..." rows="2"></textarea></div>
+
+      <!-- מתגי חלונות -->
+      <div class="checklist-item"><span class="ci-label">מתגי חלונות</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-windows" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-windows" data-val="x" onclick="rfClick(this)">✕</button></div></div>
+      <div id="rfnote-rf-windows" class="ci-note-row" style="display:none">
+        <div style="font-size:12px;color:var(--danger);font-weight:700;margin-bottom:6px">📷 לצלם רק את בית המתגים במידה והוא שבור / לא תקין</div>
+        <textarea class="form-textarea" id="rfcn-rf-windows" placeholder="הערה..." rows="2"></textarea>
+        <input type="file" accept="image/*" capture="environment" id="file-rf-windows" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" multiple onchange="addRfGenericPhoto('rf-windows',this)">
+        <div id="rf-photos-rf-windows" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px"></div>
+        <button type="button" onclick="document.getElementById('file-rf-windows').click()" style="width:100%;background:var(--dark);color:#fff;border:none;border-radius:10px;padding:8px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;margin-top:4px">📷 צלם</button>
+      </div>
+
+      <!-- מזגן -->
+      <div class="checklist-item"><span class="ci-label">מזגן</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-ac" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-ac" data-val="x" onclick="rfClick(this)">✕</button></div></div>
+      <div id="rfnote-rf-ac" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="rfcn-rf-ac" placeholder="הערה..." rows="2"></textarea></div>
 
       <!-- מנורות לוח שעונים -->
       <div class="checklist-item"><span class="ci-label">מנורות לוח שעונים</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-dashboard" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-dashboard" data-val="x" onclick="rfClick(this)">✕</button></div></div>
@@ -5365,8 +5566,18 @@ window.rfClick = rfClick;
           <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer"><input type="checkbox" id="rfd-fuel" style="width:18px;height:18px;accent-color:var(--dark)"> מנורת דלק</label>
           <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer"><input type="checkbox" id="rfd-other" style="width:18px;height:18px;accent-color:var(--dark)" onchange="document.getElementById('rfcn-rf-dashboard').style.display=this.checked?'block':'none';if(!this.checked)document.getElementById('rfcn-rf-dashboard').value=''"> אחר</label>
           <textarea class="form-textarea" id="rfcn-rf-dashboard" placeholder="פרט..." rows="2" style="display:none"></textarea>
+          <div style="margin-top:8px">
+            <div style="font-size:12px;color:#64748b;margin-bottom:6px;font-weight:600">📸 תמונת לוח שעונים <span style="color:#ef4444">*</span></div>
+            <input type="file" accept="image/*" capture="environment" id="file-rf-dashboard" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" onchange="addRfDashboardPhoto(this)">
+            <div id="rf-dashboard-photos" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px"></div>
+            <button type="button" onclick="document.getElementById('file-rf-dashboard').click()" id="btn-rf-dashboard-photo" style="width:100%;background:var(--dark);color:#fff;border:none;border-radius:10px;padding:10px;font-family:Heebo,sans-serif;font-weight:700;font-size:14px;cursor:pointer">📷 צלם לוח שעונים</button>
+          </div>
         </div>
       </div>
+
+      <!-- גג נפתח -->
+      <div class="checklist-item"><span class="ci-label">גג נפתח</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-sunroof" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-sunroof" data-val="x" onclick="rfClick(this)">✕</button></div></div>
+      <div id="rfnote-rf-sunroof" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="rfcn-rf-sunroof" placeholder="הערה..." rows="2"></textarea></div>
 
       <!-- שריטות -->
       <div class="form-group" style="margin-top:12px">
@@ -5390,6 +5601,15 @@ window.rfClick = rfClick;
         <input type="file" accept="image/*" capture="environment" id="file-rf-upholstery" multiple style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" onchange="addRfUpholsteryPhoto(this)">
         <div id="rf-upholstery-photos" style="display:flex;flex-wrap:wrap;gap:6px"></div>
         <button type="button" onclick="document.getElementById('file-rf-upholstery').click()" id="btn-rf-upholstery-photo" style="width:100%;background:var(--dark);color:#fff;border:none;border-radius:10px;padding:10px;font-family:Heebo,sans-serif;font-weight:700;font-size:14px;cursor:pointer;margin-top:4px">📷 צלם תמונה</button>
+      </div>
+
+      <!-- הגה – קילופים -->
+      <div class="checklist-item"><span class="ci-label">הגה – קילופים</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-steering" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-steering" data-val="x" onclick="rfClick(this)">✕</button></div></div>
+      <div id="rfnote-rf-steering" class="ci-note-row" style="display:none">
+        <textarea class="form-textarea" id="rfcn-rf-steering" placeholder="הערה..." rows="2"></textarea>
+        <input type="file" accept="image/*" capture="environment" id="file-rf-steering" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" multiple onchange="addRfGenericPhoto('rf-steering',this)">
+        <div id="rf-photos-rf-steering" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px"></div>
+        <button type="button" onclick="document.getElementById('file-rf-steering').click()" style="width:100%;background:var(--dark);color:#fff;border:none;border-radius:10px;padding:8px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;margin-top:4px">📷 צלם</button>
       </div>
 
       <!-- נסיעת מבחן -->
