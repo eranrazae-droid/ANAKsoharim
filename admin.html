@@ -191,7 +191,12 @@
       <div id="tab-inventory" class="hidden">
         <div class="section-hd">
           <div><div class="eyebrow">מלאי</div><h2>רכבים קיימים</h2></div>
-          <button class="btn btn-black" onclick="showTab('addcar')">+ הוסף רכב</button>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <select id="invBrandFilter" onchange="renderInventory()" style="min-width:180px">
+              <option value="">כל היצרנים</option>
+            </select>
+            <button class="btn btn-black" onclick="showTab('addcar')">+ הוסף רכב</button>
+          </div>
         </div>
         <div id="inventoryList"></div>
       </div>
@@ -824,7 +829,19 @@
 
   function renderInventory(){
     const el=document.getElementById('inventoryList');if(!el)return;
-    el.innerHTML=cars.map(c=>{
+    // מילוי רשימת יצרנים ב-Dropdown
+    const sel=document.getElementById('invBrandFilter');
+    if(sel){
+      const brands=[...new Set(cars.map(c=>c.brand).filter(Boolean))].sort();
+      const cur=sel.value;
+      sel.innerHTML='<option value="">כל היצרנים ('+cars.length+')</option>'+brands.map(b=>{
+        const n=cars.filter(c=>c.brand===b).length;
+        return '<option value="'+b+'"'+(b===cur?' selected':'')+'>'+b+' ('+n+')</option>';
+      }).join('');
+    }
+    const filterBrand=sel?sel.value:'';
+    const list=filterBrand?cars.filter(c=>c.brand===filterBrand):cars;
+    el.innerHTML=list.map(c=>{
       const avail=(c.stockStatus||'זמין מיידי')==='זמין מיידי';
       const disc=Math.round((c.catalogPriceNumber-c.autodealerPriceNumber)/c.catalogPriceNumber*100);
       return `<div class="inv-item">
