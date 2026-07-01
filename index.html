@@ -1853,6 +1853,9 @@ display:none !important;
       <div class="card">
         <div class="relative">
           ${(car.image && !car.image.startsWith("data:image/svg")) ? `<img src="${car.image}" alt="${car.brand} ${car.model}" referrerpolicy="no-referrer">` : ""}
+          <label class="cmp-check" style="position:absolute;top:12px;left:12px;background:rgba(255,255,255,.95);border-radius:10px;padding:6px 10px;display:flex;align-items:center;gap:6px;font-size:13px;font-weight:800;cursor:pointer;z-index:3;box-shadow:0 2px 6px rgba(0,0,0,.12)">
+            <input type="checkbox" style="width:16px;height:16px;accent-color:#D4A017" ${compareIds.includes(car.id)?'checked':''} onchange="toggleCompare(${car.id}, this)"> השוואה
+          </label>
           <div class="badge-dark">${car.badge}</div>
           ${car.stockStatus === 'זמין מיידי' ? `<div style="position:absolute;bottom:12px;right:12px;background:#16a34a;color:#fff;font-weight:900;font-size:15px;padding:5px 10px;border-radius:999px;">⚡ אספקה מידית</div>` : car.stockStatus === 'אזל במלאי' ? `<div style="position:absolute;bottom:12px;right:12px;background:#6b7280;color:#fff;font-weight:900;font-size:15px;padding:5px 10px;border-radius:999px;">אזל במלאי</div>` : `<div style="position:absolute;bottom:12px;right:12px;background:#2563eb;color:#fff;font-weight:900;font-size:15px;padding:5px 10px;border-radius:999px;">🕐 ${car.stockStatus}</div>`}
         </div>
@@ -1897,7 +1900,83 @@ display:none !important;
       const enriched = cars.map(enrich);
       document.getElementById('homeCars').innerHTML = enriched.slice(0,3).map(cardHtml).join('');
       document.getElementById('catalogCars').innerHTML = enriched.map(cardHtml).join('');
+      updateCompareTray();
     }
+
+    // ===== השוואת רכבים =====
+    let compareIds = [];
+    const CMP_MAX = 4;
+    function toggleCompare(id, cb){
+      id = Number(id);
+      if(cb.checked){
+        if(compareIds.length >= CMP_MAX){ cb.checked = false; alert('אפשר להשוות עד '+CMP_MAX+' רכבים'); return; }
+        if(!compareIds.includes(id)) compareIds.push(id);
+      } else {
+        compareIds = compareIds.filter(x=>x!==id);
+      }
+      updateCompareTray();
+    }
+    function clearCompare(){
+      compareIds = [];
+      document.querySelectorAll('.cmp-check input').forEach(i=>i.checked=false);
+      updateCompareTray();
+    }
+    function updateCompareTray(){
+      const tray = document.getElementById('compareTray');
+      if(!tray) return;
+      if(compareIds.length){
+        tray.style.display = 'flex';
+        document.getElementById('cmpCount').textContent = compareIds.length;
+      } else {
+        tray.style.display = 'none';
+      }
+    }
+    function openCompare(){
+      if(compareIds.length < 2){ alert('בחרו לפחות 2 רכבים להשוואה'); return; }
+      const list = compareIds.map(id=>enrich(cars.find(c=>c.id===id))).filter(Boolean);
+      const rows = [
+        ['דגם', c=>'<b>'+c.brand+' '+c.model+'</b>'],
+        ['שנה', c=>c.year||'—'],
+        ['הנעה', c=>c.engine||'—'],
+        ['טווח', c=>c.range?('⚡ '+c.range+" ק'מ"):'—'],
+        ['מחירון', c=>c.catalogPrice],
+        ['מחיר אוטודילר', c=>'<b style="color:#a16207;font-size:17px">'+c.autodealerPrice+'</b>'],
+        ['חיסכון', c=>'<span style="color:#15803d;font-weight:800">'+c.discount+'</span>'],
+        ['החזר חודשי (בלון 50%)', c=>'<b style="color:#166534">'+c.balloon50Monthly+'</b>'],
+        ['החזר חודשי (100% צמוד)', c=>c.installment100Indexed],
+        ['סטטוס', c=>c.stockStatus||'—'],
+      ];
+      const colW = list.length<=2 ? '1fr 1fr' : ('minmax(150px,1fr) '.repeat(list.length));
+      let html = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:'+(list.length*170)+'px;text-align:center">';
+      // תמונות + כותרת
+      html += '<thead><tr><th style="padding:8px;background:#fff;position:sticky;right:0"></th>';
+      list.forEach(c=>{
+        const img = (c.image && !c.image.startsWith('data:image/svg')) ? '<img src="'+c.image+'" referrerpolicy="no-referrer" style="width:100%;height:90px;object-fit:contain;background:#f8f8f8;border-radius:10px">' : '<div style="height:90px;display:flex;align-items:center;justify-content:center;background:#f8f8f8;border-radius:10px;color:#9ca3af">אין תמונה</div>';
+        html += '<th style="padding:8px;vertical-align:top;min-width:150px">'+img+'</th>';
+      });
+      html += '</tr></thead><tbody>';
+      rows.forEach((r,ri)=>{
+        html += '<tr style="border-bottom:1px solid #eef2f7">';
+        html += '<td style="padding:11px 10px;text-align:right;font-weight:700;color:#6b7280;font-size:13px;background:#fafbfc;position:sticky;right:0;white-space:nowrap">'+r[0]+'</td>';
+        list.forEach(c=>{ html += '<td style="padding:11px 10px;font-size:14px">'+r[1](c)+'</td>'; });
+        html += '</tr>';
+      });
+      html += '</tbody></table></div>';
+      html += '<div style="display:grid;grid-template-columns:repeat('+list.length+',1fr);gap:8px;margin-top:14px">';
+      list.forEach(c=>{ html += '<button class="gold-btn" style="font-size:14px;padding:12px" onclick="closeCompare();openCar('+c.id+')">לעמוד הרכב</button>'; });
+      html += '</div>';
+
+      const modal = document.createElement('div');
+      modal.id = 'compareModal';
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99999;display:flex;align-items:center;justify-content:center;padding:12px';
+      const box = document.createElement('div');
+      box.style.cssText = 'background:#fff;border-radius:22px;padding:22px;max-width:1000px;width:100%;max-height:90vh;overflow-y:auto;position:relative;direction:rtl';
+      box.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px"><h2 style="font-size:22px">השוואת רכבים ('+list.length+')</h2><button onclick="closeCompare()" style="background:#f1f5f9;border:none;border-radius:50%;width:36px;height:36px;font-size:18px;cursor:pointer">✕</button></div>' + html;
+      modal.appendChild(box);
+      document.body.appendChild(modal);
+      modal.addEventListener('click', function(e){ if(e.target===modal) closeCompare(); });
+    }
+    function closeCompare(){ const m=document.getElementById('compareModal'); if(m) m.remove(); }
 
     function renderLeads(){
       const lc = document.getElementById('leadCount'); if(lc) lc.textContent = leads.length;
@@ -1985,6 +2064,7 @@ display:none !important;
       });
       const el = document.getElementById('catalogCars');
       if(el) el.innerHTML = (filtered.length ? filtered : enriched).map(cardHtml).join('');
+      updateCompareTray();
     }
 
     function filterByBrand(brand){
@@ -2642,6 +2722,13 @@ display:none !important;
       icon.style.transform = open ? 'rotate(0deg)' : 'rotate(45deg)';
     }
   </script>
+
+  <!-- מגש השוואת רכבים -->
+  <div id="compareTray" style="display:none;position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:9995;background:#0d0d0d;color:#fff;border-radius:16px;padding:12px 16px;box-shadow:0 8px 30px rgba(0,0,0,.35);align-items:center;gap:14px;direction:rtl;max-width:calc(100vw - 32px)">
+    <span style="font-weight:800;font-size:14px">⚖️ נבחרו <span id="cmpCount">0</span> להשוואה</span>
+    <button onclick="openCompare()" class="gold-btn" style="padding:10px 18px;font-size:14px;white-space:nowrap">השווה עכשיו</button>
+    <button onclick="clearCompare()" style="background:none;border:none;color:#9ca3af;font-size:13px;cursor:pointer;text-decoration:underline">נקה</button>
+  </div>
 
   <!-- Floating WhatsApp Button -->
   <a href="https://wa.me/972508396030?text=%D7%94%D7%99%D7%99%2C%20%D7%A8%D7%90%D7%99%D7%AA%D7%99%20%D7%A8%D7%9B%D7%91%20%D7%91%D7%90%D7%AA%D7%A8%20%D7%90%D7%95%D7%98%D7%95%D7%93%D7%99%D7%9C%D7%A8%20%D7%95%D7%90%D7%A0%D7%99%20%D7%A8%D7%95%D7%A6%D7%94%20%D7%A4%D7%A8%D7%98%D7%99%D7%9D"
