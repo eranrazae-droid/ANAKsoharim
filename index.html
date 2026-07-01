@@ -691,11 +691,6 @@ display:none !important;
               <input type="text" id="searchInput" placeholder="חיפוש חופשי" oninput="filterCatalog()" />
               <select id="filterBrand" onchange="onBrandChange()">
                 <option value="">כל היצרנים</option>
-                <option>AVATR</option><option>BYD</option><option>LEAPMOTOR</option><option>MG</option>
-                <option>XPENG</option><option>אומודה</option><option>גילי</option>
-                <option>יונדאי</option><option>טויוטה</option><option>מיצובישי</option>
-                <option>סובארו</option><option>סיאט</option><option>סקודה</option>
-                <option>פיגו</option><option>פורד</option><option>צ'רי</option><option>קיה</option><option>ג'אקו</option>
               </select>
               <select id="filterModel" onchange="filterCatalog()">
                 <option value="">כל הדגמים</option>
@@ -1924,6 +1919,7 @@ display:none !important;
       const enriched = cars.map(enrich);
       document.getElementById('homeCars').innerHTML = enriched.slice(0,3).map(cardHtml).join('');
       document.getElementById('catalogCars').innerHTML = enriched.map(cardHtml).join('');
+      if(typeof populateBrands==='function') populateBrands();
       if(typeof populateModels==='function') populateModels();
       updateCompareTray();
     }
@@ -2114,10 +2110,16 @@ display:none !important;
       if(e.includes('בנזין')) return 'בנזין';
       return '';
     }
+    function populateBrands(){
+      const sel = document.getElementById('filterBrand'); if(!sel) return;
+      const brands = [...new Set(cars.map(c=>c.brand).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'he'));
+      const cur = sel.value;
+      sel.innerHTML = '<option value="">כל היצרנים</option>' + brands.map(b=>'<option'+(b===cur?' selected':'')+'>'+b+'</option>').join('');
+    }
     function populateModels(){
       const sel = document.getElementById('filterModel'); if(!sel) return;
       const brand = (document.getElementById('filterBrand')||{}).value||'';
-      const models = [...new Set(cars.filter(c=>!brand||c.brand===brand).map(c=>c.model).filter(Boolean))].sort();
+      const models = [...new Set(cars.filter(c=>!brand||c.brand===brand).map(c=>c.model).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'he'));
       const cur = sel.value;
       sel.innerHTML = '<option value="">כל הדגמים</option>' + models.map(m=>'<option'+(m===cur?' selected':'')+'>'+m+'</option>').join('');
     }
