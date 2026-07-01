@@ -5100,7 +5100,7 @@ async function openRefreshScreen() {
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
         <div>
           <div class="vehicle-plate">${esc(r.plate||'')}</div>
-          <div class="vehicle-info">${esc(r.vehicleType||'')}</div>
+          <div class="vehicle-info">${[r.vehicleType,r.year,r.color].filter(Boolean).map(esc).join(' · ')}</div>
           <div class="vehicle-meta" style="margin-top:4px">
             <span class="tag assignee">👤 ${esc(r.assignedTo||'')}</span>
             ${r.parking ? `<span class="tag assignee">🅿️ חניה ${esc(r.parking)}</span>` : ''}
@@ -5114,7 +5114,7 @@ async function openRefreshScreen() {
 }
 
 function openNewRefreshAssign() {
-  ['ra-plate','ra-type','ra-parking'].forEach(id => { const el=document.getElementById(id); if(el)el.value=''; });
+  ['ra-plate','ra-type','ra-year','ra-color','ra-parking'].forEach(id => { const el=document.getElementById(id); if(el)el.value=''; });
   const st = document.getElementById('ra-fetch-status'); if(st) { st.textContent=''; st.style.color='var(--muted)'; }
   openModal('modal-refresh-assign');
 }
@@ -5136,6 +5136,8 @@ async function rfFetchVehicle() {
     const brand = rec.tozeret_nm || '';
     const model = rec.kinuy_mishari || rec.degem_nm || '';
     document.getElementById('ra-type').value = [brand, model].filter(Boolean).join(' ');
+    document.getElementById('ra-year').value  = rec.shnat_yitzur  || '';
+    document.getElementById('ra-color').value = rec.tzeva_rechev  || '';
     status.style.color = 'var(--success)'; status.textContent = '✅ פרטים נטענו בהצלחה';
   } catch(e) {
     status.style.color = 'var(--danger)'; status.textContent = '❌ שגיאה בחיבור לשרת';
@@ -5146,10 +5148,12 @@ window.rfFetchVehicle = rfFetchVehicle;
 async function submitRefreshAssign() {
   const plate = document.getElementById('ra-plate')?.value.trim();
   const vehicleType = document.getElementById('ra-type')?.value.trim();
+  const year = document.getElementById('ra-year')?.value.trim();
+  const color = document.getElementById('ra-color')?.value.trim();
   const parking = document.getElementById('ra-parking')?.value.trim();
   if (!plate) return showToast('נא להזין לוחית רישוי');
   const { addDoc, collection, serverTimestamp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-  await addDoc(collection(window._db, 'refreshes'), { plate, vehicleType, parking, status: 'pending', createdAt: serverTimestamp() });
+  await addDoc(collection(window._db, 'refreshes'), { plate, vehicleType, year, color, parking, status: 'pending', createdAt: serverTimestamp() });
   closeModal('modal-refresh-assign');
   showToast('✅ רענון נוסף בהצלחה');
   openRefreshScreen();
@@ -5249,6 +5253,10 @@ window.rfClick = rfClick;
       <div id="ra-fetch-status" style="font-size:12px;color:var(--muted);margin-top:4px;min-height:16px"></div>
     </div>
     <div class="form-group"><label>סוג רכב</label><input id="ra-type" class="form-input" placeholder="פולקסוואגן גולף"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="form-group"><label>שנה</label><input id="ra-year" class="form-input" placeholder="2020"></div>
+      <div class="form-group"><label>צבע</label><input id="ra-color" class="form-input" placeholder="לבן"></div>
+    </div>
     <div class="form-group"><label>מסי חניה</label><input id="ra-parking" class="form-input" placeholder="מספר חניה"></div>
     <button class="btn-submit" onclick="submitRefreshAssign()" style="width:100%;margin-top:8px">שמור ✅</button>
   </div>
