@@ -5182,6 +5182,7 @@ async function openRefreshScreen() {
           <div class="vehicle-plate">${esc(r.plate||'')}</div>
           <div class="vehicle-info">${[r.vehicleType,r.year,r.color].filter(Boolean).map(esc).join(' · ')}</div>
           <div class="vehicle-meta" style="margin-top:4px">
+            ${r.assignedTo ? `<span class="tag assignee">👤 ${esc(r.assignedTo)}</span>` : ''}
             ${r.parking ? `<span class="tag assignee">🅿️ חניה ${esc(r.parking)}</span>` : ''}
             ${ts ? `<span class="tag assignee">📅 ${ts}</span>` : ''}
           </div>
@@ -5197,7 +5198,7 @@ async function openRefreshScreen() {
 }
 
 function openNewRefreshAssign() {
-  ['ra-plate','ra-type','ra-year','ra-color','ra-parking'].forEach(id => { const el=document.getElementById(id); if(el)el.value=''; });
+  ['ra-plate','ra-type','ra-year','ra-color','ra-parking','ra-driver'].forEach(id => { const el=document.getElementById(id); if(el)el.value=''; });
   const st = document.getElementById('ra-fetch-status'); if(st) { st.textContent=''; st.style.color='var(--muted)'; }
   openModal('modal-refresh-assign');
 }
@@ -5234,9 +5235,11 @@ async function submitRefreshAssign() {
   const year = document.getElementById('ra-year')?.value.trim();
   const color = document.getElementById('ra-color')?.value.trim();
   const parking = document.getElementById('ra-parking')?.value.trim();
+  const assignedTo = document.getElementById('ra-driver')?.value;
   if (!plate) return showToast('נא להזין לוחית רישוי');
+  if (!assignedTo) return showToast('נא לבחור נהג');
   const { addDoc, collection, serverTimestamp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-  await addDoc(collection(window._db, 'refreshes'), { plate, vehicleType, year, color, parking, status: 'pending', createdAt: serverTimestamp() });
+  await addDoc(collection(window._db, 'refreshes'), { plate, vehicleType, year, color, parking, assignedTo, status: 'pending', createdAt: serverTimestamp() });
   closeModal('modal-refresh-assign');
   showToast('✅ רענון נוסף בהצלחה');
   openRefreshScreen();
@@ -5456,6 +5459,16 @@ window.rfClick = rfClick;
       <div class="form-group"><label>צבע</label><input id="ra-color" class="form-input" placeholder="לבן"></div>
     </div>
     <div class="form-group"><label>מסי חניה</label><input id="ra-parking" class="form-input" placeholder="מספר חניה"></div>
+    <div class="form-group">
+      <label>נהג <span style="color:#ef4444">*</span></label>
+      <select id="ra-driver" class="form-input">
+        <option value="">— בחר נהג —</option>
+        <option value="עופר">עופר</option>
+        <option value="גיל">גיל</option>
+        <option value="איתי">איתי</option>
+        <option value="ליאל">ליאל</option>
+      </select>
+    </div>
     <button class="btn-submit" onclick="submitRefreshAssign()" style="width:100%;margin-top:8px">שמור ✅</button>
   </div>
 </div>
