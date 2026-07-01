@@ -146,6 +146,30 @@
           <div class="stat-card stat-amber"><div class="label">אזל במלאי</div><div class="value" id="st-out">0</div><div class="sub">לא זמין</div></div>
           <div class="stat-card stat-red"><div class="label">שוברים פעילים</div><div class="value" id="st-vouchers">0</div><div class="sub">ב-300 ₪</div></div>
         </div>
+        <div class="stats-grid">
+          <div class="stat-card"><div class="label">שווי מכירה כולל</div><div class="value" id="st-sell" style="font-size:26px">₪0</div><div class="sub">סך מחירי אוטודילר</div></div>
+          <div class="stat-card"><div class="label">עלות כוללת</div><div class="value" id="st-cost" style="font-size:26px">₪0</div><div class="sub">סך עלויות (כולל רישוי)</div></div>
+          <div class="stat-card stat-green"><div class="label">רווח צפוי כולל</div><div class="value" id="st-profit" style="font-size:26px">₪0</div><div class="sub">אם כל המלאי יימכר</div></div>
+          <div class="stat-card stat-amber"><div class="label">רווח ממוצע לרכב</div><div class="value" id="st-profit-avg" style="font-size:26px">₪0</div><div class="sub" id="st-margin">0% מרווח</div></div>
+        </div>
+        <div class="card panel" style="margin-bottom:20px">
+          <div class="section-hd" style="margin-bottom:12px">
+            <div><div class="eyebrow">רווחיות</div><h2 style="font-size:18px">מחיר עלות ורווח צפוי לכל רכב</h2></div>
+            <div class="muted" style="font-size:12px">חסר עלות? ערכו את הרכב והזינו "מחיר עלות"</div>
+          </div>
+          <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse;min-width:640px;font-size:13px">
+              <thead><tr style="text-align:right;color:var(--muted);font-size:12px;border-bottom:2px solid var(--line)">
+                <th style="padding:10px 8px">רכב</th>
+                <th style="padding:10px 8px">מחיר מכירה</th>
+                <th style="padding:10px 8px">עלות</th>
+                <th style="padding:10px 8px">רווח ₪</th>
+                <th style="padding:10px 8px">מרווח %</th>
+              </tr></thead>
+              <tbody id="profitTableBody"></tbody>
+            </table>
+          </div>
+        </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
           <div class="card panel">
             <div class="eyebrow">לידים</div>
@@ -314,6 +338,7 @@
       </div>
       <div class="form-group"><label>מחירון (₪)</label><input id="e-catalog" type="number"/></div>
       <div class="form-group"><label>מחיר אוטודילר (₪)</label><input id="e-price" type="number" oninput="calcEditPreview()"/></div>
+      <div class="form-group"><label>מחיר עלות שלי (₪)</label><input id="e-cost" type="number" placeholder="עלות כולל רישוי"/></div>
       <div class="form-group" style="grid-column:span 3">
         <label>תיאור קצר</label>
         <textarea id="e-summary"></textarea>
@@ -743,7 +768,38 @@
     renderAll();toast('🗑 הרכב נמחק');
   }
 
-  function renderAll(){updateStats();renderInventory();renderLeads();renderVouchers();renderDash();}
+  // מחירי עלות (כולל רישוי) מתוך קובץ העלויות - לפי מזהה רכב
+  const COST_BY_ID = {10:272990, 12:182990, 14:151490, 15:156490, 17:116990, 18:118990, 19:136990, 20:135990, 21:156490, 22:155990, 23:176990, 24:215990, 25:194990, 27:188990, 29:153490, 31:148990, 32:281990, 33:166490, 34:184990, 35:161990, 36:220490, 37:194990, 39:126490, 40:158990, 41:133490, 42:153990, 43:122990, 44:139990, 45:126990, 46:164990, 47:187990, 48:203990, 49:160990, 50:160990, 51:99490, 52:155990, 53:152990, 54:178490, 55:167490, 59:166990};
+  function getCost(c){ return Number(c.costPrice) || COST_BY_ID[c.id] || 0; }
+  function fmt(n){ return '₪' + Math.round(n).toLocaleString('en-US'); }
+
+  function renderProfit(){
+    const body=document.getElementById('profitTableBody'); if(!body) return;
+    let totalSell=0, totalCost=0, totalProfit=0, counted=0;
+    body.innerHTML = cars.map(c=>{
+      const sell=Number(c.autodealerPriceNumber)||0;
+      const cost=getCost(c);
+      const hasCost = cost>0 && sell>1;
+      const profit = hasCost ? sell-cost : 0;
+      const margin = hasCost && sell ? (profit/sell*100) : 0;
+      if(hasCost){ totalSell+=sell; totalCost+=cost; totalProfit+=profit; counted++; }
+      const pcol = profit>0?'#15803d':(profit<0?'#b91c1c':'#6b7280');
+      return `<tr style="border-bottom:1px solid var(--line)">
+        <td style="padding:9px 8px;font-weight:700">${c.brand} ${c.model}</td>
+        <td style="padding:9px 8px">${sell>1?fmt(sell):'—'}</td>
+        <td style="padding:9px 8px">${cost?fmt(cost):'<span style=\"color:#dc2626\">חסר</span>'}</td>
+        <td style="padding:9px 8px;font-weight:900;color:${pcol}">${hasCost?fmt(profit):'—'}</td>
+        <td style="padding:9px 8px;font-weight:700;color:${pcol}">${hasCost?margin.toFixed(1)+'%':'—'}</td>
+      </tr>`;
+    }).join('');
+    document.getElementById('st-sell').textContent=fmt(totalSell);
+    document.getElementById('st-cost').textContent=fmt(totalCost);
+    document.getElementById('st-profit').textContent=fmt(totalProfit);
+    document.getElementById('st-profit-avg').textContent= counted?fmt(totalProfit/counted):'₪0';
+    document.getElementById('st-margin').textContent= totalSell?((totalProfit/totalSell*100).toFixed(1)+'% מרווח ממוצע'):'0%';
+  }
+
+  function renderAll(){updateStats();renderInventory();renderLeads();renderVouchers();renderDash();renderProfit();}
 
   function updateStats(){
     document.getElementById('st-total').textContent=cars.length;
@@ -982,6 +1038,7 @@
     toggleRangeField('e-range-wrap', c.engine||'בנזין');
     document.getElementById('e-catalog').value = c.catalogPriceNumber;
     document.getElementById('e-price').value = c.autodealerPriceNumber;
+    document.getElementById('e-cost').value = getCost(c) || '';
     document.getElementById('e-summary').value = c.summary||'';
     const specData = c.specData || {};
     document.getElementById('sp_שנת_דגם').value = (specData['פרטי הרכב ואחריות'] && specData['פרטי הרכב ואחריות']['שנת דגם']) ? specData['פרטי הרכב ואחריות']['שנת דגם'] : '';
@@ -1381,6 +1438,7 @@
         stockStatus: document.getElementById('e-status').value,
         catalogPriceNumber: Number(document.getElementById('e-catalog').value||c.catalogPriceNumber),
         autodealerPriceNumber: Number(document.getElementById('e-price').value||c.autodealerPriceNumber),
+        costPrice: Number(document.getElementById('e-cost').value||0) || getCost(c),
         summary: document.getElementById('e-summary').value.trim()||c.summary,
         specData: specData,
         specText: '',
