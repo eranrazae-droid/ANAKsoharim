@@ -5141,6 +5141,34 @@ function _renderRfGenericPhotos(key) {
 window.addRfGenericPhoto = addRfGenericPhoto;
 window.removeRfGenericPhoto = removeRfGenericPhoto;
 
+var _rfSunroofVideo = null;
+function addRfSunroofVideo(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (file.size > 50 * 1024 * 1024) { showToast('⚠️ הסרטון גדול מדי (מקסימום 50MB)'); input.value = ''; return; }
+  _rfSunroofVideo = file;
+  input.value = '';
+  const preview = document.getElementById('rf-sunroof-video-preview');
+  const btn = document.getElementById('btn-rf-sunroof-video');
+  if (preview) {
+    const url = URL.createObjectURL(file);
+    preview.innerHTML = `<div style="position:relative;display:inline-block">
+      <video src="${url}" controls style="max-width:100%;border-radius:8px;max-height:200px"></video>
+      <button type="button" onclick="removeRfSunroofVideo()" style="position:absolute;top:4px;right:4px;background:#ef4444;color:#fff;border:none;border-radius:50%;width:24px;height:24px;font-size:14px;cursor:pointer;line-height:1">✕</button>
+    </div>`;
+  }
+  if (btn) btn.textContent = '🎥 החלף סרטון';
+}
+function removeRfSunroofVideo() {
+  _rfSunroofVideo = null;
+  const preview = document.getElementById('rf-sunroof-video-preview');
+  const btn = document.getElementById('btn-rf-sunroof-video');
+  if (preview) preview.innerHTML = '';
+  if (btn) btn.textContent = '🎥 צלם סרטון גג';
+}
+window.addRfSunroofVideo = addRfSunroofVideo;
+window.removeRfSunroofVideo = removeRfSunroofVideo;
+
 function rfClick(btn) {
   const key = btn.dataset.key;
   const val = btn.dataset.val;
@@ -5256,6 +5284,9 @@ async function openRefreshForm(id) {
   _rfDashboardPhotos = []; _renderRfDashboardPhotos();
   _rfGenericPhotos = {};
   ['rf-lights-break','rf-glass-break','rf-windows','rf-steering'].forEach(k => _renderRfGenericPhotos(k));
+  _rfSunroofVideo = null;
+  const svPrev = document.getElementById('rf-sunroof-video-preview'); if(svPrev) svPrev.innerHTML='';
+  const svBtn = document.getElementById('btn-rf-sunroof-video'); if(svBtn) svBtn.textContent='🎥 צלם סרטון גג';
   const rfBatNoCb = document.getElementById('rf-battery-no-date-cb'); if(rfBatNoCb) rfBatNoCb.checked = false;
   const rfBatDate = document.getElementById('rf-battery-date-section'); if(rfBatDate) rfBatDate.style.display = 'none';
   const rfBatMonth = document.getElementById('rf-battery-month'); if(rfBatMonth) rfBatMonth.value = '';
@@ -5309,6 +5340,12 @@ async function openRefreshForm(id) {
         if (grid) grid.innerHTML = fd.genericPhotos[k].map(src => `<div class="ci-photo-box"><img src="${src}"></div>`).join('');
       }
     });
+    if (fd.sunroofVideo) {
+      const preview = document.getElementById('rf-sunroof-video-preview');
+      const btn = document.getElementById('btn-rf-sunroof-video');
+      if (preview) preview.innerHTML = `<video src="${fd.sunroofVideo}" controls style="max-width:100%;border-radius:8px;max-height:200px"></video>`;
+      if (btn) btn.textContent = '🎥 החלף סרטון';
+    }
   }
   openModal('modal-refresh-form');
 }
@@ -5366,13 +5403,18 @@ async function submitRefreshForm() {
   const batteryPhotoB64s = await Promise.all(_rfBatteryPhotoFiles.map(f => compressToBase64(f)));
   const rfBatNoCbVal = document.getElementById('rf-battery-no-date-cb')?.checked || false;
   const rfBatMonthVal = document.getElementById('rf-battery-month')?.value || '';
+  let sunroofVideoB64 = '';
+  if (_rfSunroofVideo && document.querySelector('.rf-box[data-key="rf-sunroof"].x-active')) {
+    showToast('⏳ מעבד סרטון...');
+    sunroofVideoB64 = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = e => res(e.target.result); fr.onerror = rej; fr.readAsDataURL(_rfSunroofVideo); });
+  }
   const dashboardPhotoB64s = document.querySelector('.rf-box[data-key="rf-dashboard"].x-active')
     ? await Promise.all(_rfDashboardPhotos.map(f => compressToBase64(f))) : [];
   const genericPhotoB64s = {};
   for (const k of ['rf-lights-break','rf-glass-break','rf-windows','rf-steering']) {
     if (_rfGenericPhotos[k]?.length) genericPhotoB64s[k] = await Promise.all(_rfGenericPhotos[k].map(f => compressToBase64(f)));
   }
-  await updateDoc(doc(window._db, 'refreshes', _currentRefreshId), { formData: {checks,notes,dashChecks,scratches,notSold,km,code,upholsteryPhotos:upholsteryPhotoB64s,batteryPhotos:batteryPhotoB64s,batteryNoDate:rfBatNoCbVal,batteryMonth:rfBatMonthVal,dashboardPhotos:dashboardPhotoB64s,genericPhotos:genericPhotoB64s}, status:'done', completedAt:serverTimestamp(), completedBy:currentUser?.name||'' });
+  await updateDoc(doc(window._db, 'refreshes', _currentRefreshId), { formData: {checks,notes,dashChecks,scratches,notSold,km,code,upholsteryPhotos:upholsteryPhotoB64s,batteryPhotos:batteryPhotoB64s,batteryNoDate:rfBatNoCbVal,batteryMonth:rfBatMonthVal,dashboardPhotos:dashboardPhotoB64s,genericPhotos:genericPhotoB64s,sunroofVideo:sunroofVideoB64}, status:'done', completedAt:serverTimestamp(), completedBy:currentUser?.name||'' });
   if (checks['rf-smell']==='x') {
     const r = _currentRefreshData;
     await addDoc(collection(window._db,'tasks'), { title:`טיפול בריח — ${r.plate||''}${r.vehicleType?' · '+r.vehicleType:''}${r.parking?' · חניה '+r.parking:''}`, notes:notes['rf-smell']||'', assignedTo:r.assignedTo||'', column:'משימות כלליות', status:'pending', createdAt:serverTimestamp() });
@@ -5599,7 +5641,15 @@ window.rfClick = rfClick;
 
       <!-- גג נפתח -->
       <div class="checklist-item"><span class="ci-label">גג נפתח</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-sunroof" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-sunroof" data-val="x" onclick="rfClick(this)">✕</button></div></div>
-      <div id="rfnote-rf-sunroof" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="rfcn-rf-sunroof" placeholder="הערה..." rows="2"></textarea></div>
+      <div id="rfnote-rf-sunroof" class="ci-note-row" style="display:none">
+        <textarea class="form-textarea" id="rfcn-rf-sunroof" placeholder="הערה..." rows="2"></textarea>
+        <div style="margin-top:8px">
+          <div style="font-size:12px;color:#64748b;margin-bottom:6px;font-weight:600">🎥 צלם סרטון של הגג (אופציונלי)</div>
+          <input type="file" accept="video/*" capture="environment" id="file-rf-sunroof-video" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" onchange="addRfSunroofVideo(this)">
+          <div id="rf-sunroof-video-preview" style="margin-bottom:6px"></div>
+          <button type="button" onclick="document.getElementById('file-rf-sunroof-video').click()" id="btn-rf-sunroof-video" style="width:100%;background:var(--dark);color:#fff;border:none;border-radius:10px;padding:10px;font-family:Heebo,sans-serif;font-weight:700;font-size:14px;cursor:pointer">🎥 צלם סרטון גג</button>
+        </div>
+      </div>
 
       <!-- שריטות -->
       <div class="form-group" style="margin-top:12px">
