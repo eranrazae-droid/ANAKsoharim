@@ -5070,10 +5070,16 @@ var _currentRefreshData = null;
 function rfClick(btn) {
   const key = btn.dataset.key;
   const val = btn.dataset.val;
+  const activeClass = val === 'v' ? 'v-active' : 'x-active';
+  const alreadyActive = btn.classList.contains(activeClass);
   document.querySelectorAll(`.rf-box[data-key="${key}"]`).forEach(b => b.classList.remove('v-active','x-active'));
-  btn.classList.add(val === 'v' ? 'v-active' : 'x-active');
   const noteRow = document.getElementById('rfnote-' + key);
-  if (noteRow) noteRow.style.display = val === 'x' ? '' : 'none';
+  if (alreadyActive) {
+    if (noteRow) noteRow.style.display = 'none';
+  } else {
+    btn.classList.add(activeClass);
+    if (noteRow) noteRow.style.display = val === 'x' ? '' : 'none';
+  }
 }
 
 async function openRefreshScreen() {
@@ -5096,18 +5102,20 @@ async function openRefreshScreen() {
     const r = d.data();
     const done = r.status === 'done';
     const ts = r.createdAt?.toDate ? new Date(r.createdAt.toDate()).toLocaleDateString('he-IL') : '';
-    return `<div onclick="openRefreshForm('${d.id}')" class="vehicle-card" style="border-right:5px solid ${done?'var(--success)':'var(--warning)'};cursor:pointer">
+    return `<div class="vehicle-card" style="border-right:5px solid ${done?'var(--success)':'var(--warning)'}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
-        <div>
+        <div onclick="openRefreshForm('${d.id}')" style="flex:1;cursor:pointer;min-width:0">
           <div class="vehicle-plate">${esc(r.plate||'')}</div>
           <div class="vehicle-info">${[r.vehicleType,r.year,r.color].filter(Boolean).map(esc).join(' · ')}</div>
           <div class="vehicle-meta" style="margin-top:4px">
-            <span class="tag assignee">👤 ${esc(r.assignedTo||'')}</span>
             ${r.parking ? `<span class="tag assignee">🅿️ חניה ${esc(r.parking)}</span>` : ''}
             ${ts ? `<span class="tag assignee">📅 ${ts}</span>` : ''}
           </div>
         </div>
-        <span style="background:${done?'var(--success)':'var(--warning)'};color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;white-space:nowrap;flex-shrink:0">${done ? '✅ הושלם' : '⏳ ממתין'}</span>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">
+          <span style="background:${done?'var(--success)':'var(--warning)'};color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;white-space:nowrap">${done ? '✅ הושלם' : '⏳ ממתין'}</span>
+          <button onclick="openEditRefresh('${d.id}')" style="background:#6366f1;color:#fff;border:none;border-radius:10px;padding:7px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">✏️ עריכה</button>
+        </div>
       </div>
     </div>`;
   }).join('');
@@ -5232,6 +5240,36 @@ async function submitRefreshForm() {
   closeModal('modal-refresh-form');
   openRefreshScreen();
 }
+async function openEditRefresh(id) {
+  const { getDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  const snap = await getDoc(doc(window._db, 'refreshes', id));
+  if (!snap.exists()) return showToast('לא נמצא');
+  const r = snap.data();
+  document.getElementById('re-id').value = id;
+  document.getElementById('re-plate').value = r.plate || '';
+  document.getElementById('re-type').value = r.vehicleType || '';
+  document.getElementById('re-year').value = r.year || '';
+  document.getElementById('re-color').value = r.color || '';
+  document.getElementById('re-parking').value = r.parking || '';
+  openModal('modal-refresh-edit');
+}
+async function submitEditRefresh() {
+  const id = document.getElementById('re-id').value;
+  if (!id) return;
+  const { updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  await updateDoc(doc(window._db, 'refreshes', id), {
+    plate: document.getElementById('re-plate').value.trim(),
+    vehicleType: document.getElementById('re-type').value.trim(),
+    year: document.getElementById('re-year').value.trim(),
+    color: document.getElementById('re-color').value.trim(),
+    parking: document.getElementById('re-parking').value.trim(),
+  });
+  closeModal('modal-refresh-edit');
+  showToast('✅ פרטים עודכנו');
+  openRefreshScreen();
+}
+window.openEditRefresh = openEditRefresh;
+window.submitEditRefresh = submitEditRefresh;
 window.openRefreshScreen = openRefreshScreen;
 window.openNewRefreshAssign = openNewRefreshAssign;
 window.submitRefreshAssign = submitRefreshAssign;
@@ -5241,6 +5279,20 @@ window.rfClick = rfClick;
 </script>
 
 <!-- ═══ רענון רכב modals ═══ -->
+<div class="modal-overlay" id="modal-refresh-edit">
+  <div class="modal-box">
+    <div class="modal-title">עריכת פרטי רענון <button class="modal-close" onclick="closeModal('modal-refresh-edit')">✕</button></div>
+    <input type="hidden" id="re-id">
+    <div class="form-group"><label>לוחית רישוי</label><input id="re-plate" class="form-input" inputmode="numeric"></div>
+    <div class="form-group"><label>סוג רכב</label><input id="re-type" class="form-input"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="form-group"><label>שנה</label><input id="re-year" class="form-input"></div>
+      <div class="form-group"><label>צבע</label><input id="re-color" class="form-input"></div>
+    </div>
+    <div class="form-group"><label>מסי חניה</label><input id="re-parking" class="form-input"></div>
+    <button class="btn-submit" onclick="submitEditRefresh()" style="width:100%;margin-top:8px">שמור שינויים ✅</button>
+  </div>
+</div>
 <div class="modal-overlay" id="modal-refresh-assign">
   <div class="modal-box">
     <div class="modal-title">הקצאת רענון רכב <button class="modal-close" onclick="closeModal('modal-refresh-assign')">✕</button></div>
