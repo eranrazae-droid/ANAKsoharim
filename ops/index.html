@@ -5067,6 +5067,30 @@ window.openLiveIntakeView = openLiveIntakeView;
 var _currentRefreshId = null;
 var _currentRefreshData = null;
 
+var _rfUpholsteryPhotos = [];
+function addRfUpholsteryPhoto(input) {
+  const files = [...input.files];
+  _rfUpholsteryPhotos.push(...files.slice(0, 6 - _rfUpholsteryPhotos.length));
+  input.value = '';
+  _renderRfUpholsteryPhotos();
+}
+function removeRfUpholsteryPhoto(i) {
+  _rfUpholsteryPhotos.splice(i, 1);
+  _renderRfUpholsteryPhotos();
+}
+function _renderRfUpholsteryPhotos() {
+  const grid = document.getElementById('rf-upholstery-photos');
+  const btn = document.getElementById('btn-rf-upholstery-photo');
+  if (!grid) return;
+  grid.innerHTML = _rfUpholsteryPhotos.map((f, i) => {
+    const url = URL.createObjectURL(f);
+    return `<div class="ci-photo-box"><img src="${url}"><button class="rm-btn" type="button" onclick="removeRfUpholsteryPhoto(${i})">✕</button></div>`;
+  }).join('');
+  if (btn) btn.style.display = _rfUpholsteryPhotos.length >= 6 ? 'none' : 'block';
+}
+window.addRfUpholsteryPhoto = addRfUpholsteryPhoto;
+window.removeRfUpholsteryPhoto = removeRfUpholsteryPhoto;
+
 function rfClick(btn) {
   const key = btn.dataset.key;
   const val = btn.dataset.val;
@@ -5173,6 +5197,7 @@ async function openRefreshForm(id) {
   document.querySelectorAll('#modal-refresh-form .ci-note-row').forEach(r => r.style.display = 'none');
   ['rfcn-rf-oil','rfcn-rf-water','rfcn-rf-battery','rfcn-rf-battery-orig','rfcn-rf-dashboard','rfcn-scratches','rfcn-rf-smell','rfcn-rf-plastic','rfcn-rf-upholstery','rfcn-rf-test-drive','rfcn-not-sold'].forEach(eid => { const el=document.getElementById(eid); if(el)el.value=''; });
   ['rfd-check-engine','rfd-tire-pressure','rfd-service','rfd-collision','rfd-fuel','rfd-other'].forEach(eid => { const el=document.getElementById(eid); if(el)el.checked=false; });
+  _rfUpholsteryPhotos = []; _renderRfUpholsteryPhotos();
   const rfDash = document.getElementById('rfcn-rf-dashboard'); if(rfDash) rfDash.style.display='none';
   const { getDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
   const snap = await getDoc(doc(window._db, 'refreshes', id));
@@ -5199,6 +5224,10 @@ async function openRefreshForm(id) {
       Object.entries(fd.dashChecks).forEach(([k,v]) => { const el=document.getElementById(k); if(el)el.checked=v; });
       if (fd.dashChecks['rfd-other']) { const el=document.getElementById('rfcn-rf-dashboard'); if(el)el.style.display='block'; }
     }
+    if (fd.upholsteryPhotos?.length) {
+      const grid = document.getElementById('rf-upholstery-photos');
+      if (grid) grid.innerHTML = fd.upholsteryPhotos.map(src => `<div class="ci-photo-box"><img src="${src}"></div>`).join('');
+    }
   }
   openModal('modal-refresh-form');
 }
@@ -5212,6 +5241,10 @@ async function submitRefreshForm() {
       const ta = document.getElementById('rfcn-' + key);
       if (!ta?.value.trim()) { ta?.scrollIntoView({behavior:'smooth',block:'center'}); showToast('⚠️ נא להזין הערה לסעיף שסומן ✕'); return; }
     }
+  }
+  if (!_rfUpholsteryPhotos.length) {
+    document.getElementById('rf-upholstery-photos')?.scrollIntoView({behavior:'smooth',block:'center'});
+    showToast('⚠️ נא לצלם תמונות ריפודים ושטיחים'); return;
   }
   if (document.querySelector('.rf-box[data-key="rf-dashboard"].x-active')) {
     const dashIds = ['rfd-check-engine','rfd-tire-pressure','rfd-service','rfd-collision','rfd-fuel','rfd-other'];
@@ -5231,7 +5264,9 @@ async function submitRefreshForm() {
   const scratches = document.getElementById('rfcn-scratches')?.value.trim()||'';
   const notSold = document.getElementById('rfcn-not-sold')?.value.trim()||'';
   const { updateDoc, doc, addDoc, collection, serverTimestamp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-  await updateDoc(doc(window._db, 'refreshes', _currentRefreshId), { formData: {checks,notes,dashChecks,scratches,notSold}, status:'done', completedAt:serverTimestamp(), completedBy:currentUser?.name||'' });
+  showToast('⏳ שולח...');
+  const upholsteryPhotoB64s = await Promise.all(_rfUpholsteryPhotos.map(f => compressToBase64(f)));
+  await updateDoc(doc(window._db, 'refreshes', _currentRefreshId), { formData: {checks,notes,dashChecks,scratches,notSold,upholsteryPhotos:upholsteryPhotoB64s}, status:'done', completedAt:serverTimestamp(), completedBy:currentUser?.name||'' });
   if (checks['rf-smell']==='x') {
     const r = _currentRefreshData;
     await addDoc(collection(window._db,'tasks'), { title:`טיפול בריח — ${r.plate||''}${r.vehicleType?' · '+r.vehicleType:''}${r.parking?' · חניה '+r.parking:''}`, notes:notes['rf-smell']||'', assignedTo:r.assignedTo||'', column:'משימות כלליות', status:'pending', createdAt:serverTimestamp() });
@@ -5372,6 +5407,12 @@ window.rfClick = rfClick;
       <!-- מצב ריפודים ושטיחים -->
       <div class="checklist-item"><span class="ci-label">מצב ריפודים ושטיחים</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-upholstery" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-upholstery" data-val="x" onclick="rfClick(this)">✕</button></div></div>
       <div id="rfnote-rf-upholstery" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="rfcn-rf-upholstery" placeholder="הערה..." rows="2"></textarea></div>
+      <div class="ci-note-row" style="display:block;margin-top:6px">
+        <div style="font-size:12px;color:#64748b;margin-bottom:8px;font-weight:600">📸 נא לצלם את כל הריפודים ובמידה ויש כתמים/קרעים לצלם מקרוב <span style="color:#ef4444">*</span></div>
+        <input type="file" accept="image/*" capture="environment" id="file-rf-upholstery" multiple style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" onchange="addRfUpholsteryPhoto(this)">
+        <div id="rf-upholstery-photos" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+        <button type="button" onclick="document.getElementById('file-rf-upholstery').click()" id="btn-rf-upholstery-photo" style="width:100%;background:var(--dark);color:#fff;border:none;border-radius:10px;padding:10px;font-family:Heebo,sans-serif;font-weight:700;font-size:14px;cursor:pointer;margin-top:4px">📷 צלם תמונה</button>
+      </div>
 
       <!-- נסיעת מבחן -->
       <div class="checklist-item"><span class="ci-label">נסיעת מבחן</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-test-drive" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-test-drive" data-val="x" onclick="rfClick(this)">✕</button></div></div>
