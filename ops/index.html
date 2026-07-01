@@ -5171,7 +5171,7 @@ async function openRefreshForm(id) {
   _currentRefreshId = id;
   document.querySelectorAll('#modal-refresh-form .rf-box').forEach(b => b.classList.remove('v-active','x-active'));
   document.querySelectorAll('#modal-refresh-form .ci-note-row').forEach(r => r.style.display = 'none');
-  ['rfcn-rf-oil','rfcn-rf-water','rfcn-rf-battery','rfcn-rf-bulbs','rfcn-rf-dashboard','rfcn-scratches','rfcn-rf-smell','rfcn-rf-plastic','rfcn-rf-upholstery','rfcn-rf-test-drive','rfcn-not-sold'].forEach(eid => { const el=document.getElementById(eid); if(el)el.value=''; });
+  ['rfcn-rf-oil','rfcn-rf-water','rfcn-rf-battery','rfcn-rf-battery-orig','rfcn-rf-dashboard','rfcn-scratches','rfcn-rf-smell','rfcn-rf-plastic','rfcn-rf-upholstery','rfcn-rf-test-drive','rfcn-not-sold'].forEach(eid => { const el=document.getElementById(eid); if(el)el.value=''; });
   ['rfd-check-engine','rfd-tire-pressure','rfd-service','rfd-collision','rfd-fuel','rfd-other'].forEach(eid => { const el=document.getElementById(eid); if(el)el.checked=false; });
   const rfDash = document.getElementById('rfcn-rf-dashboard'); if(rfDash) rfDash.style.display='none';
   const { getDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
@@ -5183,7 +5183,7 @@ async function openRefreshForm(id) {
   document.getElementById('rf-vehicle-info').innerHTML = `<strong>${esc(r.plate||'')}</strong>${r.vehicleType?' · '+esc(r.vehicleType):''}${r.parking?' · חניה '+esc(r.parking):''}`;
   if (r.formData) {
     const fd = r.formData;
-    ['rf-oil','rf-water','rf-battery','rf-bulbs','rf-dashboard','rf-smell','rf-plastic','rf-upholstery','rf-test-drive'].forEach(key => {
+    ['rf-oil','rf-water','rf-battery','rf-battery-orig','rf-dashboard','rf-smell','rf-plastic','rf-upholstery','rf-test-drive'].forEach(key => {
       const val = fd.checks?.[key];
       if (val) {
         const btn = document.querySelector(`.rf-box[data-key="${key}"][data-val="${val}"]`);
@@ -5205,7 +5205,7 @@ async function openRefreshForm(id) {
 
 async function submitRefreshForm() {
   if (!_currentRefreshId) return;
-  const xNoteKeys = ['rf-oil','rf-water','rf-battery','rf-bulbs','rf-smell','rf-plastic','rf-upholstery','rf-test-drive'];
+  const xNoteKeys = ['rf-oil','rf-water','rf-battery','rf-battery-orig','rf-smell','rf-plastic','rf-upholstery','rf-test-drive'];
   for (const key of xNoteKeys) {
     const isX = document.querySelector(`.rf-box[data-key="${key}"].x-active`);
     if (isX) {
@@ -5221,7 +5221,7 @@ async function submitRefreshForm() {
     }
   }
   const checks = {}, notes = {};
-  ['rf-oil','rf-water','rf-battery','rf-bulbs','rf-dashboard','rf-smell','rf-plastic','rf-upholstery','rf-test-drive'].forEach(key => {
+  ['rf-oil','rf-water','rf-battery','rf-battery-orig','rf-dashboard','rf-smell','rf-plastic','rf-upholstery','rf-test-drive'].forEach(key => {
     if (document.querySelector(`.rf-box[data-key="${key}"].v-active`)) checks[key]='v';
     else if (document.querySelector(`.rf-box[data-key="${key}"].x-active`)) checks[key]='x';
     const ta=document.getElementById('rfcn-'+key); if(ta?.value.trim()) notes[key]=ta.value.trim();
@@ -5325,16 +5325,21 @@ window.rfClick = rfClick;
       <div id="rfnote-rf-oil" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="rfcn-rf-oil" placeholder="הערה..." rows="2"></textarea></div>
 
       <!-- מים -->
-      <div class="checklist-item"><span class="ci-label">מים</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-water" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-water" data-val="x" onclick="rfClick(this)">✕</button></div></div>
+      <div class="checklist-item"><span class="ci-label">נוזל קירור</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-water" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-water" data-val="x" onclick="rfClick(this)">✕</button></div></div>
       <div id="rfnote-rf-water" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="rfcn-rf-water" placeholder="הערה..." rows="2"></textarea></div>
 
       <!-- בדיקת מצבר -->
       <div class="checklist-item"><span class="ci-label">בדיקת מצבר</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-battery" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-battery" data-val="x" onclick="rfClick(this)">✕</button></div></div>
       <div id="rfnote-rf-battery" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="rfcn-rf-battery" placeholder="הערה..." rows="2"></textarea></div>
+      <div class="checklist-item" style="padding-right:24px;background:rgba(0,0,0,0.03);border-radius:8px;margin-top:2px">
+        <span class="ci-label" style="font-size:13px;color:var(--muted)">מצבר מקורי</span>
+        <div class="ci-btns">
+          <button type="button" class="ci-box rf-box" data-key="rf-battery-orig" data-val="v" onclick="rfClick(this)">✓</button>
+          <button type="button" class="ci-box rf-box" data-key="rf-battery-orig" data-val="x" onclick="rfClick(this)">✕</button>
+        </div>
+      </div>
+      <div id="rfnote-rf-battery-orig" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="rfcn-rf-battery-orig" placeholder="הערה על מצבר..." rows="2"></textarea></div>
 
-      <!-- נורות -->
-      <div class="checklist-item"><span class="ci-label">נורות</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-bulbs" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-bulbs" data-val="x" onclick="rfClick(this)">✕</button></div></div>
-      <div id="rfnote-rf-bulbs" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="rfcn-rf-bulbs" placeholder="הערה..." rows="2"></textarea></div>
 
       <!-- מנורות לוח שעונים -->
       <div class="checklist-item"><span class="ci-label">מנורות לוח שעונים</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-dashboard" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-dashboard" data-val="x" onclick="rfClick(this)">✕</button></div></div>
