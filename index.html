@@ -687,9 +687,9 @@ display:none !important;
             <button class="line-btn" onclick="goHome()">חזרה לדף הבית</button>
           </div>
           <div class="panel" style="background:#f8fafc;margin-bottom:20px">
-            <div class="catalog-filters" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
-              <input type="text" id="searchInput" placeholder="חיפוש לפי דגם או יצרן" oninput="filterCatalog()" />
-              <select id="filterBrand" onchange="filterCatalog()">
+            <div class="catalog-filters" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px">
+              <input type="text" id="searchInput" placeholder="חיפוש חופשי" oninput="filterCatalog()" />
+              <select id="filterBrand" onchange="onBrandChange()">
                 <option value="">כל היצרנים</option>
                 <option>AVATR</option><option>BYD</option><option>LEAPMOTOR</option><option>MG</option>
                 <option>XPENG</option><option>אומודה</option><option>גילי</option>
@@ -697,11 +697,18 @@ display:none !important;
                 <option>סובארו</option><option>סיאט</option><option>סקודה</option>
                 <option>פיגו</option><option>פורד</option><option>צ'רי</option><option>קיה</option><option>ג'אקו</option>
               </select>
+              <select id="filterModel" onchange="filterCatalog()">
+                <option value="">כל הדגמים</option>
+              </select>
               <select id="filterCategory" onchange="filterCatalog()">
                 <option value="">כל הקטגוריות</option>
                 <option>קטנות</option><option>משפחתיות</option><option>מנהלים</option>
-                <option>ג׳יפונים</option><option>חשמלי מלא</option><option>היברידי</option>
-                <option>היברידי פלאג-אין</option><option>מסחריות</option>
+                <option>ג׳יפונים</option><option>מסחריות</option>
+              </select>
+              <select id="filterEngine" onchange="filterCatalog()">
+                <option value="">כל סוגי המנוע</option>
+                <option>חשמלי מלא</option><option>היברידי פלאג-אין</option>
+                <option>היברידי</option><option>בנזין</option><option>דיזל</option>
               </select>
               <select id="filterPrice" onchange="filterCatalog()">
                 <option value="">כל המחירים</option>
@@ -1909,6 +1916,7 @@ display:none !important;
       const enriched = cars.map(enrich);
       document.getElementById('homeCars').innerHTML = enriched.slice(0,3).map(cardHtml).join('');
       document.getElementById('catalogCars').innerHTML = enriched.map(cardHtml).join('');
+      if(typeof populateModels==='function') populateModels();
       updateCompareTray();
     }
 
@@ -2054,34 +2062,45 @@ display:none !important;
       }, 50);
     }
 
-    // קטגוריות שהרכב שייך אליהן — כולל הסקה מסוג ההנעה
-    function carCategories(c){
-      const cats = [];
-      if(c.category) cats.push(c.category);
+    // סוג מנוע לפי שדה ההנעה
+    function engineType(c){
       const e = (c.engine||'');
-      if(e.includes('חשמל מלא')) cats.push('חשמלי מלא');
-      else if(e.includes('פלאג') || e.includes('נטען')) cats.push('היברידי פלאג-אין');
-      else if(e.includes('היברידי')) cats.push('היברידי');
-      if(e.includes('דיזל') && (c.category==='' )) { /* מסחריות מזוהות רק לפי קטגוריה מפורשת */ }
-      return cats;
+      if(e.includes('חשמל מלא')) return 'חשמלי מלא';
+      if(e.includes('פלאג') || e.includes('נטען')) return 'היברידי פלאג-אין';
+      if(e.includes('היברידי')) return 'היברידי';
+      if(e.includes('דיזל')) return 'דיזל';
+      if(e.includes('בנזין')) return 'בנזין';
+      return '';
     }
+    function populateModels(){
+      const sel = document.getElementById('filterModel'); if(!sel) return;
+      const brand = (document.getElementById('filterBrand')||{}).value||'';
+      const models = [...new Set(cars.filter(c=>!brand||c.brand===brand).map(c=>c.model).filter(Boolean))].sort();
+      const cur = sel.value;
+      sel.innerHTML = '<option value="">כל הדגמים</option>' + models.map(m=>'<option'+(m===cur?' selected':'')+'>'+m+'</option>').join('');
+    }
+    function onBrandChange(){ populateModels(); filterCatalog(); }
     function filterCatalog(){
       const search = (document.getElementById('searchInput')||{}).value||'';
       const brand = (document.getElementById('filterBrand')||{}).value||'';
+      const model = (document.getElementById('filterModel')||{}).value||'';
       const cat = (document.getElementById('filterCategory')||{}).value||'';
+      const engine = (document.getElementById('filterEngine')||{}).value||'';
       const priceRange = (document.getElementById('filterPrice')||{}).value||'';
       const enriched = cars.map(enrich);
-      const anyFilter = search || brand || cat || priceRange;
+      const anyFilter = search || brand || model || cat || engine || priceRange;
       const filtered = enriched.filter(c=>{
         const matchSearch = !search || (c.brand+' '+c.model).toLowerCase().includes(search.toLowerCase());
         const matchBrand = !brand || c.brand === brand;
-        const matchCat = !cat || carCategories(c).some(x=>x.includes(cat)||cat.includes(x));
+        const matchModel = !model || c.model === model;
+        const matchCat = !cat || (c.category||'').includes(cat) || cat.includes(c.category||' ');
+        const matchEngine = !engine || engineType(c) === engine;
         let matchPrice = true;
         if(priceRange) {
           const [min,max] = priceRange.split('-').map(Number);
           matchPrice = c.autodealerPriceNumber >= min && c.autodealerPriceNumber <= max;
         }
-        return matchSearch && matchBrand && matchCat && matchPrice;
+        return matchSearch && matchBrand && matchModel && matchCat && matchEngine && matchPrice;
       });
       const el = document.getElementById('catalogCars');
       if(!el) return;
