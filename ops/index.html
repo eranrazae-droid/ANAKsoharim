@@ -2307,44 +2307,20 @@ function _renderEiChecklist(draft) {
 }
 function openEditIntake(id) {
   if (_eiUnsub) { _eiUnsub(); _eiUnsub = null; }
-  _eiLoaded = false;
-  import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(({onSnapshot, doc}) => {
-    _eiUnsub = onSnapshot(doc(window._db, 'intake_assignments', id), snap => {
+  import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(({getDoc, doc}) => {
+    getDoc(doc(window._db, 'intake_assignments', id)).then(snap => {
       if (!snap.exists()) return showToast('לא נמצאה קליטה');
       const v = snap.data();
-      const draft = v.liveDraft || {};
-      if (!_eiLoaded) {
-        // First load: populate everything
-        _eiLoaded = true;
-        document.getElementById('ei-id').value     = id;
-        document.getElementById('ei-plate').value  = v.plate  || '';
-        document.getElementById('ei-brand').value  = v.brand  || '';
-        document.getElementById('ei-model').value  = v.model  || '';
-        document.getElementById('ei-color').value  = v.color  || '';
-        document.getElementById('ei-year').value   = v.year   || '';
-        document.getElementById('ei-spot').value   = v.spot   || '';
-        document.getElementById('ei-driver').value = v.assignedTo || 'עופר';
-        document.getElementById('ei-km').value     = draft.km      || '';
-        document.getElementById('ei-code').value   = draft.code    || '';
-        document.getElementById('ei-general').value = draft.general || '';
-        const eiEvCb = document.getElementById('ei-is-electric');
-        if (eiEvCb) { eiEvCb.checked = !!draft.isElectric; eiEvToggle(eiEvCb); }
-        const eiEvC = document.getElementById('ei-ev-charge'); if (eiEvC) eiEvC.value = draft.evCharge || '';
-        const eiEvR = document.getElementById('ei-ev-range');  if (eiEvR) eiEvR.value = draft.evRange  || '';
-        _renderEiChecklist(draft);
-        document.getElementById('ei-intake-form').style.display = '';
-        openModal('modal-edit-intake');
-      } else {
-        // Subsequent updates: only refresh EV/km/code from driver, never touch checklist
-        if (document.activeElement?.id !== 'ei-km')   document.getElementById('ei-km').value   = draft.km   || '';
-        if (document.activeElement?.id !== 'ei-code')  document.getElementById('ei-code').value  = draft.code  || '';
-        const eiEvCb = document.getElementById('ei-is-electric');
-        if (eiEvCb && document.activeElement !== eiEvCb) { eiEvCb.checked = !!draft.isElectric; eiEvToggle(eiEvCb); }
-        const eiEvC = document.getElementById('ei-ev-charge');
-        if (eiEvC && document.activeElement !== eiEvC) eiEvC.value = draft.evCharge || '';
-        const eiEvR = document.getElementById('ei-ev-range');
-        if (eiEvR && document.activeElement !== eiEvR) eiEvR.value = draft.evRange || '';
-      }
+      document.getElementById('ei-id').value     = id;
+      document.getElementById('ei-plate').value  = v.plate       || '';
+      document.getElementById('ei-brand').value  = v.brand       || '';
+      document.getElementById('ei-model').value  = v.model       || '';
+      document.getElementById('ei-color').value  = v.color       || '';
+      document.getElementById('ei-year').value   = v.year        || '';
+      document.getElementById('ei-spot').value   = v.spot        || '';
+      document.getElementById('ei-driver').value = v.assignedTo  || 'עופר';
+      document.getElementById('ei-intake-form').style.display = 'none';
+      openModal('modal-edit-intake');
     });
   });
 }
