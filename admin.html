@@ -155,7 +155,10 @@
         <div class="card panel" style="margin-bottom:20px">
           <div class="section-hd" style="margin-bottom:12px">
             <div><div class="eyebrow">רווחיות</div><h2 style="font-size:18px">מחיר עלות ורווח צפוי לכל רכב</h2></div>
-            <div class="muted" style="font-size:12px">חסר עלות? ערכו את הרכב והזינו "מחיר עלות"</div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <button class="btn btn-gold btn-sm" onclick="applyMarkup(5000)">⚡ עדכן מחירים לעלות + 5,000 ₪</button>
+              <span class="muted" style="font-size:12px">חסר עלות? ערכו את הרכב והזינו "מחיר עלות"</span>
+            </div>
           </div>
           <div style="overflow-x:auto">
             <table style="width:100%;border-collapse:collapse;min-width:640px;font-size:13px">
@@ -772,6 +775,17 @@
   const COST_BY_ID = {10:272990, 12:182990, 14:151490, 15:156490, 17:116990, 18:118990, 19:136990, 20:135990, 21:156490, 22:155990, 23:176990, 24:215990, 25:194990, 27:188990, 29:153490, 31:148990, 32:281990, 33:166490, 34:184990, 35:161990, 36:220490, 37:194990, 39:126490, 40:158990, 41:133490, 42:153990, 43:122990, 44:139990, 45:126990, 46:164990, 47:187990, 48:203990, 49:160990, 50:160990, 51:99490, 52:155990, 53:152990, 54:178490, 55:167490, 59:166990};
   function getCost(c){ return Number(c.costPrice) || COST_BY_ID[c.id] || 0; }
   function fmt(n){ return '₪' + Math.round(n).toLocaleString('en-US'); }
+
+  function applyMarkup(markup){
+    const withCost = cars.filter(c=>getCost(c)>0);
+    const noCost = cars.length - withCost.length;
+    if(!withCost.length){ alert('אין רכבים עם מחיר עלות מוגדר'); return; }
+    if(!confirm('לעדכן מחיר של '+withCost.length+' רכבים ל: עלות + '+markup.toLocaleString()+' ₪?\n'+(noCost?('('+noCost+' רכבים ללא עלות יישארו ללא שינוי)'):'')+'\n\nהפעולה תישמר ותתעדכן באתר.')) return;
+    cars.forEach(c=>{ const cost=getCost(c); if(cost>0){ c.autodealerPriceNumber = cost + markup; c.costPrice = cost; } });
+    saveCars();
+    renderAll();
+    toast('✅ עודכנו '+withCost.length+' מחירים לעלות + '+markup.toLocaleString()+' ₪');
+  }
 
   function renderProfit(){
     const body=document.getElementById('profitTableBody'); if(!body) return;
