@@ -528,7 +528,7 @@ if ('serviceWorker' in navigator) {
   <div class="modal-box">
     <div class="modal-title">
       <span id="di-title">קליטת רכב</span>
-      <button class="modal-close" onclick="saveIntakeDraft();saveIntakeDraftPhotos();if(_diHeaderUnsub){_diHeaderUnsub();_diHeaderUnsub=null;}if(_liveIntakeUnsub){_liveIntakeUnsub();_liveIntakeUnsub=null;}const _lb2=document.getElementById('di-live-banner');if(_lb2)_lb2.style.display='none';const _sb2=document.querySelector('#modal-driver-intake .btn-submit');if(_sb2)_sb2.style.display='';closeModal('modal-driver-intake')">✕</button>
+      <button class="modal-close" onclick="saveIntakeDraft();saveIntakeDraftPhotos();if(_diHeaderUnsub){_diHeaderUnsub();_diHeaderUnsub=null;}if(_mgLiveUnsub){_mgLiveUnsub();_mgLiveUnsub=null;}const _lb2=document.getElementById('di-live-banner');if(_lb2)_lb2.style.display='none';const _sb2=document.querySelector('#modal-driver-intake .btn-submit');if(_sb2)_sb2.style.display='';closeModal('modal-driver-intake')">✕</button>
     </div>
     <div id="di-vehicle-info" style="background:#f0f2ff;border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:14px;line-height:1.8"></div>
     <div id="di-live-banner" style="display:none;background:#dcfce7;border:2px solid #16a34a;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;font-weight:700;color:#166534;text-align:center">🟢 מעקב חי — הטופס מתעדכן בזמן אמת לפי הנהג. אפשר גם לסמן בעצמך.</div>
@@ -2222,7 +2222,7 @@ function loadVehicles() {
         const cardClick = st === 'pending'
           ? `openManagerIntakeLive('${v.id}')`
           : `viewIntakeForm('${v.id}')`;
-        return `<div class="vehicle-card" style="border-right:5px solid ${color}${st==='done'?';background:#f0fdf4':''}">`
+        return `<div class="vehicle-card" style="border-right:5px solid ${color}${st==='done'?';background:#f0fdf4':''}">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
             <div onclick="${cardClick}" style="flex:1;cursor:pointer;min-width:0">
               <div class="vehicle-plate">${esc(v.plate)}</div>
@@ -2428,7 +2428,7 @@ let _diHeaderUnsub = null;
 
 function openDriverIntake(id) {
   _currentIntakeId = id;
-  if (_liveIntakeUnsub) { _liveIntakeUnsub(); _liveIntakeUnsub = null; }
+  if (_mgLiveUnsub) { _mgLiveUnsub(); _mgLiveUnsub = null; }
   const _lb = document.getElementById('di-live-banner'); if (_lb) _lb.style.display = 'none';
   const _sb = document.querySelector('#modal-driver-intake .btn-submit'); if (_sb) _sb.style.display = '';
   // clear checklist
@@ -2676,7 +2676,7 @@ async function submitDriverIntake() {
   const bds = document.getElementById('battery-date-section'); if (bds) bds.style.display = 'none';
   const bndcb = document.getElementById('battery-no-date-cb'); if (bndcb) bndcb.checked = false;
   if (_diHeaderUnsub) { _diHeaderUnsub(); _diHeaderUnsub = null; }
-  if (_liveIntakeUnsub) { _liveIntakeUnsub(); _liveIntakeUnsub = null; }
+  if (_mgLiveUnsub) { _mgLiveUnsub(); _mgLiveUnsub = null; }
   closeModal('modal-driver-intake');
   showToast('✅ הטופס נשלח בהצלחה!');
   _notifyDriver('ליאל', `✅ ${_doneDriver} סיים קליטת רכב — ${_donePlate}`);
@@ -3199,8 +3199,8 @@ function _applyIntakeDraftObj(draft) {
   }
 }
 
-let _liveIntakeUnsub = null;
-let _liveIntakeLastEdit = 0;
+let _mgLiveUnsub = null;
+let _mgLiveLastEdit = 0;
 
 async function openManagerIntakeLive(id) {
   _currentIntakeId = id;
@@ -3218,11 +3218,11 @@ async function openManagerIntakeLive(id) {
 
   // live header
   if (_diHeaderUnsub) { _diHeaderUnsub(); _diHeaderUnsub = null; }
-  if (_liveIntakeUnsub) { _liveIntakeUnsub(); _liveIntakeUnsub = null; }
+  if (_mgLiveUnsub) { _mgLiveUnsub(); _mgLiveUnsub = null; }
 
   if (window._CONFIG_DONE) {
     import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(({ onSnapshot, doc }) => {
-      _liveIntakeUnsub = onSnapshot(doc(window._db, 'intake_assignments', id), snap => {
+      _mgLiveUnsub = onSnapshot(doc(window._db, 'intake_assignments', id), snap => {
         if (!snap.exists()) return;
         const v = snap.data();
         _currentIntakeVehicle = v;
@@ -3230,7 +3230,7 @@ async function openManagerIntakeLive(id) {
         document.getElementById('di-vehicle-info').innerHTML =
           `<strong>${esc(v.plate)}</strong> &nbsp;${[v.brand,v.model,v.color,v.year ? 'שנת '+v.year : ''].filter(Boolean).map(esc).join(' • ')}`;
         // apply liveDraft only if manager hasn't edited in the last 3s
-        if (Date.now() - _liveIntakeLastEdit > 3000 && v.liveDraft) {
+        if (Date.now() - _mgLiveLastEdit > 3000 && v.liveDraft) {
           _applyIntakeDraftObj(v.liveDraft);
         }
       });
@@ -3246,7 +3246,7 @@ async function openManagerIntakeLive(id) {
   // track manager edits to avoid overwriting active typing
   document.querySelectorAll('#modal-driver-intake textarea, #di-km, #di-code, #di-notes').forEach(el => {
     el.addEventListener('input', () => {
-      _liveIntakeLastEdit = Date.now();
+      _mgLiveLastEdit = Date.now();
       saveIntakeDraft();
     });
   });
