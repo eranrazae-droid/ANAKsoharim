@@ -528,7 +528,7 @@ if ('serviceWorker' in navigator) {
   <div class="modal-box">
     <div class="modal-title">
       <span id="di-title">קליטת רכב</span>
-      <button class="modal-close" onclick="saveIntakeDraft();saveIntakeDraftPhotos();closeModal('modal-driver-intake')">✕</button>
+      <button class="modal-close" onclick="saveIntakeDraft();saveIntakeDraftPhotos();if(_diHeaderUnsub){_diHeaderUnsub();_diHeaderUnsub=null;}closeModal('modal-driver-intake')">✕</button>
     </div>
     <div id="di-vehicle-info" style="background:#f0f2ff;border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:14px;line-height:1.8"></div>
 
@@ -2343,30 +2343,6 @@ function _eiToggle(btn, state) {
 async function saveEditIntake() {
   const id = document.getElementById('ei-id').value;
   if (!id) return;
-  // collect checklist
-  const checks = {}, notes = {}, dashChecks = {};
-  document.querySelectorAll('#ei-checklist button[data-key]').forEach(btn => {
-    if (btn.dataset.state) checks[btn.dataset.key] = btn.dataset.state;
-  });
-  document.querySelectorAll('#ei-checklist input[data-note-key]').forEach(inp => {
-    if (inp.value.trim()) notes[inp.dataset.noteKey] = inp.value.trim();
-  });
-  document.querySelectorAll('#ei-checklist input[data-dash]').forEach(cb => {
-    dashChecks[cb.dataset.dash] = cb.checked;
-  });
-  const bNoDate = document.getElementById('ei-bnodate')?.checked || false;
-  const bMonth  = document.getElementById('ei-bmonth')?.value || '';
-  const liveDraft = {
-    checks, notes, dashChecks,
-    km:      document.getElementById('ei-km').value.trim(),
-    code:    document.getElementById('ei-code').value.trim(),
-    general: document.getElementById('ei-general').value.trim(),
-    isElectric: !!(document.getElementById('ei-is-electric')?.checked),
-    evCharge: document.getElementById('ei-ev-charge')?.value || '',
-    evRange:  document.getElementById('ei-ev-range')?.value  || '',
-    batteryNoDate: bNoDate,
-    batteryMonth:  bMonth,
-  };
   try {
     await _updateDoc(_docRef('intake_assignments', id), {
       plate:      document.getElementById('ei-plate').value.trim(),
@@ -2376,7 +2352,6 @@ async function saveEditIntake() {
       year:       document.getElementById('ei-year').value,
       spot:       document.getElementById('ei-spot').value.trim(),
       assignedTo: document.getElementById('ei-driver').value,
-      liveDraft,
     });
     if (_eiUnsub) { _eiUnsub(); _eiUnsub = null; }
     closeModal('modal-edit-intake');
@@ -2389,6 +2364,7 @@ async function saveEditIntake() {
 /* ── DRIVER INTAKE ── */
 let _currentIntakeId = null;
 let _currentIntakeVehicle = null;
+let _diHeaderUnsub = null;
 
 function openDriverIntake(id) {
   _currentIntakeId = id;
@@ -2405,11 +2381,11 @@ function openDriverIntake(id) {
     ciPhotoFiles[k] = [];
     renderPhotoGrid(k);
   });
-  // fill vehicle info from cached snapshot (find by id in last snap)
+  // live header — updates when manager edits basic fields
+  if (_diHeaderUnsub) { _diHeaderUnsub(); _diHeaderUnsub = null; }
   if (window._CONFIG_DONE) {
-    const q = _query(_colRef('intake_assignments'), _where('__name__','==',id));
-    import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(({getDoc, doc}) => {
-      getDoc(doc(window._db, 'intake_assignments', id)).then(snap => {
+    import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(({onSnapshot, doc}) => {
+      _diHeaderUnsub = onSnapshot(doc(window._db, 'intake_assignments', id), snap => {
         if (!snap.exists()) return;
         const v = snap.data();
         _currentIntakeVehicle = v;
@@ -2636,6 +2612,7 @@ async function submitDriverIntake() {
   const bm = document.getElementById('di-battery-month'); if (bm) bm.value = '';
   const bds = document.getElementById('battery-date-section'); if (bds) bds.style.display = 'none';
   const bndcb = document.getElementById('battery-no-date-cb'); if (bndcb) bndcb.checked = false;
+  if (_diHeaderUnsub) { _diHeaderUnsub(); _diHeaderUnsub = null; }
   closeModal('modal-driver-intake');
   showToast('✅ הטופס נשלח בהצלחה!');
   _notifyDriver('ליאל', `✅ ${_doneDriver} סיים קליטת רכב — ${_donePlate}`);
