@@ -528,9 +528,10 @@ if ('serviceWorker' in navigator) {
   <div class="modal-box">
     <div class="modal-title">
       <span id="di-title">קליטת רכב</span>
-      <button class="modal-close" onclick="saveIntakeDraft();saveIntakeDraftPhotos();if(_diHeaderUnsub){_diHeaderUnsub();_diHeaderUnsub=null;}closeModal('modal-driver-intake')">✕</button>
+      <button class="modal-close" onclick="saveIntakeDraft();saveIntakeDraftPhotos();if(_diHeaderUnsub){_diHeaderUnsub();_diHeaderUnsub=null;}if(_liveIntakeUnsub){_liveIntakeUnsub();_liveIntakeUnsub=null;}const _lb2=document.getElementById('di-live-banner');if(_lb2)_lb2.style.display='none';const _sb2=document.querySelector('#modal-driver-intake .btn-submit');if(_sb2)_sb2.style.display='';closeModal('modal-driver-intake')">✕</button>
     </div>
     <div id="di-vehicle-info" style="background:#f0f2ff;border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:14px;line-height:1.8"></div>
+    <div id="di-live-banner" style="display:none;background:#dcfce7;border:2px solid #16a34a;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;font-weight:700;color:#166534;text-align:center">🟢 מעקב חי — הטופס מתעדכן בזמן אמת לפי הנהג. אפשר גם לסמן בעצמך.</div>
 
     <!-- רכב חשמלי -->
     <div id="di-ev-section" style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:12px;padding:12px 14px;margin-bottom:14px">
@@ -2219,7 +2220,7 @@ function loadVehicles() {
       if (isManager) {
         const canCheck = st === 'done';
         const cardClick = st === 'pending'
-          ? `openDriverIntake('${v.id}')`
+          ? `openManagerIntakeLive('${v.id}')`
           : `viewIntakeForm('${v.id}')`;
         return `<div class="vehicle-card" style="border-right:5px solid ${color}${st==='done'?';background:#f0fdf4':''}">`
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
@@ -2427,6 +2428,9 @@ let _diHeaderUnsub = null;
 
 function openDriverIntake(id) {
   _currentIntakeId = id;
+  if (_liveIntakeUnsub) { _liveIntakeUnsub(); _liveIntakeUnsub = null; }
+  const _lb = document.getElementById('di-live-banner'); if (_lb) _lb.style.display = 'none';
+  const _sb = document.querySelector('#modal-driver-intake .btn-submit'); if (_sb) _sb.style.display = '';
   // clear checklist
   document.querySelectorAll('#modal-driver-intake .ci-box').forEach(b => b.classList.remove('v-active','x-active'));
   document.querySelectorAll('#modal-driver-intake .ci-note-row').forEach(r => {
@@ -2672,6 +2676,7 @@ async function submitDriverIntake() {
   const bds = document.getElementById('battery-date-section'); if (bds) bds.style.display = 'none';
   const bndcb = document.getElementById('battery-no-date-cb'); if (bndcb) bndcb.checked = false;
   if (_diHeaderUnsub) { _diHeaderUnsub(); _diHeaderUnsub = null; }
+  if (_liveIntakeUnsub) { _liveIntakeUnsub(); _liveIntakeUnsub = null; }
   closeModal('modal-driver-intake');
   showToast('✅ הטופס נשלח בהצלחה!');
   _notifyDriver('ליאל', `✅ ${_doneDriver} סיים קליטת רכב — ${_donePlate}`);
@@ -3165,41 +3170,95 @@ async function saveIntakeDraftPhotos() {
   } catch(e) { console.warn('photo draft save error', e); }
 }
 
+function _applyIntakeDraftObj(draft) {
+  Object.entries(draft.checks || {}).forEach(([key, val]) => {
+    document.querySelectorAll(`#modal-driver-intake .ci-box[data-key="${key}"]`).forEach(b => b.classList.remove('v-active','x-active'));
+    const btn = document.querySelector(`#modal-driver-intake .ci-box[data-key="${key}"][data-val="${val}"]`);
+    if (btn) {
+      btn.classList.add(val === 'v' ? 'v-active' : 'x-active');
+      const noteRow = document.getElementById('note-' + key);
+      if (noteRow) noteRow.style.display = val === 'x' ? 'block' : 'none';
+    }
+  });
+  Object.entries(draft.notes || {}).forEach(([key, text]) => {
+    const ta = document.getElementById('cn-' + key);
+    if (ta) ta.value = text;
+  });
+  if (draft.km)      { const el = document.getElementById('di-km');    if (el) el.value = draft.km; }
+  if (draft.code)    { const el = document.getElementById('di-code');  if (el) el.value = draft.code; }
+  if (draft.general) { const el = document.getElementById('di-notes'); if (el) el.value = draft.general; }
+  if (draft.batteryMonth) { const el = document.getElementById('di-battery-month'); if (el) el.value = draft.batteryMonth; }
+  if (draft.evSelection === 'v') evClick('v'); else if (draft.evSelection === 'x') evClick('x'); else if (draft.isElectric === true) evClick('v');
+  if (draft.evCharge) { const el = document.getElementById('di-ev-charge'); if (el) el.value = draft.evCharge; }
+  if (draft.evRange)  { const el = document.getElementById('di-ev-range');  if (el) el.value = draft.evRange; }
+  Object.entries(draft.dashChecks || {}).forEach(([id, checked]) => {
+    const el = document.getElementById(id); if (el) { el.checked = checked; }
+  });
+  if (draft.dashChecks?.['dash-other']) {
+    const ta = document.getElementById('cn-c-dashboard'); if (ta) ta.style.display = 'block';
+  }
+}
+
+let _liveIntakeUnsub = null;
+let _liveIntakeLastEdit = 0;
+
+async function openManagerIntakeLive(id) {
+  _currentIntakeId = id;
+  // clear form same as openDriverIntake
+  document.querySelectorAll('#modal-driver-intake .ci-box').forEach(b => b.classList.remove('v-active','x-active'));
+  document.querySelectorAll('#modal-driver-intake .ci-note-row').forEach(r => {
+    if (r.querySelector('#file-battery')) return;
+    if (r.id === 'battery-date-section') return;
+    r.style.display = 'none';
+  });
+  document.querySelectorAll('#modal-driver-intake textarea, #modal-driver-intake input[type=number], #di-code').forEach(t => t.value = '');
+  ['di-ev-v','di-ev-x'].forEach(eid => { const b = document.getElementById(eid); if (b) { b.classList.remove('v-active','x-active'); b.style.color='transparent'; } });
+  const _evF = document.getElementById('di-ev-fields'); if (_evF) _evF.style.display = 'none';
+  _photoKeys.forEach(k => { ciPhotoFiles[k] = []; renderPhotoGrid(k); });
+
+  // live header
+  if (_diHeaderUnsub) { _diHeaderUnsub(); _diHeaderUnsub = null; }
+  if (_liveIntakeUnsub) { _liveIntakeUnsub(); _liveIntakeUnsub = null; }
+
+  if (window._CONFIG_DONE) {
+    import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(({ onSnapshot, doc }) => {
+      _liveIntakeUnsub = onSnapshot(doc(window._db, 'intake_assignments', id), snap => {
+        if (!snap.exists()) return;
+        const v = snap.data();
+        _currentIntakeVehicle = v;
+        document.getElementById('di-title').textContent = `👁️ מעקב קליטה – ${v.plate}`;
+        document.getElementById('di-vehicle-info').innerHTML =
+          `<strong>${esc(v.plate)}</strong> &nbsp;${[v.brand,v.model,v.color,v.year ? 'שנת '+v.year : ''].filter(Boolean).map(esc).join(' • ')}`;
+        // apply liveDraft only if manager hasn't edited in the last 3s
+        if (Date.now() - _liveIntakeLastEdit > 3000 && v.liveDraft) {
+          _applyIntakeDraftObj(v.liveDraft);
+        }
+      });
+    });
+  }
+
+  const liveBanner = document.getElementById('di-live-banner');
+  if (liveBanner) liveBanner.style.display = 'block';
+  const submitBtn = document.querySelector('#modal-driver-intake .btn-submit');
+  if (submitBtn) submitBtn.style.display = 'none';
+
+  openModal('modal-driver-intake');
+  // track manager edits to avoid overwriting active typing
+  document.querySelectorAll('#modal-driver-intake textarea, #di-km, #di-code, #di-notes').forEach(el => {
+    el.addEventListener('input', () => {
+      _liveIntakeLastEdit = Date.now();
+      saveIntakeDraft();
+    });
+  });
+}
+window.openManagerIntakeLive = openManagerIntakeLive;
+
 function restoreIntakeDraft(id) {
   try {
     const raw = localStorage.getItem('intake_draft_' + id);
     if (!raw) return;
     const draft = JSON.parse(raw);
-    // restore checklist marks
-    Object.entries(draft.checks || {}).forEach(([key, val]) => {
-      document.querySelectorAll(`#modal-driver-intake .ci-box[data-key="${key}"]`).forEach(b => b.classList.remove('v-active','x-active'));
-      const btn = document.querySelector(`#modal-driver-intake .ci-box[data-key="${key}"][data-val="${val}"]`);
-      if (btn) {
-        btn.classList.add(val === 'v' ? 'v-active' : 'x-active');
-        const noteRow = document.getElementById('note-' + key);
-        if (noteRow) noteRow.style.display = val === 'x' ? 'block' : 'none';
-      }
-    });
-    // restore notes
-    Object.entries(draft.notes || {}).forEach(([key, text]) => {
-      const ta = document.getElementById('cn-' + key);
-      if (ta) ta.value = text;
-    });
-    if (draft.km)      { const el = document.getElementById('di-km');    if (el) el.value = draft.km; }
-    if (draft.code)    { const el = document.getElementById('di-code');  if (el) el.value = draft.code; }
-    if (draft.general) { const el = document.getElementById('di-notes'); if (el) el.value = draft.general; }
-    if (draft.batteryMonth) { const el = document.getElementById('di-battery-month'); if (el) el.value = draft.batteryMonth; }
-    const evCb = null; // replaced by evClick buttons
-    if (draft.evSelection === 'v') evClick('v'); else if (draft.evSelection === 'x') evClick('x'); else if (draft.isElectric === true) evClick('v');
-    if (draft.evCharge) { const el = document.getElementById('di-ev-charge'); if (el) el.value = draft.evCharge; }
-    if (draft.evRange)  { const el = document.getElementById('di-ev-range');  if (el) el.value = draft.evRange; }
-    // restore dashboard checkboxes
-    Object.entries(draft.dashChecks || {}).forEach(([id, checked]) => {
-      const el = document.getElementById(id); if (el) { el.checked = checked; }
-    });
-    if (draft.dashChecks?.['dash-other']) {
-      const ta = document.getElementById('cn-c-dashboard'); if (ta) ta.style.display = 'block';
-    }
+    _applyIntakeDraftObj(draft);
     showToast('✏️ ממשיך מהמצב השמור');
     // restore photos from base64
     const batteryB64s = localStorage.getItem('intake_draft_battery_' + id);
