@@ -1153,6 +1153,8 @@ let selectedRole = null;
 let partsFilter = 'all';
 let taskUnsub = null;
 let vehicleUnsub = null;
+let archiveUnsub = null;
+let _archiveItems = [];
 let partsUnsub = null;
 let yardUnsub = null;
 var yardData = {};
@@ -2139,12 +2141,65 @@ async function dismissBatteryAlert(id) {
 }
 window.dismissBatteryAlert = dismissBatteryAlert;
 
+function _renderArchiveSection(archived) {
+  const archiveWrap = document.getElementById('intake-archive-wrap');
+  const archiveList = document.getElementById('intake-archive-list');
+  if (!archiveWrap || !archiveList) return;
+  const f = window._vehicleDriverFilter;
+  const filtered = archived.filter(v => !f || v.assignedTo === f);
+  if (!filtered.length) { archiveWrap.style.display = 'none'; return; }
+  archiveWrap.style.display = 'block';
+  archiveList.innerHTML = filtered.map(v => {
+    const ts = v.createdAt?.toDate ? v.createdAt.toDate().toLocaleString('he-IL') : '';
+    return `<div class="vehicle-card" style="border-right:5px solid var(--info);margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div>
+          <div class="vehicle-plate">${esc(v.plate)}</div>
+          <div class="vehicle-info">${[v.brand,v.model,v.year].filter(Boolean).map(esc).join(' ')}</div>
+          <div class="vehicle-meta" style="margin-top:4px">
+            ${v.color ? `<span class="tag assignee">🎨 ${esc(v.color)}</span>` : ''}
+            <span class="tag assignee">👤 ${esc(v.assignedTo)}</span>
+            ${v.spot ? `<span class="tag assignee">🅿️ חניה ${esc(v.spot)}</span>` : ''}
+          </div>
+          ${ts ? `<div class="task-time" style="margin-top:4px">${ts}</div>` : ''}
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">
+          <span style="background:var(--info,#0ea5e9);color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700">נבדק ✓</span>
+          <button onclick="viewArchivedIntake('${v.id}')" style="background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">👁️ צפייה</button>
+          <button onclick="deleteArchivedIntake('${v.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">🗑️ מחיקה</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function deleteArchivedIntake(id) {
+  if (!confirm('למחוק קליטה זו מהארכיון?')) return;
+  const { deleteDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  await deleteDoc(doc(window._db, 'intake_archive', id));
+  showToast('🗑️ נמחק מהארכיון');
+}
+window.deleteArchivedIntake = deleteArchivedIntake;
+
+async function viewArchivedIntake(id) {
+  const { getDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  const snap = await getDoc(doc(window._db, 'intake_archive', id));
+  if (!snap.exists()) return showToast('לא נמצאה קליטה בארכיון');
+  _renderViewIntakeModal({ id, ...snap.data() });
+}
+window.viewArchivedIntake = viewArchivedIntake;
+
 function loadVehicles() {
   if (!window._CONFIG_DONE) {
     document.getElementById('vehicle-list-container').innerHTML = '<div class="empty-state"><div class="es-icon">🔌</div><h3>Firebase לא מחובר</h3></div>';
     return;
   }
   if (vehicleUnsub) vehicleUnsub();
+  if (archiveUnsub) archiveUnsub();
+  archiveUnsub = _onSnap(_query(_colRef('intake_archive'), _orderBy('checkedAt','desc')), snap => {
+    _archiveItems = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    _renderArchiveSection(_archiveItems);
+  });
   const q = _query(_colRef('intake_assignments'), _orderBy('createdAt','desc'));
   vehicleUnsub = _onSnap(q, snap => {
     const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -2212,7 +2267,7 @@ function loadVehicles() {
       summary.innerHTML = drivers.map(name => {
         const pending = all.filter(v => v.assignedTo === name && v.status === 'pending').length;
         const done    = all.filter(v => v.assignedTo === name && v.status === 'done').length;
-        const checked = all.filter(v => v.assignedTo === name && v.status === 'checked').length;
+        const checked = _archiveItems.filter(v => v.assignedTo === name).length;
         const isActive = activeFilter === name;
         return `<div onclick="filterVehiclesByDriver('${name}')" style="background:${isActive?'var(--dark)':'#fff'};border:2px solid ${isActive?'var(--dark)':'var(--border)'};border-radius:14px;padding:14px 10px;text-align:center;cursor:pointer;transition:all .15s">
           <div style="font-size:12px;font-weight:800;margin-bottom:4px;color:${isActive?'#fff':'var(--dark)'}">${name}</div>
@@ -2224,42 +2279,12 @@ function loadVehicles() {
       const f = window._vehicleDriverFilter;
       const activeRaw = all.filter(v => (v.status === 'pending' || v.status === 'done') && (!f || v.assignedTo === f));
       const active = [...activeRaw.filter(v => v.status === 'done'), ...activeRaw.filter(v => v.status === 'pending')];
-      const archived = all.filter(v => v.status === 'checked' && (!f || v.assignedTo === f));
 
       container.innerHTML = active.length
         ? active.map(intakeCard).join('')
         : `<div class="empty-state"><div class="es-icon">🚗</div><h3>${f ? 'אין קליטות פעילות עבור ' + f : 'אין קליטות פעילות'}</h3><p>לחץ + קליטת רכב להוסיף</p></div>`;
 
-      // archive section
-      const archiveWrap = document.getElementById('intake-archive-wrap');
-      const archiveList = document.getElementById('intake-archive-list');
-      if (archived.length) {
-        archiveWrap.style.display = 'block';
-        archiveList.innerHTML = archived.map(v => {
-          const ts = v.createdAt?.toDate ? v.createdAt.toDate().toLocaleString('he-IL') : '';
-          return `<div class="vehicle-card" data-plate="${esc(v.plate)}" style="border-right:5px solid var(--info);margin-bottom:8px">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
-              <div>
-                <div class="vehicle-plate">${esc(v.plate)}</div>
-                <div class="vehicle-info">${[v.brand,v.model,v.year].filter(Boolean).map(esc).join(' ')}</div>
-                <div class="vehicle-meta" style="margin-top:4px">
-                  ${v.color ? `<span class="tag assignee">🎨 ${esc(v.color)}</span>` : ''}
-                  <span class="tag assignee">👤 ${esc(v.assignedTo)}</span>
-                  ${v.spot ? `<span class="tag assignee">🅿️ חניה ${esc(v.spot)}</span>` : ''}
-                </div>
-                ${ts ? `<div class="task-time" style="margin-top:4px">${ts}</div>` : ''}
-              </div>
-              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">
-                <span style="background:var(--info,#0ea5e9);color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700">נבדק ✓</span>
-                <button onclick="viewIntakeForm('${v.id}')" style="background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">👁️ צפייה</button>
-                <button onclick="deleteIntake('${v.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">🗑️ מחיקה</button>
-              </div>
-            </div>
-          </div>`;
-        }).join('');
-      } else {
-        archiveWrap.style.display = 'none';
-      }
+      _renderArchiveSection(_archiveItems);
     } else {
       summary.style.display = 'none';
       const mine = all.filter(v => v.assignedTo === currentUser.name && v.status === 'pending');
@@ -2655,6 +2680,13 @@ async function submitDriverIntake() {
 
 async function createIntakeTasks(checklist, allNotes, vehicle) {
   if (!vehicle) return;
+  // safety guard: only create tasks when intake is confirmed done
+  if (!_currentIntakeId) return;
+  try {
+    const { getDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const snap = await getDoc(doc(window._db, 'intake_assignments', _currentIntakeId));
+    if (!snap.exists() || snap.data().status !== 'done') return;
+  } catch(e) { return; }
   const driverName = currentUser.name;
   const plate = vehicle.plate || '';
   const carDesc = [vehicle.brand, vehicle.model].filter(Boolean).join(' ');
@@ -2741,7 +2773,12 @@ async function deleteIntake(id) {
 
 async function markChecked(id) {
   if (!window._CONFIG_DONE) return;
-  await _updateDoc(_docRef('intake_assignments', id), { status: 'checked', checkedAt: _serverTs() });
+  const { getDoc, doc, deleteDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  const snap = await getDoc(doc(window._db, 'intake_assignments', id));
+  if (!snap.exists()) return;
+  const data = { ...snap.data(), status: 'checked', checkedAt: _serverTs(), originalId: id };
+  await _addDoc(_colRef('intake_archive'), data);
+  await deleteDoc(doc(window._db, 'intake_assignments', id));
   showToast('✅ הועבר לארכיון');
 }
 
@@ -2749,7 +2786,10 @@ async function viewIntakeForm(id) {
   const { getDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
   const snap = await getDoc(doc(window._db, 'intake_assignments', id));
   if (!snap.exists()) return showToast('לא נמצאה קליטה');
-  const v = { id, ...snap.data() };
+  _renderViewIntakeModal({ id, ...snap.data() });
+}
+
+function _renderViewIntakeModal(v) {
   const checklistLabels = {
     'c-battery-original': 'בדיקת מצבר','c-battery-is-original': 'מצבר מקורי',
     'c-oil': 'שמן מנוע','c-coolant': 'נוזל קירור','c-safety': 'ג׳ק, אפוד, משולש, גלגל ספייר',
