@@ -5443,6 +5443,7 @@ async function submitRefreshAssign() {
   await addDoc(collection(window._db, 'refreshes'), { plate, vehicleType, year, color, parking, assignedTo, status: 'pending', createdAt: serverTimestamp() });
   closeModal('modal-refresh-assign');
   showToast('✅ רענון נוסף בהצלחה');
+  _notifyDriver(assignedTo, `🔄 רענון רכב חדש ממתין לך — ${plate}${vehicleType?' '+vehicleType:''}${year?' שנת '+year:''}. כנס לאפליקציה ענק הרכבים.`);
   openRefreshScreen();
 }
 
@@ -5605,6 +5606,9 @@ async function submitRefreshForm() {
     await addDoc(collection(window._db,'tasks'), { title:`טיפול בריח — ${r.plate||''}${r.vehicleType?' · '+r.vehicleType:''}${r.parking?' · חניה '+r.parking:''}`, notes:notes['rf-smell']||'', assignedTo:r.assignedTo||'', column:'משימות כלליות', status:'pending', createdAt:serverTimestamp() });
   }
   localStorage.removeItem('rf_draft_' + _currentRefreshId);
+  const _rfPlate = _currentRefreshData?.plate || '';
+  const _rfDriver = currentUser?.name || '';
+  _notifyDriver('ליאל', `✅ ${_rfDriver} סיים רענון רכב — ${_rfPlate}`);
   showToast('✅ רענון נשמר בהצלחה');
   closeModal('modal-refresh-form');
   openRefreshScreen();
