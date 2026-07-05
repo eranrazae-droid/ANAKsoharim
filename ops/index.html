@@ -1500,7 +1500,7 @@ function _setCardBadge(screen, count) {
     card.style.color = '#fff';
     card.querySelectorAll('.mc-title,.mc-sub').forEach(el => el.style.color = '#fff');
     badge.style.display = 'inline-block';
-    badge.textContent = count > 1 ? count : '';
+    badge.textContent = count;
   } else {
     card.style.background = '';
     card.style.color = '';
@@ -1605,6 +1605,9 @@ function loadManagerBadges() {
     });
     _onSnap(_query(_colRef('inventory_assignments'), _where('status','==','done')), snap => {
       _setCardBadge('inventory', snap.size);
+    });
+    _onSnap(_query(_colRef('refreshes'), _where('status','==','pending')), snap => {
+      _setCardBadge('_refresh', snap.size);
     });
     listenForTaskDone();
   } catch(e) { console.warn('loadManagerBadges error', e); }
