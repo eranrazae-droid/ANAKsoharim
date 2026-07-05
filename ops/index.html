@@ -1076,12 +1076,16 @@ if ('serviceWorker' in navigator) {
 <!-- ====== NOTIFY SETTINGS MODAL ====== -->
 <div class="modal-overlay" id="modal-broadcast">
   <div class="modal-box">
-    <div class="modal-title">📢 הודעה לכל הנהגים <button class="modal-close" onclick="closeModal('modal-broadcast')">✕</button></div>
+    <div class="modal-title">📢 הודעה לנהגים <button class="modal-close" onclick="closeModal('modal-broadcast')">✕</button></div>
+    <div class="form-group">
+      <label>בחר נהגים לשליחה</label>
+      <div id="broadcast-drivers" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:4px"></div>
+    </div>
     <div class="form-group">
       <label>הודעה</label>
       <textarea class="form-input" id="broadcast-text" rows="5" style="resize:vertical" placeholder="כתוב הודעה..."></textarea>
     </div>
-    <button class="btn-submit" id="broadcast-send-btn" onclick="sendBroadcast()">📤 שלח לכל הנהגים</button>
+    <button class="btn-submit" id="broadcast-send-btn" onclick="sendBroadcast()">📤 שלח</button>
   </div>
 </div>
 
@@ -5078,23 +5082,33 @@ window.resendIntakeNotify = resendIntakeNotify;
 window.openNotifySettings = openNotifySettings;
 window.saveNotifySettings = saveNotifySettings;
 
-function openBroadcast() {
+async function openBroadcast() {
   document.getElementById('broadcast-text').value = '';
+  const contacts = await _loadDriverContacts();
+  const drivers = ['עופר','גיל','איתי'].filter(n => contacts[n]?.phone);
+  const container = document.getElementById('broadcast-drivers');
+  container.innerHTML = drivers.map(name => `
+    <label style="display:flex;align-items:center;gap:6px;background:#f0f2ff;border:2px solid var(--border);border-radius:10px;padding:8px 12px;cursor:pointer;font-weight:700;font-size:14px;user-select:none">
+      <input type="checkbox" id="bc-drv-${name}" value="${name}" checked style="width:16px;height:16px;cursor:pointer">
+      ${name}
+    </label>`).join('');
   openModal('modal-broadcast');
 }
 async function sendBroadcast() {
   const msg = document.getElementById('broadcast-text').value.trim();
   if (!msg) return showToast('כתוב הודעה קודם');
+  const selected = [...document.querySelectorAll('#broadcast-drivers input[type=checkbox]:checked')].map(el => el.value);
+  if (!selected.length) return showToast('בחר לפחות נהג אחד');
   const btn = document.getElementById('broadcast-send-btn');
   btn.disabled = true; btn.textContent = '⏳ שולח...';
   try {
-    await _notifyAllDrivers(msg);
-    showToast('✅ ההודעה נשלחה לכל הנהגים!');
+    for (const name of selected) await _notifyDriver(name, msg);
+    showToast(`✅ ההודעה נשלחה ל${selected.length === 1 ? selected[0] : selected.length + ' נהגים'}!`);
     closeModal('modal-broadcast');
   } catch(e) {
     showToast('⚠️ שגיאה בשליחה: ' + (e.message || e));
   } finally {
-    btn.disabled = false; btn.textContent = '📤 שלח לכל הנהגים';
+    btn.disabled = false; btn.textContent = '📤 שלח';
   }
 }
 window.openBroadcast = openBroadcast;
