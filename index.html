@@ -270,6 +270,7 @@
       .catalog-filters{grid-template-columns:1fr 1fr!important}
       #carImage{height:250px!important}
       .car-price-grid{grid-template-columns:1fr!important}
+      #similarCars{grid-template-columns:1fr 1fr!important}
       .cards,.cat-grid,.benefit-grid,.brand-grid,.dashboard-grid,.success-steps{grid-template-columns:1fr 1fr}
       .stats{grid-template-columns:1fr}
       h1{font-size:44px;letter-spacing:-0.02em}
@@ -849,6 +850,11 @@ display:none !important;
                   <button class="primary-btn" style="background:#25D366" onclick="window.open('https://wa.me/972508396030?text='+encodeURIComponent('היי, אני רוצה לבדוק התאמת מימון לרכב'),'_blank')">💬 התייעצו איתנו</button>
                 </div>
                 <div class="center muted" style="font-size:12px;margin-top:12px">החישוב להמחשה בלבד, כפוף לאישור מימון.</div>
+              </div>
+
+              <div id="similarCarsWrap" class="panel" style="margin-top:18px;display:none">
+                <h3 style="font-size:22px;margin:0 0 18px;font-weight:900;letter-spacing:-0.01em">רכבים דומים שיכולים לעניין אתכם</h3>
+                <div id="similarCars" style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px"></div>
               </div>
           </div>
         </div>
@@ -2355,12 +2361,43 @@ display:none !important;
         voucherBtn.style.opacity = outOfStock ? '.6' : '1';
         voucherBtn.textContent = outOfStock ? 'אזל במלאי' : 'שריינו עכשיו ב-300 ₪';
       }
+      renderSimilar(selectedCar);
       document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
       document.getElementById('carPage').classList.add('active');
       window.scrollTo({top:0, behavior:'smooth'});
       const homeExtra = document.getElementById('homeExtra');
       if(homeExtra) homeExtra.style.display = 'none';
       history.pushState({page:'carPage', carId: selectedCar.id}, selectedCar.brand+' '+selectedCar.model+' | אוטודילר', '#car-'+selectedCar.id);
+    }
+
+    function renderSimilar(current){
+      const wrap = document.getElementById('similarCarsWrap');
+      const grid = document.getElementById('similarCars');
+      if(!wrap || !grid) return;
+      const cur = enrich(current);
+      const pool = cars.map(enrich).filter(c=>c.id!==cur.id && c.stockStatus!=='אזל במלאי' && c.image && !c.image.startsWith('data:image/svg'));
+      // ניקוד דמיון: אותה קטגוריה, אותו סוג מנוע, קרבת מחיר, אותו יצרן
+      const scored = pool.map(c=>{
+        let s = 0;
+        if((c.category||'')===(cur.category||'') && cur.category) s += 40;
+        if(typeof engineType==='function' && engineType(c)===engineType(cur)) s += 30;
+        const pd = Math.abs((c.autodealerPriceNumber||0)-(cur.autodealerPriceNumber||0));
+        s += Math.max(0, 25 - pd/4000); // עד 25 נק' לפי קרבת מחיר
+        if(c.brand===cur.brand) s += 8;
+        return {c, s};
+      }).sort((a,b)=>b.s-a.s).slice(0,3);
+      if(!scored.length){ wrap.style.display='none'; return; }
+      grid.innerHTML = scored.map(({c})=>`
+        <div onclick="openCar(${c.id})" style="cursor:pointer;border:1px solid var(--line);border-radius:18px;overflow:hidden;background:#fff;transition:.15s;box-shadow:0 2px 10px rgba(0,0,0,.05)" onmouseover="this.style.transform='translateY(-3px)';this.style.boxShadow='0 8px 22px rgba(0,0,0,.12)'" onmouseout="this.style.transform='';this.style.boxShadow='0 2px 10px rgba(0,0,0,.05)'">
+          <img src="${c.image}" alt="${c.brand} ${c.model}" referrerpolicy="no-referrer" style="width:100%;height:150px;object-fit:contain;background:#f8f8f8;display:block">
+          <div style="padding:14px">
+            <div style="font-size:12px;color:#6b7280;font-weight:600">${c.brand}</div>
+            <div style="font-size:16px;font-weight:900;line-height:1.3;min-height:42px">${c.model}</div>
+            <div style="margin-top:8px;font-size:20px;font-weight:900;color:#a16207">${c.autodealerPrice}</div>
+            <div style="margin-top:10px;background:#0d0d0d;color:#D4A017;text-align:center;padding:9px;border-radius:10px;font-weight:800;font-size:13px">צפו ברכב ←</div>
+          </div>
+        </div>`).join('');
+      wrap.style.display = 'block';
     }
 
     function updateCalculator(){
