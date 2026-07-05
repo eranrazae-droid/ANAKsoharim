@@ -5364,16 +5364,18 @@ async function openRefreshScreen() {
   showScreen('refresh');
   const container = document.getElementById('refresh-list-container');
   container.innerHTML = '<div class="loading"><div class="spinner"></div> טוען...</div>';
-  const { getDocs, query, collection, where, orderBy } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  const { getDocs, query, collection, where } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
   let q = isManager
-    ? query(collection(window._db, 'refreshes'), orderBy('createdAt', 'desc'))
-    : query(collection(window._db, 'refreshes'), where('assignedTo', '==', currentUser.name), orderBy('createdAt', 'desc'));
-  const snap = await getDocs(q);
+    ? query(collection(window._db, 'refreshes'))
+    : query(collection(window._db, 'refreshes'), where('assignedTo', '==', currentUser.name));
+  let snap;
+  try { snap = await getDocs(q); } catch(e) { container.innerHTML = `<div class="empty-state"><div class="es-icon">⚠️</div><h3>שגיאת טעינה</h3><p>${e.message}</p></div>`; return; }
+  const docs = [...snap.docs].sort((a,b) => (b.data().createdAt?.toMillis?.()??0)-(a.data().createdAt?.toMillis?.()??0));
   if (snap.empty) {
     container.innerHTML = `<div class="empty-state"><div class="es-icon">🔄</div><h3>אין רענונים</h3><p>${isManager ? 'לחץ + רענון חדש להוסיף' : 'אין רענונים ממתינים'}</p></div>`;
     return;
   }
-  container.innerHTML = snap.docs.map(d => {
+  container.innerHTML = docs.map(d => {
     const r = d.data();
     const done = r.status === 'done';
     const ts = r.createdAt?.toDate ? new Date(r.createdAt.toDate()).toLocaleDateString('he-IL') : '';
