@@ -1,4 +1,4 @@
-var CACHE = 'anak-sales-v99';
+var CACHE = 'anak-sales-v100';
 var FILES = [
   '/index.html',
   '/finance.html',
@@ -10,7 +10,8 @@ var FILES = [
   '/delivery.html',
   '/manifest.json',
   '/icon-192.png',
-  '/icon-512.png'
+  '/icon-512.png',
+  '/bg-quotes.jpg'
 ];
 self.addEventListener('install', function(e) {
   e.waitUntil(
