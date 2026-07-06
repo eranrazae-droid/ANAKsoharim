@@ -1741,14 +1741,7 @@ function openTasksScreen() {
   if (!isManager) _checkDriverNotifications();
   if (isManager) {
     // check for pending task requests and show popup
-    setTimeout(async () => {
-      if (!window._CONFIG_DONE || !window._query) return;
-      try {
-        const { getDocs } = await import("https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js");
-        const s = await getDocs(window._query(window._colRef('task_requests'), window._where('status','==','pending')));
-        if (!s.empty) { const d = s.docs[0]; _showTaskReqApproval(d.id, d.data()); }
-      } catch(e) {}
-    }, 800);
+    setTimeout(() => _renderTaskReqPills(), 800);
   }
 }
 
@@ -2317,18 +2310,10 @@ function _listenTaskRequests() {
     window._query(window._colRef('task_requests'), window._where('status','==','pending')),
     snap => {
       _pendingTaskReqs = snap.docs.map(d => ({ id: d.id, data: d.data() }));
-      _updateTaskReqPill();
-      const screen = document.querySelector('.screen.active');
-      if (screen && screen.id === 'screen-tasks' && _pendingTaskReqs.length > 0) {
-        // only auto-open if modal not already open
-        const modal = document.getElementById('modal-approve-task-req');
-        if (!modal.classList.contains('open')) {
-          _taskReqIndex = 0;
-          _showTaskReqApproval(_pendingTaskReqs[0].id, _pendingTaskReqs[0].data);
-        } else {
-          _updateTaskReqNav();
-        }
-      }
+      _renderTaskReqPills();
+      // update nav if approval modal is already open
+      const modal = document.getElementById('modal-approve-task-req');
+      if (modal && modal.classList.contains('open')) _updateTaskReqNav();
     }
   );
 }
@@ -2338,15 +2323,13 @@ function _updateTaskReqPill() { _renderTaskReqPills(); }
 function _renderTaskReqPills() {
   const container = document.getElementById('task-req-pills');
   if (!container) return;
-  if (_pendingTaskReqs.length === 0) { container.style.display = 'none'; return; }
+  const count = _pendingTaskReqs.length;
+  if (count === 0) { container.style.display = 'none'; container.innerHTML = ''; return; }
   container.style.display = 'flex';
-  container.innerHTML = _pendingTaskReqs.map((r, i) => {
-    const v = r.data.vehicle;
-    const vehicleStr = v ? ` · ${v.maker} ${v.model} ${v.year}` : '';
-    return `<div onclick="expandTaskReqModal(${i})" style="pointer-events:auto;background:#7c3aed;color:#fff;border-radius:14px;padding:6px 16px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 3px 12px rgba(124,58,237,.35);display:inline-flex;align-items:center;gap:6px;align-self:flex-start">
-      📋 <b>${r.data.driverName}</b>${vehicleStr}
-    </div>`;
-  }).join('');
+  container.style.justifyContent = 'center';
+  container.innerHTML = `<div onclick="expandTaskReqModal(0)" style="pointer-events:auto;background:#7c3aed;color:#fff;border-radius:20px;padding:7px 20px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 3px 14px rgba(124,58,237,.4);display:inline-flex;align-items:center;gap:8px">
+    📋 בקשות למשימות חדשות: <span style="background:rgba(255,255,255,.25);border-radius:10px;padding:1px 8px">${count}</span>
+  </div>`;
 }
 
 function _updateTaskReqNav() {
@@ -2446,15 +2429,7 @@ async function approveTaskRequest(approved) {
     showToast('❌ הבקשה נדחתה');
     _notifyDriver(req.driverName, `❌ בקשת המשימה שלך נדחתה על ידי המנהל`);
   }
-  // check for more pending requests
-  setTimeout(async () => {
-    if (!window._query) return;
-    try {
-      const { getDocs } = await import("https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js");
-      const s = await getDocs(window._query(window._colRef('task_requests'), window._where('status','==','pending')));
-      if (!s.empty) { const d = s.docs[0]; _showTaskReqApproval(d.id, d.data()); }
-    } catch(e) {}
-  }, 400);
+  // pill will update via realtime listener
 }
 
 async function importTrelloTasks() {
