@@ -2215,8 +2215,11 @@ function openRequestTaskModal() {
 let _reqVehicleInfo = null;
 
 function _cleanMaker(raw) {
-  // strip country suffix — keep only first word
-  return (raw || '').split(' ')[0];
+  // strip known country suffixes from end of maker name
+  const countries = ['ישראל','גרמניה','יפן','קוריאה','צרפת','איטליה','שבדיה','אנגליה','רומניה','הונגריה','סלובקיה','צ׳כיה','טורקיה','סין','הודו','ספרד','אמריקה','ארה"ב'];
+  let s = (raw || '').trim();
+  for (const c of countries) { if (s.endsWith(' ' + c)) { s = s.slice(0, -c.length - 1).trim(); break; } }
+  return s;
 }
 
 async function lookupPlate() {
