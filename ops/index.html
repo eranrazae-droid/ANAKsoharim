@@ -5651,10 +5651,12 @@ function addRfGenericPhoto(key, input) {
   _rfGenericPhotos[key].push(...files.slice(0, 4 - _rfGenericPhotos[key].length));
   input.value = '';
   _renderRfGenericPhotos(key);
+  _rfAutoSave();
 }
 function removeRfGenericPhoto(key, i) {
   if (_rfGenericPhotos[key]) _rfGenericPhotos[key].splice(i, 1);
   _renderRfGenericPhotos(key);
+  _rfAutoSave();
 }
 function _renderRfGenericPhotos(key) {
   const grid = document.getElementById('rf-photos-' + key);
@@ -5667,6 +5669,22 @@ function _renderRfGenericPhotos(key) {
 }
 window.addRfGenericPhoto = addRfGenericPhoto;
 window.removeRfGenericPhoto = removeRfGenericPhoto;
+
+let _rfAutoSaveTimer = null;
+
+function _rfAutoSave() {
+  if (!_currentRefreshId) return;
+  clearTimeout(_rfAutoSaveTimer);
+  _rfAutoSaveTimer = setTimeout(async () => {
+    if (!_currentRefreshId) return;
+    const draft = _collectRfDraft();
+    localStorage.setItem('rf_draft_' + _currentRefreshId, JSON.stringify(draft));
+    try {
+      const { updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+      await updateDoc(doc(window._db, 'refreshes', _currentRefreshId), { liveDraft: draft });
+    } catch(e) {}
+  }, 1200);
+}
 
 function _collectRfDraft() {
   const checks = {}, notes = {};
@@ -5942,6 +5960,15 @@ async function openRefreshForm(id) {
       bar.innerHTML = `<span>💾 נטענה טיוטה שמורה</span><button type="button" onclick="localStorage.removeItem('${draftKey}');this.parentNode.remove()" style="background:none;border:1px solid #f59e0b;border-radius:8px;padding:4px 10px;font-family:Heebo,sans-serif;font-size:12px;cursor:pointer">נקה</button>`;
       document.getElementById('rf-vehicle-info')?.after(bar);
     }
+  }
+  // wire auto-save on any input/change inside the form
+  const _rfModal = document.getElementById('modal-refresh-form');
+  if (_rfModal && !_rfModal._autoSaveWired) {
+    _rfModal._autoSaveWired = true;
+    _rfModal.addEventListener('input', _rfAutoSave);
+    _rfModal.addEventListener('change', _rfAutoSave);
+    // also hook rf-box clicks (they fire click, not input)
+    _rfModal.addEventListener('click', e => { if (e.target.closest('.rf-box')) _rfAutoSave(); });
   }
   openModal('modal-refresh-form');
 }
