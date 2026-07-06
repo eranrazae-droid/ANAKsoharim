@@ -309,6 +309,41 @@ if ('serviceWorker' in navigator) {
     <div class="loading"><div class="spinner"></div> טוען...</div>
   </div>
   <button class="fab" id="fab-new-task" onclick="openNewTaskModal()" style="display:none">+ משימה חדשה</button>
+  <button class="fab" id="fab-request-task" onclick="openRequestTaskModal()" style="display:none;bottom:80px;background:#7c3aed">+ הצע משימה</button>
+</div>
+
+<!-- ── modal: driver task request ── -->
+<div class="modal-overlay" id="modal-request-task">
+  <div class="modal-box">
+    <div class="modal-title">📋 הצעת משימה <button class="modal-close" onclick="closeModal('modal-request-task')">✕</button></div>
+    <div class="form-group">
+      <label>לאיזה עמודה?</label>
+      <div id="req-task-cols" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px"></div>
+    </div>
+    <div class="form-group">
+      <label>תיאור המשימה <span style="color:#ef4444">*</span></label>
+      <textarea class="form-textarea" id="req-task-text" rows="3" placeholder="תאר את המשימה..."></textarea>
+    </div>
+    <div class="form-group">
+      <label>תמונה <span style="color:#ef4444">*</span></label>
+      <button type="button" onclick="document.getElementById('req-task-file').click()" style="background:#1e293b;color:#fff;border:none;border-radius:10px;padding:10px 18px;font-family:Heebo,sans-serif;font-weight:700;font-size:14px;cursor:pointer">📷 צלם תמונה</button>
+      <input type="file" id="req-task-file" accept="image/*" capture="environment" style="position:absolute;width:1px;height:1px;opacity:0" onchange="previewReqTaskPhoto(this)">
+      <div id="req-task-photo-preview" style="margin-top:8px"></div>
+    </div>
+    <button class="btn-submit" id="req-task-send-btn" onclick="submitTaskRequest()">📤 שלח בקשה</button>
+  </div>
+</div>
+
+<!-- ── modal: manager task request approval ── -->
+<div class="modal-overlay" id="modal-approve-task-req">
+  <div class="modal-box">
+    <div class="modal-title">📋 בקשת משימה חדשה</div>
+    <div id="approve-req-body" style="margin-bottom:16px"></div>
+    <div style="display:flex;gap:10px">
+      <button class="btn-submit" style="background:#16a34a" onclick="approveTaskRequest(true)">✅ אשר</button>
+      <button class="btn-submit" style="background:#dc2626" onclick="approveTaskRequest(false)">❌ דחה</button>
+    </div>
+  </div>
 </div>
 
 <!-- ====== SCREEN: REFRESH ====== -->
@@ -1619,6 +1654,10 @@ function loadManagerBadges() {
       _setCardBadge('_refresh', snap.size);
     });
     listenForTaskDone();
+    _onSnap(_query(_colRef('task_requests'), _where('status','==','pending')), snap => {
+      _setCardBadge('tasks', snap.size);
+    });
+    _listenTaskRequests();
   } catch(e) { console.warn('loadManagerBadges error', e); }
 }
 
@@ -1666,10 +1705,22 @@ function openTasksScreen() {
   const isManager = currentUser.role === 'manager';
   document.getElementById('tasks-user-badge').textContent = currentUser.name;
   document.getElementById('fab-new-task').style.display = isManager ? 'flex' : 'none';
+  document.getElementById('fab-request-task').style.display = !isManager ? 'flex' : 'none';
   activeTaskFilter = isManager ? 'משימות כלליות' : 'שלי';
   showScreen('tasks');
   loadTasks();
   if (!isManager) _checkDriverNotifications();
+  if (isManager) {
+    // check for pending task requests and show popup
+    setTimeout(async () => {
+      if (!window._CONFIG_DONE || !window._query) return;
+      try {
+        const { getDocs } = await import("https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js");
+        const s = await getDocs(window._query(window._colRef('task_requests'), window._where('status','==','pending')));
+        if (!s.empty) { const d = s.docs[0]; _showTaskReqApproval(d.id, d.data()); }
+      } catch(e) {}
+    }, 800);
+  }
 }
 
 let activeTaskFilter = 'הכל';
@@ -2101,6 +2152,151 @@ function openNewTaskModal() {
   document.getElementById('task-color').value = '';
   document.querySelectorAll('#task-color-picker .color-swatch').forEach((s,i) => s.classList.toggle('selected', i===0));
   openModal('modal-task');
+}
+
+// ── Driver task request ──────────────────────────────────────────────────────
+let _reqTaskPhotoData = null;
+let _pendingTaskReqId = null;
+
+function openRequestTaskModal() {
+  document.getElementById('req-task-text').value = '';
+  document.getElementById('req-task-photo-preview').innerHTML = '';
+  document.getElementById('req-task-file').value = '';
+  _reqTaskPhotoData = null;
+  // build column chips
+  const cols = ['חביב','ולאדי','רדארים','רפד', currentUser.name];
+  const container = document.getElementById('req-task-cols');
+  container.innerHTML = cols.map((c,i) =>
+    `<label style="display:inline-flex;align-items:center;gap:4px;background:var(--surface2);border-radius:20px;padding:6px 14px;cursor:pointer;border:2px solid ${i===0?'var(--primary)':'transparent'};font-size:14px">
+      <input type="radio" name="req-col" value="${c}" ${i===0?'checked':''} style="display:none" onchange="this.closest('#req-task-cols').querySelectorAll('label').forEach(l=>l.style.borderColor='transparent');this.closest('label').style.borderColor='var(--primary)'">
+      ${c}
+    </label>`
+  ).join('');
+  openModal('modal-request-task');
+}
+
+function previewReqTaskPhoto(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    // compress via canvas
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 1200;
+      const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width * scale;
+      canvas.height = img.height * scale;
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      _reqTaskPhotoData = canvas.toDataURL('image/jpeg', 0.7);
+      document.getElementById('req-task-photo-preview').innerHTML =
+        `<img src="${_reqTaskPhotoData}" style="max-width:100%;border-radius:10px;max-height:180px;object-fit:cover">`;
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+async function submitTaskRequest() {
+  const text = document.getElementById('req-task-text').value.trim();
+  if (!text) return showToast('נא לכתוב תיאור משימה');
+  if (!_reqTaskPhotoData) return showToast('נא לצרף תמונה');
+  const col = (document.querySelector('input[name="req-col"]:checked') || {}).value;
+  if (!col) return showToast('נא לבחור עמודה');
+  if (!window._CONFIG_DONE) return showToast('Firebase לא מחובר');
+  const btn = document.getElementById('req-task-send-btn');
+  btn.disabled = true;
+  try {
+    const ref = await _addDoc(_colRef('task_requests'), {
+      driverName: currentUser.name,
+      column: col,
+      text,
+      photo: _reqTaskPhotoData,
+      status: 'pending',
+      createdAt: _serverTs()
+    });
+    closeModal('modal-request-task');
+    showToast('✅ הבקשה נשלחה למנהל');
+    _notifyDriver('ליאל', `📋 ${currentUser.name} מבקש להוסיף משימה לעמודת ${col}: "${text.slice(0,60)}"`);
+  } catch(e) {
+    showToast('שגיאה בשליחה');
+    console.error(e);
+  }
+  btn.disabled = false;
+}
+
+let _taskReqUnsub = null;
+
+function _listenTaskRequests() {
+  if (_taskReqUnsub) return;
+  if (!window._onSnap) return;
+  _taskReqUnsub = window._onSnap(
+    window._query(window._colRef('task_requests'), window._where('status','==','pending')),
+    snap => {
+      if (snap.empty) return;
+      const screen = document.querySelector('.screen.active');
+      if (screen && screen.id === 'screen-tasks') {
+        const d = snap.docs[0];
+        _showTaskReqApproval(d.id, d.data());
+      }
+    }
+  );
+}
+
+function _showTaskReqApproval(id, req) {
+  _pendingTaskReqId = id;
+  const body = document.getElementById('approve-req-body');
+  body.innerHTML = `
+    <div style="font-size:14px;margin-bottom:8px"><b>${req.driverName}</b> מבקש להוסיף משימה לעמודת <b>${req.column}</b>:</div>
+    <div style="background:var(--surface2);border-radius:10px;padding:10px;font-size:14px;margin-bottom:10px">${req.text}</div>
+    ${req.photo ? `<img src="${req.photo}" style="max-width:100%;border-radius:10px;max-height:220px;object-fit:cover">` : ''}
+    <div id="approve-req-col-override" style="margin-top:12px">
+      <label style="font-size:13px;color:var(--muted)">עמודה (אפשר לשנות):</label>
+      <select id="approve-col-select" style="width:100%;margin-top:4px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text)">
+        ${['חביב','ולאדי','רדארים','רפד',req.driverName].map(c=>`<option value="${c}" ${c===req.column?'selected':''}>${c}</option>`).join('')}
+      </select>
+    </div>`;
+  openModal('modal-approve-task-req');
+}
+
+async function approveTaskRequest(approved) {
+  if (!_pendingTaskReqId) return;
+  const id = _pendingTaskReqId;
+  _pendingTaskReqId = null;
+  closeModal('modal-approve-task-req');
+  const { updateDoc, doc, getDoc } = await import("https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js");
+  const ref = doc(window._db, 'task_requests', id);
+  const snap = await getDoc(ref);
+
+  if (!snap.exists()) return;
+  const req = snap.data();
+  await updateDoc(ref, { status: approved ? 'approved' : 'rejected' });
+  if (approved) {
+    const col = document.getElementById('approve-col-select')?.value || req.column;
+    await _addDoc(_colRef('tasks'), {
+      title: req.text,
+      assignedTo: col,
+      label: col,
+      status: 'open',
+      createdBy: req.driverName,
+      createdAt: _serverTs()
+    });
+    showToast(`✅ משימה נוספה לעמודת ${col}`);
+    _notifyDriver(req.driverName, `✅ בקשת המשימה שלך אושרה והתווספה לעמודת ${col}`);
+  } else {
+    showToast('❌ הבקשה נדחתה');
+    _notifyDriver(req.driverName, `❌ בקשת המשימה שלך נדחתה על ידי המנהל`);
+  }
+  // check for more pending requests
+  setTimeout(async () => {
+    if (!window._query) return;
+    try {
+      const { getDocs } = await import("https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js");
+      const s = await getDocs(window._query(window._colRef('task_requests'), window._where('status','==','pending')));
+      if (!s.empty) { const d = s.docs[0]; _showTaskReqApproval(d.id, d.data()); }
+    } catch(e) {}
+  }, 400);
 }
 
 async function importTrelloTasks() {
