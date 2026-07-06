@@ -2190,6 +2190,7 @@ function openRequestTaskModal() {
   document.getElementById('req-plate-result').textContent = '';
   _reqTaskPhotoData = null;
   _reqTaskCol = null;
+  _reqVehicleInfo = null;
   const cols = ['חביב','ולאדי','רדארים','רפד', currentUser.name];
   const container = document.getElementById('req-task-cols');
   container.innerHTML = cols.map(c =>
@@ -2198,12 +2199,20 @@ function openRequestTaskModal() {
   openModal('modal-request-task');
 }
 
+let _reqVehicleInfo = null;
+
+function _cleanMaker(raw) {
+  // strip country suffix — keep only first word
+  return (raw || '').split(' ')[0];
+}
+
 async function lookupPlate() {
   const plate = document.getElementById('req-task-plate').value.trim();
   if (!plate) return;
   const el = document.getElementById('req-plate-result');
   el.textContent = '⏳ מחפש...';
   el.style.color = 'var(--muted)';
+  _reqVehicleInfo = null;
   try {
     const url = `https://data.gov.il/api/3/action/datastore_search?resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3&q=${plate}&limit=1`;
     const res = await fetch(url);
@@ -2211,12 +2220,11 @@ async function lookupPlate() {
     const rec = json?.result?.records?.[0];
     if (rec) {
       const year = rec['shnat_yitzur'] || '';
-      const maker = rec['tozeret_nm'] || '';
+      const maker = _cleanMaker(rec['tozeret_nm']);
       const model = rec['kinuy_mishari'] || '';
+      _reqVehicleInfo = { plate, maker, model, year };
       el.innerHTML = `✅ <b>${maker} ${model}</b> — שנת ${year}`;
       el.style.color = 'var(--success, #16a34a)';
-      const cur = document.getElementById('req-task-text').value;
-      if (!cur) document.getElementById('req-task-text').value = `${maker} ${model} ${year} — `;
     } else {
       el.textContent = '❌ לא נמצא רכב עם לוחית זו';
       el.style.color = '#ef4444';
@@ -2265,6 +2273,7 @@ async function submitTaskRequest() {
       column: col,
       text,
       photo: _reqTaskPhotoData,
+      vehicle: _reqVehicleInfo || null,
       status: 'pending',
       createdAt: _serverTs()
     });
@@ -2298,14 +2307,24 @@ function _listenTaskRequests() {
 
 function _showTaskReqApproval(id, req) {
   _pendingTaskReqId = id;
+  const v = req.vehicle;
+  const vehicleBlock = v
+    ? `<div style="background:#0ea5e910;border:1px solid #0ea5e940;border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:13px">
+        🚗 <b>${v.maker} ${v.model}</b> — שנת ${v.year} | לוחית: <b>${v.plate}</b>
+       </div>`
+    : '';
   const body = document.getElementById('approve-req-body');
   body.innerHTML = `
-    <div style="font-size:14px;margin-bottom:8px"><b>${req.driverName}</b> מבקש להוסיף משימה לעמודת <b>${req.column}</b>:</div>
-    <div style="background:var(--surface2);border-radius:10px;padding:10px;font-size:14px;margin-bottom:10px">${req.text}</div>
-    ${req.photo ? `<img src="${req.photo}" style="max-width:100%;border-radius:10px;max-height:220px;object-fit:cover">` : ''}
-    <div id="approve-req-col-override" style="margin-top:12px">
-      <label style="font-size:13px;color:var(--muted)">עמודה (אפשר לשנות):</label>
-      <select id="approve-col-select" style="width:100%;margin-top:4px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text)">
+    <div style="font-size:13px;color:var(--muted);margin-bottom:8px">בקשה מ-<b>${req.driverName}</b></div>
+    ${vehicleBlock}
+    ${req.photo ? `<img src="${req.photo}" style="max-width:100%;border-radius:10px;max-height:200px;object-fit:cover;margin-bottom:10px">` : ''}
+    <div style="margin-bottom:10px">
+      <label style="font-size:13px;color:var(--muted)">תיאור המשימה (ניתן לערוך):</label>
+      <textarea id="approve-task-text" rows="3" style="width:100%;margin-top:4px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:14px;box-sizing:border-box">${req.text}</textarea>
+    </div>
+    <div style="margin-bottom:10px">
+      <label style="font-size:13px;color:var(--muted)">בעל מקצוע (עמודה):</label>
+      <select id="approve-col-select" style="width:100%;margin-top:4px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif">
         ${['חביב','ולאדי','רדארים','רפד',req.driverName].map(c=>`<option value="${c}" ${c===req.column?'selected':''}>${c}</option>`).join('')}
       </select>
     </div>`;
@@ -2326,8 +2345,11 @@ async function approveTaskRequest(approved) {
   await updateDoc(ref, { status: approved ? 'approved' : 'rejected' });
   if (approved) {
     const col = document.getElementById('approve-col-select')?.value || req.column;
+    const finalText = document.getElementById('approve-task-text')?.value.trim() || req.text;
+    const v = req.vehicle;
+    const title = v ? `${v.maker} ${v.model} ${v.year} — ${finalText}` : finalText;
     await _addDoc(_colRef('tasks'), {
-      title: req.text,
+      title,
       assignedTo: col,
       label: col,
       status: 'open',
@@ -2335,7 +2357,7 @@ async function approveTaskRequest(approved) {
       createdAt: _serverTs()
     });
     showToast(`✅ משימה נוספה לעמודת ${col}`);
-    _notifyDriver(req.driverName, `✅ בקשת המשימה שלך אושרה והתווספה לעמודת ${col}`);
+    _notifyDriver(req.driverName, `✅ בקשת המשימה שלך אושרה והתווספה לעמודת ${col}: "${title.slice(0,60)}"`);
   } else {
     showToast('❌ הבקשה נדחתה');
     _notifyDriver(req.driverName, `❌ בקשת המשימה שלך נדחתה על ידי המנהל`);
