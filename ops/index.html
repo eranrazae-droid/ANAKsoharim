@@ -321,6 +321,14 @@ if ('serviceWorker' in navigator) {
       <div id="req-task-cols" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px"></div>
     </div>
     <div class="form-group">
+      <label>לוחית רישוי (אופציונלי)</label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="text" id="req-task-plate" placeholder="מספר לוחית..." style="flex:1;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:14px;direction:ltr" oninput="this.value=this.value.replace(/\D/g,'').slice(0,8)" onkeydown="if(event.key==='Enter')lookupPlate()">
+        <button type="button" onclick="lookupPlate()" style="background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:10px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">🔍 חפש</button>
+      </div>
+      <div id="req-plate-result" style="margin-top:6px;font-size:13px;color:var(--muted)"></div>
+    </div>
+    <div class="form-group">
       <label>תיאור המשימה <span style="color:#ef4444">*</span></label>
       <textarea class="form-textarea" id="req-task-text" rows="3" placeholder="תאר את המשימה..."></textarea>
     </div>
@@ -2160,26 +2168,63 @@ function openNewTaskModal() {
 let _reqTaskPhotoData = null;
 let _pendingTaskReqId = null;
 
-function _selectReqCol(input) {
-  document.getElementById('req-task-cols').querySelectorAll('label').forEach(l => l.style.borderColor = 'transparent');
-  input.closest('label').style.borderColor = 'var(--primary)';
+let _reqTaskCol = null;
+
+function _selectReqCol(btn, col) {
+  _reqTaskCol = col;
+  document.getElementById('req-task-cols').querySelectorAll('button').forEach(b => {
+    b.style.background = 'var(--surface2)';
+    b.style.color = 'var(--text)';
+    b.style.borderColor = 'transparent';
+  });
+  btn.style.background = 'var(--gold)';
+  btn.style.color = '#000';
+  btn.style.borderColor = 'var(--gold)';
 }
 
 function openRequestTaskModal() {
   document.getElementById('req-task-text').value = '';
   document.getElementById('req-task-photo-preview').innerHTML = '';
   document.getElementById('req-task-file').value = '';
+  document.getElementById('req-task-plate').value = '';
+  document.getElementById('req-plate-result').textContent = '';
   _reqTaskPhotoData = null;
-  // build column chips
+  _reqTaskCol = null;
   const cols = ['חביב','ולאדי','רדארים','רפד', currentUser.name];
   const container = document.getElementById('req-task-cols');
-  container.innerHTML = cols.map((c,i) =>
-    `<label style="display:inline-flex;align-items:center;gap:4px;background:var(--surface2);border-radius:20px;padding:6px 14px;cursor:pointer;border:2px solid ${i===0?'var(--primary)':'transparent'};font-size:14px">
-      <input type="radio" name="req-col" value="${c}" ${i===0?'checked':''} style="display:none" onchange="_selectReqCol(this)">
-      ${c}
-    </label>`
+  container.innerHTML = cols.map(c =>
+    `<button type="button" onclick="_selectReqCol(this,'${c}')" style="background:var(--surface2);color:var(--text);border:2px solid transparent;border-radius:20px;padding:7px 16px;font-family:Heebo,sans-serif;font-size:14px;font-weight:700;cursor:pointer">${c}</button>`
   ).join('');
   openModal('modal-request-task');
+}
+
+async function lookupPlate() {
+  const plate = document.getElementById('req-task-plate').value.trim();
+  if (!plate) return;
+  const el = document.getElementById('req-plate-result');
+  el.textContent = '⏳ מחפש...';
+  el.style.color = 'var(--muted)';
+  try {
+    const url = `https://data.gov.il/api/3/action/datastore_search?resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3&q=${plate}&limit=1`;
+    const res = await fetch(url);
+    const json = await res.json();
+    const rec = json?.result?.records?.[0];
+    if (rec) {
+      const year = rec['shnat_yitzur'] || '';
+      const maker = rec['tozeret_nm'] || '';
+      const model = rec['kinuy_mishari'] || '';
+      el.innerHTML = `✅ <b>${maker} ${model}</b> — שנת ${year}`;
+      el.style.color = 'var(--success, #16a34a)';
+      const cur = document.getElementById('req-task-text').value;
+      if (!cur) document.getElementById('req-task-text').value = `${maker} ${model} ${year} — `;
+    } else {
+      el.textContent = '❌ לא נמצא רכב עם לוחית זו';
+      el.style.color = '#ef4444';
+    }
+  } catch(e) {
+    el.textContent = '⚠️ שגיאה בחיפוש';
+    el.style.color = '#ef4444';
+  }
 }
 
 function previewReqTaskPhoto(input) {
@@ -2209,7 +2254,7 @@ async function submitTaskRequest() {
   const text = document.getElementById('req-task-text').value.trim();
   if (!text) return showToast('נא לכתוב תיאור משימה');
   if (!_reqTaskPhotoData) return showToast('נא לצרף תמונה');
-  const col = (document.querySelector('input[name="req-col"]:checked') || {}).value;
+  const col = _reqTaskCol;
   if (!col) return showToast('נא לבחור עמודה');
   if (!window._CONFIG_DONE) return showToast('Firebase לא מחובר');
   const btn = document.getElementById('req-task-send-btn');
