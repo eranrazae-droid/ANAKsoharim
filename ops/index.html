@@ -2401,32 +2401,35 @@ function _showTaskReqApproval(id, req) {
 async function approveTaskRequest(approved) {
   if (!_pendingTaskReqId) return;
   const id = _pendingTaskReqId;
+  // read values from modal BEFORE closing
+  const col = document.getElementById('approve-col-select')?.value;
+  const finalText = document.getElementById('approve-task-text')?.value.trim();
   _pendingTaskReqId = null;
   closeModal('modal-approve-task-req');
-  const { updateDoc, doc, getDoc } = await import("https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js");
+  const { deleteDoc, doc, getDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
   const ref = doc(window._db, 'task_requests', id);
   const snap = await getDoc(ref);
-
   if (!snap.exists()) return;
   const req = snap.data();
-  await updateDoc(ref, { status: approved ? 'approved' : 'rejected' });
   if (approved) {
-    const col = document.getElementById('approve-col-select')?.value || req.column;
-    const finalText = document.getElementById('approve-task-text')?.value.trim() || req.text;
+    const usedCol = col || req.column;
+    const usedText = finalText || req.text;
     const v = req.vehicle;
-    const title = v ? `${v.maker} ${v.model} ${v.year} — ${finalText}` : finalText;
+    const title = v ? `${v.maker} ${v.model} ${v.year} — ${usedText}` : usedText;
     await _addDoc(_colRef('tasks'), {
       title,
-      assignedTo: col,
-      label: col,
+      assignedTo: usedCol,
+      label: usedCol,
       status: 'open',
       createdBy: req.driverName,
       createdAt: _serverTs()
     });
-    showToast(`✅ משימה נוספה לעמודת ${col}`);
-    _notifyDriver(req.driverName, `✅ בקשת המשימה שלך אושרה והתווספה לעמודת ${col}: "${title.slice(0,60)}"`);
+    await deleteDoc(ref);
+    showToast(`✅ משימה נוספה לעמודת ${usedCol}`);
+    _notifyDriver(req.driverName, `✅ בקשת המשימה שלך אושרה והתווספה לעמודת ${usedCol}`);
   } else {
-    showToast('❌ הבקשה נדחתה');
+    await deleteDoc(ref);
+    showToast('הבקשה נדחתה');
     _notifyDriver(req.driverName, `❌ בקשת המשימה שלך נדחתה על ידי המנהל`);
   }
   // pill will update via realtime listener
