@@ -1561,20 +1561,21 @@ function loadStats() {
   }
 }
 
-function _setCardBadge(screen, count) {
+function _setCardBadge(screen, count, color) {
   const card = document.getElementById('menu-card-' + screen);
   const badge = document.getElementById('badge-' + screen);
-  const sub = document.getElementById('sub-' + screen);
   if (!card || !badge) return;
   if (count > 0) {
-    card.style.background = '#1e40af';
+    card.style.background = color || '#1e40af';
     card.style.color = '#fff';
     card.querySelectorAll('.mc-title,.mc-sub').forEach(el => el.style.color = '#fff');
     badge.style.display = 'inline-block';
     badge.textContent = count;
+    if (color) badge.style.background = color;
   } else {
     card.style.background = '';
     card.style.color = '';
+    badge.style.background = '';
     card.querySelectorAll('.mc-title,.mc-sub').forEach(el => el.style.color = '');
     badge.style.display = 'none';
   }
@@ -1682,7 +1683,7 @@ function loadManagerBadges() {
     });
     listenForTaskDone();
     _onSnap(_query(_colRef('task_requests'), _where('status','==','pending')), snap => {
-      _setCardBadge('tasks', snap.size);
+      _setCardBadge('tasks', snap.size, snap.size > 0 ? '#7c3aed' : null);
     });
     _listenTaskRequests();
   } catch(e) { console.warn('loadManagerBadges error', e); }
