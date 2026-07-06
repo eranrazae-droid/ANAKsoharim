@@ -5370,12 +5370,17 @@ function _applyRfDraft(draft) {
   if (draft.batteryNoDate) { const el=document.getElementById('rf-battery-no-date-cb'); if(el)el.checked=true; }
   if (draft.batteryMonth) { const el=document.getElementById('rf-battery-month'); if(el){el.value=draft.batteryMonth; const ds=document.getElementById('rf-battery-date-section'); if(ds)ds.style.display='';} }
 }
-function saveRfDraftAndClose() {
+async function saveRfDraftAndClose() {
   if (!_currentRefreshId) { closeModal('modal-refresh-form'); return; }
   const draft = _collectRfDraft();
   const hasContent = Object.keys(draft.checks||{}).length || Object.values(draft.notes||{}).some(v=>v) || draft.scratches || draft.km;
   if (hasContent) {
     localStorage.setItem('rf_draft_'+_currentRefreshId, JSON.stringify(draft));
+    // also save to Firestore so draft survives across devices/sessions
+    try {
+      const { updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+      await updateDoc(doc(window._db, 'refreshes', _currentRefreshId), { liveDraft: draft });
+    } catch(e) {}
     showToast('💾 טיוטה נשמרה — תמשיך מאוחר יותר');
   }
   closeModal('modal-refresh-form');
@@ -5527,7 +5532,7 @@ async function openRefreshForm(id) {
   _rfBatteryPhotoFiles = []; _renderRfBatteryPhotos();
   _rfDashboardPhotos = []; _renderRfDashboardPhotos();
   _rfGenericPhotos = {};
-  ['rf-lights-break','rf-glass-break','rf-windows','rf-steering'].forEach(k => _renderRfGenericPhotos(k));
+  ['rf-oil', 'rf-water', 'rf-battery', 'rf-battery-orig', 'rf-safety', 'rf-lights-break', 'rf-glass-break', 'rf-bulbs', 'rf-frames', 'rf-tires', 'rf-glove', 'rf-windows', 'rf-ac', 'rf-smell', 'rf-plastic', 'rf-upholstery', 'rf-steering'].forEach(k => _renderRfGenericPhotos(k));
   _rfSunroofVideo = null;
   const svPrev = document.getElementById('rf-sunroof-video-preview'); if(svPrev) svPrev.innerHTML='';
   const svBtn = document.getElementById('btn-rf-sunroof-video'); if(svBtn) svBtn.textContent='🎥 צלם סרטון גג';
@@ -5578,7 +5583,7 @@ async function openRefreshForm(id) {
       const grid = document.getElementById('rf-dashboard-photos');
       if (grid) grid.innerHTML = fd.dashboardPhotos.map(src => `<div class="ci-photo-box"><img src="${src}"></div>`).join('');
     }
-    ['rf-lights-break','rf-glass-break','rf-windows','rf-steering'].forEach(k => {
+    ['rf-oil', 'rf-water', 'rf-battery', 'rf-battery-orig', 'rf-safety', 'rf-lights-break', 'rf-glass-break', 'rf-bulbs', 'rf-frames', 'rf-tires', 'rf-glove', 'rf-windows', 'rf-ac', 'rf-smell', 'rf-plastic', 'rf-upholstery', 'rf-steering'].forEach(k => {
       if (fd.genericPhotos?.[k]?.length) {
         const grid = document.getElementById('rf-photos-'+k);
         if (grid) grid.innerHTML = fd.genericPhotos[k].map(src => `<div class="ci-photo-box"><img src="${src}"></div>`).join('');
@@ -5591,17 +5596,17 @@ async function openRefreshForm(id) {
       if (btn) btn.textContent = '🎥 החלף סרטון';
     }
   }
-  const draftKey = 'rf_draft_' + id;
-  const savedDraft = localStorage.getItem(draftKey);
-  if (savedDraft && r.status !== 'done') {
-    try {
-      const draft = JSON.parse(savedDraft);
+  if (r.status !== 'done') {
+    const draftKey = 'rf_draft_' + id;
+    const localDraft = localStorage.getItem(draftKey);
+    const draft = localDraft ? (() => { try { return JSON.parse(localDraft); } catch(e) { return null; } })() : r.liveDraft || null;
+    if (draft && Object.keys(draft.checks||{}).length) {
       _applyRfDraft(draft);
       const bar = document.createElement('div');
       bar.style.cssText = 'background:#fef3c7;border:1px solid #f59e0b;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;font-weight:700;display:flex;justify-content:space-between;align-items:center;gap:8px';
       bar.innerHTML = `<span>💾 נטענה טיוטה שמורה</span><button type="button" onclick="localStorage.removeItem('${draftKey}');this.parentNode.remove()" style="background:none;border:1px solid #f59e0b;border-radius:8px;padding:4px 10px;font-family:Heebo,sans-serif;font-size:12px;cursor:pointer">נקה</button>`;
       document.getElementById('rf-vehicle-info')?.after(bar);
-    } catch(e) { localStorage.removeItem(draftKey); }
+    }
   }
   openModal('modal-refresh-form');
 }
@@ -5667,7 +5672,7 @@ async function submitRefreshForm() {
   const dashboardPhotoB64s = document.querySelector('.rf-box[data-key="rf-dashboard"].x-active')
     ? await Promise.all(_rfDashboardPhotos.map(f => compressToBase64(f))) : [];
   const genericPhotoB64s = {};
-  for (const k of ['rf-lights-break','rf-glass-break','rf-windows','rf-steering']) {
+  for (const k of ['rf-oil', 'rf-water', 'rf-battery', 'rf-battery-orig', 'rf-safety', 'rf-lights-break', 'rf-glass-break', 'rf-bulbs', 'rf-frames', 'rf-tires', 'rf-glove', 'rf-windows', 'rf-ac', 'rf-smell', 'rf-plastic', 'rf-upholstery', 'rf-steering']) {
     if (_rfGenericPhotos[k]?.length) genericPhotoB64s[k] = await Promise.all(_rfGenericPhotos[k].map(f => compressToBase64(f)));
   }
   await updateDoc(doc(window._db, 'refreshes', _currentRefreshId), { formData: {checks,notes,dashChecks,scratches,notSold,km,code,upholsteryPhotos:upholsteryPhotoB64s,batteryPhotos:batteryPhotoB64s,batteryNoDate:rfBatNoCbVal,batteryMonth:rfBatMonthVal,dashboardPhotos:dashboardPhotoB64s,genericPhotos:genericPhotoB64s,sunroofVideo:sunroofVideoB64}, status:'done', completedAt:serverTimestamp(), completedBy:currentUser?.name||'' });
@@ -5785,15 +5790,36 @@ window.rfClick = rfClick;
 
       <!-- שמן -->
       <div class="checklist-item"><span class="ci-label">שמן</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-oil" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-oil" data-val="x" onclick="rfClick(this)">✕</button></div></div>
-      <div id="rfnote-rf-oil" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="rfcn-rf-oil" placeholder="הערה..." rows="2"></textarea></div>
+      <div id="rfnote-rf-oil" class="ci-note-row" style="display:none">
+        <textarea class="form-textarea" id="rfcn-rf-oil" placeholder="הערה..." rows="2"></textarea>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+          <button type="button" onclick="document.getElementById('file-rf-oil').click()" style="background:#6366f1;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-family:Heebo,sans-serif;font-size:12px;font-weight:700;cursor:pointer">📷 הוסף תמונה</button>
+          <input type="file" accept="image/*" capture="environment" id="file-rf-oil" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" multiple onchange="addRfGenericPhoto('rf-oil',this)">
+        </div>
+        <div id="rf-photos-rf-oil" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px"></div>
+      </div>
 
       <!-- נוזל קירור -->
       <div class="checklist-item"><span class="ci-label">נוזל קירור</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-water" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-water" data-val="x" onclick="rfClick(this)">✕</button></div></div>
-      <div id="rfnote-rf-water" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="rfcn-rf-water" placeholder="הערה..." rows="2"></textarea></div>
+      <div id="rfnote-rf-water" class="ci-note-row" style="display:none">
+        <textarea class="form-textarea" id="rfcn-rf-water" placeholder="הערה..." rows="2"></textarea>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+          <button type="button" onclick="document.getElementById('file-rf-water').click()" style="background:#6366f1;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-family:Heebo,sans-serif;font-size:12px;font-weight:700;cursor:pointer">📷 הוסף תמונה</button>
+          <input type="file" accept="image/*" capture="environment" id="file-rf-water" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" multiple onchange="addRfGenericPhoto('rf-water',this)">
+        </div>
+        <div id="rf-photos-rf-water" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px"></div>
+      </div>
 
       <!-- בדיקת מצבר -->
       <div class="checklist-item"><span class="ci-label">בדיקת מצבר</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-battery" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-battery" data-val="x" onclick="rfClick(this)">✕</button></div></div>
-      <div id="rfnote-rf-battery" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="rfcn-rf-battery" placeholder="הערה..." rows="2"></textarea></div>
+      <div id="rfnote-rf-battery" class="ci-note-row" style="display:none">
+        <textarea class="form-textarea" id="rfcn-rf-battery" placeholder="הערה..." rows="2"></textarea>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+          <button type="button" onclick="document.getElementById('file-rf-battery').click()" style="background:#6366f1;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-family:Heebo,sans-serif;font-size:12px;font-weight:700;cursor:pointer">📷 הוסף תמונה</button>
+          <input type="file" accept="image/*" capture="environment" id="file-rf-battery" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" multiple onchange="addRfGenericPhoto('rf-battery',this)">
+        </div>
+        <div id="rf-photos-rf-battery" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px"></div>
+      </div>
       <div class="checklist-item" style="padding-right:24px;background:rgba(0,0,0,0.03);border-radius:8px;margin-top:2px">
         <span class="ci-label" style="font-size:13px;color:var(--muted)">מצבר מקורי</span>
         <div class="ci-btns">
@@ -5801,7 +5827,14 @@ window.rfClick = rfClick;
           <button type="button" class="ci-box rf-box" data-key="rf-battery-orig" data-val="x" onclick="rfClick(this)">✕</button>
         </div>
       </div>
-      <div id="rfnote-rf-battery-orig" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="rfcn-rf-battery-orig" placeholder="הערה על מצבר..." rows="2"></textarea></div>
+      <div id="rfnote-rf-battery-orig" class="ci-note-row" style="display:none">
+        <textarea class="form-textarea" id="rfcn-rf-battery-orig" placeholder="הערה על מצבר..." rows="2"></textarea>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+          <button type="button" onclick="document.getElementById('file-rf-battery-orig').click()" style="background:#6366f1;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-family:Heebo,sans-serif;font-size:12px;font-weight:700;cursor:pointer">📷 הוסף תמונה</button>
+          <input type="file" accept="image/*" capture="environment" id="file-rf-battery-orig" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" multiple onchange="addRfGenericPhoto('rf-battery-orig',this)">
+        </div>
+        <div id="rf-photos-rf-battery-orig" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px"></div>
+      </div>
       <div class="ci-note-row" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px">
         <label for="file-rf-battery" style="background:var(--dark);color:#fff;border:none;border-radius:10px;padding:8px 16px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;display:inline-block">📷 צלם מצבר <span style="color:#ef4444">*</span></label>
         <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;cursor:pointer;color:var(--dark)">
@@ -5821,7 +5854,14 @@ window.rfClick = rfClick;
 
       <!-- ג׳ק, אפוד, משולש, גלגל ספייר -->
       <div class="checklist-item"><span class="ci-label">ג׳ק, אפוד, משולש, גלגל ספייר</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-safety" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-safety" data-val="x" onclick="rfClick(this)">✕</button></div></div>
-      <div id="rfnote-rf-safety" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="rfcn-rf-safety" placeholder="הערה..." rows="2"></textarea></div>
+      <div id="rfnote-rf-safety" class="ci-note-row" style="display:none">
+        <textarea class="form-textarea" id="rfcn-rf-safety" placeholder="הערה..." rows="2"></textarea>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+          <button type="button" onclick="document.getElementById('file-rf-safety').click()" style="background:#6366f1;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-family:Heebo,sans-serif;font-size:12px;font-weight:700;cursor:pointer">📷 הוסף תמונה</button>
+          <input type="file" accept="image/*" capture="environment" id="file-rf-safety" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" multiple onchange="addRfGenericPhoto('rf-safety',this)">
+        </div>
+        <div id="rf-photos-rf-safety" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px"></div>
+      </div>
 
       <!-- שברים בפנסים -->
       <div class="checklist-item"><span class="ci-label">שברים בפנסים</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-lights-break" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-lights-break" data-val="x" onclick="rfClick(this)">✕</button></div></div>
@@ -5843,15 +5883,36 @@ window.rfClick = rfClick;
 
       <!-- מנורות שרופות -->
       <div class="checklist-item"><span class="ci-label">מנורות שרופות</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-bulbs" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-bulbs" data-val="x" onclick="rfClick(this)">✕</button></div></div>
-      <div id="rfnote-rf-bulbs" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="rfcn-rf-bulbs" placeholder="הערה..." rows="2"></textarea></div>
+      <div id="rfnote-rf-bulbs" class="ci-note-row" style="display:none">
+        <textarea class="form-textarea" id="rfcn-rf-bulbs" placeholder="הערה..." rows="2"></textarea>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+          <button type="button" onclick="document.getElementById('file-rf-bulbs').click()" style="background:#6366f1;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-family:Heebo,sans-serif;font-size:12px;font-weight:700;cursor:pointer">📷 הוסף תמונה</button>
+          <input type="file" accept="image/*" capture="environment" id="file-rf-bulbs" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" multiple onchange="addRfGenericPhoto('rf-bulbs',this)">
+        </div>
+        <div id="rf-photos-rf-bulbs" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px"></div>
+      </div>
 
       <!-- מסגרות -->
       <div class="checklist-item"><span class="ci-label">מסגרות</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-frames" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-frames" data-val="x" onclick="rfClick(this)">✕</button></div></div>
-      <div id="rfnote-rf-frames" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="rfcn-rf-frames" placeholder="הערה..." rows="2"></textarea></div>
+      <div id="rfnote-rf-frames" class="ci-note-row" style="display:none">
+        <textarea class="form-textarea" id="rfcn-rf-frames" placeholder="הערה..." rows="2"></textarea>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+          <button type="button" onclick="document.getElementById('file-rf-frames').click()" style="background:#6366f1;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-family:Heebo,sans-serif;font-size:12px;font-weight:700;cursor:pointer">📷 הוסף תמונה</button>
+          <input type="file" accept="image/*" capture="environment" id="file-rf-frames" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" multiple onchange="addRfGenericPhoto('rf-frames',this)">
+        </div>
+        <div id="rf-photos-rf-frames" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px"></div>
+      </div>
 
       <!-- מצב צמיגים -->
       <div class="checklist-item"><span class="ci-label">מצב צמיגים</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-tires" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-tires" data-val="x" onclick="rfClick(this)">✕</button></div></div>
-      <div id="rfnote-rf-tires" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="rfcn-rf-tires" placeholder="הערה..." rows="2"></textarea></div>
+      <div id="rfnote-rf-tires" class="ci-note-row" style="display:none">
+        <textarea class="form-textarea" id="rfcn-rf-tires" placeholder="הערה..." rows="2"></textarea>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+          <button type="button" onclick="document.getElementById('file-rf-tires').click()" style="background:#6366f1;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-family:Heebo,sans-serif;font-size:12px;font-weight:700;cursor:pointer">📷 הוסף תמונה</button>
+          <input type="file" accept="image/*" capture="environment" id="file-rf-tires" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" multiple onchange="addRfGenericPhoto('rf-tires',this)">
+        </div>
+        <div id="rf-photos-rf-tires" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px"></div>
+      </div>
 
       <div class="section-title" style="margin-top:14px">🚗 בדיקות פנים</div>
 
@@ -5863,7 +5924,14 @@ window.rfClick = rfClick;
 
       <!-- ניקיון תא כפפות -->
       <div class="checklist-item"><span class="ci-label">ניקיון תא כפפות</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-glove" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-glove" data-val="x" onclick="rfClick(this)">✕</button></div></div>
-      <div id="rfnote-rf-glove" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="rfcn-rf-glove" placeholder="הערה..." rows="2"></textarea></div>
+      <div id="rfnote-rf-glove" class="ci-note-row" style="display:none">
+        <textarea class="form-textarea" id="rfcn-rf-glove" placeholder="הערה..." rows="2"></textarea>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+          <button type="button" onclick="document.getElementById('file-rf-glove').click()" style="background:#6366f1;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-family:Heebo,sans-serif;font-size:12px;font-weight:700;cursor:pointer">📷 הוסף תמונה</button>
+          <input type="file" accept="image/*" capture="environment" id="file-rf-glove" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" multiple onchange="addRfGenericPhoto('rf-glove',this)">
+        </div>
+        <div id="rf-photos-rf-glove" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px"></div>
+      </div>
 
       <!-- מתגי חלונות -->
       <div class="checklist-item"><span class="ci-label">מתגי חלונות</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-windows" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-windows" data-val="x" onclick="rfClick(this)">✕</button></div></div>
@@ -5877,7 +5945,14 @@ window.rfClick = rfClick;
 
       <!-- מזגן -->
       <div class="checklist-item"><span class="ci-label">מזגן</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-ac" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-ac" data-val="x" onclick="rfClick(this)">✕</button></div></div>
-      <div id="rfnote-rf-ac" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="rfcn-rf-ac" placeholder="הערה..." rows="2"></textarea></div>
+      <div id="rfnote-rf-ac" class="ci-note-row" style="display:none">
+        <textarea class="form-textarea" id="rfcn-rf-ac" placeholder="הערה..." rows="2"></textarea>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+          <button type="button" onclick="document.getElementById('file-rf-ac').click()" style="background:#6366f1;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-family:Heebo,sans-serif;font-size:12px;font-weight:700;cursor:pointer">📷 הוסף תמונה</button>
+          <input type="file" accept="image/*" capture="environment" id="file-rf-ac" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" multiple onchange="addRfGenericPhoto('rf-ac',this)">
+        </div>
+        <div id="rf-photos-rf-ac" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px"></div>
+      </div>
 
       <!-- מנורות לוח שעונים -->
       <div class="checklist-item"><span class="ci-label">מנורות לוח שעונים</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-dashboard" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-dashboard" data-val="x" onclick="rfClick(this)">✕</button></div></div>
@@ -5919,15 +5994,36 @@ window.rfClick = rfClick;
 
       <!-- ריח -->
       <div class="checklist-item"><span class="ci-label">ריח</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-smell" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-smell" data-val="x" onclick="rfClick(this)">✕</button></div></div>
-      <div id="rfnote-rf-smell" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="rfcn-rf-smell" placeholder="הערה..." rows="2"></textarea></div>
+      <div id="rfnote-rf-smell" class="ci-note-row" style="display:none">
+        <textarea class="form-textarea" id="rfcn-rf-smell" placeholder="הערה..." rows="2"></textarea>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+          <button type="button" onclick="document.getElementById('file-rf-smell').click()" style="background:#6366f1;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-family:Heebo,sans-serif;font-size:12px;font-weight:700;cursor:pointer">📷 הוסף תמונה</button>
+          <input type="file" accept="image/*" capture="environment" id="file-rf-smell" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" multiple onchange="addRfGenericPhoto('rf-smell',this)">
+        </div>
+        <div id="rf-photos-rf-smell" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px"></div>
+      </div>
 
       <!-- פלסטיקים וחלקים שבורים -->
       <div class="checklist-item"><span class="ci-label">פלסטיקים וחלקים שבורים</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-plastic" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-plastic" data-val="x" onclick="rfClick(this)">✕</button></div></div>
-      <div id="rfnote-rf-plastic" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="rfcn-rf-plastic" placeholder="הערה..." rows="2"></textarea></div>
+      <div id="rfnote-rf-plastic" class="ci-note-row" style="display:none">
+        <textarea class="form-textarea" id="rfcn-rf-plastic" placeholder="הערה..." rows="2"></textarea>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+          <button type="button" onclick="document.getElementById('file-rf-plastic').click()" style="background:#6366f1;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-family:Heebo,sans-serif;font-size:12px;font-weight:700;cursor:pointer">📷 הוסף תמונה</button>
+          <input type="file" accept="image/*" capture="environment" id="file-rf-plastic" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" multiple onchange="addRfGenericPhoto('rf-plastic',this)">
+        </div>
+        <div id="rf-photos-rf-plastic" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px"></div>
+      </div>
 
       <!-- מצב ריפודים ושטיחים -->
       <div class="checklist-item"><span class="ci-label">מצב ריפודים ושטיחים</span><div class="ci-btns"><button type="button" class="ci-box rf-box" data-key="rf-upholstery" data-val="v" onclick="rfClick(this)">✓</button><button type="button" class="ci-box rf-box" data-key="rf-upholstery" data-val="x" onclick="rfClick(this)">✕</button></div></div>
-      <div id="rfnote-rf-upholstery" class="ci-note-row" style="display:none"><textarea class="form-textarea" id="rfcn-rf-upholstery" placeholder="הערה..." rows="2"></textarea></div>
+      <div id="rfnote-rf-upholstery" class="ci-note-row" style="display:none">
+        <textarea class="form-textarea" id="rfcn-rf-upholstery" placeholder="הערה..." rows="2"></textarea>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+          <button type="button" onclick="document.getElementById('file-rf-upholstery').click()" style="background:#6366f1;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-family:Heebo,sans-serif;font-size:12px;font-weight:700;cursor:pointer">📷 הוסף תמונה</button>
+          <input type="file" accept="image/*" capture="environment" id="file-rf-upholstery" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" multiple onchange="addRfGenericPhoto('rf-upholstery',this)">
+        </div>
+        <div id="rf-photos-rf-upholstery" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px"></div>
+      </div>
       <div class="ci-note-row" style="display:block;margin-top:6px">
         <div style="font-size:12px;color:#64748b;margin-bottom:8px;font-weight:600">📸 נא לצלם את כל הריפודים ובמידה ויש כתמים/קרעים לצלם מקרוב <span style="color:#ef4444">*</span></div>
         <input type="file" accept="image/*" capture="environment" id="file-rf-upholstery" multiple style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" onchange="addRfUpholsteryPhoto(this)">
