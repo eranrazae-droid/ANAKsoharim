@@ -2286,7 +2286,7 @@ async function submitTaskRequest() {
       column: col,
       text,
       photo: _reqTaskPhotoData,
-      vehicle: _reqVehicleInfo || null,
+      vehicle: _reqVehicleInfo || (document.getElementById('req-task-plate')?.value.trim() ? { plate: document.getElementById('req-task-plate').value.trim(), maker:'', model:'', year:'' } : null),
       status: 'pending',
       createdAt: _serverTs()
     });
@@ -2375,8 +2375,9 @@ function _showTaskReqApproval(id, req) {
   _pendingTaskReqId = id;
   const v = req.vehicle;
   const vehicleBlock = v
-    ? `<div style="background:#0ea5e910;border:1px solid #0ea5e940;border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:13px">
-        🚗 <b>${v.maker} ${v.model}</b> — שנת ${v.year} | לוחית: <b>${v.plate}</b>
+    ? `<div style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:10px;padding:10px 14px;margin-bottom:10px;display:flex;flex-wrap:wrap;gap:16px;align-items:center">
+        <div style="font-size:18px;font-weight:900;letter-spacing:1px;font-family:monospace">${v.plate}</div>
+        ${(v.maker||v.model||v.year) ? `<div style="font-size:13px;color:#475569">${[v.maker,v.model,v.year?'שנת '+v.year:''].filter(Boolean).join(' · ')}</div>` : ''}
        </div>`
     : '';
   const body = document.getElementById('approve-req-body');
