@@ -576,10 +576,23 @@
     ];
   const STORAGE_KEY = 'autodealer_shared_inventory_v6';
   const PASS = 'autodealer2024';
-  async function loadCarsFromSupabase(){ return null; }
+  async function loadCarsFromSupabase(){
+    try{
+      const r = await fetch('https://api.github.com/gists/8a7f501101ace7802fcd74af85be4808?t='+Date.now(), {headers:{'Accept':'application/vnd.github+json'}, cache:'no-store'});
+      if(!r.ok) return null;
+      const j = await r.json();
+      const content = j.files && j.files['cars.json'] && j.files['cars.json'].content;
+      if(!content) return null;
+      const data = JSON.parse(content);
+      return Array.isArray(data) && data.length>0 ? data : null;
+    }catch(e){ return null; }
+  }
   async function saveCarsToSupabase(){ return; }
 
-  function cleanCars(arr){ return arr.map(c=>({...c, image:(c.image&&c.image.includes('supabase.co'))?'':c.image, gallery:(c.gallery||[]).filter(g=>g&&!g.includes('supabase.co'))})); }
+  // רכבים שנמחקו — מסוננים תמיד גם אם קיימים ב-seed הישן
+  const HIDDEN_IDS=[11,13];
+  const HIDDEN_MODELS=['ATTO 3 COMFORT FL','SEAL U DMI COMFORT PHEV 1.6'];
+  function cleanCars(arr){ return (arr||[]).filter(c=>!HIDDEN_IDS.includes(c.id)&&!HIDDEN_MODELS.includes((c.model||'').trim())).map(c=>({...c, image:(c.image&&c.image.includes('supabase.co'))?'':c.image, gallery:(c.gallery||[]).filter(g=>g&&!g.includes('supabase.co'))})); }
   let cars=cleanCars(JSON.parse(localStorage.getItem(STORAGE_KEY)||'null')||seedCars);
 
   let leads = JSON.parse(localStorage.getItem('autodealer_leads')||'[]');
@@ -596,7 +609,6 @@
       document.getElementById('loginErr').classList.add('hidden');
       loadCarsFromSupabase().then(data => {
         if(data && data.length > 0) { cars = cleanCars(data); localStorage.setItem(STORAGE_KEY, JSON.stringify(cars)); }
-        saveCars();
         renderAll();
       });
     } else {
@@ -646,7 +658,7 @@
     document.getElementById('loginPage').classList.add('hidden');
     document.getElementById('appWrapper').classList.remove('hidden');
     loadCarsFromSupabase().then(data => {
-      if(data && data.length > 0) { cars = data; localStorage.setItem(STORAGE_KEY, JSON.stringify(cars)); }
+      if(data && data.length > 0) { cars = cleanCars(data); localStorage.setItem(STORAGE_KEY, JSON.stringify(cars)); }
       renderAll();
     });
   }
