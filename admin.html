@@ -161,13 +161,18 @@
             </div>
           </div>
           <div style="overflow-x:auto">
-            <table style="width:100%;border-collapse:collapse;min-width:820px;font-size:13px">
+            <table style="width:100%;border-collapse:collapse;min-width:1240px;font-size:13px">
               <thead><tr style="text-align:right;color:var(--muted);font-size:12px;border-bottom:2px solid var(--line)">
                 <th style="padding:10px 8px">רכב</th>
                 <th style="padding:10px 8px">מחיר מכירה לפני רישוי</th>
                 <th style="padding:10px 8px">אגרת רישוי</th>
                 <th style="padding:10px 8px">מחיר אוטודילר כולל רישוי</th>
-                <th style="padding:10px 8px">החזר חודשי החל מ-</th>
+                <th style="padding:10px 8px;color:#15803d">החזר חודשי החל מ-</th>
+                <th style="padding:10px 8px">כאל צמוד 4.2%</th>
+                <th style="padding:10px 8px">כאל בלון 4.2%</th>
+                <th style="padding:10px 8px">כאל פריים 7.1%</th>
+                <th style="padding:10px 8px">ישיר 7%</th>
+                <th style="padding:10px 8px">ישיר 9%</th>
               </tr></thead>
               <tbody id="profitTableBody"></tbody>
             </table>
@@ -663,15 +668,21 @@
   function monthlyFV(p,r,n,fv){if(!p||!n)return 0;const mr=r/100/12;fv=fv||0;return mr?(p*mr-fv*mr/Math.pow(1+mr,n))/(1-Math.pow(1+mr,-n)):(p-fv)/n;}
   // 5 מסלולי מימון אמיתיים ממחשבון "ענק הרכבים"
   const FIN_PRIME=5.5;
+  function finTracks(loan){
+    loan=Number(loan||0);
+    if(!loan||loan<=1) return [0,0,0,0,0];
+    return [
+      monthly(loan,4.2,100),              // כאל צמוד מדד
+      monthlyFV(loan,4.2,60,loan*0.5),    // כאל צמוד + בלון 50%
+      monthly(loan,FIN_PRIME+1.6,100),    // כאל פריים +1.6%
+      monthly(loan,7.0,100),              // מימון ישיר 7%
+      monthly(loan,9.0,100)               // מימון ישיר 9%
+    ];
+  }
+  const FIN_LABELS=['כאל צמוד 4.2%','כאל בלון 4.2%','כאל פריים 7.1%','ישיר 7%','ישיר 9%'];
   function lowestMonthly(loan){
-    if(!loan||loan<=1) return 0;
-    return Math.min(
-      monthly(loan,4.2,100),
-      monthlyFV(loan,4.2,60,loan*0.5),
-      monthly(loan,FIN_PRIME+1.6,100),
-      monthly(loan,7.0,100),
-      monthly(loan,9.0,100)
-    );
+    const t=finTracks(loan).filter(x=>x>0);
+    return t.length?Math.min.apply(null,t):0;
   }
   function fmt(n){return Math.round(n).toLocaleString('he-IL')+' ₪';}
   function calcPreview(){
@@ -848,6 +859,7 @@
         <td style="padding:9px 8px"><input type="number" value="${lic||''}" onchange="updateLicenseFee(${c.id}, this.value)" style="width:90px;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:8px;text-align:right" placeholder="אגרה"></td>
         <td style="padding:9px 8px;font-weight:900;color:#a16207">${sell>1?fmt(sell+lic):'—'}</td>
         <td style="padding:9px 8px;font-weight:900;color:#15803d">${sell>1?fmt(lowestMonthly(sell+lic)):'—'}</td>
+        ${sell>1?finTracks(sell+lic).map(m=>`<td style="padding:9px 8px;color:#374151">${fmt(m)}</td>`).join(''):'<td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>'}
       </tr>`;
     }).join('');
     document.getElementById('st-sell').textContent=fmt(totalSell);
