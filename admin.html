@@ -167,6 +167,7 @@
                 <th style="padding:10px 8px">מחיר מכירה לפני רישוי</th>
                 <th style="padding:10px 8px">אגרת רישוי</th>
                 <th style="padding:10px 8px">מחיר אוטודילר כולל רישוי</th>
+                <th style="padding:10px 8px">החזר חודשי החל מ-</th>
               </tr></thead>
               <tbody id="profitTableBody"></tbody>
             </table>
@@ -658,6 +659,12 @@
 
   const BALLOON_RATE=4.3,INDEXED_RATE=4.3,PRIME_RATE=7.6;
   function monthly(p,r,n){if(!p||!n)return 0;const mr=r/100/12;return mr?p*mr/(1-Math.pow(1+mr,-n)):p/n;}
+  // החזר חודשי כמו באתר: בלון 50% (60 תש') / 100 צמוד / 100 פריים — הנמוך ביותר
+  function monthlyFV(p,r,n,fv){if(!p||!n)return 0;const mr=r/100/12;fv=fv||0;return mr?(p*mr-fv*mr/Math.pow(1+mr,n))/(1-Math.pow(1+mr,-n)):(p-fv)/n;}
+  function lowestMonthly(price){
+    if(!price||price<=1) return 0;
+    return Math.min(monthlyFV(price,BALLOON_RATE,60,price*0.5), monthly(price,INDEXED_RATE,100), monthly(price,PRIME_RATE,100));
+  }
   function fmt(n){return Math.round(n).toLocaleString('he-IL')+' ₪';}
   function calcPreview(){
     const p=Number(document.getElementById('f-price').value||0);
@@ -832,6 +839,7 @@
         <td style="padding:9px 8px"><input type="number" value="${sell>1?sell:''}" onchange="updateSellPrice(${c.id}, this.value)" style="width:110px;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:8px;text-align:right" placeholder="מחיר"></td>
         <td style="padding:9px 8px"><input type="number" value="${lic||''}" onchange="updateLicenseFee(${c.id}, this.value)" style="width:90px;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:8px;text-align:right" placeholder="אגרה"></td>
         <td style="padding:9px 8px;font-weight:900;color:#a16207">${sell>1?fmt(sell+lic):'—'}</td>
+        <td style="padding:9px 8px;font-weight:900;color:#15803d">${sell>1?fmt(lowestMonthly(sell+lic)):'—'}</td>
       </tr>`;
     }).join('');
     document.getElementById('st-sell').textContent=fmt(totalSell);
