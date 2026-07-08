@@ -1834,13 +1834,27 @@ display:none !important;
       if(r===0) return (p-f)/months;
       return (p*r - f*r/Math.pow(1+r,months)) / (1-Math.pow(1+r,-months));
     }
-    function balloon50(price){ 
+    function balloon50(price){
       const p = Number(price||0);
       const balloonAmt = p * 0.5;
-      return monthly(p, BALLOON_RATE, 60, balloonAmt); 
+      return monthly(p, BALLOON_RATE, 60, balloonAmt);
     }
     function indexed100(price){ return monthly(Number(price||0), INDEXED_RATE, 100); }
     function prime100(price){ return monthly(Number(price||0), PRIME_TRACK_RATE, 100); }
+    // === מחשבון מימון "ענק הרכבים" — 5 מסלולים אמיתיים ===
+    const FIN_PRIME = 5.5;
+    function financeLowest(loan){
+      loan = Number(loan||0);
+      if(!loan || loan<=1) return 0;
+      const tracks = [
+        monthly(loan, 4.2, 100),                 // כאל צמוד מדד
+        monthly(loan, 4.2, 60, loan*0.5),         // כאל צמוד + בלון 50%
+        monthly(loan, FIN_PRIME+1.6, 100),        // כאל פריים +1.6%
+        monthly(loan, 7.0, 100),                  // מימון ישיר 7%
+        monthly(loan, 9.0, 100)                   // מימון ישיר 9%
+      ];
+      return Math.min.apply(null, tracks);
+    }
     // תמחור אוטומטי: מחיר = עלות + 5,000 ₪ (עלויות כולל רישוי לפי מזהה רכב)
     const COST_BY_ID = {10:272990, 12:182990, 14:151490, 15:156490, 17:116990, 18:118990, 19:136990, 20:135990, 21:156490, 22:155990, 23:176990, 24:215990, 25:194990, 27:188990, 29:153490, 31:148990, 32:281990, 33:166490, 34:184990, 35:161990, 36:220490, 37:194990, 39:126490, 40:158990, 41:133490, 42:153990, 43:122990, 44:139990, 45:126990, 46:164990, 47:187990, 48:203990, 49:160990, 50:160990, 51:99490, 52:155990, 53:152990, 54:178490, 55:167490, 59:166990};
     const PRICE_MARKUP = 5000;
@@ -1859,7 +1873,7 @@ display:none !important;
         balloon50Monthly: fmt(balloon50(car.autodealerPriceNumber)),
         installment100Indexed: fmt(indexed100(car.autodealerPriceNumber)),
         installment100Prime: fmt(prime100(car.autodealerPriceNumber)),
-        lowestMonthly: fmt(Math.min(balloon50(car.autodealerPriceNumber), indexed100(car.autodealerPriceNumber), prime100(car.autodealerPriceNumber)))
+        lowestMonthly: fmt(financeLowest(car.autodealerPriceNumber))
       }
     }
     function status(score){
@@ -2415,7 +2429,7 @@ display:none !important;
       document.getElementById('effectivePriceLabel').textContent = fmt(effective);
 
       // ההחזר הנמוך ביותר מבין המסלולים
-      const lowest = Math.min(balloon50(effective), indexed100(effective), prime100(effective));
+      const lowest = financeLowest(effective);
       const b = fmt(lowest);
       document.getElementById('calcBalloon').textContent = b;
       const sb = document.getElementById('sideBalloon');

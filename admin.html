@@ -661,9 +661,17 @@
   function monthly(p,r,n){if(!p||!n)return 0;const mr=r/100/12;return mr?p*mr/(1-Math.pow(1+mr,-n)):p/n;}
   // החזר חודשי כמו באתר: בלון 50% (60 תש') / 100 צמוד / 100 פריים — הנמוך ביותר
   function monthlyFV(p,r,n,fv){if(!p||!n)return 0;const mr=r/100/12;fv=fv||0;return mr?(p*mr-fv*mr/Math.pow(1+mr,n))/(1-Math.pow(1+mr,-n)):(p-fv)/n;}
-  function lowestMonthly(price){
-    if(!price||price<=1) return 0;
-    return Math.min(monthlyFV(price,BALLOON_RATE,60,price*0.5), monthly(price,INDEXED_RATE,100), monthly(price,PRIME_RATE,100));
+  // 5 מסלולי מימון אמיתיים ממחשבון "ענק הרכבים"
+  const FIN_PRIME=5.5;
+  function lowestMonthly(loan){
+    if(!loan||loan<=1) return 0;
+    return Math.min(
+      monthly(loan,4.2,100),
+      monthlyFV(loan,4.2,60,loan*0.5),
+      monthly(loan,FIN_PRIME+1.6,100),
+      monthly(loan,7.0,100),
+      monthly(loan,9.0,100)
+    );
   }
   function fmt(n){return Math.round(n).toLocaleString('he-IL')+' ₪';}
   function calcPreview(){
