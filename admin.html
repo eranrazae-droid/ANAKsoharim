@@ -161,10 +161,12 @@
             </div>
           </div>
           <div style="overflow-x:auto">
-            <table style="width:100%;border-collapse:collapse;min-width:640px;font-size:13px">
+            <table style="width:100%;border-collapse:collapse;min-width:820px;font-size:13px">
               <thead><tr style="text-align:right;color:var(--muted);font-size:12px;border-bottom:2px solid var(--line)">
                 <th style="padding:10px 8px">רכב</th>
-                <th style="padding:10px 8px">מחיר מכירה</th>
+                <th style="padding:10px 8px">מחיר מכירה לפני רישוי</th>
+                <th style="padding:10px 8px">אגרת רישוי</th>
+                <th style="padding:10px 8px">מחיר אוטודילר כולל רישוי</th>
                 <th style="padding:10px 8px">עלות</th>
                 <th style="padding:10px 8px">רווח ₪</th>
                 <th style="padding:10px 8px">מרווח %</th>
@@ -807,11 +809,21 @@
     toast('✅ מחיר המכירה עודכן: '+fmt(n));
   }
 
+  function updateLicenseFee(id, val){
+    const c = cars.find(x=>x.id===id); if(!c) return;
+    c.licenseFee = Math.max(0, Number(val)||0);
+    saveCars();
+    saveCarToDB(c);
+    renderProfit();
+    toast('✅ אגרת רישוי עודכנה');
+  }
+
   function renderProfit(){
     const body=document.getElementById('profitTableBody'); if(!body) return;
     let totalSell=0, totalCost=0, totalProfit=0, counted=0;
     body.innerHTML = cars.map(c=>{
       const sell=Number(c.autodealerPriceNumber)||0;
+      const lic=Number(c.licenseFee)||0;
       const cost=getCost(c);
       const hasCost = cost>0 && sell>1;
       const profit = hasCost ? sell-cost : 0;
@@ -821,6 +833,8 @@
       return `<tr style="border-bottom:1px solid var(--line)">
         <td style="padding:9px 8px;font-weight:700">${c.brand} ${c.model}</td>
         <td style="padding:9px 8px"><input type="number" value="${sell>1?sell:''}" onchange="updateSellPrice(${c.id}, this.value)" style="width:110px;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:8px;text-align:right" placeholder="מחיר"></td>
+        <td style="padding:9px 8px"><input type="number" value="${lic||''}" onchange="updateLicenseFee(${c.id}, this.value)" style="width:90px;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:8px;text-align:right" placeholder="אגרה"></td>
+        <td style="padding:9px 8px;font-weight:900;color:#a16207">${sell>1?fmt(sell+lic):'—'}</td>
         <td style="padding:9px 8px">${cost?fmt(cost):'<span style=\"color:#dc2626\">חסר</span>'}</td>
         <td style="padding:9px 8px;font-weight:900;color:${pcol}">${hasCost?fmt(profit):'—'}</td>
         <td style="padding:9px 8px;font-weight:700;color:${pcol}">${hasCost?margin.toFixed(1)+'%':'—'}</td>
