@@ -1771,13 +1771,17 @@ display:none !important;
         const saved = localStorage.getItem(STORAGE_KEY);
         if(saved){
           const parsed = JSON.parse(saved);
-          if(Array.isArray(parsed) && parsed.length > 0) return parsed;
+          if(Array.isArray(parsed) && parsed.length > 0) return hideRemoved(parsed);
         }
       }catch(e){}
       return null;
     }
 
-    function cleanCars(arr){ return arr.map(c=>({...c,image:(c.image&&c.image.includes('supabase.co'))?'':c.image,gallery:(c.gallery||[]).filter(g=>g&&!g.includes('supabase.co'))})); }
+    // רכבים שנמחקו ידנית — מסוננים תמיד, גם אם עדיין קיימים בענן
+    const HIDDEN_IDS = [11, 13];
+    const HIDDEN_MODELS = ['ATTO 3 COMFORT FL','SEAL U DMI COMFORT PHEV 1.6'];
+    function hideRemoved(arr){ return (arr||[]).filter(c=> !HIDDEN_IDS.includes(c.id) && !HIDDEN_MODELS.includes((c.model||'').trim())); }
+    function cleanCars(arr){ return hideRemoved(arr).map(c=>({...c,image:(c.image&&c.image.includes('supabase.co'))?'':c.image,gallery:(c.gallery||[]).filter(g=>g&&!g.includes('supabase.co'))})); }
     async function initCars(){
       // Try cloud first, then localStorage, then seed data
       const fromCloud = await loadFromCloud();
