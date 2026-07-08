@@ -796,6 +796,17 @@
     toast('✅ עודכנו '+withCost.length+' מחירים לעלות + '+markup.toLocaleString()+' ₪');
   }
 
+  function updateSellPrice(id, val){
+    const c = cars.find(x=>x.id===id); if(!c) return;
+    const n = Number(val);
+    if(!n || n<=0){ toast('⚠️ הזן מחיר תקין'); renderProfit(); return; }
+    c.autodealerPriceNumber = n;
+    saveCars();
+    saveCarToDB(c);
+    renderAll();
+    toast('✅ מחיר המכירה עודכן: '+fmt(n));
+  }
+
   function renderProfit(){
     const body=document.getElementById('profitTableBody'); if(!body) return;
     let totalSell=0, totalCost=0, totalProfit=0, counted=0;
@@ -809,7 +820,7 @@
       const pcol = profit>0?'#15803d':(profit<0?'#b91c1c':'#6b7280');
       return `<tr style="border-bottom:1px solid var(--line)">
         <td style="padding:9px 8px;font-weight:700">${c.brand} ${c.model}</td>
-        <td style="padding:9px 8px">${sell>1?fmt(sell):'—'}</td>
+        <td style="padding:9px 8px"><input type="number" value="${sell>1?sell:''}" onchange="updateSellPrice(${c.id}, this.value)" style="width:110px;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:8px;text-align:right" placeholder="מחיר"></td>
         <td style="padding:9px 8px">${cost?fmt(cost):'<span style=\"color:#dc2626\">חסר</span>'}</td>
         <td style="padding:9px 8px;font-weight:900;color:${pcol}">${hasCost?fmt(profit):'—'}</td>
         <td style="padding:9px 8px;font-weight:700;color:${pcol}">${hasCost?margin.toFixed(1)+'%':'—'}</td>
