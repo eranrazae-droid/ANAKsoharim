@@ -1851,19 +1851,20 @@ display:none !important;
     // קטגוריית מרכב (גוף) לפי מזהה — משמש כברירת מחדל כשלא הוגדרה ידנית
     const CATEGORY_BY_ID = {19:'ג׳יפונים',25:'ג׳יפונים',28:'ג׳יפונים',29:'ג׳יפונים',31:'ג׳יפונים',32:'מסחריות',33:'משפחתיות',34:'ג׳יפונים',35:'ג׳יפונים',36:'מנהלים',37:'ג׳יפונים',38:'ג׳יפונים',39:'ג׳יפונים',40:'ג׳יפונים',41:'ג׳יפונים',42:'משפחתיות',43:'ג׳יפונים',44:'ג׳יפונים',45:'ג׳יפונים',46:'ג׳יפונים',47:'ג׳יפונים',48:'ג׳יפונים',49:'משפחתיות',50:'משפחתיות',52:'ג׳יפונים',53:'ג׳יפונים',54:'ג׳יפונים',55:'ג׳יפונים',56:'ג׳יפונים',57:'ג׳יפונים',58:'ג׳יפונים',59:'משפחתיות',60:'מסחריות'};
     function enrich(car){
-      const cost = Number(car.costPrice) || COST_BY_ID[car.id] || 0;
       const catFallback = car.category || CATEGORY_BY_ID[car.id] || '';
       car = {...car, category: catFallback};
-      if(cost > 0){ car = {...car, autodealerPriceNumber: cost + PRICE_MARKUP}; }
+      // המחיר בדיוק כפי שהוזן בדשבורד (מחיר מכירה לפני רישוי). החזר חודשי מחושב לפי המחיר כולל רישוי.
+      const lic = Number(car.licenseFee)||0;
+      const totalWithLic = Number(car.autodealerPriceNumber||0) + lic;
       return {
         ...car,
         catalogPrice: fmt(car.catalogPriceNumber),
         autodealerPrice: fmt(car.autodealerPriceNumber),
         discount: fmt(car.catalogPriceNumber - car.autodealerPriceNumber),
-        balloon50Monthly: fmt(balloon50(car.autodealerPriceNumber)),
-        installment100Indexed: fmt(indexed100(car.autodealerPriceNumber)),
-        installment100Prime: fmt(prime100(car.autodealerPriceNumber)),
-        lowestMonthly: fmt(financeLowest(car.autodealerPriceNumber))
+        balloon50Monthly: fmt(balloon50(totalWithLic)),
+        installment100Indexed: fmt(indexed100(totalWithLic)),
+        installment100Prime: fmt(prime100(totalWithLic)),
+        lowestMonthly: fmt(financeLowest(totalWithLic))
       }
     }
     function status(score){
@@ -2414,7 +2415,8 @@ display:none !important;
     function updateCalculator(){
       if(!selectedCar) return;
       const down = Number(document.getElementById('downPaymentRange').value || 0);
-      const effective = Math.max(0, selectedCar.autodealerPriceNumber - down);
+      const totalWithLic = Number(selectedCar.autodealerPriceNumber||0) + (Number(selectedCar.licenseFee)||0);
+      const effective = Math.max(0, totalWithLic - down);
       document.getElementById('downPaymentValue').textContent = fmt(down);
       document.getElementById('effectivePriceLabel').textContent = fmt(effective);
 
