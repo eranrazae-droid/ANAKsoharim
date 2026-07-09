@@ -915,6 +915,14 @@
     document.getElementById('st-vouchers').textContent=vouchers.filter(v=>!v.used).length;
   }
 
+  // סופר כמה שדות מפרט מלאים לרכב
+  function specFieldCount(c){
+    const sd=c.specData; if(!sd||typeof sd!=='object') return 0;
+    let n=0;
+    for(const g in sd){ const f=sd[g]; if(f&&typeof f==='object'){ for(const k in f){ const v=f[k]; if(v&&String(v).trim()&&!['--','-'].includes(String(v).trim())) n++; } } }
+    return n;
+  }
+
   function renderInventory(){
     const el=document.getElementById('inventoryList');if(!el)return;
     // מילוי רשימת יצרנים ב-Dropdown
@@ -930,6 +938,8 @@
     const filterBrand=sel?sel.value:'';
     const list=filterBrand?cars.filter(c=>c.brand===filterBrand):cars;
     el.innerHTML=list.map(c=>{
+      const specN=specFieldCount(c);
+      const specBadge = specN<20 ? `<span style="background:#fef2f2;color:#b91c1c;font-size:11px;font-weight:900;padding:3px 8px;border-radius:999px">📋 מפרט חסר${specN>0?' ('+specN+')':''}</span>` : '';
       const avail=(c.stockStatus||'זמין מיידי')==='זמין מיידי';
       const disc=Math.round((c.catalogPriceNumber-c.autodealerPriceNumber)/c.catalogPriceNumber*100);
       const gallery=(c.gallery||[]).filter(g=>g && !g.startsWith('data:image/svg'));
@@ -945,6 +955,7 @@
             <span class="badge-s ${avail?'badge-avail':'badge-out'}">${avail?'⚡ זמין מיידי':'אזל במלאי'}</span>
             <span style="background:#fef9e7;color:#a16207;font-size:11px;font-weight:900;padding:3px 8px;border-radius:999px">${c.category}</span>
             <span style="background:#fef2f2;color:#b91c1c;font-size:11px;font-weight:900;padding:3px 8px;border-radius:999px">-${disc}%</span>
+            ${specBadge}
           </div>
           <div style="margin-top:8px;font-size:13px">
             <span style="text-decoration:line-through;color:var(--muted)">${fmt(c.catalogPriceNumber)}</span>
