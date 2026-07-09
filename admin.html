@@ -193,6 +193,7 @@
         <div class="section-hd">
           <div><div class="eyebrow">מלאי</div><h2>רכבים קיימים</h2></div>
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <button class="btn btn-line btn-sm" onclick="showMissingSpecs()">📋 רשימת מפרט חסר</button>
             <select id="invBrandFilter" onchange="renderInventory()" style="min-width:180px">
               <option value="">כל היצרנים</option>
             </select>
@@ -913,6 +914,25 @@
     document.getElementById('st-avail').textContent=cars.filter(c=>(c.stockStatus||'זמין מיידי')==='זמין מיידי').length;
     document.getElementById('st-out').textContent=cars.filter(c=>c.stockStatus==='אזל במלאי').length;
     document.getElementById('st-vouchers').textContent=vouchers.filter(v=>!v.used).length;
+  }
+
+  // רשימת רכבים עם מפרט חסר — חלון קופץ + העתקה
+  function showMissingSpecs(){
+    const missing = cars.map(c=>({c,n:specFieldCount(c)})).filter(x=>x.n<20).sort((a,b)=>a.n-b.n);
+    const modal=document.createElement('div');
+    modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
+    modal.onclick=e=>{if(e.target===modal)modal.remove();};
+    const rowsTxt = missing.map((x,i)=>`${i+1}. ${x.c.brand} ${x.c.model}${x.n>0?' ('+x.n+' שדות)':' (ריק לגמרי)'}`).join('\n');
+    const box=document.createElement('div');
+    box.style.cssText='background:#fff;border-radius:20px;padding:24px;max-width:560px;width:100%;max-height:85vh;overflow-y:auto;direction:rtl;position:relative';
+    box.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'+
+      '<h2 style="font-size:20px;font-weight:900">📋 רכבים עם מפרט טכני חסר ('+missing.length+')</h2>'+
+      '<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="background:#f1f5f9;border:none;border-radius:50%;width:34px;height:34px;font-size:17px;cursor:pointer">✕</button></div>'+
+      (missing.length? '<div style="display:grid;gap:6px;font-size:14px">'+missing.map(x=>`<div style="display:flex;justify-content:space-between;padding:9px 12px;background:${x.n===0?'#fef2f2':'#fffbeb'};border-radius:10px"><span style="font-weight:700">${x.c.brand} ${x.c.model}</span><span style="color:${x.n===0?'#b91c1c':'#a16207'};font-weight:800">${x.n===0?'❌ ריק לגמרי':'⚠️ '+x.n+' שדות'}</span></div>`).join('')+'</div>'
+        : '<div style="text-align:center;padding:30px;color:#15803d;font-weight:800;font-size:16px">🎉 לכל הרכבים יש מפרט מלא!</div>')+
+      (missing.length?'<button onclick="navigator.clipboard&&navigator.clipboard.writeText(this.dataset.txt);this.textContent=\'✅ הועתק!\'" data-txt="'+rowsTxt.replace(/"/g,'&quot;')+'" style="width:100%;margin-top:16px;background:#0d0d0d;color:#fff;border:none;border-radius:12px;padding:13px;font-weight:900;cursor:pointer">📋 העתקת הרשימה</button>':'');
+    modal.appendChild(box);
+    document.body.appendChild(modal);
   }
 
   // סופר כמה שדות מפרט מלאים לרכב
