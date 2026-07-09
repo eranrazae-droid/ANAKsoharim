@@ -2206,15 +2206,26 @@ display:none !important;
     function goHome(){ showPage('homePage'); }
 
     // Reload cars when tab becomes visible (e.g. after admin update)
-    document.addEventListener('visibilitychange', function(){
-      if(document.visibilityState === 'visible'){
-        const fresh = loadSharedCars();
-        if(JSON.stringify(fresh) !== JSON.stringify(cars)){
-          cars = fresh;
-          renderCars();
-        }
+    // רענון מהענן — שומר על האתר מסונכרן עם שינויים מהאדמין
+    async function refreshFromCloud(){
+      const fresh = await loadFromCloud();
+      if(!fresh || !fresh.length) return;
+      const cleaned = cleanCars(fresh);
+      if(JSON.stringify(cleaned) === JSON.stringify(cars)) return;
+      cars = cleaned;
+      try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(cars)); }catch(e){}
+      renderCars();
+      const carPage = document.getElementById('carPage');
+      if(carPage && carPage.classList.contains('active') && selectedCar){
+        const r = cars.map(enrich).find(c=>c.id===selectedCar.id);
+        if(r){ selectedCar = r; }
       }
+    }
+    document.addEventListener('visibilitychange', function(){
+      if(document.visibilityState === 'visible') refreshFromCloud();
     });
+    // רענון אוטומטי כל 60 שניות כדי שמחירים/שינויים יופיעו גם בטאב פתוח
+    setInterval(refreshFromCloud, 60000);
 
     // Wire static payment buttons
     document.getElementById('bitBtn').addEventListener('click', openBitPayment);

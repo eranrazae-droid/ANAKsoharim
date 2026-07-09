@@ -723,16 +723,21 @@
 
   async function saveToCloud(data){
     const token = getGistToken();
-    if(!token) return;
-    try{
-      const r = await fetch('https://api.github.com/gists/'+GIST_ID, {
-        method:'PATCH',
-        headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json','Accept':'application/vnd.github+json'},
-        body: JSON.stringify({files:{'cars.json':{content:JSON.stringify(data)}}})
-      });
-      if(r.ok) toast('☁️ נתונים סונכרנו לענן');
-      else toast('❌ GitHub sync error: ' + r.status);
-    }catch(e){ console.warn('Cloud sync failed', e); }
+    if(!token){ alert('⚠️ אין טוקן — השינוי לא נשמר לענן!'); return; }
+    for(let attempt=1; attempt<=3; attempt++){
+      try{
+        const r = await fetch('https://api.github.com/gists/'+GIST_ID, {
+          method:'PATCH',
+          headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json','Accept':'application/vnd.github+json'},
+          body: JSON.stringify({files:{'cars.json':{content:JSON.stringify(data)}}})
+        });
+        if(r.ok){ toast('☁️ נשמר וסונכרן לכל המכשירים ולאתר'); return; }
+        if(attempt===3){ alert('❌ השמירה לענן נכשלה (שגיאה '+r.status+').\n\nהשינוי לא סונכרן לאתר! בדוק אינטרנט ונסה שוב.'); return; }
+      }catch(e){
+        if(attempt===3){ alert('❌ אין חיבור לענן.\n\nהשינוי לא סונכרן לאתר! בדוק את החיבור לאינטרנט ונסה שוב.'); return; }
+      }
+      await new Promise(res=>setTimeout(res, attempt*1200));
+    }
   }
 
   function isBadUrl(u){ return !u || u.startsWith('data:') || u.startsWith('blob:') || u.includes('supabase.co'); }
