@@ -158,8 +158,8 @@
           <div class="section-hd" style="margin-bottom:12px">
             <div><div class="eyebrow">רווחיות</div><h2 style="font-size:18px">מחיר עלות ורווח צפוי לכל רכב</h2></div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <select id="profitBrandFilter" onchange="renderProfit()" style="min-width:170px"><option value="">כל היצרנים</option></select>
               <button class="btn btn-gold btn-sm" onclick="applyMarkup(5000)">⚡ עדכן מחירים לעלות + 5,000 ₪</button>
-              <span class="muted" style="font-size:12px">חסר עלות? ערכו את הרכב והזינו "מחיר עלות"</span>
             </div>
           </div>
           <div style="overflow-x:auto">
@@ -862,8 +862,17 @@
 
   function renderProfit(){
     const body=document.getElementById('profitTableBody'); if(!body) return;
+    // מילוי דרופדאון יצרנים
+    const bsel=document.getElementById('profitBrandFilter');
+    if(bsel){
+      const brands=[...new Set(cars.map(c=>c.brand).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'he'));
+      const cur=bsel.value;
+      bsel.innerHTML='<option value="">כל היצרנים ('+cars.length+')</option>'+brands.map(b=>'<option value="'+b+'"'+(b===cur?' selected':'')+'>'+b+' ('+cars.filter(c=>c.brand===b).length+')</option>').join('');
+    }
+    const fBrand=bsel?bsel.value:'';
+    const rows = fBrand ? cars.filter(c=>c.brand===fBrand) : cars;
     let totalSell=0, totalCost=0, totalProfit=0, counted=0;
-    body.innerHTML = cars.map(c=>{
+    body.innerHTML = rows.map(c=>{
       const sell=Number(c.autodealerPriceNumber)||0;
       const lic=Number(c.licenseFee)||0;
       const cost=getCost(c);
