@@ -418,6 +418,22 @@ display:none !important;
 </style>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    // === Supabase — סנכרון בזמן אמת ===
+    const SB_URL = 'https://vwfmfjjdusirabgbkhvw.supabase.co';
+    const SB_KEY = 'sb_publishable_E6Dd48mtyJyw5_6vgP2lzw_Gaj-QcAx';
+    let _sb = null;
+    function sbClient(){ try{ if(!_sb && window.supabase) _sb = window.supabase.createClient(SB_URL, SB_KEY); }catch(e){} return _sb; }
+    async function sbLoad(){
+      const c = sbClient(); if(!c) return null;
+      try{
+        const { data, error } = await c.from('inventory').select('data').eq('id',1).maybeSingle();
+        if(error){ console.warn('sbLoad', error.message); return null; }
+        return (data && Array.isArray(data.data) && data.data.length) ? data.data : null;
+      }catch(e){ console.warn('sbLoad ex', e); return null; }
+    }
+  </script>
 </head>
 <body>
     <div style="background:#D4A017;color:#000;text-align:center;padding:12px 16px;font-size:17px;font-weight:800;cursor:pointer;direction:rtl;" onclick="document.getElementById('voucherSection')?.scrollIntoView({behavior:'smooth'})||showPage('homePage')">
@@ -1395,7 +1411,7 @@ display:none !important;
 
     const GIST_ID = '8a7f501101ace7802fcd74af85be4808';
 
-    async function loadFromCloud(){
+    async function loadFromGist(){
       try{
         const r = await fetch('https://api.github.com/gists/'+GIST_ID+'?t='+Date.now(), {
           headers:{'Accept':'application/vnd.github+json'},
@@ -1408,6 +1424,12 @@ display:none !important;
         const data = JSON.parse(content);
         return Array.isArray(data) && data.length > 0 ? data : null;
       }catch(e){ return null; }
+    }
+    // מקור אמת: Supabase (זמן אמת). אם ריק/נכשל — נופל אחורה ל-Gist הישן.
+    async function loadFromCloud(){
+      const fromSb = await sbLoad();
+      if(fromSb) return fromSb;
+      return await loadFromGist();
     }
 
     let cars = [
@@ -2224,8 +2246,22 @@ display:none !important;
     document.addEventListener('visibilitychange', function(){
       if(document.visibilityState === 'visible') refreshFromCloud();
     });
-    // רענון אוטומטי כל 60 שניות כדי שמחירים/שינויים יופיעו גם בטאב פתוח
+    // רענון אוטומטי כל 60 שניות (גיבוי) — Realtime למטה נותן עדכון מיידי
     setInterval(refreshFromCloud, 60000);
+    // === Supabase Realtime — עדכון מיידי בכל שינוי במלאי ===
+    (function subscribeRealtime(){
+      const c = sbClient(); if(!c){ setTimeout(subscribeRealtime, 1500); return; }
+      try{
+        c.channel('inv-site').on('postgres_changes', {event:'*', schema:'public', table:'inventory'}, function(payload){
+          const arr = payload && payload.new && payload.new.data;
+          if(Array.isArray(arr) && arr.length){
+            cars = cleanCars(arr);
+            try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(cars)); }catch(e){}
+            renderCars();
+          }
+        }).subscribe();
+      }catch(e){ console.warn('realtime', e); }
+    })();
 
     // Wire static payment buttons
     document.getElementById('bitBtn').addEventListener('click', openBitPayment);
