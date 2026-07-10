@@ -149,15 +149,9 @@
           <div class="stat-card stat-amber"><div class="label">אזל במלאי</div><div class="value" id="st-out">0</div><div class="sub">לא זמין</div></div>
           <div class="stat-card stat-red"><div class="label">שוברים פעילים</div><div class="value" id="st-vouchers">0</div><div class="sub">ב-300 ₪</div></div>
         </div>
-        <div class="stats-grid">
-          <div class="stat-card"><div class="label">שווי מכירה כולל</div><div class="value" id="st-sell" style="font-size:26px">₪0</div><div class="sub">סך מחירי אוטודילר</div></div>
-          <div class="stat-card"><div class="label">עלות כוללת</div><div class="value" id="st-cost" style="font-size:26px">₪0</div><div class="sub">סך עלויות (כולל רישוי)</div></div>
-          <div class="stat-card stat-green"><div class="label">רווח צפוי כולל</div><div class="value" id="st-profit" style="font-size:26px">₪0</div><div class="sub">אם כל המלאי יימכר</div></div>
-          <div class="stat-card stat-amber"><div class="label">רווח ממוצע לרכב</div><div class="value" id="st-profit-avg" style="font-size:26px">₪0</div><div class="sub" id="st-margin">0% מרווח</div></div>
-        </div>
         <div class="card panel" style="margin-bottom:20px">
           <div class="section-hd" style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
-            <div><div class="eyebrow">רווחיות</div><h2 style="font-size:18px">מחיר עלות ורווח צפוי לכל רכב</h2></div>
+            <div><div class="eyebrow">מחירים</div><h2 style="font-size:18px">מחירים והחזר חודשי לכל רכב</h2></div>
             <select id="profitBrandFilter" onchange="renderProfit()" style="min-width:200px"><option value="">כל היצרנים</option></select>
           </div>
           <div style="overflow-x:auto">
@@ -910,11 +904,11 @@
 
   function updateImporterPrice(id, val){
     const c = cars.find(x=>x.id===id); if(!c) return;
-    c.costPrice = Math.max(0, Number(val)||0);
+    c.catalogPriceNumber = Math.max(0, Number(val)||0);
     saveCars();
     saveCarToDB(c);
     renderProfit();
-    toast('✅ מחיר יבואן עודכן');
+    toast('✅ מחיר יבואן (מחירון) עודכן');
   }
 
   function updateLicenseFee(id, val){
@@ -937,32 +931,21 @@
     }
     const fBrand=bsel?bsel.value:'';
     const rows = fBrand ? cars.filter(c=>c.brand===fBrand) : cars;
-    let totalSell=0, totalCost=0, totalProfit=0, counted=0;
     body.innerHTML = rows.map(c=>{
       const sell=Number(c.autodealerPriceNumber)||0;
       const lic=Number(c.licenseFee)||0;
-      const cost=getCost(c);
-      const hasCost = cost>0 && sell>1;
-      const profit = hasCost ? sell-cost : 0;
-      const margin = hasCost && sell ? (profit/sell*100) : 0;
-      if(hasCost){ totalSell+=sell; totalCost+=cost; totalProfit+=profit; counted++; }
-      const pcol = profit>0?'#15803d':(profit<0?'#b91c1c':'#6b7280');
+      const cat=Number(c.catalogPriceNumber)||0;
       const incomplete = !(sell>1) || !(lic>0);
       return `<tr style="border-bottom:1px solid var(--line)${incomplete?';background:#f3e8ff':''}">
         <td style="padding:9px 8px;font-weight:700">${incomplete?'🟣 ':''}${c.brand} ${c.model}</td>
         <td style="padding:9px 8px;text-align:center"><button onclick="toggleSiteVisible(${c.id})" style="border:none;border-radius:999px;padding:5px 12px;font-weight:900;font-size:12px;cursor:pointer;color:#fff;background:${c.hidden?'#9ca3af':'#16a34a'}">${c.hidden?'OFF':'ON'}</button></td>
-        <td style="padding:9px 8px"><input type="number" value="${cost>0?cost:''}" onchange="updateImporterPrice(${c.id}, this.value)" style="width:110px;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:8px;text-align:right" placeholder="עלות יבואן"></td>
+        <td style="padding:9px 8px"><input type="number" value="${cat>1?cat:''}" onchange="updateImporterPrice(${c.id}, this.value)" style="width:110px;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:8px;text-align:right" placeholder="מחירון יבואן"></td>
         <td style="padding:9px 8px"><input type="number" value="${sell>1?sell:''}" onchange="updateSellPrice(${c.id}, this.value)" style="width:110px;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:8px;text-align:right" placeholder="מחיר"></td>
         <td style="padding:9px 8px"><input type="number" value="${lic||''}" onchange="updateLicenseFee(${c.id}, this.value)" style="width:90px;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:8px;text-align:right" placeholder="אגרה"></td>
         <td style="padding:9px 8px;font-weight:900;color:#a16207">${sell>1?fmt(sell+lic):'—'}</td>
         ${sell>1?finTracks(sell+lic).map((m,i)=>({m,l:FIN_LABELS[i]})).sort((a,b)=>a.m-b.m).map((o,idx)=>`<td style="padding:9px 8px;text-align:center;${idx===0?'background:#f0fdf4':''}"><div style="font-size:10px;color:#6b7280">${o.l}</div><div style="font-weight:800;color:${idx===0?'#15803d':'#374151'}">${fmt(o.m)}</div></td>`).join(''):'<td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>'}
       </tr>`;
     }).join('');
-    document.getElementById('st-sell').textContent=fmt(totalSell);
-    document.getElementById('st-cost').textContent=fmt(totalCost);
-    document.getElementById('st-profit').textContent=fmt(totalProfit);
-    document.getElementById('st-profit-avg').textContent= counted?fmt(totalProfit/counted):'₪0';
-    document.getElementById('st-margin').textContent= totalSell?((totalProfit/totalSell*100).toFixed(1)+'% מרווח ממוצע'):'0%';
   }
 
   function renderAll(){updateStats();renderInventory();renderLeads();renderVouchers();renderDash();renderProfit();}
