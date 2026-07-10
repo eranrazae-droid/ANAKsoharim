@@ -2230,10 +2230,12 @@ display:none !important;
     // Reload cars when tab becomes visible (e.g. after admin update)
     // רענון מהענן — שומר על האתר מסונכרן עם שינויים מהאדמין
     async function refreshFromCloud(){
-      const fresh = await loadFromCloud();
+      let fresh = null;
+      try{ fresh = await loadFromCloud(); }catch(e){ console.warn('[sync] refresh err', e); return; }
       if(!fresh || !fresh.length) return;
       const cleaned = cleanCars(fresh);
       if(JSON.stringify(cleaned) === JSON.stringify(cars)) return;
+      console.log('[sync] זוהה שינוי — מעדכן את האתר');
       cars = cleaned;
       try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(cars)); }catch(e){}
       renderCars();
@@ -2246,20 +2248,23 @@ display:none !important;
     document.addEventListener('visibilitychange', function(){
       if(document.visibilityState === 'visible') refreshFromCloud();
     });
-    // רענון אוטומטי כל 60 שניות (גיבוי) — Realtime למטה נותן עדכון מיידי
-    setInterval(refreshFromCloud, 60000);
+    // רענון אוטומטי כל 15 שניות (גיבוי אמין) — Realtime למטה נותן עדכון מיידי
+    setInterval(refreshFromCloud, 15000);
     // === Supabase Realtime — עדכון מיידי בכל שינוי במלאי ===
     (function subscribeRealtime(){
-      const c = sbClient(); if(!c){ setTimeout(subscribeRealtime, 1500); return; }
+      const c = sbClient();
+      if(!c){ console.log('[sync] ממתין ל-Supabase...'); setTimeout(subscribeRealtime, 1500); return; }
+      console.log('[sync] Supabase מחובר, נרשם לעדכונים בזמן אמת');
       try{
         c.channel('inv-site').on('postgres_changes', {event:'*', schema:'public', table:'inventory'}, function(payload){
           const arr = payload && payload.new && payload.new.data;
+          console.log('[sync] התקבל עדכון בזמן אמת', Array.isArray(arr)?arr.length+' רכבים':'');
           if(Array.isArray(arr) && arr.length){
             cars = cleanCars(arr);
             try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(cars)); }catch(e){}
             renderCars();
           }
-        }).subscribe();
+        }).subscribe(function(status){ console.log('[sync] סטטוס realtime:', status); });
       }catch(e){ console.warn('realtime', e); }
     })();
 
