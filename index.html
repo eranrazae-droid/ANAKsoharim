@@ -475,7 +475,7 @@ display:none !important;
             <input id="a_year" type="text" placeholder="שנה" value="2026" />
             <input id="a_image" type="text" placeholder="קישור לתמונה" />
             <input id="a_badge" type="text" placeholder="באדג׳" value="דיל חדש" />
-            <select id="a_category"><option>קטנות</option><option>משפחתיות</option><option>מנהלים</option><option>ג׳יפונים</option><option>חשמלי מלא</option><option>היברידי</option><option>היברידי פלאג-אין</option><option>מסחריות</option></select>
+            <select id="a_category"><option>קטנות</option><option>משפחתיות</option><option>מנהלים</option><option>ג׳יפונים</option><option>7 מקומות</option><option>חשמלי מלא</option><option>היברידי</option><option>היברידי פלאג-אין</option><option>מסחריות</option></select>
             <input id="a_catalog" type="number" placeholder="מחירון כולל רישוי" />
             <input id="a_price" type="number" placeholder="מחיר אוטודילר לפני רישוי" oninput="previewAdminCalc()" />
             <input id="a_summary" type="text" placeholder="תיאור קצר" />
@@ -722,7 +722,7 @@ display:none !important;
               <select id="filterCategory" onchange="filterCatalog()">
                 <option value="">כל הקטגוריות</option>
                 <option>קטנות</option><option>משפחתיות</option><option>מנהלים</option>
-                <option>ג׳יפונים</option><option>מסחריות</option>
+                <option>ג׳יפונים</option><option>7 מקומות</option><option>מסחריות</option>
               </select>
               <select id="filterEngine" onchange="filterCatalog()">
                 <option value="">כל סוגי המנוע</option>
@@ -2150,6 +2150,25 @@ display:none !important;
       if(e.includes('בנזין')) return 'בנזין';
       return '';
     }
+    // זיהוי רכב 7 מקומות — לפי קטגוריה מפורשת או מהמפרט (מקומות ישיבה)
+    function is7Seats(c){
+      if((c.category||'').includes('7 מקומות')) return true;
+      const sd = c.specData;
+      if(sd && typeof sd==='object'){
+        for(const g in sd){
+          const f = sd[g];
+          if(f && typeof f==='object'){
+            for(const k in f){
+              if(k.includes('מקומות ישיבה')){
+                const v = String(f[k]||'');
+                if(v.includes('7')) return true;
+              }
+            }
+          }
+        }
+      }
+      return false;
+    }
     function populateBrands(){
       const sel = document.getElementById('filterBrand'); if(!sel) return;
       const brands = [...new Set(cars.map(c=>c.brand).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'he'));
@@ -2178,7 +2197,7 @@ display:none !important;
         const matchSearch = !search || (c.brand+' '+c.model).toLowerCase().includes(search.toLowerCase());
         const matchBrand = !brand || c.brand === brand;
         const matchModel = !model || c.model === model;
-        const matchCat = !cat || (c.category||'').includes(cat) || cat.includes(c.category||' ');
+        const matchCat = !cat || (cat==='7 מקומות' ? is7Seats(c) : ((c.category||'').includes(cat) || (c.category||'').length>0 && cat.indexOf(c.category)>=0));
         const matchEngine = !engine || engineType(c) === engine;
         let matchPrice = true;
         if(priceRange) {
