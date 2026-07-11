@@ -317,7 +317,10 @@
         <div class="card panel" style="margin:16px 0">
           <div style="font-weight:900;margin-bottom:12px">➕ רישום עסקה חדשה</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
-            <input id="dealCarNum" type="text" placeholder="מספר רכב">
+            <div style="position:relative">
+              <input id="dealCarNum" type="text" placeholder="מספר רכב (הקש Enter לשליפה)" onkeydown="if(event.key==='Enter'){event.preventDefault();lookupCarNumber();}" style="width:100%">
+              <span id="dealCarLookupStatus" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:12px;color:#64748b;pointer-events:none"></span>
+            </div>
             <input id="dealCarType" type="text" placeholder="סוג הרכב (דגם)">
             <input id="dealCustomer" type="text" placeholder="שם לקוח">
             <input id="dealPhone" type="tel" placeholder="נייד לקוח">
@@ -1187,6 +1190,38 @@
     total+=finComm;
     const dt=document.getElementById('dealTotal'); if(dt) dt.textContent=total.toLocaleString('he-IL')+' ₪';
     return total;
+  }
+  // שליפת פרטי רכב ממאגר משרד התחבורה (data.gov.il) לפי מספר רישוי
+  async function lookupCarNumber(){
+    const inp=document.getElementById('dealCarNum');
+    const st=document.getElementById('dealCarLookupStatus');
+    if(!inp) return;
+    const plate=(inp.value||'').replace(/[^0-9]/g,'').trim();
+    if(!plate){ if(st) st.textContent=''; return; }
+    if(st){ st.textContent='מחפש…'; st.style.color='#64748b'; }
+    // מאגרים לפי סוג רכב: פרטי, מסחרי, דו-גלגלי
+    const resources=[
+      '053cea08-09bc-40ec-8f7a-156f0677aff3', // רכב פרטי ומסחרי
+      'cd3acc5c-03c3-4c89-9c54-d40f93c0d790', // רכב מסחרי כבד N2/N3
+      'bf9df4e2-d90d-4c0a-a400-19e15af8e95f'  // דו-גלגלי
+    ];
+    try{
+      for(const rid of resources){
+        const url='https://data.gov.il/api/3/action/datastore_search?resource_id='+rid+'&q='+plate;
+        let r; try{ r=await fetch(url); }catch(e){ continue; }
+        if(!r.ok) continue;
+        const j=await r.json();
+        const rec=(j&&j.result&&j.result.records||[]).find(x=>String(x.mispar_rechev)===plate);
+        if(rec){
+          const parts=[rec.tozeret_nm, rec.kinuy_mishari||rec.degem_nm, rec.shnat_yitzur].filter(Boolean);
+          const model=parts.join(' ').replace(/\s+/g,' ').trim();
+          const dt=document.getElementById('dealCarType'); if(dt&&model) dt.value=model;
+          if(st){ st.textContent='✓'; st.style.color='#15803d'; }
+          return;
+        }
+      }
+      if(st){ st.textContent='לא נמצא'; st.style.color='#dc2626'; }
+    }catch(e){ if(st){ st.textContent='שגיאה'; st.style.color='#dc2626'; } }
   }
   async function addDeal(){
     let voucher=0, bonus=0; const parts=[];
