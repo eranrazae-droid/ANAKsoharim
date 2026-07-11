@@ -310,13 +310,18 @@
       <div id="tab-pay" class="hidden">
         <div class="section-hd"><div><div class="eyebrow">שכר</div><h2>השכר שלי</h2></div></div>
         <div class="stats-grid" style="grid-template-columns:repeat(3,1fr)">
-          <div class="stat-card stat-green"><div class="label">סה"כ להעברה</div><div class="value" id="pay-total" style="font-size:30px">₪0</div><div class="sub">סכום כולל שהרווחת</div></div>
-          <div class="stat-card"><div class="label">מספר רשומות</div><div class="value" id="pay-count">0</div><div class="sub">שוברים + בונוסים</div></div>
-          <div class="stat-card stat-amber"><div class="label">החודש</div><div class="value" id="pay-month" style="font-size:30px">₪0</div><div class="sub">מתחילת החודש</div></div>
+          <div class="stat-card stat-green"><div class="label">הכנסות כלליות החודש</div><div class="value" id="pay-month-all" style="font-size:28px">₪0</div><div class="sub">שוברים + כל העמלות</div></div>
+          <div class="stat-card stat-amber"><div class="label">הכנסות החודש מענק הרכבים</div><div class="value" id="pay-month-ganak" style="font-size:28px">₪0</div><div class="sub">💡 סכום החשבונית שתוציאי לענק</div></div>
+          <div class="stat-card"><div class="label">סה"כ כללי (מצטבר)</div><div class="value" id="pay-total" style="font-size:28px">₪0</div><div class="sub"><span id="pay-count">0</span> עסקאות</div></div>
         </div>
         <div class="card panel" style="margin:16px 0">
           <div style="font-weight:900;margin-bottom:12px">➕ רישום עסקה חדשה</div>
-          <input id="dealName" type="text" placeholder="שם לקוח / רכב (לא חובה)" style="width:100%;margin-bottom:12px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+            <input id="dealCarNum" type="text" placeholder="מספר רכב">
+            <input id="dealCarType" type="text" placeholder="סוג הרכב (דגם)">
+            <input id="dealCustomer" type="text" placeholder="שם לקוח">
+            <input id="dealPhone" type="tel" placeholder="נייד לקוח">
+          </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
             <label style="display:flex;align-items:center;gap:8px;background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:10px;cursor:pointer;font-size:13px"><input type="checkbox" class="dealChk" data-amt="300" onchange="calcDeal()" style="width:18px;height:18px"> 🎟️ שובר <b>(300₪)</b></label>
             <label style="display:flex;align-items:center;gap:8px;background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:10px;cursor:pointer;font-size:13px"><input type="checkbox" class="dealChk" data-amt="1000" onchange="calcDeal()" style="width:18px;height:18px"> 🚗 עמלת מכירה <b>(1,000₪)</b></label>
@@ -1184,19 +1189,25 @@
     return total;
   }
   async function addDeal(){
-    let total=0; const parts=[];
-    document.querySelectorAll('.dealChk').forEach(chk=>{ if(chk.checked){ const a=Number(chk.dataset.amt)||0; total+=a; parts.push(chk.parentElement.textContent.trim().replace(/\s+/g,' ')); } });
+    let voucher=0, bonus=0; const parts=[];
+    document.querySelectorAll('.dealChk').forEach(chk=>{ if(chk.checked){ const a=Number(chk.dataset.amt)||0; if(a===300){ voucher+=a; } else { bonus+=a; } parts.push(chk.parentElement.textContent.trim().replace(/\s+/g,' ')); } });
     const fin=Number((document.getElementById('dealFinance')||{}).value||0);
     const finComm=Math.round(fin*FINANCE_PCT/100);
-    if(finComm>0){ total+=finComm; parts.push('מימון 0.5% ('+finComm.toLocaleString('he-IL')+'₪)'); }
+    if(finComm>0){ bonus+=finComm; parts.push('מימון 0.5% ('+finComm.toLocaleString('he-IL')+'₪)'); }
+    const total=voucher+bonus;
     if(total<=0){ toast('⚠️ סמן לפחות עמלה אחת'); return; }
-    const name=((document.getElementById('dealName')||{}).value||'').trim();
-    const note=(name?name+' — ':'')+parts.join(' + ');
-    try{ const c=sbClient(); if(c) await c.from('earnings').insert({amount:total,note:note,created_at:new Date().toISOString()}); }catch(e){}
-    // reset
+    const rec={
+      amount:total, voucher:voucher, bonus:bonus,
+      car_number:((document.getElementById('dealCarNum')||{}).value||'').trim(),
+      car_type:((document.getElementById('dealCarType')||{}).value||'').trim(),
+      customer:((document.getElementById('dealCustomer')||{}).value||'').trim(),
+      phone:((document.getElementById('dealPhone')||{}).value||'').trim(),
+      note:parts.join(' + '), created_at:new Date().toISOString()
+    };
+    try{ const c=sbClient(); if(c) await c.from('earnings').insert(rec); }catch(e){}
     document.querySelectorAll('.dealChk').forEach(chk=>chk.checked=false);
-    document.getElementById('dealFinance').value=''; document.getElementById('dealName').value=''; calcDeal();
-    loadPay(); toast('✅ עסקה נוספה לשכר: '+fmt(total));
+    ['dealFinance','dealCarNum','dealCarType','dealCustomer','dealPhone'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';}); calcDeal();
+    loadPay(); toast('✅ עסקה נוספה: '+fmt(total));
   }
 
   async function addPay(){
@@ -1208,17 +1219,29 @@
   async function deletePay(id){ if(!confirm('למחוק רשומה?'))return; try{ const c=sbClient(); if(c) await c.from('earnings').delete().eq('id',id); }catch(e){} loadPay(); }
   function renderPay(){
     const el=document.getElementById('payList'); if(!el) return;
+    const now=new Date();
+    const thisMonth=p=>{const d=new Date(p.created_at);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();};
     const total=payData.reduce((s,p)=>s+(Number(p.amount)||0),0);
-    const now=new Date(); const monthTotal=payData.filter(p=>{const d=new Date(p.created_at);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();}).reduce((s,p)=>s+(Number(p.amount)||0),0);
-    const ts=document.getElementById('pay-total'); if(ts) ts.textContent=fmt(total);
-    const pc=document.getElementById('pay-count'); if(pc) pc.textContent=payData.length;
-    const pm=document.getElementById('pay-month'); if(pm) pm.textContent=fmt(monthTotal);
-    if(!payData.length){ el.innerHTML='<div style="text-align:center;padding:30px;color:var(--muted)">אין עדיין רשומות שכר.</div>'; return; }
-    el.innerHTML=payData.map(p=>`<div class="card panel" style="margin-bottom:8px;display:flex;align-items:center;gap:12px">
-      <div style="font-size:20px;font-weight:900;color:#15803d;min-width:90px">${fmt(Number(p.amount)||0)}</div>
-      <div style="flex:1;font-size:14px">${p.note||'—'}<div style="font-size:12px;color:var(--muted)">${p.created_at?new Date(p.created_at).toLocaleDateString('he-IL'):''}</div></div>
-      <button onclick="deletePay(${p.id})" class="btn btn-red btn-sm">🗑</button>
-    </div>`).join('');
+    const monthAll=payData.filter(thisMonth).reduce((s,p)=>s+(Number(p.amount)||0),0);
+    const monthGanak=payData.filter(thisMonth).reduce((s,p)=>s+(Number(p.bonus)!=null?Number(p.bonus):0),0);
+    const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+    set('pay-month-all',fmt(monthAll)); set('pay-month-ganak',fmt(monthGanak)); set('pay-total',fmt(total)); set('pay-count',payData.length);
+    if(!payData.length){ el.innerHTML='<div style="text-align:center;padding:30px;color:var(--muted)">אין עדיין רשומות שכר. רשמי עסקה למעלה.</div>'; return; }
+    el.innerHTML=payData.map(p=>{
+      const details=[p.car_type,p.car_number,p.customer,p.phone].filter(Boolean).join(' · ');
+      return `<div class="card panel" style="margin-bottom:8px;display:flex;align-items:flex-start;gap:12px">
+        <div style="min-width:100px">
+          <div style="font-size:19px;font-weight:900;color:#15803d">${fmt(Number(p.amount)||0)}</div>
+          ${(Number(p.bonus)>0)?`<div style="font-size:11px;color:#a16207">מזה מענק: ${fmt(Number(p.bonus))}</div>`:''}
+        </div>
+        <div style="flex:1;font-size:13px">
+          ${details?`<div style="font-weight:800;font-size:14px">${details}</div>`:''}
+          <div style="color:#6b7280;margin-top:2px">${p.note||'—'}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:3px">${p.created_at?new Date(p.created_at).toLocaleDateString('he-IL'):''}</div>
+        </div>
+        <button onclick="deletePay(${p.id})" class="btn btn-red btn-sm">🗑</button>
+      </div>`;
+    }).join('');
   }
 
   async function loadLeadsFromCloud(){
