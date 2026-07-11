@@ -669,6 +669,7 @@
         if(data && data.length > 0) { cars = cleanCars(data); localStorage.setItem(STORAGE_KEY, JSON.stringify(cars)); }
         renderAll();
       });
+      loadTasks().then(function(){ setTimeout(showWelcome, 700); });
     } else {
       document.getElementById('loginErr').classList.remove('hidden');
     }
@@ -737,7 +738,7 @@
       // לידים חדשים בזמן אמת
       loadLeadsFromCloud();
       c.channel('leads-admin').on('postgres_changes', {event:'INSERT', schema:'public', table:'leads'}, function(){ loadLeadsFromCloud(); }).subscribe();
-      loadTasks(); loadPay();
+      loadTasks().then(function(){ setTimeout(showWelcome, 600); }); loadPay();
       c.channel('tasks-admin').on('postgres_changes', {event:'*', schema:'public', table:'tasks'}, function(){ loadTasks(); }).subscribe();
       c.channel('earnings-admin').on('postgres_changes', {event:'*', schema:'public', table:'earnings'}, function(){ loadPay(); }).subscribe();
     }catch(e){ console.warn('admin realtime', e); }
@@ -1098,6 +1099,31 @@
         </div>
       </div>`;
     }).join('');
+  }
+
+  // ===== חלון קבלת פנים =====
+  let welcomeShown = false;
+  function showWelcome(){
+    if(welcomeShown) return;
+    if(sessionStorage.getItem('ad_auth')!=='1') return;
+    welcomeShown = true;
+    const openCount = tasksData.filter(t=>!t.done).length;
+    const modal=document.createElement('div');
+    modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px';
+    modal.onclick=function(e){ if(e.target===modal) modal.remove(); };
+    const box=document.createElement('div');
+    box.style.cssText='background:#fff;border-radius:24px;padding:34px 28px;max-width:380px;width:100%;text-align:center;direction:rtl;box-shadow:0 20px 60px rgba(0,0,0,.3)';
+    box.innerHTML=
+      '<div style="font-size:30px;letter-spacing:6px">❤️❤️❤️</div>'+
+      '<h2 style="font-size:26px;font-weight:900;margin-top:14px">היי הילה 💛</h2>'+
+      '<div style="font-size:18px;color:#374151;margin-top:10px;line-height:1.6">יש לך <b style="color:#a16207;font-size:22px">'+openCount+'</b> '+(openCount===1?'משימה פתוחה':'משימות פתוחות')+'</div>'+
+      '<div style="font-size:30px;letter-spacing:6px;margin-top:14px">❤️❤️❤️</div>'+
+      '<div style="display:grid;gap:10px;margin-top:22px">'+
+        '<button onclick="this.closest(\'div[style*=fixed]\').remove();showTab(\'tasks\')" style="background:#0d0d0d;color:#fff;border:none;border-radius:14px;padding:14px;font-weight:900;font-size:15px;cursor:pointer">📋 למשימות שלי</button>'+
+        '<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="background:#f1f5f9;color:#374151;border:none;border-radius:14px;padding:12px;font-weight:700;font-size:14px;cursor:pointer">סגור</button>'+
+      '</div>';
+    modal.appendChild(box);
+    document.body.appendChild(modal);
   }
 
   // ===== משימות =====
