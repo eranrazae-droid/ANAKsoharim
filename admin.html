@@ -1204,7 +1204,17 @@
       phone:((document.getElementById('dealPhone')||{}).value||'').trim(),
       note:parts.join(' + '), created_at:new Date().toISOString()
     };
-    try{ const c=sbClient(); if(c) await c.from('earnings').insert(rec); }catch(e){}
+    try{
+      const c=sbClient();
+      if(c){
+        const {error}=await c.from('earnings').insert(rec);
+        if(error){
+          console.warn('deal full insert failed, fallback', error.message);
+          const details=[rec.car_type,rec.car_number,rec.customer,rec.phone].filter(Boolean).join(' · ');
+          await c.from('earnings').insert({amount:total, note:(details?details+' — ':'')+rec.note, created_at:rec.created_at});
+        }
+      }
+    }catch(e){ console.warn('deal insert', e); }
     document.querySelectorAll('.dealChk').forEach(chk=>chk.checked=false);
     ['dealFinance','dealCarNum','dealCarType','dealCustomer','dealPhone'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';}); calcDeal();
     loadPay(); toast('✅ עסקה נוספה: '+fmt(total));
