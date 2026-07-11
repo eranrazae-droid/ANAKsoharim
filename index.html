@@ -3008,10 +3008,13 @@ display:none !important;
       </div>
       <button onclick="toggleChat()" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer">✕</button>
     </div>
-    <div style="padding:18px;background:#f8fafc;max-height:300px;overflow-y:auto">
-      <div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 14px;font-size:14px;line-height:1.6;margin-bottom:12px">
-        היי! 👋 אני כאן לעזור לך למצוא את הרכב המשתלם ביותר.<br>השאירו שם וטלפון ונציג יחזור אליכם עם הצעה אישית — <b>בלי התחייבות</b>.
+    <div style="padding:18px;background:#f8fafc;max-height:360px;overflow-y:auto" id="chatScroll">
+      <div id="chatMessages">
+        <div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 14px;font-size:14px;line-height:1.6;margin-bottom:12px">
+          היי! 👋 אני כאן לעזור לך למצוא את הרכב המשתלם ביותר.<br>יש לך שאלה? לחצו על אחת מהשאלות למטה, או השאירו פרטים ונחזור אליכם.
+        </div>
       </div>
+      <div id="chatFaq" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px"></div>
       <div id="chatForm" style="display:grid;gap:10px">
         <input id="chat_name" type="text" placeholder="שם מלא" style="width:100%;padding:11px 14px;border:1px solid var(--line);border-radius:12px;text-align:right;direction:rtl">
         <input id="chat_phone" type="tel" placeholder="טלפון נייד (05X-XXXXXXX)" style="width:100%;padding:11px 14px;border:1px solid var(--line);border-radius:12px;text-align:right;direction:rtl">
@@ -3027,7 +3030,18 @@ display:none !important;
   </div>
   <button id="chatBubble" onclick="toggleChat()" style="position:fixed;bottom:24px;left:20px;z-index:9996;background:#0d0d0d;color:#D4A017;border:none;border-radius:999px;padding:13px 20px;font-weight:900;font-size:15px;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.3);display:flex;align-items:center;gap:8px">💬 ייעוץ חינם</button>
   <script>
-    function toggleChat(){ var p=document.getElementById('chatPanel'); var b=document.getElementById('chatBubble'); if(!p) return; var open=p.style.display!=='block'; p.style.display=open?'block':'none'; if(b) b.style.display=open?'none':'flex'; }
+    function renderChatFaq(){
+      var el=document.getElementById('chatFaq'); if(!el||typeof faqs==='undefined') return;
+      el.innerHTML=faqs.slice(0,6).map(function(f,i){ return '<button onclick="askFaq('+i+')" style="background:#fff;border:1px solid #D4A017;color:#a16207;border-radius:999px;padding:6px 12px;font-size:12.5px;font-weight:700;cursor:pointer">'+f.q+'</button>'; }).join('');
+    }
+    function askFaq(i){
+      var f=faqs[i]; if(!f) return;
+      var m=document.getElementById('chatMessages'); var sc=document.getElementById('chatScroll');
+      m.innerHTML+='<div style="background:#0d0d0d;color:#fff;border-radius:14px 14px 4px 14px;padding:10px 13px;font-size:13.5px;margin:0 0 8px auto;max-width:85%;width:fit-content">'+f.q+'</div>';
+      m.innerHTML+='<div style="background:#fff;border:1px solid var(--line);border-radius:14px 14px 14px 4px;padding:11px 14px;font-size:13.5px;line-height:1.6;margin-bottom:12px">'+f.a+'</div>';
+      if(sc) sc.scrollTop=sc.scrollHeight;
+    }
+    function toggleChat(){ var p=document.getElementById('chatPanel'); var b=document.getElementById('chatBubble'); if(!p) return; var open=p.style.display!=='block'; p.style.display=open?'block':'none'; if(b) b.style.display=open?'none':'flex'; if(open) renderChatFaq(); }
     async function submitChatLead(){
       var name=(document.getElementById('chat_name').value||'').trim();
       var phone=(document.getElementById('chat_phone').value||'').replace(/\s/g,'');
