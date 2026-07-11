@@ -121,6 +121,8 @@
       <div class="nav-item" onclick="showTab('inventory')"><span class="nav-icon">🚗</span><span>מלאי רכבים</span></div>
       <div class="nav-item" onclick="showTab('addcar')"><span class="nav-icon">➕</span><span>הוספת רכב</span></div>
       <div class="nav-item" onclick="showTab('leads')"><span class="nav-icon">👥</span><span>לידים</span></div>
+      <div class="nav-item" onclick="showTab('tasks')"><span class="nav-icon">📋</span><span>משימות</span></div>
+      <div class="nav-item" onclick="showTab('pay')"><span class="nav-icon">💰</span><span>שכר</span></div>
       <div class="nav-item" onclick="showTab('vouchers')"><span class="nav-icon">🎟</span><span>שוברים</span></div>
     </nav>
     <div class="sidebar-footer">
@@ -290,6 +292,37 @@
           <div style="font-size:13px;color:var(--muted)">ממוין לפי ציון חום</div>
         </div>
         <div id="leadsList"></div>
+      </div>
+
+      <!-- TASKS -->
+      <div id="tab-tasks" class="hidden">
+        <div class="section-hd"><div><div class="eyebrow">משימות</div><h2>משימות להילה</h2></div></div>
+        <div class="card panel" style="margin-bottom:16px">
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <input id="taskInput" type="text" placeholder="משימה חדשה (למשל: להתקשר ל-3 לידים חמים)" style="flex:1;min-width:220px" onkeydown="if(event.key==='Enter')addTask()">
+            <button class="btn btn-black" onclick="addTask()">+ הוסף משימה</button>
+          </div>
+        </div>
+        <div id="tasksList"></div>
+      </div>
+
+      <!-- PAY -->
+      <div id="tab-pay" class="hidden">
+        <div class="section-hd"><div><div class="eyebrow">שכר</div><h2>השכר שלי</h2></div></div>
+        <div class="stats-grid" style="grid-template-columns:repeat(3,1fr)">
+          <div class="stat-card stat-green"><div class="label">סה"כ להעברה</div><div class="value" id="pay-total" style="font-size:30px">₪0</div><div class="sub">סכום כולל שהרווחת</div></div>
+          <div class="stat-card"><div class="label">מספר רשומות</div><div class="value" id="pay-count">0</div><div class="sub">שוברים + בונוסים</div></div>
+          <div class="stat-card stat-amber"><div class="label">החודש</div><div class="value" id="pay-month" style="font-size:30px">₪0</div><div class="sub">מתחילת החודש</div></div>
+        </div>
+        <div class="card panel" style="margin:16px 0">
+          <div style="font-weight:900;margin-bottom:10px">➕ הוספת רשומה (למנהל)</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+            <input id="payAmount" type="number" placeholder="סכום ₪" style="width:130px">
+            <input id="payNote" type="text" placeholder="תיאור (בונוס עסקה / שובר / בסיס)" style="flex:1;min-width:200px">
+            <button class="btn btn-black" onclick="addPay()">הוסף</button>
+          </div>
+        </div>
+        <div id="payList"></div>
       </div>
 
       <!-- VOUCHERS -->
@@ -623,8 +656,8 @@
   let leads = JSON.parse(localStorage.getItem('autodealer_leads')||'[]');
   let vouchers = JSON.parse(localStorage.getItem('autodealer_vouchers')||'[]');
 
-  const tabTitles={dashboard:'דשבורד',inventory:'מלאי רכבים',addcar:'הוספת רכב',leads:'לידים',vouchers:'שוברים'};
-  const tabOrder=['dashboard','inventory','addcar','leads','vouchers'];
+  const tabTitles={dashboard:'דשבורד',inventory:'מלאי רכבים',addcar:'הוספת רכב',leads:'לידים',tasks:'משימות',pay:'שכר',vouchers:'שוברים'};
+  const tabOrder=['dashboard','inventory','addcar','leads','tasks','pay','vouchers'];
 
   function login(){
     if(document.getElementById('pwInput').value===PASS){
@@ -704,11 +737,16 @@
       // לידים חדשים בזמן אמת
       loadLeadsFromCloud();
       c.channel('leads-admin').on('postgres_changes', {event:'INSERT', schema:'public', table:'leads'}, function(){ loadLeadsFromCloud(); }).subscribe();
+      loadTasks(); loadPay();
+      c.channel('tasks-admin').on('postgres_changes', {event:'*', schema:'public', table:'tasks'}, function(){ loadTasks(); }).subscribe();
+      c.channel('earnings-admin').on('postgres_changes', {event:'*', schema:'public', table:'earnings'}, function(){ loadPay(); }).subscribe();
     }catch(e){ console.warn('admin realtime', e); }
   })();
 
   function showTab(id){
     if(id==='leads') loadLeadsFromCloud();
+    if(id==='tasks') loadTasks();
+    if(id==='pay') loadPay();
     document.querySelectorAll('[id^="tab-"]').forEach(el=>el.classList.add('hidden'));
     document.getElementById('tab-'+id).classList.remove('hidden');
     document.querySelectorAll('.nav-item').forEach((el,i)=>el.classList.toggle('active',tabOrder[i]===id));
@@ -1060,6 +1098,56 @@
         </div>
       </div>`;
     }).join('');
+  }
+
+  // ===== משימות =====
+  let tasksData = [];
+  async function loadTasks(){
+    try{ const c=sbClient(); if(!c) return; const {data,error}=await c.from('tasks').select('*').order('created_at',{ascending:false}); if(error){console.warn('tasks',error.message);return;} if(Array.isArray(data)){ tasksData=data; renderTasks(); } }catch(e){}
+  }
+  async function addTask(){
+    const inp=document.getElementById('taskInput'); const t=(inp.value||'').trim(); if(!t) return;
+    try{ const c=sbClient(); if(c){ await c.from('tasks').insert({title:t,done:false,created_at:new Date().toISOString()}); } }catch(e){}
+    inp.value=''; loadTasks(); toast('✅ משימה נוספה');
+  }
+  async function toggleTask(id,done){ try{ const c=sbClient(); if(c) await c.from('tasks').update({done:!done}).eq('id',id); }catch(e){} loadTasks(); }
+  async function deleteTask(id){ if(!confirm('למחוק משימה?'))return; try{ const c=sbClient(); if(c) await c.from('tasks').delete().eq('id',id); }catch(e){} loadTasks(); }
+  function renderTasks(){
+    const el=document.getElementById('tasksList'); if(!el) return;
+    if(!tasksData.length){ el.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)">אין משימות כרגע 🎉</div>'; return; }
+    const open=tasksData.filter(t=>!t.done), done=tasksData.filter(t=>t.done);
+    el.innerHTML=[...open,...done].map(t=>`<div class="card panel" style="margin-bottom:8px;display:flex;align-items:center;gap:12px;${t.done?'opacity:.55':''}">
+      <button onclick="toggleTask(${t.id},${t.done})" style="width:26px;height:26px;border-radius:8px;border:2px solid ${t.done?'#16a34a':'#cbd5e1'};background:${t.done?'#16a34a':'#fff'};color:#fff;font-weight:900;cursor:pointer;flex-shrink:0">${t.done?'✓':''}</button>
+      <div style="flex:1;font-size:15px;font-weight:600;${t.done?'text-decoration:line-through':''}">${t.title}</div>
+      <button onclick="deleteTask(${t.id})" class="btn btn-red btn-sm">🗑</button>
+    </div>`).join('');
+  }
+
+  // ===== שכר =====
+  let payData = [];
+  async function loadPay(){
+    try{ const c=sbClient(); if(!c) return; const {data,error}=await c.from('earnings').select('*').order('created_at',{ascending:false}); if(error){console.warn('pay',error.message);return;} if(Array.isArray(data)){ payData=data; renderPay(); } }catch(e){}
+  }
+  async function addPay(){
+    const amt=Number(document.getElementById('payAmount').value||0); const note=(document.getElementById('payNote').value||'').trim();
+    if(!amt){ toast('⚠️ הזן סכום'); return; }
+    try{ const c=sbClient(); if(c) await c.from('earnings').insert({amount:amt,note:note,created_at:new Date().toISOString()}); }catch(e){}
+    document.getElementById('payAmount').value=''; document.getElementById('payNote').value=''; loadPay(); toast('✅ רשומה נוספה');
+  }
+  async function deletePay(id){ if(!confirm('למחוק רשומה?'))return; try{ const c=sbClient(); if(c) await c.from('earnings').delete().eq('id',id); }catch(e){} loadPay(); }
+  function renderPay(){
+    const el=document.getElementById('payList'); if(!el) return;
+    const total=payData.reduce((s,p)=>s+(Number(p.amount)||0),0);
+    const now=new Date(); const monthTotal=payData.filter(p=>{const d=new Date(p.created_at);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();}).reduce((s,p)=>s+(Number(p.amount)||0),0);
+    const ts=document.getElementById('pay-total'); if(ts) ts.textContent=fmt(total);
+    const pc=document.getElementById('pay-count'); if(pc) pc.textContent=payData.length;
+    const pm=document.getElementById('pay-month'); if(pm) pm.textContent=fmt(monthTotal);
+    if(!payData.length){ el.innerHTML='<div style="text-align:center;padding:30px;color:var(--muted)">אין עדיין רשומות שכר.</div>'; return; }
+    el.innerHTML=payData.map(p=>`<div class="card panel" style="margin-bottom:8px;display:flex;align-items:center;gap:12px">
+      <div style="font-size:20px;font-weight:900;color:#15803d;min-width:90px">${fmt(Number(p.amount)||0)}</div>
+      <div style="flex:1;font-size:14px">${p.note||'—'}<div style="font-size:12px;color:var(--muted)">${p.created_at?new Date(p.created_at).toLocaleDateString('he-IL'):''}</div></div>
+      <button onclick="deletePay(${p.id})" class="btn btn-red btn-sm">🗑</button>
+    </div>`).join('');
   }
 
   async function loadLeadsFromCloud(){
