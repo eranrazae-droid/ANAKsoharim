@@ -1233,7 +1233,8 @@
     const thisMonth=p=>{const d=new Date(p.created_at);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();};
     const total=payData.reduce((s,p)=>s+(Number(p.amount)||0),0);
     const monthAll=payData.filter(thisMonth).reduce((s,p)=>s+(Number(p.amount)||0),0);
-    const monthGanak=payData.filter(thisMonth).reduce((s,p)=>s+(Number(p.bonus)||0),0);
+    const getBonus=p=>{ const b=Number(p.bonus); if(!isNaN(b)&&p.bonus!=null&&p.bonus!=='') return b; const amt=Number(p.amount)||0; const v=(p.note||'').includes('שובר')?300:(Number(p.voucher)||0); return Math.max(0,amt-v); };
+    const monthGanak=payData.filter(thisMonth).reduce((s,p)=>s+getBonus(p),0);
     const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
     set('pay-month-all',fmt(monthAll)); set('pay-month-ganak',fmt(monthGanak)); set('pay-total',fmt(total)); set('pay-count',payData.length);
     if(!payData.length){ el.innerHTML='<div style="text-align:center;padding:30px;color:var(--muted)">אין עדיין רשומות שכר. רשמי עסקה למעלה.</div>'; return; }
@@ -1242,7 +1243,7 @@
       return `<div class="card panel" style="margin-bottom:8px;display:flex;align-items:flex-start;gap:12px">
         <div style="min-width:100px">
           <div style="font-size:19px;font-weight:900;color:#15803d">${fmt(Number(p.amount)||0)}</div>
-          ${(Number(p.bonus)>0)?`<div style="font-size:11px;color:#a16207">מזה מענק: ${fmt(Number(p.bonus))}</div>`:''}
+          ${(getBonus(p)>0)?`<div style="font-size:11px;color:#a16207">מזה מענק: ${fmt(getBonus(p))}</div>`:''}
         </div>
         <div style="flex:1;font-size:13px">
           ${details?`<div style="font-weight:800;font-size:14px">${details}</div>`:''}
