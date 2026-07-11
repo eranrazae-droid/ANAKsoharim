@@ -315,11 +315,22 @@
           <div class="stat-card stat-amber"><div class="label">החודש</div><div class="value" id="pay-month" style="font-size:30px">₪0</div><div class="sub">מתחילת החודש</div></div>
         </div>
         <div class="card panel" style="margin:16px 0">
-          <div style="font-weight:900;margin-bottom:10px">➕ הוספת רשומה (למנהל)</div>
-          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-            <input id="payAmount" type="number" placeholder="סכום ₪" style="width:130px">
-            <input id="payNote" type="text" placeholder="תיאור (בונוס עסקה / שובר / בסיס)" style="flex:1;min-width:200px">
-            <button class="btn btn-black" onclick="addPay()">הוסף</button>
+          <div style="font-weight:900;margin-bottom:12px">➕ רישום עסקה חדשה</div>
+          <input id="dealName" type="text" placeholder="שם לקוח / רכב (לא חובה)" style="width:100%;margin-bottom:12px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+            <label style="display:flex;align-items:center;gap:8px;background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:10px;cursor:pointer;font-size:13px"><input type="checkbox" class="dealChk" data-amt="300" onchange="calcDeal()" style="width:18px;height:18px"> 🎟️ שובר <b>(300₪)</b></label>
+            <label style="display:flex;align-items:center;gap:8px;background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:10px;cursor:pointer;font-size:13px"><input type="checkbox" class="dealChk" data-amt="1000" onchange="calcDeal()" style="width:18px;height:18px"> 🚗 עמלת מכירה <b>(1,000₪)</b></label>
+            <label style="display:flex;align-items:center;gap:8px;background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:10px;cursor:pointer;font-size:13px"><input type="checkbox" class="dealChk" data-amt="1000" onchange="calcDeal()" style="width:18px;height:18px"> 🔄 עמלת טרייד-אין <b>(1,000₪)</b></label>
+            <label style="display:flex;align-items:center;gap:8px;background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:10px;cursor:pointer;font-size:13px"><input type="checkbox" class="dealChk" data-amt="100" onchange="calcDeal()" style="width:18px;height:18px"> 🛡️ עמלת ביטוח <b>(100₪)</b></label>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:12px;flex-wrap:wrap">
+            <span style="font-size:13px">💰 עמלת מימון (1.5%) — סכום מימון:</span>
+            <input id="dealFinance" type="number" placeholder="0" oninput="calcDeal()" style="width:130px;padding:6px 8px">
+            <span id="dealFinanceCalc" style="font-size:13px;color:#15803d;font-weight:800">= 0 ₪</span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+            <div style="font-size:18px;font-weight:900">סה"כ לעסקה: <span id="dealTotal" style="color:#15803d">0 ₪</span></div>
+            <button class="btn btn-black" onclick="addDeal()">הוסף עסקה לשכר</button>
           </div>
         </div>
         <div id="payList"></div>
@@ -1161,6 +1172,33 @@
   async function loadPay(){
     try{ const c=sbClient(); if(!c) return; const {data,error}=await c.from('earnings').select('*').order('created_at',{ascending:false}); if(error){console.warn('pay',error.message);return;} if(Array.isArray(data)){ payData=data; renderPay(); } }catch(e){}
   }
+  const FINANCE_PCT = 1.5;
+  function calcDeal(){
+    let total=0; const parts=[];
+    document.querySelectorAll('.dealChk').forEach(chk=>{ if(chk.checked){ total+=Number(chk.dataset.amt)||0; } });
+    const fin=Number((document.getElementById('dealFinance')||{}).value||0);
+    const finComm=Math.round(fin*FINANCE_PCT/100);
+    const fc=document.getElementById('dealFinanceCalc'); if(fc) fc.textContent='= '+finComm.toLocaleString('he-IL')+' ₪';
+    total+=finComm;
+    const dt=document.getElementById('dealTotal'); if(dt) dt.textContent=total.toLocaleString('he-IL')+' ₪';
+    return total;
+  }
+  async function addDeal(){
+    let total=0; const parts=[];
+    document.querySelectorAll('.dealChk').forEach(chk=>{ if(chk.checked){ const a=Number(chk.dataset.amt)||0; total+=a; parts.push(chk.parentElement.textContent.trim().replace(/\s+/g,' ')); } });
+    const fin=Number((document.getElementById('dealFinance')||{}).value||0);
+    const finComm=Math.round(fin*FINANCE_PCT/100);
+    if(finComm>0){ total+=finComm; parts.push('מימון 1.5% ('+finComm.toLocaleString('he-IL')+'₪)'); }
+    if(total<=0){ toast('⚠️ סמן לפחות עמלה אחת'); return; }
+    const name=((document.getElementById('dealName')||{}).value||'').trim();
+    const note=(name?name+' — ':'')+parts.join(' + ');
+    try{ const c=sbClient(); if(c) await c.from('earnings').insert({amount:total,note:note,created_at:new Date().toISOString()}); }catch(e){}
+    // reset
+    document.querySelectorAll('.dealChk').forEach(chk=>chk.checked=false);
+    document.getElementById('dealFinance').value=''; document.getElementById('dealName').value=''; calcDeal();
+    loadPay(); toast('✅ עסקה נוספה לשכר: '+fmt(total));
+  }
+
   async function addPay(){
     const amt=Number(document.getElementById('payAmount').value||0); const note=(document.getElementById('payNote').value||'').trim();
     if(!amt){ toast('⚠️ הזן סכום'); return; }
