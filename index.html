@@ -3032,14 +3032,18 @@ display:none !important;
   <script>
     function renderChatFaq(){
       var el=document.getElementById('chatFaq'); if(!el||typeof faqs==='undefined') return;
-      el.innerHTML=faqs.slice(0,6).map(function(f,i){ return '<button onclick="askFaq('+i+')" style="background:#fff;border:1px solid #D4A017;color:#a16207;border-radius:999px;padding:6px 12px;font-size:12.5px;font-weight:700;cursor:pointer">'+f.q+'</button>'; }).join('');
+      el.innerHTML='<div style="font-size:12px;font-weight:800;color:#6b7280;margin-bottom:6px">שאלות נפוצות:</div>'+faqs.slice(0,7).map(function(f,i){
+        return '<div style="border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:6px;background:#fff">'+
+          '<button onclick="askFaq('+i+')" style="width:100%;text-align:right;background:none;border:none;padding:10px 12px;font-size:13px;font-weight:700;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:8px;color:#1a1a1a"><span>'+f.q+'</span><span class="faqchev" style="color:#D4A017;font-size:16px;flex-shrink:0">+</span></button>'+
+          '<div id="faqA'+i+'" style="display:none;padding:0 12px 12px;font-size:13px;line-height:1.6;color:#444">'+f.a+'</div>'+
+        '</div>';
+      }).join('');
     }
     function askFaq(i){
-      var f=faqs[i]; if(!f) return;
-      var m=document.getElementById('chatMessages'); var sc=document.getElementById('chatScroll');
-      m.innerHTML+='<div style="background:#0d0d0d;color:#fff;border-radius:14px 14px 4px 14px;padding:10px 13px;font-size:13.5px;margin:0 0 8px auto;max-width:85%;width:fit-content">'+f.q+'</div>';
-      m.innerHTML+='<div style="background:#fff;border:1px solid var(--line);border-radius:14px 14px 14px 4px;padding:11px 14px;font-size:13.5px;line-height:1.6;margin-bottom:12px">'+f.a+'</div>';
-      if(sc) sc.scrollTop=sc.scrollHeight;
+      var a=document.getElementById('faqA'+i); if(!a) return;
+      var open=a.style.display!=='block';
+      a.style.display=open?'block':'none';
+      var chev=a.previousElementSibling.querySelector('.faqchev'); if(chev) chev.textContent=open?'−':'+';
     }
     function toggleChat(){ var p=document.getElementById('chatPanel'); var b=document.getElementById('chatBubble'); if(!p) return; var open=p.style.display!=='block'; p.style.display=open?'block':'none'; if(b) b.style.display=open?'none':'flex'; if(open) renderChatFaq(); }
     async function submitChatLead(){
