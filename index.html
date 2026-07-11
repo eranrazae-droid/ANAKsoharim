@@ -2999,6 +2999,46 @@ display:none !important;
     <button onclick="clearCompare()" style="background:none;border:none;color:#9ca3af;font-size:13px;cursor:pointer;text-decoration:underline">נקה</button>
   </div>
 
+  <!-- צ'אט ייעוץ + לכידת ליד -->
+  <div id="chatPanel" style="display:none;position:fixed;bottom:92px;left:20px;z-index:9996;width:340px;max-width:calc(100vw - 40px);background:#fff;border-radius:20px;box-shadow:0 12px 40px rgba(0,0,0,.28);direction:rtl;overflow:hidden">
+    <div style="background:#0d0d0d;color:#fff;padding:16px 18px;display:flex;align-items:center;justify-content:space-between">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:40px;height:40px;border-radius:50%;background:#D4A017;color:#000;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900">א</div>
+        <div><div style="font-weight:900;font-size:15px">ייעוץ חינם לרכישת רכב</div><div style="font-size:12px;color:#4ade80">● זמינים עכשיו</div></div>
+      </div>
+      <button onclick="toggleChat()" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer">✕</button>
+    </div>
+    <div style="padding:18px;background:#f8fafc;max-height:300px;overflow-y:auto">
+      <div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 14px;font-size:14px;line-height:1.6;margin-bottom:12px">
+        היי! 👋 אני כאן לעזור לך למצוא את הרכב המשתלם ביותר.<br>השאירו שם וטלפון ונציג יחזור אליכם עם הצעה אישית — <b>בלי התחייבות</b>.
+      </div>
+      <div id="chatForm" style="display:grid;gap:10px">
+        <input id="chat_name" type="text" placeholder="שם מלא" style="width:100%;padding:11px 14px;border:1px solid var(--line);border-radius:12px;text-align:right;direction:rtl">
+        <input id="chat_phone" type="tel" placeholder="טלפון נייד (05X-XXXXXXX)" style="width:100%;padding:11px 14px;border:1px solid var(--line);border-radius:12px;text-align:right;direction:rtl">
+        <button onclick="submitChatLead()" style="background:#D4A017;color:#000;border:none;border-radius:12px;padding:13px;font-weight:900;font-size:15px;cursor:pointer">שלחו לי הצעה 🚗</button>
+        <a href="https://wa.me/972508396030?text=%D7%94%D7%99%D7%99%2C%20%D7%90%D7%A0%D7%99%20%D7%9E%D7%A2%D7%95%D7%A0%D7%99%D7%99%D7%9F%20%D7%91%D7%99%D7%99%D7%A2%D7%95%D7%A5%20%D7%9C%D7%A8%D7%9B%D7%99%D7%A9%D7%AA%20%D7%A8%D7%9B%D7%91" target="_blank" rel="noreferrer" style="text-align:center;background:#25D366;color:#fff;border-radius:12px;padding:11px;font-weight:800;font-size:14px;text-decoration:none">💬 או דברו איתנו בוואטסאפ</a>
+      </div>
+      <div id="chatThanks" style="display:none;text-align:center;padding:14px">
+        <div style="font-size:36px">✅</div>
+        <div style="font-weight:900;font-size:16px;margin-top:8px">תודה! קיבלנו את הפרטים</div>
+        <div style="font-size:13px;color:#6b7280;margin-top:6px">נציג אוטודילר יחזור אליכם בהקדם.</div>
+      </div>
+    </div>
+  </div>
+  <button id="chatBubble" onclick="toggleChat()" style="position:fixed;bottom:24px;left:20px;z-index:9996;background:#0d0d0d;color:#D4A017;border:none;border-radius:999px;padding:13px 20px;font-weight:900;font-size:15px;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.3);display:flex;align-items:center;gap:8px">💬 ייעוץ חינם</button>
+  <script>
+    function toggleChat(){ var p=document.getElementById('chatPanel'); var b=document.getElementById('chatBubble'); if(!p) return; var open=p.style.display!=='block'; p.style.display=open?'block':'none'; if(b) b.style.display=open?'none':'flex'; }
+    async function submitChatLead(){
+      var name=(document.getElementById('chat_name').value||'').trim();
+      var phone=(document.getElementById('chat_phone').value||'').replace(/\s/g,'');
+      if(!name){ alert('נא למלא שם'); return; }
+      if(!/^0\d{1,2}-?\d{7}$/.test(phone)){ alert('נא להזין טלפון תקין'); return; }
+      try{ var c=sbClient(); if(c) await c.from('leads').insert({name:name,phone:phone,email:'',car:(typeof selectedCar!=='undefined'&&selectedCar)?(selectedCar.brand+' '+selectedCar.model):'',action:'צ׳אט ייעוץ',created_at:new Date().toISOString()}); }catch(e){ console.warn('chat lead', e); }
+      document.getElementById('chatForm').style.display='none';
+      document.getElementById('chatThanks').style.display='block';
+    }
+  </script>
+
   <!-- באנר עוגיות / הסכמה -->
   <div id="cookieBanner" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:9994;background:#0d0d0d;color:#fff;padding:14px 18px;direction:rtl;box-shadow:0 -4px 16px rgba(0,0,0,.25)">
     <div style="max-width:1000px;margin:0 auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:center">
