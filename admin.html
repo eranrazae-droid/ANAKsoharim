@@ -701,10 +701,14 @@
         try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(cars)); }catch(e){}
         renderAll();
       }).subscribe();
+      // לידים חדשים בזמן אמת
+      loadLeadsFromCloud();
+      c.channel('leads-admin').on('postgres_changes', {event:'INSERT', schema:'public', table:'leads'}, function(){ loadLeadsFromCloud(); }).subscribe();
     }catch(e){ console.warn('admin realtime', e); }
   })();
 
   function showTab(id){
+    if(id==='leads') loadLeadsFromCloud();
     document.querySelectorAll('[id^="tab-"]').forEach(el=>el.classList.add('hidden'));
     document.getElementById('tab-'+id).classList.remove('hidden');
     document.querySelectorAll('.nav-item').forEach((el,i)=>el.classList.toggle('active',tabOrder[i]===id));
@@ -1058,29 +1062,35 @@
     }).join('');
   }
 
+  async function loadLeadsFromCloud(){
+    try{
+      const c=sbClient(); if(!c) return;
+      const {data,error}=await c.from('leads').select('*').order('created_at',{ascending:false}).limit(500);
+      if(error){ console.warn('leads load', error.message); return; }
+      if(Array.isArray(data)){ leads=data; renderLeads(); }
+    }catch(e){ console.warn('leads load ex', e); }
+  }
+
   function renderLeads(){
     const el=document.getElementById('leadsList');if(!el)return;
-    const sorted=[...leads].sort((a,b)=>b.score-a.score);
-    el.innerHTML=sorted.map(l=>{
-      const cls=l.score>=80?'s-hot':l.score>=50?'s-warm':'s-cold';
-      const lbl=l.score>=80?'🔥 רותח':l.score>=50?'🌡 חם':'❄️ קר';
+    if(!leads.length){ el.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)">אין עדיין לידים. לידים מהצ׳אט ומטופס השובר יופיעו כאן אוטומטית.</div>'; return; }
+    el.innerHTML=leads.map(l=>{
+      const phone=(l.phone||'').toString();
+      const when=l.time || (l.created_at ? new Date(l.created_at).toLocaleString('he-IL') : '');
       return `<div class="lead-card">
         <div style="display:flex;gap:14px;align-items:flex-start">
-          <div class="lead-score ${cls}">${l.score}</div>
+          <div class="lead-score s-hot" style="font-size:20px">🚗</div>
           <div style="flex:1">
-            <div style="font-weight:900;font-size:16px">${l.name} <span style="font-size:12px;margin-right:6px;color:${l.score>=80?'#b91c1c':l.score>=50?'#c2410c':'#15803d'}">${lbl}</span></div>
-            <div style="font-size:13px;color:var(--muted);margin-top:2px">${l.phone} · ${l.car}</div>
+            <div style="font-weight:900;font-size:16px">${l.name||'ללא שם'}</div>
+            <div style="font-size:13px;color:var(--muted);margin-top:2px">${phone}${l.email?' · '+l.email:''}${l.car?' · '+l.car:''}</div>
             <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
-              <span style="background:#f1f5f9;padding:4px 10px;border-radius:8px;font-size:12px;font-weight:700">מקדמה: ${l.down} ₪</span>
-              <span style="background:#f1f5f9;padding:4px 10px;border-radius:8px;font-size:12px;font-weight:700">חודשי: ${l.monthly} ₪</span>
-              <span style="background:#f1f5f9;padding:4px 10px;border-radius:8px;font-size:12px;font-weight:700">${l.track||'לא בחר מסלול'}</span>
+              <span style="background:#fef9e7;color:#a16207;padding:4px 10px;border-radius:8px;font-size:12px;font-weight:700">${l.action||'ליד חדש'}</span>
             </div>
-            <div style="margin-top:6px;font-size:12px;color:var(--muted)">📍 ${l.action} · ${l.time}</div>
+            ${when?`<div style="margin-top:6px;font-size:12px;color:var(--muted)">🕐 ${when}</div>`:''}
           </div>
-          <a href="https://wa.me/972${l.phone.replace(/-/g,'').replace(/^0/,'')}" target="_blank"
+          ${phone?`<a href="https://wa.me/972${phone.replace(/[^0-9]/g,'').replace(/^0/,'')}" target="_blank"
              style="background:#25D366;color:#fff;padding:9px 16px;border-radius:10px;font-size:13px;font-weight:900;text-decoration:none;white-space:nowrap;flex-shrink:0">
-            📲 וואטסאפ
-          </a>
+            📲 וואטסאפ</a>`:''}
         </div>
       </div>`;
     }).join('');
