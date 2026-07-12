@@ -1333,19 +1333,25 @@
     catch(e){ console.warn('lead save', e); }
     toast&&toast('הליד נשמר ✓'); renderLeads();
   }
-  // דחיפות לפי זמנים: פולואפ שעבר זמנו / פתוח ישן = קודם; סגור בסוף
-  function leadUrgency(l){
+  // דירוג דחיפות: [tier, ערך פנימי]. tier נמוך = למעלה
+  // 0 = פולואפ שעבר זמנו (הכי דחוף), 1 = ליד חדש/פתוח (החדש קודם), 2 = פולואפ עתידי (הקרוב קודם), 3 = סגור
+  function leadRank(l,now){
     const s=l.status||'פתוח';
-    if(s==='סגור') return Infinity;
-    if(s==='פולואפ' && l.followup_at){ const t=new Date(l.followup_at).getTime(); return isNaN(t)?0:t; }
-    const c=l.created_at?new Date(l.created_at).getTime():0; return isNaN(c)?0:c;
+    if(s==='סגור') return [3,0];
+    if(s==='פולואפ' && l.followup_at){
+      const t=new Date(l.followup_at).getTime();
+      if(!isNaN(t)){ return t<now ? [0,t] : [2,t]; }
+    }
+    // פתוח (או פולואפ ללא תאריך) — החדש ביותר קודם
+    const c=l.created_at?new Date(l.created_at).getTime():0;
+    return [1,-(isNaN(c)?0:c)];
   }
   function renderLeads(){
     const el=document.getElementById('leadsList');if(!el)return;
     if(!leads.length){ el.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)">אין עדיין לידים. לידים מהצ׳אט ומטופס השובר יופיעו כאן אוטומטית.</div>'; return; }
-    // מיון לפי דחיפות המשימה מבחינת זמנים (הדחוף ביותר למעלה, סגור בסוף)
-    const sorted=[...leads].sort((a,b)=>leadUrgency(a)-leadUrgency(b));
     const now=Date.now();
+    // מיון לפי דחיפות המשימה (הדחוף ביותר למעלה, סגור בסוף)
+    const sorted=[...leads].sort((a,b)=>{const ra=leadRank(a,now),rb=leadRank(b,now);return ra[0]-rb[0]||ra[1]-rb[1];});
     el.innerHTML=sorted.map(l=>{
       const phone=(l.phone||'').toString();
       const waPhone='972'+phone.replace(/[^0-9]/g,'').replace(/^0/,'');
