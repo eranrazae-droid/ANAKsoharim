@@ -1330,7 +1330,11 @@
     const at=document.getElementById('at_'+id); if(at) l.call_attempts=Number(at.value)||0;
     const sum=document.getElementById('sum_'+id); if(sum) l.summary=sum.value;
     const tp=document.getElementById('tp_'+id); if(tp) l.tradein_plate=tp.value;
-    const icv=['ic1_','ic2_','ic3_'].map(p=>{const e=document.getElementById(p+id);return e?e.value.trim():'';}).filter(Boolean);
+    const icv=[1,2,3].map(s=>{
+      const b=(document.getElementById('icb_'+id+'_'+s)||{}).value||'';
+      const m=(document.getElementById('icm_'+id+'_'+s)||{}).value||'';
+      return b?(m?(b+' '+m):b):'';
+    }).filter(Boolean);
     l.interest_cars=icv.join(' | ');
     const payload={status:l.status,followup_at:l.followup_at,call_attempts:l.call_attempts,summary:l.summary,tradein_plate:l.tradein_plate,interest_cars:l.interest_cars};
     try{ const c=sbClient(); if(c) await c.from('leads').update(payload).eq('id',id); }
@@ -1390,6 +1394,25 @@
       box.innerHTML=`<div style="color:#dc2626;font-size:12px;margin-top:6px">לא נמצא מידע במאגר הפתוח.</div>${fullReport}`;
     }
   }
+  // רכבים שהלקוח התעניין בהם — דרופדאונים מדורגים מתוך המלאי
+  function _icBrands(){ return [...new Set(cars.map(c=>c.brand).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'he')); }
+  function _icModels(brand){ return [...new Set(cars.filter(c=>c.brand===brand).map(c=>c.model).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'he')); }
+  function interestSlotHTML(id,slot,value){
+    let b='',m='';
+    if(value){ const car=cars.find(c=>((c.brand+' '+c.model)===value)); if(car){ b=car.brand; m=car.model; } else { b=value; } }
+    const bOpts='<option value="">יצרן</option>'+_icBrands().map(x=>`<option ${x===b?'selected':''}>${x}</option>`).join('');
+    const mOpts='<option value="">דגם</option>'+(b?_icModels(b):[]).map(x=>`<option ${x===m?'selected':''}>${x}</option>`).join('');
+    return `<div style="display:flex;gap:6px;flex:1;min-width:220px;margin-bottom:6px">
+      <select id="icb_${id}_${slot}" onchange="onInterestBrand('${id}',${slot})" style="flex:1;padding:6px 8px;font-size:13px;border-radius:8px">${bOpts}</select>
+      <select id="icm_${id}_${slot}" style="flex:1;padding:6px 8px;font-size:13px;border-radius:8px">${mOpts}</select>
+    </div>`;
+  }
+  function onInterestBrand(id,slot){
+    const bs=document.getElementById('icb_'+id+'_'+slot), ms=document.getElementById('icm_'+id+'_'+slot);
+    if(!bs||!ms) return;
+    const b=bs.value;
+    ms.innerHTML='<option value="">דגם</option>'+(b?_icModels(b):[]).map(x=>`<option>${x}</option>`).join('');
+  }
   // דירוג דחיפות: [tier, ערך פנימי]. tier נמוך = למעלה
   // 0 = פולואפ שעבר זמנו (הכי דחוף), 1 = ליד חדש/פתוח (החדש קודם), 2 = פולואפ עתידי (הקרוב קודם), 3 = סגור
   function leadRank(l,now){
@@ -1442,11 +1465,9 @@
             ${when?`<div style="margin-top:6px;font-size:12px;color:var(--muted)">🕐 ${when}</div>`:''}
             <div style="margin-top:10px">
               <div style="font-size:12px;color:var(--muted);margin-bottom:4px">🚗 רכבים שהתעניין בהם (עד 3):</div>
-              <div style="display:flex;gap:6px;flex-wrap:wrap">
-                <input id="ic1_${l.id}" type="text" value="${(ics[0]||'').replace(/"/g,'&quot;')}" placeholder="רכב 1" style="flex:1;min-width:110px;padding:6px 10px;font-size:13px;border-radius:8px">
-                <input id="ic2_${l.id}" type="text" value="${(ics[1]||'').replace(/"/g,'&quot;')}" placeholder="רכב 2" style="flex:1;min-width:110px;padding:6px 10px;font-size:13px;border-radius:8px">
-                <input id="ic3_${l.id}" type="text" value="${(ics[2]||'').replace(/"/g,'&quot;')}" placeholder="רכב 3" style="flex:1;min-width:110px;padding:6px 10px;font-size:13px;border-radius:8px">
-              </div>
+              ${interestSlotHTML(l.id,1,ics[0]||'')}
+              ${interestSlotHTML(l.id,2,ics[1]||'')}
+              ${interestSlotHTML(l.id,3,ics[2]||'')}
             </div>
             <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
               <span style="font-size:12px;color:var(--muted)">סטטוס:</span>
