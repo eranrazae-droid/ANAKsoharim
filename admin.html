@@ -1330,7 +1330,9 @@
     const at=document.getElementById('at_'+id); if(at) l.call_attempts=Number(at.value)||0;
     const sum=document.getElementById('sum_'+id); if(sum) l.summary=sum.value;
     const tp=document.getElementById('tp_'+id); if(tp) l.tradein_plate=tp.value;
-    const payload={status:l.status,followup_at:l.followup_at,call_attempts:l.call_attempts,summary:l.summary,tradein_plate:l.tradein_plate};
+    const icv=['ic1_','ic2_','ic3_'].map(p=>{const e=document.getElementById(p+id);return e?e.value.trim():'';}).filter(Boolean);
+    l.interest_cars=icv.join(' | ');
+    const payload={status:l.status,followup_at:l.followup_at,call_attempts:l.call_attempts,summary:l.summary,tradein_plate:l.tradein_plate,interest_cars:l.interest_cars};
     try{ const c=sbClient(); if(c) await c.from('leads').update(payload).eq('id',id); }
     catch(e){ console.warn('lead save', e); }
     toast&&toast('הליד נשמר ✓'); renderLeads();
@@ -1374,12 +1376,12 @@
     }
     const rows=Object.keys(info).filter(k=>info[k]!==undefined&&info[k]!=='').map(k=>
       `<div style="display:flex;justify-content:space-between;gap:12px;padding:3px 0;border-bottom:1px dashed #e5e7eb"><span style="color:#64748b">${k}</span><b>${info[k]}</b></div>`).join('');
+    const fullReport=`<a href="https://meshumeshet.com/c/${plate}" target="_blank" style="display:block;text-align:center;background:#0369a1;color:#fff;border-radius:8px;padding:9px;margin-top:8px;font-weight:800;text-decoration:none;font-size:13px">📋 דוח היסטוריה מלא (בעלויות + ק"מ) ›</a>`;
     if(rows){
-      const histRow=`<div style="display:flex;justify-content:space-between;gap:12px;padding:3px 0;border-bottom:1px dashed #e5e7eb;align-items:center"><span style="color:#64748b">היסטוריית בעלויות</span><a href="https://www.gov.il/he/service/vehicle-ownership-history" target="_blank" style="color:#0369a1;font-weight:800;text-decoration:none">בדיקת היסטוריה מלאה ›</a></div>`;
-      box.innerHTML=`<div style="background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:8px;font-size:12px">${rows}${histRow}
-        <div style="color:#94a3b8;margin-top:8px;font-size:11px;line-height:1.5">מקור: מאגרי משרד התחבורה. * "בעלות" = סוג הבעלות הנוכחי. רשימת הבעלים הקודמים (מספר יד) ומקוריות מתקבלים בשירות היסטוריית בעלויות הרשמי בקישור למעלה.</div></div>`;
+      box.innerHTML=`<div style="background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:8px;font-size:12px">${rows}${fullReport}
+        <div style="color:#94a3b8;margin-top:8px;font-size:11px;line-height:1.5">מקור: מאגרי משרד התחבורה. לדוח מלא הכולל היסטוריית בעלויות וקילומטראז' — לחצו על הכפתור הכחול.</div></div>`;
     } else {
-      box.innerHTML='<div style="color:#dc2626;font-size:12px;margin-top:6px">לא נמצא מידע על מספר הרכב הזה</div>';
+      box.innerHTML=`<div style="color:#dc2626;font-size:12px;margin-top:6px">לא נמצא מידע במאגר הפתוח.</div>${fullReport}`;
     }
   }
   // דירוג דחיפות: [tier, ערך פנימי]. tier נמוך = למעלה
@@ -1416,6 +1418,7 @@
       const closed=status==='סגור';
       const isFu=status==='פולואפ';
       const attempts=Number(l.call_attempts)||0;
+      const ics=(l.interest_cars||'').split(' | ');
       const overdue=isFu&&l.followup_at&&!isNaN(new Date(l.followup_at).getTime())&&new Date(l.followup_at).getTime()<now;
       // הודעת "תחזור אלינו" מוכנה לוואטסאפ
       const cbMsg=encodeURIComponent('היי '+(l.name||'')+', ניסינו להשיג אותך מאוטודילר אך לא היית זמין 📞\nנשמח שתחזור אלינו ונמצא לך את הרכב המתאים 🚗');
@@ -1431,6 +1434,14 @@
               ${l.financing?'<span style="background:#ecfdf5;color:#15803d;padding:4px 10px;border-radius:8px;font-size:12px;font-weight:800">💰 מימון</span>':''}
             </div>
             ${when?`<div style="margin-top:6px;font-size:12px;color:var(--muted)">🕐 ${when}</div>`:''}
+            <div style="margin-top:10px">
+              <div style="font-size:12px;color:var(--muted);margin-bottom:4px">🚗 רכבים שהתעניין בהם (עד 3):</div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <input id="ic1_${l.id}" type="text" value="${(ics[0]||'').replace(/"/g,'&quot;')}" placeholder="רכב 1" style="flex:1;min-width:110px;padding:6px 10px;font-size:13px;border-radius:8px">
+                <input id="ic2_${l.id}" type="text" value="${(ics[1]||'').replace(/"/g,'&quot;')}" placeholder="רכב 2" style="flex:1;min-width:110px;padding:6px 10px;font-size:13px;border-radius:8px">
+                <input id="ic3_${l.id}" type="text" value="${(ics[2]||'').replace(/"/g,'&quot;')}" placeholder="רכב 3" style="flex:1;min-width:110px;padding:6px 10px;font-size:13px;border-radius:8px">
+              </div>
+            </div>
             <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
               <span style="font-size:12px;color:var(--muted)">סטטוס:</span>
               <select id="st_${l.id}" onchange="onLeadStatusChangeLocal('${l.id}',this.value)" style="width:auto;padding:6px 10px;font-size:13px;font-weight:700;border-radius:8px;background:${sc[0]};color:${sc[1]};border:1px solid ${sc[1]}33">
