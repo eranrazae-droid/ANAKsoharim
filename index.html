@@ -3061,7 +3061,10 @@ display:none !important;
       var tradein=(document.getElementById('chat_tradein')||{}).checked||false;
       var financing=(document.getElementById('chat_financing')||{}).checked||false;
       var row={name:name,phone:phone,email:'',car:(typeof selectedCar!=='undefined'&&selectedCar)?(selectedCar.brand+' '+selectedCar.model):'',action:'צ׳אט ייעוץ',created_at:new Date().toISOString()};
-      try{ var c=sbClient(); if(c){ try{ await c.from('leads').insert(Object.assign({},row,{tradein:tradein,financing:financing})); }catch(e2){ await c.from('leads').insert(row); } } }catch(e){ console.warn('chat lead', e); }
+      try{ var c=sbClient(); if(c){
+        var res=await c.from('leads').insert(Object.assign({},row,{tradein:tradein,financing:financing}));
+        if(res&&res.error){ console.warn('chat lead retry', res.error.message); await c.from('leads').insert(row); }
+      } }catch(e){ console.warn('chat lead', e); }
       document.getElementById('chatForm').style.display='none';
       document.getElementById('chatThanks').style.display='block';
     }
