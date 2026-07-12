@@ -1468,7 +1468,9 @@
     const histRecs=await govRecords('bb2355dc-9ec7-4f06-9c3f-3344672171da',plate);
     if(histRecs.length){
       histRecs.sort((a,b)=>Number(a.baalut_dt||0)-Number(b.baalut_dt||0));
-      info['מספר בעלויות']=histRecs.length;
+      // סוחר לא נחשב יד — סופרים רק בעלויות שאינן "סוחר"
+      const owners=histRecs.filter(r=>!String(r.baalut||'').includes('סוחר')).length;
+      info['מספר בעלויות (ללא סוחר)']=owners;
       const nowYm=(function(){const d=new Date();return d.getFullYear()*100+(d.getMonth()+1);})();
       const trs=histRecs.map((r,i)=>{
         const cur=Number(String(r.baalut_dt).slice(0,6));
