@@ -1530,7 +1530,9 @@
       const closed=status==='סגור';
       const isFu=status==='פולואפ';
       const attempts=Number(l.call_attempts)||0;
-      const ics=(l.interest_cars||'').split(' | ');
+      let ics=(l.interest_cars||'').split(' | ');
+      // אם הלקוח הגיע עם רכב מסוים מהאתר — מציגים אותו בשורה הראשונה
+      if(!(l.interest_cars||'').trim() && (l.car||'').trim()) ics=[l.car.trim()];
       const overdue=isFu&&l.followup_at&&!isNaN(new Date(l.followup_at).getTime())&&new Date(l.followup_at).getTime()<now;
       // הודעת "תחזור אלינו" מוכנה לוואטסאפ
       const cbMsg=encodeURIComponent('היי '+(l.name||'')+', ניסינו להשיג אותך מאוטודילר אך לא היית זמין 📞\nנשמח שתחזור אלינו ונמצא לך את הרכב המתאים 🚗');
