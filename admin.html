@@ -298,8 +298,9 @@
       <div id="tab-leads" class="hidden">
         <div class="section-hd">
           <div><div class="eyebrow">לידים</div><h2>ניהול לידים</h2></div>
-          <div style="font-size:13px;color:var(--muted)">ממוין לפי ציון חום</div>
+          <div style="font-size:13px;color:var(--muted)">ממוין לפי דחיפות</div>
         </div>
+        <input id="leadSearch" type="tel" placeholder="🔍 חיפוש ליד לפי טלפון או שם" oninput="window._leadSearch=this.value;renderLeads()" style="margin-bottom:14px;padding:11px 14px;font-size:14px">
         <div id="leadsList"></div>
       </div>
 
@@ -1328,7 +1329,8 @@
     const fu=document.getElementById('fu_'+id); l.followup_at=(l.status==='פולואפ'&&fu)?fu.value:'';
     const at=document.getElementById('at_'+id); if(at) l.call_attempts=Number(at.value)||0;
     const sum=document.getElementById('sum_'+id); if(sum) l.summary=sum.value;
-    const payload={status:l.status,followup_at:l.followup_at,call_attempts:l.call_attempts,summary:l.summary};
+    const tp=document.getElementById('tp_'+id); if(tp) l.tradein_plate=tp.value;
+    const payload={status:l.status,followup_at:l.followup_at,call_attempts:l.call_attempts,summary:l.summary,tradein_plate:l.tradein_plate};
     try{ const c=sbClient(); if(c) await c.from('leads').update(payload).eq('id',id); }
     catch(e){ console.warn('lead save', e); }
     toast&&toast('הליד נשמר ✓'); renderLeads();
@@ -1354,6 +1356,9 @@
     // מיון לפי דחיפות המשימה (הדחוף ביותר למעלה, סגור בסוף)
     let sorted=[...leads].sort((a,b)=>{const ra=leadRank(a,now),rb=leadRank(b,now);return ra[0]-rb[0]||ra[1]-rb[1];});
     if(!window._showClosedLeads) sorted=sorted.filter(l=>(l.status||'')!=='סגור');
+    // חיפוש לפי טלפון/שם
+    const q=(window._leadSearch||'').trim();
+    if(q){ const qd=q.replace(/[^0-9]/g,''); sorted=sorted.filter(l=>{const ph=(l.phone||'').replace(/[^0-9]/g,''); return (qd&&ph.includes(qd))||((l.name||'').includes(q)); }); }
     const closedToggle=closedCount?`<div style="text-align:left;margin-bottom:12px"><button onclick="window._showClosedLeads=!window._showClosedLeads;renderLeads()" style="background:#f1f5f9;border:1px solid var(--line);color:#64748b;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer">${window._showClosedLeads?'הסתר סגורים':'הצג סגורים ('+closedCount+')'}</button></div>`:'';
     el.innerHTML=closedToggle+sorted.map(l=>{
       const phone=(l.phone||'').toString();
@@ -1397,6 +1402,10 @@
                 <option value="2" ${attempts===2?'selected':''}>2</option>
                 <option value="3" ${attempts===3?'selected':''}>3</option>
               </select>
+            </div>
+            <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <span style="font-size:12px;color:var(--muted)">🔄 רישוי טרייד-אין:</span>
+              <input id="tp_${l.id}" type="text" value="${l.tradein_plate||''}" placeholder="מספר רכב" style="width:auto;padding:6px 10px;font-size:13px;border-radius:8px">
             </div>
             <div style="margin-top:8px">
               <div style="font-size:12px;color:var(--muted);margin-bottom:4px">📝 תקציר שיחה:</div>
