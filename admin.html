@@ -1336,6 +1336,14 @@
     try{ const c=sbClient(); if(c) await c.from('leads').update({call_attempts:Number(val)||0}).eq('id',id); }
     catch(e){ console.warn('lead attempts', e); }
   }
+  async function saveLeadSummary(id){
+    const inp=document.getElementById('sum_'+id);
+    const val=inp?inp.value:'';
+    const l=leads.find(x=>String(x.id)===String(id)); if(l) l.summary=val;
+    try{ const c=sbClient(); if(c) await c.from('leads').update({summary:val}).eq('id',id); }
+    catch(e){ console.warn('lead summary', e); }
+    toast&&toast('תקציר נשמר ✓');
+  }
   // דחיפות לפי זמנים: פולואפ שעבר זמנו / פתוח ישן = קודם; סגור בסוף
   function leadUrgency(l){
     const s=l.status||'פתוח';
@@ -1392,6 +1400,11 @@
                 <option value="2" ${attempts===2?'selected':''}>2</option>
                 <option value="3" ${attempts===3?'selected':''}>3</option>
               </select>
+            </div>
+            <div style="margin-top:8px">
+              <div style="font-size:12px;color:var(--muted);margin-bottom:4px">📝 תקציר שיחה:</div>
+              <textarea id="sum_${l.id}" placeholder="מה נאמר בשיחה, מה הלקוח מחפש, הערות..." style="width:100%;min-height:56px;padding:8px 10px;font-size:13px;border-radius:10px;resize:vertical">${l.summary||''}</textarea>
+              <button onclick="saveLeadSummary('${l.id}')" style="margin-top:6px;background:#0d0d0d;color:#fff;border:none;border-radius:8px;padding:6px 16px;font-size:13px;font-weight:800;cursor:pointer">💾 שמור תקציר</button>
             </div>
           </div>
           ${phone?`<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
