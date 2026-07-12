@@ -1317,11 +1317,19 @@
     try{ const c=sbClient(); if(c) await c.from('leads').update({status}).eq('id',id); }
     catch(e){ console.warn('lead status', e); }
   }
-  async function updateLeadFollowup(id,val){
+  // עדכון מקומי בלבד בזמן בחירת התאריך (בלי שמירה עדיין)
+  function setLeadFollowupLocal(id,val){
     const l=leads.find(x=>String(x.id)===String(id)); if(l) l.followup_at=val;
     const lbl=document.getElementById('fulbl_'+id); if(lbl) lbl.textContent=val?('📅 לחזור: '+fmtFollowup(val)):'';
+  }
+  // שמירה + מיון מחדש (הליד יעבור למיקום הנכון לפי הזמן)
+  async function saveLeadFollowup(id){
+    const inp=document.getElementById('fu_'+id);
+    const val=inp?inp.value:'';
+    const l=leads.find(x=>String(x.id)===String(id)); if(l) l.followup_at=val;
     try{ const c=sbClient(); if(c) await c.from('leads').update({followup_at:val}).eq('id',id); }
     catch(e){ console.warn('lead followup', e); }
+    toast&&toast('נשמר ✓'); renderLeads();
   }
   async function updateLeadAttempts(id,val){
     const l=leads.find(x=>String(x.id)===String(id)); if(l) l.call_attempts=val;
@@ -1372,7 +1380,8 @@
                 <option ${status==='פולואפ'?'selected':''}>פולואפ</option>
                 <option ${status==='סגור'?'selected':''}>סגור</option>
               </select>
-              <input type="datetime-local" value="${l.followup_at||''}" onchange="updateLeadFollowup('${l.id}',this.value)" style="display:${isFu?'inline-block':'none'};width:auto;padding:5px 8px;font-size:13px;border-radius:8px">
+              <input id="fu_${l.id}" type="datetime-local" value="${l.followup_at||''}" onchange="setLeadFollowupLocal('${l.id}',this.value)" style="display:${isFu?'inline-block':'none'};width:auto;padding:5px 8px;font-size:13px;border-radius:8px">
+              <button onclick="saveLeadFollowup('${l.id}')" style="display:${isFu?'inline-block':'none'};background:#0d0d0d;color:#fff;border:none;border-radius:8px;padding:6px 14px;font-size:13px;font-weight:800;cursor:pointer">💾 שמור</button>
               <span id="fulbl_${l.id}" style="font-size:12px;color:${overdue?'#dc2626':'#a16207'};font-weight:700">${isFu&&l.followup_at?('📅 לחזור: '+fmtFollowup(l.followup_at)):''}</span>
             </div>
             <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
