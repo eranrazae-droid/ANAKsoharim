@@ -1394,6 +1394,17 @@
       if(test.kilometer_test_aharon) info['ק"מ אחרון בטסט']=Number(test.kilometer_test_aharon).toLocaleString('he-IL');
       if(!info['תוקף טסט']&&test.tokef_dt) info['תוקף טסט']=test.tokef_dt;
     }
+    // 3) מאגר היסטוריית כלי רכב — מספר בעלויות קודמות וסוג בעלות
+    const hist=await govVehicle('bb2355dc-9ec7-4f06-9c3f-3344672171da',plate);
+    if(hist){
+      const HL={baalut:'סוג בעלות',mispar_baaluyot:'מספר בעלויות',mspr_baaluyot:'מספר בעלויות',mispar_baalim:'מספר בעלים קודמים',mispar_baalim_kodmim:'בעלים קודמים',kod_baalut:'סוג בעלות'};
+      Object.keys(hist).forEach(k=>{
+        if(k==='mispar_rechev'||k==='_id'||k==='rank'||k==='_full_text') return;
+        const v=hist[k]; if(v===''||v==null) return;
+        const label=HL[k]||k;
+        if(info[label]===undefined) info[label]=v;
+      });
+    }
     const rows=Object.keys(info).filter(k=>info[k]!==undefined&&info[k]!=='').map(k=>
       `<div style="display:grid;grid-template-columns:1fr 1fr;padding:4px 0;border-bottom:1px dashed #e5e7eb"><span style="color:#64748b;text-align:center">${k}</span><b style="text-align:center">${info[k]}</b></div>`).join('');
     const fullReport=`<a href="https://meshumeshet.com/c/${plate}" target="_blank" style="display:block;text-align:center;background:#0369a1;color:#fff;border-radius:8px;padding:9px;margin-top:8px;font-weight:800;text-decoration:none;font-size:13px">📋 דוח היסטוריה מלא (בעלויות + ק"מ) ›</a>`;
