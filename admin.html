@@ -136,6 +136,7 @@
     </nav>
     <div class="sidebar-footer">
       <button class="btn btn-line btn-sm" style="width:100%;margin-bottom:8px;background:#0369a1;color:#fff;border:none" onclick="openCloudinarySettings()">☁️ הגדרות Cloudinary</button>
+      <button class="btn btn-line btn-sm" style="width:100%;margin-bottom:8px;background:#a16207;color:#fff;border:none" onclick="openLeviSettings()">💰 הגדרות מחירון (לוי יצחק)</button>
       <button class="btn btn-line btn-sm" style="width:100%;margin-bottom:8px;background:#15803d;color:#fff;border:none" onclick="exportData()">📥 ייצוא נתונים (גיבוי)</button>
       <label style="width:100%;margin-bottom:8px;display:block;cursor:pointer">
         <div class="btn btn-line btn-sm" style="width:100%;background:#7c3aed;color:#fff;border:none;text-align:center;box-sizing:border-box">📤 ייבוא נתונים (שחזור)</div>
@@ -1367,6 +1368,45 @@
       return recs.find(x=>String(x.mispar_rechev)===plate)||recs[0]||null;
     }catch(e){ return null; }
   }
+  // ===== מחירון לוי יצחק — תשתית מוכנה לחיבור API =====
+  // כשמקבלים גישת API: מזינים כתובת + מפתח דרך "הגדרות מחירון", והמחיר יופיע אוטומטית בכל ליד עם מספר רכב.
+  function getLeviCfg(){ return { url:localStorage.getItem('levi_api_url')||'', key:localStorage.getItem('levi_api_key')||'' }; }
+  function openLeviSettings(){
+    const cur=getLeviCfg();
+    const url=prompt('כתובת ה-API של המחירון (מלוי יצחק או ספק אחר).\nהשתמשו ב-{plate} למספר הרכב וב-{key} למפתח.\nלדוגמה: https://api.provider.co.il/price?plate={plate}&key={key}', cur.url);
+    if(url===null) return;
+    const key=prompt('מפתח ה-API (API key). אפשר להשאיר ריק אם המפתח כבר בתוך הכתובת.', cur.key);
+    if(key===null) return;
+    localStorage.setItem('levi_api_url', url.trim());
+    localStorage.setItem('levi_api_key', key.trim());
+    toast&&toast('הגדרות מחירון נשמרו ✓');
+  }
+  // שליפת מחיר מהמחירון (רק אם הוגדר API). מחזיר מחרוזת מחיר או null.
+  async function fetchLeviPrice(plate){
+    const cfg=getLeviCfg(); if(!cfg.url) return null;
+    const url=cfg.url.replace('{plate}',encodeURIComponent(plate)).replace('{key}',encodeURIComponent(cfg.key));
+    try{
+      const r=await fetch(url); if(!r.ok) return null;
+      let data; const txt=await r.text();
+      try{ data=JSON.parse(txt); }catch(e){ data=txt; }
+      // ניסיון לחלץ מחיר מכל פורמט תגובה נפוץ
+      const num=extractPrice(data);
+      return num!=null ? Number(num).toLocaleString('he-IL')+' ₪' : null;
+    }catch(e){ console.warn('levi price', e); return null; }
+  }
+  function extractPrice(data){
+    if(data==null) return null;
+    if(typeof data==='number') return data;
+    if(typeof data==='string'){ const m=data.replace(/,/g,'').match(/\d{4,7}/); return m?Number(m[0]):null; }
+    if(typeof data==='object'){
+      const keys=['price','mחיר','mechir','value','madad','mחירון','list_price','price_ils','mחיר_מחירון'];
+      for(const k of Object.keys(data)){
+        if(keys.some(x=>k.toLowerCase().includes(x.toLowerCase()))){ const v=extractPrice(data[k]); if(v!=null) return v; }
+      }
+      for(const k of Object.keys(data)){ const v=extractPrice(data[k]); if(v!=null) return v; }
+    }
+    return null;
+  }
   // שליפת פרטי רכב טרייד-אין ממשרד התחבורה (כמה שיותר מידע)
   async function lookupTradeinPlate(id){
     const inp=document.getElementById('tp_'+id), box=document.getElementById('tpinfo_'+id);
@@ -1405,6 +1445,9 @@
         if(info[label]===undefined) info[label]=v;
       });
     }
+    // 4) מחירון לוי יצחק (רק אם הוגדר API)
+    const leviPrice=await fetchLeviPrice(plate);
+    if(leviPrice) info['💰 מחירון לוי יצחק']=leviPrice;
     const rows=Object.keys(info).filter(k=>info[k]!==undefined&&info[k]!=='').map(k=>
       `<div style="display:grid;grid-template-columns:1fr 1fr;padding:4px 0;border-bottom:1px dashed #e5e7eb"><span style="color:#64748b;text-align:center">${k}</span><b style="text-align:center">${info[k]}</b></div>`).join('');
     const fullReport=`<a href="https://meshumeshet.com/c/${plate}" target="_blank" style="display:block;text-align:center;background:#0369a1;color:#fff;border-radius:8px;padding:9px;margin-top:8px;font-weight:800;text-decoration:none;font-size:13px">📋 דוח היסטוריה מלא (בעלויות + ק"מ) ›</a>`;
