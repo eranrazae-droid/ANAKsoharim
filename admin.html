@@ -1335,6 +1335,52 @@
     catch(e){ console.warn('lead save', e); }
     toast&&toast('הליד נשמר ✓'); renderLeads();
   }
+  // שליפת רשומה בודדת ממאגר data.gov.il לפי מספר רכב
+  async function govVehicle(rid,plate){
+    try{
+      const r=await fetch('https://data.gov.il/api/3/action/datastore_search?resource_id='+rid+'&q='+plate);
+      if(!r.ok) return null;
+      const j=await r.json();
+      const recs=(j&&j.result&&j.result.records)||[];
+      return recs.find(x=>String(x.mispar_rechev)===plate)||recs[0]||null;
+    }catch(e){ return null; }
+  }
+  // שליפת פרטי רכב טרייד-אין ממשרד התחבורה (כמה שיותר מידע)
+  async function lookupTradeinPlate(id){
+    const inp=document.getElementById('tp_'+id), box=document.getElementById('tpinfo_'+id);
+    if(!inp||!box) return;
+    const plate=(inp.value||'').replace(/[^0-9]/g,'');
+    if(!plate){ box.innerHTML=''; return; }
+    box.innerHTML='<div style="color:#64748b;font-size:12px;margin-top:6px">מחפש במשרד התחבורה…</div>';
+    const info={};
+    // 1) מאגר רכב פרטי ומסחרי — פרטים כלליים + בעלות + תוקף טסט
+    let base=await govVehicle('053cea08-09bc-40ec-8f7a-156f0677aff3',plate);
+    if(!base) base=await govVehicle('cd3acc5c-03c3-4c89-9c54-d40f93c0d790',plate); // מסחרי כבד
+    if(base){
+      const model=[base.tozeret_nm, base.kinuy_mishari||base.degem_nm].filter(Boolean).join(' ');
+      if(model) info['דגם']=model;
+      if(base.shnat_yitzur) info['שנתון']=base.shnat_yitzur;
+      if(base.tzeva_rechev) info['צבע']=base.tzeva_rechev;
+      if(base.sug_delek_nm) info['סוג דלק']=base.sug_delek_nm;
+      if(base.baalut) info['בעלות']=base.baalut;
+      if(base.moed_aliya_lakvish) info['עלה לכביש']=base.moed_aliya_lakvish;
+      if(base.tokef_dt) info['תוקף טסט']=base.tokef_dt;
+    }
+    // 2) מאגר מבחני רכב (טסט) — ק"מ אחרון
+    const test=await govVehicle('56063a99-8a3e-4ff4-912e-5966c0279bad',plate);
+    if(test){
+      if(test.kilometer_test_aharon) info['ק"מ אחרון בטסט']=Number(test.kilometer_test_aharon).toLocaleString('he-IL');
+      if(!info['תוקף טסט']&&test.tokef_dt) info['תוקף טסט']=test.tokef_dt;
+    }
+    const rows=Object.keys(info).filter(k=>info[k]!==undefined&&info[k]!=='').map(k=>
+      `<div style="display:flex;justify-content:space-between;gap:12px;padding:3px 0;border-bottom:1px dashed #e5e7eb"><span style="color:#64748b">${k}</span><b>${info[k]}</b></div>`).join('');
+    if(rows){
+      box.innerHTML=`<div style="background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:8px;font-size:12px">${rows}
+        <div style="color:#94a3b8;margin-top:8px;font-size:11px;line-height:1.5">מקור: מאגרי משרד התחבורה. * מספר יד (בעלים קודמים) ומקוריות אינם מתפרסמים במאגר הפתוח — ניתן לבדוק אותם בדוח היסטוריית רכב בתשלום.</div></div>`;
+    } else {
+      box.innerHTML='<div style="color:#dc2626;font-size:12px;margin-top:6px">לא נמצא מידע על מספר הרכב הזה</div>';
+    }
+  }
   // דירוג דחיפות: [tier, ערך פנימי]. tier נמוך = למעלה
   // 0 = פולואפ שעבר זמנו (הכי דחוף), 1 = ליד חדש/פתוח (החדש קודם), 2 = פולואפ עתידי (הקרוב קודם), 3 = סגור
   function leadRank(l,now){
@@ -1403,9 +1449,13 @@
                 <option value="3" ${attempts===3?'selected':''}>3</option>
               </select>
             </div>
-            <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-              <span style="font-size:12px;color:var(--muted)">🔄 רישוי טרייד-אין:</span>
-              <input id="tp_${l.id}" type="text" value="${l.tradein_plate||''}" placeholder="מספר רכב" style="width:auto;padding:6px 10px;font-size:13px;border-radius:8px">
+            <div style="margin-top:8px">
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                <span style="font-size:12px;color:var(--muted)">🔄 רישוי טרייד-אין:</span>
+                <input id="tp_${l.id}" type="text" value="${l.tradein_plate||''}" placeholder="מספר רכב" onkeydown="if(event.key==='Enter'){event.preventDefault();lookupTradeinPlate('${l.id}');}" style="width:auto;padding:6px 10px;font-size:13px;border-radius:8px">
+                <button onclick="lookupTradeinPlate('${l.id}')" title="שליפת פרטי רכב ממשרד התחבורה" style="border:none;background:#0d0d0d;color:#fff;border-radius:8px;padding:6px 12px;font-size:14px;cursor:pointer">🔍</button>
+              </div>
+              <div id="tpinfo_${l.id}"></div>
             </div>
             <div style="margin-top:8px">
               <div style="font-size:12px;color:var(--muted);margin-bottom:4px">📝 תקציר שיחה:</div>
