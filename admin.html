@@ -1382,9 +1382,20 @@
   // עיצוב תאריך בעלות (YYYYMMDD / YYYYMM)
   function fmtBaalutDt(v){
     const s=String(v||'').replace(/\D/g,'');
-    if(s.length===8) return s.slice(6,8)+'/'+s.slice(4,6)+'/'+s.slice(0,4);
+    if(s.length===8) return s.slice(4,6)+'/'+s.slice(0,4);
     if(s.length===6) return s.slice(4,6)+'/'+s.slice(0,4);
     return s||'—';
+  }
+  // הפרש חודשים בין שני ערכי YYYYMM
+  function ymDiff(a,b){ const ay=Math.floor(a/100),am=a%100,by=Math.floor(b/100),bm=b%100; return (by-ay)*12+(bm-am); }
+  function fmtDuration(m){
+    if(m<1) return 'פחות מחודש';
+    if(m<2) return 'חודש';
+    const y=Math.floor(m/12), mo=m%12;
+    if(y===0) return mo+' חודשים';
+    let s=y===1?'שנה':y+' שנים';
+    if(mo>0) s+=' ו-'+mo+' חודשים';
+    return s;
   }
   // ===== מחירון לוי יצחק — תשתית מוכנה לחיבור API =====
   // כשמקבלים גישת API: מזינים כתובת + מפתח דרך "הגדרות מחירון", והמחיר יופיע אוטומטית בכל ליד עם מספר רכב.
@@ -1453,12 +1464,27 @@
       if(!info['תוקף טסט']&&test.tokef_dt) info['תוקף טסט']=test.tokef_dt;
     }
     // 3) מאגר היסטוריית בעלויות — רשומה לכל תקופת בעלות
+    let histBlock='';
     const histRecs=await govRecords('bb2355dc-9ec7-4f06-9c3f-3344672171da',plate);
     if(histRecs.length){
       histRecs.sort((a,b)=>Number(a.baalut_dt||0)-Number(b.baalut_dt||0));
       info['מספר בעלויות']=histRecs.length;
-      const lines=histRecs.map(r=>`${fmtBaalutDt(r.baalut_dt)} — ${r.baalut||''}`).join('<br>');
-      info['היסטוריית בעלויות']=lines;
+      const nowYm=(function(){const d=new Date();return d.getFullYear()*100+(d.getMonth()+1);})();
+      const trs=histRecs.map((r,i)=>{
+        const cur=Number(String(r.baalut_dt).slice(0,6));
+        const next=i<histRecs.length-1?Number(String(histRecs[i+1].baalut_dt).slice(0,6)):nowYm;
+        return `<tr>
+          <td style="padding:4px 6px;text-align:center;border-bottom:1px solid #eee">${fmtBaalutDt(r.baalut_dt)}</td>
+          <td style="padding:4px 6px;text-align:center;border-bottom:1px solid #eee">${fmtDuration(ymDiff(cur,next))}</td>
+          <td style="padding:4px 6px;text-align:center;border-bottom:1px solid #eee;font-weight:700">${r.baalut||''}</td>
+        </tr>`;
+      }).join('');
+      histBlock=`<div style="margin-top:8px">
+        <div style="font-weight:800;font-size:12px;margin-bottom:4px">📜 היסטוריית בעלויות (${histRecs.length})</div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;background:#fff;border:1px solid var(--line);border-radius:8px;overflow:hidden">
+          <tr style="background:#f1f5f9;font-weight:700"><td style="padding:5px 6px;text-align:center">תחילת בעלות</td><td style="padding:5px 6px;text-align:center">משך זמן</td><td style="padding:5px 6px;text-align:center">בעלות</td></tr>
+          ${trs}
+        </table></div>`;
     }
     // 4) מחירון לוי יצחק (רק אם הוגדר API)
     const leviPrice=await fetchLeviPrice(plate);
@@ -1467,10 +1493,10 @@
       `<div style="display:grid;grid-template-columns:1fr 1fr;padding:4px 0;border-bottom:1px dashed #e5e7eb"><span style="color:#64748b;text-align:center">${k}</span><b style="text-align:center">${info[k]}</b></div>`).join('');
     const fullReport=`<a href="https://meshumeshet.com/c/${plate}" target="_blank" style="display:block;text-align:center;background:#0369a1;color:#fff;border-radius:8px;padding:9px;margin-top:8px;font-weight:800;text-decoration:none;font-size:13px">📋 דוח היסטוריה מלא (בעלויות + ק"מ) ›</a>`;
     if(rows){
-      box.innerHTML=`<div style="background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:8px;font-size:12px">${rows}${fullReport}
-        <div style="color:#94a3b8;margin-top:8px;font-size:11px;line-height:1.5">מקור: מאגרי משרד התחבורה. לדוח מלא הכולל היסטוריית בעלויות וקילומטראז' — לחצו על הכפתור הכחול.</div></div>`;
+      box.innerHTML=`<div style="background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:8px;font-size:12px">${rows}${histBlock}${fullReport}
+        <div style="color:#94a3b8;margin-top:8px;font-size:11px;line-height:1.5">מקור: מאגרי משרד התחבורה.</div></div>`;
     } else {
-      box.innerHTML=`<div style="color:#dc2626;font-size:12px;margin-top:6px">לא נמצא מידע במאגר הפתוח.</div>${fullReport}`;
+      box.innerHTML=`<div style="color:#dc2626;font-size:12px;margin-top:6px">לא נמצא מידע במאגר הפתוח.</div>${histBlock}${fullReport}`;
     }
     // שמירת התוצאה כדי שתוצג אוטומטית בפעם הבאה בלי שליפה חוזרת
     const lead=leads.find(x=>String(x.id)===String(id)); if(lead) lead._tpHtml=box.innerHTML;
