@@ -1323,27 +1323,46 @@
     try{ const c=sbClient(); if(c) await c.from('leads').update({followup_at:val}).eq('id',id); }
     catch(e){ console.warn('lead followup', e); }
   }
+  async function updateLeadAttempts(id,val){
+    const l=leads.find(x=>String(x.id)===String(id)); if(l) l.call_attempts=val;
+    try{ const c=sbClient(); if(c) await c.from('leads').update({call_attempts:Number(val)||0}).eq('id',id); }
+    catch(e){ console.warn('lead attempts', e); }
+  }
+  // דחיפות לפי זמנים: פולואפ שעבר זמנו / פתוח ישן = קודם; סגור בסוף
+  function leadUrgency(l){
+    const s=l.status||'פתוח';
+    if(s==='סגור') return Infinity;
+    if(s==='פולואפ' && l.followup_at){ const t=new Date(l.followup_at).getTime(); return isNaN(t)?0:t; }
+    const c=l.created_at?new Date(l.created_at).getTime():0; return isNaN(c)?0:c;
+  }
   function renderLeads(){
     const el=document.getElementById('leadsList');if(!el)return;
     if(!leads.length){ el.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)">אין עדיין לידים. לידים מהצ׳אט ומטופס השובר יופיעו כאן אוטומטית.</div>'; return; }
-    // סדר: פתוח/פולואפ למעלה, סגור בסוף
-    const order={'פתוח':0,'פולואפ':1,'סגור':2};
-    const sorted=[...leads].sort((a,b)=>(order[a.status||'פתוח']-order[b.status||'פתוח']));
+    // מיון לפי דחיפות המשימה מבחינת זמנים (הדחוף ביותר למעלה, סגור בסוף)
+    const sorted=[...leads].sort((a,b)=>leadUrgency(a)-leadUrgency(b));
+    const now=Date.now();
     el.innerHTML=sorted.map(l=>{
       const phone=(l.phone||'').toString();
+      const waPhone='972'+phone.replace(/[^0-9]/g,'').replace(/^0/,'');
       const when=l.time || (l.created_at ? new Date(l.created_at).toLocaleString('he-IL') : '');
       const status=l.status||'פתוח';
       const sc=LEAD_STATUS_STYLE[status]||LEAD_STATUS_STYLE['פתוח'];
       const closed=status==='סגור';
       const isFu=status==='פולואפ';
-      return `<div class="lead-card" style="border-right:4px solid ${sc[1]};${closed?'opacity:.6':''}">
+      const attempts=Number(l.call_attempts)||0;
+      const overdue=isFu&&l.followup_at&&!isNaN(new Date(l.followup_at).getTime())&&new Date(l.followup_at).getTime()<now;
+      // הודעת "תחזור אלינו" מוכנה לוואטסאפ
+      const cbMsg=encodeURIComponent('היי '+(l.name||'')+', ניסינו להשיג אותך מאוטודילר אך לא היית זמין 📞\nנשמח שתחזור אלינו ונמצא לך את הרכב המתאים 🚗');
+      return `<div class="lead-card" style="border-right:4px solid ${overdue?'#dc2626':sc[1]};${closed?'opacity:.55':''}">
         <div style="display:flex;gap:14px;align-items:flex-start">
           <div class="lead-score s-hot" style="font-size:20px">🚗</div>
           <div style="flex:1">
-            <div style="font-weight:900;font-size:16px">${l.name||'ללא שם'}</div>
+            <div style="font-weight:900;font-size:16px">${l.name||'ללא שם'} ${overdue?'<span style="color:#dc2626;font-size:12px;font-weight:900">⏰ פולואפ עבר!</span>':''}</div>
             <div style="font-size:13px;color:var(--muted);margin-top:2px">${phone}${l.email?' · '+l.email:''}${l.car?' · '+l.car:''}</div>
-            <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+            <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
               <span style="background:#fef9e7;color:#a16207;padding:4px 10px;border-radius:8px;font-size:12px;font-weight:700">${l.action||'ליד חדש'}</span>
+              ${l.tradein?'<span style="background:#eef2ff;color:#4338ca;padding:4px 10px;border-radius:8px;font-size:12px;font-weight:800">🔄 טרייד-אין</span>':''}
+              ${l.financing?'<span style="background:#ecfdf5;color:#15803d;padding:4px 10px;border-radius:8px;font-size:12px;font-weight:800">💰 מימון</span>':''}
             </div>
             ${when?`<div style="margin-top:6px;font-size:12px;color:var(--muted)">🕐 ${when}</div>`:''}
             <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -1354,12 +1373,26 @@
                 <option ${status==='סגור'?'selected':''}>סגור</option>
               </select>
               <input type="datetime-local" value="${l.followup_at||''}" onchange="updateLeadFollowup('${l.id}',this.value)" style="display:${isFu?'inline-block':'none'};width:auto;padding:5px 8px;font-size:13px;border-radius:8px">
-              <span id="fulbl_${l.id}" style="font-size:12px;color:#a16207;font-weight:700">${isFu&&l.followup_at?('📅 לחזור: '+fmtFollowup(l.followup_at)):''}</span>
+              <span id="fulbl_${l.id}" style="font-size:12px;color:${overdue?'#dc2626':'#a16207'};font-weight:700">${isFu&&l.followup_at?('📅 לחזור: '+fmtFollowup(l.followup_at)):''}</span>
+            </div>
+            <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <span style="font-size:12px;color:var(--muted)">📞 ניסיון חיוג:</span>
+              <select onchange="updateLeadAttempts('${l.id}',this.value)" style="width:auto;padding:6px 10px;font-size:13px;font-weight:700;border-radius:8px">
+                <option value="0" ${attempts===0?'selected':''}>—</option>
+                <option value="1" ${attempts===1?'selected':''}>1</option>
+                <option value="2" ${attempts===2?'selected':''}>2</option>
+                <option value="3" ${attempts===3?'selected':''}>3</option>
+              </select>
             </div>
           </div>
-          ${phone?`<a href="https://wa.me/972${phone.replace(/[^0-9]/g,'').replace(/^0/,'')}" target="_blank"
-             style="background:#25D366;color:#fff;padding:9px 16px;border-radius:10px;font-size:13px;font-weight:900;text-decoration:none;white-space:nowrap;flex-shrink:0">
-            📲 וואטסאפ</a>`:''}
+          ${phone?`<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
+            <a href="https://wa.me/${waPhone}" target="_blank"
+               style="background:#25D366;color:#fff;padding:9px 14px;border-radius:10px;font-size:13px;font-weight:900;text-decoration:none;white-space:nowrap;text-align:center">📲 וואטסאפ</a>
+            <a href="https://wa.me/${waPhone}?text=${cbMsg}" target="_blank"
+               style="background:#0d9488;color:#fff;padding:9px 14px;border-radius:10px;font-size:13px;font-weight:900;text-decoration:none;white-space:nowrap;text-align:center">↩️ תחזור אלינו</a>
+            <a href="tel:${phone.replace(/[^0-9]/g,'')}"
+               style="background:#0d0d0d;color:#fff;padding:9px 14px;border-radius:10px;font-size:13px;font-weight:900;text-decoration:none;white-space:nowrap;text-align:center">📞 חייג</a>
+          </div>`:''}
         </div>
       </div>`;
     }).join('');
