@@ -500,6 +500,14 @@ display:none !important;
           <div>
             <h1>חסכו בממוצע 15,000₪ על הרכב הבא שלכם</h1>
             <p>גישה למחירי סחר שמורים לאנשי מקצוע — עכשיו פתוחה לכם. בשיתוף רשת סוכנויות עם 30 שנות ניסיון. רכבי 0 ק״מ, מימון אישי, טרייד-אין וליווי עד סגירת העסקה.</p>
+            <div style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:16px;padding:16px;margin-top:22px">
+              <div style="font-weight:800;font-size:15px;margin-bottom:10px;color:#fff">🔍 מצאו את הרכב שלכם</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px">
+                <select id="heroPickBrand" onchange="heroPickModels()" style="padding:11px 12px;border-radius:10px;border:none;font-size:14px;direction:rtl;text-align:right"><option value="">בחרו יצרן</option></select>
+                <select id="heroPickModel" style="padding:11px 12px;border-radius:10px;border:none;font-size:14px;direction:rtl;text-align:right"><option value="">בחרו דגם</option></select>
+                <button class="gold-btn" style="padding:11px 20px;font-size:15px;white-space:nowrap" onclick="heroPickGo()">צפו ברכב</button>
+              </div>
+            </div>
             <div class="hero-actions">
               <button class="gold-btn" style="font-size:18px;padding:16px 32px" onclick="document.getElementById('voucherSection')?.scrollIntoView({behavior:'smooth'})">רכשו שובר ב-300₪ →</button>
               <button class="line-btn" onclick="showPage('catalogPage')">צפו ברכבים תחילה</button>
@@ -1973,6 +1981,7 @@ display:none !important;
       document.getElementById('catalogCars').innerHTML = enriched.map(cardHtml).join('');
       if(typeof populateBrands==='function') populateBrands();
       if(typeof populateModels==='function') populateModels();
+      if(typeof populateHeroPick==='function') populateHeroPick();
       updateCompareTray();
     }
 
@@ -2193,6 +2202,31 @@ display:none !important;
       const models = [...new Set(cars.filter(c=>!brand||c.brand===brand).map(c=>c.model).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'he'));
       const cur = sel.value;
       sel.innerHTML = '<option value="">כל הדגמים</option>' + models.map(m=>'<option'+(m===cur?' selected':'')+'>'+m+'</option>').join('');
+    }
+    // בוחר רכב בדף הבית (יצרן→דגם)
+    function populateHeroPick(){
+      const bsel=document.getElementById('heroPickBrand'); if(!bsel) return;
+      const brands=[...new Set(cars.map(c=>c.brand).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'he'));
+      const cur=bsel.value;
+      bsel.innerHTML='<option value="">בחרו יצרן</option>'+brands.map(b=>'<option'+(b===cur?' selected':'')+'>'+b+'</option>').join('');
+      heroPickModels();
+    }
+    function heroPickModels(){
+      const msel=document.getElementById('heroPickModel'); if(!msel) return;
+      const brand=(document.getElementById('heroPickBrand')||{}).value||'';
+      const models=[...new Set(cars.filter(c=>!brand||c.brand===brand).map(c=>c.model).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'he'));
+      msel.innerHTML='<option value="">בחרו דגם</option>'+models.map(m=>'<option>'+m+'</option>').join('');
+    }
+    function heroPickGo(){
+      const brand=(document.getElementById('heroPickBrand')||{}).value||'';
+      const model=(document.getElementById('heroPickModel')||{}).value||'';
+      if(brand&&model){ const car=cars.find(c=>c.brand===brand&&c.model===model); if(car){ openCar(car.id); return; } }
+      showPage('catalogPage');
+      setTimeout(function(){
+        const bsel=document.getElementById('filterBrand'); if(bsel&&brand){ bsel.value=brand; onBrandChange(); }
+        const msel=document.getElementById('filterModel'); if(msel&&model){ msel.value=model; }
+        filterCatalog();
+      },60);
     }
     function onBrandChange(){ populateModels(); filterCatalog(); }
     function filterCatalog(){
