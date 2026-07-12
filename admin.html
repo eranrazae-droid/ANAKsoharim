@@ -1309,13 +1309,34 @@
     }catch(e){ console.warn('leads load ex', e); }
   }
 
+  const LEAD_STATUS_STYLE={'פתוח':['#dcfce7','#15803d'],'פולואפ':['#fef9e7','#a16207'],'סגור':['#f1f5f9','#64748b']};
+  function fmtFollowup(v){ if(!v) return ''; try{ return new Date(v).toLocaleString('he-IL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}); }catch(e){ return v; } }
+  async function updateLeadStatus(id,status){
+    const l=leads.find(x=>String(x.id)===String(id)); if(l) l.status=status;
+    renderLeads();
+    try{ const c=sbClient(); if(c) await c.from('leads').update({status}).eq('id',id); }
+    catch(e){ console.warn('lead status', e); }
+  }
+  async function updateLeadFollowup(id,val){
+    const l=leads.find(x=>String(x.id)===String(id)); if(l) l.followup_at=val;
+    const lbl=document.getElementById('fulbl_'+id); if(lbl) lbl.textContent=val?('📅 לחזור: '+fmtFollowup(val)):'';
+    try{ const c=sbClient(); if(c) await c.from('leads').update({followup_at:val}).eq('id',id); }
+    catch(e){ console.warn('lead followup', e); }
+  }
   function renderLeads(){
     const el=document.getElementById('leadsList');if(!el)return;
     if(!leads.length){ el.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)">אין עדיין לידים. לידים מהצ׳אט ומטופס השובר יופיעו כאן אוטומטית.</div>'; return; }
-    el.innerHTML=leads.map(l=>{
+    // סדר: פתוח/פולואפ למעלה, סגור בסוף
+    const order={'פתוח':0,'פולואפ':1,'סגור':2};
+    const sorted=[...leads].sort((a,b)=>(order[a.status||'פתוח']-order[b.status||'פתוח']));
+    el.innerHTML=sorted.map(l=>{
       const phone=(l.phone||'').toString();
       const when=l.time || (l.created_at ? new Date(l.created_at).toLocaleString('he-IL') : '');
-      return `<div class="lead-card">
+      const status=l.status||'פתוח';
+      const sc=LEAD_STATUS_STYLE[status]||LEAD_STATUS_STYLE['פתוח'];
+      const closed=status==='סגור';
+      const isFu=status==='פולואפ';
+      return `<div class="lead-card" style="border-right:4px solid ${sc[1]};${closed?'opacity:.6':''}">
         <div style="display:flex;gap:14px;align-items:flex-start">
           <div class="lead-score s-hot" style="font-size:20px">🚗</div>
           <div style="flex:1">
@@ -1325,6 +1346,16 @@
               <span style="background:#fef9e7;color:#a16207;padding:4px 10px;border-radius:8px;font-size:12px;font-weight:700">${l.action||'ליד חדש'}</span>
             </div>
             ${when?`<div style="margin-top:6px;font-size:12px;color:var(--muted)">🕐 ${when}</div>`:''}
+            <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <span style="font-size:12px;color:var(--muted)">סטטוס:</span>
+              <select onchange="updateLeadStatus('${l.id}',this.value)" style="width:auto;padding:6px 10px;font-size:13px;font-weight:700;border-radius:8px;background:${sc[0]};color:${sc[1]};border:1px solid ${sc[1]}33">
+                <option ${status==='פתוח'?'selected':''}>פתוח</option>
+                <option ${status==='פולואפ'?'selected':''}>פולואפ</option>
+                <option ${status==='סגור'?'selected':''}>סגור</option>
+              </select>
+              <input type="datetime-local" value="${l.followup_at||''}" onchange="updateLeadFollowup('${l.id}',this.value)" style="display:${isFu?'inline-block':'none'};width:auto;padding:5px 8px;font-size:13px;border-radius:8px">
+              <span id="fulbl_${l.id}" style="font-size:12px;color:#a16207;font-weight:700">${isFu&&l.followup_at?('📅 לחזור: '+fmtFollowup(l.followup_at)):''}</span>
+            </div>
           </div>
           ${phone?`<a href="https://wa.me/972${phone.replace(/[^0-9]/g,'').replace(/^0/,'')}" target="_blank"
              style="background:#25D366;color:#fff;padding:9px 16px;border-radius:10px;font-size:13px;font-weight:900;text-decoration:none;white-space:nowrap;flex-shrink:0">
