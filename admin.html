@@ -1397,12 +1397,12 @@
   // רכבים שהלקוח התעניין בהם — דרופדאונים מדורגים מתוך המלאי
   function _icBrands(){ return [...new Set(cars.map(c=>c.brand).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'he')); }
   function _icModels(brand){ return [...new Set(cars.filter(c=>c.brand===brand).map(c=>c.model).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'he')); }
-  function interestSlotHTML(id,slot,value){
+  function interestSlotHTML(id,slot,value,visible){
     let b='',m='';
     if(value){ const car=cars.find(c=>((c.brand+' '+c.model)===value)); if(car){ b=car.brand; m=car.model; } else { b=value; } }
     const bOpts='<option value="">יצרן</option>'+_icBrands().map(x=>`<option ${x===b?'selected':''}>${x}</option>`).join('');
     const mOpts='<option value="">דגם</option>'+(b?_icModels(b):[]).map(x=>`<option ${x===m?'selected':''}>${x}</option>`).join('');
-    return `<div style="display:flex;gap:6px;flex:1;min-width:220px;margin-bottom:6px">
+    return `<div id="icrow_${id}_${slot}" style="display:${visible?'flex':'none'};gap:6px;min-width:220px;margin-bottom:6px">
       <select id="icb_${id}_${slot}" onchange="onInterestBrand('${id}',${slot})" style="flex:1;padding:6px 8px;font-size:13px;border-radius:8px">${bOpts}</select>
       <select id="icm_${id}_${slot}" style="flex:1;padding:6px 8px;font-size:13px;border-radius:8px">${mOpts}</select>
     </div>`;
@@ -1412,6 +1412,13 @@
     if(!bs||!ms) return;
     const b=bs.value;
     ms.innerHTML='<option value="">דגם</option>'+(b?_icModels(b):[]).map(x=>`<option>${x}</option>`).join('');
+  }
+  function addInterestRow(id){
+    for(let s=2;s<=3;s++){
+      const row=document.getElementById('icrow_'+id+'_'+s);
+      if(row&&row.style.display==='none'){ row.style.display='flex'; if(s===3){const btn=document.getElementById('icadd_'+id); if(btn) btn.style.display='none';} return; }
+    }
+    const btn=document.getElementById('icadd_'+id); if(btn) btn.style.display='none';
   }
   // דירוג דחיפות: [tier, ערך פנימי]. tier נמוך = למעלה
   // 0 = פולואפ שעבר זמנו (הכי דחוף), 1 = ליד חדש/פתוח (החדש קודם), 2 = פולואפ עתידי (הקרוב קודם), 3 = סגור
@@ -1465,9 +1472,10 @@
             ${when?`<div style="margin-top:6px;font-size:12px;color:var(--muted)">🕐 ${when}</div>`:''}
             <div style="margin-top:10px">
               <div style="font-size:12px;color:var(--muted);margin-bottom:4px">🚗 רכבים שהתעניין בהם (עד 3):</div>
-              ${interestSlotHTML(l.id,1,ics[0]||'')}
-              ${interestSlotHTML(l.id,2,ics[1]||'')}
-              ${interestSlotHTML(l.id,3,ics[2]||'')}
+              ${interestSlotHTML(l.id,1,ics[0]||'',true)}
+              ${interestSlotHTML(l.id,2,ics[1]||'',!!(ics[1]||'').trim())}
+              ${interestSlotHTML(l.id,3,ics[2]||'',!!(ics[2]||'').trim())}
+              ${(ics[1]||'').trim()&&(ics[2]||'').trim()?'':`<button id="icadd_${l.id}" onclick="addInterestRow('${l.id}')" style="background:#f1f5f9;border:1px dashed var(--line);color:#64748b;border-radius:8px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer">➕ הוסף רכב</button>`}
             </div>
             <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
               <span style="font-size:12px;color:var(--muted)">סטטוס:</span>
