@@ -790,6 +790,22 @@ display:none !important;
                 <div style="display:grid;gap:10px;margin-top:18px">
                   <button class="gold-btn" onclick="startCheckout()" style="font-size:15px;padding:15px;font-weight:800">💳 שריינו עכשיו ב-300 ₪</button>
                   <button class="primary-btn" style="font-size:15px;padding:13px;font-weight:700;background:#25D366" onclick="window.open('https://wa.me/972508396030?text='+encodeURIComponent('היי, אני רוצה להתייעץ על רכב באוטודילר'),'_blank')">💬 רוצים להתייעץ? שלחו וואטסאפ</button>
+                  <button class="primary-btn" style="font-size:15px;padding:13px;font-weight:700;background:#0d0d0d;color:#fff" onclick="var f=document.getElementById('cpLeadBox');f.style.display=f.style.display==='block'?'none':'block';">📝 השאירו פרטים ונחזור אליכם</button>
+                </div>
+                <div id="cpLeadBox" style="display:none;margin-top:14px;background:#f8fafc;border:1px solid var(--line);border-radius:14px;padding:16px">
+                  <div id="cpLeadForm" style="display:grid;gap:10px">
+                    <input id="cp_name" type="text" placeholder="שם מלא" style="width:100%;padding:11px 14px;border:1px solid var(--line);border-radius:12px;text-align:right;direction:rtl">
+                    <input id="cp_phone" type="tel" placeholder="טלפון נייד (05X-XXXXXXX)" style="width:100%;padding:11px 14px;border:1px solid var(--line);border-radius:12px;text-align:right;direction:rtl">
+                    <div style="display:flex;gap:8px">
+                      <label style="flex:1;display:flex;align-items:center;gap:6px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:9px;cursor:pointer;font-size:13px;font-weight:700"><input id="cp_tradein" type="checkbox" onchange="document.getElementById('cp_tradein_wrap').style.display=this.checked?'block':'none'" style="width:17px;height:17px;flex-shrink:0"> 🔄 טרייד-אין</label>
+                      <label style="flex:1;display:flex;align-items:center;gap:6px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:9px;cursor:pointer;font-size:13px;font-weight:700"><input id="cp_financing" type="checkbox" style="width:17px;height:17px;flex-shrink:0"> 💰 מימון</label>
+                    </div>
+                    <div id="cp_tradein_wrap" style="display:none">
+                      <input id="cp_tradein_plate" type="tel" placeholder="מספר רישוי הרכב שלך (לטרייד-אין)" style="width:100%;padding:11px 14px;border:1px solid #D4A017;border-radius:12px;text-align:right;direction:rtl">
+                    </div>
+                    <button onclick="submitCarPageLead()" style="background:#D4A017;color:#000;border:none;border-radius:12px;padding:13px;font-weight:900;font-size:15px;cursor:pointer">שלחו לי הצעה 🚗</button>
+                  </div>
+                  <div id="cpLeadThanks" style="display:none;text-align:center;padding:14px;font-weight:800;color:#15803d">תודה! נחזור אליכם בהקדם 💛</div>
                 </div>
                 <div class="center muted" style="font-size:13px;margin-top:12px;line-height:1.7;font-weight:400">רוב הרכבים נמכרים תוך ימים.<br>השובר מתקזז במלואו ממחיר הרכב. ניתן לביטול והחזר מלא תוך 14 יום בהתאם לחוק.</div>
               </div>
@@ -3072,6 +3088,22 @@ display:none !important;
       } }catch(e){ console.warn('chat lead', e); }
       document.getElementById('chatForm').style.display='none';
       document.getElementById('chatThanks').style.display='block';
+    }
+    async function submitCarPageLead(){
+      var name=(document.getElementById('cp_name').value||'').trim();
+      var phone=(document.getElementById('cp_phone').value||'').replace(/\s/g,'');
+      if(!name){ alert('נא למלא שם'); return; }
+      if(!/^0\d{1,2}-?\d{7}$/.test(phone)){ alert('נא להזין טלפון תקין'); return; }
+      var tradein=(document.getElementById('cp_tradein')||{}).checked||false;
+      var financing=(document.getElementById('cp_financing')||{}).checked||false;
+      var tradeinPlate=tradein?((document.getElementById('cp_tradein_plate')||{}).value||'').trim():'';
+      var row={name:name,phone:phone,email:'',car:(typeof selectedCar!=='undefined'&&selectedCar)?(selectedCar.brand+' '+selectedCar.model):'',action:'עמוד רכב',created_at:new Date().toISOString()};
+      try{ var c=sbClient(); if(c){
+        var res=await c.from('leads').insert(Object.assign({},row,{tradein:tradein,financing:financing,tradein_plate:tradeinPlate}));
+        if(res&&res.error){ console.warn('car lead retry', res.error.message); await c.from('leads').insert(row); }
+      } }catch(e){ console.warn('car page lead', e); }
+      document.getElementById('cpLeadForm').style.display='none';
+      document.getElementById('cpLeadThanks').style.display='block';
     }
   </script>
 
