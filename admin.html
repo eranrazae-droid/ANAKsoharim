@@ -1350,9 +1350,12 @@
     const el=document.getElementById('leadsList');if(!el)return;
     if(!leads.length){ el.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)">אין עדיין לידים. לידים מהצ׳אט ומטופס השובר יופיעו כאן אוטומטית.</div>'; return; }
     const now=Date.now();
+    const closedCount=leads.filter(l=>(l.status||'')==='סגור').length;
     // מיון לפי דחיפות המשימה (הדחוף ביותר למעלה, סגור בסוף)
-    const sorted=[...leads].sort((a,b)=>{const ra=leadRank(a,now),rb=leadRank(b,now);return ra[0]-rb[0]||ra[1]-rb[1];});
-    el.innerHTML=sorted.map(l=>{
+    let sorted=[...leads].sort((a,b)=>{const ra=leadRank(a,now),rb=leadRank(b,now);return ra[0]-rb[0]||ra[1]-rb[1];});
+    if(!window._showClosedLeads) sorted=sorted.filter(l=>(l.status||'')!=='סגור');
+    const closedToggle=closedCount?`<div style="text-align:left;margin-bottom:12px"><button onclick="window._showClosedLeads=!window._showClosedLeads;renderLeads()" style="background:#f1f5f9;border:1px solid var(--line);color:#64748b;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer">${window._showClosedLeads?'הסתר סגורים':'הצג סגורים ('+closedCount+')'}</button></div>`:'';
+    el.innerHTML=closedToggle+sorted.map(l=>{
       const phone=(l.phone||'').toString();
       const waPhone='972'+phone.replace(/[^0-9]/g,'').replace(/^0/,'');
       const when=l.time || (l.created_at ? new Date(l.created_at).toLocaleString('he-IL') : '');
