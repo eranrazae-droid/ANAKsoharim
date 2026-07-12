@@ -1337,9 +1337,19 @@
     }).filter(Boolean);
     l.interest_cars=icv.join(' | ');
     const payload={status:l.status,followup_at:l.followup_at,call_attempts:l.call_attempts,summary:l.summary,tradein_plate:l.tradein_plate,interest_cars:l.interest_cars};
-    try{ const c=sbClient(); if(c) await c.from('leads').update(payload).eq('id',id); }
+    let saved=false;
+    try{ const c=sbClient(); if(c){
+      let res=await c.from('leads').update(payload).eq('id',id);
+      if(res&&res.error){
+        console.warn('lead save retry (missing columns?)', res.error.message);
+        // ניסיון עם עמודות בסיס בלבד — לפחות הסטטוס יישמר
+        res=await c.from('leads').update({status:l.status,followup_at:l.followup_at}).eq('id',id);
+        if(res&&res.error){ res=await c.from('leads').update({status:l.status}).eq('id',id); }
+      }
+      saved=!(res&&res.error);
+    } }
     catch(e){ console.warn('lead save', e); }
-    toast&&toast('הליד נשמר ✓'); renderLeads();
+    toast&&toast(saved?'הליד נשמר ✓':'שגיאה בשמירה — יש להריץ את ה-SQL ב-Supabase'); renderLeads();
   }
   async function reopenLead(id){
     const l=leads.find(x=>String(x.id)===String(id)); if(l) l.status='פתוח';
@@ -1411,7 +1421,10 @@
   function removeInterestRow(id,slot){
     const bs=document.getElementById('icb_'+id+'_'+slot), ms=document.getElementById('icm_'+id+'_'+slot);
     if(bs) bs.value=''; if(ms) ms.innerHTML='<option value="">דגם</option>';
-    if(slot>1){ const row=document.getElementById('icrow_'+id+'_'+slot); if(row) row.style.display='none'; }
+    const visible=[1,2,3].map(s=>document.getElementById('icrow_'+id+'_'+s)).filter(r=>r&&r.style.display!=='none');
+    const thisRow=document.getElementById('icrow_'+id+'_'+slot);
+    // מסירים את השורה רק אם נשארת לפחות אחת; אחרת רק מנקים
+    if(visible.length>1&&thisRow) thisRow.style.display='none';
     const btn=document.getElementById('icadd_'+id); if(btn) btn.style.display='inline-block';
   }
   function onInterestBrand(id,slot){
