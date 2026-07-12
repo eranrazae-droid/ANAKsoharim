@@ -1368,6 +1368,24 @@
       return recs.find(x=>String(x.mispar_rechev)===plate)||recs[0]||null;
     }catch(e){ return null; }
   }
+  // כל הרשומות התואמות למספר רכב (למאגרים עם כמה שורות לרכב, כמו היסטוריית בעלות)
+  async function govRecords(rid,plate){
+    try{
+      const r=await fetch('https://data.gov.il/api/3/action/datastore_search?resource_id='+rid+'&q='+plate);
+      if(!r.ok) return [];
+      const j=await r.json();
+      const recs=(j&&j.result&&j.result.records)||[];
+      const exact=recs.filter(x=>String(x.mispar_rechev)===plate);
+      return exact.length?exact:recs;
+    }catch(e){ return []; }
+  }
+  // עיצוב תאריך בעלות (YYYYMMDD / YYYYMM)
+  function fmtBaalutDt(v){
+    const s=String(v||'').replace(/\D/g,'');
+    if(s.length===8) return s.slice(6,8)+'/'+s.slice(4,6)+'/'+s.slice(0,4);
+    if(s.length===6) return s.slice(4,6)+'/'+s.slice(0,4);
+    return s||'—';
+  }
   // ===== מחירון לוי יצחק — תשתית מוכנה לחיבור API =====
   // כשמקבלים גישת API: מזינים כתובת + מפתח דרך "הגדרות מחירון", והמחיר יופיע אוטומטית בכל ליד עם מספר רכב.
   function getLeviCfg(){ return { url:localStorage.getItem('levi_api_url')||'', key:localStorage.getItem('levi_api_key')||'' }; }
@@ -1434,16 +1452,13 @@
       if(test.kilometer_test_aharon) info['ק"מ אחרון בטסט']=Number(test.kilometer_test_aharon).toLocaleString('he-IL');
       if(!info['תוקף טסט']&&test.tokef_dt) info['תוקף טסט']=test.tokef_dt;
     }
-    // 3) מאגר היסטוריית כלי רכב — מספר בעלויות קודמות וסוג בעלות
-    const hist=await govVehicle('bb2355dc-9ec7-4f06-9c3f-3344672171da',plate);
-    if(hist){
-      const HL={baalut:'סוג בעלות',mispar_baaluyot:'מספר בעלויות',mspr_baaluyot:'מספר בעלויות',mispar_baalim:'מספר בעלים קודמים',mispar_baalim_kodmim:'בעלים קודמים',kod_baalut:'סוג בעלות'};
-      Object.keys(hist).forEach(k=>{
-        if(k==='mispar_rechev'||k==='_id'||k==='rank'||k==='_full_text') return;
-        const v=hist[k]; if(v===''||v==null) return;
-        const label=HL[k]||k;
-        if(info[label]===undefined) info[label]=v;
-      });
+    // 3) מאגר היסטוריית בעלויות — רשומה לכל תקופת בעלות
+    const histRecs=await govRecords('bb2355dc-9ec7-4f06-9c3f-3344672171da',plate);
+    if(histRecs.length){
+      histRecs.sort((a,b)=>Number(a.baalut_dt||0)-Number(b.baalut_dt||0));
+      info['מספר בעלויות']=histRecs.length;
+      const lines=histRecs.map(r=>`${fmtBaalutDt(r.baalut_dt)} — ${r.baalut||''}`).join('<br>');
+      info['היסטוריית בעלויות']=lines;
     }
     // 4) מחירון לוי יצחק (רק אם הוגדר API)
     const leviPrice=await fetchLeviPrice(plate);
