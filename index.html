@@ -3019,8 +3019,12 @@ display:none !important;
         <input id="chat_name" type="text" placeholder="שם מלא" style="width:100%;padding:11px 14px;border:1px solid var(--line);border-radius:12px;text-align:right;direction:rtl">
         <input id="chat_phone" type="tel" placeholder="טלפון נייד (05X-XXXXXXX)" style="width:100%;padding:11px 14px;border:1px solid var(--line);border-radius:12px;text-align:right;direction:rtl">
         <div style="display:flex;gap:8px">
-          <label style="flex:1;display:flex;align-items:center;gap:6px;background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:9px;cursor:pointer;font-size:13px;font-weight:700"><input id="chat_tradein" type="checkbox" style="width:17px;height:17px;flex-shrink:0"> 🔄 טרייד-אין</label>
+          <label style="flex:1;display:flex;align-items:center;gap:6px;background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:9px;cursor:pointer;font-size:13px;font-weight:700"><input id="chat_tradein" type="checkbox" onchange="document.getElementById('chat_tradein_wrap').style.display=this.checked?'block':'none'" style="width:17px;height:17px;flex-shrink:0"> 🔄 טרייד-אין</label>
           <label style="flex:1;display:flex;align-items:center;gap:6px;background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:9px;cursor:pointer;font-size:13px;font-weight:700"><input id="chat_financing" type="checkbox" style="width:17px;height:17px;flex-shrink:0"> 💰 מימון</label>
+        </div>
+        <div id="chat_tradein_wrap" style="display:none">
+          <input id="chat_tradein_plate" type="tel" placeholder="מספר רישוי הרכב שלך (לטרייד-אין)" style="width:100%;padding:11px 14px;border:1px solid #D4A017;border-radius:12px;text-align:right;direction:rtl">
+          <div style="font-size:11px;color:#6b7280;margin-top:3px">💡 נשתמש בזה כדי להעריך את הרכב שלך מראש</div>
         </div>
         <button onclick="submitChatLead()" style="background:#D4A017;color:#000;border:none;border-radius:12px;padding:13px;font-weight:900;font-size:15px;cursor:pointer">שלחו לי הצעה 🚗</button>
         <a href="https://wa.me/972508396030?text=%D7%94%D7%99%D7%99%2C%20%D7%90%D7%A0%D7%99%20%D7%9E%D7%A2%D7%95%D7%A0%D7%99%D7%99%D7%9F%20%D7%91%D7%99%D7%99%D7%A2%D7%95%D7%A5%20%D7%9C%D7%A8%D7%9B%D7%99%D7%A9%D7%AA%20%D7%A8%D7%9B%D7%91" target="_blank" rel="noreferrer" style="text-align:center;background:#25D366;color:#fff;border-radius:12px;padding:11px;font-weight:800;font-size:14px;text-decoration:none">💬 או דברו איתנו בוואטסאפ</a>
@@ -3060,9 +3064,10 @@ display:none !important;
       if(!/^0\d{1,2}-?\d{7}$/.test(phone)){ alert('נא להזין טלפון תקין'); return; }
       var tradein=(document.getElementById('chat_tradein')||{}).checked||false;
       var financing=(document.getElementById('chat_financing')||{}).checked||false;
+      var tradeinPlate=tradein?((document.getElementById('chat_tradein_plate')||{}).value||'').trim():'';
       var row={name:name,phone:phone,email:'',car:(typeof selectedCar!=='undefined'&&selectedCar)?(selectedCar.brand+' '+selectedCar.model):'',action:'צ׳אט ייעוץ',created_at:new Date().toISOString()};
       try{ var c=sbClient(); if(c){
-        var res=await c.from('leads').insert(Object.assign({},row,{tradein:tradein,financing:financing}));
+        var res=await c.from('leads').insert(Object.assign({},row,{tradein:tradein,financing:financing,tradein_plate:tradeinPlate}));
         if(res&&res.error){ console.warn('chat lead retry', res.error.message); await c.from('leads').insert(row); }
       } }catch(e){ console.warn('chat lead', e); }
       document.getElementById('chatForm').style.display='none';
