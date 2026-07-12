@@ -1311,38 +1311,27 @@
 
   const LEAD_STATUS_STYLE={'פתוח':['#dcfce7','#15803d'],'פולואפ':['#fef9e7','#a16207'],'סגור':['#f1f5f9','#64748b']};
   function fmtFollowup(v){ if(!v) return ''; try{ return new Date(v).toLocaleString('he-IL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}); }catch(e){ return v; } }
-  async function updateLeadStatus(id,status){
-    const l=leads.find(x=>String(x.id)===String(id)); if(l) l.status=status;
-    renderLeads();
-    try{ const c=sbClient(); if(c) await c.from('leads').update({status}).eq('id',id); }
-    catch(e){ console.warn('lead status', e); }
+  // שינוי סטטוס — עדכון מקומי + הצגת/הסתרת בורר התאריך (בלי שמירה עד לחיצה על שמור)
+  function onLeadStatusChangeLocal(id,val){
+    const l=leads.find(x=>String(x.id)===String(id)); if(l) l.status=val;
+    const fu=document.getElementById('fu_'+id);
+    if(fu) fu.style.display=(val==='פולואפ')?'inline-block':'none';
   }
-  // עדכון מקומי בלבד בזמן בחירת התאריך (בלי שמירה עדיין)
   function setLeadFollowupLocal(id,val){
     const l=leads.find(x=>String(x.id)===String(id)); if(l) l.followup_at=val;
     const lbl=document.getElementById('fulbl_'+id); if(lbl) lbl.textContent=val?('📅 לחזור: '+fmtFollowup(val)):'';
   }
-  // שמירה + מיון מחדש (הליד יעבור למיקום הנכון לפי הזמן)
-  async function saveLeadFollowup(id){
-    const inp=document.getElementById('fu_'+id);
-    const val=inp?inp.value:'';
-    const l=leads.find(x=>String(x.id)===String(id)); if(l) l.followup_at=val;
-    try{ const c=sbClient(); if(c) await c.from('leads').update({followup_at:val}).eq('id',id); }
-    catch(e){ console.warn('lead followup', e); }
-    toast&&toast('נשמר ✓'); renderLeads();
-  }
-  async function updateLeadAttempts(id,val){
-    const l=leads.find(x=>String(x.id)===String(id)); if(l) l.call_attempts=val;
-    try{ const c=sbClient(); if(c) await c.from('leads').update({call_attempts:Number(val)||0}).eq('id',id); }
-    catch(e){ console.warn('lead attempts', e); }
-  }
-  async function saveLeadSummary(id){
-    const inp=document.getElementById('sum_'+id);
-    const val=inp?inp.value:'';
-    const l=leads.find(x=>String(x.id)===String(id)); if(l) l.summary=val;
-    try{ const c=sbClient(); if(c) await c.from('leads').update({summary:val}).eq('id',id); }
-    catch(e){ console.warn('lead summary', e); }
-    toast&&toast('תקציר נשמר ✓');
+  // כפתור שמור כללי — שומר את כל שדות הליד ומעביר אותו למיקום הנכון לפי הזמן
+  async function saveLead(id){
+    const l=leads.find(x=>String(x.id)===String(id)); if(!l) return;
+    const st=document.getElementById('st_'+id); if(st) l.status=st.value;
+    const fu=document.getElementById('fu_'+id); l.followup_at=(l.status==='פולואפ'&&fu)?fu.value:'';
+    const at=document.getElementById('at_'+id); if(at) l.call_attempts=Number(at.value)||0;
+    const sum=document.getElementById('sum_'+id); if(sum) l.summary=sum.value;
+    const payload={status:l.status,followup_at:l.followup_at,call_attempts:l.call_attempts,summary:l.summary};
+    try{ const c=sbClient(); if(c) await c.from('leads').update(payload).eq('id',id); }
+    catch(e){ console.warn('lead save', e); }
+    toast&&toast('הליד נשמר ✓'); renderLeads();
   }
   // דחיפות לפי זמנים: פולואפ שעבר זמנו / פתוח ישן = קודם; סגור בסוף
   function leadUrgency(l){
@@ -1383,18 +1372,17 @@
             ${when?`<div style="margin-top:6px;font-size:12px;color:var(--muted)">🕐 ${when}</div>`:''}
             <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
               <span style="font-size:12px;color:var(--muted)">סטטוס:</span>
-              <select onchange="updateLeadStatus('${l.id}',this.value)" style="width:auto;padding:6px 10px;font-size:13px;font-weight:700;border-radius:8px;background:${sc[0]};color:${sc[1]};border:1px solid ${sc[1]}33">
+              <select id="st_${l.id}" onchange="onLeadStatusChangeLocal('${l.id}',this.value)" style="width:auto;padding:6px 10px;font-size:13px;font-weight:700;border-radius:8px;background:${sc[0]};color:${sc[1]};border:1px solid ${sc[1]}33">
                 <option ${status==='פתוח'?'selected':''}>פתוח</option>
                 <option ${status==='פולואפ'?'selected':''}>פולואפ</option>
                 <option ${status==='סגור'?'selected':''}>סגור</option>
               </select>
               <input id="fu_${l.id}" type="datetime-local" value="${l.followup_at||''}" onchange="setLeadFollowupLocal('${l.id}',this.value)" style="display:${isFu?'inline-block':'none'};width:auto;padding:5px 8px;font-size:13px;border-radius:8px">
-              <button onclick="saveLeadFollowup('${l.id}')" style="display:${isFu?'inline-block':'none'};background:#0d0d0d;color:#fff;border:none;border-radius:8px;padding:6px 14px;font-size:13px;font-weight:800;cursor:pointer">💾 שמור</button>
               <span id="fulbl_${l.id}" style="font-size:12px;color:${overdue?'#dc2626':'#a16207'};font-weight:700">${isFu&&l.followup_at?('📅 לחזור: '+fmtFollowup(l.followup_at)):''}</span>
             </div>
             <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
               <span style="font-size:12px;color:var(--muted)">📞 ניסיון חיוג:</span>
-              <select onchange="updateLeadAttempts('${l.id}',this.value)" style="width:auto;padding:6px 10px;font-size:13px;font-weight:700;border-radius:8px">
+              <select id="at_${l.id}" style="width:auto;padding:6px 10px;font-size:13px;font-weight:700;border-radius:8px">
                 <option value="0" ${attempts===0?'selected':''}>—</option>
                 <option value="1" ${attempts===1?'selected':''}>1</option>
                 <option value="2" ${attempts===2?'selected':''}>2</option>
@@ -1404,8 +1392,8 @@
             <div style="margin-top:8px">
               <div style="font-size:12px;color:var(--muted);margin-bottom:4px">📝 תקציר שיחה:</div>
               <textarea id="sum_${l.id}" placeholder="מה נאמר בשיחה, מה הלקוח מחפש, הערות..." style="width:100%;min-height:56px;padding:8px 10px;font-size:13px;border-radius:10px;resize:vertical">${l.summary||''}</textarea>
-              <button onclick="saveLeadSummary('${l.id}')" style="margin-top:6px;background:#0d0d0d;color:#fff;border:none;border-radius:8px;padding:6px 16px;font-size:13px;font-weight:800;cursor:pointer">💾 שמור תקציר</button>
             </div>
+            <button onclick="saveLead('${l.id}')" style="margin-top:10px;background:#D4A017;color:#000;border:none;border-radius:10px;padding:9px 22px;font-size:14px;font-weight:900;cursor:pointer">💾 שמור ליד</button>
           </div>
           ${phone?`<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
             <a href="https://wa.me/${waPhone}" target="_blank"
