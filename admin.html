@@ -1402,10 +1402,17 @@
     if(value){ const car=cars.find(c=>((c.brand+' '+c.model)===value)); if(car){ b=car.brand; m=car.model; } else { b=value; } }
     const bOpts='<option value="">יצרן</option>'+_icBrands().map(x=>`<option ${x===b?'selected':''}>${x}</option>`).join('');
     const mOpts='<option value="">דגם</option>'+(b?_icModels(b):[]).map(x=>`<option ${x===m?'selected':''}>${x}</option>`).join('');
-    return `<div id="icrow_${id}_${slot}" style="display:${visible?'flex':'none'};gap:6px;min-width:220px;margin-bottom:6px">
+    return `<div id="icrow_${id}_${slot}" style="display:${visible?'flex':'none'};gap:6px;min-width:220px;margin-bottom:6px;align-items:center">
       <select id="icb_${id}_${slot}" onchange="onInterestBrand('${id}',${slot})" style="flex:1;padding:6px 8px;font-size:13px;border-radius:8px">${bOpts}</select>
       <select id="icm_${id}_${slot}" style="flex:1;padding:6px 8px;font-size:13px;border-radius:8px">${mOpts}</select>
+      <button onclick="removeInterestRow('${id}',${slot})" title="הסר רכב" style="background:#fef2f2;border:1px solid #fecaca;color:#dc2626;border-radius:8px;padding:6px 10px;font-size:13px;font-weight:900;cursor:pointer;flex-shrink:0">✕</button>
     </div>`;
+  }
+  function removeInterestRow(id,slot){
+    const bs=document.getElementById('icb_'+id+'_'+slot), ms=document.getElementById('icm_'+id+'_'+slot);
+    if(bs) bs.value=''; if(ms) ms.innerHTML='<option value="">דגם</option>';
+    if(slot>1){ const row=document.getElementById('icrow_'+id+'_'+slot); if(row) row.style.display='none'; }
+    const btn=document.getElementById('icadd_'+id); if(btn) btn.style.display='inline-block';
   }
   function onInterestBrand(id,slot){
     const bs=document.getElementById('icb_'+id+'_'+slot), ms=document.getElementById('icm_'+id+'_'+slot);
