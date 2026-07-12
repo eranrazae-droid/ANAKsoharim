@@ -1403,6 +1403,8 @@
     } else {
       box.innerHTML=`<div style="color:#dc2626;font-size:12px;margin-top:6px">לא נמצא מידע במאגר הפתוח.</div>${fullReport}`;
     }
+    // שמירת התוצאה כדי שתוצג אוטומטית בפעם הבאה בלי שליפה חוזרת
+    const lead=leads.find(x=>String(x.id)===String(id)); if(lead) lead._tpHtml=box.innerHTML;
   }
   // רכבים שהלקוח התעניין בהם — דרופדאונים מדורגים מתוך המלאי
   function _icBrands(){ return [...new Set(cars.map(c=>c.brand).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'he')); }
@@ -1522,7 +1524,7 @@
                 <input id="tp_${l.id}" type="text" value="${l.tradein_plate||''}" placeholder="מספר רכב" onkeydown="if(event.key==='Enter'){event.preventDefault();lookupTradeinPlate('${l.id}');}" style="width:auto;padding:6px 10px;font-size:13px;border-radius:8px">
                 <button onclick="lookupTradeinPlate('${l.id}')" title="שליפת פרטי רכב ממשרד התחבורה" style="border:none;background:#0d0d0d;color:#fff;border-radius:8px;padding:6px 12px;font-size:14px;cursor:pointer">🔍</button>
               </div>
-              <div id="tpinfo_${l.id}"></div>
+              <div id="tpinfo_${l.id}">${l._tpHtml||''}</div>
             </div>
             <div style="margin-top:8px">
               <div style="font-size:12px;color:var(--muted);margin-bottom:4px">📝 תקציר שיחה:</div>
@@ -1544,6 +1546,8 @@
         </div>
       </div>`;
     }).join('');
+    // שליפה אוטומטית של פרטי טרייד-אין ללידים שיש להם רישוי (בלי ללחוץ על עין)
+    sorted.forEach(l=>{ if(l.tradein_plate&&!l._tpHtml){ lookupTradeinPlate(l.id); } });
   }
 
   function renderVouchers(){
