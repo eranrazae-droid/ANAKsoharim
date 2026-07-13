@@ -7763,6 +7763,20 @@ function _renderTdLivePanel(data) {
     if (note) html += `<div style="font-size:11px;color:#dc2626;margin-bottom:4px;padding-right:4px">⚠️ ${esc(note)}</div>`;
   });
 
+  // drive notes section
+  const driveNotes = src.driveNotes || (isDone ? data.driveNotes : '') || '';
+  html += `<div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:10px 0 4px;border-top:1px solid var(--border);margin-top:4px">בדיקת הרכב בנסיעה</div>`;
+  html += `<textarea id="td-live-drive-notes" rows="3" oninput="_saveTdLiveDriveNotes(this.value)" style="width:100%;box-sizing:border-box;padding:8px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;resize:vertical">${esc(driveNotes)}</textarea>`;
+
+  // km / code
+  const km = src.km || data.km || '';
+  const code = src.code || data.code || '';
+  if (km || code) {
+    html += `<div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:10px 0 4px;border-top:1px solid var(--border);margin-top:4px">קילומטראז׳ וקוד</div>`;
+    if (km) html += `<div style="font-size:13px;font-weight:700;padding:3px 0">🛣️ קמ: <span style="font-weight:400">${esc(km)}</span></div>`;
+    if (code) html += `<div style="font-size:13px;font-weight:700;padding:3px 0">🔑 קוד: <span style="font-weight:400">${esc(code)}</span></div>`;
+  }
+
   // dashboard lights
   if (isDone && data.dashLights?.length) {
     const lbls = {engine:'צ׳ק אנג׳ין',tire:'לחץ אוויר',service:'טיפול',collision:'התגשות',fuel:'דלק',other:'אחר'};
@@ -7789,6 +7803,19 @@ function _renderTdLivePanel(data) {
     }
   }
 }
+
+let _tdLiveDriveNotesTimer = null;
+async function _saveTdLiveDriveNotes(val) {
+  if (!_tdLivePanelId) return;
+  clearTimeout(_tdLiveDriveNotesTimer);
+  _tdLiveDriveNotesTimer = setTimeout(async () => {
+    try {
+      const { updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+      await updateDoc(doc(window._db,'test_drives',_tdLivePanelId), { 'draft.driveNotes': val });
+    } catch(e) { console.error(e); }
+  }, 600);
+}
+window._saveTdLiveDriveNotes = _saveTdLiveDriveNotes;
 
 async function _tdLiveCiClick(key, val, btn) {
   if (!_tdLivePanelId) return;
