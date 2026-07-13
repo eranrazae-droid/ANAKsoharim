@@ -1753,22 +1753,25 @@ function renderHome() {
 
   // הילה (pickup_driver) — only sees assigned pickup cars
   if (currentUser.role === 'pickup_driver') {
-    // hide stats row and test drive button
+    // hide tasks stat, show pickup stat card only
+    const tasksCard = document.querySelector('#stats-row .stat-card:first-child');
+    if (tasksCard) tasksCard.style.display = 'none';
+    const vehiclesCard = document.getElementById('stat-vehicles-card');
+    if (vehiclesCard) vehiclesCard.style.display = 'none';
     const statsRow = document.getElementById('stats-row');
-    if (statsRow) statsRow.style.display = 'none';
+    if (statsRow) statsRow.style.display = '';
     const tdBtn = document.getElementById('btn-test-drive-home');
     if (tdBtn) tdBtn.style.display = 'none';
-    document.getElementById('menu-grid').innerHTML =
-      `<div class="menu-card" id="menu-card-my-pickup" onclick="openMyPickupScreen()">
-        <div style="position:relative;display:inline-block">
-          <div class="mc-icon">🚙</div>
-          <span id="badge-my-pickup" style="display:none;position:absolute;top:-6px;right:-10px;background:#ef4444;color:#fff;border-radius:999px;font-size:11px;font-weight:900;padding:1px 6px;min-width:18px;text-align:center"></span>
-        </div>
-        <div class="mc-title">הרכבים שלי לאיסוף</div>
-        <div class="mc-sub">רכבים ממתינים לאיסוף</div>
-      </div>`;
+    document.getElementById('menu-grid').innerHTML = '';
     _onSnap(_query(_colRef('pickup_cars'), _where('assignedDriver','==',currentUser.name)), snap => {
-      _setCardBadge('my-pickup', snap.size, snap.size > 0 ? '#1e40af' : null);
+      const cars = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const card = document.getElementById('stat-pickup-driver-card');
+      const cnt = document.getElementById('stat-pickup-driver-count');
+      if (card) card.style.display = cars.length ? 'block' : 'none';
+      if (cnt) cnt.textContent = cars.length;
+      _driverPickupCars = cars;
+      const modal = document.getElementById('modal-driver-pickup');
+      if (modal && modal.classList.contains('open')) _renderDriverPickupModal();
     });
     return;
   }
