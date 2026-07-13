@@ -3295,7 +3295,25 @@ function openDriverIntake(id) {
   }
   openModal('modal-driver-intake');
   // restore saved draft after modal opens
-  setTimeout(() => restoreIntakeDraft(id), 50);
+  setTimeout(() => {
+    const hasLocal = !!localStorage.getItem('intake_draft_' + id);
+    restoreIntakeDraft(id);
+    if (!hasLocal && window._CONFIG_DONE) {
+      import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(({ getDoc, doc }) => {
+        getDoc(doc(window._db, 'intake_assignments', id)).then(snap => {
+          if (!snap.exists()) return;
+          const fd = snap.data().draft;
+          if (fd && (Object.keys(fd.checks||{}).length || Object.keys(fd.dashChecks||{}).length)) {
+            _applyIntakeDraftObj(fd);
+            if (fd.km) { const el = document.getElementById('di-km'); if (el) el.value = fd.km; }
+            if (fd.dashChecks?.['dash-other']) {
+              const ta = document.getElementById('cn-c-dashboard'); if (ta) ta.style.display = 'block';
+            }
+          }
+        }).catch(()=>{});
+      });
+    }
+  }, 50);
   // auto-save on any text input
   document.querySelectorAll('#modal-driver-intake textarea, #di-km, #di-code, #di-notes').forEach(el => {
     el.addEventListener('input', saveIntakeDraft);
@@ -7816,7 +7834,7 @@ async function completeTdLivePanel() {
     const tdNotes  = data.notes  || data.draft?.notes  || {};
     const tdDashLights  = data.dashLights  || data.draft?.dashLights  || [];
     const tdDashOther   = data.dashOtherText || data.draft?.dashOtherText || '';
-    const tdToIntake = { 'td-oil':'c-oil','td-coolant':'c-coolant','td-windows':'c-windows','td-lights':'c-lights-break','td-ac':'c-ac','td-dashboard':'c-dashboard' };
+    const tdToIntake = { 'td-oil':'c-oil','td-coolant':'c-coolant','td-glass':'c-glass-break','td-windows':'c-windows','td-lights':'c-lights-break','td-lights-burnt':'c-bulbs','td-ac':'c-ac','td-dashboard':'c-dashboard' };
     const tdDashMap  = { 'td-dash-engine':'dash-check-engine','td-dash-tire':'dash-tire-pressure','td-dash-service':'dash-service','td-dash-collision':'dash-collision','td-dash-fuel':'dash-fuel','td-dash-istop':'dash-istop','td-dash-other':'dash-other' };
     const intakeChecks = {}, intakeNotes = {}, intakeDash = {};
     Object.entries(tdChecks).forEach(([k,v]) => { const ik=tdToIntake[k]; if(ik) intakeChecks[ik]=v; });
