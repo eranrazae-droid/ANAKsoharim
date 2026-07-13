@@ -463,6 +463,7 @@ if ('serviceWorker' in navigator) {
         <option value="רפד">רפד</option>
         <option value="זגג">זגג</option>
         <option value="רדארים">רדארים</option>
+        <option value="מוסך">מוסך</option>
         <option value="עופר">עופר</option>
         <option value="גיל">גיל</option>
         <option value="איתי">איתי</option>
@@ -505,6 +506,7 @@ if ('serviceWorker' in navigator) {
         <option value="רפד">רפד</option>
         <option value="זגג">זגג</option>
         <option value="רדארים">רדארים</option>
+        <option value="מוסך">מוסך</option>
         <option value="עופר">עופר</option>
         <option value="גיל">גיל</option>
         <option value="איתי">איתי</option>
@@ -1850,7 +1852,7 @@ function getSeenTasks() {
 }
 function markLabelSeen(label) {
   const seen = getSeenTasks();
-  const labelFilters = ['משימות בעדיפות עליונה','משימות כלליות','חביב','ולאדי','רפד','זגג','רדארים'];
+  const labelFilters = ['משימות בעדיפות עליונה','משימות כלליות','חביב','ולאדי','רפד','זגג','רדארים','מוסך'];
   let tasks = tasksCache;
   if (labelFilters.includes(label)) tasks = tasks.filter(t => t.label === label);
   tasks.forEach(t => seen.add(t.id));
@@ -1870,7 +1872,7 @@ function renderTaskTabs() {
   const tabEl = document.getElementById('task-filter-tabs');
   if (!tabEl) return;
   const isManager = currentUser?.role === 'manager';
-  const labelTabs = ['משימות בעדיפות עליונה','משימות כלליות','חביב','ולאדי','רפד','זגג','רדארים'];
+  const labelTabs = ['משימות בעדיפות עליונה','משימות כלליות','חביב','ולאדי','רפד','זגג','רדארים','מוסך'];
   const tabs = isManager ? labelTabs : ['שלי', ...labelTabs];
   const counts = isManager ? unreadCountByLabel() : {};
   tabEl.innerHTML = tabs.map(t => {
@@ -2033,7 +2035,7 @@ async function _onDrop(e, newLabel, beforeId, afterId) {
   // Update assignedTo based on new label
   const colToAssigned = {
     'רפד':'רפד','זגג':'זגג','חביב':'חביב','ולאדי':'ולאדי','גיל':'גיל',
-    'עופר':'עופר','איתי':'איתי','רדארים':'רדארים','משימות בעדיפות עליונה':'כולם','משימות כלליות':'כולם',
+    'עופר':'עופר','איתי':'איתי','רדארים':'רדארים','מוסך':'מוסך','משימות בעדיפות עליונה':'כולם','משימות כלליות':'כולם',
   };
   if (newLabel && colToAssigned[newLabel]) updates.assignedTo = colToAssigned[newLabel];
 
@@ -2188,12 +2190,12 @@ function renderTasksFromCache() {
 
   const colColors = {
     'משימות בעדיפות עליונה':'#dc2626','משימות כלליות':'#6366f1','חביב':'#f59e0b','ולאדי':'#3b82f6',
-    'רפד':'#ec4899','זגג':'#10b981','רדארים':'#8b5cf6',
+    'רפד':'#ec4899','זגג':'#10b981','רדארים':'#8b5cf6','מוסך':'#f97316',
     'עופר':'#0ea5e9','גיל':'#f97316','איתי':'#84cc16',
   };
 
   // Regular single-label columns
-  ['משימות בעדיפות עליונה','משימות כלליות','חביב','ולאדי','רדארים'].forEach(label => {
+  ['משימות בעדיפות עליונה','משימות כלליות','חביב','ולאדי','רדארים','מוסך'].forEach(label => {
     container.appendChild(makeCol(label, colColors[label], sortTasks(allTasks.filter(t => t.label === label))));
   });
 
@@ -2357,7 +2359,7 @@ function openRequestTaskModal() {
   _reqTaskPhotoData = null;
   _reqTaskCol = null;
   _reqVehicleInfo = null;
-  const cols = ['חביב','ולאדי','רדארים','רפד', currentUser.name];
+  const cols = ['חביב','ולאדי','רדארים','מוסך','רפד', currentUser.name];
   const container = document.getElementById('req-task-cols');
   container.innerHTML = cols.map(c =>
     `<button type="button" onclick="_selectReqCol(this,'${c}')" style="background:var(--surface2);color:var(--text);border:2px solid transparent;border-radius:20px;padding:7px 16px;font-family:Heebo,sans-serif;font-size:14px;font-weight:700;cursor:pointer">${c}</button>`
@@ -2548,7 +2550,7 @@ function _showTaskReqApproval(id, req) {
     <div style="margin-bottom:10px">
       <label style="font-size:13px;color:var(--muted)">בעל מקצוע (עמודה):</label>
       <select id="approve-col-select" style="width:100%;margin-top:4px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif">
-        ${['חביב','ולאדי','רדארים','רפד','עופר','גיל','איתי','משימות כלליות'].map(c=>`<option value="${c}" ${c===req.column?'selected':''}>${c}</option>`).join('')}
+        ${['חביב','ולאדי','רדארים','מוסך','רפד','עופר','גיל','איתי','משימות כלליות'].map(c=>`<option value="${c}" ${c===req.column?'selected':''}>${c}</option>`).join('')}
       </select>
     </div>`;
   openModal('modal-approve-task-req');
