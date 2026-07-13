@@ -987,10 +987,9 @@ if ('serviceWorker' in navigator) {
 
     <!-- בדיקת נסיעה -->
     <div class="section-title">בדיקת הרכב בנסיעה</div>
-    <div class="checklist-item"><span class="ci-label">בלמים</span><div class="ci-btns"><button type="button" class="ci-box" data-key="td-drive-brakes" data-val="v" onclick="tdCiClick(this)">✓</button><button type="button" class="ci-box" data-key="td-drive-brakes" data-val="x" onclick="tdCiClick(this)">✕</button></div></div>
-    <div class="checklist-item"><span class="ci-label">היגוי</span><div class="ci-btns"><button type="button" class="ci-box" data-key="td-drive-steering" data-val="v" onclick="tdCiClick(this)">✓</button><button type="button" class="ci-box" data-key="td-drive-steering" data-val="x" onclick="tdCiClick(this)">✕</button></div></div>
-    <div class="checklist-item"><span class="ci-label">תיבת הילוכים</span><div class="ci-btns"><button type="button" class="ci-box" data-key="td-drive-gearbox" data-val="v" onclick="tdCiClick(this)">✓</button><button type="button" class="ci-box" data-key="td-drive-gearbox" data-val="x" onclick="tdCiClick(this)">✕</button></div></div>
-    <div class="checklist-item"><span class="ci-label">ללא רעשים חריגים בנסיעה</span><div class="ci-btns"><button type="button" class="ci-box" data-key="td-drive-noise" data-val="v" onclick="tdCiClick(this)">✓</button><button type="button" class="ci-box" data-key="td-drive-noise" data-val="x" onclick="tdCiClick(this)">✕</button></div></div>
+    <div class="form-group" style="margin-bottom:8px">
+      <textarea class="form-textarea" id="tdf-drive-notes" rows="3" placeholder="תאר את הנסיעה: בלמים, היגוי, תיבת הילוכים, רעשים... (חובה)" oninput="_autoSaveTd()"></textarea>
+    </div>
 
     <!-- הערות נוספות -->
     <div class="section-title">האם יש משהו נוסף שלא תקין?</div>
@@ -1840,7 +1839,7 @@ function renderHome() {
   }
 
   const tdBtn = document.getElementById('btn-test-drive-home');
-  if (tdBtn) tdBtn.style.display = (isManager || currentUser.role === 'driver') ? 'block' : 'none';
+  if (tdBtn) tdBtn.style.display = isManager ? 'block' : 'none';
 
   loadStats();
   if (isManager) { loadManagerBadges(); setTimeout(_restoreTdLivePanelIfNeeded, 800); }
@@ -7371,6 +7370,7 @@ function _tdCollectAll() {
     notes,
     dashLights,
     dashOtherText: document.getElementById('td-dash-other-text')?.value.trim() || '',
+    driveNotes: document.getElementById('tdf-drive-notes')?.value.trim() || '',
     extraIssues: document.getElementById('td-extra-text')?.value.trim() || '',
   };
 }
@@ -7396,6 +7396,7 @@ function _tdRestoreAll(draft) {
     if (draft.dashLights.length) document.getElementById('td-dash-detail').style.display = 'flex';
   }
   if (draft.dashOtherText) { const el = document.getElementById('td-dash-other-text'); if (el) { el.value = draft.dashOtherText; el.style.display = 'block'; } }
+  if (draft.driveNotes) { const el = document.getElementById('tdf-drive-notes'); if (el) el.value = draft.driveNotes; }
   if (draft.extraIssues) { document.getElementById('td-extra-text').value = draft.extraIssues; document.getElementById('td-extra-yes').style.display = 'block'; }
 }
 
@@ -7441,7 +7442,6 @@ const _TD_CHECK_LABELS = {
   'td-oil':'רמת שמן','td-oil-color':'צבע שמן','td-coolant':'רמת נוזל קירור','td-coolant-color':'צבע נוזל קירור',
   'td-windows':'מתגי חלונות','td-mirrors':'מראות','td-lights-front':'פנסים קדמיים','td-lights-rear':'פנסים אחוריים',
   'td-dashboard':'לוח שעונים','td-ac-cool':'מזגן קירור','td-ac-heat':'מזגן חימום','td-ac-noise':'רעשי מזגן',
-  'td-drive-brakes':'בלמים','td-drive-steering':'היגוי','td-drive-gearbox':'תיבת הילוכים','td-drive-noise':'רעשים בנסיעה'
 };
 
 function _showTdResultModal(id, data) {
@@ -7502,6 +7502,13 @@ async function submitTestDriveForm() {
     });
     const firstBtn = document.querySelector(`#modal-fill-test-drive .ci-box[data-key="${missingKeys[0]}"]`);
     firstBtn?.closest('.checklist-item')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+
+  // validate drive notes
+  if (!document.getElementById('tdf-drive-notes').value.trim()) {
+    showToast('⚠️ נא למלא את שדה בדיקת הנסיעה');
+    document.getElementById('tdf-drive-notes').focus();
     return;
   }
 
