@@ -7717,42 +7717,56 @@ function _renderTdLivePanel(data) {
   const cont = document.getElementById('td-live-content');
   if (!cont) return;
 
-  let html = '';
-
-  Object.entries(_TD_CHECK_LABELS).forEach(([key, label]) => {
-    const val = checks[key];
-    const icon = val === 'v' ? '✅' : val === 'x' ? '❌' : '<span style="color:var(--muted)">—</span>';
-    const note = notes[key] || '';
-    html += `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
-      <span style="flex:1;font-size:13px;font-weight:700">${esc(label)}</span>
-      <span style="font-size:16px">${icon}</span>
-    </div>`;
-    if (note) html += `<div style="font-size:11px;color:#dc2626;margin-bottom:4px;padding-right:4px">⚠️ ${esc(note)}</div>`;
-  });
-
-  // drive notes section
-  const driveNotes = src.driveNotes || (isDone ? data.driveNotes : '') || '';
-  html += `<div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:10px 0 4px;border-top:1px solid var(--border);margin-top:4px">בדיקת הרכב בנסיעה</div>`;
-  html += `<textarea id="td-live-drive-notes" rows="3" oninput="_saveTdLiveDriveNotes(this.value)" style="width:100%;box-sizing:border-box;padding:8px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;resize:vertical">${esc(driveNotes)}</textarea>`;
-
-  // km / code
   const km = src.km || data.km || '';
   const code = src.code || data.code || '';
-  if (km || code) {
-    html += `<div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:10px 0 4px;border-top:1px solid var(--border);margin-top:4px">קילומטראז׳ וקוד</div>`;
-    if (km) html += `<div style="font-size:13px;font-weight:700;padding:3px 0">🛣️ קמ: <span style="font-weight:400">${esc(km)}</span></div>`;
-    if (code) html += `<div style="font-size:13px;font-weight:700;padding:3px 0">🔑 קוד: <span style="font-weight:400">${esc(code)}</span></div>`;
-  }
+  const driveNotes = src.driveNotes || (isDone ? data.driveNotes : '') || '';
+  const dashLights = src.dashLights || (isDone ? data.dashLights : []) || [];
+  const dashOther  = src.dashOtherText || (isDone ? data.dashOtherText : '') || '';
+  const extra = src.extraIssues || (isDone ? data.extraIssues : '') || '';
 
-  // dashboard lights
-  if (isDone && data.dashLights?.length) {
-    const lbls = {'td-dash-engine':'צ׳ק אנג׳ין','td-dash-tire':'לחץ אוויר','td-dash-service':'טיפול','td-dash-collision':'התגשות','td-dash-fuel':'דלק','td-dash-istop':'iStop','td-dash-other':'אחר'};
-    html += `<div style="margin-top:8px;font-size:12px;font-weight:700;color:#dc2626">🔔 מנורות לוח: ${data.dashLights.map(k=>lbls[k]||k).join(', ')}</div>`;
-  }
+  const RO = 'pointer-events:none;cursor:default';
+
+  let html = '';
+
+  // km + code — mirrored as read-only inputs
+  html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+    <div class="form-group" style="margin-bottom:0"><label>קילומטראז׳</label><input class="form-input" readonly value="${esc(km)}" style="${RO};background:var(--surface2)"></div>
+    <div class="form-group" style="margin-bottom:0"><label>קוד</label><input class="form-input" readonly value="${esc(code)}" style="${RO};background:var(--surface2)"></div>
+  </div>`;
+
+  // checklist items — same structure as driver form, read-only
+  Object.entries(_TD_CHECK_LABELS).forEach(([key, label]) => {
+    const val = checks[key];
+    const vA = val === 'v', xA = val === 'x';
+    const note = notes[key] || '';
+    html += `<div class="checklist-item"><span class="ci-label">${esc(label)}</span><div class="ci-btns" style="${RO}"><button type="button" class="ci-box${vA?' v-active':''}">✓</button><button type="button" class="ci-box${xA?' x-active':''}">✕</button></div></div>`;
+    if (note) html += `<div style="font-size:12px;color:#dc2626;margin:-4px 0 8px;padding-right:14px">⚠️ ${esc(note)}</div>`;
+
+    // dashboard checkboxes — shown inline when x
+    if (key === 'td-dashboard' && xA) {
+      const dMap = [
+        ['td-dash-engine','מנורת צ׳ק אנג׳ין'],['td-dash-tire','לחץ אוויר'],['td-dash-service','טיפול'],
+        ['td-dash-collision','מנורת התגשות'],['td-dash-fuel','מנורת דלק'],['td-dash-istop','iStop'],['td-dash-other','אחר'],
+      ];
+      html += `<div style="display:flex;flex-direction:column;gap:8px;padding:8px 14px;background:var(--surface2);border-radius:10px;margin-bottom:8px;${RO}">`;
+      dMap.forEach(([id, lbl]) => {
+        const chk = dashLights.includes(id) ? 'checked' : '';
+        html += `<label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:default"><input type="checkbox" ${chk} disabled style="width:18px;height:18px;accent-color:var(--dark)"> ${esc(lbl)}</label>`;
+      });
+      if (dashOther) html += `<div style="font-size:13px;color:var(--muted);padding:4px 0">${esc(dashOther)}</div>`;
+      html += `</div>`;
+    }
+  });
+
+  // drive notes — same section title + readonly textarea
+  html += `<div class="section-title">בדיקת הרכב בנסיעה</div>`;
+  html += `<div class="form-group" style="margin-bottom:8px"><textarea class="form-textarea" rows="3" readonly style="${RO};background:var(--surface2)">${esc(driveNotes)}</textarea></div>`;
 
   // extra issues
-  const extra = src.extraIssues || (isDone ? data.extraIssues : '');
-  if (extra) html += `<div style="margin-top:10px;background:#fef2f2;border-radius:8px;padding:8px;font-size:12px;color:#dc2626;font-weight:700">⚠️ ליקויים: <span style="font-weight:400;color:var(--text)">${esc(extra)}</span></div>`;
+  if (extra) {
+    html += `<div class="section-title">ליקויים נוספים</div>`;
+    html += `<div style="background:#fef2f2;border-radius:10px;padding:10px;font-size:13px;color:#dc2626;font-weight:700">⚠️ <span style="font-weight:400;color:var(--text)">${esc(extra)}</span></div>`;
+  }
 
   if (!isDone && !Object.keys(checks).length) {
     html = '<div style="text-align:center;padding:30px 0;color:var(--muted);font-size:13px">⏳ ממתין שהנהג יתחיל למלא...</div>' + html;
