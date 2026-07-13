@@ -263,6 +263,8 @@ if ('serviceWorker' in navigator) {
         <option value="גיל">גיל</option>
         <option value="איתי">איתי</option>
         <option value="ליאל">ליאל</option>
+        <option value="משה">משה</option>
+        <option value="הילה">הילה</option>
 
       </select>
     </div>
@@ -1052,7 +1054,33 @@ if ('serviceWorker' in navigator) {
       <label>כתובת לאיסוף</label>
       <input type="text" id="pickup-address" placeholder="רחוב ומספר..." style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:14px;box-sizing:border-box">
     </div>
+    <div class="form-group">
+      <label>אישור העברת בעלות</label>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button type="button" onclick="document.getElementById('pickup-doc-file').click()" style="background:#6366f1;color:#fff;border:none;border-radius:10px;padding:9px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">📎 צרף קובץ / תמונה</button>
+        <input type="file" id="pickup-doc-file" accept="image/*,application/pdf" style="display:none" onchange="previewPickupDoc(this)">
+        <span id="pickup-doc-name" style="font-size:12px;color:var(--muted)"></span>
+      </div>
+      <div id="pickup-doc-preview" style="margin-top:8px"></div>
+    </div>
     <button class="btn-submit" id="pickup-submit-btn" onclick="submitPickupCar()">✅ הוסף רכב</button>
+  </div>
+</div>
+
+<!-- ====== MODAL: PICKUP CAR DETAIL (driver view) ====== -->
+<div class="modal-overlay" id="modal-pickup-detail">
+  <div class="modal-box" style="max-height:88vh;overflow-y:auto">
+    <div class="modal-title">🚙 פרטי רכב לאיסוף <button class="modal-close" onclick="closeModal('modal-pickup-detail')">✕</button></div>
+    <div id="pickup-detail-body"></div>
+  </div>
+</div>
+
+<!-- ====== MODAL: SEND PICKUP TO DRIVER ====== -->
+<div class="modal-overlay" id="modal-send-pickup-driver">
+  <div class="modal-box">
+    <div class="modal-title">📲 שלח לנהג <button class="modal-close" onclick="closeModal('modal-send-pickup-driver')">✕</button></div>
+    <div style="font-size:14px;color:var(--muted);margin-bottom:14px">בחר נהג שישלח אליו התראה על הרכב הממתין לאיסוף:</div>
+    <div id="pickup-driver-list" style="display:flex;flex-direction:column;gap:10px"></div>
   </div>
 </div>
 
@@ -1359,6 +1387,7 @@ function showConfigWarning() {
 ═══════════════════════════════════════════════════════ */
 const MANAGER_PWD_B64 = btoa('0000');
 const DRIVER_PINS = { 'גיל': btoa('9999'), 'עופר': btoa('7777'), 'איתי': btoa('5555') };
+const PICKUP_AGENTS = ['משה', 'הילה']; // pickup_agent role, no PIN
 
 function handleLogoTap() {} // kept for compatibility
 
@@ -1401,6 +1430,8 @@ function doLogin() {
       return;
     }
     currentUser = { role: 'manager', name: 'ליאל' };
+  } else if (PICKUP_AGENTS.includes(val)) {
+    currentUser = { role: val === 'משה' ? 'pickup_agent' : 'pickup_driver', name: val };
   } else if (DRIVER_PINS[val]) {
     if (btoa(pw) !== DRIVER_PINS[val]) {
       showToast('❌ קוד שגוי');
@@ -1514,6 +1545,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 function renderHome() {
   const isManager = currentUser.role === 'manager';
+  const isPickupAgent = currentUser.role === 'pickup_agent';
   document.getElementById('home-welcome').textContent =
     'שלום, ' + currentUser.name + ' 👋';
   const now = new Date();
@@ -1521,6 +1553,43 @@ function renderHome() {
     now.toLocaleDateString('he-IL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   document.getElementById('home-user-badge').textContent = currentUser.name;
   document.getElementById('stat-vehicles').parentElement.style.display = 'none';
+
+  // הילה (pickup_driver) — only sees assigned pickup cars
+  if (currentUser.role === 'pickup_driver') {
+    document.getElementById('menu-grid').innerHTML =
+      `<div class="menu-card" id="menu-card-my-pickup" onclick="openMyPickupScreen()">
+        <div style="position:relative;display:inline-block">
+          <div class="mc-icon">🚙</div>
+          <span id="badge-my-pickup" style="display:none;position:absolute;top:-6px;right:-10px;background:#ef4444;color:#fff;border-radius:999px;font-size:11px;font-weight:900;padding:1px 6px;min-width:18px;text-align:center"></span>
+        </div>
+        <div class="mc-title">הרכבים שלי לאיסוף</div>
+        <div class="mc-sub">רכבים ממתינים לאיסוף</div>
+      </div>`;
+    _onSnap(_query(_colRef('pickup_cars'), _where('assignedDriver','==',currentUser.name)), snap => {
+      _setCardBadge('my-pickup', snap.size, snap.size > 0 ? '#1e40af' : null);
+    });
+    return;
+  }
+
+  // משה (pickup_agent) — pickup management + task request button
+  if (isPickupAgent) {
+    document.getElementById('menu-grid').innerHTML =
+      `<div class="menu-card" id="menu-card-pickup" onclick="openPickupScreen()">
+        <div style="position:relative;display:inline-block">
+          <div class="mc-icon">🚙</div>
+          <span id="badge-pickup" style="display:none;position:absolute;top:-6px;right:-10px;background:#ef4444;color:#fff;border-radius:999px;font-size:11px;font-weight:900;padding:1px 6px;min-width:18px;text-align:center"></span>
+        </div>
+        <div class="mc-title">מכוניות לאיסוף</div>
+        <div class="mc-sub" id="sub-pickup">ניהול רכבים לאיסוף</div>
+      </div>
+      <div class="menu-card" onclick="openRequestTaskModal()">
+        <div class="mc-icon">📋</div>
+        <div class="mc-title">הצעת משימה</div>
+        <div class="mc-sub">שלח בקשה למנהל</div>
+      </div>`;
+    loadManagerBadges();
+    return;
+  }
 
   const menuItems = isManager
     ? [
@@ -1590,7 +1659,7 @@ function goToScreen(name) {
   else if (name === '_notify') openNotifySettings();
   else if (name === '_broadcast') openBroadcast();
   else if (name === '_refresh') openRefreshScreen();
-  else if (name === 'pickup') openPickupScreen();
+  else if (name === 'pickup') { if (currentUser.role === 'pickup_driver') openMyPickupScreen(); else openPickupScreen(); }
 }
 
 function loadStats() {
@@ -1817,7 +1886,8 @@ function openTasksScreen() {
   document.getElementById('tasks-user-badge').textContent = currentUser.name;
   document.getElementById('fab-new-task').style.display = isManager ? 'flex' : 'none';
   const _fabReq = document.getElementById('fab-request-task');
-  if (_fabReq) { _fabReq.style.cssText = !isManager ? 'display:flex !important;position:fixed;bottom:24px;left:16px;transform:none;background:#7c3aed;z-index:999' : 'display:none'; }
+  const _showFabReq = !isManager || currentUser.role === 'pickup_agent';
+  if (_fabReq) { _fabReq.style.cssText = _showFabReq ? 'display:flex !important;position:fixed;bottom:24px;left:16px;transform:none;background:#7c3aed;z-index:999' : 'display:none'; }
   console.log('[FAB] isManager=', isManager, 'fab=', !!_fabReq);
   activeTaskFilter = isManager ? 'משימות כלליות' : 'שלי';
   showScreen('tasks');
@@ -6277,6 +6347,8 @@ function _pickupCardHtml(c) {
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">
         ${waitLabel ? `<span style="background:${waitColor};color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;white-space:nowrap">⏱ ${waitLabel}</span>` : ''}
+        ${c.assignedDriver ? `<span style="background:#1e40af;color:#fff;border-radius:999px;padding:4px 10px;font-size:12px;font-weight:700;white-space:nowrap">🚗 ${e(c.assignedDriver)}</span>` : ''}
+        <button onclick="event.stopPropagation();openSendPickupToDriver('${e(c.id)}')" style="background:#25d366;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">📲 שלח לנהג</button>
         <button onclick="event.stopPropagation();deletePickupCar('${e(c.id)}')" style="background:#ef4444;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">🗑️ הסר</button>
       </div>
     </div>
@@ -6284,6 +6356,8 @@ function _pickupCardHtml(c) {
 }
 
 let _pickupEditId = null;
+let _pickupDocData = null; // base64 or null
+let _pickupDocMime = '';
 
 function _pickupFillForm(c) {
   document.getElementById('pickup-plate').value = c.plate || '';
@@ -6295,7 +6369,34 @@ function _pickupFillForm(c) {
   document.getElementById('pickup-city').value = c.city || '';
   document.getElementById('pickup-address').value = c.address || '';
   document.getElementById('pickup-lookup-status').textContent = '';
+  document.getElementById('pickup-doc-file').value = '';
+  document.getElementById('pickup-doc-name').textContent = c.docName || '';
+  document.getElementById('pickup-doc-preview').innerHTML = c.doc ? _pickupDocThumb(c.doc, c.docMime, c.docName) : '';
+  _pickupDocData = c.doc || null;
+  _pickupDocMime = c.docMime || '';
 }
+
+function _pickupDocThumb(data, mime, name) {
+  if (!data) return '';
+  if ((mime||'').startsWith('image/')) {
+    return `<img src="${data}" onclick="openLightbox(this.src)" style="max-width:100%;max-height:160px;border-radius:8px;object-fit:cover;cursor:zoom-in;margin-top:6px">`;
+  }
+  return `<a href="${data}" download="${name||'מסמך'}" style="display:inline-flex;align-items:center;gap:6px;background:#6366f1;color:#fff;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;text-decoration:none;margin-top:6px">📄 פתח מסמך</a>`;
+}
+
+function previewPickupDoc(input) {
+  const file = input.files[0];
+  if (!file) return;
+  document.getElementById('pickup-doc-name').textContent = file.name;
+  _pickupDocMime = file.type;
+  const reader = new FileReader();
+  reader.onload = e => {
+    _pickupDocData = e.target.result;
+    document.getElementById('pickup-doc-preview').innerHTML = _pickupDocThumb(_pickupDocData, _pickupDocMime, file.name);
+  };
+  reader.readAsDataURL(file);
+}
+window.previewPickupDoc = previewPickupDoc;
 
 function openAddPickupModal() {
   _pickupEditId = null;
@@ -6346,6 +6447,7 @@ async function submitPickupCar() {
   if (!plate) return showToast('נא להזין לוחית רישוי');
   const btn = document.getElementById('pickup-submit-btn');
   btn.disabled = true;
+  const docName = document.getElementById('pickup-doc-name').textContent || '';
   const data = {
     plate,
     type: document.getElementById('pickup-type').value.trim(),
@@ -6355,6 +6457,7 @@ async function submitPickupCar() {
     contact: document.getElementById('pickup-contact').value.trim(),
     city: document.getElementById('pickup-city').value.trim(),
     address: document.getElementById('pickup-address').value.trim(),
+    ...(_pickupDocData ? { doc: _pickupDocData, docMime: _pickupDocMime, docName } : {}),
   };
   try {
     if (_pickupEditId) {
@@ -6529,6 +6632,93 @@ async function saveFreeTextPickup() {
   btn.disabled = false;
 }
 window.saveFreeTextPickup = saveFreeTextPickup;
+
+// ── Send pickup car to driver ──
+const _PICKUP_DRIVER_LIST = ['הילה', 'משה', 'עופר', 'גיל', 'איתי'];
+
+function openSendPickupToDriver(id) {
+  const car = _pickupAllCars.find(c => c.id === id);
+  if (!car) return;
+  const list = document.getElementById('pickup-driver-list');
+  list.innerHTML = _PICKUP_DRIVER_LIST.map(name =>
+    `<button onclick="sendPickupToDriver('${id}','${name}')" style="background:${car.assignedDriver===name?'#1e40af':'var(--surface2)'};color:${car.assignedDriver===name?'#fff':'var(--text)'};border:1.5px solid var(--border);border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:15px;font-weight:700;cursor:pointer;text-align:right">
+      ${car.assignedDriver===name?'✅ ':''} ${name}
+    </button>`
+  ).join('');
+  openModal('modal-send-pickup-driver');
+  document.getElementById('modal-send-pickup-driver')._carId = id;
+}
+window.openSendPickupToDriver = openSendPickupToDriver;
+
+async function sendPickupToDriver(id, driverName) {
+  closeModal('modal-send-pickup-driver');
+  const { updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  await updateDoc(doc(window._db, 'pickup_cars', id), { assignedDriver: driverName });
+  const car = _pickupAllCars.find(c => c.id === id);
+  const plate = car?.plate || '';
+  const desc = [car?.type, car?.city].filter(Boolean).join(' · ');
+  _notifyDriver(driverName, `🚙 יש לך רכב ממתין לאיסוף — ${plate}${desc ? ' · ' + desc : ''}. כנס לאפליקציה לפרטים.`);
+  showToast(`✅ נשלחה התראה ל${driverName}`);
+}
+window.sendPickupToDriver = sendPickupToDriver;
+
+// ── My pickup cars (driver / הילה view) ──
+function openMyPickupScreen() {
+  document.getElementById('pickup-user-badge').textContent = currentUser.name;
+  document.getElementById('pickup-filter-city').closest('div').style.display = 'none';
+  showScreen('pickup');
+  document.querySelectorAll('#screen-pickup .fab').forEach(b => b.style.display='none');
+  const list = document.getElementById('pickup-list');
+  list.innerHTML = '<div class="loading"><div class="spinner"></div> טוען...</div>';
+  _onSnap(_query(_colRef('pickup_cars'), _where('assignedDriver','==',currentUser.name)), snap => {
+    const cars = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    _pickupAllCars = [..._pickupAllCars.filter(c => c.assignedDriver !== currentUser.name), ...cars];
+    if (!cars.length) { list.innerHTML = '<div style="text-align:center;padding:60px 20px;color:var(--muted);font-size:15px">אין רכבים ממתינים לאיסוף</div>'; return; }
+    list.innerHTML = cars.map(_myPickupCardHtml).join('');
+  });
+}
+window.openMyPickupScreen = openMyPickupScreen;
+
+function _myPickupCardHtml(c) {
+  const e = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const km = c.km ? _fmtKm(c.km) + ' ק"מ' : '';
+  return `<div class="vehicle-card" style="border-right:5px solid #1e40af;margin-bottom:8px;cursor:pointer" onclick="openPickupDetail('${e(c.id)}')">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+      <div style="flex:1;min-width:0">
+        <div class="vehicle-plate">${e(c.plate||'')}</div>
+        ${c.type ? `<div class="vehicle-info">${e(c.type)}${c.year?' · '+e(c.year):''}</div>` : ''}
+        <div class="vehicle-meta">
+          ${c.color?`<span class="tag assignee">🎨 ${e(c.color)}</span>`:''}
+          ${km?`<span class="tag assignee">🛣️ ${e(km)}</span>`:''}
+          ${c.city?`<span class="tag assignee">🏙️ ${e(c.city)}</span>`:''}
+        </div>
+      </div>
+      <span style="background:#1e40af;color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;white-space:nowrap">פתח ▶</span>
+    </div>
+  </div>`;
+}
+
+function openPickupDetail(id) {
+  const car = _pickupAllCars.find(c => c.id === id) || {};
+  const e = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const km = car.km ? _fmtKm(car.km) + ' ק"מ' : '';
+  const rows = [
+    ['לוחית', car.plate], ['סוג רכב', [car.type,car.year].filter(Boolean).join(' · ')],
+    ['צבע', car.color], ['קמ"ש', km], ['איש קשר', car.contact],
+    ['עיר', car.city], ['כתובת', car.address]
+  ].filter(([,v]) => v);
+  const docHtml = car.doc ? `<div style="margin-top:14px"><div style="font-size:13px;font-weight:700;color:var(--muted);margin-bottom:6px">אישור העברת בעלות:</div>${_pickupDocThumb(car.doc, car.docMime, car.docName)}</div>` : '';
+  document.getElementById('pickup-detail-body').innerHTML =
+    `<div style="display:flex;flex-direction:column;gap:10px">
+      ${rows.map(([label,val]) => `<div style="background:var(--surface2);border-radius:10px;padding:10px 14px">
+        <div style="font-size:11px;color:var(--muted);font-weight:700">${label}</div>
+        <div style="font-size:15px;font-weight:700;margin-top:2px">${e(val)}</div>
+      </div>`).join('')}
+      ${docHtml}
+    </div>`;
+  openModal('modal-pickup-detail');
+}
+window.openPickupDetail = openPickupDetail;
 
 </script>
 
