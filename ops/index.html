@@ -6550,7 +6550,12 @@ function _parsePickupBlock(lines) {
     if (step === 1) { car.type = line; step = 2; continue; }
     if (step === 2 && /^(19[89]\d|20[0-3]\d)$/.test(line)) { car.year = line; step = 3; continue; }
     if (step <= 3 && /^[\d,]+$/.test(line)) { car.km = _fmtKm(line); step = 4; continue; }
-    if (step === 4) { car.city = line; step = 5; continue; }
+    if (step === 4) {
+      const words = line.trim().split(/\s+/);
+      car.city = words[words.length - 1];
+      if (words.length > 1) extra.push(words.slice(0, -1).join(' '));
+      step = 5; continue;
+    }
     extra.push(line);
   }
 
