@@ -6255,8 +6255,7 @@ window.renderPickupCars = renderPickupCars;
 
 function _pickupCardHtml(c) {
   const e = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  const _kmRaw = c.km ? String(c.km).replace(/,/g,'') : '';
-  const km = _kmRaw ? (isNaN(Number(_kmRaw)) ? _kmRaw : Number(_kmRaw).toLocaleString('en-US')) + ' ק"מ' : '';
+  const km = c.km ? _fmtKm(c.km) + ' ק"מ' : '';
   const days = _pickupDays(c);
   const waitLabel = days === null ? '' : `${days} ימי המתנה`;
   const waitColor = days === null ? '#6b7280' : days > 14 ? '#dc2626' : days > 7 ? '#f59e0b' : '#16a34a';
@@ -6393,50 +6392,63 @@ function openFreeTextPickupModal() {
 }
 window.openFreeTextPickupModal = openFreeTextPickupModal;
 
-function _parsePickupBlock(text) {
+function _fmtKm(raw) {
+  const digits = String(raw).replace(/[,\.]/g,'');
+  return isNaN(Number(digits)) ? raw : Number(digits).toLocaleString('en-US');
+}
+
+function _extractPhone(str) {
+  const m = str.match(/0\d[-\s]?\d{3}[-\s]?\d{4}/);
+  return m ? m[0].replace(/[\s-]/g,'') : '';
+}
+
+// Split raw text into per-car blocks (each block starts with a plate line)
+function _splitPickupBlocks(raw) {
+  // Normalize: remove header lines like "ענק הרכבים"
+  const lines = raw.split('\n').map(l => l.trim()).filter(l => l && !/^ענק\s+הרכבים$/i.test(l));
+  const blocks = [];
+  let cur = [];
+  for (const line of lines) {
+    if (/^\d{7,8}$/.test(line) && cur.length) { blocks.push(cur); cur = [line]; }
+    else cur.push(line);
+  }
+  if (cur.length) blocks.push(cur);
+  return blocks.filter(b => b.length);
+}
+
+// Parse a block of lines into a car object
+// Structured format (line-by-line):
+//   plate / model / year / km / city / [extra lines = address + contact]
+function _parsePickupBlock(lines) {
   const car = { plate:'', type:'', year:'', color:'', km:'', contact:'', city:'', address:'' };
-  let remaining = text;
+  const extra = [];
+  let step = 0; // 0=plate 1=model 2=year 3=km 4=city 5+=extra
 
-  // plate: 7-8 digit sequence
-  remaining = remaining.replace(/\b(\d{7,8})\b/, (_, p) => { car.plate = p; return ' '; });
-
-  // year: 4-digit 1990–2030
-  remaining = remaining.replace(/\b(19[9]\d|20[0-3]\d)\b/, (_, y) => { car.year = y; return ' '; });
-
-  // km: number followed by קמ / ק"מ / km (optional space) — store raw digits, display with commas
-  remaining = remaining.replace(/(\d[\d,\.]+)\s*(?:ק"מ|קמ|km)/i, (_, k) => {
-    const digits = k.replace(/[,\.]/g,'');
-    car.km = Number(digits).toLocaleString('en-US'); // e.g. "7,898"
-    return ' ';
-  });
-
-  // phone: Israeli mobile/landline
-  remaining = remaining.replace(/0\d[-\s]?\d{7,8}/, p => { car.contact = (car.contact ? car.contact + ' ' : '') + p.replace(/\s/g,''); return ' '; });
-
-  // color
-  for (const c of _PICKUP_COLORS) {
-    if (remaining.includes(c)) { car.color = c; remaining = remaining.replace(c, ' '); break; }
+  for (const line of lines) {
+    if (step === 0 && /^\d{7,8}$/.test(line)) { car.plate = line; step = 1; continue; }
+    if (step === 1) { car.type = line; step = 2; continue; }
+    if (step === 2 && /^(19[89]\d|20[0-3]\d)$/.test(line)) { car.year = line; step = 3; continue; }
+    if (step <= 3 && /^[\d,]+$/.test(line)) { car.km = _fmtKm(line); step = 4; continue; }
+    if (step === 4) { car.city = line; step = 5; continue; }
+    extra.push(line);
   }
 
-  // city: word preceded by "עיר" / last standalone Hebrew city guess
-  const cityMatch = remaining.match(/(?:עיר\s+|ב)([א-ת]+(?:\s+[א-ת]+)?)/);
-  if (cityMatch) { car.city = cityMatch[1].trim(); remaining = remaining.replace(cityMatch[0], ' '); }
+  // parse extra lines for address + phone + contact name
+  const extraFull = extra.join(' ');
+  const phone = _extractPhone(extraFull);
+  if (phone) { car.contact = phone; }
+  // strip phone from extra, rest is address
+  const addrRaw = extraFull.replace(/0\d[-\s]?\d{3}[-\s]?\d{4}/g,'').replace(/\s+/g,' ').trim();
+  if (addrRaw) car.address = addrRaw;
 
-  // remaining words — split into likely name vs address
-  const words = remaining.trim().split(/\s+/).filter(w => w && w !== '-');
-  // heuristic: if word contains digits or looks like street, it's address; first pure-Hebrew short word = contact name
-  const nameWords = [], addrWords = [];
-  let nameDone = false;
-  for (const w of words) {
-    if (!nameDone && /^[א-ת]{2,6}$/.test(w) && addrWords.length === 0) {
-      nameWords.push(w);
-    } else {
-      nameDone = true;
-      addrWords.push(w);
-    }
+  // fallback: if no structured parse succeeded, try heuristic on joined text
+  if (!car.plate && !car.type) {
+    const joined = lines.join(' ');
+    const plateM = joined.match(/\b(\d{7,8})\b/); if (plateM) car.plate = plateM[1];
+    const yearM = joined.match(/\b(19[89]\d|20[0-3]\d)\b/); if (yearM) car.year = yearM[1];
+    const kmM = joined.match(/\b([\d,]{3,})\b/); if (kmM && !car.km) car.km = _fmtKm(kmM[1]);
+    const ph = _extractPhone(joined); if (ph) car.contact = ph;
   }
-  if (nameWords.length) car.contact = (car.contact ? car.contact + ' ' : '') + nameWords.join(' ');
-  if (addrWords.length) car.address = addrWords.join(' ');
 
   return car;
 }
@@ -6466,16 +6478,8 @@ async function parseFreeTextPickup() {
   const raw = document.getElementById('freetext-pickup-input').value.trim();
   if (!raw) return showToast('נא להזין טקסט');
 
-  // split by blank lines; fallback: split by lines starting with plate
-  const blocks = raw.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
-  const finalBlocks = blocks.length > 1 ? blocks : raw.split('\n').reduce((acc, line) => {
-    if (/^\d{7,8}\b/.test(line.trim()) && acc.length) acc.push(line);
-    else if (acc.length) acc[acc.length-1] += ' ' + line;
-    else acc.push(line);
-    return acc;
-  }, []);
-
-  _freetextParsed = finalBlocks.map(_parsePickupBlock).filter(c => c.plate || c.type || c.contact);
+  const lineBlocks = _splitPickupBlocks(raw);
+  _freetextParsed = lineBlocks.map(_parsePickupBlock).filter(c => c.plate || c.type || c.contact);
 
   const preview = document.getElementById('freetext-pickup-preview');
   if (!_freetextParsed.length) { preview.innerHTML = '<div style="color:var(--muted);text-align:center;padding:20px">לא זוהו רכבים</div>'; return; }
