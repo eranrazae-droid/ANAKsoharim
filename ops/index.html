@@ -6405,7 +6405,9 @@ function _extractPhone(str) {
 // Split raw text into per-car blocks (each block starts with a plate line)
 function _splitPickupBlocks(raw) {
   // Normalize: remove header lines like "ענק הרכבים"
-  const lines = raw.split('\n').map(l => l.trim()).filter(l => l && !/^ענק\s+הרכבים$/i.test(l));
+  const lines = raw.split('\n')
+    .map(l => l.trim().replace(/ענק\s+הרכבים/gi, '').trim())
+    .filter(Boolean);
   const blocks = [];
   let cur = [];
   for (const line of lines) {
