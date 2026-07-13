@@ -953,9 +953,11 @@ if ('serviceWorker' in navigator) {
     <!-- סעיפים -->
     <div class="checklist-item"><span class="ci-label">שמן מנוע</span><div class="ci-btns"><button type="button" class="ci-box" data-key="td-oil" data-val="v" onclick="tdCiClick(this)">✓</button><button type="button" class="ci-box" data-key="td-oil" data-val="x" onclick="tdCiClick(this)">✕</button></div></div>
     <div class="checklist-item"><span class="ci-label">נוזל קירור</span><div class="ci-btns"><button type="button" class="ci-box" data-key="td-coolant" data-val="v" onclick="tdCiClick(this)">✓</button><button type="button" class="ci-box" data-key="td-coolant" data-val="x" onclick="tdCiClick(this)">✕</button></div></div>
+    <div class="checklist-item"><span class="ci-label">שברים בשמשות</span><div class="ci-btns"><button type="button" class="ci-box" data-key="td-glass" data-val="v" onclick="tdCiClick(this)">✓</button><button type="button" class="ci-box" data-key="td-glass" data-val="x" onclick="tdCiClick(this)">✕</button></div></div>
     <div class="checklist-item"><span class="ci-label">מתגי חלונות</span><div class="ci-btns"><button type="button" class="ci-box" data-key="td-windows" data-val="v" onclick="tdCiClick(this)">✓</button><button type="button" class="ci-box" data-key="td-windows" data-val="x" onclick="tdCiClick(this)">✕</button></div></div>
-    <div class="checklist-item"><span class="ci-label">מראות</span><div class="ci-btns"><button type="button" class="ci-box" data-key="td-mirrors" data-val="v" onclick="tdCiClick(this)">✓</button><button type="button" class="ci-box" data-key="td-mirrors" data-val="x" onclick="tdCiClick(this)">✕</button></div></div>
-    <div class="checklist-item"><span class="ci-label">לדים ומנורות בפנסים</span><div class="ci-btns"><button type="button" class="ci-box" data-key="td-lights" data-val="v" onclick="tdCiClick(this)">✓</button><button type="button" class="ci-box" data-key="td-lights" data-val="x" onclick="tdCiClick(this)">✕</button></div></div>
+    <div class="checklist-item"><span class="ci-label">קיפול וכיוון מראות חשמליות</span><div class="ci-btns"><button type="button" class="ci-box" data-key="td-mirrors" data-val="v" onclick="tdCiClick(this)">✓</button><button type="button" class="ci-box" data-key="td-mirrors" data-val="x" onclick="tdCiClick(this)">✕</button></div></div>
+    <div class="checklist-item"><span class="ci-label">שברים בפנסים</span><div class="ci-btns"><button type="button" class="ci-box" data-key="td-lights" data-val="v" onclick="tdCiClick(this)">✓</button><button type="button" class="ci-box" data-key="td-lights" data-val="x" onclick="tdCiClick(this)">✕</button></div></div>
+    <div class="checklist-item"><span class="ci-label">לדים שרופים/מנורות שרופות</span><div class="ci-btns"><button type="button" class="ci-box" data-key="td-lights-burnt" data-val="v" onclick="tdCiClick(this)">✓</button><button type="button" class="ci-box" data-key="td-lights-burnt" data-val="x" onclick="tdCiClick(this)">✕</button></div></div>
 
     <!-- לוח שעונים -->
     <div class="section-title">מנורות בלוח שעונים</div>
@@ -972,7 +974,7 @@ if ('serviceWorker' in navigator) {
     </div>
 
     <!-- מזגן -->
-    <div class="checklist-item"><span class="ci-label">מזגן</span><div class="ci-btns"><button type="button" class="ci-box" data-key="td-ac" data-val="v" onclick="tdCiClick(this)">✓</button><button type="button" class="ci-box" data-key="td-ac" data-val="x" onclick="tdCiClick(this)">✕</button></div></div>
+    <div class="checklist-item"><span class="ci-label">מזגן מחמם ומקרר</span><div class="ci-btns"><button type="button" class="ci-box" data-key="td-ac" data-val="v" onclick="tdCiClick(this)">✓</button><button type="button" class="ci-box" data-key="td-ac" data-val="x" onclick="tdCiClick(this)">✕</button></div></div>
     <div class="checklist-item"><span class="ci-label">רעשי מזגן</span><div class="ci-btns"><button type="button" class="ci-box" data-key="td-ac-noise" data-val="v" onclick="tdCiClick(this)">✓</button><button type="button" class="ci-box" data-key="td-ac-noise" data-val="x" onclick="tdCiClick(this)">✕</button></div></div>
 
     <!-- בדיקת נסיעה -->
@@ -7502,7 +7504,7 @@ function _tdRestoreAll(draft) {
   if (draft.checks) {
     Object.entries(draft.checks).forEach(([key, val]) => {
       const btn = document.querySelector(`#modal-fill-test-drive .ci-box[data-key="${key}"][data-val="${val}"]`);
-      if (btn) { btn.classList.add(val === 'v' ? 'v-active' : 'x-active'); if (val === 'x') _showTdNoteFor(key, btn); }
+      if (btn) { btn.classList.add(val === 'v' ? 'v-active' : 'x-active'); if (val === 'x' && key !== 'td-dashboard') _showTdNoteFor(key, btn); }
     });
   }
   if (draft.notes) {
@@ -7545,7 +7547,7 @@ function tdCiClick(btn) {
   document.querySelectorAll(`#modal-fill-test-drive .ci-box[data-key="${key}"]`).forEach(b => b.classList.remove('v-active','x-active'));
   if (alreadyActive) { _hideTdNoteFor(key); _autoSaveTd(); return; }
   btn.classList.add(val === 'v' ? 'v-active' : 'x-active');
-  if (val === 'x') _showTdNoteFor(key, btn); else _hideTdNoteFor(key);
+  if (val === 'x' && key !== 'td-dashboard') _showTdNoteFor(key, btn); else _hideTdNoteFor(key);
   _autoSaveTd();
 }
 window.tdCiClick = tdCiClick;
@@ -7560,9 +7562,10 @@ function _tdGetChecks() {
 
 const _TD_CHECK_LABELS = {
   'td-oil':'שמן מנוע','td-coolant':'נוזל קירור',
-  'td-windows':'מתגי חלונות','td-mirrors':'מראות',
-  'td-lights':'לדים ומנורות בפנסים',
-  'td-dashboard':'מנורות לוח שעונים','td-ac':'מזגן','td-ac-noise':'רעשי מזגן',
+  'td-glass':'שברים בשמשות',
+  'td-windows':'מתגי חלונות','td-mirrors':'קיפול וכיוון מראות חשמליות',
+  'td-lights':'שברים בפנסים','td-lights-burnt':'לדים שרופים/מנורות שרופות',
+  'td-dashboard':'מנורות לוח שעונים','td-ac':'מזגן מחמם ומקרר','td-ac-noise':'רעשי מזגן',
 };
 
 function _showTdResultModal(id, data) {
