@@ -846,6 +846,125 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
+<!-- ====== SCREEN: TEST DRIVE ====== -->
+<div id="screen-test-drive" class="screen">
+  <div class="app-header">
+    <button class="back-btn" onclick="goHome()">→</button>
+    <div class="logo">נסיעות <span>מבחן</span></div>
+    <div class="user-badge" id="td-user-badge" onclick="logout()"></div>
+  </div>
+  <div style="padding:12px 16px 100px" id="td-list">
+    <div class="loading"><div class="spinner"></div> טוען...</div>
+  </div>
+  <button class="fab" onclick="openNewTestDriveModal()" id="td-fab-new">+ נסיעת מבחן חדשה</button>
+</div>
+
+<!-- modal: create test drive (manager) -->
+<div class="modal-overlay" id="modal-new-test-drive">
+  <div class="modal-box" style="max-height:90vh;overflow-y:auto">
+    <div class="modal-title">🚗 נסיעת מבחן חדשה <button class="modal-close" onclick="closeModal('modal-new-test-drive')">✕</button></div>
+    <div class="form-group">
+      <label>לוחית רישוי</label>
+      <div style="display:flex;gap:8px">
+        <input class="form-input" id="td-plate" placeholder="מספר לוחית..." inputmode="numeric" oninput="this.value=this.value.replace(/\D/g,'').slice(0,8)" style="flex:1;direction:ltr">
+        <button onclick="lookupTdPlate()" style="background:var(--dark);color:#fff;border:none;border-radius:10px;padding:10px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">🔍 חיפוש</button>
+      </div>
+      <div id="td-fetch-status" style="font-size:12px;color:var(--muted);margin-top:4px;min-height:16px"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="form-group"><label>יצרן</label><input class="form-input" id="td-maker" placeholder="יצרן..."></div>
+      <div class="form-group"><label>שנה</label><input class="form-input" id="td-year" placeholder="שנה..."></div>
+    </div>
+    <div class="form-group"><label>צבע</label><input class="form-input" id="td-color" placeholder="צבע..."></div>
+    <div class="form-group">
+      <label>שלח לנהג</label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px" id="td-driver-btns"></div>
+    </div>
+    <button class="btn-submit" onclick="submitNewTestDrive()">📤 שלח לנהג</button>
+  </div>
+</div>
+
+<!-- modal: fill test drive form (driver) -->
+<div class="modal-overlay" id="modal-fill-test-drive">
+  <div class="modal-box" style="max-height:92vh;overflow-y:auto">
+    <div class="modal-title">🚗 טופס נסיעת מבחן <button class="modal-close" onclick="closeModal('modal-fill-test-drive')">✕</button></div>
+    <div id="td-form-vehicle-info" style="background:var(--surface2);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:14px;font-weight:700"></div>
+
+    <!-- קמ -->
+    <div class="form-group">
+      <label>קילומטראז׳</label>
+      <input class="form-input" id="tdf-km" type="tel" inputmode="numeric" placeholder="קמ...">
+    </div>
+
+    <!-- שמן מנוע -->
+    <div class="section-title">שמן מנוע</div>
+    <div class="checklist-item"><span class="ci-label">רמת שמן תקינה</span><div class="ci-btns"><button type="button" class="ci-box" data-key="td-oil" data-val="v" onclick="tdCiClick(this)">✓</button><button type="button" class="ci-box" data-key="td-oil" data-val="x" onclick="tdCiClick(this)">✕</button></div></div>
+    <div class="checklist-item"><span class="ci-label">צבע שמן תקין</span><div class="ci-btns"><button type="button" class="ci-box" data-key="td-oil-color" data-val="v" onclick="tdCiClick(this)">✓</button><button type="button" class="ci-box" data-key="td-oil-color" data-val="x" onclick="tdCiClick(this)">✕</button></div></div>
+
+    <!-- נוזל קירור -->
+    <div class="section-title">נוזל קירור</div>
+    <div class="checklist-item"><span class="ci-label">רמת נוזל תקינה</span><div class="ci-btns"><button type="button" class="ci-box" data-key="td-coolant" data-val="v" onclick="tdCiClick(this)">✓</button><button type="button" class="ci-box" data-key="td-coolant" data-val="x" onclick="tdCiClick(this)">✕</button></div></div>
+    <div class="checklist-item"><span class="ci-label">צבע נוזל תקין</span><div class="ci-btns"><button type="button" class="ci-box" data-key="td-coolant-color" data-val="v" onclick="tdCiClick(this)">✓</button><button type="button" class="ci-box" data-key="td-coolant-color" data-val="x" onclick="tdCiClick(this)">✕</button></div></div>
+
+    <!-- מתגי חלונות -->
+    <div class="section-title">מתגי חלונות בכל הדלתות</div>
+    <div class="checklist-item"><span class="ci-label">מתגי חלונות תקינים</span><div class="ci-btns"><button type="button" class="ci-box" data-key="td-windows" data-val="v" onclick="tdCiClick(this)">✓</button><button type="button" class="ci-box" data-key="td-windows" data-val="x" onclick="tdCiClick(this)">✕</button></div></div>
+
+    <!-- מראות -->
+    <div class="section-title">קיפול וכיוון מראות חשמליות</div>
+    <div class="checklist-item"><span class="ci-label">מראות תקינות</span><div class="ci-btns"><button type="button" class="ci-box" data-key="td-mirrors" data-val="v" onclick="tdCiClick(this)">✓</button><button type="button" class="ci-box" data-key="td-mirrors" data-val="x" onclick="tdCiClick(this)">✕</button></div></div>
+
+    <!-- לדים ופנסים -->
+    <div class="section-title">לדים ומנורות בפנסים</div>
+    <div class="checklist-item"><span class="ci-label">פנסים קדמיים</span><div class="ci-btns"><button type="button" class="ci-box" data-key="td-lights-front" data-val="v" onclick="tdCiClick(this)">✓</button><button type="button" class="ci-box" data-key="td-lights-front" data-val="x" onclick="tdCiClick(this)">✕</button></div></div>
+    <div class="checklist-item"><span class="ci-label">פנסים אחוריים</span><div class="ci-btns"><button type="button" class="ci-box" data-key="td-lights-rear" data-val="v" onclick="tdCiClick(this)">✓</button><button type="button" class="ci-box" data-key="td-lights-rear" data-val="x" onclick="tdCiClick(this)">✕</button></div></div>
+
+    <!-- לוח שעונים -->
+    <div class="section-title">מנורות בלוח שעונים</div>
+    <div class="checklist-item"><span class="ci-label">לוח שעונים</span><div class="ci-btns"><button type="button" class="ci-box" data-key="td-dashboard" data-val="v" onclick="tdCiClick(this);document.getElementById('td-dash-detail').style.display='none'">✓</button><button type="button" class="ci-box" data-key="td-dashboard" data-val="x" onclick="tdCiClick(this);document.getElementById('td-dash-detail').style.display='flex'">✕</button></div></div>
+    <div id="td-dash-detail" style="display:none;flex-direction:column;gap:8px;padding:8px 14px;background:var(--surface2);border-radius:10px;margin-bottom:8px">
+      <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer"><input type="checkbox" id="td-dash-engine" style="width:18px;height:18px;accent-color:var(--dark)"> מנורת צ׳ק אנג׳ין</label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer"><input type="checkbox" id="td-dash-tire" style="width:18px;height:18px;accent-color:var(--dark)"> לחץ אוויר</label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer"><input type="checkbox" id="td-dash-service" style="width:18px;height:18px;accent-color:var(--dark)"> טיפול</label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer"><input type="checkbox" id="td-dash-collision" style="width:18px;height:18px;accent-color:var(--dark)"> מנורת התגשות</label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer"><input type="checkbox" id="td-dash-fuel" style="width:18px;height:18px;accent-color:var(--dark)"> מנורת דלק</label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer"><input type="checkbox" id="td-dash-other" style="width:18px;height:18px;accent-color:var(--dark)" onchange="document.getElementById('td-dash-other-text').style.display=this.checked?'block':'none'"> אחר</label>
+      <textarea class="form-textarea" id="td-dash-other-text" placeholder="פרט..." rows="2" style="display:none"></textarea>
+    </div>
+
+    <!-- מזגן -->
+    <div class="section-title">בדיקת מזגן — חימום וקירור</div>
+    <div class="checklist-item"><span class="ci-label">קירור</span><div class="ci-btns"><button type="button" class="ci-box" data-key="td-ac-cool" data-val="v" onclick="tdCiClick(this)">✓</button><button type="button" class="ci-box" data-key="td-ac-cool" data-val="x" onclick="tdCiClick(this)">✕</button></div></div>
+    <div class="checklist-item"><span class="ci-label">חימום</span><div class="ci-btns"><button type="button" class="ci-box" data-key="td-ac-heat" data-val="v" onclick="tdCiClick(this)">✓</button><button type="button" class="ci-box" data-key="td-ac-heat" data-val="x" onclick="tdCiClick(this)">✕</button></div></div>
+
+    <!-- רעשים מזגן -->
+    <div class="section-title">רעשים כשהמזגן פועל</div>
+    <div class="checklist-item"><span class="ci-label">ללא רעשים חריגים</span><div class="ci-btns"><button type="button" class="ci-box" data-key="td-ac-noise" data-val="v" onclick="tdCiClick(this)">✓</button><button type="button" class="ci-box" data-key="td-ac-noise" data-val="x" onclick="tdCiClick(this)">✕</button></div></div>
+    <div id="td-ac-noise-note" style="display:none;margin-bottom:8px"><textarea class="form-textarea" id="td-ac-noise-text" placeholder="תאר את הרעש..." rows="2"></textarea></div>
+
+    <!-- בדיקת נסיעה -->
+    <div class="section-title">בדיקת הרכב בנסיעה</div>
+    <div class="checklist-item"><span class="ci-label">בלמים</span><div class="ci-btns"><button type="button" class="ci-box" data-key="td-drive-brakes" data-val="v" onclick="tdCiClick(this)">✓</button><button type="button" class="ci-box" data-key="td-drive-brakes" data-val="x" onclick="tdCiClick(this)">✕</button></div></div>
+    <div class="checklist-item"><span class="ci-label">היגוי</span><div class="ci-btns"><button type="button" class="ci-box" data-key="td-drive-steering" data-val="v" onclick="tdCiClick(this)">✓</button><button type="button" class="ci-box" data-key="td-drive-steering" data-val="x" onclick="tdCiClick(this)">✕</button></div></div>
+    <div class="checklist-item"><span class="ci-label">תיבת הילוכים</span><div class="ci-btns"><button type="button" class="ci-box" data-key="td-drive-gearbox" data-val="v" onclick="tdCiClick(this)">✓</button><button type="button" class="ci-box" data-key="td-drive-gearbox" data-val="x" onclick="tdCiClick(this)">✕</button></div></div>
+    <div class="checklist-item"><span class="ci-label">ללא רעשים חריגים בנסיעה</span><div class="ci-btns"><button type="button" class="ci-box" data-key="td-drive-noise" data-val="v" onclick="tdCiClick(this)">✓</button><button type="button" class="ci-box" data-key="td-drive-noise" data-val="x" onclick="tdCiClick(this)">✕</button></div></div>
+
+    <!-- הערות נוספות -->
+    <div class="section-title">האם יש משהו נוסף שלא תקין?</div>
+    <div style="margin-bottom:16px">
+      <div style="display:flex;gap:10px;margin-bottom:8px">
+        <button type="button" onclick="document.getElementById('td-extra-yes').style.display='block';document.getElementById('td-extra-no').style.display='none';this.style.background='#dc2626';this.style.color='#fff';this.nextElementSibling.style.background='var(--surface2)';this.nextElementSibling.style.color='var(--text)'" style="flex:1;background:var(--surface2);color:var(--text);border:1.5px solid var(--border);border-radius:10px;padding:10px;font-family:Heebo,sans-serif;font-weight:700;font-size:14px;cursor:pointer">כן</button>
+        <button type="button" onclick="document.getElementById('td-extra-yes').style.display='none';document.getElementById('td-extra-no').style.display='block';this.style.background='#16a34a';this.style.color='#fff';this.previousElementSibling.style.background='var(--surface2)';this.previousElementSibling.style.color='var(--text)'" style="flex:1;background:var(--surface2);color:var(--text);border:1.5px solid var(--border);border-radius:10px;padding:10px;font-family:Heebo,sans-serif;font-weight:700;font-size:14px;cursor:pointer">הכל תקין</button>
+      </div>
+      <div id="td-extra-yes" style="display:none"><textarea class="form-textarea" id="td-extra-text" placeholder="פרט את הליקויים..." rows="3"></textarea></div>
+      <div id="td-extra-no" style="display:none;color:#16a34a;font-weight:700;font-size:14px;padding:8px 0">✅ הרכב תקין</div>
+    </div>
+
+    <input type="hidden" id="tdf-id">
+    <button class="btn-submit" onclick="submitTestDriveForm()" style="background:#059669">✅ שלח טופס</button>
+  </div>
+</div>
+
 <!-- ====== SCREEN: PITS ====== -->
 <div id="screen-pits" class="screen">
   <div class="app-header">
@@ -1629,6 +1748,7 @@ function renderHome() {
         { icon: '🕳️', title: 'בורות', sub: 'ניהול בדיקות בבורות', screen: 'pits' },
         { icon: '🅿️', title: 'סידור מגרש', sub: 'טבלת חניות', screen: 'yard' },
         { icon: '🚙', title: 'מכוניות לאיסוף', sub: 'ניהול רכבים לאיסוף', screen: 'pickup' },
+        { icon: '🏎️', title: 'נסיעת מבחן', sub: 'שלח טופס לנהג', screen: 'test-drive' },
       ]
     : [
         { icon: '📋', title: 'המשימות שלי', sub: 'משימות שהוקצו לך', screen: 'tasks' },
@@ -1637,6 +1757,7 @@ function renderHome() {
         { icon: '🅿️', title: 'סידור מגרש', sub: 'צפייה בטבלת חניות', screen: 'yard' },
         { icon: '🕳️', title: 'בורות', sub: 'בדיקות ממתינות לביצוע', screen: 'pits' },
         { icon: '🔄', title: 'רענון רכב', sub: 'ניהול רענוני רכבים', screen: '_refresh' },
+        { icon: '🏎️', title: 'נסיעת מבחן', sub: 'טפסים שנשלחו אליך', screen: 'test-drive' },
       ];
 
   function _cardHtml(m) {
@@ -1687,6 +1808,7 @@ function goToScreen(name) {
   else if (name === '_broadcast') openBroadcast();
   else if (name === '_refresh') openRefreshScreen();
   else if (name === 'pickup') { if (currentUser.role === 'pickup_driver') openMyPickupScreen(); else openPickupScreen(); }
+  else if (name === 'test-drive') openTestDriveScreen();
 }
 
 function loadStats() {
@@ -6838,6 +6960,173 @@ function openPickupDetail(id) {
   openModal('modal-pickup-detail');
 }
 window.openPickupDetail = openPickupDetail;
+
+// ══════════════════════════════════════════
+//  TEST DRIVE
+// ══════════════════════════════════════════
+
+const _TD_DRIVERS = ['עופר','גיל','איתי','הילה'];
+let _tdSelectedDriver = null;
+let _tdVehicleData = {};
+let _tdAllForms = [];
+
+function openTestDriveScreen() {
+  document.getElementById('td-user-badge').textContent = currentUser.name;
+  const isManager = currentUser.role === 'manager';
+  document.getElementById('td-fab-new').style.display = isManager ? 'flex' : 'none';
+  showScreen('test-drive');
+  const list = document.getElementById('td-list');
+  list.innerHTML = '<div class="loading"><div class="spinner"></div> טוען...</div>';
+  const q = isManager
+    ? _colRef('test_drives')
+    : _query(_colRef('test_drives'), _where('assignedTo','==',currentUser.name));
+  _onSnap(q, snap => {
+    _tdAllForms = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((a,b) => (b.createdAt?.seconds||0) - (a.createdAt?.seconds||0));
+    if (!_tdAllForms.length) { list.innerHTML = '<div style="text-align:center;padding:60px 20px;color:var(--muted);font-size:15px">אין טפסים</div>'; return; }
+    list.innerHTML = _tdAllForms.map(f => {
+      const statusColor = f.status === 'done' ? '#16a34a' : '#f59e0b';
+      const statusLabel = f.status === 'done' ? '✅ הושלם' : '⏳ ממתין למילוי';
+      return `<div class="vehicle-card" style="margin-bottom:10px;cursor:pointer;border-right:5px solid ${statusColor}" onclick="${f.status!=='done' && (currentUser.role==='driver'||!isManager) ? `openFillTestDriveModal('${f.id}')` : ''}">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div>
+            <div class="vehicle-plate">${f.plate||''}</div>
+            <div class="vehicle-info">${[f.maker,f.year].filter(Boolean).join(' · ')}</div>
+            <div class="vehicle-meta">
+              ${f.color?`<span class="tag assignee">🎨 ${f.color}</span>`:''}
+              <span class="tag assignee">👤 ${f.assignedTo||''}</span>
+            </div>
+          </div>
+          <span style="background:${statusColor};color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;white-space:nowrap">${statusLabel}</span>
+        </div>
+      </div>`;
+    }).join('');
+  }, err => { list.innerHTML = `<div style="color:#ef4444;padding:20px">שגיאה: ${err?.code||err?.message}</div>`; });
+}
+window.openTestDriveScreen = openTestDriveScreen;
+
+function openNewTestDriveModal() {
+  _tdSelectedDriver = null;
+  _tdVehicleData = {};
+  document.getElementById('td-plate').value = '';
+  document.getElementById('td-maker').value = '';
+  document.getElementById('td-year').value = '';
+  document.getElementById('td-color').value = '';
+  document.getElementById('td-fetch-status').textContent = '';
+  const btns = document.getElementById('td-driver-btns');
+  btns.innerHTML = _TD_DRIVERS.map(n =>
+    `<button type="button" onclick="tdSelectDriver('${n}',this)" style="background:var(--surface2);color:var(--text);border:1.5px solid var(--border);border-radius:10px;padding:10px;font-family:Heebo,sans-serif;font-weight:700;font-size:14px;cursor:pointer">${n}</button>`
+  ).join('');
+  openModal('modal-new-test-drive');
+}
+window.openNewTestDriveModal = openNewTestDriveModal;
+
+function tdSelectDriver(name, btn) {
+  _tdSelectedDriver = name;
+  document.querySelectorAll('#td-driver-btns button').forEach(b => { b.style.background='var(--surface2)'; b.style.color='var(--text)'; });
+  btn.style.background = 'var(--dark)'; btn.style.color = '#fff';
+}
+window.tdSelectDriver = tdSelectDriver;
+
+async function lookupTdPlate() {
+  const plate = document.getElementById('td-plate').value.trim();
+  if (!plate) return;
+  const st = document.getElementById('td-fetch-status');
+  st.textContent = '⏳ מחפש...';
+  try {
+    const res = await fetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3&q=${plate}&limit=5`);
+    const json = await res.json();
+    const rec = json?.result?.records?.find(r => String(r['mispar_rechev']) === plate) || json?.result?.records?.[0];
+    if (!rec) { st.textContent = '❌ לא נמצא'; return; }
+    const rawMaker = rec['tozeret_nm'] || '';
+    document.getElementById('td-maker').value = _cleanMaker(rawMaker);
+    document.getElementById('td-year').value = rec['shnat_yitzur'] || '';
+    document.getElementById('td-color').value = rec['tzeva_rechev'] || '';
+    st.textContent = '✅ פרטים נטענו';
+  } catch(e) { st.textContent = '❌ שגיאה בחיפוש'; }
+}
+window.lookupTdPlate = lookupTdPlate;
+
+async function submitNewTestDrive() {
+  const plate = document.getElementById('td-plate').value.trim();
+  if (!plate) return showToast('נא להזין לוחית רישוי');
+  if (!_tdSelectedDriver) return showToast('נא לבחור נהג');
+  const data = {
+    plate,
+    maker: document.getElementById('td-maker').value.trim(),
+    year: document.getElementById('td-year').value.trim(),
+    color: document.getElementById('td-color').value.trim(),
+    assignedTo: _tdSelectedDriver,
+    createdBy: currentUser.name,
+    createdAt: _serverTs(),
+    status: 'pending'
+  };
+  await _addDoc(_colRef('test_drives'), data);
+  _notifyDriver(_tdSelectedDriver, `🏎️ יש לך טופס נסיעת מבחן חדש לרכב ${plate}. כנס לאפליקציה למלא.`);
+  showToast(`✅ נשלח ל${_tdSelectedDriver}`);
+  closeModal('modal-new-test-drive');
+}
+window.submitNewTestDrive = submitNewTestDrive;
+
+function openFillTestDriveModal(id) {
+  const f = _tdAllForms.find(x => x.id === id);
+  if (!f) return;
+  document.getElementById('tdf-id').value = id;
+  document.getElementById('td-form-vehicle-info').innerHTML =
+    `<span style="font-size:16px;font-weight:900">${f.plate}</span> &nbsp; ${[f.maker,f.year,f.color].filter(Boolean).join(' · ')}`;
+  document.getElementById('tdf-km').value = '';
+  document.getElementById('td-extra-yes').style.display='none';
+  document.getElementById('td-extra-no').style.display='none';
+  document.getElementById('td-extra-text').value='';
+  document.getElementById('td-dash-detail').style.display='none';
+  document.getElementById('td-ac-noise-note').style.display='none';
+  // reset all ci-boxes
+  document.querySelectorAll('#modal-fill-test-drive .ci-box').forEach(b => { b.classList.remove('v-active','x-active'); });
+  ['td-dash-engine','td-dash-tire','td-dash-service','td-dash-collision','td-dash-fuel','td-dash-other'].forEach(id => { const el=document.getElementById(id); if(el) el.checked=false; });
+  openModal('modal-fill-test-drive');
+}
+window.openFillTestDriveModal = openFillTestDriveModal;
+
+function tdCiClick(btn) {
+  const key = btn.dataset.key, val = btn.dataset.val;
+  document.querySelectorAll(`#modal-fill-test-drive .ci-box[data-key="${key}"]`).forEach(b => b.classList.remove('v-active','x-active'));
+  btn.classList.add(val === 'v' ? 'v-active' : 'x-active');
+  if (key === 'td-ac-noise') document.getElementById('td-ac-noise-note').style.display = val==='x' ? 'block' : 'none';
+}
+window.tdCiClick = tdCiClick;
+
+function _tdGetChecks() {
+  const result = {};
+  document.querySelectorAll('#modal-fill-test-drive .ci-box.v-active,#modal-fill-test-drive .ci-box.x-active').forEach(b => {
+    result[b.dataset.key] = b.dataset.val;
+  });
+  return result;
+}
+
+async function submitTestDriveForm() {
+  const id = document.getElementById('tdf-id').value;
+  if (!id) return;
+  const checks = _tdGetChecks();
+  const dashLights = ['td-dash-engine','td-dash-tire','td-dash-service','td-dash-collision','td-dash-fuel','td-dash-other']
+    .filter(k => document.getElementById(k)?.checked)
+    .map(k => k.replace('td-dash-',''));
+  const data = {
+    status: 'done',
+    completedBy: currentUser.name,
+    completedAt: _serverTs(),
+    km: document.getElementById('tdf-km').value.trim(),
+    checks,
+    dashLights,
+    dashOtherText: document.getElementById('td-dash-other-text').value.trim(),
+    acNoiseText: document.getElementById('td-ac-noise-text').value.trim(),
+    extraIssues: document.getElementById('td-extra-text').value.trim(),
+  };
+  const { updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  await updateDoc(doc(window._db, 'test_drives', id), data);
+  showToast('✅ הטופס נשלח בהצלחה');
+  closeModal('modal-fill-test-drive');
+}
+window.submitTestDriveForm = submitTestDriveForm;
 
 </script>
 
