@@ -1086,6 +1086,20 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
+<!-- ====== MODAL: PICKUP DOC REQUIRED ====== -->
+<div class="modal-overlay" id="modal-pickup-doc-required">
+  <div class="modal-box">
+    <div class="modal-title">📄 אישור העברת בעלות <button class="modal-close" onclick="closeModal('modal-pickup-doc-required')">✕</button></div>
+    <div style="font-size:14px;color:var(--muted);margin-bottom:16px">לפני שליחה לנהג יש לצרף אישור העברת בעלות:</div>
+    <input type="file" id="pickup-doc-required-file" accept="image/*,application/pdf" capture="environment" style="display:none" onchange="attachDocAndSend(this)">
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <button onclick="document.getElementById('pickup-doc-required-file').removeAttribute('capture');document.getElementById('pickup-doc-required-file').click()" style="background:#6366f1;color:#fff;border:none;border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:15px;font-weight:700;cursor:pointer">📎 צרף קובץ / תמונה</button>
+      <button onclick="document.getElementById('pickup-doc-required-file').setAttribute('capture','environment');document.getElementById('pickup-doc-required-file').click()" style="background:#0ea5e9;color:#fff;border:none;border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:15px;font-weight:700;cursor:pointer">📷 צלם תמונה</button>
+    </div>
+    <div id="pickup-doc-required-preview" style="margin-top:12px"></div>
+  </div>
+</div>
+
 <!-- ====== SCREEN: DRIVER INVENTORY ====== -->
 <div id="screen-driver-inventory" class="screen">
   <div class="app-header">
@@ -6655,11 +6669,26 @@ async function saveFreeTextPickup() {
 window.saveFreeTextPickup = saveFreeTextPickup;
 
 // ── Send pickup car to driver ──
-const _PICKUP_DRIVER_LIST = ['הילה', 'משה', 'עופר', 'גיל', 'איתי'];
+const _PICKUP_DRIVER_LIST = ['עופר', 'גיל', 'איתי', 'הילה'];
+
+let _pendingSendCarId = null;
 
 function openSendPickupToDriver(id) {
   const car = _pickupAllCars.find(c => c.id === id);
   if (!car) return;
+  // require doc before sending
+  if (!car.doc) {
+    _pendingSendCarId = id;
+    document.getElementById('pickup-doc-required-preview').innerHTML = '';
+    openModal('modal-pickup-doc-required');
+    return;
+  }
+  _showDriverPicker(car);
+}
+window.openSendPickupToDriver = openSendPickupToDriver;
+
+function _showDriverPicker(car) {
+  const id = car.id;
   const list = document.getElementById('pickup-driver-list');
   list.innerHTML = _PICKUP_DRIVER_LIST.map(name =>
     `<button onclick="sendPickupToDriver('${id}','${name}')" style="background:${car.assignedDriver===name?'#1e40af':'var(--surface2)'};color:${car.assignedDriver===name?'#fff':'var(--text)'};border:1.5px solid var(--border);border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:15px;font-weight:700;cursor:pointer;text-align:right">
@@ -6667,9 +6696,32 @@ function openSendPickupToDriver(id) {
     </button>`
   ).join('');
   openModal('modal-send-pickup-driver');
-  document.getElementById('modal-send-pickup-driver')._carId = id;
 }
-window.openSendPickupToDriver = openSendPickupToDriver;
+
+async function attachDocAndSend(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const preview = document.getElementById('pickup-doc-required-preview');
+  preview.innerHTML = '<div style="color:var(--muted);font-size:13px">מעלה...</div>';
+  const reader = new FileReader();
+  reader.onload = async ev => {
+    const data = ev.target.result;
+    const mime = file.type;
+    const name = file.name;
+    try {
+      const { updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+      await updateDoc(doc(window._db, 'pickup_cars', _pendingSendCarId), { doc: data, docMime: mime, docName: name });
+      // update local cache
+      const car = _pickupAllCars.find(c => c.id === _pendingSendCarId);
+      if (car) { car.doc = data; car.docMime = mime; car.docName = name; }
+      closeModal('modal-pickup-doc-required');
+      showToast('📎 מסמך צורף');
+      if (car) _showDriverPicker(car);
+    } catch(e) { preview.innerHTML = `<div style="color:#ef4444;font-size:13px">שגיאה: ${e.message}</div>`; }
+  };
+  reader.readAsDataURL(file);
+}
+window.attachDocAndSend = attachDocAndSend;
 
 async function sendPickupToDriver(id, driverName) {
   closeModal('modal-send-pickup-driver');
