@@ -2047,7 +2047,7 @@ function loadManagerBadges() {
     _onSnap(_query(_colRef('task_requests'), _where('status','==','pending')), snap => {
       _setCardBadge('tasks', snap.size, snap.size > 0 ? '#7c3aed' : null);
     });
-    _listenTaskRequests();
+    if (currentUser.role === 'manager') _listenTaskRequests();
     _onSnap(_colRef('pickup_cars'), snap => {
       _setCardBadge('pickup', snap.size, snap.size > 0 ? '#1e40af' : null);
     });
@@ -2616,10 +2616,17 @@ function openRequestTaskModal() {
   _reqTaskPhotoData = null;
   _reqTaskCol = null;
   _reqVehicleInfo = null;
-  const cols = ['חביב','ולאדי','רדארים','מוסך','רפד'];
+  const cols = [
+    { label:'כללי', value:'משימות כלליות' },
+    { label:'חביב', value:'חביב' },
+    { label:'ולאדי', value:'ולאדי' },
+    { label:'רדארים', value:'רדארים' },
+    { label:'מוסך', value:'מוסך' },
+    { label:'רפד', value:'רפד' },
+  ];
   const container = document.getElementById('req-task-cols');
   container.innerHTML = cols.map(c =>
-    `<button type="button" onclick="_selectReqCol(this,'${c}')" style="background:var(--surface2);color:var(--text);border:2px solid transparent;border-radius:20px;padding:7px 16px;font-family:Heebo,sans-serif;font-size:14px;font-weight:700;cursor:pointer">${c}</button>`
+    `<button type="button" onclick="_selectReqCol(this,'${c.value}')" style="background:var(--surface2);color:var(--text);border:2px solid transparent;border-radius:20px;padding:7px 16px;font-family:Heebo,sans-serif;font-size:14px;font-weight:700;cursor:pointer">${c.label}</button>`
   ).join('');
   openModal('modal-request-task');
 }
@@ -6896,11 +6903,11 @@ function _fuzzyMatchCity(raw) {
       ...tWords.slice(0, best.start),
       ...tWords.slice(best.start + best.wLen)
     ].join(' ').trim();
-    return { city: best.city, rest };
+    return { city: best.city, rest, adj: best.adj };
   }
 
   // fallback: last word
-  return { city: tWords[tWords.length - 1], rest: tWords.slice(0, -1).join(' ').trim() };
+  return { city: tWords[tWords.length - 1], rest: tWords.slice(0, -1).join(' ').trim(), adj: best.adj };
 }
 
 function _fmtKm(raw) {
@@ -6943,7 +6950,9 @@ function _parsePickupBlock(lines) {
     if (step === 2 && /^(19[89]\d|20[0-3]\d)$/.test(line)) { car.year = line; step = 3; continue; }
     if (step <= 3 && /^[\d,]+$/.test(line)) { car.km = _fmtKm(line); step = 4; continue; }
     if (step === 4) {
-      const { city, rest } = _fuzzyMatchCity(line);
+      const { city, rest, adj } = _fuzzyMatchCity(line);
+      // if match is very poor (probably a notes/business line), keep trying next lines
+      if (adj !== undefined && adj >= 0.45) { extra.push(line); continue; }
       car.city = city;
       if (rest) extra.push(rest);
       step = 5; continue;
