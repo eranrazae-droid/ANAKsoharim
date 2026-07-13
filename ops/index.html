@@ -6297,10 +6297,13 @@ function loadPickupCars() {
   const list = document.getElementById('pickup-list');
   if (!list) return;
   list.innerHTML = '<div class="loading"><div class="spinner"></div> טוען...</div>';
-  _onSnap(_colRef('pickup_cars'), snap => {
+  const unsub = _onSnap(_colRef('pickup_cars'), snap => {
     _pickupAllCars = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     _rebuildPickupCityFilter();
     renderPickupCars();
+  }, err => {
+    console.error('pickup_cars listen error:', err);
+    list.innerHTML = `<div style="text-align:center;padding:40px 20px;color:#ef4444;font-size:14px">שגיאה בטעינה: ${err?.code || err?.message || 'אין גישה'}</div>`;
   });
 }
 window.loadPickupCars = loadPickupCars;
@@ -6703,6 +6706,9 @@ function openMyPickupScreen() {
     _pickupAllCars = [..._pickupAllCars.filter(c => c.assignedDriver !== currentUser.name), ...cars];
     if (!cars.length) { list.innerHTML = '<div style="text-align:center;padding:60px 20px;color:var(--muted);font-size:15px">אין רכבים ממתינים לאיסוף</div>'; return; }
     list.innerHTML = cars.map(_myPickupCardHtml).join('');
+  }, err => {
+    console.error('my pickup listen error:', err);
+    list.innerHTML = `<div style="text-align:center;padding:40px 20px;color:#ef4444;font-size:14px">שגיאה בטעינה: ${err?.code || err?.message || 'אין גישה'}</div>`;
   });
 }
 window.openMyPickupScreen = openMyPickupScreen;
