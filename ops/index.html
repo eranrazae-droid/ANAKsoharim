@@ -1000,7 +1000,7 @@ if ('serviceWorker' in navigator) {
 <!-- ====== MODAL: ADD PICKUP CAR ====== -->
 <div class="modal-overlay" id="modal-add-pickup">
   <div class="modal-box">
-    <div class="modal-title">🚙 הוספת רכב לאיסוף <button class="modal-close" onclick="closeModal('modal-add-pickup')">✕</button></div>
+    <div class="modal-title" id="pickup-modal-title">🚙 הוספת רכב לאיסוף <button class="modal-close" onclick="closeModal('modal-add-pickup')">✕</button></div>
     <div class="form-group">
       <label>לוחית רישוי</label>
       <div style="display:flex;gap:8px;align-items:center">
@@ -6246,7 +6246,7 @@ function _pickupCardHtml(c) {
   const days = _pickupDays(c);
   const waitLabel = days === null ? '' : `${days} ימי המתנה`;
   const waitColor = days === null ? '#6b7280' : days > 14 ? '#dc2626' : days > 7 ? '#f59e0b' : '#16a34a';
-  return `<div class="vehicle-card" style="border-right:5px solid ${waitColor};margin-bottom:8px">
+  return `<div class="vehicle-card" style="border-right:5px solid ${waitColor};margin-bottom:8px;cursor:pointer" onclick="openEditPickupModal('${e(c.id)}')">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
       <div style="flex:1;min-width:0">
         <div class="vehicle-plate">${e(c.plate||'')}</div>
@@ -6261,25 +6261,45 @@ function _pickupCardHtml(c) {
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">
         ${waitLabel ? `<span style="background:${waitColor};color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;white-space:nowrap">⏱ ${waitLabel}</span>` : ''}
-        <button onclick="deletePickupCar('${e(c.id)}')" style="background:#ef4444;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">🗑️ הסר</button>
+        <button onclick="event.stopPropagation();deletePickupCar('${e(c.id)}')" style="background:#ef4444;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">🗑️ הסר</button>
       </div>
     </div>
   </div>`;
 }
 
-function openAddPickupModal() {
-  document.getElementById('pickup-plate').value = '';
-  document.getElementById('pickup-type').value = '';
-  document.getElementById('pickup-year').value = '';
-  document.getElementById('pickup-color').value = '';
-  document.getElementById('pickup-km').value = '';
-  document.getElementById('pickup-contact').value = '';
-  document.getElementById('pickup-city').value = '';
-  document.getElementById('pickup-address').value = '';
+let _pickupEditId = null;
+
+function _pickupFillForm(c) {
+  document.getElementById('pickup-plate').value = c.plate || '';
+  document.getElementById('pickup-type').value = c.type || '';
+  document.getElementById('pickup-year').value = c.year || '';
+  document.getElementById('pickup-color').value = c.color || '';
+  document.getElementById('pickup-km').value = c.km || '';
+  document.getElementById('pickup-contact').value = c.contact || '';
+  document.getElementById('pickup-city').value = c.city || '';
+  document.getElementById('pickup-address').value = c.address || '';
   document.getElementById('pickup-lookup-status').textContent = '';
+}
+
+function openAddPickupModal() {
+  _pickupEditId = null;
+  _pickupFillForm({});
+  document.getElementById('pickup-modal-title').childNodes[0].textContent = '🚙 הוספת רכב לאיסוף ';
+  document.getElementById('pickup-submit-btn').textContent = '✅ הוסף רכב';
   openModal('modal-add-pickup');
 }
 window.openAddPickupModal = openAddPickupModal;
+
+function openEditPickupModal(id) {
+  const car = _pickupAllCars.find(c => c.id === id);
+  if (!car) return;
+  _pickupEditId = id;
+  _pickupFillForm(car);
+  document.getElementById('pickup-modal-title').childNodes[0].textContent = '✏️ עריכת רכב לאיסוף ';
+  document.getElementById('pickup-submit-btn').textContent = '💾 שמור שינויים';
+  openModal('modal-add-pickup');
+}
+window.openEditPickupModal = openEditPickupModal;
 
 async function pickupLookupPlate() {
   const plate = document.getElementById('pickup-plate').value.trim().replace(/\D/g,'');
@@ -6310,21 +6330,27 @@ async function submitPickupCar() {
   if (!plate) return showToast('נא להזין לוחית רישוי');
   const btn = document.getElementById('pickup-submit-btn');
   btn.disabled = true;
+  const data = {
+    plate,
+    type: document.getElementById('pickup-type').value.trim(),
+    year: document.getElementById('pickup-year').value.trim(),
+    color: document.getElementById('pickup-color').value.trim(),
+    km: document.getElementById('pickup-km').value.trim(),
+    contact: document.getElementById('pickup-contact').value.trim(),
+    city: document.getElementById('pickup-city').value.trim(),
+    address: document.getElementById('pickup-address').value.trim(),
+  };
   try {
-    await _addDoc(_colRef('pickup_cars'), {
-      plate,
-      type: document.getElementById('pickup-type').value.trim(),
-      year: document.getElementById('pickup-year').value.trim(),
-      color: document.getElementById('pickup-color').value.trim(),
-      km: document.getElementById('pickup-km').value.trim(),
-      contact: document.getElementById('pickup-contact').value.trim(),
-      city: document.getElementById('pickup-city').value.trim(),
-      address: document.getElementById('pickup-address').value.trim(),
-      createdBy: currentUser.name,
-      createdAt: _serverTs()
-    });
-    closeModal('modal-add-pickup');
-    showToast('✅ הרכב נוסף');
+    if (_pickupEditId) {
+      const { updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+      await updateDoc(doc(window._db, 'pickup_cars', _pickupEditId), data);
+      closeModal('modal-add-pickup');
+      showToast('✅ הפרטים עודכנו');
+    } else {
+      await _addDoc(_colRef('pickup_cars'), { ...data, createdBy: currentUser.name, createdAt: _serverTs() });
+      closeModal('modal-add-pickup');
+      showToast('✅ הרכב נוסף');
+    }
   } catch(e) { showToast('שגיאה בשמירה'); }
   btn.disabled = false;
 }
