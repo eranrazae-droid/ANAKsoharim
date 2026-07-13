@@ -985,7 +985,20 @@ if ('serviceWorker' in navigator) {
     <div class="logo">🚙 מכוניות לאיסוף</div>
     <div class="user-badge" id="pickup-user-badge" onclick="logout()"></div>
   </div>
-  <div style="padding:16px 16px 100px" id="pickup-list">
+  <div style="padding:12px 16px 0;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <select id="pickup-filter-city" onchange="renderPickupCars()" style="flex:1;min-width:120px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700">
+      <option value="">כל הערים</option>
+    </select>
+    <select id="pickup-filter-wait" onchange="renderPickupCars()" style="flex:1;min-width:140px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700">
+      <option value="">כל זמני ההמתנה</option>
+      <option value="1">עד יום</option>
+      <option value="3">עד 3 ימים</option>
+      <option value="7">עד שבוע</option>
+      <option value="14">עד שבועיים</option>
+      <option value="999">מעל שבועיים</option>
+    </select>
+  </div>
+  <div style="padding:12px 16px 100px" id="pickup-list">
     <div class="loading"><div class="spinner"></div> טוען...</div>
   </div>
   <button class="fab" onclick="openAddPickupModal()" style="bottom:24px;right:16px;left:auto;transform:none">+ הוספת רכב</button>
@@ -6161,6 +6174,8 @@ window.rfClick = rfClick;
 //  PICKUP CARS
 // ══════════════════════════════════════════
 
+let _pickupAllCars = [];
+
 function openPickupScreen() {
   document.getElementById('pickup-user-badge').textContent = currentUser.name;
   showScreen('pickup');
@@ -6168,33 +6183,82 @@ function openPickupScreen() {
 }
 window.openPickupScreen = openPickupScreen;
 
+function _pickupDays(car) {
+  if (!car.createdAt?.seconds) return null;
+  return Math.floor((Date.now() / 1000 - car.createdAt.seconds) / 86400);
+}
+
+function _pickupExtractCity(address) {
+  if (!address) return '';
+  // last word or after last comma
+  const parts = address.split(',');
+  return parts[parts.length - 1].trim();
+}
+
 function loadPickupCars() {
   const list = document.getElementById('pickup-list');
   if (!list) return;
   list.innerHTML = '<div class="loading"><div class="spinner"></div> טוען...</div>';
   _onSnap(_colRef('pickup_cars'), snap => {
-    const cars = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    cars.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-    if (!cars.length) {
-      list.innerHTML = '<div style="text-align:center;padding:60px 20px;color:var(--muted);font-size:15px">אין רכבים לאיסוף</div>';
-      return;
-    }
-    list.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">${cars.map(_pickupCardHtml).join('')}</div>`;
+    _pickupAllCars = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    _pickupAllCars.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+    _rebuildPickupCityFilter();
+    renderPickupCars();
   });
 }
 window.loadPickupCars = loadPickupCars;
 
+function _rebuildPickupCityFilter() {
+  const sel = document.getElementById('pickup-filter-city');
+  if (!sel) return;
+  const current = sel.value;
+  const cities = [...new Set(_pickupAllCars.map(c => _pickupExtractCity(c.address)).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">כל הערים</option>' + cities.map(c => `<option value="${c}"${c===current?' selected':''}>${c}</option>`).join('');
+}
+
+function renderPickupCars() {
+  const list = document.getElementById('pickup-list');
+  if (!list) return;
+  const cityFilter = document.getElementById('pickup-filter-city')?.value || '';
+  const waitFilter = document.getElementById('pickup-filter-wait')?.value || '';
+  let cars = _pickupAllCars;
+  if (cityFilter) cars = cars.filter(c => _pickupExtractCity(c.address) === cityFilter);
+  if (waitFilter) {
+    const max = Number(waitFilter);
+    if (max === 999) cars = cars.filter(c => (_pickupDays(c) || 0) > 14);
+    else cars = cars.filter(c => (_pickupDays(c) || 0) <= max);
+  }
+  if (!cars.length) {
+    list.innerHTML = '<div style="text-align:center;padding:60px 20px;color:var(--muted);font-size:15px">אין רכבים לאיסוף</div>';
+    return;
+  }
+  list.innerHTML = cars.map(_pickupCardHtml).join('');
+}
+window.renderPickupCars = renderPickupCars;
+
 function _pickupCardHtml(c) {
-  const esc = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const e = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const km = c.km ? Number(c.km).toLocaleString('he-IL') + ' ק"מ' : '';
-  const details = [c.year, c.color, km].filter(Boolean).join(' · ');
-  return `<div style="background:var(--surface2);border:1.5px solid var(--border);border-radius:16px;padding:14px 12px;display:flex;flex-direction:column;gap:8px;position:relative">
-    <div style="font-size:20px;font-weight:900;letter-spacing:2px;font-family:monospace;color:var(--gold);text-align:center">${esc(c.plate||'')}</div>
-    ${c.type ? `<div style="font-size:13px;font-weight:700;color:var(--text);text-align:center">${esc(c.type)}</div>` : ''}
-    ${details ? `<div style="font-size:11px;color:var(--muted);text-align:center">${esc(details)}</div>` : ''}
-    ${c.contact ? `<div style="font-size:12px;color:var(--text);display:flex;gap:4px;align-items:flex-start"><span style="opacity:.6">👤</span><span>${esc(c.contact)}</span></div>` : ''}
-    ${c.address ? `<div style="font-size:12px;color:var(--text);display:flex;gap:4px;align-items:flex-start"><span style="opacity:.6">📍</span><span>${esc(c.address)}</span></div>` : ''}
-    <button onclick="deletePickupCar('${esc(c.id)}')" style="margin-top:4px;background:#ef4444;color:#fff;border:none;border-radius:10px;padding:7px;font-family:Heebo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;width:100%">🗑️ הסר</button>
+  const days = _pickupDays(c);
+  const waitLabel = days === null ? '' : days === 0 ? 'היום' : `${days} ימים`;
+  const waitColor = days === null ? '#6b7280' : days > 14 ? '#dc2626' : days > 7 ? '#f59e0b' : '#16a34a';
+  return `<div class="vehicle-card" style="border-right:5px solid ${waitColor};margin-bottom:8px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+      <div style="flex:1;min-width:0">
+        <div class="vehicle-plate">${e(c.plate||'')}</div>
+        ${c.type ? `<div class="vehicle-info">${e(c.type)}${c.year ? ' · ' + e(c.year) : ''}</div>` : ''}
+        <div class="vehicle-meta">
+          ${c.color ? `<span class="tag assignee">🎨 ${e(c.color)}</span>` : ''}
+          ${km ? `<span class="tag assignee">🛣️ ${e(km)}</span>` : ''}
+          ${c.contact ? `<span class="tag assignee">👤 ${e(c.contact)}</span>` : ''}
+          ${c.address ? `<span class="tag assignee">📍 ${e(c.address)}</span>` : ''}
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">
+        ${waitLabel ? `<span style="background:${waitColor};color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;white-space:nowrap">⏱ ${waitLabel}</span>` : ''}
+        <button onclick="deletePickupCar('${e(c.id)}')" style="background:#ef4444;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">🗑️ הסר</button>
+      </div>
+    </div>
   </div>`;
 }
 
