@@ -978,6 +978,61 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
+<!-- ====== SCREEN: PICKUP CARS ====== -->
+<div id="screen-pickup" class="screen">
+  <div class="app-header">
+    <button class="back-btn" onclick="goHome()">→</button>
+    <div class="logo">🚙 מכוניות לאיסוף</div>
+    <div class="user-badge" id="pickup-user-badge" onclick="logout()"></div>
+  </div>
+  <div style="padding:16px 16px 100px" id="pickup-list">
+    <div class="loading"><div class="spinner"></div> טוען...</div>
+  </div>
+  <button class="fab" onclick="openAddPickupModal()" style="bottom:24px;right:16px;left:auto;transform:none">+ הוספת רכב</button>
+</div>
+
+<!-- ====== MODAL: ADD PICKUP CAR ====== -->
+<div class="modal-overlay" id="modal-add-pickup">
+  <div class="modal-box">
+    <div class="modal-title">🚙 הוספת רכב לאיסוף <button class="modal-close" onclick="closeModal('modal-add-pickup')">✕</button></div>
+    <div class="form-group">
+      <label>לוחית רישוי</label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="text" id="pickup-plate" placeholder="מספר לוחית..." inputmode="numeric" style="flex:1;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:15px;direction:ltr;font-weight:900" oninput="this.value=this.value.replace(/\D/g,'')" onkeydown="if(event.key==='Enter')pickupLookupPlate()">
+        <button type="button" onclick="pickupLookupPlate()" style="background:var(--gold);color:#000;border:none;border-radius:10px;padding:10px 14px;font-family:Heebo,sans-serif;font-weight:900;font-size:13px;cursor:pointer;white-space:nowrap">🔍 חפש</button>
+      </div>
+      <div id="pickup-lookup-status" style="margin-top:6px;font-size:13px;color:var(--muted)"></div>
+    </div>
+    <div class="form-group">
+      <label>סוג רכב</label>
+      <input type="text" id="pickup-type" placeholder="יונדאי i35..." style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:14px;box-sizing:border-box">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px" class="form-group">
+      <div>
+        <label>שנה</label>
+        <input type="text" id="pickup-year" placeholder="2020" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:14px;box-sizing:border-box">
+      </div>
+      <div>
+        <label>צבע</label>
+        <input type="text" id="pickup-color" placeholder="לבן..." style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:14px;box-sizing:border-box">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>קילומטראז'</label>
+      <input type="number" id="pickup-km" placeholder="150000" inputmode="numeric" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:14px;box-sizing:border-box">
+    </div>
+    <div class="form-group">
+      <label>איש קשר</label>
+      <input type="text" id="pickup-contact" placeholder="שם + טלפון..." style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:14px;box-sizing:border-box">
+    </div>
+    <div class="form-group">
+      <label>כתובת לאיסוף</label>
+      <input type="text" id="pickup-address" placeholder="רחוב, עיר..." style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:14px;box-sizing:border-box">
+    </div>
+    <button class="btn-submit" id="pickup-submit-btn" onclick="submitPickupCar()">✅ הוסף רכב</button>
+  </div>
+</div>
+
 <!-- ====== SCREEN: DRIVER INVENTORY ====== -->
 <div id="screen-driver-inventory" class="screen">
   <div class="app-header">
@@ -1452,6 +1507,7 @@ function renderHome() {
         { icon: '📦', title: 'בדיקת מלאי', sub: 'סימון רכבים במגרש', screen: 'inventory' },
         { icon: '🕳️', title: 'בורות', sub: 'ניהול בדיקות בבורות', screen: 'pits' },
         { icon: '🅿️', title: 'סידור מגרש', sub: 'טבלת חניות', screen: 'yard' },
+        { icon: '🚙', title: 'מכוניות לאיסוף', sub: 'ניהול רכבים לאיסוף', screen: 'pickup' },
         { icon: '📢', title: 'הודעה לנהגים', sub: 'שלח SMS לכל הנהגים', screen: '_broadcast' },
         { icon: '📲', title: 'הודעות WhatsApp', sub: 'הגדרות התראות לנהגים', screen: '_notify' },
       ]
@@ -1511,6 +1567,7 @@ function goToScreen(name) {
   else if (name === '_notify') openNotifySettings();
   else if (name === '_broadcast') openBroadcast();
   else if (name === '_refresh') openRefreshScreen();
+  else if (name === 'pickup') openPickupScreen();
 }
 
 function loadStats() {
@@ -6099,6 +6156,117 @@ window.submitRefreshAssign = submitRefreshAssign;
 window.openRefreshForm = openRefreshForm;
 window.submitRefreshForm = submitRefreshForm;
 window.rfClick = rfClick;
+
+// ══════════════════════════════════════════
+//  PICKUP CARS
+// ══════════════════════════════════════════
+
+function openPickupScreen() {
+  document.getElementById('pickup-user-badge').textContent = currentUser.name;
+  showScreen('pickup');
+  loadPickupCars();
+}
+window.openPickupScreen = openPickupScreen;
+
+function loadPickupCars() {
+  const list = document.getElementById('pickup-list');
+  if (!list) return;
+  list.innerHTML = '<div class="loading"><div class="spinner"></div> טוען...</div>';
+  _onSnap(_colRef('pickup_cars'), snap => {
+    const cars = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    cars.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+    if (!cars.length) {
+      list.innerHTML = '<div style="text-align:center;padding:60px 20px;color:var(--muted);font-size:15px">אין רכבים לאיסוף</div>';
+      return;
+    }
+    list.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">${cars.map(_pickupCardHtml).join('')}</div>`;
+  });
+}
+window.loadPickupCars = loadPickupCars;
+
+function _pickupCardHtml(c) {
+  const esc = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const km = c.km ? Number(c.km).toLocaleString('he-IL') + ' ק"מ' : '';
+  const details = [c.year, c.color, km].filter(Boolean).join(' · ');
+  return `<div style="background:var(--surface2);border:1.5px solid var(--border);border-radius:16px;padding:14px 12px;display:flex;flex-direction:column;gap:8px;position:relative">
+    <div style="font-size:20px;font-weight:900;letter-spacing:2px;font-family:monospace;color:var(--gold);text-align:center">${esc(c.plate||'')}</div>
+    ${c.type ? `<div style="font-size:13px;font-weight:700;color:var(--text);text-align:center">${esc(c.type)}</div>` : ''}
+    ${details ? `<div style="font-size:11px;color:var(--muted);text-align:center">${esc(details)}</div>` : ''}
+    ${c.contact ? `<div style="font-size:12px;color:var(--text);display:flex;gap:4px;align-items:flex-start"><span style="opacity:.6">👤</span><span>${esc(c.contact)}</span></div>` : ''}
+    ${c.address ? `<div style="font-size:12px;color:var(--text);display:flex;gap:4px;align-items:flex-start"><span style="opacity:.6">📍</span><span>${esc(c.address)}</span></div>` : ''}
+    <button onclick="deletePickupCar('${esc(c.id)}')" style="margin-top:4px;background:#ef4444;color:#fff;border:none;border-radius:10px;padding:7px;font-family:Heebo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;width:100%">🗑️ הסר</button>
+  </div>`;
+}
+
+function openAddPickupModal() {
+  document.getElementById('pickup-plate').value = '';
+  document.getElementById('pickup-type').value = '';
+  document.getElementById('pickup-year').value = '';
+  document.getElementById('pickup-color').value = '';
+  document.getElementById('pickup-km').value = '';
+  document.getElementById('pickup-contact').value = '';
+  document.getElementById('pickup-address').value = '';
+  document.getElementById('pickup-lookup-status').textContent = '';
+  openModal('modal-add-pickup');
+}
+window.openAddPickupModal = openAddPickupModal;
+
+async function pickupLookupPlate() {
+  const plate = document.getElementById('pickup-plate').value.trim().replace(/\D/g,'');
+  if (!plate) return;
+  const status = document.getElementById('pickup-lookup-status');
+  status.textContent = '⏳ מחפש...'; status.style.color = 'var(--muted)';
+  try {
+    const filters = encodeURIComponent(JSON.stringify({ mispar_rechev: plate }));
+    const url = `https://data.gov.il/api/3/action/datastore_search?resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3&filters=${filters}&limit=1`;
+    const res = await fetch(url);
+    const json = await res.json();
+    const rec = json?.result?.records?.[0];
+    if (!rec) { status.textContent = '❌ לא נמצא'; status.style.color = 'var(--danger,#ef4444)'; return; }
+    const maker = _cleanMaker(rec.tozeret_nm || '');
+    const model = rec.kinuy_mishari || rec.degem_nm || '';
+    document.getElementById('pickup-type').value = [maker, model].filter(Boolean).join(' ');
+    document.getElementById('pickup-year').value = rec.shnat_yitzur || '';
+    document.getElementById('pickup-color').value = rec.tzeva_rechev || '';
+    status.textContent = '✅ פרטים נטענו'; status.style.color = 'var(--success,#16a34a)';
+  } catch(e) {
+    status.textContent = '⚠️ שגיאה בחיבור'; status.style.color = 'var(--danger,#ef4444)';
+  }
+}
+window.pickupLookupPlate = pickupLookupPlate;
+
+async function submitPickupCar() {
+  const plate = document.getElementById('pickup-plate').value.trim();
+  if (!plate) return showToast('נא להזין לוחית רישוי');
+  const btn = document.getElementById('pickup-submit-btn');
+  btn.disabled = true;
+  try {
+    await _addDoc(_colRef('pickup_cars'), {
+      plate,
+      type: document.getElementById('pickup-type').value.trim(),
+      year: document.getElementById('pickup-year').value.trim(),
+      color: document.getElementById('pickup-color').value.trim(),
+      km: document.getElementById('pickup-km').value.trim(),
+      contact: document.getElementById('pickup-contact').value.trim(),
+      address: document.getElementById('pickup-address').value.trim(),
+      createdBy: currentUser.name,
+      createdAt: _serverTs()
+    });
+    closeModal('modal-add-pickup');
+    showToast('✅ הרכב נוסף');
+  } catch(e) { showToast('שגיאה בשמירה'); }
+  btn.disabled = false;
+}
+window.submitPickupCar = submitPickupCar;
+
+async function deletePickupCar(id) {
+  if (!confirm('להסיר רכב זה מהרשימה?')) return;
+  const { deleteDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  await deleteDoc(doc(window._db, 'pickup_cars', id));
+  showToast('הרכב הוסר');
+}
+window.deletePickupCar = deletePickupCar;
+
 </script>
 
 <!-- ═══ רענון רכב modals ═══ -->
