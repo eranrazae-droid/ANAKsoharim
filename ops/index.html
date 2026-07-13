@@ -7185,10 +7185,11 @@ function _renderDriverPickupModal() {
         </div>`;
       } else {
         const label = e(c.docName || 'פתח קובץ');
+        const mime = e(c.docMime || 'application/octet-stream');
         docHtml = `<div style="margin-top:10px">
-          <a href="${c.doc}" download="${label}" target="_blank" style="display:inline-flex;align-items:center;gap:8px;background:var(--card);border:1.5px solid var(--border);border-radius:10px;padding:10px 14px;font-family:Heebo,sans-serif;font-size:14px;font-weight:700;color:var(--text);text-decoration:none">
+          <button onclick="_openDocBlob('${c.id}')" style="display:inline-flex;align-items:center;gap:8px;background:var(--card);border:1.5px solid var(--border);border-radius:10px;padding:10px 14px;font-family:Heebo,sans-serif;font-size:14px;font-weight:700;color:var(--text);cursor:pointer">
             📎 ${label}
-          </a>
+          </button>
         </div>`;
       }
     }
@@ -7219,6 +7220,25 @@ async function collectPickupCarFromHome(id) {
     btn.textContent = '✅ הרכב נאסף';
   }
 }
+function _openDocBlob(carId) {
+  const car = _driverPickupCars.find(c => c.id === carId);
+  if (!car?.doc) return;
+  try {
+    // convert data URL to blob for reliable mobile opening
+    const [header, b64] = car.doc.split(',');
+    const mime = car.docMime || (header.match(/:(.*?);/)||[])[1] || 'application/octet-stream';
+    const bytes = atob(b64);
+    const arr = new Uint8Array(bytes.length);
+    for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+    const blob = new Blob([arr], { type: mime });
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  } catch(e) {
+    window.open(car.doc, '_blank');
+  }
+}
+window._openDocBlob = _openDocBlob;
 window.collectPickupCarFromHome = collectPickupCarFromHome;
 window.openDriverPickupModal = openDriverPickupModal;
 
