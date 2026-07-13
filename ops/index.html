@@ -1140,8 +1140,16 @@ if ('serviceWorker' in navigator) {
     </select>
     <button id="pickup-sort-btn" onclick="cyclePickupSort()" style="flex:1;min-width:160px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;text-align:center">סינון לפי זמן המתנה מהגבוה לנמוך</button>
   </div>
-  <div style="padding:12px 16px 100px" id="pickup-list">
+  <div style="padding:12px 16px 0" id="pickup-list">
     <div class="loading"><div class="spinner"></div> טוען...</div>
+  </div>
+  <!-- archive section -->
+  <div id="pickup-archive-wrap" style="padding:0 16px 100px">
+    <div onclick="togglePickupArchive()" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-top:2px solid var(--border);margin-top:8px">
+      <span style="font-weight:800;font-size:15px">📁 רכבים שנאספו</span>
+      <span id="pickup-archive-count" style="font-size:12px;color:var(--muted)">לחץ להצגה</span>
+    </div>
+    <div id="pickup-archive-body" style="display:none;flex-direction:column;gap:10px"></div>
   </div>
   <button class="fab" onclick="openAddPickupModal()" style="bottom:24px;right:16px;left:auto;transform:none">+ הוספת רכב</button>
   <button class="fab" onclick="openFreeTextPickupModal()" style="bottom:80px;right:16px;left:auto;transform:none;background:#0ea5e9;font-size:13px">📝 הוספה מטקסט</button>
@@ -6496,12 +6504,70 @@ window.rfClick = rfClick;
 let _pickupAllCars = [];
 let _pickupSortMode = 0; // 0=newest first, 1=wait high→low, 2=wait low→high
 
+let _pickupArchiveLoaded = false;
+let _pickupArchiveOpen = false;
+
 function openPickupScreen() {
   document.getElementById('pickup-user-badge').textContent = currentUser.name;
+  _pickupArchiveLoaded = false;
+  _pickupArchiveOpen = false;
+  const body = document.getElementById('pickup-archive-body');
+  if (body) body.style.display = 'none';
   showScreen('pickup');
   loadPickupCars();
+  loadPickupArchiveCount();
 }
 window.openPickupScreen = openPickupScreen;
+
+function loadPickupArchiveCount() {
+  _onSnap(_colRef('pickup_archive'), snap => {
+    const cnt = document.getElementById('pickup-archive-count');
+    if (cnt) cnt.textContent = snap.size ? `${snap.size} רכבים נאספו • לחץ להצגה/הסתרה` : 'אין רכבים בארכיון';
+    _pickupArchiveLoaded = true;
+    _renderPickupArchive(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+  });
+}
+
+function togglePickupArchive() {
+  _pickupArchiveOpen = !_pickupArchiveOpen;
+  const body = document.getElementById('pickup-archive-body');
+  if (!body) return;
+  if (!_pickupArchiveOpen) { body.style.display = 'none'; return; }
+  body.style.display = 'flex';
+  if (!_pickupArchiveLoaded) {
+    body.innerHTML = '<div class="loading"><div class="spinner"></div> טוען...</div>';
+    _pickupArchiveLoaded = true;
+    // data will be rendered by the live listener already set in loadPickupArchiveCount
+  }
+}
+window.togglePickupArchive = togglePickupArchive;
+
+function _renderPickupArchive(docs) {
+  const body = document.getElementById('pickup-archive-body');
+  if (!body || !_pickupArchiveOpen) return;
+  if (!docs.length) { body.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted)">אין רכבים בארכיון</div>'; return; }
+  const sorted = [...docs].sort((a,b) => (b.collectedAt?.seconds||0) - (a.collectedAt?.seconds||0));
+  body.innerHTML = sorted.map(c => {
+    const dt = c.collectedAt?.seconds
+      ? new Date(c.collectedAt.seconds * 1000).toLocaleString('he-IL', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })
+      : '';
+    const e = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    return `<div style="background:var(--surface2);border-radius:12px;padding:12px 14px;border-right:4px solid #16a34a">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div>
+          <div style="font-size:17px;font-weight:900;letter-spacing:.04em">${e(c.plate||'')}</div>
+          <div style="font-size:13px;color:var(--muted);margin-top:2px">${e([c.type||c.brand||'',c.year,c.color].filter(Boolean).join(' · '))}</div>
+          ${c.city ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">📍 ${e(c.city)}${c.address ? ' • '+e(c.address) : ''}</div>` : ''}
+        </div>
+        <div style="text-align:left;flex-shrink:0;font-size:12px;color:var(--muted)">
+          ${dt ? `<div>🕐 ${e(dt)}</div>` : ''}
+          ${c.collectedBy ? `<div style="font-weight:700;color:#16a34a;margin-top:3px">✅ ${e(c.collectedBy)}</div>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
 
 function _pickupDays(car) {
   if (!car.createdAt?.seconds) return null;
@@ -6738,6 +6804,88 @@ function openFreeTextPickupModal() {
 }
 window.openFreeTextPickupModal = openFreeTextPickupModal;
 
+// ── Israeli cities list for fuzzy city matching ──
+const _IL_CITIES = [
+  'אבו גוש','אבו סנאן','אבן יהודה','אור יהודה','אור עקיבא','אזור','אילת','אילות',
+  'אכסאל','אל עריאן','אלעד','אלפי מנשה','אמנון','אפרת','אריאל','ארסוף','אשדוד',
+  'אשקלון','באקה אל גרביה','באר שבע','באר יעקב','בועינה','בית אל','בית אריה',
+  'בית דגן','בית חנן','בית חנינא','בית ג׳אן','בית ג׳ן','בית לחם הגלילית',
+  'בית שאן','בית שמש','ביתר עילית','ביתר','בנימינה','בני ברק','בת ים','גבעת זאב',
+  'גבעת שמואל','גבעתיים','גדרה','גילה','גן יבנה','גן שורק','גני תקווה',
+  'גני הדר','דבורייה','דימונה','דלית אל כרמל','הוד השרון','הרצליה','זכרון יעקב',
+  'חדרה','חולון','חיפה','חריש','טבריה','טייבה','טירה','טירת כרמל','טמרה',
+  'יבנה','יהוד','יהוד מונוסון','יוקנעם','יקנעם','ירוחם','ירושלים','ישראל',
+  'כוכב יעקב','כוכב יאיר','כפר יונה','כפר כנא','כפר מנדא','כפר סבא','כפר קרע',
+  'כפר שמריהו','כפר ברא','כרמיאל','לוד','לקייה','מגאר','מגדל העמק','מגדל',
+  'מודיעין','מודיעין עילית','מועאוויה','מטולה','מעלה אדומים','מעלות תרשיחא',
+  'מעלות','מצפה רמון','מרכז שפירא','נהריה','נוף הגליל','נס ציונה','נצרת',
+  'נצרת עילית','נשר','נתיבות','נתניה','סכנין','עכו','עפולה','עראבה','עראד',
+  'ערד','עלי','פוריידיס','פרדס חנה','פתח תקווה','צפת','קדומים','קיסריה',
+  'קלנסווה','קצרין','קריית אונו','קריית אתא','קריית ביאליק','קריית גת',
+  'קריית טבעון','קריית מוצקין','קריית מלאכי','קריית שמונה','קריית ים',
+  'ראש העין','ראשון לציון','רהט','רחובות','רמלה','רמת גן','רמת השרון',
+  'רעננה','שדרות','שוהם','שפרעם','תל אביב','תל שבע','תרשיחא',
+  'אום אל פחם','ג׳לג׳וליה','ג׳סר א-זרקא','א-טור','אבו דיס',
+  'בסמת טבעון','ביר אלמכסור','ג׳ת','זמר','חצור הגלילית','חצור',
+  'יפיע','ירכא','כסיפה','מזרחית','מזכרת בתיה','עיבלין','עיינות',
+  'סאג׳ור','ריינה','שגב שלום','שייח׳ אברק','טול כרם',
+  'אופקים','ביר הדאג','גני אבישי','חורה','יטבתה','מעיליא','פסוטה',
+  'ספירא','עוספיה','דייר חנא','כפר מצר','סייד','צור שלום',
+];
+
+function _levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  if (!m) return n; if (!n) return m;
+  const dp = Array.from({length:m+1},(_,i)=>Array.from({length:n+1},(_,j)=>i?j?0:j:i));
+  for (let i=1;i<=m;i++) for (let j=1;j<=n;j++)
+    dp[i][j]=a[i-1]===b[j-1]?dp[i-1][j-1]:1+Math.min(dp[i-1][j],dp[i][j-1],dp[i-1][j-1]);
+  return dp[m][n];
+}
+
+function _fuzzyMatchCity(raw) {
+  const t = (raw||'').trim();
+  if (!t) return { city:'', rest:'' };
+  const tWords = t.split(/\s+/);
+  let best = { adj: Infinity, city: null, start: -1, wLen: 0 };
+
+  for (const city of _IL_CITIES) {
+    const cWords = city.split(' ');
+
+    // A) Match a window of words from the input against the full city name
+    for (let wLen = Math.min(tWords.length, cWords.length + 1); wLen >= 1; wLen--) {
+      for (let start = 0; start + wLen <= tWords.length; start++) {
+        const candidate = tWords.slice(start, start + wLen).join(' ');
+        const d = _levenshtein(candidate, city) / Math.max(candidate.length, city.length);
+        // prefer matches at end of input; prefer longer word matches
+        const adj = d - (start + wLen === tWords.length ? 0.06 : 0) - wLen * 0.04;
+        if (adj < best.adj) best = { adj, city, start, wLen };
+      }
+    }
+
+    // B) Suffix match: input is a suffix of a multi-word city ("שבע" → "באר שבע")
+    if (cWords.length > 1) {
+      for (let sfx = 1; sfx < cWords.length; sfx++) {
+        const citySuffix = cWords.slice(sfx).join(' ');
+        const candidate = tWords.join(' ');
+        const d = _levenshtein(candidate, citySuffix) / Math.max(candidate.length, citySuffix.length);
+        const adj = d + 0.12; // small penalty for partial match
+        if (adj < best.adj) best = { adj, city, start: 0, wLen: tWords.length };
+      }
+    }
+  }
+
+  if (best.adj < 0.5 && best.city) {
+    const rest = [
+      ...tWords.slice(0, best.start),
+      ...tWords.slice(best.start + best.wLen)
+    ].join(' ').trim();
+    return { city: best.city, rest };
+  }
+
+  // fallback: last word
+  return { city: tWords[tWords.length - 1], rest: tWords.slice(0, -1).join(' ').trim() };
+}
+
 function _fmtKm(raw) {
   const digits = String(raw).replace(/[,\.]/g,'');
   return isNaN(Number(digits)) ? raw : Number(digits).toLocaleString('en-US');
@@ -6778,9 +6926,9 @@ function _parsePickupBlock(lines) {
     if (step === 2 && /^(19[89]\d|20[0-3]\d)$/.test(line)) { car.year = line; step = 3; continue; }
     if (step <= 3 && /^[\d,]+$/.test(line)) { car.km = _fmtKm(line); step = 4; continue; }
     if (step === 4) {
-      const words = line.trim().split(/\s+/);
-      car.city = words[words.length - 1];
-      if (words.length > 1) extra.push(words.slice(0, -1).join(' '));
+      const { city, rest } = _fuzzyMatchCity(line);
+      car.city = city;
+      if (rest) extra.push(rest);
       step = 5; continue;
     }
     extra.push(line);
