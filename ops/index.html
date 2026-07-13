@@ -6659,15 +6659,14 @@ function renderPickupCars() {
   if (cityFilter) cars = cars.filter(c => (c.city||'').trim() === cityFilter);
   // sort
   if (_pickupSortMode === 0) {
-    // newest first (default)
     cars.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
   } else if (_pickupSortMode === 1) {
-    // wait high → low (most days first)
     cars.sort((a, b) => (_pickupDays(b) || 0) - (_pickupDays(a) || 0));
   } else {
-    // wait low → high (fewest days first)
     cars.sort((a, b) => (_pickupDays(a) || 0) - (_pickupDays(b) || 0));
   }
+  // assigned cars always float to top (stable)
+  cars.sort((a, b) => (b.assignedDriver ? 1 : 0) - (a.assignedDriver ? 1 : 0));
   if (!cars.length) {
     list.innerHTML = '<div style="text-align:center;padding:60px 20px;color:var(--muted);font-size:15px">אין רכבים לאיסוף</div>';
     return;
