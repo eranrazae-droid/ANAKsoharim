@@ -298,6 +298,26 @@ if ('serviceWorker' in navigator) {
       <div style="display:none"><div id="stat-parts">—</div></div>
     </div>
     <div class="menu-grid" id="menu-grid"></div>
+    <button id="btn-test-drive-home" onclick="openTestDriveScreen()" style="display:none;width:100%;margin-top:14px;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;border:none;border-radius:14px;padding:16px;font-family:Heebo,sans-serif;font-size:16px;font-weight:800;cursor:pointer;position:relative;text-align:center">🏎️ נסיעות מבחן<span id="badge-test-drive" style="display:none;position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;border-radius:999px;font-size:11px;font-weight:900;padding:1px 8px;min-width:18px;text-align:center"></span></button>
+  </div>
+</div>
+
+<!-- modal: driver notified of new test drive -->
+<div class="modal-overlay" id="modal-td-assigned">
+  <div class="modal-box">
+    <div class="modal-title">🏎️ נסיעת מבחן חדשה <button class="modal-close" onclick="closeModal('modal-td-assigned')">✕</button></div>
+    <div id="td-assigned-info" style="background:var(--surface2);border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:14px;font-weight:700"></div>
+    <button onclick="closeModal('modal-td-assigned');openTestDriveScreen()" style="width:100%;background:#7c3aed;color:#fff;border:none;border-radius:12px;padding:13px;font-family:Heebo,sans-serif;font-weight:800;font-size:15px;cursor:pointer;margin-bottom:8px">📋 מלא טופס עכשיו</button>
+    <button onclick="closeModal('modal-td-assigned')" style="width:100%;background:var(--surface2);color:var(--text);border:1.5px solid var(--border);border-radius:12px;padding:13px;font-family:Heebo,sans-serif;font-weight:700;font-size:15px;cursor:pointer">לאחר כך</button>
+  </div>
+</div>
+
+<!-- modal: manager sees test drive results -->
+<div class="modal-overlay" id="modal-td-result">
+  <div class="modal-box" style="max-height:90vh;overflow-y:auto">
+    <div class="modal-title">✅ תוצאות נסיעת מבחן <button class="modal-close" onclick="closeModal('modal-td-result')">✕</button></div>
+    <div id="td-result-content" style="font-size:14px"></div>
+    <button onclick="closeModal('modal-td-result')" style="width:100%;margin-top:14px;background:var(--dark);color:#fff;border:none;border-radius:12px;padding:13px;font-family:Heebo,sans-serif;font-weight:700;font-size:15px;cursor:pointer">סגור</button>
   </div>
 </div>
 
@@ -890,10 +910,16 @@ if ('serviceWorker' in navigator) {
     <div class="modal-title">🚗 טופס נסיעת מבחן <button class="modal-close" onclick="closeModal('modal-fill-test-drive')">✕</button></div>
     <div id="td-form-vehicle-info" style="background:var(--surface2);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:14px;font-weight:700"></div>
 
-    <!-- קמ -->
-    <div class="form-group">
-      <label>קילומטראז׳</label>
-      <input class="form-input" id="tdf-km" type="tel" inputmode="numeric" placeholder="קמ...">
+    <!-- קמ + קוד -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="form-group">
+        <label>קילומטראז׳</label>
+        <input class="form-input" id="tdf-km" type="tel" inputmode="numeric" placeholder="קמ..." oninput="_autoSaveTd()">
+      </div>
+      <div class="form-group">
+        <label>קוד</label>
+        <input class="form-input" id="tdf-code" type="text" inputmode="numeric" placeholder="קוד..." oninput="_autoSaveTd()">
+      </div>
     </div>
 
     <!-- שמן מנוע -->
@@ -940,7 +966,6 @@ if ('serviceWorker' in navigator) {
     <!-- רעשים מזגן -->
     <div class="section-title">רעשים כשהמזגן פועל</div>
     <div class="checklist-item"><span class="ci-label">ללא רעשים חריגים</span><div class="ci-btns"><button type="button" class="ci-box" data-key="td-ac-noise" data-val="v" onclick="tdCiClick(this)">✓</button><button type="button" class="ci-box" data-key="td-ac-noise" data-val="x" onclick="tdCiClick(this)">✕</button></div></div>
-    <div id="td-ac-noise-note" style="display:none;margin-bottom:8px"><textarea class="form-textarea" id="td-ac-noise-text" placeholder="תאר את הרעש..." rows="2"></textarea></div>
 
     <!-- בדיקת נסיעה -->
     <div class="section-title">בדיקת הרכב בנסיעה</div>
@@ -1748,7 +1773,6 @@ function renderHome() {
         { icon: '🕳️', title: 'בורות', sub: 'ניהול בדיקות בבורות', screen: 'pits' },
         { icon: '🅿️', title: 'סידור מגרש', sub: 'טבלת חניות', screen: 'yard' },
         { icon: '🚙', title: 'מכוניות לאיסוף', sub: 'ניהול רכבים לאיסוף', screen: 'pickup' },
-        { icon: '🏎️', title: 'נסיעת מבחן', sub: 'שלח טופס לנהג', screen: 'test-drive' },
       ]
     : [
         { icon: '📋', title: 'המשימות שלי', sub: 'משימות שהוקצו לך', screen: 'tasks' },
@@ -1757,7 +1781,6 @@ function renderHome() {
         { icon: '🅿️', title: 'סידור מגרש', sub: 'צפייה בטבלת חניות', screen: 'yard' },
         { icon: '🕳️', title: 'בורות', sub: 'בדיקות ממתינות לביצוע', screen: 'pits' },
         { icon: '🔄', title: 'רענון רכב', sub: 'ניהול רענוני רכבים', screen: '_refresh' },
-        { icon: '🏎️', title: 'נסיעת מבחן', sub: 'טפסים שנשלחו אליך', screen: 'test-drive' },
       ];
 
   function _cardHtml(m) {
@@ -1789,6 +1812,9 @@ function renderHome() {
     grid.style.gap = '';
     grid.innerHTML = menuItems.map(_cardHtml).join('');
   }
+
+  const tdBtn = document.getElementById('btn-test-drive-home');
+  if (tdBtn) tdBtn.style.display = (isManager || currentUser.role === 'driver') ? 'block' : 'none';
 
   loadStats();
   if (isManager) loadManagerBadges();
@@ -1908,6 +1934,22 @@ function loadDriverBadges() {
     _onSnap(_query(_colRef('refreshes'), _where('assignedTo','==',name), _where('status','==','pending')), snap => {
       _setCardBadge('_refresh', snap.size);
     });
+    // test drive assigned
+    let _tdDrvSeen = new Set(), _tdDrvFirst = true;
+    _onSnap(_query(_colRef('test_drives'), _where('assignedTo','==',name), _where('status','==','pending')), snap => {
+      const badge = document.getElementById('badge-test-drive');
+      if (badge) { badge.textContent = snap.size; badge.style.display = snap.size ? 'block' : 'none'; }
+      if (_tdDrvFirst) { snap.docs.forEach(d => _tdDrvSeen.add(d.id)); _tdDrvFirst = false; return; }
+      snap.docs.forEach(d => {
+        if (!_tdDrvSeen.has(d.id)) {
+          _tdDrvSeen.add(d.id);
+          const f = d.data();
+          const info = document.getElementById('td-assigned-info');
+          if (info) info.innerHTML = `רכב: <span style="font-size:17px">${esc(f.plate||'')}</span> &nbsp; ${esc([f.maker,f.year,f.color].filter(Boolean).join(' · '))}`;
+          openModal('modal-td-assigned');
+        }
+      });
+    });
   } catch(e) { console.warn('loadDriverBadges error', e); }
 }
 
@@ -1986,6 +2028,22 @@ function loadManagerBadges() {
     _listenTaskRequests();
     _onSnap(_colRef('pickup_cars'), snap => {
       _setCardBadge('pickup', snap.size, snap.size > 0 ? '#1e40af' : null);
+    });
+    // test drive badge (pending forms)
+    _onSnap(_query(_colRef('test_drives'), _where('status','==','pending')), snap => {
+      const badge = document.getElementById('badge-test-drive');
+      if (badge) { badge.textContent = snap.size; badge.style.display = snap.size ? 'block' : 'none'; }
+    });
+    // listen for submitted test drives
+    let _tdMgrSeen = new Set(), _tdMgrFirst = true;
+    _onSnap(_query(_colRef('test_drives'), _where('status','==','done')), snap => {
+      if (_tdMgrFirst) { snap.docs.forEach(d => _tdMgrSeen.add(d.id)); _tdMgrFirst = false; return; }
+      snap.docs.forEach(d => {
+        if (!_tdMgrSeen.has(d.id)) {
+          _tdMgrSeen.add(d.id);
+          _showTdResultModal(d.id, d.data());
+        }
+      });
     });
   } catch(e) { console.warn('loadManagerBadges error', e); }
 }
@@ -7075,23 +7133,112 @@ function openFillTestDriveModal(id) {
   document.getElementById('td-form-vehicle-info').innerHTML =
     `<span style="font-size:16px;font-weight:900">${f.plate}</span> &nbsp; ${[f.maker,f.year,f.color].filter(Boolean).join(' · ')}`;
   document.getElementById('tdf-km').value = '';
+  document.getElementById('tdf-code').value = '';
   document.getElementById('td-extra-yes').style.display='none';
   document.getElementById('td-extra-no').style.display='none';
   document.getElementById('td-extra-text').value='';
   document.getElementById('td-dash-detail').style.display='none';
-  document.getElementById('td-ac-noise-note').style.display='none';
+  document.getElementById('td-dash-other-text').value='';
+  // remove any existing dynamic note divs
+  document.querySelectorAll('#modal-fill-test-drive .td-note-wrap').forEach(el => el.remove());
   // reset all ci-boxes
   document.querySelectorAll('#modal-fill-test-drive .ci-box').forEach(b => { b.classList.remove('v-active','x-active'); });
-  ['td-dash-engine','td-dash-tire','td-dash-service','td-dash-collision','td-dash-fuel','td-dash-other'].forEach(id => { const el=document.getElementById(id); if(el) el.checked=false; });
+  ['td-dash-engine','td-dash-tire','td-dash-service','td-dash-collision','td-dash-fuel','td-dash-other'].forEach(k => { const el=document.getElementById(k); if(el) el.checked=false; });
   openModal('modal-fill-test-drive');
+  // restore draft if exists
+  if (f.draft) setTimeout(() => _tdRestoreAll(f.draft), 50);
 }
 window.openFillTestDriveModal = openFillTestDriveModal;
 
+let _tdAutoSaveTimer = null;
+function _autoSaveTd() {
+  clearTimeout(_tdAutoSaveTimer);
+  _tdAutoSaveTimer = setTimeout(async () => {
+    const id = document.getElementById('tdf-id')?.value;
+    if (!id) return;
+    try {
+      const { updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+      await updateDoc(doc(window._db, 'test_drives', id), { draft: _tdCollectAll() });
+    } catch(e) { console.warn('autosave td', e); }
+  }, 1500);
+}
+window._autoSaveTd = _autoSaveTd;
+
+function _tdCollectAll() {
+  const checks = {};
+  document.querySelectorAll('#modal-fill-test-drive .ci-box.v-active,#modal-fill-test-drive .ci-box.x-active').forEach(b => {
+    checks[b.dataset.key] = b.dataset.val;
+  });
+  const notes = {};
+  document.querySelectorAll('#modal-fill-test-drive [id^="td-note-text-"]').forEach(el => {
+    if (el.closest('[style*="display:none"]') || el.closest('.td-note-wrap[style*="display:none"]')) return;
+    const key = el.id.replace('td-note-text-','');
+    notes[key] = el.value.trim();
+  });
+  const dashLights = ['td-dash-engine','td-dash-tire','td-dash-service','td-dash-collision','td-dash-fuel','td-dash-other']
+    .filter(k => document.getElementById(k)?.checked);
+  return {
+    km: document.getElementById('tdf-km')?.value.trim() || '',
+    code: document.getElementById('tdf-code')?.value.trim() || '',
+    checks,
+    notes,
+    dashLights,
+    dashOtherText: document.getElementById('td-dash-other-text')?.value.trim() || '',
+    extraIssues: document.getElementById('td-extra-text')?.value.trim() || '',
+  };
+}
+
+function _tdRestoreAll(draft) {
+  if (!draft) return;
+  if (draft.km) document.getElementById('tdf-km').value = draft.km;
+  if (draft.code) document.getElementById('tdf-code').value = draft.code;
+  if (draft.checks) {
+    Object.entries(draft.checks).forEach(([key, val]) => {
+      const btn = document.querySelector(`#modal-fill-test-drive .ci-box[data-key="${key}"][data-val="${val}"]`);
+      if (btn) { btn.classList.add(val === 'v' ? 'v-active' : 'x-active'); if (val === 'x') _showTdNoteFor(key, btn); }
+    });
+  }
+  if (draft.notes) {
+    Object.entries(draft.notes).forEach(([key, text]) => {
+      const el = document.getElementById(`td-note-text-${key}`);
+      if (el) el.value = text;
+    });
+  }
+  if (draft.dashLights) {
+    draft.dashLights.forEach(k => { const el = document.getElementById(k); if (el) el.checked = true; });
+    if (draft.dashLights.length) document.getElementById('td-dash-detail').style.display = 'flex';
+  }
+  if (draft.dashOtherText) { const el = document.getElementById('td-dash-other-text'); if (el) { el.value = draft.dashOtherText; el.style.display = 'block'; } }
+  if (draft.extraIssues) { document.getElementById('td-extra-text').value = draft.extraIssues; document.getElementById('td-extra-yes').style.display = 'block'; }
+}
+
+function _showTdNoteFor(key, btn) {
+  const item = btn?.closest('.checklist-item');
+  let noteDiv = document.getElementById(`td-note-wrap-${key}`);
+  if (!noteDiv) {
+    noteDiv = document.createElement('div');
+    noteDiv.id = `td-note-wrap-${key}`;
+    noteDiv.className = 'td-note-wrap';
+    noteDiv.style.cssText = 'margin-bottom:8px;';
+    noteDiv.innerHTML = `<textarea class="form-textarea" id="td-note-text-${key}" placeholder="פרט את הבעיה (חובה)..." rows="2" oninput="_autoSaveTd()"></textarea>`;
+    if (item) item.insertAdjacentElement('afterend', noteDiv);
+  }
+  noteDiv.style.display = 'block';
+}
+
+function _hideTdNoteFor(key) {
+  const noteDiv = document.getElementById(`td-note-wrap-${key}`);
+  if (noteDiv) noteDiv.style.display = 'none';
+}
+
 function tdCiClick(btn) {
   const key = btn.dataset.key, val = btn.dataset.val;
+  const alreadyActive = btn.classList.contains(val === 'v' ? 'v-active' : 'x-active');
   document.querySelectorAll(`#modal-fill-test-drive .ci-box[data-key="${key}"]`).forEach(b => b.classList.remove('v-active','x-active'));
+  if (alreadyActive) { _hideTdNoteFor(key); _autoSaveTd(); return; }
   btn.classList.add(val === 'v' ? 'v-active' : 'x-active');
-  if (key === 'td-ac-noise') document.getElementById('td-ac-noise-note').style.display = val==='x' ? 'block' : 'none';
+  if (val === 'x') _showTdNoteFor(key, btn); else _hideTdNoteFor(key);
+  _autoSaveTd();
 }
 window.tdCiClick = tdCiClick;
 
@@ -7103,26 +7250,86 @@ function _tdGetChecks() {
   return result;
 }
 
+const _TD_CHECK_LABELS = {
+  'td-oil':'רמת שמן','td-oil-color':'צבע שמן','td-coolant':'רמת נוזל קירור','td-coolant-color':'צבע נוזל קירור',
+  'td-windows':'מתגי חלונות','td-mirrors':'מראות','td-lights-front':'פנסים קדמיים','td-lights-rear':'פנסים אחוריים',
+  'td-dashboard':'לוח שעונים','td-ac-cool':'מזגן קירור','td-ac-heat':'מזגן חימום','td-ac-noise':'רעשי מזגן',
+  'td-drive-brakes':'בלמים','td-drive-steering':'היגוי','td-drive-gearbox':'תיבת הילוכים','td-drive-noise':'רעשים בנסיעה'
+};
+
+function _showTdResultModal(id, data) {
+  const checks = data.checks || {};
+  const notes = data.notes || {};
+  const plate = data.plate || '';
+  const driver = data.completedBy || data.assignedTo || '';
+  let html = `<div style="background:var(--surface2);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:14px;font-weight:700">🚗 ${esc(plate)} &nbsp; ${esc([data.maker,data.year,data.color].filter(Boolean).join(' · '))}</div>`;
+  html += `<div style="margin-bottom:8px;font-size:13px;color:var(--muted)">הוגש על ידי <strong>${esc(driver)}</strong>`;
+  if (data.km) html += ` &nbsp;|&nbsp; קמ: <strong>${esc(data.km)}</strong>`;
+  if (data.code) html += ` &nbsp;|&nbsp; קוד: <strong>${esc(data.code)}</strong>`;
+  html += '</div>';
+  html += '<div style="display:flex;flex-direction:column;gap:6px">';
+  Object.entries(checks).forEach(([key, val]) => {
+    const label = _TD_CHECK_LABELS[key] || key;
+    const icon = val === 'v' ? '✅' : '❌';
+    const note = notes[key] ? `<div style="font-size:12px;color:#dc2626;margin-top:3px;padding-right:22px">⚠️ ${esc(notes[key])}</div>` : '';
+    html += `<div style="display:flex;align-items:flex-start;gap:6px;font-size:13px;font-weight:700">${icon} ${esc(label)}${note ? '' : ''}</div>${note}`;
+  });
+  html += '</div>';
+  if (data.dashLights?.length) {
+    const lbls = {'engine':'צ׳ק אנג׳ין','tire':'לחץ אוויר','service':'טיפול','collision':'התגשות','fuel':'דלק','other':'אחר'};
+    html += `<div style="margin-top:10px;font-size:13px;font-weight:700;color:#dc2626">🔔 מנורות לוח: ${data.dashLights.map(k=>lbls[k]||k).join(', ')}</div>`;
+    if (data.dashOtherText) html += `<div style="font-size:12px;color:var(--muted)">${esc(data.dashOtherText)}</div>`;
+  }
+  if (data.extraIssues) html += `<div style="margin-top:10px;background:#fef2f2;border-radius:8px;padding:10px;font-size:13px;font-weight:700;color:#dc2626">⚠️ ליקויים נוספים:<br><span style="font-weight:400;color:var(--text)">${esc(data.extraIssues)}</span></div>`;
+  document.getElementById('td-result-content').innerHTML = html;
+  openModal('modal-td-result');
+}
+window._showTdResultModal = _showTdResultModal;
+
 async function submitTestDriveForm() {
   const id = document.getElementById('tdf-id').value;
   if (!id) return;
-  const checks = _tdGetChecks();
-  const dashLights = ['td-dash-engine','td-dash-tire','td-dash-service','td-dash-collision','td-dash-fuel','td-dash-other']
-    .filter(k => document.getElementById(k)?.checked)
-    .map(k => k.replace('td-dash-',''));
+  // validate: x-marked fields need notes
+  const xBoxes = document.querySelectorAll('#modal-fill-test-drive .ci-box.x-active');
+  for (const b of xBoxes) {
+    const key = b.dataset.key;
+    const noteEl = document.getElementById(`td-note-text-${key}`);
+    const noteWrap = document.getElementById(`td-note-wrap-${key}`);
+    if (noteEl && noteWrap?.style.display !== 'none' && !noteEl.value.trim()) {
+      const label = _TD_CHECK_LABELS[key] || key;
+      showToast(`⚠️ חובה לפרט הערות עבור: ${label}`);
+      noteEl.focus();
+      return;
+    }
+  }
+  const all = _tdCollectAll();
   const data = {
     status: 'done',
     completedBy: currentUser.name,
     completedAt: _serverTs(),
-    km: document.getElementById('tdf-km').value.trim(),
-    checks,
-    dashLights,
-    dashOtherText: document.getElementById('td-dash-other-text').value.trim(),
-    acNoiseText: document.getElementById('td-ac-noise-text').value.trim(),
-    extraIssues: document.getElementById('td-extra-text').value.trim(),
+    ...all,
+    draft: null,
   };
-  const { updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  const { updateDoc, doc, addDoc, collection } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
   await updateDoc(doc(window._db, 'test_drives', id), data);
+  // auto-create intake
+  const tdDoc = _tdAllForms.find(f => f.id === id) || {};
+  try {
+    await addDoc(collection(window._db, 'intake_assignments'), {
+      plate: tdDoc.plate || '',
+      brand: tdDoc.maker || '',
+      model: '',
+      color: tdDoc.color || '',
+      year: tdDoc.year || '',
+      spot: '',
+      km: all.km || '',
+      assignedTo: currentUser.name,
+      createdBy: currentUser.name,
+      status: 'pending',
+      createdAt: _serverTs(),
+      fromTestDrive: id,
+    });
+  } catch(e) { console.warn('intake create', e); }
   showToast('✅ הטופס נשלח בהצלחה');
   closeModal('modal-fill-test-drive');
 }
