@@ -6255,7 +6255,8 @@ window.renderPickupCars = renderPickupCars;
 
 function _pickupCardHtml(c) {
   const e = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  const km = c.km ? Number(c.km).toLocaleString('he-IL') + ' ק"מ' : '';
+  const _kmRaw = c.km ? String(c.km).replace(/,/g,'') : '';
+  const km = _kmRaw ? (isNaN(Number(_kmRaw)) ? _kmRaw : Number(_kmRaw).toLocaleString('en-US')) + ' ק"מ' : '';
   const days = _pickupDays(c);
   const waitLabel = days === null ? '' : `${days} ימי המתנה`;
   const waitColor = days === null ? '#6b7280' : days > 14 ? '#dc2626' : days > 7 ? '#f59e0b' : '#16a34a';
@@ -6402,8 +6403,12 @@ function _parsePickupBlock(text) {
   // year: 4-digit 1990–2030
   remaining = remaining.replace(/\b(19[9]\d|20[0-3]\d)\b/, (_, y) => { car.year = y; return ' '; });
 
-  // km: number followed by קמ / ק"מ / km (optional space)
-  remaining = remaining.replace(/(\d[\d,\.]+)\s*(?:ק"מ|קמ|km)/i, (_, k) => { car.km = k.replace(/[,\.]/g,''); return ' '; });
+  // km: number followed by קמ / ק"מ / km (optional space) — store raw digits, display with commas
+  remaining = remaining.replace(/(\d[\d,\.]+)\s*(?:ק"מ|קמ|km)/i, (_, k) => {
+    const digits = k.replace(/[,\.]/g,'');
+    car.km = Number(digits).toLocaleString('en-US'); // e.g. "7,898"
+    return ' ';
+  });
 
   // phone: Israeli mobile/landline
   remaining = remaining.replace(/0\d[-\s]?\d{7,8}/, p => { car.contact = (car.contact ? car.contact + ' ' : '') + p.replace(/\s/g,''); return ' '; });
@@ -6436,28 +6441,11 @@ function _parsePickupBlock(text) {
   return car;
 }
 
-function parseFreeTextPickup() {
-  const raw = document.getElementById('freetext-pickup-input').value.trim();
-  if (!raw) return showToast('נא להזין טקסט');
-
-  // split by blank lines
-  const blocks = raw.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
-  // if no blank lines, try splitting by lines that start with a plate number
-  const finalBlocks = blocks.length > 1 ? blocks : raw.split('\n').reduce((acc, line) => {
-    if (/^\d{7,8}\b/.test(line.trim()) && acc.length) acc.push(line);
-    else if (acc.length) acc[acc.length-1] += ' ' + line;
-    else acc.push(line);
-    return acc;
-  }, []);
-
-  _freetextParsed = finalBlocks.map(_parsePickupBlock).filter(c => c.plate || c.type || c.contact);
-
+function _renderFreetextPreview() {
   const preview = document.getElementById('freetext-pickup-preview');
-  if (!_freetextParsed.length) { preview.innerHTML = '<div style="color:var(--muted);text-align:center;padding:20px">לא זוהו רכבים</div>'; return; }
-
   preview.innerHTML = _freetextParsed.map((c, i) => `
     <div style="background:var(--surface2);border:1.5px solid var(--border);border-radius:12px;padding:12px;margin-bottom:10px">
-      <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px">רכב ${i+1}</div>
+      <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px">רכב ${i+1}${c._fetched ? ' ✅' : c._fetching ? ' ⏳' : ''}</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
         ${[
           ['לוחית','plate'],['סוג','type'],['שנה','year'],['צבע','color'],
@@ -6470,9 +6458,51 @@ function parseFreeTextPickup() {
           </div>`).join('')}
       </div>
     </div>`).join('');
-
   document.getElementById('freetext-pickup-save-btn').style.display = 'block';
   document.getElementById('freetext-pickup-save-btn').textContent = `✅ שמור ${_freetextParsed.length} רכבים`;
+}
+
+async function parseFreeTextPickup() {
+  const raw = document.getElementById('freetext-pickup-input').value.trim();
+  if (!raw) return showToast('נא להזין טקסט');
+
+  // split by blank lines; fallback: split by lines starting with plate
+  const blocks = raw.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
+  const finalBlocks = blocks.length > 1 ? blocks : raw.split('\n').reduce((acc, line) => {
+    if (/^\d{7,8}\b/.test(line.trim()) && acc.length) acc.push(line);
+    else if (acc.length) acc[acc.length-1] += ' ' + line;
+    else acc.push(line);
+    return acc;
+  }, []);
+
+  _freetextParsed = finalBlocks.map(_parsePickupBlock).filter(c => c.plate || c.type || c.contact);
+
+  const preview = document.getElementById('freetext-pickup-preview');
+  if (!_freetextParsed.length) { preview.innerHTML = '<div style="color:var(--muted);text-align:center;padding:20px">לא זוהו רכבים</div>'; return; }
+
+  _renderFreetextPreview();
+
+  // fetch gov.il data for each car that has a plate
+  for (let i = 0; i < _freetextParsed.length; i++) {
+    const car = _freetextParsed[i];
+    if (!car.plate) continue;
+    car._fetching = true;
+    _renderFreetextPreview();
+    try {
+      const filters = encodeURIComponent(JSON.stringify({ mispar_rechev: car.plate }));
+      const res = await fetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3&filters=${filters}&limit=1`);
+      const json = await res.json();
+      const rec = json?.result?.records?.[0];
+      if (rec) {
+        car.type = [_cleanMaker(rec.tozeret_nm||''), rec.kinuy_mishari||rec.degem_nm||''].filter(Boolean).join(' ');
+        car.year = rec.shnat_yitzur || car.year;
+        car.color = rec.tzeva_rechev || car.color;
+        car._fetched = true;
+      }
+    } catch(e) {}
+    car._fetching = false;
+    _renderFreetextPreview();
+  }
 }
 window.parseFreeTextPickup = parseFreeTextPickup;
 
