@@ -907,7 +907,7 @@ if ('serviceWorker' in navigator) {
 <!-- modal: fill test drive form (driver) -->
 <div class="modal-overlay" id="modal-fill-test-drive">
   <div class="modal-box" style="max-height:92vh;overflow-y:auto">
-    <div class="modal-title">🚗 טופס נסיעת מבחן <button class="modal-close" onclick="closeModal('modal-fill-test-drive')">✕</button></div>
+    <div class="modal-title">🚗 טופס נסיעת מבחן</div>
     <div id="td-form-vehicle-info" style="background:var(--surface2);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:14px;font-weight:700"></div>
 
     <!-- קמ + קוד -->
@@ -1942,21 +1942,18 @@ function loadDriverBadges() {
     _onSnap(_query(_colRef('refreshes'), _where('assignedTo','==',name), _where('status','==','pending')), snap => {
       _setCardBadge('_refresh', snap.size);
     });
-    // test drive assigned
-    let _tdDrvSeen = new Set(), _tdDrvFirst = true;
+    // test drive assigned — auto-open fill modal, persist across refresh
     _onSnap(_query(_colRef('test_drives'), _where('assignedTo','==',name), _where('status','==','pending')), snap => {
       const badge = document.getElementById('badge-test-drive');
       if (badge) { badge.textContent = snap.size; badge.style.display = snap.size ? 'block' : 'none'; }
-      if (_tdDrvFirst) { snap.docs.forEach(d => _tdDrvSeen.add(d.id)); _tdDrvFirst = false; return; }
-      snap.docs.forEach(d => {
-        if (!_tdDrvSeen.has(d.id)) {
-          _tdDrvSeen.add(d.id);
-          const f = d.data();
-          const info = document.getElementById('td-assigned-info');
-          if (info) info.innerHTML = `רכב: <span style="font-size:17px">${esc(f.plate||'')}</span> &nbsp; ${esc([f.maker,f.year,f.color].filter(Boolean).join(' · '))}`;
-          openModal('modal-td-assigned');
-        }
-      });
+      if (!snap.size) { localStorage.removeItem('anak_td_active'); return; }
+      const firstDoc = snap.docs[0];
+      const f = { id: firstDoc.id, ...firstDoc.data() };
+      localStorage.setItem('anak_td_active', f.id);
+      if (!_tdAllForms.find(x => x.id === f.id)) _tdAllForms.push(f);
+      // open if not already open
+      const overlay = document.getElementById('modal-fill-test-drive');
+      if (!overlay?.classList.contains('open')) openFillTestDriveModal(f.id);
     });
   } catch(e) { console.warn('loadDriverBadges error', e); }
 }
@@ -4322,7 +4319,9 @@ function closeModal(id) {
   document.getElementById(id).classList.remove('open');
 }
 document.querySelectorAll('.modal-overlay').forEach(o => {
-  o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); });
+  o.addEventListener('click', e => {
+    if (e.target === o && o.id !== 'modal-fill-test-drive') o.classList.remove('open');
+  });
 });
 
 function showToast(msg, duration) {
@@ -7457,6 +7456,44 @@ window._showTdResultModal = _showTdResultModal;
 async function submitTestDriveForm() {
   const id = document.getElementById('tdf-id').value;
   if (!id) return;
+
+  // validate km
+  if (!document.getElementById('tdf-km').value.trim()) {
+    showToast('⚠️ נא למלא קילומטראז׳');
+    document.getElementById('tdf-km').focus();
+    return;
+  }
+
+  // validate all ci-boxes filled
+  const allCiKeys = Object.keys(_TD_CHECK_LABELS);
+  const missingKeys = allCiKeys.filter(key =>
+    !document.querySelector(`#modal-fill-test-drive .ci-box[data-key="${key}"].v-active`) &&
+    !document.querySelector(`#modal-fill-test-drive .ci-box[data-key="${key}"].x-active`)
+  );
+  if (missingKeys.length) {
+    const labels = missingKeys.map(k => _TD_CHECK_LABELS[k]).join(', ');
+    showToast(`⚠️ נא למלא את הסעיפים החסרים: ${labels}`);
+    // highlight missing and scroll to first
+    missingKeys.forEach(key => {
+      document.querySelectorAll(`#modal-fill-test-drive .ci-box[data-key="${key}"]`).forEach(b => {
+        b.style.outline = '2px solid #ef4444';
+        setTimeout(() => { b.style.outline = ''; }, 3000);
+      });
+    });
+    const firstBtn = document.querySelector(`#modal-fill-test-drive .ci-box[data-key="${missingKeys[0]}"]`);
+    firstBtn?.closest('.checklist-item')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+
+  // validate extra-issues selection
+  const extraYesVisible = document.getElementById('td-extra-yes').style.display !== 'none';
+  const extraNoVisible = document.getElementById('td-extra-no').style.display !== 'none';
+  if (!extraYesVisible && !extraNoVisible) {
+    showToast('⚠️ נא לציין האם יש ליקויים נוספים');
+    document.getElementById('td-extra-yes').closest('div')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+
   // validate: x-marked fields need notes
   const xBoxes = document.querySelectorAll('#modal-fill-test-drive .ci-box.x-active');
   for (const b of xBoxes) {
@@ -7498,6 +7535,7 @@ async function submitTestDriveForm() {
       fromTestDrive: id,
     });
   } catch(e) { console.warn('intake create', e); }
+  localStorage.removeItem('anak_td_active');
   showToast('✅ הטופס נשלח בהצלחה');
   closeModal('modal-fill-test-drive');
 }
