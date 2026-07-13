@@ -229,6 +229,13 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
 @keyframes slideDown{from{transform:translateY(-100%);opacity:0}to{transform:translateY(0);opacity:1}}
 @keyframes platePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)}}
 
+/* ===== LIVE TEST DRIVE PANEL ===== */
+#td-live-panel{position:fixed;left:0;top:0;height:100%;width:100%;background:var(--card);z-index:4500;display:none;flex-direction:column;box-shadow:4px 0 24px rgba(0,0,0,.3)}
+@media(min-width:700px){#td-live-panel{width:min(420px,38vw);border-right:2px solid var(--border)}}
+.td-lp-ci{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;border:2px solid var(--border);background:var(--surface2);font-size:16px;font-weight:900;cursor:pointer;transition:.15s}
+.td-lp-ci.v-active{background:#16a34a;border-color:#16a34a;color:#fff}
+.td-lp-ci.x-active{background:#dc2626;border-color:#dc2626;color:#fff}
+
 /* ===== RESPONSIVE ===== */
 @media(min-width:600px){
   .modal-overlay{align-items:center}
@@ -319,6 +326,17 @@ if ('serviceWorker' in navigator) {
     <div id="td-result-content" style="font-size:14px"></div>
     <button onclick="closeModal('modal-td-result')" style="width:100%;margin-top:14px;background:var(--dark);color:#fff;border:none;border-radius:12px;padding:13px;font-family:Heebo,sans-serif;font-weight:700;font-size:15px;cursor:pointer">סגור</button>
   </div>
+</div>
+
+<!-- ====== LIVE TEST DRIVE PANEL (manager) ====== -->
+<div id="td-live-panel">
+  <div style="background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+    <span style="font-weight:800;font-size:15px">🏎️ נסיעת מבחן — שידור חי</span>
+    <span id="td-live-status-badge" style="font-size:12px;font-weight:700;background:rgba(255,255,255,.2);border-radius:8px;padding:3px 10px">⏳ ממתין</span>
+  </div>
+  <div id="td-live-vehicle-info" style="padding:10px 14px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:14px;font-weight:800;flex-shrink:0"></div>
+  <div id="td-live-content" style="flex:1;overflow-y:auto;padding:8px 14px"></div>
+  <div id="td-live-footer" style="padding:12px 14px;border-top:1px solid var(--border);flex-shrink:0;text-align:center;font-size:13px;color:var(--muted)">הנהג ממלא את הטופס...</div>
 </div>
 
 <!-- ====== SCREEN: TASKS ====== -->
@@ -1825,7 +1843,7 @@ function renderHome() {
   if (tdBtn) tdBtn.style.display = (isManager || currentUser.role === 'driver') ? 'block' : 'none';
 
   loadStats();
-  if (isManager) loadManagerBadges();
+  if (isManager) { loadManagerBadges(); setTimeout(_restoreTdLivePanelIfNeeded, 800); }
   else loadDriverBadges();
 }
 
@@ -2046,7 +2064,8 @@ function loadManagerBadges() {
       snap.docs.forEach(d => {
         if (!_tdMgrSeen.has(d.id)) {
           _tdMgrSeen.add(d.id);
-          _showTdResultModal(d.id, d.data());
+          // only show popup if live panel isn't already showing this form
+          if (_tdLivePanelId !== d.id) _showTdResultModal(d.id, d.data());
         }
       });
     });
@@ -7286,10 +7305,11 @@ async function submitNewTestDrive() {
     createdAt: _serverTs(),
     status: 'pending'
   };
-  await _addDoc(_colRef('test_drives'), data);
+  const ref = await _addDoc(_colRef('test_drives'), data);
   _notifyDriver(_tdSelectedDriver, `🏎️ יש לך טופס נסיעת מבחן חדש לרכב ${plate}. כנס לאפליקציה למלא.`);
   showToast(`✅ נשלח ל${_tdSelectedDriver}`);
   closeModal('modal-new-test-drive');
+  openTdLivePanel(ref.id, { ...data, id: ref.id });
 }
 window.submitNewTestDrive = submitNewTestDrive;
 
@@ -7515,31 +7535,177 @@ async function submitTestDriveForm() {
     ...all,
     draft: null,
   };
-  const { updateDoc, doc, addDoc, collection } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  const { updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
   await updateDoc(doc(window._db, 'test_drives', id), data);
-  // auto-create intake
-  const tdDoc = _tdAllForms.find(f => f.id === id) || {};
-  try {
-    await addDoc(collection(window._db, 'intake_assignments'), {
-      plate: tdDoc.plate || '',
-      brand: tdDoc.maker || '',
-      model: '',
-      color: tdDoc.color || '',
-      year: tdDoc.year || '',
-      spot: '',
-      km: all.km || '',
-      assignedTo: currentUser.name,
-      createdBy: currentUser.name,
-      status: 'pending',
-      createdAt: _serverTs(),
-      fromTestDrive: id,
-    });
-  } catch(e) { console.warn('intake create', e); }
   localStorage.removeItem('anak_td_active');
   showToast('✅ הטופס נשלח בהצלחה');
   closeModal('modal-fill-test-drive');
 }
 window.submitTestDriveForm = submitTestDriveForm;
+
+// ══════════════════════════════════════════
+//  LIVE TEST DRIVE PANEL (manager)
+// ══════════════════════════════════════════
+let _tdLivePanelId = null;
+let _tdLivePanelUnsub = null;
+let _tdLivePanelData = null;
+
+function openTdLivePanel(id, initialData) {
+  if (_tdLivePanelUnsub) { _tdLivePanelUnsub(); _tdLivePanelUnsub = null; }
+  _tdLivePanelId = id;
+  localStorage.setItem('anak_td_mgr_panel', id);
+  const panel = document.getElementById('td-live-panel');
+  panel.style.display = 'flex';
+  if (initialData) _renderTdLivePanel(initialData);
+  import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(({ onSnapshot, doc }) => {
+    _tdLivePanelUnsub = onSnapshot(doc(window._db, 'test_drives', id), snap => {
+      if (!snap.exists()) return;
+      _tdLivePanelData = { id: snap.id, ...snap.data() };
+      _renderTdLivePanel(_tdLivePanelData);
+    });
+  });
+}
+window.openTdLivePanel = openTdLivePanel;
+
+function _renderTdLivePanel(data) {
+  const isDone = data.status === 'done';
+  const src = isDone ? data : (data.draft || {});
+  const checks = src.checks || (isDone ? data.checks || {} : {});
+  const notes = src.notes || (isDone ? data.notes || {} : {});
+
+  const badge = document.getElementById('td-live-status-badge');
+  if (badge) badge.innerHTML = isDone
+    ? '<span style="background:#16a34a;border-radius:6px;padding:2px 8px">✅ הושלם</span>'
+    : '<span style="background:rgba(255,255,255,.25);border-radius:6px;padding:2px 8px">⏳ ממתין</span>';
+
+  const vi = document.getElementById('td-live-vehicle-info');
+  if (vi) {
+    const km = src.km || data.km || '';
+    const code = src.code || data.code || '';
+    vi.innerHTML = `<div style="font-size:15px;font-weight:900">${esc(data.plate||'')} &nbsp; <span style="font-weight:600;font-size:13px">${esc([data.maker,data.year,data.color].filter(Boolean).join(' · '))}</span></div>`
+      + (km ? `<div style="font-size:12px;color:var(--muted);margin-top:3px">קמ: <b>${esc(km)}</b>${code ? ` &nbsp;|&nbsp; קוד: <b>${esc(code)}</b>` : ''} &nbsp;|&nbsp; נהג: <b>${esc(data.assignedTo||'')}</b></div>` : `<div style="font-size:12px;color:var(--muted);margin-top:3px">נהג: <b>${esc(data.assignedTo||'')}</b></div>`);
+  }
+
+  const cont = document.getElementById('td-live-content');
+  if (!cont) return;
+
+  let html = '';
+  let lastSection = '';
+  const sectionOf = {
+    'td-oil':'שמן מנוע','td-oil-color':'שמן מנוע',
+    'td-coolant':'נוזל קירור','td-coolant-color':'נוזל קירור',
+    'td-windows':'מתגי חלונות','td-mirrors':'מראות',
+    'td-lights-front':'לדים ופנסים','td-lights-rear':'לדים ופנסים',
+    'td-dashboard':'לוח שעונים',
+    'td-ac-cool':'מזגן','td-ac-heat':'מזגן','td-ac-noise':'רעשי מזגן',
+    'td-drive-brakes':'נסיעה','td-drive-steering':'נסיעה','td-drive-gearbox':'נסיעה','td-drive-noise':'נסיעה',
+  };
+
+  Object.entries(_TD_CHECK_LABELS).forEach(([key, label]) => {
+    const sec = sectionOf[key] || '';
+    if (sec !== lastSection) {
+      html += `<div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:10px 0 4px;border-top:1px solid var(--border);margin-top:4px">${esc(sec)}</div>`;
+      lastSection = sec;
+    }
+    const val = checks[key];
+    const vA = val === 'v', xA = val === 'x';
+    const note = notes[key] || '';
+    html += `<div style="display:flex;align-items:center;gap:8px;padding:5px 0">
+      <span style="flex:1;font-size:13px;font-weight:700">${esc(label)}</span>
+      <button type="button" class="td-lp-ci${vA?' v-active':''}" onclick="_tdLiveCiClick('${key}','v',this)">✓</button>
+      <button type="button" class="td-lp-ci${xA?' x-active':''}" onclick="_tdLiveCiClick('${key}','x',this)">✕</button>
+    </div>`;
+    if (note) html += `<div style="font-size:11px;color:#dc2626;margin-bottom:4px;padding-right:4px">⚠️ ${esc(note)}</div>`;
+  });
+
+  // dashboard lights
+  if (isDone && data.dashLights?.length) {
+    const lbls = {engine:'צ׳ק אנג׳ין',tire:'לחץ אוויר',service:'טיפול',collision:'התגשות',fuel:'דלק',other:'אחר'};
+    html += `<div style="margin-top:8px;font-size:12px;font-weight:700;color:#dc2626">🔔 מנורות לוח: ${data.dashLights.map(k=>lbls[k]||k).join(', ')}</div>`;
+  }
+
+  // extra issues
+  const extra = src.extraIssues || (isDone ? data.extraIssues : '');
+  if (extra) html += `<div style="margin-top:10px;background:#fef2f2;border-radius:8px;padding:8px;font-size:12px;color:#dc2626;font-weight:700">⚠️ ליקויים: <span style="font-weight:400;color:var(--text)">${esc(extra)}</span></div>`;
+
+  if (!isDone && !Object.keys(checks).length) {
+    html = '<div style="text-align:center;padding:30px 0;color:var(--muted);font-size:13px">⏳ ממתין שהנהג יתחיל למלא...</div>' + html;
+  }
+
+  cont.innerHTML = html;
+
+  // footer
+  const footer = document.getElementById('td-live-footer');
+  if (footer) {
+    if (isDone) {
+      footer.innerHTML = `<button onclick="completeTdLivePanel()" style="width:100%;background:#16a34a;color:#fff;border:none;border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-weight:800;font-size:15px;cursor:pointer">✅ סיום — העבר לקליטת רכב</button>`;
+    } else {
+      footer.innerHTML = `<div style="font-size:12px;color:var(--muted);text-align:center">הנהג ממלא את הטופס • הנתונים מתעדכנים בלייב</div>`;
+    }
+  }
+}
+
+async function _tdLiveCiClick(key, val, btn) {
+  if (!_tdLivePanelId) return;
+  const curData = _tdLivePanelData || {};
+  const curChecks = curData.draft?.checks || curData.checks || {};
+  const same = curChecks[key] === val;
+  const { updateDoc, doc, deleteField } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  const upd = {};
+  if (same) upd[`draft.checks.${key}`] = deleteField();
+  else upd[`draft.checks.${key}`] = val;
+  try { await updateDoc(doc(window._db, 'test_drives', _tdLivePanelId), upd); } catch(e) { console.warn('lp ci update', e); }
+}
+window._tdLiveCiClick = _tdLiveCiClick;
+
+async function completeTdLivePanel() {
+  if (!_tdLivePanelId) return;
+  const data = _tdLivePanelData || {};
+  try {
+    const { addDoc, collection } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    await addDoc(collection(window._db, 'intake_assignments'), {
+      plate: data.plate || '',
+      brand: data.maker || '',
+      model: '',
+      color: data.color || '',
+      year: data.year || '',
+      spot: '',
+      km: data.km || data.draft?.km || '',
+      assignedTo: currentUser.name,
+      createdBy: currentUser.name,
+      status: 'pending',
+      createdAt: _serverTs(),
+      fromTestDrive: _tdLivePanelId,
+    });
+  } catch(e) { console.warn('intake create', e); }
+  if (_tdLivePanelUnsub) { _tdLivePanelUnsub(); _tdLivePanelUnsub = null; }
+  _tdLivePanelId = null;
+  _tdLivePanelData = null;
+  localStorage.removeItem('anak_td_mgr_panel');
+  document.getElementById('td-live-panel').style.display = 'none';
+  showToast('✅ הרכב הועבר לקליטה');
+}
+window.completeTdLivePanel = completeTdLivePanel;
+
+// restore live panel on manager home load
+function _restoreTdLivePanelIfNeeded() {
+  if (currentUser?.role !== 'manager') return;
+  const savedId = localStorage.getItem('anak_td_mgr_panel');
+  if (!savedId) return;
+  // check if form still exists and is still relevant
+  import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(({ getDoc, doc }) => {
+    getDoc(doc(window._db, 'test_drives', savedId)).then(snap => {
+      if (!snap.exists()) { localStorage.removeItem('anak_td_mgr_panel'); return; }
+      const data = snap.data();
+      // only restore if pending or done-but-not-yet-completed
+      if (data.status === 'pending' || data.status === 'done') {
+        openTdLivePanel(savedId, { id: savedId, ...data });
+      } else {
+        localStorage.removeItem('anak_td_mgr_panel');
+      }
+    }).catch(() => localStorage.removeItem('anak_td_mgr_panel'));
+  });
+}
 
 </script>
 
