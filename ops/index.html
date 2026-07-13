@@ -978,17 +978,14 @@ if ('serviceWorker' in navigator) {
     <div class="checklist-item"><span class="ci-label">רעשי מזגן</span><div class="ci-btns"><button type="button" class="ci-box" data-key="td-ac-noise" data-val="v" onclick="tdCiClick(this)">✓</button><button type="button" class="ci-box" data-key="td-ac-noise" data-val="x" onclick="tdCiClick(this)">✕</button></div></div>
 
     <!-- בדיקת נסיעה -->
-    <div class="section-title">בדיקת הרכב בנסיעה</div>
-    <div class="form-group" style="margin-bottom:8px">
-      <textarea class="form-textarea" id="tdf-drive-notes" rows="3" placeholder="תאר את הנסיעה: בלמים, היגוי, תיבת הילוכים, רעשים... (חובה)" oninput="_autoSaveTd()"></textarea>
-    </div>
+    <div class="checklist-item"><span class="ci-label">בדיקת הרכב בנסיעה</span><div class="ci-btns"><button type="button" class="ci-box" data-key="td-drive" data-val="v" onclick="tdCiClick(this)">✓</button><button type="button" class="ci-box" data-key="td-drive" data-val="x" onclick="tdCiClick(this)">✕</button></div></div>
 
     <!-- הערות נוספות -->
     <div class="section-title">האם יש משהו נוסף שלא תקין?</div>
     <div style="margin-bottom:16px">
       <div style="display:flex;gap:10px;margin-bottom:8px">
-        <button type="button" onclick="document.getElementById('td-extra-yes').style.display='block';document.getElementById('td-extra-no').style.display='none';this.style.background='#dc2626';this.style.color='#fff';this.nextElementSibling.style.background='var(--surface2)';this.nextElementSibling.style.color='var(--text)'" style="flex:1;background:var(--surface2);color:var(--text);border:1.5px solid var(--border);border-radius:10px;padding:10px;font-family:Heebo,sans-serif;font-weight:700;font-size:14px;cursor:pointer">כן</button>
-        <button type="button" onclick="document.getElementById('td-extra-yes').style.display='none';document.getElementById('td-extra-no').style.display='block';this.style.background='#16a34a';this.style.color='#fff';this.previousElementSibling.style.background='var(--surface2)';this.previousElementSibling.style.color='var(--text)'" style="flex:1;background:var(--surface2);color:var(--text);border:1.5px solid var(--border);border-radius:10px;padding:10px;font-family:Heebo,sans-serif;font-weight:700;font-size:14px;cursor:pointer">הכל תקין</button>
+        <button type="button" onclick="document.getElementById('td-extra-yes').style.display='block';document.getElementById('td-extra-no').style.display='none';this.style.background='#dc2626';this.style.color='#fff';this.nextElementSibling.style.background='var(--surface2)';this.nextElementSibling.style.color='var(--text)';_autoSaveTd()" style="flex:1;background:var(--surface2);color:var(--text);border:1.5px solid var(--border);border-radius:10px;padding:10px;font-family:Heebo,sans-serif;font-weight:700;font-size:14px;cursor:pointer">כן</button>
+        <button type="button" onclick="document.getElementById('td-extra-yes').style.display='none';document.getElementById('td-extra-no').style.display='block';this.style.background='#16a34a';this.style.color='#fff';this.previousElementSibling.style.background='var(--surface2)';this.previousElementSibling.style.color='var(--text)';_autoSaveTd()" style="flex:1;background:var(--surface2);color:var(--text);border:1.5px solid var(--border);border-radius:10px;padding:10px;font-family:Heebo,sans-serif;font-weight:700;font-size:14px;cursor:pointer">הכל תקין</button>
       </div>
       <div id="td-extra-yes" style="display:none"><textarea class="form-textarea" id="td-extra-text" placeholder="פרט את הליקויים..." rows="3"></textarea></div>
       <div id="td-extra-no" style="display:none;color:#16a34a;font-weight:700;font-size:14px;padding:8px 0">✅ הרכב תקין</div>
@@ -7492,8 +7489,8 @@ function _tdCollectAll() {
     notes,
     dashLights,
     dashOtherText: document.getElementById('td-dash-other-text')?.value.trim() || '',
-    driveNotes: document.getElementById('tdf-drive-notes')?.value.trim() || '',
     extraIssues: document.getElementById('td-extra-text')?.value.trim() || '',
+    extraOk: document.getElementById('td-extra-no')?.style.display !== 'none',
   };
 }
 
@@ -7518,7 +7515,6 @@ function _tdRestoreAll(draft) {
     if (draft.dashLights.length) document.getElementById('td-dash-detail').style.display = 'flex';
   }
   if (draft.dashOtherText) { const el = document.getElementById('td-dash-other-text'); if (el) { el.value = draft.dashOtherText; el.style.display = 'block'; } }
-  if (draft.driveNotes) { const el = document.getElementById('tdf-drive-notes'); if (el) el.value = draft.driveNotes; }
   if (draft.extraIssues) { document.getElementById('td-extra-text').value = draft.extraIssues; document.getElementById('td-extra-yes').style.display = 'block'; }
 }
 
@@ -7566,6 +7562,7 @@ const _TD_CHECK_LABELS = {
   'td-windows':'מתגי חלונות','td-mirrors':'קיפול וכיוון מראות חשמליות',
   'td-lights':'שברים בפנסים','td-lights-burnt':'לדים שרופים/מנורות שרופות',
   'td-dashboard':'מנורות לוח שעונים','td-ac':'מזגן מחמם ומקרר','td-ac-noise':'רעשי מזגן',
+  'td-drive':'בדיקת הרכב בנסיעה',
 };
 
 function _showTdResultModal(id, data) {
@@ -7629,12 +7626,6 @@ async function submitTestDriveForm() {
     return;
   }
 
-  // validate drive notes
-  if (!document.getElementById('tdf-drive-notes').value.trim()) {
-    showToast('⚠️ נא למלא את שדה בדיקת הנסיעה');
-    document.getElementById('tdf-drive-notes').focus();
-    return;
-  }
 
   // validate extra-issues selection
   const extraYesVisible = document.getElementById('td-extra-yes').style.display !== 'none';
@@ -7722,10 +7713,10 @@ function _renderTdLivePanel(data) {
 
   const km = src.km || data.km || '';
   const code = src.code || data.code || '';
-  const driveNotes = src.driveNotes || (isDone ? data.driveNotes : '') || '';
   const dashLights = src.dashLights || (isDone ? data.dashLights : []) || [];
   const dashOther  = src.dashOtherText || (isDone ? data.dashOtherText : '') || '';
   const extra = src.extraIssues || (isDone ? data.extraIssues : '') || '';
+  const extraOk = src.extraOk !== undefined ? src.extraOk : (isDone ? data.extraOk : undefined);
 
   const RO = 'pointer-events:none;cursor:default';
 
@@ -7761,14 +7752,14 @@ function _renderTdLivePanel(data) {
     }
   });
 
-  // drive notes — same section title + readonly textarea
-  html += `<div class="section-title">בדיקת הרכב בנסיעה</div>`;
-  html += `<div class="form-group" style="margin-bottom:8px"><textarea class="form-textarea" rows="3" readonly style="${RO};background:var(--surface2)">${esc(driveNotes)}</textarea></div>`;
-
-  // extra issues
-  if (extra) {
-    html += `<div class="section-title">ליקויים נוספים</div>`;
+  // always show "האם יש משהו נוסף" section
+  html += `<div class="section-title">האם יש משהו נוסף שלא תקין?</div>`;
+  if (extraOk === true) {
+    html += `<div style="color:#16a34a;font-weight:700;font-size:14px;padding:8px 0">✅ הרכב תקין</div>`;
+  } else if (extra) {
     html += `<div style="background:#fef2f2;border-radius:10px;padding:10px;font-size:13px;color:#dc2626;font-weight:700">⚠️ <span style="font-weight:400;color:var(--text)">${esc(extra)}</span></div>`;
+  } else {
+    html += `<div style="color:var(--muted);font-size:13px;padding:6px 0">⏳ טרם נענה</div>`;
   }
 
   if (!isDone && !Object.keys(checks).length) {
