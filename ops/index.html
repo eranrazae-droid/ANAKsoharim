@@ -302,10 +302,19 @@ if ('serviceWorker' in navigator) {
     <div class="stats-row" id="stats-row">
       <div class="stat-card"><div class="num" id="stat-tasks">—</div><div class="lbl">משימות פתוחות</div></div>
       <div class="stat-card" id="stat-vehicles-card" style="display:none"><div class="num" id="stat-vehicles">—</div><div class="lbl">רכבים במגרש</div></div>
+      <div class="stat-card" id="stat-pickup-driver-card" style="display:none;cursor:pointer;background:linear-gradient(135deg,#1e3a8a,#1e40af);color:#fff" onclick="openDriverPickupModal()"><div class="num" id="stat-pickup-driver-count" style="color:#fff">0</div><div class="lbl" style="color:rgba(255,255,255,.8)">🚙 לאיסוף</div></div>
       <div style="display:none"><div id="stat-parts">—</div></div>
     </div>
     <div class="menu-grid" id="menu-grid"></div>
     <button id="btn-test-drive-home" onclick="openTestDriveFromHome()" style="display:none;width:100%;margin-top:14px;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;border:none;border-radius:14px;padding:16px;font-family:Heebo,sans-serif;font-size:16px;font-weight:800;cursor:pointer;position:relative;text-align:center">🏎️ נסיעות מבחן<span id="badge-test-drive" style="display:none;position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;border-radius:999px;font-size:11px;font-weight:900;padding:1px 8px;min-width:18px;text-align:center"></span></button>
+  </div>
+</div>
+
+<!-- modal: driver pickup cars -->
+<div class="modal-overlay" id="modal-driver-pickup">
+  <div class="modal-box" style="max-height:85vh;overflow-y:auto">
+    <div class="modal-title">🚙 רכבים לאיסוף <button class="modal-close" onclick="closeModal('modal-driver-pickup')">✕</button></div>
+    <div id="driver-pickup-list" style="display:flex;flex-direction:column;gap:12px"></div>
   </div>
 </div>
 
@@ -1958,6 +1967,18 @@ function loadDriverBadges() {
     });
     _onSnap(_query(_colRef('refreshes'), _where('assignedTo','==',name), _where('status','==','pending')), snap => {
       _setCardBadge('_refresh', snap.size);
+    });
+    // pickup cars assigned to this driver
+    _onSnap(_query(_colRef('pickup_cars'), _where('assignedDriver','==',name)), snap => {
+      const cars = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const card = document.getElementById('stat-pickup-driver-card');
+      const cnt = document.getElementById('stat-pickup-driver-count');
+      if (card) card.style.display = cars.length ? 'block' : 'none';
+      if (cnt) cnt.textContent = cars.length;
+      _driverPickupCars = cars;
+      // if modal already open, re-render
+      const modal = document.getElementById('modal-driver-pickup');
+      if (modal && modal.classList.contains('open')) _renderDriverPickupModal();
     });
     // test drive assigned — auto-open fill modal, persist across refresh
     _onSnap(_query(_colRef('test_drives'), _where('assignedTo','==',name), _where('status','==','pending')), snap => {
@@ -7128,6 +7149,59 @@ async function collectPickupCar(id) {
   showToast('✅ הרכב הועבר לארכיון');
 }
 window.collectPickupCar = collectPickupCar;
+
+// ── Driver pickup card on home screen ──
+let _driverPickupCars = [];
+
+function openDriverPickupModal() {
+  _renderDriverPickupModal();
+  openModal('modal-driver-pickup');
+}
+
+function _renderDriverPickupModal() {
+  const list = document.getElementById('driver-pickup-list');
+  if (!list) return;
+  if (!_driverPickupCars.length) {
+    list.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--muted);font-size:15px">אין רכבים ממתינים לאיסוף</div>';
+    return;
+  }
+  const e = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  list.innerHTML = _driverPickupCars.map(c => {
+    const km = c.km ? c.km + ' ק"מ' : '';
+    const rows = [
+      c.type && `<div style="font-size:15px;font-weight:700">${e(c.type)}${c.year?' · '+e(c.year):''}</div>`,
+      c.city && `<div style="font-size:13px;color:var(--muted)">🏙️ ${e(c.city)}</div>`,
+      c.address && `<div style="font-size:13px;color:var(--muted)">📍 ${e(c.address)}</div>`,
+      c.contact && `<div style="font-size:13px;color:var(--muted)">📞 <a href="tel:${e(c.contact)}" style="color:inherit">${e(c.contact)}</a></div>`,
+      km && `<div style="font-size:13px;color:var(--muted)">🛣️ ${e(km)}</div>`,
+    ].filter(Boolean).join('');
+    return `<div style="background:var(--surface2);border-radius:14px;padding:14px 16px;border-right:5px solid #1e40af">
+      <div style="font-size:22px;font-weight:900;letter-spacing:2px;font-family:monospace;margin-bottom:8px">${e(c.plate||'')}</div>
+      ${rows}
+      <button onclick="collectPickupCarFromHome('${e(c.id)}')" style="width:100%;margin-top:14px;background:#059669;color:#fff;border:none;border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:16px;font-weight:800;cursor:pointer">✅ הרכב נאסף</button>
+    </div>`;
+  }).join('');
+}
+
+async function collectPickupCarFromHome(id) {
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = 'מעביר לארכיון...';
+  try {
+    const { addDoc, deleteDoc, doc, collection } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const car = _driverPickupCars.find(c => c.id === id) || {};
+    await addDoc(collection(window._db, 'pickup_archive'), { ...car, collectedAt: _serverTs(), collectedBy: currentUser.name });
+    await deleteDoc(doc(window._db, 'pickup_cars', id));
+    showToast('✅ הרכב הועבר לארכיון');
+    if (!_driverPickupCars.filter(c => c.id !== id).length) closeModal('modal-driver-pickup');
+  } catch(e) {
+    showToast('שגיאה בעדכון');
+    btn.disabled = false;
+    btn.textContent = '✅ הרכב נאסף';
+  }
+}
+window.collectPickupCarFromHome = collectPickupCarFromHome;
+window.openDriverPickupModal = openDriverPickupModal;
 
 // ── My pickup cars (driver / הילה view) ──
 function openMyPickupScreen() {
