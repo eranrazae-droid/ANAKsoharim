@@ -995,6 +995,19 @@ if ('serviceWorker' in navigator) {
     <div class="loading"><div class="spinner"></div> טוען...</div>
   </div>
   <button class="fab" onclick="openAddPickupModal()" style="bottom:24px;right:16px;left:auto;transform:none">+ הוספת רכב</button>
+  <button class="fab" onclick="openFreeTextPickupModal()" style="bottom:80px;right:16px;left:auto;transform:none;background:#0ea5e9;font-size:13px">📝 הוספה מטקסט</button>
+</div>
+
+<!-- ====== MODAL: FREE TEXT PICKUP ====== -->
+<div class="modal-overlay" id="modal-freetext-pickup">
+  <div class="modal-box" style="max-height:90vh;display:flex;flex-direction:column">
+    <div class="modal-title">📝 הוספה מטקסט חופשי <button class="modal-close" onclick="closeModal('modal-freetext-pickup')">✕</button></div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px">כתוב רכב אחד או יותר. כל שורה ריקה מפרידה בין רכבים. ניתן לכלול לוחית, שנה, צבע, קמ"ש, טלפון, עיר וכתובת.</div>
+    <textarea id="freetext-pickup-input" rows="6" placeholder="למשל:&#10;64665702 קיה פיקנטו 2021 לבן 50000 קמ דני 054-3055532 ילדי טהרן 1 תל אביב&#10;&#10;מספר 12345678 יונדאי i35 אדום 2019 חיפה רחוב הרצל 5" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:14px;box-sizing:border-box;resize:vertical;flex-shrink:0"></textarea>
+    <button onclick="parseFreeTextPickup()" style="margin-top:10px;background:var(--gold);color:#000;border:none;border-radius:10px;padding:10px;font-family:Heebo,sans-serif;font-weight:900;font-size:14px;cursor:pointer;flex-shrink:0">🔍 זהה רכבים</button>
+    <div id="freetext-pickup-preview" style="margin-top:12px;overflow-y:auto;flex:1"></div>
+    <button id="freetext-pickup-save-btn" onclick="saveFreeTextPickup()" style="display:none;margin-top:10px;background:#16a34a;color:#fff;border:none;border-radius:10px;padding:12px;font-family:Heebo,sans-serif;font-weight:900;font-size:15px;cursor:pointer;flex-shrink:0">✅ שמור את כל הרכבים</button>
+  </div>
 </div>
 
 <!-- ====== MODAL: ADD PICKUP CAR ====== -->
@@ -6363,6 +6376,120 @@ async function deletePickupCar(id) {
   showToast('הרכב הוסר');
 }
 window.deletePickupCar = deletePickupCar;
+
+// ── Free text pickup parser ──
+
+const _PICKUP_COLORS = ['לבן','שחור','אפור','כסף','כחול','אדום','ירוק','צהוב','כתום','חום','בז','זהב','סגול','ורוד','תכלת','בורדו','טיטניום','פנינה'];
+
+let _freetextParsed = [];
+
+function openFreeTextPickupModal() {
+  document.getElementById('freetext-pickup-input').value = '';
+  document.getElementById('freetext-pickup-preview').innerHTML = '';
+  document.getElementById('freetext-pickup-save-btn').style.display = 'none';
+  _freetextParsed = [];
+  openModal('modal-freetext-pickup');
+}
+window.openFreeTextPickupModal = openFreeTextPickupModal;
+
+function _parsePickupBlock(text) {
+  const car = { plate:'', type:'', year:'', color:'', km:'', contact:'', city:'', address:'' };
+  let remaining = text;
+
+  // plate: 7-8 digit sequence
+  remaining = remaining.replace(/\b(\d{7,8})\b/, (_, p) => { car.plate = p; return ' '; });
+
+  // year: 4-digit 1990–2030
+  remaining = remaining.replace(/\b(19[9]\d|20[0-3]\d)\b/, (_, y) => { car.year = y; return ' '; });
+
+  // km: number followed by קמ / ק"מ / km (optional space)
+  remaining = remaining.replace(/(\d[\d,\.]+)\s*(?:ק"מ|קמ|km)/i, (_, k) => { car.km = k.replace(/[,\.]/g,''); return ' '; });
+
+  // phone: Israeli mobile/landline
+  remaining = remaining.replace(/0\d[-\s]?\d{7,8}/, p => { car.contact = (car.contact ? car.contact + ' ' : '') + p.replace(/\s/g,''); return ' '; });
+
+  // color
+  for (const c of _PICKUP_COLORS) {
+    if (remaining.includes(c)) { car.color = c; remaining = remaining.replace(c, ' '); break; }
+  }
+
+  // city: word preceded by "עיר" / last standalone Hebrew city guess
+  const cityMatch = remaining.match(/(?:עיר\s+|ב)([א-ת]+(?:\s+[א-ת]+)?)/);
+  if (cityMatch) { car.city = cityMatch[1].trim(); remaining = remaining.replace(cityMatch[0], ' '); }
+
+  // remaining words — split into likely name vs address
+  const words = remaining.trim().split(/\s+/).filter(w => w && w !== '-');
+  // heuristic: if word contains digits or looks like street, it's address; first pure-Hebrew short word = contact name
+  const nameWords = [], addrWords = [];
+  let nameDone = false;
+  for (const w of words) {
+    if (!nameDone && /^[א-ת]{2,6}$/.test(w) && addrWords.length === 0) {
+      nameWords.push(w);
+    } else {
+      nameDone = true;
+      addrWords.push(w);
+    }
+  }
+  if (nameWords.length) car.contact = (car.contact ? car.contact + ' ' : '') + nameWords.join(' ');
+  if (addrWords.length) car.address = addrWords.join(' ');
+
+  return car;
+}
+
+function parseFreeTextPickup() {
+  const raw = document.getElementById('freetext-pickup-input').value.trim();
+  if (!raw) return showToast('נא להזין טקסט');
+
+  // split by blank lines
+  const blocks = raw.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
+  // if no blank lines, try splitting by lines that start with a plate number
+  const finalBlocks = blocks.length > 1 ? blocks : raw.split('\n').reduce((acc, line) => {
+    if (/^\d{7,8}\b/.test(line.trim()) && acc.length) acc.push(line);
+    else if (acc.length) acc[acc.length-1] += ' ' + line;
+    else acc.push(line);
+    return acc;
+  }, []);
+
+  _freetextParsed = finalBlocks.map(_parsePickupBlock).filter(c => c.plate || c.type || c.contact);
+
+  const preview = document.getElementById('freetext-pickup-preview');
+  if (!_freetextParsed.length) { preview.innerHTML = '<div style="color:var(--muted);text-align:center;padding:20px">לא זוהו רכבים</div>'; return; }
+
+  preview.innerHTML = _freetextParsed.map((c, i) => `
+    <div style="background:var(--surface2);border:1.5px solid var(--border);border-radius:12px;padding:12px;margin-bottom:10px">
+      <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px">רכב ${i+1}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+        ${[
+          ['לוחית','plate'],['סוג','type'],['שנה','year'],['צבע','color'],
+          ['קמ"ש','km'],['איש קשר','contact'],['עיר','city'],['כתובת','address']
+        ].map(([label,key]) => `
+          <div>
+            <div style="font-size:10px;color:var(--muted)">${label}</div>
+            <input type="text" value="${(c[key]||'').replace(/"/g,'&quot;')}" oninput="_freetextParsed[${i}].${key}=this.value"
+              style="width:100%;padding:5px 7px;border-radius:7px;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;box-sizing:border-box">
+          </div>`).join('')}
+      </div>
+    </div>`).join('');
+
+  document.getElementById('freetext-pickup-save-btn').style.display = 'block';
+  document.getElementById('freetext-pickup-save-btn').textContent = `✅ שמור ${_freetextParsed.length} רכבים`;
+}
+window.parseFreeTextPickup = parseFreeTextPickup;
+
+async function saveFreeTextPickup() {
+  if (!_freetextParsed.length) return;
+  const btn = document.getElementById('freetext-pickup-save-btn');
+  btn.disabled = true;
+  try {
+    for (const car of _freetextParsed) {
+      await _addDoc(_colRef('pickup_cars'), { ...car, createdBy: currentUser.name, createdAt: _serverTs() });
+    }
+    closeModal('modal-freetext-pickup');
+    showToast(`✅ ${_freetextParsed.length} רכבים נוספו`);
+  } catch(e) { showToast('שגיאה בשמירה'); }
+  btn.disabled = false;
+}
+window.saveFreeTextPickup = saveFreeTextPickup;
 
 </script>
 
