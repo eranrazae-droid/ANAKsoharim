@@ -7175,9 +7175,29 @@ function _renderDriverPickupModal() {
       c.contact && `<div style="font-size:13px;color:var(--muted)">📞 <a href="tel:${e(c.contact)}" style="color:inherit">${e(c.contact)}</a></div>`,
       km && `<div style="font-size:13px;color:var(--muted)">🛣️ ${e(km)}</div>`,
     ].filter(Boolean).join('');
+
+    // doc/image attachment
+    let docHtml = '';
+    if (c.doc) {
+      const isImage = (c.docMime||'').startsWith('image/');
+      if (isImage) {
+        docHtml = `<div style="margin-top:10px">
+          <img src="${c.doc}" onclick="openLightbox(this.src)" style="max-width:100%;max-height:200px;object-fit:cover;border-radius:10px;cursor:zoom-in;border:1.5px solid var(--border)">
+        </div>`;
+      } else {
+        const label = e(c.docName || 'פתח קובץ');
+        docHtml = `<div style="margin-top:10px">
+          <a href="${c.doc}" download="${label}" target="_blank" style="display:inline-flex;align-items:center;gap:8px;background:var(--card);border:1.5px solid var(--border);border-radius:10px;padding:10px 14px;font-family:Heebo,sans-serif;font-size:14px;font-weight:700;color:var(--text);text-decoration:none">
+            📎 ${label}
+          </a>
+        </div>`;
+      }
+    }
+
     return `<div style="background:var(--surface2);border-radius:14px;padding:14px 16px;border-right:5px solid #1e40af">
       <div style="font-size:22px;font-weight:900;letter-spacing:2px;font-family:monospace;margin-bottom:8px">${e(c.plate||'')}</div>
       ${rows}
+      ${docHtml}
       <button onclick="collectPickupCarFromHome('${e(c.id)}')" style="width:100%;margin-top:14px;background:#059669;color:#fff;border:none;border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:16px;font-weight:800;cursor:pointer">✅ הרכב נאסף</button>
     </div>`;
   }).join('');
