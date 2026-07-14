@@ -6923,6 +6923,8 @@ function _fuzzyMatchCity(raw) {
         const candidateOrig = tWords.slice(start, start + wLen).join(' ');
         const dOrig = _levenshtein(candidateOrig, city) / Math.max(candidateOrig.length, city.length);
         const d = Math.min(dStripped, dOrig);
+        // reject clearly non-matching windows early (prevents bonus from masking bad matches)
+        if (d > 0.45) continue;
         // prefer matches at end of input; prefer longer word matches
         const adj = d - (start + wLen === tWords.length ? 0.06 : 0) - wLen * 0.04;
         if (adj < best.adj) best = { adj, city, start, wLen };
