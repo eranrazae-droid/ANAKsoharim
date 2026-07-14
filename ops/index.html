@@ -2932,21 +2932,28 @@ async function submitTask() {
   const title = document.getElementById('task-title').value.trim();
   if (!title) return showToast('נא להזין כותרת למשימה');
   if (!window._CONFIG_DONE) return showToast('Firebase לא מחובר');
-  await _addDoc(_colRef('tasks'), {
-    title,
-    assignedTo: 'כולם',
-    label:      document.getElementById('task-label').value,
-    color:      document.getElementById('task-color').value,
-    status:     'open',
-    createdBy:  currentUser.name,
-    createdAt:  _serverTs()
-  });
-  const taskLabel = document.getElementById('task-label').value;
-  if (taskLabel && taskLabel !== 'משימות כלליות') {
-    await _addDriverNotification(taskLabel, `📋 משימה חדשה ממתינה לך: "${title}"`);
+  const btn = document.querySelector('#modal-task .btn-submit');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ שומר...'; }
+  try {
+    await _addDoc(_colRef('tasks'), {
+      title,
+      assignedTo: 'כולם',
+      label:      document.getElementById('task-label').value,
+      color:      document.getElementById('task-color').value,
+      status:     'open',
+      createdBy:  currentUser.name,
+      createdAt:  _serverTs()
+    });
+    const taskLabel = document.getElementById('task-label').value;
+    if (taskLabel && taskLabel !== 'משימות כלליות') {
+      await _addDriverNotification(taskLabel, `📋 משימה חדשה ממתינה לך: "${title}"`);
+    }
+    closeModal('modal-task');
+    showToast('✅ משימה נפתחה!');
+  } catch(e) {
+    showToast('שגיאה בשמירה');
   }
-  closeModal('modal-task');
-  showToast('✅ משימה נפתחה!');
+  if (btn) { btn.disabled = false; btn.textContent = 'פתח משימה'; }
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -3304,27 +3311,26 @@ function openDriverIntake(id) {
       });
     });
   }
+  // restore localStorage draft BEFORE opening modal (sync — no flicker)
+  const hasLocal = !!localStorage.getItem('intake_draft_' + id);
+  if (hasLocal) restoreIntakeDraft(id);
   openModal('modal-driver-intake');
-  // restore saved draft after modal opens
-  setTimeout(() => {
-    const hasLocal = !!localStorage.getItem('intake_draft_' + id);
-    restoreIntakeDraft(id);
-    if (!hasLocal && window._CONFIG_DONE) {
-      import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(({ getDoc, doc }) => {
-        getDoc(doc(window._db, 'intake_assignments', id)).then(snap => {
-          if (!snap.exists()) return;
-          const fd = snap.data().draft;
-          if (fd && (Object.keys(fd.checks||{}).length || Object.keys(fd.dashChecks||{}).length)) {
-            _applyIntakeDraftObj(fd);
-            if (fd.km) { const el = document.getElementById('di-km'); if (el) el.value = fd.km; }
-            if (fd.dashChecks?.['dash-other']) {
-              const ta = document.getElementById('cn-c-dashboard'); if (ta) ta.style.display = 'block';
-            }
+  // if no local draft, fetch from Firestore after opening
+  if (!hasLocal && window._CONFIG_DONE) {
+    import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(({ getDoc, doc }) => {
+      getDoc(doc(window._db, 'intake_assignments', id)).then(snap => {
+        if (!snap.exists()) return;
+        const fd = snap.data().draft;
+        if (fd && (Object.keys(fd.checks||{}).length || Object.keys(fd.dashChecks||{}).length)) {
+          _applyIntakeDraftObj(fd);
+          if (fd.km) { const el = document.getElementById('di-km'); if (el) el.value = fd.km; }
+          if (fd.dashChecks?.['dash-other']) {
+            const ta = document.getElementById('cn-c-dashboard'); if (ta) ta.style.display = 'block';
           }
-        }).catch(()=>{});
-      });
-    }
-  }, 50);
+        }
+      }).catch(()=>{});
+    });
+  }
   // auto-save on any text input
   document.querySelectorAll('#modal-driver-intake textarea, #di-km, #di-code, #di-notes').forEach(el => {
     el.addEventListener('input', saveIntakeDraft);
