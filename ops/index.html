@@ -1175,7 +1175,7 @@ if ('serviceWorker' in navigator) {
         <img id="freetext-img-thumb" style="height:42px;border-radius:8px;border:1.5px solid var(--border)">
         <button onclick="clearPickupImage()" style="position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer;padding:0;line-height:1">✕</button>
       </div>
-      <div id="freetext-img-loading" style="display:none;align-items:center;gap:6px;font-size:13px;color:var(--muted);padding:9px">⏳ מחלץ נתונים...</div>
+      <div id="freetext-img-loading" style="display:none;align-items:center;gap:6px;font-size:13px;color:var(--muted);padding:9px"><span>⏳ מחלץ נתונים...</span></div>
     </div>
     <textarea id="freetext-pickup-input" rows="6" placeholder="למשל:&#10;64665702 קיה פיקנטו 2021 לבן 50000 קמ דני 054-3055532 ילדי טהרן 1 תל אביב&#10;&#10;מספר 12345678 יונדאי i35 אדום 2019 חיפה רחוב הרצל 5" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:14px;box-sizing:border-box;resize:vertical;flex-shrink:0"></textarea>
     <button onclick="parseFreeTextPickup()" style="margin-top:10px;background:var(--gold);color:#000;border:none;border-radius:10px;padding:10px;font-family:Heebo,sans-serif;font-weight:900;font-size:14px;cursor:pointer;flex-shrink:0">🔍 זהה רכבים</button>
@@ -1453,6 +1453,7 @@ if ('serviceWorker' in navigator) {
 <div class="toast" id="toast"></div>
 
 <!-- SheetJS for Excel parsing -->
+<script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <!-- html2pdf for PDF download -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
@@ -6898,50 +6899,19 @@ async function extractTextFromImage(input) {
   document.getElementById('freetext-img-loading').style.display = 'flex';
 
   try {
-    const base64 = await new Promise((res, rej) => {
-      const r = new FileReader();
-      r.onload = e => res(e.target.result.split(',')[1]);
-      r.onerror = rej;
-      r.readAsDataURL(file);
+    // Use Tesseract.js for free client-side OCR (Hebrew + English)
+    const { data: { text } } = await Tesseract.recognize(file, 'heb+eng', {
+      logger: m => {
+        if (m.status === 'recognizing text') {
+          const pct = Math.round((m.progress || 0) * 100);
+          document.getElementById('freetext-img-loading').querySelector('span') &&
+            (document.getElementById('freetext-img-loading').querySelector('span').textContent = `⏳ מחלץ נתונים... ${pct}%`);
+        }
+      }
     });
-
-    const mediaType = file.type || 'image/jpeg';
-    const key = localStorage.getItem('anak_anthropic_key') || '';
-    if (!key) {
-      document.getElementById('freetext-img-loading').style.display = 'none';
-      const k = prompt('הכנס Anthropic API Key (sk-ant-...):');
-      if (k && k.startsWith('sk-ant-')) { localStorage.setItem('anak_anthropic_key', k); location.reload(); }
-      else if (k) showToast('מפתח לא תקין — צריך להתחיל ב-sk-ant-');
-      return;
-    }
-
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': key,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1024,
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
-            { type: 'text', text: 'תחלץ מהתמונה רשימת רכבים לאיסוף. לכל רכב החזר שורה נפרדת עם: לוחית רישוי, סוג/דגם, שנה, צבע, קמ"ש, טלפון איש קשר, עיר, כתובת — כל מה שמופיע. אם יש כמה רכבים, הפרד בשורה ריקה בין כל רכב. החזר רק את הנתונים, בלי הסברים.' }
-          ]
-        }]
-      })
-    });
-
-    if (!resp.ok) { const err = await resp.text(); throw new Error(err); }
-    const data = await resp.json();
-    const text = data.content?.[0]?.text || '';
-    if (text) {
+    if (text && text.trim()) {
       const existing = document.getElementById('freetext-pickup-input').value.trim();
-      document.getElementById('freetext-pickup-input').value = existing ? existing + '\n\n' + text : text;
+      document.getElementById('freetext-pickup-input').value = existing ? existing + '\n\n' + text.trim() : text.trim();
       parseFreeTextPickup();
     } else {
       showToast('לא זוהו נתונים בתמונה');
