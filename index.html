@@ -753,6 +753,11 @@ display:none !important;
                 <option value="2500-3000">2,500 – 3,000 ₪</option>
                 <option value="3000-999999">מעל 3,000 ₪</option>
               </select>
+              <select id="filterSort" onchange="filterCatalog()">
+                <option value="">מיון: ברירת מחדל</option>
+                <option value="monthly-asc">החזר חודשי — מהזול ליקר</option>
+                <option value="price-asc">מחיר הרכב — מהזול ליקר</option>
+              </select>
             </div>
             <input type="text" id="searchInput" placeholder="🔍 חיפוש חופשי — שם רכב, יצרן, דגם..." oninput="filterCatalog()" style="width:100%;margin-top:10px;padding:13px 16px;font-size:15px" />
           </div>
@@ -2259,12 +2264,16 @@ display:none !important;
         }
         return matchSearch && matchBrand && matchModel && matchCat && matchEngine && matchPrice && matchMonthly;
       });
+      const sort = (document.getElementById('filterSort')||{}).value||'';
       const el = document.getElementById('catalogCars');
       if(!el) return;
       if(anyFilter && !filtered.length){
         el.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:50px 20px;color:#6b7280"><div style="font-size:40px;margin-bottom:10px">🔍</div><div style="font-size:18px;font-weight:700">לא נמצאו רכבים בסינון הזה</div><div style="margin-top:6px">נסו לשנות את הסינון</div></div>';
       } else {
-        el.innerHTML = (anyFilter ? filtered : enriched).map(cardHtml).join('');
+        let list = (anyFilter ? filtered : enriched).slice();
+        if(sort==='monthly-asc') list.sort((a,b)=>balloon50(a.autodealerPriceNumber)-balloon50(b.autodealerPriceNumber));
+        else if(sort==='price-asc') list.sort((a,b)=>a.autodealerPriceNumber-b.autodealerPriceNumber);
+        el.innerHTML = list.map(cardHtml).join('');
       }
       updateCompareTray();
     }
