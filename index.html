@@ -424,6 +424,7 @@ display:none !important;
     // === Supabase — סנכרון בזמן אמת ===
     const SB_URL = 'https://vwfmfjjdusirabgbkhvw.supabase.co';
     const SB_KEY = 'sb_publishable_E6Dd48mtyJyw5_6vgP2lzw_Gaj-QcAx';
+    const SITE_SOURCE = 'אוטודילר'; // מזהה מקור הליד (JOY MOTORS משתמש בערך אחר)
     let _sb = null;
     function sbClient(){ try{ if(!_sb && window.supabase) _sb = window.supabase.createClient(SB_URL, SB_KEY); }catch(e){} return _sb; }
     async function sbLoad(){
@@ -2675,14 +2676,16 @@ display:none !important;
     async function saveLead(action){
       try{
         const c = sbClient(); if(!c) return;
-        await c.from('leads').insert({
+        const vrow={
           name: (document.getElementById('c_name')||{}).value||'',
           phone: (document.getElementById('c_phone')||{}).value||'',
           email: (document.getElementById('c_email')||{}).value||'',
           car: selectedCar ? (selectedCar.brand+' '+selectedCar.model) : '',
           action: action||'',
           created_at: new Date().toISOString()
-        });
+        };
+        const vres=await c.from('leads').insert(Object.assign({},vrow,{source:SITE_SOURCE}));
+        if(vres&&vres.error){ await c.from('leads').insert(vrow); }
       }catch(e){ console.warn('saveLead', e); }
     }
     // ולידציה + אישור תקנון לפני תשלום
@@ -3124,7 +3127,7 @@ display:none !important;
       var tradeinPlate=tradein?((document.getElementById('chat_tradein_plate')||{}).value||'').trim():'';
       var row={name:name,phone:phone,email:'',car:(typeof selectedCar!=='undefined'&&selectedCar)?(selectedCar.brand+' '+selectedCar.model):'',action:'צ׳אט ייעוץ',created_at:new Date().toISOString()};
       try{ var c=sbClient(); if(c){
-        var res=await c.from('leads').insert(Object.assign({},row,{tradein:tradein,financing:financing,tradein_plate:tradeinPlate}));
+        var res=await c.from('leads').insert(Object.assign({},row,{tradein:tradein,financing:financing,tradein_plate:tradeinPlate,source:SITE_SOURCE}));
         if(res&&res.error){ console.warn('chat lead retry', res.error.message); await c.from('leads').insert(row); }
       } }catch(e){ console.warn('chat lead', e); }
       document.getElementById('chatForm').style.display='none';
@@ -3140,7 +3143,7 @@ display:none !important;
       var tradeinPlate=tradein?((document.getElementById('cp_tradein_plate')||{}).value||'').trim():'';
       var row={name:name,phone:phone,email:'',car:(typeof selectedCar!=='undefined'&&selectedCar)?(selectedCar.brand+' '+selectedCar.model):'',action:'עמוד רכב',created_at:new Date().toISOString()};
       try{ var c=sbClient(); if(c){
-        var res=await c.from('leads').insert(Object.assign({},row,{tradein:tradein,financing:financing,tradein_plate:tradeinPlate}));
+        var res=await c.from('leads').insert(Object.assign({},row,{tradein:tradein,financing:financing,tradein_plate:tradeinPlate,source:SITE_SOURCE}));
         if(res&&res.error){ console.warn('car lead retry', res.error.message); await c.from('leads').insert(row); }
       } }catch(e){ console.warn('car page lead', e); }
       document.getElementById('cpLeadForm').style.display='none';
