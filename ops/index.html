@@ -1157,15 +1157,26 @@ if ('serviceWorker' in navigator) {
     </div>
     <div id="pickup-archive-body" style="display:none;flex-direction:column;gap:10px"></div>
   </div>
-  <button class="fab" onclick="openAddPickupModal()" style="bottom:24px;right:16px;left:auto;transform:none">+ הוספת רכב</button>
-  <button class="fab" onclick="openFreeTextPickupModal()" style="bottom:80px;right:16px;left:auto;transform:none;background:#0ea5e9;font-size:13px">📝 הוספה מטקסט</button>
+  <button class="fab" onclick="openFreeTextPickupModal()" style="bottom:24px;right:16px;left:auto;transform:none">+ הוספת רכב</button>
 </div>
 
-<!-- ====== MODAL: FREE TEXT PICKUP ====== -->
+<!-- ====== MODAL: ADD PICKUP CAR (freetext + image) ====== -->
 <div class="modal-overlay" id="modal-freetext-pickup">
   <div class="modal-box" style="max-height:90vh;display:flex;flex-direction:column">
-    <div class="modal-title">📝 הוספה מטקסט חופשי <button class="modal-close" onclick="closeModal('modal-freetext-pickup')">✕</button></div>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:10px">כתוב רכב אחד או יותר. כל שורה ריקה מפרידה בין רכבים. ניתן לכלול לוחית, שנה, צבע, קמ"ש, טלפון, עיר וכתובת.</div>
+    <div class="modal-title">🚙 הוספת רכב <button class="modal-close" onclick="closeModal('modal-freetext-pickup')">✕</button></div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px">הדבק טקסט חופשי או צרף תמונה — הנתונים יזוהו אוטומטית.</div>
+    <!-- Image upload row -->
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-shrink:0">
+      <label id="freetext-img-label" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:9px;border-radius:10px;border:1.5px dashed var(--border);background:var(--surface2);cursor:pointer;font-size:13px;font-weight:700;color:var(--muted)">
+        📷 צרף תמונה
+        <input type="file" id="freetext-img-input" accept="image/*" style="display:none" onchange="extractTextFromImage(this)">
+      </label>
+      <div id="freetext-img-preview" style="display:none;position:relative">
+        <img id="freetext-img-thumb" style="height:42px;border-radius:8px;border:1.5px solid var(--border)">
+        <button onclick="clearPickupImage()" style="position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer;padding:0;line-height:1">✕</button>
+      </div>
+      <div id="freetext-img-loading" style="display:none;align-items:center;gap:6px;font-size:13px;color:var(--muted);padding:9px">⏳ מחלץ נתונים...</div>
+    </div>
     <textarea id="freetext-pickup-input" rows="6" placeholder="למשל:&#10;64665702 קיה פיקנטו 2021 לבן 50000 קמ דני 054-3055532 ילדי טהרן 1 תל אביב&#10;&#10;מספר 12345678 יונדאי i35 אדום 2019 חיפה רחוב הרצל 5" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:14px;box-sizing:border-box;resize:vertical;flex-shrink:0"></textarea>
     <button onclick="parseFreeTextPickup()" style="margin-top:10px;background:var(--gold);color:#000;border:none;border-radius:10px;padding:10px;font-family:Heebo,sans-serif;font-weight:900;font-size:14px;cursor:pointer;flex-shrink:0">🔍 זהה רכבים</button>
     <div id="freetext-pickup-preview" style="margin-top:12px;overflow-y:auto;flex:1"></div>
@@ -1467,6 +1478,7 @@ const firebaseConfig = {
   measurementId:     "G-78SE7ZZE54"
 };
 
+const ANTHROPIC_API_KEY = "PASTE_YOUR_ANTHROPIC_KEY_HERE";
 const CONFIG_DONE = !firebaseConfig.apiKey.includes("PASTE");
 
 let db, app, storage;
@@ -1777,15 +1789,10 @@ function renderHome() {
         <div class="mc-title">הצעת משימה</div>
         <div class="mc-sub">שלח בקשה למנהל</div>
       </div>
-      <div class="menu-card" onclick="openAddPickupModal()">
-        <div class="mc-icon">➕</div>
-        <div class="mc-title">הוספת רכב לאיסוף</div>
-        <div class="mc-sub">הוספה ידנית</div>
-      </div>
       <div class="menu-card" onclick="openFreeTextPickupModal()">
-        <div class="mc-icon">📝</div>
-        <div class="mc-title">הוספה מטקסט</div>
-        <div class="mc-sub">זיהוי אוטומטי ממלל חופשי</div>
+        <div class="mc-icon">🚙</div>
+        <div class="mc-title">הוספת רכב</div>
+        <div class="mc-sub">טקסט חופשי או תמונה</div>
       </div>`;
     loadManagerBadges();
     return;
@@ -6858,10 +6865,87 @@ function openFreeTextPickupModal() {
   document.getElementById('freetext-pickup-input').value = '';
   document.getElementById('freetext-pickup-preview').innerHTML = '';
   document.getElementById('freetext-pickup-save-btn').style.display = 'none';
+  document.getElementById('freetext-img-input').value = '';
+  document.getElementById('freetext-img-preview').style.display = 'none';
+  document.getElementById('freetext-img-loading').style.display = 'none';
+  document.getElementById('freetext-img-label').style.display = '';
   _freetextParsed = [];
   openModal('modal-freetext-pickup');
 }
 window.openFreeTextPickupModal = openFreeTextPickupModal;
+
+function clearPickupImage() {
+  document.getElementById('freetext-img-input').value = '';
+  document.getElementById('freetext-img-preview').style.display = 'none';
+  document.getElementById('freetext-img-label').style.display = '';
+}
+window.clearPickupImage = clearPickupImage;
+
+async function extractTextFromImage(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  // show thumbnail
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('freetext-img-thumb').src = e.target.result;
+    document.getElementById('freetext-img-preview').style.display = 'block';
+    document.getElementById('freetext-img-label').style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+
+  // show loading
+  document.getElementById('freetext-img-loading').style.display = 'flex';
+
+  try {
+    const base64 = await new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = e => res(e.target.result.split(',')[1]);
+      r.onerror = rej;
+      r.readAsDataURL(file);
+    });
+
+    const mediaType = file.type || 'image/jpeg';
+    const key = (typeof ANTHROPIC_API_KEY !== 'undefined' && !ANTHROPIC_API_KEY.includes('PASTE')) ? ANTHROPIC_API_KEY : '';
+    if (!key) { showToast('נא להגדיר ANTHROPIC_API_KEY בקוד'); document.getElementById('freetext-img-loading').style.display = 'none'; return; }
+
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1024,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
+            { type: 'text', text: 'תחלץ מהתמונה רשימת רכבים לאיסוף. לכל רכב החזר שורה נפרדת עם: לוחית רישוי, סוג/דגם, שנה, צבע, קמ"ש, טלפון איש קשר, עיר, כתובת — כל מה שמופיע. אם יש כמה רכבים, הפרד בשורה ריקה בין כל רכב. החזר רק את הנתונים, בלי הסברים.' }
+          ]
+        }]
+      })
+    });
+
+    if (!resp.ok) { const err = await resp.text(); throw new Error(err); }
+    const data = await resp.json();
+    const text = data.content?.[0]?.text || '';
+    if (text) {
+      const existing = document.getElementById('freetext-pickup-input').value.trim();
+      document.getElementById('freetext-pickup-input').value = existing ? existing + '\n\n' + text : text;
+    } else {
+      showToast('לא זוהו נתונים בתמונה');
+    }
+  } catch(e) {
+    console.error('extractTextFromImage error', e);
+    showToast('שגיאה בחילוץ נתונים מהתמונה');
+  }
+  document.getElementById('freetext-img-loading').style.display = 'none';
+}
+window.extractTextFromImage = extractTextFromImage;
 
 // ── Israeli cities list for fuzzy city matching ──
 const _IL_CITIES = [
