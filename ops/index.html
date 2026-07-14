@@ -6893,7 +6893,15 @@ window.clearPickupImage = clearPickupImage;
 
 function _parsePlatesFromOcr(rawText) {
   // Find all 7-8 digit sequences (Israeli license plates)
-  const plates = [...new Set(rawText.match(/\b\d{7,8}\b/g) || [])];
+  // No word boundaries — OCR often produces non-word chars around digits
+  const allDigitSeqs = rawText.match(/\d{7,8}/g) || [];
+  // Filter out sequences that are part of longer digit strings
+  const plates = [...new Set(allDigitSeqs.filter(p => {
+    const idx = rawText.indexOf(p);
+    const before = rawText[idx - 1] || ' ';
+    const after  = rawText[idx + p.length] || ' ';
+    return !/\d/.test(before) && !/\d/.test(after);
+  }))];
   if (!plates.length) return [];
 
   return plates.map(plate => {
@@ -6961,28 +6969,31 @@ async function extractTextFromImage(input) {
   document.getElementById('freetext-img-loading').style.display = 'flex';
 
   try {
-    // Use Tesseract.js for free client-side OCR (Hebrew + English)
+    const updatePct = pct => {
+      const span = document.getElementById('freetext-img-loading').querySelector('span');
+      if (span) span.textContent = `⏳ מחלץ נתונים... ${pct}%`;
+    };
+    // First pass: Hebrew+English (captures text context)
     const { data: { text } } = await Tesseract.recognize(file, 'heb+eng', {
-      logger: m => {
-        if (m.status === 'recognizing text') {
-          const pct = Math.round((m.progress || 0) * 100);
-          document.getElementById('freetext-img-loading').querySelector('span') &&
-            (document.getElementById('freetext-img-loading').querySelector('span').textContent = `⏳ מחלץ נתונים... ${pct}%`);
-        }
-      }
+      logger: m => { if (m.status === 'recognizing text') updatePct(Math.round((m.progress||0)*50)); }
     });
-    if (text && text.trim()) {
-      const ocrParsed = _parsePlatesFromOcr(text);
+    // Second pass: digits only — much more reliable for plate numbers in tables
+    const { data: { text: digitsText } } = await Tesseract.recognize(file, 'eng', {
+      logger: m => { if (m.status === 'recognizing text') updatePct(50 + Math.round((m.progress||0)*50)); },
+      tessedit_char_whitelist: '0123456789 \n'
+    });
+
+    // Merge: parse plates from both passes, deduplicate
+    const combined = (text||'') + '\n' + (digitsText||'');
+    if (combined.trim()) {
+      const ocrParsed = _parsePlatesFromOcr(combined);
       if (ocrParsed.length) {
-        // put extracted text in textarea for reference
-        document.getElementById('freetext-pickup-input').value = text.trim();
+        document.getElementById('freetext-pickup-input').value = (text||'').trim();
         _freetextParsed = ocrParsed;
         _renderFreetextPreview();
-        // fetch gov.il for each plate
         _fetchGovDataForAll();
       } else {
-        // fallback: put text and let regular parser try
-        document.getElementById('freetext-pickup-input').value = text.trim();
+        document.getElementById('freetext-pickup-input').value = (text||'').trim();
         parseFreeTextPickup();
       }
     } else {
