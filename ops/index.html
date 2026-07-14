@@ -7027,7 +7027,6 @@ function _fuzzyMatchCity(raw) {
     }
   }
 
-  console.log('[cityMatch]', JSON.stringify(t), '→', best.city, 'adj='+best.adj?.toFixed(3));
   if (best.adj < 0.5 && best.city) {
     const rest = [
       ...tWords.slice(0, best.start),
@@ -7080,6 +7079,9 @@ function _parsePickupBlock(lines) {
     if (step === 2 && /^(19[89]\d|20[0-3]\d)$/.test(line)) { car.year = line; step = 3; continue; }
     if (step <= 3 && /^[\d,]+$/.test(line)) { car.km = _fmtKm(line); step = 4; continue; }
     if (step === 4) {
+      // skip lines that are clearly business/garage descriptions (not city lines)
+      const _NON_CITY_LINE = /^(מוסכים|חניה|גרז|מוסך|חיצוניים|פנימיים)/;
+      if (_NON_CITY_LINE.test(line)) { extra.push(line); continue; }
       const { city, rest, adj } = _fuzzyMatchCity(line);
       // if match is very poor (probably a notes/business line), keep trying next lines
       if (adj !== undefined && adj >= 0.45) { extra.push(line); continue; }
