@@ -6891,25 +6891,41 @@ function clearPickupImage() {
 }
 window.clearPickupImage = clearPickupImage;
 
-function _parsePlatesFromOcr(rawText) {
-  // Scan line by line — each row of the table becomes one car
-  const lines = rawText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+function _parsePlatesFromOcr(fullText, digitsText) {
+  // Extract ALL plate numbers from the digits-only pass (most reliable)
+  // then fall back to scanning full text line-by-line
   const seen = new Set();
   const results = [];
 
-  for (const line of lines) {
-    // Find first 7-8 digit sequence in this line (not part of a longer number)
-    const m = line.match(/(?<!\d)(\d{7,8})(?!\d)/);
-    if (!m) continue;
-    const plate = m[1];
+  const _extractPlatesFromStr = str => {
+    // global match of all 7-8 digit sequences not adjacent to other digits
+    return [...str.matchAll(/(?<!\d)(\d{7,8})(?!\d)/g)].map(m => m[1]);
+  };
+
+  // Primary: all plates from digits-only OCR pass
+  const digitPlates = digitsText ? _extractPlatesFromStr(digitsText) : [];
+  // Secondary: plates found in full text lines
+  const fullLines = (fullText||'').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const linePlates = fullLines.flatMap(l => _extractPlatesFromStr(l));
+
+  // Merge, preserving order (digits pass first, then any extras from full text)
+  const allPlates = [...digitPlates, ...linePlates];
+
+  for (const plate of allPlates) {
     if (seen.has(plate)) continue;
     seen.add(plate);
 
-    const yearM  = line.match(/\b(19[89]\d|20[0-3]\d)\b/);
-    const kmM    = line.match(/(\d{1,3},\d{3})/);
-    const modelM = line.replace(plate, '').replace(yearM?.[0]||'', '').replace(kmM?.[0]||'', '')
-                       .replace(/ענק\s*הרכבים/gi,'').replace(/שנקר/g,'').replace(/[|פ"ת\/\\]/g,'')
-                       .replace(/\d+/g,'').replace(/\s{2,}/g,' ').trim().slice(0,30);
+    // Find context in full text around this plate for year/km/model
+    const idx = (fullText||'').indexOf(plate);
+    const ctx = idx >= 0
+      ? (fullText||'').slice(Math.max(0, idx - 120), idx + 120)
+      : '';
+
+    const yearM  = ctx.match(/\b(19[89]\d|20[0-3]\d)\b/);
+    const kmM    = ctx.match(/(\d{1,3},\d{3})/);
+    const modelM = ctx.replace(plate, '').replace(yearM?.[0]||'', '').replace(kmM?.[0]||'', '')
+                      .replace(/ענק\s*הרכבים/gi,'').replace(/שנקר/g,'').replace(/[|פ"ת\/\\]/g,'')
+                      .replace(/\d+/g,'').replace(/\s{2,}/g,' ').trim().slice(0, 30);
 
     results.push({
       plate,
@@ -6979,10 +6995,9 @@ async function extractTextFromImage(input) {
       tessedit_char_whitelist: '0123456789 \n'
     });
 
-    // Merge: parse plates from both passes, deduplicate
-    const combined = (text||'') + '\n' + (digitsText||'');
-    if (combined.trim()) {
-      const ocrParsed = _parsePlatesFromOcr(combined);
+    // Parse plates: digits-only pass for detection, full text for context
+    if ((text||'').trim() || (digitsText||'').trim()) {
+      const ocrParsed = _parsePlatesFromOcr(text||'', digitsText||'');
       if (ocrParsed.length) {
         document.getElementById('freetext-pickup-input').value = (text||'').trim();
         _freetextParsed = ocrParsed;
