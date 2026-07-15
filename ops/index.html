@@ -7008,72 +7008,125 @@ async function extractTextFromImage(input) {
   document.getElementById('freetext-img-loading').style.display = 'flex';
 
   try {
-    const updatePct = pct => {
+    const updatePct = (pct, label) => {
       const span = document.getElementById('freetext-img-loading').querySelector('span');
-      if (span) span.textContent = `⏳ מחלץ נתונים... ${pct}%`;
+      if (span) span.textContent = label || `⏳ מחלץ נתונים... ${pct}%`;
     };
 
-    // Preprocess: invert dark-background images so Tesseract reads them better
-    const _preprocessImage = file => new Promise(resolve => {
+    // Load image onto canvas, invert if dark, scale 2x
+    const prepareCanvas = file => new Promise(resolve => {
       const img = new Image();
       img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width; canvas.height = img.height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0);
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const data = imageData.data;
-        // detect if image is dark (avg brightness < 128) → invert
+        const W = img.width * 2, H = img.height * 2;
+        const c = document.createElement('canvas');
+        c.width = W; c.height = H;
+        const ctx = c.getContext('2d');
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(img, 0, 0, W, H);
+        const id = ctx.getImageData(0, 0, W, H);
         let sum = 0;
-        for (let i = 0; i < data.length; i += 4) sum += (data[i] + data[i+1] + data[i+2]) / 3;
-        const avg = sum / (data.length / 4);
-        if (avg < 128) {
-          for (let i = 0; i < data.length; i += 4) {
-            data[i] = 255 - data[i];
-            data[i+1] = 255 - data[i+1];
-            data[i+2] = 255 - data[i+2];
+        for (let i = 0; i < id.data.length; i += 4) sum += (id.data[i] + id.data[i+1] + id.data[i+2]) / 3;
+        if (sum / (id.data.length / 4) < 128) {          // dark bg → invert
+          for (let i = 0; i < id.data.length; i += 4) {
+            id.data[i] = 255 - id.data[i];
+            id.data[i+1] = 255 - id.data[i+1];
+            id.data[i+2] = 255 - id.data[i+2];
           }
-          ctx.putImageData(imageData, 0, 0);
+          ctx.putImageData(id, 0, 0);
         }
-        // scale up 2x for better OCR accuracy
-        const canvas2 = document.createElement('canvas');
-        canvas2.width = canvas.width * 2; canvas2.height = canvas.height * 2;
-        const ctx2 = canvas2.getContext('2d');
-        ctx2.imageSmoothingEnabled = false;
-        ctx2.drawImage(canvas, 0, 0, canvas2.width, canvas2.height);
-        canvas2.toBlob(resolve, 'image/png');
+        resolve(c);
       };
       img.src = URL.createObjectURL(file);
     });
 
-    updatePct(5);
-    const processedBlob = await _preprocessImage(file);
-    updatePct(10);
+    // Find horizontal row boundaries by scanning for near-uniform rows (table separators)
+    const findRowBands = canvas => {
+      const ctx = canvas.getContext('2d');
+      const W = canvas.width, H = canvas.height;
+      const id = ctx.getImageData(0, 0, W, H).data;
+      const rowBrightness = [];
+      for (let y = 0; y < H; y++) {
+        let s = 0;
+        for (let x = 0; x < W; x++) {
+          const i = (y * W + x) * 4;
+          s += (id[i] + id[i+1] + id[i+2]) / 3;
+        }
+        rowBrightness.push(s / W);
+      }
+      // Separator rows are very bright (≥230) or very dark (≤25) and thin
+      const isSep = b => b >= 220 || b <= 30;
+      const bands = [];
+      let inContent = false, start = 0;
+      for (let y = 0; y < H; y++) {
+        if (!inContent && !isSep(rowBrightness[y])) { inContent = true; start = y; }
+        else if (inContent && isSep(rowBrightness[y])) {
+          if (y - start > 10) bands.push([start, y]);  // ignore tiny bands
+          inContent = false;
+        }
+      }
+      if (inContent && H - start > 10) bands.push([start, H]);
+      return bands;
+    };
 
-    // First pass: Hebrew+English (captures text context)
-    const { data: { text } } = await Tesseract.recognize(processedBlob, 'heb+eng', {
-      logger: m => { if (m.status === 'recognizing text') updatePct(10 + Math.round((m.progress||0)*45)); }
+    // Crop a horizontal strip from a canvas and return as Blob
+    const cropRow = (canvas, y0, y1) => new Promise(resolve => {
+      const pad = 4;
+      const c2 = document.createElement('canvas');
+      c2.width = canvas.width; c2.height = y1 - y0 + pad * 2;
+      const ctx2 = c2.getContext('2d');
+      ctx2.fillStyle = '#fff';
+      ctx2.fillRect(0, 0, c2.width, c2.height);
+      ctx2.drawImage(canvas, 0, y0, canvas.width, y1 - y0, 0, pad, canvas.width, y1 - y0);
+      c2.toBlob(resolve, 'image/png');
     });
-    // Second pass: digits only — most reliable for plate numbers
-    const { data: { text: digitsText } } = await Tesseract.recognize(processedBlob, 'eng', {
-      logger: m => { if (m.status === 'recognizing text') updatePct(55 + Math.round((m.progress||0)*45)); },
-      tessedit_char_whitelist: '0123456789 \n',
-      tessedit_pageseg_mode: '6'
-    });
 
-    console.log('[OCR] full text:', text);
-    console.log('[OCR] digits text:', digitsText);
+    updatePct(0, '⏳ מעבד תמונה...');
+    const canvas = await prepareCanvas(file);
+    const bands = findRowBands(canvas);
+    console.log('[OCR] detected row bands:', bands.length, bands);
 
-    // Parse plates: digits-only pass for detection, full text for context
-    if ((text||'').trim() || (digitsText||'').trim()) {
-      const ocrParsed = _parsePlatesFromOcr(text||'', digitsText||'');
+    const allText = [], allDigits = [];
+
+    for (let i = 0; i < bands.length; i++) {
+      updatePct(0, `⏳ מזהה שורה ${i+1}/${bands.length}...`);
+      const [y0, y1] = bands[i];
+      const rowBlob = await cropRow(canvas, y0, y1);
+
+      const [r1, r2] = await Promise.all([
+        Tesseract.recognize(rowBlob, 'heb+eng'),
+        Tesseract.recognize(rowBlob, 'eng', { tessedit_char_whitelist: '0123456789 ' })
+      ]);
+      allText.push(r1.data.text || '');
+      allDigits.push(r2.data.text || '');
+      console.log(`[OCR] row ${i+1} text:`, r1.data.text, '| digits:', r2.data.text);
+    }
+
+    // Fallback: if row detection found nothing, OCR the whole image
+    if (!bands.length) {
+      updatePct(0, '⏳ מזהה טקסט...');
+      const fullBlob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+      const [r1, r2] = await Promise.all([
+        Tesseract.recognize(fullBlob, 'heb+eng'),
+        Tesseract.recognize(fullBlob, 'eng', { tessedit_char_whitelist: '0123456789 ' })
+      ]);
+      allText.push(r1.data.text || '');
+      allDigits.push(r2.data.text || '');
+    }
+
+    const fullText = allText.join('\n');
+    const digitsText = allDigits.join('\n');
+    console.log('[OCR] combined text:', fullText);
+    console.log('[OCR] combined digits:', digitsText);
+
+    if (fullText.trim() || digitsText.trim()) {
+      const ocrParsed = _parsePlatesFromOcr(fullText, digitsText);
       if (ocrParsed.length) {
-        document.getElementById('freetext-pickup-input').value = (text||'').trim();
+        document.getElementById('freetext-pickup-input').value = fullText.trim();
         _freetextParsed = ocrParsed;
         _renderFreetextPreview();
         _fetchGovDataForAll();
       } else {
-        document.getElementById('freetext-pickup-input').value = (text||'').trim();
+        document.getElementById('freetext-pickup-input').value = fullText.trim();
         parseFreeTextPickup();
       }
     } else {
