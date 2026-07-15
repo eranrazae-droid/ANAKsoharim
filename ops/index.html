@@ -1218,6 +1218,10 @@ if ('serviceWorker' in navigator) {
       <input type="number" id="pickup-km" placeholder="150000" inputmode="numeric" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:14px;box-sizing:border-box">
     </div>
     <div class="form-group">
+      <label>תוקף טסט</label>
+      <input type="text" id="pickup-test" placeholder="08/2026" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:14px;box-sizing:border-box">
+    </div>
+    <div class="form-group">
       <label>איש קשר</label>
       <input type="text" id="pickup-contact" placeholder="שם + טלפון..." style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:14px;box-sizing:border-box">
     </div>
@@ -6707,6 +6711,15 @@ function renderPickupCars() {
 }
 window.renderPickupCars = renderPickupCars;
 
+function _testExpiredSoon(test) {
+  if (!test) return false;
+  const m = test.match(/^(\d{1,2})\/(\d{4})$/);
+  if (!m) return false;
+  const exp = new Date(parseInt(m[2]), parseInt(m[1]) - 1, 1);
+  const soon = new Date(); soon.setMonth(soon.getMonth() + 2);
+  return exp <= soon;
+}
+
 function _pickupCardHtml(c) {
   const e = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const km = c.km ? _fmtKm(c.km) + ' ק"מ' : '';
@@ -6721,6 +6734,7 @@ function _pickupCardHtml(c) {
         <div class="vehicle-meta">
           ${c.color ? `<span class="tag assignee">🎨 ${e(c.color)}</span>` : ''}
           ${km ? `<span class="tag assignee">🛣️ ${e(km)}</span>` : ''}
+          ${c.test ? `<span class="tag assignee" style="color:${_testExpiredSoon(c.test)?'#dc2626':'inherit'}">🔧 טסט: ${e(c.test)}</span>` : ''}
           ${c.contact ? `<span class="tag assignee">👤 ${e(c.contact)}</span>` : ''}
           ${c.city ? `<span class="tag assignee">🏙️ ${e(c.city)}</span>` : ''}
           ${c.address ? `<span class="tag assignee">📍 ${e(c.address)}</span>` : ''}
@@ -6747,6 +6761,7 @@ function _pickupFillForm(c) {
   document.getElementById('pickup-year').value = c.year || '';
   document.getElementById('pickup-color').value = c.color || '';
   document.getElementById('pickup-km').value = c.km || '';
+  document.getElementById('pickup-test').value = c.test || '';
   document.getElementById('pickup-contact').value = c.contact || '';
   document.getElementById('pickup-city').value = c.city || '';
   document.getElementById('pickup-address').value = c.address || '';
@@ -6836,6 +6851,7 @@ async function submitPickupCar() {
     year: document.getElementById('pickup-year').value.trim(),
     color: document.getElementById('pickup-color').value.trim(),
     km: document.getElementById('pickup-km').value.trim(),
+    test: document.getElementById('pickup-test').value.trim(),
     contact: document.getElementById('pickup-contact').value.trim(),
     city: document.getElementById('pickup-city').value.trim(),
     address: document.getElementById('pickup-address').value.trim(),
@@ -6938,6 +6954,7 @@ function _parsePlatesFromOcr(fullText, digitsText) {
       year: yearM ? yearM[0] : '',
       color: '',
       km: kmM ? kmM[0] : '',
+      test: '',
       contact: '',
       city: '',
       address: '',
@@ -6961,6 +6978,11 @@ async function _fetchGovDataForAll() {
         car.type  = [_cleanMaker(rec.tozeret_nm||''), rec.kinuy_mishari||rec.degem_nm||''].filter(Boolean).join(' ');
         car.year  = String(rec.shnat_yitzur || car.year);
         car.color = String(rec.tzeva_rechev || car.color || '');
+        // tokef_dt = test/registration validity date, format: "2025-01-31T00:00:00"
+        if (rec.tokef_dt) {
+          const d = new Date(rec.tokef_dt);
+          if (!isNaN(d)) car.test = `${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+        }
         car._fetched = true;
       }
     } catch(e) {}
@@ -7200,7 +7222,7 @@ function _renderFreetextPreview() {
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
         ${[
           ['לוחית','plate'],['סוג','type'],['שנה','year'],['צבע','color'],
-          ['קמ"ש','km'],['איש קשר','contact'],['עיר','city'],['כתובת','address']
+          ['קמ"ש','km'],['תוקף טסט','test'],['איש קשר','contact'],['עיר','city'],['כתובת','address']
         ].map(([label,key]) => `
           <div>
             <div style="font-size:10px;color:var(--muted)">${label}</div>
@@ -7240,6 +7262,10 @@ async function parseFreeTextPickup() {
         car.type = [_cleanMaker(rec.tozeret_nm||''), rec.kinuy_mishari||rec.degem_nm||''].filter(Boolean).join(' ');
         car.year = String(rec.shnat_yitzur || car.year);
         car.color = String(rec.tzeva_rechev || car.color || '');
+        if (rec.tokef_dt) {
+          const d = new Date(rec.tokef_dt);
+          if (!isNaN(d)) car.test = `${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+        }
         car._fetched = true;
       }
     } catch(e) {}
