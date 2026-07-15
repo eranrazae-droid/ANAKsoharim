@@ -6892,21 +6892,26 @@ function clearPickupImage() {
 window.clearPickupImage = clearPickupImage;
 
 function _parsePlatesFromOcr(fullText, digitsText) {
-  // Extract ALL plate numbers from the digits-only pass (most reliable)
-  // then fall back to scanning full text line-by-line
   const seen = new Set();
   const results = [];
 
+  // Collapse noise: remove single non-digit chars between digit groups to handle
+  // OCR splitting "60056003" → "6005 6003" or "6005|6003"
+  const _collapseDigits = str =>
+    str.replace(/(\d{2,})[\s\-|]{1,2}(\d{2,})/g, (_, a, b) => {
+      const merged = a + b;
+      return (merged.length === 7 || merged.length === 8) ? merged : _ ;
+    });
+
   const _extractPlatesFromStr = str => {
-    // global match of all 7-8 digit sequences not adjacent to other digits
-    return [...str.matchAll(/(?<!\d)(\d{7,8})(?!\d)/g)].map(m => m[1]);
+    const collapsed = _collapseDigits(str);
+    return [...collapsed.matchAll(/(?<!\d)(\d{7,8})(?!\d)/g)].map(m => m[1]);
   };
 
   // Primary: all plates from digits-only OCR pass
   const digitPlates = digitsText ? _extractPlatesFromStr(digitsText) : [];
-  // Secondary: plates found in full text lines
-  const fullLines = (fullText||'').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-  const linePlates = fullLines.flatMap(l => _extractPlatesFromStr(l));
+  // Secondary: plates found in full text
+  const linePlates = _extractPlatesFromStr(fullText||'');
 
   // Merge, preserving order (digits pass first, then any extras from full text)
   const allPlates = [...digitPlates, ...linePlates];
@@ -6989,11 +6994,15 @@ async function extractTextFromImage(input) {
     const { data: { text } } = await Tesseract.recognize(file, 'heb+eng', {
       logger: m => { if (m.status === 'recognizing text') updatePct(Math.round((m.progress||0)*50)); }
     });
-    // Second pass: digits only — much more reliable for plate numbers in tables
+    // Second pass: English digits-only PSM6 (uniform block — better for tables)
     const { data: { text: digitsText } } = await Tesseract.recognize(file, 'eng', {
       logger: m => { if (m.status === 'recognizing text') updatePct(50 + Math.round((m.progress||0)*50)); },
-      tessedit_char_whitelist: '0123456789 \n'
+      tessedit_char_whitelist: '0123456789 \n',
+      tessedit_pageseg_mode: '6'
     });
+
+    console.log('[OCR] full text:', text);
+    console.log('[OCR] digits text:', digitsText);
 
     // Parse plates: digits-only pass for detection, full text for context
     if ((text||'').trim() || (digitsText||'').trim()) {
