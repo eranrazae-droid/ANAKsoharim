@@ -3399,35 +3399,7 @@ async function submitDriverIntake() {
     }
   }
 
-  // x-marked items: must have note; photo items must also have photo
-  for (const key of Object.keys(_ciLabels)) {
-    if (key === 'c-battery-original') {
-      const xActive = document.querySelector('#modal-driver-intake .ci-box[data-key="c-battery-original"].x-active');
-      if (xActive) {
-        const noteEl = document.getElementById('cn-c-battery-original');
-        if (!noteEl || !noteEl.value.trim()) {
-          document.getElementById('battery-original-note-row')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          noteEl?.focus();
-          showToast('נא למלא הערה עבור: בדיקת מצבר');
-          return;
-        }
-      }
-      continue;
-    }
-    if (key === 'c-battery-is-original') continue;
-    if (key === 'c-frames-ext') continue; // no note field for frames
-    const xActive = document.querySelector(`#modal-driver-intake .ci-box[data-key="${key}"].x-active`);
-    if (!xActive) continue;
-    const label = _ciLabels[key] || key;
-    const noteEl = document.getElementById('cn-' + key);
-    if (!noteEl || !noteEl.value.trim()) {
-      document.getElementById('note-' + key)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      noteEl?.focus();
-      showToast(`נא למלא הערה עבור: ${label}`);
-      return;
-    }
-    // photo is optional — upload if present but don't block submission
-  }
+  // notes on x-marked items are optional — do not block submission
 
   const checklist = getChecklist();
   const notes     = document.getElementById('di-notes').value.trim();
