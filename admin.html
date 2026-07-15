@@ -1359,26 +1359,31 @@
     catch(e){ console.warn('reopen lead', e); }
     toast&&toast('הליד נפתח מחדש ✓'); renderLeads();
   }
-  // שליפת רשומה בודדת ממאגר data.gov.il לפי מספר רכב
+  // שליפת רשומות ממאגר data.gov.il — מנסה ישירות, ואם הדפדפן חוסם (CORS) עובר דרך פונקציית שרת ב-Netlify
+  async function govFetchRecords(rid,plate){
+    const direct='https://data.gov.il/api/3/action/datastore_search?resource_id='+rid+'&q='+plate;
+    const proxy='/.netlify/functions/govproxy?resource='+encodeURIComponent(rid)+'&q='+encodeURIComponent(plate);
+    for(const u of [direct, proxy]){
+      try{
+        const r=await fetch(u);
+        if(!r.ok) continue;
+        const j=await r.json();
+        const recs=(j&&j.result&&j.result.records);
+        if(Array.isArray(recs)) return recs;
+      }catch(e){ /* ננסה את הבא (כנראה CORS) */ }
+    }
+    return [];
+  }
+  // שליפת רשומה בודדת לפי מספר רכב
   async function govVehicle(rid,plate){
-    try{
-      const r=await fetch('https://data.gov.il/api/3/action/datastore_search?resource_id='+rid+'&q='+plate);
-      if(!r.ok) return null;
-      const j=await r.json();
-      const recs=(j&&j.result&&j.result.records)||[];
-      return recs.find(x=>String(x.mispar_rechev)===plate)||recs[0]||null;
-    }catch(e){ return null; }
+    const recs=await govFetchRecords(rid,plate);
+    return recs.find(x=>String(x.mispar_rechev)===plate)||recs[0]||null;
   }
   // כל הרשומות התואמות למספר רכב (למאגרים עם כמה שורות לרכב, כמו היסטוריית בעלות)
   async function govRecords(rid,plate){
-    try{
-      const r=await fetch('https://data.gov.il/api/3/action/datastore_search?resource_id='+rid+'&q='+plate);
-      if(!r.ok) return [];
-      const j=await r.json();
-      const recs=(j&&j.result&&j.result.records)||[];
-      const exact=recs.filter(x=>String(x.mispar_rechev)===plate);
-      return exact.length?exact:recs;
-    }catch(e){ return []; }
+    const recs=await govFetchRecords(rid,plate);
+    const exact=recs.filter(x=>String(x.mispar_rechev)===plate);
+    return exact.length?exact:recs;
   }
   // עיצוב תאריך בעלות (YYYYMMDD / YYYYMM)
   function fmtBaalutDt(v){
