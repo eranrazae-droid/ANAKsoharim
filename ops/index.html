@@ -7008,125 +7008,109 @@ async function extractTextFromImage(input) {
   document.getElementById('freetext-img-loading').style.display = 'flex';
 
   try {
-    const setSpan = t => {
-      const s = document.getElementById('freetext-img-loading').querySelector('span');
-      if (s) s.textContent = t;
-    };
+    const setSpan = t => { const s = document.getElementById('freetext-img-loading').querySelector('span'); if (s) s.textContent = t; };
 
-    // ── Step 1: load + preprocess ──────────────────────────────
-    const loadCanvas = file => new Promise(resolve => {
+    // Load image → canvas, invert if dark, scale 3x
+    const prepImg = file => new Promise(res => {
       const img = new Image();
       img.onload = () => {
-        const sc = 3; // scale 3x for better OCR on small text
+        const sc = 3, W = img.width * sc, H = img.height * sc;
         const c = document.createElement('canvas');
-        c.width = img.width * sc; c.height = img.height * sc;
+        c.width = W; c.height = H;
         const ctx = c.getContext('2d');
         ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(img, 0, 0, c.width, c.height);
-        // invert if dark background
-        const id = ctx.getImageData(0, 0, c.width, c.height);
-        let sum = 0;
-        for (let i = 0; i < id.data.length; i += 4) sum += id.data[i];
-        if (sum / (id.data.length / 4) < 128) {
-          for (let i = 0; i < id.data.length; i += 4) {
-            id.data[i] = 255 - id.data[i];
-            id.data[i+1] = 255 - id.data[i+1];
-            id.data[i+2] = 255 - id.data[i+2];
-          }
+        ctx.drawImage(img, 0, 0, W, H);
+        const id = ctx.getImageData(0, 0, W, H);
+        let s = 0;
+        for (let i = 0; i < id.data.length; i += 4) s += id.data[i];
+        if (s / (id.data.length / 4) < 128) { // dark bg → invert
+          for (let i = 0; i < id.data.length; i += 4) { id.data[i]=255-id.data[i]; id.data[i+1]=255-id.data[i+1]; id.data[i+2]=255-id.data[i+2]; }
           ctx.putImageData(id, 0, 0);
         }
-        resolve(c);
+        res({ canvas: c, origW: img.width, origH: img.height, sc });
       };
       img.src = URL.createObjectURL(file);
     });
 
-    // ── Step 2: detect row bands by low row-variance (uniform = separator) ──
-    const findRows = canvas => {
+    // Find horizontal separator lines: rows where pixel std-dev is very low
+    const findSeps = (canvas, sc) => {
       const { width: W, height: H } = canvas;
-      const ctx = canvas.getContext('2d');
-      const px = ctx.getImageData(0, 0, W, H).data;
-      const variance = y => {
-        let s = 0, s2 = 0;
-        for (let x = 0; x < W; x++) {
-          const v = px[(y * W + x) * 4]; // red channel (grayscale after invert)
-          s += v; s2 += v * v;
-        }
-        const m = s / W; return s2 / W - m * m;
-      };
-      // rows with variance < 400 are uniform (separator lines)
-      const isSep = y => variance(y) < 400;
-      const bands = [];
-      let start = -1;
-      for (let y = 0; y < H; y++) {
-        if (start === -1 && !isSep(y)) start = y;
-        else if (start !== -1 && isSep(y)) {
-          if (y - start > H * 0.04) bands.push([start, y]); // min ~4% of height
-          start = -1;
-        }
-      }
-      if (start !== -1 && H - start > H * 0.04) bands.push([start, H]);
-      return bands;
+      const px = canvas.getContext('2d').getImageData(0, 0, W, H).data;
+      const rowStd = y => { let s=0,s2=0; for(let x=0;x<W;x++){const v=px[(y*W+x)*4];s+=v;s2+=v*v;} const m=s/W; return Math.sqrt(Math.max(0,s2/W-m*m)); };
+      const seps = [];
+      for (let y = 0; y < H; y++) if (rowStd(y) < 15) seps.push(y); // near-uniform row
+      // group consecutive sep-rows into single boundary
+      const bounds = [0];
+      for (let i = 1; i < seps.length; i++) if (seps[i] - seps[i-1] > 1) bounds.push(Math.round((seps[i-1]+seps[i])/2));
+      bounds.push(H);
+      // build bands, filter tiny ones
+      const minH = sc * 20;
+      return bounds.slice(0,-1).map((y0,i)=>[y0, bounds[i+1]]).filter(([y0,y1])=>y1-y0>minH);
     };
 
-    // ── Step 3: crop one row to blob ──
-    const rowBlob = (canvas, y0, y1) => new Promise(r => {
+    // Crop canvas strip to blob
+    const toBlob = (canvas, x0, y0, w, h) => new Promise(r => {
       const c = document.createElement('canvas');
-      const pad = 8;
-      c.width = canvas.width; c.height = y1 - y0 + pad * 2;
+      c.width = w + 16; c.height = h + 16;
       const ctx = c.getContext('2d');
-      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
-      ctx.drawImage(canvas, 0, y0, canvas.width, y1 - y0, 0, pad, canvas.width, y1 - y0);
+      ctx.fillStyle = '#fff'; ctx.fillRect(0,0,c.width,c.height);
+      ctx.drawImage(canvas, x0, y0, w, h, 8, 8, w, h);
       c.toBlob(r, 'image/png');
     });
 
-    // ── Step 4: OCR one blob with correct v5 worker API ──
-    const ocrBlob = async (blob, lang, whitelist) => {
-      const worker = await Tesseract.createWorker(lang);
-      if (whitelist) await worker.setParameters({ tessedit_char_whitelist: whitelist });
-      const { data: { text } } = await worker.recognize(blob);
-      await worker.terminate();
+    // OCR blob with worker (correct v5 API)
+    const ocr = async (blob, lang, whitelist) => {
+      const w = await Tesseract.createWorker(lang);
+      if (whitelist) await w.setParameters({ tessedit_char_whitelist: whitelist });
+      const { data: { text } } = await w.recognize(blob);
+      await w.terminate();
       return text || '';
     };
 
-    // ── Main flow ──────────────────────────────────────────────
-    setSpan('⏳ טוען תמונה...');
-    const canvas = await loadCanvas(file);
-    const bands = findRows(canvas);
-    console.log('[OCR] row bands:', bands.length, bands);
+    setSpan('⏳ מעבד תמונה...');
+    const { canvas, origW, sc } = await prepImg(file);
+    const W = canvas.width, H = canvas.height;
 
-    const fullLines = [], digitLines = [];
+    // Find row separators
+    const bands = findSeps(canvas, sc);
+    console.log('[OCR] bands:', bands.length, bands);
+
+    // Strategy A: if we found rows, OCR each row's plate-column strip
+    // Plate column is roughly 55–82% from left (RTL table, plate = 2nd from right)
+    const plateX0 = Math.round(W * 0.52), plateW = Math.round(W * 0.30);
+
+    const plateLines = [], contextLines = [];
 
     if (bands.length >= 2) {
-      // per-row OCR
       for (let i = 0; i < bands.length; i++) {
         setSpan(`⏳ מזהה שורה ${i+1}/${bands.length}...`);
-        const blob = await rowBlob(canvas, bands[i][0], bands[i][1]);
-        const [t, d] = await Promise.all([
-          ocrBlob(blob, 'heb+eng', null),
-          ocrBlob(blob, 'eng', '0123456789 ')
-        ]);
-        fullLines.push(t.replace(/\n/g, ' ').trim());
-        digitLines.push(d.replace(/\s+/g, '').trim());
-        console.log(`[OCR] row ${i+1}:`, t.trim(), '| digits:', d.trim());
+        const [y0, y1] = bands[i];
+        // digits-only on plate column
+        const plateBlob = await toBlob(canvas, plateX0, y0, plateW, y1 - y0);
+        const digits = await ocr(plateBlob, 'eng', '0123456789');
+        // full text on whole row for context (model, year, km)
+        const rowBlob  = await toBlob(canvas, 0, y0, W, y1 - y0);
+        const full     = await ocr(rowBlob, 'heb+eng', null);
+        plateLines.push(digits.replace(/\D/g,''));
+        contextLines.push(full.replace(/\n/g,' ').trim());
+        console.log(`[OCR] row ${i+1} plate digits: "${digits.trim()}" | ctx: "${full.trim()}"`);
       }
     } else {
-      // fallback: whole image
-      setSpan('⏳ מזהה טקסט...');
-      const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
-      const [t, d] = await Promise.all([
-        ocrBlob(blob, 'heb+eng', null),
-        ocrBlob(blob, 'eng', '0123456789 ')
-      ]);
-      fullLines.push(t); digitLines.push(d);
-      console.log('[OCR] full:', t, '| digits:', d);
+      // Fallback: digits-only OCR on plate column strip of whole image
+      setSpan('⏳ מזהה מספרי רישוי...');
+      const plateBlob = await toBlob(canvas, plateX0, 0, plateW, H);
+      const full      = await toBlob(canvas, 0, 0, W, H);
+      plateLines.push(await ocr(plateBlob, 'eng', '0123456789'));
+      contextLines.push(await ocr(full, 'heb+eng', null));
     }
 
-    const fullText   = fullLines.join('\n');
-    const digitsText = digitLines.join('\n');
-    console.log('[OCR] final text:', fullText);
-    console.log('[OCR] final digits:', digitsText);
+    // Build per-row plate+context pairs
+    const digitsText = plateLines.join('\n');
+    const fullText   = contextLines.join('\n');
+    console.log('[OCR] all plate digits:', digitsText);
+    console.log('[OCR] all context:', fullText);
 
-    if (fullText.trim() || digitsText.trim()) {
+    if (digitsText.trim() || fullText.trim()) {
       const parsed = _parsePlatesFromOcr(fullText, digitsText);
       if (parsed.length) {
         document.getElementById('freetext-pickup-input').value = fullText.trim();
