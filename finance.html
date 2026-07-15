@@ -272,7 +272,9 @@ body{
 
 <script>
 var PRIME = 5.5;
-var cardNSel = {}; // per-card selected n, keyed by track index
+var cardNSel = {};
+var _renderOrder = null;
+var _keepOrder = false;
 
 function feeKal(loan) {
   if (loan <= 100000) return 345;
@@ -311,7 +313,9 @@ function makeOptions(maxN, selectedN) {
 
 function onNChange(idx, val) {
   cardNSel[idx] = parseInt(val);
+  _keepOrder = true;
   calc();
+  _keepOrder = false;
 }
 
 function calc() {
@@ -328,8 +332,8 @@ function calc() {
     { company:'כאל',        track:'צמוד מדד',       rate:4.2,        rateStr:'4.2%',                    balloon:0,       fee:'kal',   maxN:100      },
     { company:'כאל',        track:'צמוד מדד + בלון', rate:4.2,        rateStr:'4.2%',                    balloon:balloon, fee:'kal',   maxN:60       },
     { company:'כאל',        track:'פריים + 1.6%',    rate:PRIME+1.6,  rateStr:(PRIME+1.6).toFixed(1)+'%',balloon:0,       fee:'kal',   maxN:100      },
-    { company:'מימון ישיר', track:'ריבית קבועה',     rate:7.0,        rateStr:'7%',                      balloon:0,       fee:'yasir', maxN:maxYasir },
-    { company:'מימון ישיר', track:'ריבית קבועה',     rate:9.0,        rateStr:'9%',                      balloon:0,       fee:'yasir', maxN:maxYasir }
+    { company:'מימון ישיר', track:'ריבית קבועה',     rate:7.0,        rateStr:'7%',                      balloon:0,       fee:'yasir', maxN:120      },
+    { company:'מימון ישיר', track:'ריבית קבועה',     rate:9.0,        rateStr:'9%',                      balloon:0,       fee:'yasir', maxN:120      }
   ];
 
   var results = tracks.map(function(t, idx) {
@@ -342,8 +346,12 @@ function calc() {
 
   var minMonthly = Math.min.apply(null, results.map(function(r){ return r.monthly; }));
 
-  // sort cheap → expensive
-  results.sort(function(a,b){ return a.monthly - b.monthly; });
+  if (_keepOrder && _renderOrder) {
+    results.sort(function(a,b){ return _renderOrder.indexOf(a.idx) - _renderOrder.indexOf(b.idx); });
+  } else {
+    results.sort(function(a,b){ return a.monthly - b.monthly; });
+    _renderOrder = results.map(function(r){ return r.idx; });
+  }
 
   var html = '';
   results.forEach(function(r) {

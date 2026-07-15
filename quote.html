@@ -328,7 +328,7 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
     <div class="monthly-controls">
       <div class="ctrl-row">
         <div class="ctrl-label">מסלול</div>
-        <select class="ctrl-select" id="track-sel" onchange="calc()">
+        <select class="ctrl-select" id="track-sel" onchange="onTrackChange()">
           <option value="4.2">כאל צמוד מדד 4.2% (חדש)</option>
           <option value="5.8">כאל צמוד מדד 5.8% (משומש)</option>
           <option value="7.1">כאל פריים+1.6 (7.1%)</option>
@@ -339,6 +339,7 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
       <div class="ctrl-row">
         <div class="ctrl-label">תשלומים</div>
         <select class="ctrl-select" id="n-sel" onchange="calc()">
+          <option value="120">120 תשלומים</option>
           <option value="100">100 תשלומים</option>
           <option value="96">96 תשלומים</option>
           <option value="84">84 תשלומים</option>
@@ -410,8 +411,8 @@ function renderFinanceCards(loan) {
     tracks = [
       {company:'כאל', track:'צמוד מדד', rate:4.2, rateStr:'4.2%', fee:'kal', maxN:100},
       {company:'כאל', track:'פריים+1.6%', rate:PRIME+1.6, rateStr:(PRIME+1.6).toFixed(1)+'%', fee:'kal', maxN:100},
-      {company:'מימון ישיר', track:'ריבית קבועה', rate:7.0, rateStr:'7%', fee:'yasir', maxN:maxYasir},
-      {company:'מימון ישיר', track:'ריבית קבועה', rate:9.0, rateStr:'9%', fee:'yasir', maxN:maxYasir}
+      {company:'מימון ישיר', track:'ריבית קבועה', rate:7.0, rateStr:'7%', fee:'yasir', maxN:120},
+      {company:'מימון ישיר', track:'ריבית קבועה', rate:9.0, rateStr:'9%', fee:'yasir', maxN:120}
     ];
   } else {
     var maxKal = KAL_MAX[y] || 12;
@@ -504,7 +505,7 @@ function applyYearDefaults(year) {
   if (y >= 2024) {
     // רכב חדש
     defaultTrack = '4.2';
-    maxN = 100;
+    maxN = 120;
   } else {
     // רכב משומש
     defaultTrack = '5.8';
@@ -515,12 +516,26 @@ function applyYearDefaults(year) {
   var steps = [];
   for (var i = 12; i <= Math.min(96, maxN); i += 12) steps.push(i);
   if (maxN >= 100) steps.push(100);
+  if (maxN >= 120) steps.push(120);
   var opts = '';
   for (var j = steps.length - 1; j >= 0; j--) {
     opts += '<option value="' + steps[j] + '">' + steps[j] + ' תשלומים</option>';
   }
   nSel.innerHTML = opts;
-  nSel.value = maxN;
+  // ברירת מחדל: כאל=100, ישיר=120
+  var trackVal = trackSel.value;
+  nSel.value = (trackVal === '7' || trackVal === '9') ? Math.min(120, maxN) : Math.min(100, maxN);
+  calc();
+}
+
+function onTrackChange() {
+  var trackVal = document.getElementById('track-sel').value;
+  var nSel = document.getElementById('n-sel');
+  if (trackVal === '7' || trackVal === '9') {
+    if (nSel.querySelector('option[value="120"]')) nSel.value = '120';
+  } else {
+    if (nSel.querySelector('option[value="100"]')) nSel.value = '100';
+  }
   calc();
 }
 
@@ -768,41 +783,7 @@ var REQUIRED_FIELDS = [
 ];
 
 function validateRequiredFields() {
-  var ok = true;
-  var firstBad = null;
-  REQUIRED_FIELDS.forEach(function(f) {
-    var el = document.getElementById(f.id);
-    if (!el) return;
-    var empty = !el.value.trim();
-    el.style.borderColor  = empty ? '#ef4444' : '';
-    el.style.background   = empty ? '#fee2e2' : '';
-    if (empty && !firstBad) firstBad = el;
-    if (empty) ok = false;
-  });
-  // זיכוי טרייד אין ומספר רישוי — כל אחד מחייב את השני
-  var tradeInEl = document.getElementById('trade-in');
-  var plateEl   = document.getElementById('old-car-plate');
-  if (tradeInEl && plateEl) {
-    var hasTradeIn = parseNumInput(tradeInEl.value) > 0;
-    var hasPlate   = !!plateEl.value.trim();
-    if (hasTradeIn && !hasPlate) {
-      plateEl.style.borderColor = '#ef4444';
-      plateEl.style.background  = '#fee2e2';
-      if (!firstBad) firstBad = plateEl;
-      ok = false;
-    }
-    if (hasPlate && !hasTradeIn) {
-      tradeInEl.style.borderColor = '#ef4444';
-      tradeInEl.style.background  = '#fee2e2';
-      if (!firstBad) firstBad = tradeInEl;
-      ok = false;
-    }
-  }
-  if (!ok && firstBad) {
-    firstBad.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    showToast('לא ניתן לבצע את הפעולה — שדות חובה לא מלאים');
-  }
-  return ok;
+  return true;
 }
 
 function showToast(msg) {

@@ -303,6 +303,8 @@ body{
 <script>
 var PRIME = 5.5;
 var cardNSel = {};
+var _renderOrder = null;
+var _keepOrder = false;
 
 // מקסימום תשלומים לפי שנתון — מימון ישיר
 var YASIR_MAX = {
@@ -380,7 +382,9 @@ function makeOptions(maxN, selectedN) {
 
 function onNChange(idx, val) {
   cardNSel[idx] = parseInt(val);
+  _keepOrder = true;
   calc();
+  _keepOrder = false;
 }
 
 function calc() {
@@ -416,8 +420,12 @@ function calc() {
 
   var minMonthly = Math.min.apply(null, results.map(function(r){ return r.monthly; }));
 
-  // sort cheap → expensive
-  results.sort(function(a,b){ return a.monthly - b.monthly; });
+  if (_keepOrder && _renderOrder) {
+    results.sort(function(a,b){ return _renderOrder.indexOf(a.idx) - _renderOrder.indexOf(b.idx); });
+  } else {
+    results.sort(function(a,b){ return a.monthly - b.monthly; });
+    _renderOrder = results.map(function(r){ return r.idx; });
+  }
 
   var html = '<div class="cards">';
   results.forEach(function(r) {
