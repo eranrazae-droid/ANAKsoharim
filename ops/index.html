@@ -7010,11 +7010,11 @@ async function extractTextFromImage(input) {
   try {
     const setSpan = t => { const s = document.getElementById('freetext-img-loading').querySelector('span'); if (s) s.textContent = t; };
 
-    // Load image → canvas, invert if dark, scale 3x
+    // Prepare canvas: scale 4x, invert dark backgrounds
     const prepImg = file => new Promise(res => {
       const img = new Image();
       img.onload = () => {
-        const sc = 3, W = img.width * sc, H = img.height * sc;
+        const sc = 4, W = img.width * sc, H = img.height * sc;
         const c = document.createElement('canvas');
         c.width = W; c.height = H;
         const ctx = c.getContext('2d');
@@ -7023,102 +7023,52 @@ async function extractTextFromImage(input) {
         const id = ctx.getImageData(0, 0, W, H);
         let s = 0;
         for (let i = 0; i < id.data.length; i += 4) s += id.data[i];
-        if (s / (id.data.length / 4) < 128) { // dark bg → invert
+        if (s / (id.data.length / 4) < 128) {
           for (let i = 0; i < id.data.length; i += 4) { id.data[i]=255-id.data[i]; id.data[i+1]=255-id.data[i+1]; id.data[i+2]=255-id.data[i+2]; }
           ctx.putImageData(id, 0, 0);
         }
-        res({ canvas: c, origW: img.width, origH: img.height, sc });
+        res(c);
       };
       img.src = URL.createObjectURL(file);
     });
 
-    // Find horizontal separator lines: rows where pixel std-dev is very low
-    const findSeps = (canvas, sc) => {
-      const { width: W, height: H } = canvas;
-      const px = canvas.getContext('2d').getImageData(0, 0, W, H).data;
-      const rowStd = y => { let s=0,s2=0; for(let x=0;x<W;x++){const v=px[(y*W+x)*4];s+=v;s2+=v*v;} const m=s/W; return Math.sqrt(Math.max(0,s2/W-m*m)); };
-      const seps = [];
-      for (let y = 0; y < H; y++) if (rowStd(y) < 15) seps.push(y); // near-uniform row
-      // group consecutive sep-rows into single boundary
-      const bounds = [0];
-      for (let i = 1; i < seps.length; i++) if (seps[i] - seps[i-1] > 1) bounds.push(Math.round((seps[i-1]+seps[i])/2));
-      bounds.push(H);
-      // build bands, filter tiny ones
-      const minH = sc * 20;
-      return bounds.slice(0,-1).map((y0,i)=>[y0, bounds[i+1]]).filter(([y0,y1])=>y1-y0>minH);
-    };
-
-    // Crop canvas strip to blob
-    const toBlob = (canvas, x0, y0, w, h) => new Promise(r => {
-      const c = document.createElement('canvas');
-      c.width = w + 16; c.height = h + 16;
-      const ctx = c.getContext('2d');
-      ctx.fillStyle = '#fff'; ctx.fillRect(0,0,c.width,c.height);
-      ctx.drawImage(canvas, x0, y0, w, h, 8, 8, w, h);
-      c.toBlob(r, 'image/png');
-    });
-
-    // OCR blob with worker (correct v5 API)
-    const ocr = async (blob, lang, whitelist) => {
-      const w = await Tesseract.createWorker(lang);
-      if (whitelist) await w.setParameters({ tessedit_char_whitelist: whitelist });
-      const { data: { text } } = await w.recognize(blob);
-      await w.terminate();
-      return text || '';
-    };
+    const canvasToBlob = c => new Promise(r => c.toBlob(r, 'image/png'));
 
     setSpan('⏳ מעבד תמונה...');
-    const { canvas, origW, sc } = await prepImg(file);
-    const W = canvas.width, H = canvas.height;
+    const canvas = await prepImg(file);
+    const blob = await canvasToBlob(canvas);
 
-    // Find row separators
-    const bands = findSeps(canvas, sc);
-    console.log('[OCR] bands:', bands.length, bands);
+    setSpan('⏳ מזהה מספרי רישוי...');
 
-    // Strategy A: if we found rows, OCR each row's plate-column strip
-    // Plate column is roughly 55–82% from left (RTL table, plate = 2nd from right)
-    const plateX0 = Math.round(W * 0.52), plateW = Math.round(W * 0.30);
+    // Run with PSM 11 (sparse text — finds text scattered in image, best for tables)
+    // using correct Tesseract.js v5 worker API
+    const worker = await Tesseract.createWorker('eng');
+    await worker.setParameters({
+      tessedit_char_whitelist: '0123456789',
+      tessedit_pageseg_mode: '11',
+    });
+    const { data: { text: digitsOnly } } = await worker.recognize(blob);
+    await worker.terminate();
 
-    const plateLines = [], contextLines = [];
+    // Also run heb+eng for context (model, year, km)
+    setSpan('⏳ מזהה טקסט...');
+    const worker2 = await Tesseract.createWorker('heb+eng');
+    await worker2.setParameters({ tessedit_pageseg_mode: '11' });
+    const { data: { text: fullText } } = await worker2.recognize(blob);
+    await worker2.terminate();
 
-    if (bands.length >= 2) {
-      for (let i = 0; i < bands.length; i++) {
-        setSpan(`⏳ מזהה שורה ${i+1}/${bands.length}...`);
-        const [y0, y1] = bands[i];
-        // digits-only on plate column
-        const plateBlob = await toBlob(canvas, plateX0, y0, plateW, y1 - y0);
-        const digits = await ocr(plateBlob, 'eng', '0123456789');
-        // full text on whole row for context (model, year, km)
-        const rowBlob  = await toBlob(canvas, 0, y0, W, y1 - y0);
-        const full     = await ocr(rowBlob, 'heb+eng', null);
-        plateLines.push(digits.replace(/\D/g,''));
-        contextLines.push(full.replace(/\n/g,' ').trim());
-        console.log(`[OCR] row ${i+1} plate digits: "${digits.trim()}" | ctx: "${full.trim()}"`);
-      }
-    } else {
-      // Fallback: digits-only OCR on plate column strip of whole image
-      setSpan('⏳ מזהה מספרי רישוי...');
-      const plateBlob = await toBlob(canvas, plateX0, 0, plateW, H);
-      const full      = await toBlob(canvas, 0, 0, W, H);
-      plateLines.push(await ocr(plateBlob, 'eng', '0123456789'));
-      contextLines.push(await ocr(full, 'heb+eng', null));
-    }
+    console.log('[OCR] digits:', digitsOnly);
+    console.log('[OCR] full:', fullText);
 
-    // Build per-row plate+context pairs
-    const digitsText = plateLines.join('\n');
-    const fullText   = contextLines.join('\n');
-    console.log('[OCR] all plate digits:', digitsText);
-    console.log('[OCR] all context:', fullText);
-
-    if (digitsText.trim() || fullText.trim()) {
-      const parsed = _parsePlatesFromOcr(fullText, digitsText);
+    if (digitsOnly.trim() || fullText.trim()) {
+      const parsed = _parsePlatesFromOcr(fullText || '', digitsOnly || '');
       if (parsed.length) {
-        document.getElementById('freetext-pickup-input').value = fullText.trim();
+        document.getElementById('freetext-pickup-input').value = (fullText || '').trim();
         _freetextParsed = parsed;
         _renderFreetextPreview();
         _fetchGovDataForAll();
       } else {
-        document.getElementById('freetext-pickup-input').value = fullText.trim();
+        document.getElementById('freetext-pickup-input').value = (fullText || '').trim();
         parseFreeTextPickup();
       }
     } else {
