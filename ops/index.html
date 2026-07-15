@@ -3514,23 +3514,6 @@ async function submitDriverIntake() {
     return;
   }
 
-  // alert manager if original battery marked on vehicle year <= 2021
-  const batteryOriginalV = document.querySelector('#modal-driver-intake .ci-box[data-key="c-battery-is-original"].v-active');
-  if (batteryOriginalV && _currentIntakeVehicle) {
-    const year = parseInt(_currentIntakeVehicle.year || '0');
-    if (year && year <= 2021) {
-      const plate = _currentIntakeVehicle.plate || '';
-      await _addDoc(_colRef('manager_alerts'), {
-        type: 'battery_original',
-        plate,
-        year,
-        driver: currentUser.name,
-        message: `⚠️ רכב ${plate} (${year}) — ${currentUser.name} סימן מצבר מקורי`,
-        createdAt: _serverTs(),
-        seen: false
-      });
-    }
-  }
 
   // auto-create tasks for X-marked items
   await createIntakeTasks(checklist, notes, _currentIntakeVehicle);
