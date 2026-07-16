@@ -5262,7 +5262,7 @@ function mergeBatteryFiles() {
     const colIdxs = WANTED.map(w => fd.headers.findIndex(h => w.pat.test(h)));
     const statusColPos = WANTED.findIndex(w => w.label === 'סטטוס הרכב');
     const statusIdx = colIdxs[statusColPos];
-    const clean = s => String(s || '').replace(/\s+/g, ' ').trim();
+    const clean = s => String(s || '').replace(/[‎‏‪‫‬‭‮⁦⁧⁨⁩﻿]/g, '').replace(/\s+/g, ' ').trim();
     const hasStatusCol = statusIdx >= 0;
     return fd.dataRows
       .map(r => {
@@ -5273,7 +5273,9 @@ function mergeBatteryFiles() {
       })
       .filter(row => {
         if (!hasStatusCol) return true;
-        return ALLOWED_STATUSES.some(s => row.status === s);
+        const pass = ALLOWED_STATUSES.some(s => row.status === s);
+        if (!pass) console.log('🔋 filtered out:', JSON.stringify(row.status), [...row.status].map(c=>c.codePointAt(0).toString(16)));
+        return pass;
       });
   };
 
