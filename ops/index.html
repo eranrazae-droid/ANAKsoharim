@@ -5412,11 +5412,17 @@ function batteryInputChange(idx, field, val) {
 }
 
 async function clearBatteryTable() {
-  if (!confirm('למחוק את בדיקת הטעינה?')) return;
-  if (_batteryDocId && window._CONFIG_DONE) {
+  if (!confirm('למחוק את כל הבדיקה ומשימות הטעינה?')) return;
+  if (window._CONFIG_DONE) {
     try {
-      const { deleteDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-      await deleteDoc(_docRef('battery_assignments', _batteryDocId));
+      const { deleteDoc, getDocs, query, where, collection } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+      const dels = [];
+      // delete battery assignment
+      if (_batteryDocId) dels.push(deleteDoc(_docRef('battery_assignments', _batteryDocId)));
+      // delete all active charging tasks
+      const ctSnap = await getDocs(query(collection(window._db, 'charging_tasks'), where('status','==','active')));
+      ctSnap.forEach(d => dels.push(deleteDoc(d.ref)));
+      await Promise.all(dels);
     } catch(e) { console.error('clearBattery', e); }
   }
   _batteryHeaders = [];
@@ -5425,12 +5431,13 @@ async function clearBatteryTable() {
   _batteryMode = 'live';
   _batteryDocId = '';
   document.getElementById('battery-table-wrap').innerHTML = '<div class="empty-state" style="padding:40px 20px;text-align:center;color:var(--muted)">טרם נשלחה בדיקת טעינה</div>';
+  document.getElementById('battery-charging-tasks-wrap').innerHTML = '';
   document.getElementById('battery-submit-wrap').style.display = 'none';
   document.getElementById('batt-convert-wrap').style.display = 'none';
   document.getElementById('batt-file1-name').textContent = 'לחץ לבחירה';
   document.getElementById('batt-file2-name').textContent = 'לחץ לבחירה';
   ['batt-file1-zone','batt-file2-zone'].forEach(id => { const el = document.getElementById(id); if(el){el.style.borderColor='';el.style.background='transparent';} });
-  showToast('🗑️ הבדיקה נמחקה');
+  showToast('🗑️ הבדיקה ומשימות הטעינה נמחקו');
 }
 
 async function submitBatteryAssignment() {
