@@ -153,13 +153,14 @@
     .hero::before{width:280px;height:280px;background:var(--gold);right:-70px;top:20px}
     .hero::after{width:240px;height:240px;background:#fde68a;left:-40px;bottom:-30px}
     .hero-grid{
-      position:relative;display:grid;grid-template-columns:1.1fr .9fr;gap:40px;padding:60px 0 70px
+      position:relative;display:grid;grid-template-columns:1.1fr .9fr;gap:40px;padding:60px 16px 70px
     }
     .pill{
       display:inline-block;padding:10px 14px;border-radius:999px;border:1px solid rgba(234,179,8,.3);
       background:rgba(234,179,8,.08);color:#fde68a;font-size:16px;font-weight:700
     }
-    h1{font-size:62px;line-height:1.06;margin:18px 0 0;font-weight:900;letter-spacing:-0.02em}
+    .hero-grid>*{min-width:0}
+     h1{font-size:62px;line-height:1.06;margin:18px 0 0;font-weight:900;letter-spacing:-0.02em;overflow-wrap:break-word}
     .hero p{font-size:21px;line-height:1.85;color:#d1d5db;max-width:680px}
     .hero-actions{display:flex;gap:14px;flex-wrap:wrap;margin-top:24px}
     .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:28px}
@@ -307,7 +308,7 @@
       h1{font-size:34px;line-height:1.12;letter-spacing:-0.02em}
       h2{font-size:28px;letter-spacing:-0.01em}
       .section{padding:42px 0}
-      .hero-grid{padding:34px 0 42px;gap:20px}
+      .hero-grid{padding:34px 16px 42px;gap:20px}
       .hero p{font-size:16px;line-height:1.7}
       .hero-actions{gap:10px}
       .gold-btn,.primary-btn,.line-btn{width:100%;justify-content:center}
@@ -456,6 +457,8 @@ display:none !important;
     </div>
   </header>
 
+  <button id="backBtn" onclick="goBack()" style="display:none;position:fixed;top:84px;right:12px;z-index:9990;align-items:center;gap:6px;background:#0d0d0d;color:#fff;border:none;border-radius:999px;padding:9px 16px;font-weight:800;font-size:14px;box-shadow:0 4px 14px rgba(0,0,0,.28);cursor:pointer">→ חזרה</button>
+
   <main>
     <div id="dashboardPanel" class="hidden"></div>
 
@@ -503,10 +506,10 @@ display:none !important;
             <p>JOY MOTORS מביאה לכם רכבי 0 ק״מ ישירות ממחירי היבואן — יוקרה במחיר הוגן, מימון אישי, טרייד-אין וליווי צמוד עד קבלת המפתח. Drive the Happiness.</p>
             <div style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:16px;padding:16px;margin-top:22px">
               <div style="font-weight:800;font-size:15px;margin-bottom:10px;color:#fff">🔍 מצאו את הרכב שלכם</div>
-              <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px">
-                <select id="heroPickBrand" onchange="heroPickModels()" style="padding:11px 12px;border-radius:10px;border:none;font-size:14px;direction:rtl;text-align:right"><option value="">יצרן</option></select>
-                <select id="heroPickModel" style="padding:11px 12px;border-radius:10px;border:none;font-size:14px;direction:rtl;text-align:right"><option value="">דגם</option></select>
-                <button class="gold-btn" style="padding:11px 20px;font-size:15px;white-space:nowrap" onclick="heroPickGo()">צפו ברכב</button>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                <select id="heroPickBrand" onchange="heroPickModels()" style="min-width:0;padding:11px 12px;border-radius:10px;border:none;font-size:14px;direction:rtl;text-align:right"><option value="">יצרן</option></select>
+                <select id="heroPickModel" style="min-width:0;padding:11px 12px;border-radius:10px;border:none;font-size:14px;direction:rtl;text-align:right"><option value="">דגם</option></select>
+                <button class="gold-btn" style="grid-column:1/-1;padding:12px 20px;font-size:15px;white-space:nowrap" onclick="heroPickGo()">🔍 צפו ברכב</button>
               </div>
             </div>
             <div class="hero-actions">
@@ -2303,7 +2306,11 @@ display:none !important;
       }, 50);
     }
 
-    function showPage(id){
+    window._navStack = window._navStack || [];
+    function _toggleBack(id){ const bb=document.getElementById('backBtn'); if(bb) bb.style.display=(id==='homePage')?'none':'flex'; }
+    function showPage(id, isBack){
+      const cur=document.querySelector('.page.active');
+      if(!isBack && cur && cur.id!==id) window._navStack.push(cur.id);
       document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
       document.getElementById(id).classList.add('active');
       window.scrollTo({top:0, behavior:'smooth'});
@@ -2311,8 +2318,13 @@ display:none !important;
       if(homeExtra) homeExtra.style.display = (id === 'homePage') ? 'block' : 'none';
       const titles = {homePage:'JOY MOTORS',catalogPage:'רכבים | JOY MOTORS',carPage:'רכב | JOY MOTORS',checkoutPage:'שריון | JOY MOTORS'};
       history.pushState({page:id}, titles[id]||'JOY MOTORS', '#'+id);
+      _toggleBack(id);
     }
-    function goHome(){ showPage('homePage'); }
+    function goHome(){ window._navStack=[]; showPage('homePage', true); }
+    function goBack(){
+      const prev = (window._navStack && window._navStack.length) ? window._navStack.pop() : 'homePage';
+      showPage(prev, true);
+    }
 
     // Reload cars when tab becomes visible (e.g. after admin update)
     // רענון מהענן — שומר על האתר מסונכרן עם שינויים מהאדמין
@@ -2523,8 +2535,12 @@ display:none !important;
         voucherBtn.textContent = outOfStock ? 'אזל במלאי' : 'שריינו עכשיו ב-300 ₪';
       }
       renderSimilar(selectedCar);
+      const _cur=document.querySelector('.page.active');
+      if(_cur && _cur.id!=='carPage'){ (window._navStack=window._navStack||[]).push(_cur.id); }
       document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
       document.getElementById('carPage').classList.add('active');
+      history.pushState({page:'carPage'},'רכב | JOY MOTORS','#carPage');
+      _toggleBack('carPage');
       window.scrollTo({top:0, behavior:'smooth'});
       const homeExtra = document.getElementById('homeExtra');
       if(homeExtra) homeExtra.style.display = 'none';
