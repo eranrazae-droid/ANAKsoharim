@@ -2091,7 +2091,7 @@ function loadDriverBadges() {
       _setCardBadge('driver-inventory', snap.docs.filter(d => d.data().status === 'pending').length);
     });
     _onSnap(_query(_colRef('battery_assignments'), _where('assignedTo','==',name)), snap => {
-      _setCardBadge('driver-battery', snap.docs.filter(d => d.data().status === 'pending').length);
+      _setCardBadge('driver-battery', snap.docs.filter(d => d.data().status === 'pending' && !d.data().converted).length);
     });
     _onSnap(_query(_colRef('charging_tasks'), _where('status','==','active')), snap => {
       let pendingCars = 0;
@@ -5544,7 +5544,7 @@ function openDriverBatteryScreen() {
   _dbattUnsub = _onSnap(_colRef('battery_assignments'), snap => {
     const docs = snap.docs
       .map(d => ({ id: d.id, ...d.data() }))
-      .filter(d => d.assignedTo === currentUser.name && d.status === 'pending');
+      .filter(d => d.assignedTo === currentUser.name && d.status === 'pending' && !d.converted);
     if (!docs.length) {
       container.innerHTML = '<div class="empty-state" style="padding:40px 20px;text-align:center;color:var(--muted)">אין בדיקות טעינה ממתינות 🔋</div>';
       return;
@@ -5770,44 +5770,66 @@ function openDriverChargingScreen() {
       container.innerHTML = '<div class="empty-state" style="padding:40px 20px;text-align:center;color:var(--muted)">אין משימות טעינה פעילות 🔌</div>';
       return;
     }
-    // flatten all cars from all active tasks into cards
     let html = '';
     snap.docs.forEach(d => {
       const data = d.data();
       const headers = data.headers || [];
       const cars = data.carsJson ? JSON.parse(data.carsJson) : [];
-      const plateIdx = headers.findIndex(h => /מספר|לוחית/.test(h));
-      const makeIdx  = headers.findIndex(h => /יצרן/.test(h));
-      const modelIdx = headers.findIndex(h => /דגם/.test(h));
-      const yearIdx  = headers.findIndex(h => /שנת|שנה/.test(h));
-      const toCharge = cars.filter(c => !c.charged);
-      const charged  = cars.filter(c =>  c.charged);
+      const toCharge = cars.map((car,idx)=>({car,idx})).filter(x=>!x.car.charged).sort((a,b)=>(a.car.status==='מקדמה'?0:1)-(b.car.status==='מקדמה'?0:1));
+      const charged  = cars.map((car,idx)=>({car,idx})).filter(x=> x.car.charged);
+      const fullBatteryCars = data.fullBatteryCarsJson ? JSON.parse(data.fullBatteryCarsJson) : [];
+      const ts = data.createdAt?.toDate ? data.createdAt.toDate().toLocaleDateString('he-IL') : '';
 
-      // to-charge cards (מקדמה first)
-      const sorted = [...cars.map((car,idx)=>({car,idx})).filter(x=>!x.car.charged)].sort((a,b)=>(a.car.status==='מקדמה'?0:1)-(b.car.status==='מקדמה'?0:1));
-      if (sorted.length) {
-        html += `<div style="font-size:13px;font-weight:900;color:#854d0e;margin-bottom:8px">⚡ לטעינה — ${sorted.length} רכבים</div>`;
-        sorted.forEach(({car,idx}) => {
+      const baseCols = headers.length ? headers.map(h => {
+        if (/דגם|יצרן/.test(h)) return 'minmax(80px,1.4fr)';
+        if (/מספר|לוחית/.test(h)) return 'minmax(75px,1.2fr)';
+        return 'minmax(60px,1fr)';
+      }) : ['1fr'];
+      const colW        = [...baseCols, '80px'].join(' ');
+      const colWCharged = [...baseCols, '60px', '72px'].join(' ');
+
+      const hdr = (cols) => `<div style="display:grid;grid-template-columns:${cols};gap:3px;background:var(--dark);color:#fff;border-radius:10px 10px 0 0;padding:6px 8px;font-size:11px;font-weight:700;direction:rtl;min-width:max-content">
+        ${headers.map(h=>`<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(h)}</div>`).join('')}
+        ${cols === colWCharged
+          ? `<div style="text-align:center;color:#86efac">%<br>סוללה</div><div style="text-align:center;color:#86efac">טווח<br>נסיעה</div>`
+          : `<div style="text-align:center">פעולה</div>`}
+      </div>`;
+
+      html += `<div style="margin-bottom:24px"><div style="font-size:13px;font-weight:900;color:#5b21b6;margin-bottom:8px">🔌 משימת טעינה · ${ts}</div>`;
+
+      if (toCharge.length) {
+        html += `<div style="font-size:12px;font-weight:800;color:#374151;margin-bottom:4px">⚡ לטעינה — ${toCharge.length} רכבים</div>`;
+        html += `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:12px">${hdr(colW)}`;
+        toCharge.forEach(({car,idx}) => {
           const isMakdama = car.status === 'מקדמה';
-          const plate  = plateIdx >= 0 ? car.cells[plateIdx] : car.cells[0] || '';
-          const make   = makeIdx  >= 0 ? car.cells[makeIdx]  : '';
-          const model  = modelIdx >= 0 ? car.cells[modelIdx] : '';
-          const year   = yearIdx  >= 0 ? car.cells[yearIdx]  : '';
-          html += `<div style="background:#fff;border:2px solid ${isMakdama?'#ef4444':'#eab308'};border-radius:14px;padding:12px 14px;margin-bottom:10px;${isMakdama?'background:#fff1f2;':'background:#fefce8;'}">
-            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;direction:rtl">
-              <div>
-                ${isMakdama ? `<span style="font-size:10px;font-weight:800;background:#ef4444;color:#fff;border-radius:6px;padding:2px 7px;margin-bottom:4px;display:inline-block">⚠️ מקדמה</span><br>` : ''}
-                <div style="font-size:18px;font-weight:900;color:var(--dark);letter-spacing:1px">${esc(plate)}</div>
-                <div style="font-size:13px;color:var(--muted);margin-top:2px">${esc(make)} ${esc(model)}${year?' · '+esc(year):''}</div>
-                ${car.battery ? `<div style="font-size:12px;margin-top:4px;color:#92400e">🔋 ${esc(car.battery)}%${car.range?' · '+esc(car.range)+' קמ':''}</div>` : ''}
-              </div>
-              <button onclick="markCarCharged('${d.id}',${idx})" style="flex-shrink:0;background:#22c55e;color:#fff;border:none;border-radius:12px;padding:10px 14px;font-family:Heebo,sans-serif;font-size:13px;font-weight:900;cursor:pointer;white-space:nowrap">הוטען ✓</button>
-            </div>
+          const bg = isMakdama ? '#fff1f2' : 'transparent';
+          const border = isMakdama ? '#ef4444' : '#d1d5db';
+          html += `<div style="display:grid;grid-template-columns:${colW};gap:3px;align-items:center;background:${bg};border:1.5px solid ${border};border-top:none;padding:5px 8px;direction:rtl;min-width:max-content">
+            ${car.cells.map((c,ci) => `<div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c)}${ci===0&&isMakdama?` <span style="font-size:9px;background:#ef4444;color:#fff;border-radius:4px;padding:1px 4px">מקדמה</span>`:''}</div>`).join('')}
+            <div style="text-align:center"><button onclick="markCarCharged('${d.id}',${idx})" style="background:#22c55e;color:#fff;border:none;border-radius:8px;padding:5px 10px;font-family:Heebo,sans-serif;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap">הוטען ✓</button></div>
           </div>`;
         });
+        html += `</div>`;
       }
 
-      // charged cars are hidden from driver view — removed from list on mark
+      const allCharged = [
+        ...fullBatteryCars.map(car => ({car})),
+        ...charged.map(x => ({car: x.car})),
+      ];
+      if (allCharged.length) {
+        html += `<div style="font-size:12px;font-weight:800;color:#166534;margin-bottom:4px">✅ טעינה מלאה / הוטענו — ${allCharged.length} רכבים</div>`;
+        html += `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch">${hdr(colWCharged)}`;
+        allCharged.forEach(({car}) => {
+          html += `<div style="display:grid;grid-template-columns:${colWCharged};gap:3px;align-items:center;background:#dcfce7;border:1.5px solid #22c55e;border-top:none;padding:5px 8px;direction:rtl;min-width:max-content">
+            ${car.cells.map(c => `<div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c)}</div>`).join('')}
+            <div style="font-size:13px;font-weight:800;text-align:center;color:#166534">${car.battery ? car.battery+'%' : '100%'}</div>
+            <div style="font-size:13px;font-weight:800;text-align:center;color:#166534">${car.range ? car.range+' קמ' : '—'}</div>
+          </div>`;
+        });
+        html += `</div>`;
+      }
+
+      html += `</div>`;
     });
     container.innerHTML = html || '<div class="empty-state" style="padding:40px 20px;text-align:center;color:var(--muted)">אין רכבים לטעינה 🔌</div>';
   });
