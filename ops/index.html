@@ -5161,10 +5161,11 @@ function _loadBatteryChargingTasks() {
   if (!window._CONFIG_DONE) return;
   if (_batteryChargingUnsub) _batteryChargingUnsub();
   const wrap = document.getElementById('battery-charging-tasks-wrap');
-  _batteryChargingUnsub = _onSnap(_query(_colRef('charging_tasks'), _where('status','==','active')), snap => {
-    if (!snap.size) { wrap.innerHTML = ''; return; }
+  _batteryChargingUnsub = _onSnap(_query(_colRef('charging_tasks'), _where('status','!=','deleted')), snap => {
+    const visibleDocs = snap.docs.filter(d => d.data().status !== 'deleted');
+    if (!visibleDocs.length) { wrap.innerHTML = ''; return; }
     let html = '';
-    snap.docs.forEach(d => {
+    visibleDocs.forEach(d => {
       const data = d.data();
       const headers = data.headers || [];
       const cars = data.carsJson ? JSON.parse(data.carsJson) : [];
