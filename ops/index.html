@@ -5246,7 +5246,13 @@ function mergeBatteryFiles() {
   if (!f1 && !f2) { showToast('⚠️ נא להעלות לפחות קובץ אחד'); return; }
   _batteryHeaders = (f1 || f2).headers;
   const ALLOWED_STATUSES = ['מרגש לצלם לפרסם', 'מקדמה'];
+  const statusIdx = _batteryHeaders.findIndex(h => /סטטוס הרכב|סטטוס|status/i.test(h));
   const getRowStatus = r => {
+    if (statusIdx >= 0) {
+      const v = String(r[statusIdx] || '').trim();
+      return ALLOWED_STATUSES.includes(v) ? v : null;
+    }
+    // fallback: scan all cells
     for (const cell of r) {
       const v = String(cell || '').trim();
       if (ALLOWED_STATUSES.includes(v)) return v;
