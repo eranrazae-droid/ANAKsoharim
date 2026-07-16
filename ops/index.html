@@ -5260,12 +5260,10 @@ function mergeBatteryFiles() {
     if (!fd) return [];
     // map each wanted col to its index in THIS file's headers
     const colIdxs = WANTED.map(w => fd.headers.findIndex(h => w.pat.test(h)));
-    const statusColPos = WANTED.findIndex(w => w.label === 'סטטוס הרכב');
-    const statusIdx = colIdxs[statusColPos];
+    const statusColPos = 4; // סטטוס is always index 4 (last) in WANTED
+    const statusIdx = colIdxs[4];
     const clean = s => String(s || '').replace(/[‎‏‪‫‬‭‮⁦⁧⁨⁩﻿]/g, '').replace(/\s+/g, ' ').trim();
-    console.log('🔋 headers:', JSON.stringify(fd.headers));
-    console.log('🔋 colIdxs:', colIdxs, 'statusColPos:', statusColPos, 'statusIdx:', statusIdx);
-    const hasStatusCol = statusIdx >= 0;
+    const hasStatusCol = typeof statusIdx === 'number' && statusIdx >= 0;
     return fd.dataRows
       .map(r => {
         const cells = colIdxs.map(ci => ci >= 0 ? clean(r[ci]) : '');
