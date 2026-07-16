@@ -5177,17 +5177,26 @@ function _loadBatteryChargingTasks() {
       ];
       const ts = data.createdAt?.toDate ? data.createdAt.toDate().toLocaleDateString('he-IL') : '';
 
-      const colW = headers.length
-        ? [...headers.map(h => {
+      const baseCols = headers.length
+        ? headers.map(h => {
             if (/דגם|יצרן/.test(h)) return 'minmax(80px,1.4fr)';
             if (/מספר|לוחית/.test(h)) return 'minmax(75px,1.2fr)';
             return 'minmax(60px,1fr)';
-          }), '80px'].join(' ')
-        : '1fr 80px';
+          })
+        : ['1fr'];
+
+      const colW        = [...baseCols, '80px'].join(' ');
+      const colWCharged = [...baseCols, '60px', '72px'].join(' ');
 
       const headerRow = () => `<div style="display:grid;grid-template-columns:${colW};gap:3px;background:var(--dark);color:#fff;border-radius:10px 10px 0 0;padding:6px 8px;font-size:11px;font-weight:700;direction:rtl;min-width:max-content">
         ${headers.map(h=>`<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(h)}</div>`).join('')}
         <div style="text-align:center">פעולה</div>
+      </div>`;
+
+      const headerRowCharged = () => `<div style="display:grid;grid-template-columns:${colWCharged};gap:3px;background:var(--dark);color:#fff;border-radius:10px 10px 0 0;padding:6px 8px;font-size:11px;font-weight:700;direction:rtl;min-width:max-content">
+        ${headers.map(h=>`<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(h)}</div>`).join('')}
+        <div style="text-align:center;color:#86efac">%<br>סוללה</div>
+        <div style="text-align:center;color:#86efac">טווח<br>נסיעה</div>
       </div>`;
 
       const toChargeRow = ({car, idx}) => {
@@ -5202,9 +5211,10 @@ function _loadBatteryChargingTasks() {
       };
 
       const chargedRow = ({car}) => {
-        return `<div style="display:grid;grid-template-columns:${colW};gap:3px;align-items:center;background:#dcfce7;border:1.5px solid #22c55e;border-top:none;padding:5px 8px;direction:rtl;min-width:max-content">
+        return `<div style="display:grid;grid-template-columns:${colWCharged};gap:3px;align-items:center;background:#dcfce7;border:1.5px solid #22c55e;border-top:none;padding:5px 8px;direction:rtl;min-width:max-content">
           ${car.cells.map(c => `<div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c)}</div>`).join('')}
-          <div style="text-align:center"><span style="font-size:18px">✅</span></div>
+          <div style="font-size:13px;font-weight:800;text-align:center;color:#166534">${car.battery ? car.battery + '%' : '100%'}</div>
+          <div style="font-size:13px;font-weight:800;text-align:center;color:#166534">${car.range ? car.range + ' קמ' : '—'}</div>
         </div>`;
       };
 
@@ -5217,7 +5227,7 @@ function _loadBatteryChargingTasks() {
       }
       if (charged.length) {
         html += `<div style="font-size:12px;font-weight:800;color:#166534;margin-bottom:4px">✅ טעינה מלאה / הוטענו — ${charged.length} רכבים</div>`;
-        html += `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch">${headerRow()}${charged.map(x=>chargedRow(x)).join('')}</div>`;
+        html += `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch">${headerRowCharged()}${charged.map(x=>chargedRow(x)).join('')}</div>`;
       }
       html += `</div>`;
     });
@@ -5267,7 +5277,7 @@ function _loadBatteryAssignments() {
       <button onclick="convertToChargingTask('${last.id}')" style="background:#7c3aed;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">⚡ המר למשימה</button>
     </div>`;
     if (last.converted) {
-      wrap.innerHTML = html;
+      wrap.innerHTML = '';
       document.getElementById('battery-submit-wrap').style.display = 'none';
       return;
     }
