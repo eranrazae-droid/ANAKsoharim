@@ -5639,21 +5639,62 @@ function openDriverChargingScreen() {
       container.innerHTML = '<div class="empty-state" style="padding:40px 20px;text-align:center;color:var(--muted)">אין משימות טעינה פעילות 🔌</div>';
       return;
     }
-    container.innerHTML = snap.docs.map(d => {
+    // flatten all cars from all active tasks into cards
+    let html = '';
+    snap.docs.forEach(d => {
       const data = d.data();
+      const headers = data.headers || [];
       const cars = data.carsJson ? JSON.parse(data.carsJson) : [];
-      const toCharge = cars.filter(c => !c.charged).length;
-      const charged = cars.filter(c => c.charged).length;
-      const ts = data.createdAt?.toDate ? data.createdAt.toDate().toLocaleDateString('he-IL') : '';
-      return `<div class="vehicle-card" onclick="openChargingTaskModal('${d.id}')" style="cursor:pointer;margin-bottom:12px;border-right:5px solid #7c3aed">
-        <div class="vehicle-plate" style="font-size:16px">🔌 משימת טעינה</div>
-        <div class="vehicle-info">נוצר ע"י ${esc(data.createdBy||'')} · ${ts}</div>
-        <div class="vehicle-meta" style="gap:8px">
-          <span class="cond-badge" style="background:#fef9c3;color:#854d0e">⚡ ${toCharge} צריך לטעון</span>
-          <span class="cond-badge" style="background:#dcfce7;color:#166534">✅ ${charged} הוטענו</span>
-        </div>
-      </div>`;
-    }).join('');
+      const plateIdx = headers.findIndex(h => /מספר|לוחית/.test(h));
+      const makeIdx  = headers.findIndex(h => /יצרן/.test(h));
+      const modelIdx = headers.findIndex(h => /דגם/.test(h));
+      const yearIdx  = headers.findIndex(h => /שנת|שנה/.test(h));
+      const toCharge = cars.filter(c => !c.charged);
+      const charged  = cars.filter(c =>  c.charged);
+
+      // to-charge cards (מקדמה first)
+      const sorted = [...cars.map((car,idx)=>({car,idx})).filter(x=>!x.car.charged)].sort((a,b)=>(a.car.status==='מקדמה'?0:1)-(b.car.status==='מקדמה'?0:1));
+      if (sorted.length) {
+        html += `<div style="font-size:13px;font-weight:900;color:#854d0e;margin-bottom:8px">⚡ לטעינה — ${sorted.length} רכבים</div>`;
+        sorted.forEach(({car,idx}) => {
+          const isMakdama = car.status === 'מקדמה';
+          const plate  = plateIdx >= 0 ? car.cells[plateIdx] : car.cells[0] || '';
+          const make   = makeIdx  >= 0 ? car.cells[makeIdx]  : '';
+          const model  = modelIdx >= 0 ? car.cells[modelIdx] : '';
+          const year   = yearIdx  >= 0 ? car.cells[yearIdx]  : '';
+          html += `<div style="background:#fff;border:2px solid ${isMakdama?'#ef4444':'#eab308'};border-radius:14px;padding:12px 14px;margin-bottom:10px;${isMakdama?'background:#fff1f2;':'background:#fefce8;'}">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;direction:rtl">
+              <div>
+                ${isMakdama ? `<span style="font-size:10px;font-weight:800;background:#ef4444;color:#fff;border-radius:6px;padding:2px 7px;margin-bottom:4px;display:inline-block">⚠️ מקדמה</span><br>` : ''}
+                <div style="font-size:18px;font-weight:900;color:var(--dark);letter-spacing:1px">${esc(plate)}</div>
+                <div style="font-size:13px;color:var(--muted);margin-top:2px">${esc(make)} ${esc(model)}${year?' · '+esc(year):''}</div>
+                ${car.battery ? `<div style="font-size:12px;margin-top:4px;color:#92400e">🔋 ${esc(car.battery)}%${car.range?' · '+esc(car.range)+' קמ':''}</div>` : ''}
+              </div>
+              <button onclick="markCarCharged('${d.id}',${idx})" style="flex-shrink:0;background:#22c55e;color:#fff;border:none;border-radius:12px;padding:10px 14px;font-family:Heebo,sans-serif;font-size:13px;font-weight:900;cursor:pointer;white-space:nowrap">הוטען ✓</button>
+            </div>
+          </div>`;
+        });
+      }
+
+      // charged cards
+      if (charged.length) {
+        html += `<div style="font-size:13px;font-weight:900;color:#166534;margin:12px 0 8px">✅ הוטענו — ${charged.length} רכבים</div>`;
+        cars.forEach((car,idx) => {
+          if (!car.charged) return;
+          const plate = plateIdx >= 0 ? car.cells[plateIdx] : car.cells[0] || '';
+          const make  = makeIdx  >= 0 ? car.cells[makeIdx]  : '';
+          const model = modelIdx >= 0 ? car.cells[modelIdx] : '';
+          html += `<div style="background:#f0fff4;border:2px solid #22c55e;border-radius:14px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;direction:rtl;gap:10px;opacity:0.75">
+            <div>
+              <div style="font-size:16px;font-weight:800;color:#166534">${esc(plate)}</div>
+              <div style="font-size:12px;color:#4ade80">${esc(make)} ${esc(model)}</div>
+            </div>
+            <span style="font-size:22px">✅</span>
+          </div>`;
+        });
+      }
+    });
+    container.innerHTML = html || '<div class="empty-state" style="padding:40px 20px;text-align:center;color:var(--muted)">אין רכבים לטעינה 🔌</div>';
   });
 }
 
@@ -5752,10 +5793,12 @@ async function markCarCharged(docId, carIdx) {
       carsJson: JSON.stringify(cars),
       status: allCharged ? 'done' : 'active',
     });
-    // re-render if modal still open
-    const newData = { ...data, carsJson: JSON.stringify(cars) };
-    renderChargingTaskModal(newData);
-    if (allCharged) { showToast('🎉 כל הרכבים הוטענו!'); }
+    if (allCharged) { showToast('🎉 כל הרכבים הוטענו!'); } else { showToast('✅ הרכב סומן כהוטען'); }
+    // re-render modal if open
+    if (document.getElementById('modal-charging-task')?.classList.contains('open')) {
+      const newData = { ...data, carsJson: JSON.stringify(cars) };
+      renderChargingTaskModal(newData);
+    }
   } catch(e) { console.error('markCarCharged', e); showToast('⚠️ שגיאה'); }
 }
 
