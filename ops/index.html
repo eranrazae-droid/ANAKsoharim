@@ -1147,10 +1147,11 @@ if ('serviceWorker' in navigator) {
 </div>
 
 <!-- ====== SCREEN: BATTERY CHECK (MANAGER) ====== -->
+<!-- ====== SCREEN: CHARGING CHECK (MANAGER) ====== -->
 <div id="screen-battery" class="screen">
   <div class="app-header">
     <button class="back-btn" onclick="goHome()">→</button>
-    <div class="logo">🔋 בדיקת סוללות</div>
+    <div class="logo">🔋 בדיקת טעינה</div>
     <div class="user-badge" id="battery-user-badge" onclick="logout()"></div>
   </div>
   <div style="padding:16px 16px 100px">
@@ -1162,9 +1163,9 @@ if ('serviceWorker' in navigator) {
         <div style="font-size:13px;color:var(--muted);margin-top:4px">קובץ .xlsx עם פרטי הרכבים</div>
         <input type="file" id="battery-file-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleBatteryFile(this)">
       </div>
-      <button onclick="clearBatteryTable()" style="flex-shrink:0;width:56px;background:#fff0f0;border:2px solid #ef4444;border-radius:16px;font-size:22px;cursor:pointer;color:#ef4444" title="נקה טבלה">🗑️</button>
+      <button onclick="clearBatteryTable()" style="flex-shrink:0;width:56px;background:#fff0f0;border:2px solid #ef4444;border-radius:16px;font-size:22px;cursor:pointer;color:#ef4444" title="מחק">🗑️</button>
     </div>
-    <div id="battery-table-wrap" style="overflow-x:auto;-webkit-overflow-scrolling:touch"></div>
+    <div id="battery-table-wrap"></div>
     <div id="battery-submit-wrap" style="display:none;position:fixed;bottom:0;right:0;left:0;padding:12px 16px;background:#fff;border-top:1px solid var(--border);z-index:50">
       <div style="display:flex;gap:10px;align-items:center">
         <select id="battery-driver-select" style="flex:1;background:#f0fff4;border:2px solid var(--border);border-radius:12px;padding:12px 10px;font-family:Heebo,sans-serif;font-size:15px;font-weight:700;color:var(--dark)">
@@ -1179,11 +1180,11 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
-<!-- ====== SCREEN: BATTERY CHECK (DRIVER) ====== -->
+<!-- ====== SCREEN: CHARGING CHECK (DRIVER) ====== -->
 <div id="screen-driver-battery" class="screen">
   <div class="app-header">
     <button class="back-btn" onclick="goHome()">→</button>
-    <div class="logo">🔋 בדיקות סוללות שלי</div>
+    <div class="logo">🔋 בדיקות טעינה שלי</div>
     <div class="user-badge" id="dbattery-user-badge" onclick="logout()"></div>
   </div>
   <div style="padding:16px 16px 100px" id="dbattery-list">
@@ -1194,7 +1195,7 @@ if ('serviceWorker' in navigator) {
 <!-- ====== MODAL: DRIVER BATTERY FILL ====== -->
 <div class="modal-overlay" id="modal-driver-battery">
   <div class="modal-box" style="max-height:90vh;display:flex;flex-direction:column;overflow:hidden">
-    <div class="modal-title" style="position:sticky;top:0;z-index:10;background:#fff;flex-shrink:0">🔋 בדיקת רמות סוללה
+    <div class="modal-title" style="position:sticky;top:0;z-index:10;background:#fff;flex-shrink:0">🔋 בדיקת טעינה
       <button class="modal-close" onclick="closeModal('modal-driver-battery')">✕</button>
     </div>
     <div style="overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch;padding-bottom:8px">
@@ -1202,6 +1203,31 @@ if ('serviceWorker' in navigator) {
       <div style="overflow-x:auto;-webkit-overflow-scrolling:touch" id="dbattery-rows-container"></div>
       <input type="hidden" id="dbattery-notes" value="">
       <button class="btn-submit" onclick="submitDriverBattery()" style="margin-top:14px">✅ שלח בדיקה</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== SCREEN: CHARGING TASK (DRIVER) ====== -->
+<div id="screen-driver-charging" class="screen">
+  <div class="app-header">
+    <button class="back-btn" onclick="goHome()">→</button>
+    <div class="logo">🔌 משימות טעינה</div>
+    <div class="user-badge" id="dcharging-user-badge" onclick="logout()"></div>
+  </div>
+  <div style="padding:16px 16px 100px" id="dcharging-list">
+    <div class="loading"><div class="spinner"></div> טוען...</div>
+  </div>
+</div>
+
+<!-- ====== MODAL: CHARGING TASK ====== -->
+<div class="modal-overlay" id="modal-charging-task">
+  <div class="modal-box" style="max-height:92vh;display:flex;flex-direction:column;overflow:hidden">
+    <div class="modal-title" style="position:sticky;top:0;z-index:10;background:#fff;flex-shrink:0">🔌 משימת טעינה
+      <button class="modal-close" onclick="closeModal('modal-charging-task')">✕</button>
+    </div>
+    <div style="overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch;padding:0 2px 12px">
+      <input type="hidden" id="charging-task-id">
+      <div id="charging-task-body"></div>
     </div>
   </div>
 </div>
@@ -1754,7 +1780,7 @@ function enterApp() {
   renderHome();
   const savedScreen = sessionStorage.getItem('anak_screen');
   if (savedScreen && savedScreen !== 'home' && savedScreen !== 'login') {
-    const screenFns = { vehicles: openVehiclesScreen, tasks: openTasksScreen, parts: openPartsScreen, inventory: openInventoryScreen, pits: openPitsScreen, yard: openYardScreen, 'driver-inventory': openDriverInventoryScreen, battery: openBatteryScreen, 'driver-battery': openDriverBatteryScreen, refresh: openRefreshScreen };
+    const screenFns = { vehicles: openVehiclesScreen, tasks: openTasksScreen, parts: openPartsScreen, inventory: openInventoryScreen, pits: openPitsScreen, yard: openYardScreen, 'driver-inventory': openDriverInventoryScreen, battery: openBatteryScreen, 'driver-battery': openDriverBatteryScreen, 'driver-charging': openDriverChargingScreen, refresh: openRefreshScreen };
     if (screenFns[savedScreen]) { screenFns[savedScreen](); }
     else { showScreen('home'); }
   } else {
@@ -1882,7 +1908,7 @@ function renderHome() {
         { icon: '🚗', title: 'קליטת רכב', sub: 'רכבים במגרש', screen: 'vehicles' },
         { icon: '🔄', title: 'רענון רכב', sub: 'ניהול רענוני רכבים', screen: '_refresh' },
         { icon: '📦', title: 'בדיקת מלאי', sub: 'סימון רכבים במגרש', screen: 'inventory' },
-        { icon: '🔋', title: 'בדיקת סוללות', sub: 'אחוזי סוללה וטווח נסיעה', screen: 'battery' },
+        { icon: '🔋', title: 'בדיקת טעינה', sub: 'אחוזי טעינה וטווח נסיעה', screen: 'battery' },
         { icon: '🕳️', title: 'בורות', sub: 'ניהול בדיקות בבורות', screen: 'pits' },
         { icon: '🅿️', title: 'סידור מגרש', sub: 'טבלת חניות', screen: 'yard' },
         { icon: '🚙', title: 'מכוניות לאיסוף', sub: 'ניהול רכבים לאיסוף', screen: 'pickup' },
@@ -1891,7 +1917,8 @@ function renderHome() {
         { icon: '📋', title: 'המשימות שלי', sub: 'משימות שהוקצו לך', screen: 'tasks' },
         { icon: '🚗', title: 'קליטות רכב שלי', sub: 'קליטות ממתינות לביצוע', screen: 'vehicles' },
         { icon: '📦', title: 'בדיקות מלאי שלי', sub: 'רשימות מלאי לסימון', screen: 'driver-inventory' },
-        { icon: '🔋', title: 'בדיקות סוללות שלי', sub: 'מילוי אחוזי סוללה וטווח', screen: 'driver-battery' },
+        { icon: '🔋', title: 'בדיקות טעינה שלי', sub: 'מילוי אחוזי טעינה וטווח', screen: 'driver-battery' },
+        { icon: '🔌', title: 'משימות טעינה', sub: 'רכבים לטעינה', screen: 'driver-charging' },
         { icon: '🅿️', title: 'סידור מגרש', sub: 'צפייה בטבלת חניות', screen: 'yard' },
         { icon: '🕳️', title: 'בורות', sub: 'בדיקות ממתינות לביצוע', screen: 'pits' },
         { icon: '🔄', title: 'רענון רכב', sub: 'ניהול רענוני רכבים', screen: '_refresh' },
@@ -1947,6 +1974,7 @@ function goToScreen(name) {
   else if (name === 'inventory') openInventoryScreen();
   else if (name === 'battery') openBatteryScreen();
   else if (name === 'driver-battery') openDriverBatteryScreen();
+  else if (name === 'driver-charging') openDriverChargingScreen();
   else if (name === 'pits') openPitsScreen();
   else if (name === 'driver-inventory') openDriverInventoryScreen();
   else if (name === '_notify') openNotifySettings();
@@ -2045,6 +2073,9 @@ function loadDriverBadges() {
     });
     _onSnap(_query(_colRef('battery_assignments'), _where('assignedTo','==',name)), snap => {
       _setCardBadge('driver-battery', snap.docs.filter(d => d.data().status === 'pending').length);
+    });
+    _onSnap(_query(_colRef('charging_tasks'), _where('status','==','active')), snap => {
+      _setCardBadge('driver-charging', snap.size);
     });
     _onSnap(_docRef('yard','current'), snap => {
       const status = snap.exists() ? snap.data().status : null;
@@ -5116,7 +5147,7 @@ function _loadBatteryAssignments() {
       });
     const last = mine[0];
     if (!last) {
-      wrap.innerHTML = '<div class="empty-state" style="padding:40px 20px;text-align:center;color:var(--muted)">טרם נשלחה בדיקת סוללות</div>';
+      wrap.innerHTML = '<div class="empty-state" style="padding:40px 20px;text-align:center;color:var(--muted)">טרם נשלחה בדיקת טעינה</div>';
       _batteryDocId = '';
       return;
     }
@@ -5126,8 +5157,9 @@ function _loadBatteryAssignments() {
     const isDriver = last.status === 'pending';
     const isDone = last.status === 'done';
     const ts = last.createdAt?.toDate ? last.createdAt.toDate().toLocaleDateString('he-IL') : '';
-    let html = `<div style="border-radius:12px;padding:10px 14px;margin-bottom:12px;font-size:13px;font-weight:700;background:${isDone?'#f0fff4':'#fef3c7'};border:2px solid ${isDone?'#22c55e':'#f59e0b'};color:${isDone?'#166534':'#92400e'}">
-      ${isDone ? '✅ הנהג השלים את הבדיקה' : '⏳ ממתין לנהג — ' + esc(last.assignedTo)} &nbsp;·&nbsp; ${ts} &nbsp;·&nbsp; ${rows.length} רכבים
+    let html = `<div style="border-radius:12px;padding:10px 14px;margin-bottom:12px;font-size:13px;font-weight:700;background:${isDone?'#f0fff4':'#fef3c7'};border:2px solid ${isDone?'#22c55e':'#f59e0b'};color:${isDone?'#166534':'#92400e'};display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <span>${isDone ? '✅ הנהג השלים את הבדיקה' : '⏳ ממתין לנהג — ' + esc(last.assignedTo)} &nbsp;·&nbsp; ${ts} &nbsp;·&nbsp; ${rows.length} רכבים</span>
+      ${isDone ? `<button onclick="convertToChargingTask('${last.id}')" style="background:#7c3aed;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">⚡ המר למשימה</button>` : ''}
     </div>`;
     if (isDone) {
       const results = last.resultsJson ? JSON.parse(last.resultsJson) : rows.map(cells => ({ cells, battery:'', range:'' }));
@@ -5225,7 +5257,7 @@ function batteryInputChange(idx, field, val) {
 }
 
 async function clearBatteryTable() {
-  if (!confirm('למחוק את בדיקת הסוללות?')) return;
+  if (!confirm('למחוק את בדיקת הטעינה?')) return;
   if (_batteryDocId && window._CONFIG_DONE) {
     try {
       const { deleteDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
@@ -5256,7 +5288,7 @@ async function submitBatteryAssignment() {
       rowsJson: JSON.stringify(_batteryRows.map(r => r.cells)),
       createdAt: _serverTs(),
     });
-    _notifyDriver(driver, `🔋 נשלחה אליך בדיקת סוללות חדשה. כנס לאפליקציה ענק הרכבים.`);
+    _notifyDriver(driver, `🔋 נשלחה אליך בדיקת טעינה חדשה. כנס לאפליקציה ענק הרכבים.`);
     showToast('✅ נשלח לנהג ' + driver);
     _batteryHeaders = [];
     _batteryRows = [];
@@ -5286,14 +5318,14 @@ function openDriverBatteryScreen() {
       .map(d => ({ id: d.id, ...d.data() }))
       .filter(d => d.assignedTo === currentUser.name && d.status === 'pending');
     if (!docs.length) {
-      container.innerHTML = '<div class="empty-state" style="padding:40px 20px;text-align:center;color:var(--muted)">אין בדיקות סוללות ממתינות 🔋</div>';
+      container.innerHTML = '<div class="empty-state" style="padding:40px 20px;text-align:center;color:var(--muted)">אין בדיקות טעינה ממתינות 🔋</div>';
       return;
     }
     container.innerHTML = docs.map(d => {
       const ts = d.createdAt?.toDate ? d.createdAt.toDate().toLocaleDateString('he-IL') : '';
       const rowCount = d.rowsJson ? JSON.parse(d.rowsJson).length : (d.rows?.length || 0);
       return `<div class="vehicle-card" onclick="openDriverBatteryModal('${d.id}')" style="cursor:pointer;margin-bottom:12px">
-        <div class="vehicle-plate" style="font-size:16px">🔋 בדיקת סוללות</div>
+        <div class="vehicle-plate" style="font-size:16px">🔋 בדיקת טעינה</div>
         <div class="vehicle-info">נשלח ע"י ${esc(d.sentBy||'')} · ${ts}</div>
         <div class="vehicle-meta"><span class="cond-badge" style="background:#dcfce7;color:#166534">${rowCount} רכבים לבדיקה</span></div>
       </div>`;
@@ -5391,7 +5423,7 @@ async function submitDriverBattery() {
     localStorage.removeItem('_dbattProgress_' + _dbattDocId);
     _dbattDocId = null;
     closeModal('modal-driver-battery');
-    showToast('✅ בדיקת הסוללות נשלחה!');
+    showToast('✅ בדיקת הטעינה נשלחה!');
   } catch(e) {
     console.error('submitDriverBattery', e);
     showToast('⚠️ שגיאה בשמירה');
@@ -5407,6 +5439,164 @@ window.openDriverBatteryScreen = openDriverBatteryScreen;
 window.openDriverBatteryModal = openDriverBatteryModal;
 window.dbattInput = dbattInput;
 window.submitDriverBattery = submitDriverBattery;
+
+/* ══════════════════════════════════════════
+   🔌 CHARGING TASK (המר למשימה)
+══════════════════════════════════════════ */
+async function convertToChargingTask(batteryDocId) {
+  if (!window._CONFIG_DONE) { showToast('Firebase לא מחובר'); return; }
+  try {
+    const { getDoc, addDoc, collection } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const snap = await getDoc(_docRef('battery_assignments', batteryDocId));
+    if (!snap.exists()) { showToast('⚠️ לא נמצאה הבדיקה'); return; }
+    const data = snap.data();
+    const results = data.resultsJson ? JSON.parse(data.resultsJson) : [];
+    const headers = data.headers || [];
+    // only cars with battery < 100%
+    const toCharge = results
+      .filter(r => { const b = parseInt(r.battery); return isNaN(b) || b < 100; })
+      .map(r => ({ cells: r.cells, battery: r.battery || '', range: r.range || '', charged: false }));
+    if (!toCharge.length) { showToast('כל הרכבים בטעינה מלאה 🎉'); return; }
+    await addDoc(collection(window._db, 'charging_tasks'), {
+      createdBy: currentUser.name,
+      createdAt: _serverTs(),
+      status: 'active',
+      headers,
+      carsJson: JSON.stringify(toCharge),
+      fromBatteryId: batteryDocId,
+    });
+    showToast(`✅ נוצרה משימת טעינה עם ${toCharge.length} רכבים`);
+  } catch(e) { console.error('convertToChargingTask', e); showToast('⚠️ שגיאה'); }
+}
+
+/* ── Driver charging task screen ── */
+let _dchargingUnsub = null;
+
+function openDriverChargingScreen() {
+  showScreen('driver-charging');
+  document.getElementById('dcharging-user-badge').textContent = currentUser.name;
+  if (_dchargingUnsub) _dchargingUnsub();
+  const container = document.getElementById('dcharging-list');
+  container.innerHTML = '<div class="loading"><div class="spinner"></div> טוען...</div>';
+  _dchargingUnsub = _onSnap(_query(_colRef('charging_tasks'), _where('status','==','active')), snap => {
+    if (!snap.size) {
+      container.innerHTML = '<div class="empty-state" style="padding:40px 20px;text-align:center;color:var(--muted)">אין משימות טעינה פעילות 🔌</div>';
+      return;
+    }
+    container.innerHTML = snap.docs.map(d => {
+      const data = d.data();
+      const cars = data.carsJson ? JSON.parse(data.carsJson) : [];
+      const toCharge = cars.filter(c => !c.charged).length;
+      const charged = cars.filter(c => c.charged).length;
+      const ts = data.createdAt?.toDate ? data.createdAt.toDate().toLocaleDateString('he-IL') : '';
+      return `<div class="vehicle-card" onclick="openChargingTaskModal('${d.id}')" style="cursor:pointer;margin-bottom:12px;border-right:5px solid #7c3aed">
+        <div class="vehicle-plate" style="font-size:16px">🔌 משימת טעינה</div>
+        <div class="vehicle-info">נוצר ע"י ${esc(data.createdBy||'')} · ${ts}</div>
+        <div class="vehicle-meta" style="gap:8px">
+          <span class="cond-badge" style="background:#fef9c3;color:#854d0e">⚡ ${toCharge} צריך לטעון</span>
+          <span class="cond-badge" style="background:#dcfce7;color:#166534">✅ ${charged} הוטענו</span>
+        </div>
+      </div>`;
+    }).join('');
+  });
+}
+
+function openChargingTaskModal(docId) {
+  _onSnap(_docRef('charging_tasks', docId), snap => {
+    if (!snap.exists()) return;
+    const data = snap.data();
+    document.getElementById('charging-task-id').value = docId;
+    renderChargingTaskModal(data);
+    openModal('modal-charging-task');
+  });
+}
+
+function renderChargingTaskModal(data) {
+  const headers = data.headers || [];
+  const cars = data.carsJson ? JSON.parse(data.carsJson) : [];
+  const toCharge = cars.filter(c => !c.charged);
+  const charged  = cars.filter(c =>  c.charged);
+
+  // determine plate column index for display
+  const plateIdx = headers.findIndex(h => /מספר|לוחית|פלייט/.test(h));
+  const getLabel = cells => plateIdx >= 0 ? cells[plateIdx] : cells[0] || '';
+
+  // column widths helper
+  const colW = headers.length
+    ? headers.map(h => {
+        if (h.includes('דגם') || h.includes('יצרן') || h.includes('צבע')) return 'minmax(70px,1.4fr)';
+        if (h.includes('מספר') || h.includes('לוחית')) return 'minmax(70px,1.2fr)';
+        return 'minmax(50px,1fr)';
+      }).join(' ')
+    : '1fr';
+
+  function headerRow() {
+    if (!headers.length) return '';
+    return `<div style="display:grid;grid-template-columns:${colW} 90px;gap:3px;background:var(--dark);color:#fff;border-radius:10px 10px 0 0;padding:5px 8px;font-size:10px;font-weight:700;direction:rtl;min-width:max-content">
+      ${headers.map(h=>`<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(h)}</div>`).join('')}
+      <div style="text-align:center">פעולה</div>
+    </div>`;
+  }
+
+  function carRow(car, idx, isCharged) {
+    const bg = isCharged ? '#f0fff4' : '#fefce8';
+    const border = isCharged ? '#22c55e' : '#eab308';
+    const pct = car.battery ? car.battery + '%' : '—';
+    const btn = isCharged
+      ? `<span style="font-size:11px;font-weight:700;color:#166534">✅ הוטען</span>`
+      : `<button onclick="markCarCharged('${document.getElementById('charging-task-id').value}',${idx})" style="background:#22c55e;color:#fff;border:none;border-radius:8px;padding:5px 10px;font-family:Heebo,sans-serif;font-size:12px;font-weight:800;cursor:pointer">הוטען ✓</button>`;
+    return `<div style="display:grid;grid-template-columns:${colW} 90px;gap:3px;align-items:center;background:${bg};border:2px solid ${border};border-top:none;padding:5px 8px;direction:rtl;min-width:max-content">
+      ${car.cells.map(c=>`<div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c)}</div>`).join('')}
+      <div style="text-align:center">${btn}</div>
+    </div>`;
+  }
+
+  // map original indices
+  let html = '';
+  if (toCharge.length) {
+    html += `<div style="font-weight:800;font-size:14px;color:#854d0e;background:#fef9c3;border-radius:10px;padding:8px 12px;margin-bottom:6px;margin-top:10px">⚡ צריך להטעין — ${toCharge.length} רכבים</div>`;
+    html += `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:16px">`;
+    html += headerRow();
+    cars.forEach((car, idx) => { if (!car.charged) html += carRow(car, idx, false); });
+    html += '</div>';
+  }
+  if (charged.length) {
+    html += `<div style="font-weight:800;font-size:14px;color:#166534;background:#dcfce7;border-radius:10px;padding:8px 12px;margin-bottom:6px">✅ הוטענו — ${charged.length} רכבים</div>`;
+    html += `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch">`;
+    html += headerRow();
+    cars.forEach((car, idx) => { if (car.charged) html += carRow(car, idx, true); });
+    html += '</div>';
+  }
+  if (!toCharge.length && !charged.length) html = '<div style="text-align:center;padding:30px;color:var(--muted)">אין רכבים</div>';
+  document.getElementById('charging-task-body').innerHTML = html;
+}
+
+async function markCarCharged(docId, carIdx) {
+  if (!window._CONFIG_DONE) return;
+  try {
+    const { getDoc, updateDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const snap = await getDoc(_docRef('charging_tasks', docId));
+    if (!snap.exists()) return;
+    const data = snap.data();
+    const cars = data.carsJson ? JSON.parse(data.carsJson) : [];
+    if (!cars[carIdx]) return;
+    cars[carIdx].charged = true;
+    const allCharged = cars.every(c => c.charged);
+    await updateDoc(_docRef('charging_tasks', docId), {
+      carsJson: JSON.stringify(cars),
+      status: allCharged ? 'done' : 'active',
+    });
+    // re-render if modal still open
+    const newData = { ...data, carsJson: JSON.stringify(cars) };
+    renderChargingTaskModal(newData);
+    if (allCharged) { showToast('🎉 כל הרכבים הוטענו!'); }
+  } catch(e) { console.error('markCarCharged', e); showToast('⚠️ שגיאה'); }
+}
+
+window.convertToChargingTask = convertToChargingTask;
+window.openDriverChargingScreen = openDriverChargingScreen;
+window.openChargingTaskModal = openChargingTaskModal;
+window.markCarCharged = markCarCharged;
 
 /* ── Plate Scanner ── */
 let _plateScanBusy = false;
