@@ -3337,12 +3337,13 @@ function openDriverIntake(id) {
       getDoc(doc(window._db, 'intake_assignments', id)).then(snap => {
         if (!snap.exists()) return;
         const fd = snap.data().draft;
-        if (fd && (Object.keys(fd.checks||{}).length || Object.keys(fd.dashChecks||{}).length || Object.keys(fd.notes||{}).length || fd.km)) {
-          _applyIntakeDraftObj(fd);
-          if (fd.dashChecks?.['dash-other']) {
-            const ta = document.getElementById('cn-c-dashboard'); if (ta) ta.style.display = 'block';
-          }
+        if (!fd) return;
+        _applyIntakeDraftObj(fd);
+        if (fd.dashChecks?.['dash-other']) {
+          const ta = document.getElementById('cn-c-dashboard'); if (ta) ta.style.display = 'block';
         }
+        // cache to localStorage so re-opens don't lose the pre-fill
+        try { localStorage.setItem('intake_draft_' + id, JSON.stringify(fd)); } catch {}
       }).catch(()=>{});
     });
   }
@@ -8035,6 +8036,10 @@ window._tdLiveCiClick = _tdLiveCiClick;
 async function completeTdLivePanel() {
   if (!_tdLivePanelId) return;
   const data = _tdLivePanelData || {};
+  if (!data.checks && !data.draft?.checks) {
+    showToast('⚠️ אין נתוני נסיעה — המתן שהנהג ישלח את הטופס');
+    return;
+  }
   try {
     const { addDoc, collection, updateDoc, doc, getDocs, query, where } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
 
@@ -8051,6 +8056,10 @@ async function completeTdLivePanel() {
     tdDashLights.forEach(k => { const ik=tdDashMap[k]; if(ik) intakeDash[ik]=true; });
     if (tdDashOther) intakeNotes['c-dashboard'] = tdDashOther;
     const intakeDraft = { checks:intakeChecks, notes:intakeNotes, dashChecks:intakeDash, km:data.km||data.draft?.km||'' };
+    if (!Object.keys(intakeChecks).length && !intakeDraft.km) {
+      showToast('⚠️ לא נמצאו נתוני תשובות — בדוק שהנהג שלח את הטופס');
+      return;
+    }
 
     // check if intake already exists for this test drive
     const existingSnap = await getDocs(query(collection(window._db, 'intake_assignments'), where('fromTestDrive', '==', _tdLivePanelId)));
