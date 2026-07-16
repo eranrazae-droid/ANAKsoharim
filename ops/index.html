@@ -5263,24 +5263,13 @@ function _loadBatteryAssignments() {
       _batteryRows = displayRows;
       _batteryHeaders = headers;
       html += _batteryTableHTML(headers, displayRows, true, true);
-      html += `<div style="padding:12px 0"><button onclick="saveManagerBatteryEdits('${last.id}')" style="background:#22c55e;color:#fff;border:none;border-radius:12px;padding:10px 20px;font-family:Heebo,sans-serif;font-weight:800;font-size:14px;cursor:pointer">💾 שמור עריכות</button></div>`;
+      _batteryEditDocId = last.id;
     }
     wrap.innerHTML = html;
     document.getElementById('battery-submit-wrap').style.display = 'none';
   });
 }
 
-async function saveManagerBatteryEdits(docId) {
-  if (!window._CONFIG_DONE) return;
-  try {
-    const { updateDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-    await updateDoc(_docRef('battery_assignments', docId), {
-      progressJson: JSON.stringify(_batteryRows.map(r => ({ cells: r.cells, battery: r.battery || '', range: r.range || '', status: r.status || '' }))),
-    });
-    showToast('✅ נשמר');
-  } catch(e) { showToast('⚠️ שגיאה בשמירה'); }
-}
-window.saveManagerBatteryEdits = saveManagerBatteryEdits;
 
 function handleBatteryFile(input, fileIndex) {
   const file = input.files[0];
@@ -5422,10 +5411,23 @@ function renderBatteryTable() {
   document.getElementById('battery-table-wrap').innerHTML = _batteryTableHTML(_batteryHeaders, _batteryRows, false, true);
 }
 
+let _batteryEditDocId = '';
+let _batteryEditSaveTimer = null;
 function batteryInputChange(idx, field, val) {
   _batteryRows[idx][field] = val;
   const row = document.getElementById('batt-row-' + idx);
   if (row) row.style.background = val ? '#f0fff4' : '#fff';
+  if (!_batteryEditDocId) return;
+  clearTimeout(_batteryEditSaveTimer);
+  _batteryEditSaveTimer = setTimeout(async () => {
+    if (!window._CONFIG_DONE) return;
+    try {
+      const { updateDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+      await updateDoc(_docRef('battery_assignments', _batteryEditDocId), {
+        progressJson: JSON.stringify(_batteryRows.map(r => ({ cells: r.cells, battery: r.battery || '', range: r.range || '', status: r.status || '' }))),
+      });
+    } catch(e) {}
+  }, 1000);
 }
 
 async function clearBatteryTable() {
