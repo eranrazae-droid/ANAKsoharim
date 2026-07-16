@@ -629,13 +629,17 @@ display:none !important;
         <div class="container">
           <div class="section-head">
             <div>
-              <div class="eyebrow">hot deals</div>
-              <h2>רכבים מובילים עכשיו</h2>
-              <div class="muted">בחרו את הדיל שמתאים לכם - עם מחירון, מחיר אוטודילר והחזרים חודשיים ברורים.</div>
+              <div class="eyebrow">גלריית רכבים</div>
+              <h2>הרכבים שלנו</h2>
+              <div class="muted">גלריה אקראית מתוך המלאי — החליקו לצדדים לגלות עוד.</div>
             </div>
             <button class="line-btn" onclick="showPage('catalogPage')">לכל הרכבים</button>
           </div>
-          <div class="cards" id="homeCars"></div>
+          <div style="position:relative">
+            <button onclick="scrollHomeCarousel(-1)" aria-label="הקודם" style="position:absolute;top:50%;right:-6px;transform:translateY(-50%);z-index:5;background:#fff;border:1px solid var(--line);border-radius:50%;width:44px;height:44px;font-size:24px;font-weight:900;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.15)">‹</button>
+            <button onclick="scrollHomeCarousel(1)" aria-label="הבא" style="position:absolute;top:50%;left:-6px;transform:translateY(-50%);z-index:5;background:#fff;border:1px solid var(--line);border-radius:50%;width:44px;height:44px;font-size:24px;font-weight:900;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.15)">›</button>
+            <div id="homeCars" style="display:flex;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;padding:4px 2px 12px;scrollbar-width:none;-ms-overflow-style:none"></div>
+          </div>
         </div>
       </section>
 
@@ -1986,9 +1990,29 @@ display:none !important;
       selectGalleryImg(newIdx);
     }
 
+    function shuffleArr(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
+    function scrollHomeCarousel(dir){
+      const el=document.getElementById('homeCars'); if(!el) return;
+      // RTL: הבא = לגלול שמאלה (ערך שלילי), הקודם = ימינה (חיובי)
+      el.scrollBy({left: dir*-360, behavior:'smooth'});
+    }
+    let _homeAuto=null;
+    function startHomeCarousel(){
+      const el=document.getElementById('homeCars'); if(!el) return;
+      if(_homeAuto) clearInterval(_homeAuto);
+      _homeAuto=setInterval(function(){
+        const maxS=el.scrollWidth-el.clientWidth-10;
+        if(Math.abs(el.scrollLeft)>=maxS){ el.scrollTo({left:0,behavior:'smooth'}); }
+        else { el.scrollBy({left:-360,behavior:'smooth'}); }
+      },3500);
+      el.onmouseenter=function(){ if(_homeAuto) clearInterval(_homeAuto); };
+      el.onmouseleave=function(){ startHomeCarousel(); };
+    }
     function renderCars(){
       const enriched = cars.map(enrich);
-      document.getElementById('homeCars').innerHTML = enriched.slice(0,3).map(cardHtml).join('');
+      const home=document.getElementById('homeCars');
+      home.innerHTML = shuffleArr(enriched).slice(0,12).map(c=>'<div style="min-width:min(340px,82vw);max-width:340px;scroll-snap-align:start">'+cardHtml(c)+'</div>').join('');
+      startHomeCarousel();
       document.getElementById('catalogCars').innerHTML = enriched.map(cardHtml).join('');
       if(typeof populateBrands==='function') populateBrands();
       if(typeof populateModels==='function') populateModels();
