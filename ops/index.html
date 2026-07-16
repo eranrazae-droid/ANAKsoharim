@@ -3331,19 +3331,22 @@ function openDriverIntake(id) {
   const hasLocal = !!localStorage.getItem('intake_draft_' + id);
   if (hasLocal) restoreIntakeDraft(id);
   openModal('modal-driver-intake');
-  // if no local draft, fetch from Firestore after opening
-  if (!hasLocal && window._CONFIG_DONE) {
+  // always fetch from Firestore — if local draft has no checks yet, apply Firestore draft (handles TD→intake transfer)
+  if (window._CONFIG_DONE) {
     import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(({ getDoc, doc }) => {
       getDoc(doc(window._db, 'intake_assignments', id)).then(snap => {
         if (!snap.exists()) return;
         const fd = snap.data().draft;
         if (!fd) return;
-        _applyIntakeDraftObj(fd);
-        if (fd.dashChecks?.['dash-other']) {
-          const ta = document.getElementById('cn-c-dashboard'); if (ta) ta.style.display = 'block';
+        const localDraftStr = localStorage.getItem('intake_draft_' + id);
+        const localChecks = localDraftStr ? (JSON.parse(localDraftStr).checks || {}) : {};
+        if (Object.keys(localChecks).length === 0) {
+          _applyIntakeDraftObj(fd);
+          if (fd.dashChecks?.['dash-other']) {
+            const ta = document.getElementById('cn-c-dashboard'); if (ta) ta.style.display = 'block';
+          }
+          try { localStorage.setItem('intake_draft_' + id, JSON.stringify(fd)); } catch {}
         }
-        // cache to localStorage so re-opens don't lose the pre-fill
-        try { localStorage.setItem('intake_draft_' + id, JSON.stringify(fd)); } catch {}
       }).catch(()=>{});
     });
   }
@@ -8036,6 +8039,7 @@ window._tdLiveCiClick = _tdLiveCiClick;
 async function completeTdLivePanel() {
   if (!_tdLivePanelId) return;
   const data = _tdLivePanelData || {};
+  console.log('[TD→INTAKE] _tdLivePanelData:', JSON.stringify(data).slice(0,500));
   if (!data.checks && !data.draft?.checks) {
     showToast('⚠️ אין נתוני נסיעה — המתן שהנהג ישלח את הטופס');
     return;
@@ -8043,11 +8047,11 @@ async function completeTdLivePanel() {
   try {
     const { addDoc, collection, updateDoc, doc, getDocs, query, where } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
 
-    // build pre-filled intake draft from test drive answers
     const tdChecks = data.checks || data.draft?.checks || {};
     const tdNotes  = data.notes  || data.draft?.notes  || {};
     const tdDashLights  = data.dashLights  || data.draft?.dashLights  || [];
     const tdDashOther   = data.dashOtherText || data.draft?.dashOtherText || '';
+    console.log('[TD→INTAKE] tdChecks:', JSON.stringify(tdChecks));
     const tdToIntake = { 'td-oil':'c-oil','td-coolant':'c-coolant','td-glass':'c-glass-break','td-windows':'c-windows','td-mirrors':'c-mirrors','td-lights':'c-lights-break','td-lights-burnt':'c-bulbs','td-ac':'c-ac','td-ac-noise':'c-ac-noise','td-dashboard':'c-dashboard','td-drive':'c-drive' };
     const tdDashMap  = { 'td-dash-engine':'dash-check-engine','td-dash-tire':'dash-tire-pressure','td-dash-service':'dash-service','td-dash-collision':'dash-collision','td-dash-fuel':'dash-fuel','td-dash-istop':'dash-istop','td-dash-other':'dash-other' };
     const intakeChecks = {}, intakeNotes = {}, intakeDash = {};
@@ -8056,17 +8060,18 @@ async function completeTdLivePanel() {
     tdDashLights.forEach(k => { const ik=tdDashMap[k]; if(ik) intakeDash[ik]=true; });
     if (tdDashOther) intakeNotes['c-dashboard'] = tdDashOther;
     const intakeDraft = { checks:intakeChecks, notes:intakeNotes, dashChecks:intakeDash, km:data.km||data.draft?.km||'' };
+    console.log('[TD→INTAKE] intakeDraft:', JSON.stringify(intakeDraft));
     if (!Object.keys(intakeChecks).length && !intakeDraft.km) {
       showToast('⚠️ לא נמצאו נתוני תשובות — בדוק שהנהג שלח את הטופס');
       return;
     }
 
-    // check if intake already exists for this test drive
     const existingSnap = await getDocs(query(collection(window._db, 'intake_assignments'), where('fromTestDrive', '==', _tdLivePanelId)));
     if (!existingSnap.empty) {
-      // update existing intake with the draft (was created empty before fix)
+      console.log('[TD→INTAKE] updating existing intake', existingSnap.docs[0].id);
       await updateDoc(doc(window._db, 'intake_assignments', existingSnap.docs[0].id), { draft: intakeDraft });
     } else {
+      console.log('[TD→INTAKE] creating new intake');
       await addDoc(collection(window._db, 'intake_assignments'), {
         plate: data.plate || '',
         brand: data.maker || '',
@@ -8083,9 +8088,9 @@ async function completeTdLivePanel() {
         draft: intakeDraft,
       });
     }
-    // always mark test drive as transferred so it stops appearing as pending
     await updateDoc(doc(window._db, 'test_drives', _tdLivePanelId), { status: 'transferred' });
-  } catch(e) { console.warn('intake create', e); }
+    console.log('[TD→INTAKE] done ✅');
+  } catch(e) { console.error('[TD→INTAKE] ERROR:', e); }
   if (_tdLivePanelUnsub) { _tdLivePanelUnsub(); _tdLivePanelUnsub = null; }
   _tdLivePanelId = null;
   _tdLivePanelData = null;
