@@ -5245,18 +5245,19 @@ function mergeBatteryFiles() {
   const f2 = _batteryParsedFiles[1];
   if (!f1 && !f2) { showToast('⚠️ נא להעלות לפחות קובץ אחד'); return; }
   _batteryHeaders = (f1 || f2).headers;
-  const statusIdx = _batteryHeaders.findIndex(h => /סטטוס|status/i.test(h));
   const ALLOWED_STATUSES = ['מרגש לצלם לפרסם', 'מקדמה'];
+  const getRowStatus = r => {
+    for (const cell of r) {
+      const v = String(cell || '').trim();
+      if (ALLOWED_STATUSES.includes(v)) return v;
+    }
+    return null;
+  };
   const filterAndMap = rows => {
-    const filtered = statusIdx >= 0
-      ? rows.filter(r => ALLOWED_STATUSES.some(s => String(r[statusIdx] || '').trim() === s))
-      : rows;
-    return filtered.map(r => ({
-      cells: r,
-      battery: '',
-      range: '',
-      status: statusIdx >= 0 ? String(r[statusIdx] || '').trim() : '',
-    }));
+    return rows
+      .map(r => ({ r, status: getRowStatus(r) }))
+      .filter(({ status }) => status !== null)
+      .map(({ r, status }) => ({ cells: r, battery: '', range: '', status }));
   };
   const rows1 = f1 ? filterAndMap(f1.dataRows) : [];
   const rows2 = f2 ? filterAndMap(f2.dataRows) : [];
