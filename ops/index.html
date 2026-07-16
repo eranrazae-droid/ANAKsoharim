@@ -5262,18 +5262,12 @@ function mergeBatteryFiles() {
     const colIdxs = WANTED.map(w => fd.headers.findIndex(h => w.pat.test(h)));
     const statusColPos = WANTED.findIndex(w => w.label === 'סטטוס הרכב');
     const statusIdx = colIdxs[statusColPos];
-    return fd.dataRows
-      .filter(r => {
-        if (statusIdx < 0) return true; // no status col → keep all
-        const v = String(r[statusIdx] || '').trim();
-        return ALLOWED_STATUSES.some(s => v.includes(s.slice(0, 4)));
-      })
-      .map(r => {
-        const cells = colIdxs.map(ci => ci >= 0 ? String(r[ci] ?? '').trim() : '');
-        const statusVal = statusIdx >= 0 ? String(r[statusIdx] || '').trim() : '';
-        const status = ALLOWED_STATUSES.find(s => statusVal.includes(s.slice(0, 4))) || statusVal;
-        return { cells, battery: '', range: '', status };
-      });
+    return fd.dataRows.map(r => {
+      const cells = colIdxs.map(ci => ci >= 0 ? String(r[ci] ?? '').trim() : '');
+      const statusVal = statusIdx >= 0 ? String(r[statusIdx] || '').trim() : '';
+      const status = ALLOWED_STATUSES.find(s => statusVal === s) || statusVal;
+      return { cells, battery: '', range: '', status };
+    });
   };
 
   // determine display headers from first available file
@@ -5284,7 +5278,7 @@ function mergeBatteryFiles() {
 
   _batteryRows = [...processFile(f1), ...processFile(f2)];
 
-  if (!_batteryRows.length) { showToast('לא נמצאו שורות בסטטוסים הרלוונטיים'); return; }
+  if (!_batteryRows.length) { showToast('לא נמצאו שורות בקובץ'); return; }
   renderBatteryTable();
   document.getElementById('batt-convert-wrap').style.display = 'none';
   document.getElementById('battery-submit-wrap').style.display = '';
