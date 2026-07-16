@@ -1146,6 +1146,69 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
+<!-- ====== SCREEN: BATTERY CHECK (MANAGER) ====== -->
+<div id="screen-battery" class="screen">
+  <div class="app-header">
+    <button class="back-btn" onclick="goHome()">→</button>
+    <div class="logo">🔋 בדיקת סוללות</div>
+    <div class="user-badge" id="battery-user-badge" onclick="logout()"></div>
+  </div>
+  <div style="padding:16px 16px 100px">
+    <div id="battery-status-banner" style="display:none;border-radius:14px;padding:14px 16px;margin-bottom:14px;font-size:14px;font-weight:700"></div>
+    <div style="display:flex;gap:10px;align-items:stretch;margin-bottom:16px">
+      <div id="battery-upload-zone" style="flex:1;border:2px dashed #22c55e;border-radius:16px;padding:28px 20px;text-align:center;background:#f0fff4;cursor:pointer" onclick="document.getElementById('battery-file-input').click()">
+        <div style="font-size:36px;margin-bottom:8px">🔋</div>
+        <div style="font-weight:700;font-size:16px;color:var(--dark)">לחץ לצרף קובץ אקסל</div>
+        <div style="font-size:13px;color:var(--muted);margin-top:4px">קובץ .xlsx עם פרטי הרכבים</div>
+        <input type="file" id="battery-file-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleBatteryFile(this)">
+      </div>
+      <button onclick="clearBatteryTable()" style="flex-shrink:0;width:56px;background:#fff0f0;border:2px solid #ef4444;border-radius:16px;font-size:22px;cursor:pointer;color:#ef4444" title="נקה טבלה">🗑️</button>
+    </div>
+    <div id="battery-table-wrap" style="overflow-x:auto;-webkit-overflow-scrolling:touch"></div>
+    <div id="battery-submit-wrap" style="display:none;position:fixed;bottom:0;right:0;left:0;padding:12px 16px;background:#fff;border-top:1px solid var(--border);z-index:50">
+      <div style="display:flex;gap:10px;align-items:center">
+        <select id="battery-driver-select" style="flex:1;background:#f0fff4;border:2px solid var(--border);border-radius:12px;padding:12px 10px;font-family:Heebo,sans-serif;font-size:15px;font-weight:700;color:var(--dark)">
+          <option value="">בחר נהג...</option>
+          <option value="עופר">עופר</option>
+          <option value="גיל">גיל</option>
+          <option value="איתי">איתי</option>
+        </select>
+        <button onclick="submitBatteryAssignment()" style="flex:2;background:#22c55e;color:#fff;border:none;border-radius:14px;padding:14px;font-family:Heebo,sans-serif;font-weight:900;font-size:16px;cursor:pointer">📤 שלח לנהג לבדיקה</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ====== SCREEN: BATTERY CHECK (DRIVER) ====== -->
+<div id="screen-driver-battery" class="screen">
+  <div class="app-header">
+    <button class="back-btn" onclick="goHome()">→</button>
+    <div class="logo">🔋 בדיקות סוללות שלי</div>
+    <div class="user-badge" id="dbattery-user-badge" onclick="logout()"></div>
+  </div>
+  <div style="padding:16px 16px 100px" id="dbattery-list">
+    <div class="loading"><div class="spinner"></div> טוען...</div>
+  </div>
+</div>
+
+<!-- ====== MODAL: DRIVER BATTERY FILL ====== -->
+<div class="modal-overlay" id="modal-driver-battery">
+  <div class="modal-box" style="max-height:90vh;display:flex;flex-direction:column;overflow:hidden">
+    <div class="modal-title" style="position:sticky;top:0;z-index:10;background:#fff;flex-shrink:0">🔋 בדיקת רמות סוללה
+      <button class="modal-close" onclick="closeModal('modal-driver-battery')">✕</button>
+    </div>
+    <div style="overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch;padding-bottom:8px">
+      <input type="hidden" id="dbattery-id">
+      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch" id="dbattery-rows-container"></div>
+      <div style="margin-top:14px;padding:0 2px">
+        <label style="font-size:13px;font-weight:700;color:var(--dark);display:block;margin-bottom:6px">📝 הערות</label>
+        <textarea id="dbattery-notes" placeholder="הערות חופשיות..." rows="3" style="width:100%;border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;font-family:Heebo,sans-serif;font-size:14px;resize:vertical;outline:none;box-sizing:border-box"></textarea>
+      </div>
+      <button class="btn-submit" onclick="submitDriverBattery()" style="margin-top:14px">✅ שלח בדיקה</button>
+    </div>
+  </div>
+</div>
+
 <!-- ====== SCREEN: PICKUP CARS ====== -->
 <div id="screen-pickup" class="screen">
   <div class="app-header">
@@ -1694,7 +1757,7 @@ function enterApp() {
   renderHome();
   const savedScreen = sessionStorage.getItem('anak_screen');
   if (savedScreen && savedScreen !== 'home' && savedScreen !== 'login') {
-    const screenFns = { vehicles: openVehiclesScreen, tasks: openTasksScreen, parts: openPartsScreen, inventory: openInventoryScreen, pits: openPitsScreen, yard: openYardScreen, 'driver-inventory': openDriverInventoryScreen, refresh: openRefreshScreen };
+    const screenFns = { vehicles: openVehiclesScreen, tasks: openTasksScreen, parts: openPartsScreen, inventory: openInventoryScreen, pits: openPitsScreen, yard: openYardScreen, 'driver-inventory': openDriverInventoryScreen, battery: openBatteryScreen, 'driver-battery': openDriverBatteryScreen, refresh: openRefreshScreen };
     if (screenFns[savedScreen]) { screenFns[savedScreen](); }
     else { showScreen('home'); }
   } else {
@@ -1822,6 +1885,7 @@ function renderHome() {
         { icon: '🚗', title: 'קליטת רכב', sub: 'רכבים במגרש', screen: 'vehicles' },
         { icon: '🔄', title: 'רענון רכב', sub: 'ניהול רענוני רכבים', screen: '_refresh' },
         { icon: '📦', title: 'בדיקת מלאי', sub: 'סימון רכבים במגרש', screen: 'inventory' },
+        { icon: '🔋', title: 'בדיקת סוללות', sub: 'אחוזי סוללה וטווח נסיעה', screen: 'battery' },
         { icon: '🕳️', title: 'בורות', sub: 'ניהול בדיקות בבורות', screen: 'pits' },
         { icon: '🅿️', title: 'סידור מגרש', sub: 'טבלת חניות', screen: 'yard' },
         { icon: '🚙', title: 'מכוניות לאיסוף', sub: 'ניהול רכבים לאיסוף', screen: 'pickup' },
@@ -1830,6 +1894,7 @@ function renderHome() {
         { icon: '📋', title: 'המשימות שלי', sub: 'משימות שהוקצו לך', screen: 'tasks' },
         { icon: '🚗', title: 'קליטות רכב שלי', sub: 'קליטות ממתינות לביצוע', screen: 'vehicles' },
         { icon: '📦', title: 'בדיקות מלאי שלי', sub: 'רשימות מלאי לסימון', screen: 'driver-inventory' },
+        { icon: '🔋', title: 'בדיקות סוללות שלי', sub: 'מילוי אחוזי סוללה וטווח', screen: 'driver-battery' },
         { icon: '🅿️', title: 'סידור מגרש', sub: 'צפייה בטבלת חניות', screen: 'yard' },
         { icon: '🕳️', title: 'בורות', sub: 'בדיקות ממתינות לביצוע', screen: 'pits' },
         { icon: '🔄', title: 'רענון רכב', sub: 'ניהול רענוני רכבים', screen: '_refresh' },
@@ -1883,6 +1948,8 @@ function goToScreen(name) {
   else if (name === 'parts') openPartsScreen();
   else if (name === 'yard') openYardScreen();
   else if (name === 'inventory') openInventoryScreen();
+  else if (name === 'battery') openBatteryScreen();
+  else if (name === 'driver-battery') openDriverBatteryScreen();
   else if (name === 'pits') openPitsScreen();
   else if (name === 'driver-inventory') openDriverInventoryScreen();
   else if (name === '_notify') openNotifySettings();
@@ -1978,6 +2045,9 @@ function loadDriverBadges() {
     });
     _onSnap(_query(_colRef('inventory_assignments'), _where('assignedTo','==',name)), snap => {
       _setCardBadge('driver-inventory', snap.docs.filter(d => d.data().status === 'pending').length);
+    });
+    _onSnap(_query(_colRef('battery_assignments'), _where('assignedTo','==',name)), snap => {
+      _setCardBadge('driver-battery', snap.docs.filter(d => d.data().status === 'pending').length);
     });
     _onSnap(_docRef('yard','current'), snap => {
       const status = snap.exists() ? snap.data().status : null;
@@ -2083,6 +2153,9 @@ function loadManagerBadges() {
     });
     _onSnap(_query(_colRef('inventory_assignments'), _where('status','==','done')), snap => {
       _setCardBadge('inventory', snap.size);
+    });
+    _onSnap(_query(_colRef('battery_assignments'), _where('status','==','done')), snap => {
+      _setCardBadge('battery', snap.size);
     });
     _onSnap(_query(_colRef('refreshes'), _where('status','==','pending')), snap => {
       _setCardBadge('_refresh', snap.size);
@@ -5009,6 +5082,270 @@ window.openDriverInvModal = openDriverInvModal;
 window.dinvClick = dinvClick;
 window.dinvMarkAll = dinvMarkAll;
 window.submitDriverInv = submitDriverInv;
+
+/* ══════════════════════════════════════════
+   🔋 BATTERY CHECK
+══════════════════════════════════════════ */
+let _batteryHeaders = [];
+let _batteryRows = [];  // [{cells:[...], battery:'', range:''}]
+
+function openBatteryScreen() {
+  showScreen('battery');
+  document.getElementById('battery-user-badge').textContent = currentUser.name;
+  _batteryHeaders = [];
+  _batteryRows = [];
+  document.getElementById('battery-table-wrap').innerHTML = '';
+  document.getElementById('battery-submit-wrap').style.display = 'none';
+}
+
+function handleBatteryFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (typeof XLSX === 'undefined') {
+    showToast('⏳ טוען ספריית Excel, נסה שוב...');
+    input.value = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+      const nonEmpty = rows.map(r => r.map(c => String(c).trim())).filter(r => r.some(c => c !== ''));
+      if (!nonEmpty.length) { showToast('הקובץ ריק'); return; }
+      const firstRow = nonEmpty[0];
+      const looksLikePlate = v => /^\d{5,9}$/.test(v.replace(/[-\s]/g,''));
+      if (firstRow.some(looksLikePlate)) {
+        _batteryHeaders = [];
+        _batteryRows = nonEmpty.map(r => ({ cells: r, battery: '', range: '' }));
+      } else {
+        _batteryHeaders = firstRow;
+        _batteryRows = nonEmpty.slice(1).map(r => ({ cells: r, battery: '', range: '' }));
+      }
+      if (!_batteryRows.length) { showToast('לא נמצאו שורות בקובץ'); return; }
+      renderBatteryTable();
+      document.getElementById('battery-submit-wrap').style.display = '';
+    } catch(err) {
+      console.error('handleBatteryFile error', err);
+      showToast('שגיאה בקריאת הקובץ: ' + (err.message || err));
+    }
+  };
+  reader.readAsArrayBuffer(file);
+  input.value = '';
+}
+
+function renderBatteryTable() {
+  const headers = _batteryHeaders;
+  const colCount = headers.length || (_batteryRows[0]?.cells.length || 1);
+  // columns: car details (from right in RTL) then battery% then range (leftmost)
+  // In RTL grid: first columns = rightmost visually. Last two = leftmost visually.
+  // So car detail columns come FIRST, then אחוזי סוללה, then טווח נסיעה
+  const colWidths = headers.length
+    ? [...headers.map(h => {
+        if (h.includes('דגם') || h.includes('צבע') || h.includes('יצרן')) return 'minmax(80px,1.4fr)';
+        if (h.includes('מספר') || h.includes('לוחית')) return 'minmax(75px,1.2fr)';
+        return 'minmax(60px,1fr)';
+      }), '72px', '80px']
+    : [...Array(colCount).fill('minmax(60px,1fr)'), '72px', '80px'];
+  const colW = colWidths.join(' ');
+
+  let html = `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch">`;
+  if (headers.length) {
+    html += `<div style="display:grid;grid-template-columns:${colW};gap:3px;background:var(--dark);color:#fff;border-radius:10px 10px 0 0;padding:6px 8px;font-size:11px;font-weight:700;direction:rtl;min-width:max-content">
+      ${headers.map(h => `<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(h)}</div>`).join('')}
+      <div style="text-align:center;color:#86efac">אחוזי<br>סוללה</div>
+      <div style="text-align:center;color:#86efac">טווח<br>נסיעה</div>
+    </div>`;
+  }
+  html += _batteryRows.map((row, i) => {
+    const bg = row.battery ? '#f0fff4' : '#fff';
+    return `<div id="batt-row-${i}" style="display:grid;grid-template-columns:${colW};gap:3px;align-items:center;background:${bg};border:1.5px solid var(--border);border-top:none;padding:4px 6px;direction:rtl;min-width:max-content">
+      ${row.cells.map(c => `<div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:2px 0">${esc(c)}</div>`).join('')}
+      <div><input type="number" min="0" max="100" value="${esc(row.battery)}" placeholder="%" oninput="batteryInputChange(${i},'battery',this.value)" style="width:100%;border:1.5px solid #22c55e;border-radius:7px;padding:5px 4px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;background:#f0fff4"></div>
+      <div><input type="text" value="${esc(row.range)}" placeholder="קמ" oninput="batteryInputChange(${i},'range',this.value)" style="width:100%;border:1.5px solid #22c55e;border-radius:7px;padding:5px 4px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;background:#f0fff4"></div>
+    </div>`;
+  }).join('');
+  html += '</div>';
+  document.getElementById('battery-table-wrap').innerHTML = html;
+}
+
+function batteryInputChange(idx, field, val) {
+  _batteryRows[idx][field] = val;
+  const row = document.getElementById('batt-row-' + idx);
+  if (row) row.style.background = val ? '#f0fff4' : '#fff';
+}
+
+function clearBatteryTable() {
+  _batteryHeaders = [];
+  _batteryRows = [];
+  document.getElementById('battery-table-wrap').innerHTML = '';
+  document.getElementById('battery-submit-wrap').style.display = 'none';
+}
+
+async function submitBatteryAssignment() {
+  if (!_batteryRows.length) { showToast('⚠️ נא להעלות קובץ'); return; }
+  const driver = document.getElementById('battery-driver-select').value;
+  if (!driver) { showToast('⚠️ נא לבחור נהג'); return; }
+  if (!window._CONFIG_DONE) { showToast('Firebase לא מחובר'); return; }
+  try {
+    const { addDoc, collection } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    await addDoc(collection(window._db, 'battery_assignments'), {
+      assignedTo: driver,
+      sentBy: currentUser.name,
+      status: 'pending',
+      headers: _batteryHeaders,
+      rowsJson: JSON.stringify(_batteryRows.map(r => r.cells)),
+      createdAt: _serverTs(),
+    });
+    _notifyDriver(driver, `🔋 נשלחה אליך בדיקת סוללות חדשה. כנס לאפליקציה ענק הרכבים.`);
+    showToast('✅ נשלח לנהג ' + driver);
+    clearBatteryTable();
+    document.getElementById('battery-driver-select').value = '';
+  } catch(e) {
+    console.error('submitBatteryAssignment', e);
+    showToast('⚠️ שגיאה בשמירה');
+  }
+}
+
+/* ── Driver battery check ── */
+let _dbattUnsub = null;
+let _dbattDocId = null;
+let _dbattHeaders = [];
+let _dbattRows = [];  // [{cells, battery, range}]
+
+function openDriverBatteryScreen() {
+  showScreen('driver-battery');
+  document.getElementById('dbattery-user-badge').textContent = currentUser.name;
+  if (_dbattUnsub) _dbattUnsub();
+  const container = document.getElementById('dbattery-list');
+  container.innerHTML = '<div class="loading"><div class="spinner"></div> טוען...</div>';
+  _dbattUnsub = _onSnap(_colRef('battery_assignments'), snap => {
+    const docs = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(d => d.assignedTo === currentUser.name && d.status === 'pending');
+    if (!docs.length) {
+      container.innerHTML = '<div class="empty-state" style="padding:40px 20px;text-align:center;color:var(--muted)">אין בדיקות סוללות ממתינות 🔋</div>';
+      return;
+    }
+    container.innerHTML = docs.map(d => {
+      const ts = d.createdAt?.toDate ? d.createdAt.toDate().toLocaleDateString('he-IL') : '';
+      const rowCount = d.rowsJson ? JSON.parse(d.rowsJson).length : (d.rows?.length || 0);
+      return `<div class="vehicle-card" onclick="openDriverBatteryModal('${d.id}')" style="cursor:pointer;margin-bottom:12px">
+        <div class="vehicle-plate" style="font-size:16px">🔋 בדיקת סוללות</div>
+        <div class="vehicle-info">נשלח ע"י ${esc(d.sentBy||'')} · ${ts}</div>
+        <div class="vehicle-meta"><span class="cond-badge" style="background:#dcfce7;color:#166534">${rowCount} רכבים לבדיקה</span></div>
+      </div>`;
+    }).join('');
+  });
+}
+
+function openDriverBatteryModal(docId) {
+  _onSnap(_docRef('battery_assignments', docId), snap => {
+    if (!snap.exists()) return;
+    const data = snap.data();
+    _dbattDocId = docId;
+    _dbattHeaders = data.headers || [];
+    const parsedRows = data.rowsJson ? JSON.parse(data.rowsJson) : (data.rows || []);
+    const saved = localStorage.getItem('_dbattProgress_' + docId);
+    const savedData = saved ? JSON.parse(saved) : null;
+    _dbattRows = parsedRows.map((cells, i) => ({
+      cells,
+      battery: savedData?.[i]?.battery || '',
+      range:   savedData?.[i]?.range   || '',
+    }));
+    document.getElementById('dbattery-id').value = docId;
+    document.getElementById('dbattery-notes').value = '';
+    renderDriverBatteryModal();
+    openModal('modal-driver-battery');
+  });
+}
+
+function renderDriverBatteryModal() {
+  const headers = _dbattHeaders;
+  const colCount = headers.length || (_dbattRows[0]?.cells.length || 1);
+  const colWidths = headers.length
+    ? [...headers.map(h => {
+        if (h.includes('דגם') || h.includes('צבע') || h.includes('יצרן')) return 'minmax(80px,1.4fr)';
+        if (h.includes('מספר') || h.includes('לוחית')) return 'minmax(75px,1.2fr)';
+        return 'minmax(60px,1fr)';
+      }), '72px', '80px']
+    : [...Array(colCount).fill('minmax(60px,1fr)'), '72px', '80px'];
+  const colW = colWidths.join(' ');
+
+  let html = `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch">`;
+  if (headers.length) {
+    html += `<div style="display:grid;grid-template-columns:${colW};gap:3px;background:var(--dark);color:#fff;border-radius:10px 10px 0 0;padding:6px 8px;font-size:11px;font-weight:700;direction:rtl;min-width:max-content">
+      ${headers.map(h => `<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(h)}</div>`).join('')}
+      <div style="text-align:center;color:#86efac">אחוזי<br>סוללה</div>
+      <div style="text-align:center;color:#86efac">טווח<br>נסיעה</div>
+    </div>`;
+  }
+  html += _dbattRows.map((row, i) => {
+    const filled = row.battery !== '' || row.range !== '';
+    const bg = filled ? '#f0fff4' : '#fff';
+    return `<div id="dbatt-row-${i}" style="display:grid;grid-template-columns:${colW};gap:3px;align-items:center;background:${bg};border:1.5px solid ${filled?'#22c55e':'var(--border)'};border-top:none;padding:4px 6px;direction:rtl;min-width:max-content">
+      ${row.cells.map(c => `<div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:2px 0">${esc(c)}</div>`).join('')}
+      <div><input type="number" min="0" max="100" value="${esc(row.battery)}" placeholder="%" oninput="dbattInput(${i},'battery',this.value)" style="width:100%;border:1.5px solid #22c55e;border-radius:7px;padding:6px 4px;font-family:Heebo,sans-serif;font-size:14px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;background:#f0fff4"></div>
+      <div><input type="text" value="${esc(row.range)}" placeholder="קמ" oninput="dbattInput(${i},'range',this.value)" style="width:100%;border:1.5px solid #22c55e;border-radius:7px;padding:6px 4px;font-family:Heebo,sans-serif;font-size:14px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;background:#f0fff4"></div>
+    </div>`;
+  }).join('');
+  html += '</div>';
+  document.getElementById('dbattery-rows-container').innerHTML = html;
+}
+
+function dbattInput(idx, field, val) {
+  _dbattRows[idx][field] = val;
+  const row = document.getElementById('dbatt-row-' + idx);
+  const filled = _dbattRows[idx].battery !== '' || _dbattRows[idx].range !== '';
+  if (row) {
+    row.style.background = filled ? '#f0fff4' : '#fff';
+    row.style.border = `1.5px solid ${filled ? '#22c55e' : 'var(--border)'}`;
+    row.style.borderTop = 'none';
+  }
+  try {
+    localStorage.setItem('_dbattProgress_' + _dbattDocId, JSON.stringify(_dbattRows.map(r => ({ battery: r.battery, range: r.range }))));
+  } catch(e) {}
+}
+
+async function submitDriverBattery() {
+  const missing = _dbattRows.filter(r => r.battery === '' && r.range === '');
+  if (missing.length) {
+    showToast(`נותרו ${missing.length} רכבים ללא נתונים`);
+    const idx = _dbattRows.indexOf(missing[0]);
+    document.getElementById(`dbatt-row-${idx}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+  if (!window._CONFIG_DONE) { showToast('Firebase לא מחובר'); return; }
+  if (!_dbattDocId) { showToast('שגיאה: אין מסמך פתוח'); return; }
+  try {
+    const { updateDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    await updateDoc(_docRef('battery_assignments', _dbattDocId), {
+      status: 'done',
+      completedBy: currentUser.name,
+      completedAt: _serverTs(),
+      resultsJson: JSON.stringify(_dbattRows.map(r => ({ cells: r.cells, battery: r.battery, range: r.range }))),
+      notes: document.getElementById('dbattery-notes').value.trim(),
+    });
+    localStorage.removeItem('_dbattProgress_' + _dbattDocId);
+    _dbattDocId = null;
+    closeModal('modal-driver-battery');
+    showToast('✅ בדיקת הסוללות נשלחה!');
+  } catch(e) {
+    console.error('submitDriverBattery', e);
+    showToast('⚠️ שגיאה בשמירה');
+  }
+}
+
+window.openBatteryScreen = openBatteryScreen;
+window.handleBatteryFile = handleBatteryFile;
+window.batteryInputChange = batteryInputChange;
+window.clearBatteryTable = clearBatteryTable;
+window.submitBatteryAssignment = submitBatteryAssignment;
+window.openDriverBatteryScreen = openDriverBatteryScreen;
+window.openDriverBatteryModal = openDriverBatteryModal;
+window.dbattInput = dbattInput;
+window.submitDriverBattery = submitDriverBattery;
 
 /* ── Plate Scanner ── */
 let _plateScanBusy = false;
