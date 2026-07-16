@@ -1154,18 +1154,35 @@ if ('serviceWorker' in navigator) {
     <div class="logo">🔋 בדיקת טעינה</div>
     <div class="user-badge" id="battery-user-badge" onclick="logout()"></div>
   </div>
-  <div style="padding:16px 16px 100px">
+  <div style="padding:16px 16px 120px">
     <div id="battery-status-banner" style="display:none;border-radius:14px;padding:14px 16px;margin-bottom:14px;font-size:14px;font-weight:700"></div>
-    <div style="display:flex;gap:10px;align-items:stretch;margin-bottom:16px">
-      <div id="battery-upload-zone" style="flex:1;border:2px dashed #22c55e;border-radius:16px;padding:28px 20px;text-align:center;background:#f0fff4;cursor:pointer" onclick="document.getElementById('battery-file-input').click()">
-        <div style="font-size:36px;margin-bottom:8px">🔋</div>
-        <div style="font-weight:700;font-size:16px;color:var(--dark)">לחץ לצרף קובץ אקסל</div>
-        <div style="font-size:13px;color:var(--muted);margin-top:4px">קובץ .xlsx עם פרטי הרכבים</div>
-        <input type="file" id="battery-file-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleBatteryFile(this)">
+    <!-- File upload area -->
+    <div style="display:flex;gap:10px;align-items:stretch;margin-bottom:12px">
+      <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+        <!-- File 1 -->
+        <div id="batt-file1-zone" style="border:2px dashed #22c55e;border-radius:14px;padding:16px;text-align:center;background:#f0fff4;cursor:pointer" onclick="document.getElementById('battery-file-input-1').click()">
+          <div style="font-size:24px;margin-bottom:4px">📂</div>
+          <div style="font-weight:700;font-size:14px;color:var(--dark)">קובץ ראשון</div>
+          <div id="batt-file1-name" style="font-size:12px;color:var(--muted);margin-top:2px">לחץ לבחירה</div>
+          <input type="file" id="battery-file-input-1" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleBatteryFile(this,0)">
+        </div>
+        <!-- File 2 -->
+        <div id="batt-file2-zone" style="border:2px dashed #a3e635;border-radius:14px;padding:16px;text-align:center;background:#f7fee7;cursor:pointer" onclick="document.getElementById('battery-file-input-2').click()">
+          <div style="font-size:24px;margin-bottom:4px">📂</div>
+          <div style="font-weight:700;font-size:14px;color:var(--dark)">קובץ שני (אופציונלי)</div>
+          <div id="batt-file2-name" style="font-size:12px;color:var(--muted);margin-top:2px">לחץ לבחירה</div>
+          <input type="file" id="battery-file-input-2" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleBatteryFile(this,1)">
+        </div>
       </div>
-      <button onclick="clearBatteryTable()" style="flex-shrink:0;width:56px;background:#fff0f0;border:2px solid #ef4444;border-radius:16px;font-size:22px;cursor:pointer;color:#ef4444" title="מחק">🗑️</button>
+      <button onclick="clearBatteryTable()" style="flex-shrink:0;width:52px;background:#fff0f0;border:2px solid #ef4444;border-radius:14px;font-size:22px;cursor:pointer;color:#ef4444" title="מחק">🗑️</button>
     </div>
+    <!-- Convert button — appears after at least 1 file loaded -->
+    <div id="batt-convert-wrap" style="display:none;margin-bottom:16px">
+      <button onclick="mergeBatteryFiles()" style="width:100%;background:#7c3aed;color:#fff;border:none;border-radius:14px;padding:14px;font-family:Heebo,sans-serif;font-weight:900;font-size:16px;cursor:pointer">📊 המר לטבלה</button>
+    </div>
+    <!-- Table preview -->
     <div id="battery-table-wrap"></div>
+    <!-- Send bar -->
     <div id="battery-submit-wrap" style="display:none;position:fixed;bottom:0;right:0;left:0;padding:12px 16px;background:#fff;border-top:1px solid var(--border);z-index:50">
       <div style="display:flex;gap:10px;align-items:center">
         <select id="battery-driver-select" style="flex:1;background:#f0fff4;border:2px solid var(--border);border-radius:12px;padding:12px 10px;font-family:Heebo,sans-serif;font-size:15px;font-weight:700;color:var(--dark)">
@@ -5117,16 +5134,21 @@ let _batteryRows = [];  // [{cells:[...], battery:'', range:''}]
 let _batteryUnsub = null;
 let _batteryMode = 'live'; // 'live'=Firestore | 'preview'=new upload
 let _batteryDocId = '';
+let _batteryParsedFiles = [null, null];
 
 function openBatteryScreen() {
   showScreen('battery');
   document.getElementById('battery-user-badge').textContent = currentUser.name;
   _batteryHeaders = [];
   _batteryRows = [];
+  _batteryParsedFiles = [null, null];
   _batteryMode = 'live';
   _batteryDocId = '';
   document.getElementById('battery-table-wrap').innerHTML = '';
   document.getElementById('battery-submit-wrap').style.display = 'none';
+  document.getElementById('batt-convert-wrap').style.display = 'none';
+  document.getElementById('batt-file1-name').textContent = 'לחץ לבחירה';
+  document.getElementById('batt-file2-name').textContent = 'לחץ לבחירה';
   _loadBatteryAssignments();
 }
 
@@ -5172,7 +5194,7 @@ function _loadBatteryAssignments() {
   });
 }
 
-function handleBatteryFile(input) {
+function handleBatteryFile(input, fileIndex) {
   const file = input.files[0];
   if (!file) return;
   if (typeof XLSX === 'undefined') {
@@ -5190,17 +5212,22 @@ function handleBatteryFile(input) {
       if (!nonEmpty.length) { showToast('הקובץ ריק'); return; }
       const firstRow = nonEmpty[0];
       const looksLikePlate = v => /^\d{5,9}$/.test(v.replace(/[-\s]/g,''));
+      let headers, dataRows;
       if (firstRow.some(looksLikePlate)) {
-        _batteryHeaders = [];
-        _batteryRows = nonEmpty.map(r => ({ cells: r, battery: '', range: '' }));
+        headers = [];
+        dataRows = nonEmpty;
       } else {
-        _batteryHeaders = firstRow;
-        _batteryRows = nonEmpty.slice(1).map(r => ({ cells: r, battery: '', range: '' }));
+        headers = firstRow;
+        dataRows = nonEmpty.slice(1);
       }
-      if (!_batteryRows.length) { showToast('לא נמצאו שורות בקובץ'); return; }
+      if (!dataRows.length) { showToast('לא נמצאו שורות בקובץ'); return; }
+      _batteryParsedFiles[fileIndex] = { headers, dataRows, name: file.name };
+      const nameEl = document.getElementById(fileIndex === 0 ? 'batt-file1-name' : 'batt-file2-name');
+      if (nameEl) nameEl.textContent = `✅ ${file.name} (${dataRows.length} שורות)`;
+      if (_batteryParsedFiles[0] || _batteryParsedFiles[1]) {
+        document.getElementById('batt-convert-wrap').style.display = '';
+      }
       _batteryMode = 'preview';
-      renderBatteryTable();
-      document.getElementById('battery-submit-wrap').style.display = '';
     } catch(err) {
       console.error('handleBatteryFile error', err);
       showToast('שגיאה בקריאת הקובץ: ' + (err.message || err));
@@ -5208,6 +5235,20 @@ function handleBatteryFile(input) {
   };
   reader.readAsArrayBuffer(file);
   input.value = '';
+}
+
+function mergeBatteryFiles() {
+  const f1 = _batteryParsedFiles[0];
+  const f2 = _batteryParsedFiles[1];
+  if (!f1 && !f2) { showToast('⚠️ נא להעלות לפחות קובץ אחד'); return; }
+  _batteryHeaders = (f1 || f2).headers;
+  const rows1 = f1 ? f1.dataRows : [];
+  const rows2 = f2 ? f2.dataRows : [];
+  _batteryRows = [...rows1, ...rows2].map(r => ({ cells: r, battery: '', range: '' }));
+  if (!_batteryRows.length) { showToast('לא נמצאו שורות'); return; }
+  renderBatteryTable();
+  document.getElementById('batt-convert-wrap').style.display = 'none';
+  document.getElementById('battery-submit-wrap').style.display = '';
 }
 
 function _batteryTableHTML(headers, rows, editable) {
@@ -5266,10 +5307,14 @@ async function clearBatteryTable() {
   }
   _batteryHeaders = [];
   _batteryRows = [];
+  _batteryParsedFiles = [null, null];
   _batteryMode = 'live';
   _batteryDocId = '';
-  document.getElementById('battery-table-wrap').innerHTML = '<div class="empty-state" style="padding:40px 20px;text-align:center;color:var(--muted)">טרם נשלחה בדיקת סוללות</div>';
+  document.getElementById('battery-table-wrap').innerHTML = '<div class="empty-state" style="padding:40px 20px;text-align:center;color:var(--muted)">טרם נשלחה בדיקת טעינה</div>';
   document.getElementById('battery-submit-wrap').style.display = 'none';
+  document.getElementById('batt-convert-wrap').style.display = 'none';
+  document.getElementById('batt-file1-name').textContent = 'לחץ לבחירה';
+  document.getElementById('batt-file2-name').textContent = 'לחץ לבחירה';
   showToast('🗑️ הבדיקה נמחקה');
 }
 
