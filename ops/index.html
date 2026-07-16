@@ -5266,6 +5266,11 @@ function _loadBatteryAssignments() {
       <span>${statusLabel} &nbsp;·&nbsp; ${ts} &nbsp;·&nbsp; ${rows.length} רכבים</span>
       <button onclick="convertToChargingTask('${last.id}')" style="background:#7c3aed;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">⚡ המר למשימה</button>
     </div>`;
+    if (last.converted) {
+      wrap.innerHTML = html;
+      document.getElementById('battery-submit-wrap').style.display = 'none';
+      return;
+    }
     if (isDone) {
       const results = last.resultsJson ? JSON.parse(last.resultsJson) : rows.map(r => ({ cells: Array.isArray(r) ? r : (r.cells || []), battery:'', range:'', status: r.status || '' }));
       const needCharge = results.filter(r => parseInt(r.battery) !== 100);
@@ -5728,6 +5733,7 @@ async function convertToChargingTask(batteryDocId) {
     const fullBattery = results.filter(r => parseInt(r.battery) === 100)
       .map(r => ({ cells: r.cells, battery: r.battery || '', range: r.range || '', status: r.status || '' }));
     if (!toCharge.length) { showToast('כל הרכבים בטעינה מלאה 🎉'); return; }
+    const { updateDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
     await addDoc(collection(window._db, 'charging_tasks'), {
       createdBy: currentUser.name,
       createdAt: _serverTs(),
@@ -5737,6 +5743,7 @@ async function convertToChargingTask(batteryDocId) {
       fullBatteryCarsJson: JSON.stringify(fullBattery),
       fromBatteryId: batteryDocId,
     });
+    await updateDoc(_docRef('battery_assignments', batteryDocId), { converted: true });
     showToast(`✅ נוצרה משימת טעינה עם ${toCharge.length} רכבים`);
   } catch(e) { console.error('convertToChargingTask', e); showToast('⚠️ שגיאה'); }
 }
