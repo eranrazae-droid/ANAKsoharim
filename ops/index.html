@@ -5254,7 +5254,7 @@ function mergeBatteryFiles() {
     { label: 'סטטוס',      pat: /סטטוס/i },
   ];
 
-  const ALLOWED_STATUSES = ['מגרש לצלם לפרסם', 'מקדמה'];
+  const ALLOWED_STATUSES = ['מגרש', 'מקדמה'];
 
   const processFile = fd => {
     if (!fd) return [];
@@ -5262,11 +5262,17 @@ function mergeBatteryFiles() {
     const colIdxs = WANTED.map(w => fd.headers.findIndex(h => w.pat.test(h)));
     const statusColPos = WANTED.findIndex(w => w.label === 'סטטוס הרכב');
     const statusIdx = colIdxs[statusColPos];
-    return fd.dataRows.map(r => {
-      const cells = colIdxs.map(ci => ci >= 0 ? String(r[ci] ?? '').trim() : '');
-      const statusVal = statusIdx >= 0 ? String(r[statusIdx] || '').trim() : '';
-      return { cells, battery: '', range: '', status: statusVal };
-    });
+    return fd.dataRows
+      .filter(r => {
+        if (statusIdx < 0) return true;
+        const v = String(r[statusIdx] || '').trim();
+        return v === 'מגרש' || v === 'מקדמה' || v.startsWith('מגרש') || v.startsWith('מקדמה');
+      })
+      .map(r => {
+        const cells = colIdxs.map(ci => ci >= 0 ? String(r[ci] ?? '').trim() : '');
+        const statusVal = statusIdx >= 0 ? String(r[statusIdx] || '').trim() : '';
+        return { cells, battery: '', range: '', status: statusVal };
+      });
   };
 
   // determine display headers from first available file
