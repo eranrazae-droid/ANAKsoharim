@@ -5433,8 +5433,11 @@ function openDriverBatteryScreen() {
 }
 
 function openDriverBatteryModal(docId) {
+  let _dbattModalOpened = false;
   _onSnap(_docRef('battery_assignments', docId), snap => {
     if (!snap.exists()) return;
+    // Once modal is open, don't re-render — driver is actively filling
+    if (_dbattModalOpened) return;
     const data = snap.data();
     _dbattDocId = docId;
     _dbattHeaders = data.headers || [];
@@ -5450,6 +5453,7 @@ function openDriverBatteryModal(docId) {
     document.getElementById('dbattery-id').value = docId;
     document.getElementById('dbattery-notes').value = '';
     renderDriverBatteryModal();
+    _dbattModalOpened = true;
     openModal('modal-driver-battery');
   });
 }
