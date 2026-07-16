@@ -5479,8 +5479,8 @@ function renderDriverBatteryModal() {
     const bg = filled ? '#f0fff4' : '#fff';
     return `<div id="dbatt-row-${i}" style="display:grid;grid-template-columns:${colW};gap:3px;align-items:center;background:${bg};border:1.5px solid ${filled?'#22c55e':'var(--border)'};border-top:none;padding:4px 6px;direction:rtl;min-width:max-content">
       ${row.cells.map(c => `<div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:2px 0">${esc(c)}</div>`).join('')}
-      <div><input type="number" min="1" max="100" value="${esc(row.battery)}" placeholder="%" oninput="_clampBatteryInput(this);dbattInput(${i},'battery',this.value)" style="width:100%;border:1.5px solid #22c55e;border-radius:7px;padding:6px 4px;font-family:Heebo,sans-serif;font-size:14px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;background:#f0fff4"></div>
-      <div><input type="text" value="${esc(row.range)}" placeholder="קמ" oninput="dbattInput(${i},'range',this.value)" style="width:100%;border:1.5px solid #22c55e;border-radius:7px;padding:6px 4px;font-family:Heebo,sans-serif;font-size:14px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;background:#f0fff4"></div>
+      <div><input type="number" inputmode="numeric" pattern="[0-9]*" min="1" max="100" value="${esc(row.battery)}" placeholder="%" oninput="_clampBatteryInput(this);dbattInput(${i},'battery',this.value)" style="width:100%;border:1.5px solid #22c55e;border-radius:7px;padding:6px 4px;font-family:Heebo,sans-serif;font-size:14px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;background:#f0fff4"></div>
+      <div><input type="number" inputmode="numeric" pattern="[0-9]*" min="0" value="${esc(row.range)}" placeholder="קמ" oninput="dbattInput(${i},'range',this.value)" style="width:100%;border:1.5px solid #22c55e;border-radius:7px;padding:6px 4px;font-family:Heebo,sans-serif;font-size:14px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;background:#f0fff4"></div>
     </div>`;
   }).join('');
   html += '</div>';
@@ -5489,9 +5489,10 @@ function renderDriverBatteryModal() {
 
 function _clampBatteryInput(el) {
   let v = el.value;
-  if (v.length > 2 && v !== '100') { el.value = v.slice(0, 2); }
-  const n = parseInt(el.value) || 1;
-  el.value = Math.min(100, Math.max(1, n));
+  if (v === '' || v === '-') { el.value = ''; return; }
+  if (v.length > 2 && v !== '100') { el.value = v.slice(0, 2); v = el.value; }
+  const n = parseInt(v);
+  if (!isNaN(n)) el.value = Math.min(100, Math.max(1, n));
 }
 let _dbattSaveTimer = null;
 function dbattInput(idx, field, val) {
