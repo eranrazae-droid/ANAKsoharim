@@ -5480,8 +5480,8 @@ async function clearBatteryTable() {
       const dels = [];
       // delete battery assignment
       if (_batteryDocId) dels.push(deleteDoc(_docRef('battery_assignments', _batteryDocId)));
-      // delete all active charging tasks
-      const ctSnap = await getDocs(query(collection(window._db, 'charging_tasks'), where('status','==','active')));
+      // delete ALL charging tasks (active + done)
+      const ctSnap = await getDocs(query(collection(window._db, 'charging_tasks'), where('status','!=','deleted')));
       ctSnap.forEach(d => dels.push(deleteDoc(d.ref)));
       await Promise.all(dels);
     } catch(e) { console.error('clearBattery', e); }
