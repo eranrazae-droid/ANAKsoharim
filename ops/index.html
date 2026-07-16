@@ -5180,15 +5180,26 @@ function _loadBatteryAssignments() {
     const isDriver = last.status === 'pending';
     const isDone = last.status === 'done';
     const ts = last.createdAt?.toDate ? last.createdAt.toDate().toLocaleDateString('he-IL') : '';
-    let html = `<div style="border-radius:12px;padding:10px 14px;margin-bottom:12px;font-size:13px;font-weight:700;background:${isDone?'#f0fff4':'#fef3c7'};border:2px solid ${isDone?'#22c55e':'#f59e0b'};color:${isDone?'#166534':'#92400e'};display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-      <span>${isDone ? '✅ הנהג השלים את הבדיקה' : '⏳ ממתין לנהג — ' + esc(last.assignedTo)} &nbsp;·&nbsp; ${ts} &nbsp;·&nbsp; ${rows.length} רכבים</span>
+    const progress = last.progressJson ? JSON.parse(last.progressJson) : null;
+    const filledCount = progress ? progress.filter(r => r.battery !== '').length : 0;
+    const statusLabel = isDone
+      ? '✅ הנהג השלים את הבדיקה'
+      : progress
+        ? `🔄 הנהג ממלא כעת — ${filledCount}/${rows.length} הושלמו`
+        : `⏳ ממתין לנהג — ${esc(last.assignedTo)}`;
+    const bannerBg = isDone ? '#f0fff4' : (progress ? '#eff6ff' : '#fef3c7');
+    const bannerBorder = isDone ? '#22c55e' : (progress ? '#3b82f6' : '#f59e0b');
+    const bannerColor = isDone ? '#166534' : (progress ? '#1e40af' : '#92400e');
+    let html = `<div style="border-radius:12px;padding:10px 14px;margin-bottom:12px;font-size:13px;font-weight:700;background:${bannerBg};border:2px solid ${bannerBorder};color:${bannerColor};display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <span>${statusLabel} &nbsp;·&nbsp; ${ts} &nbsp;·&nbsp; ${rows.length} רכבים</span>
       ${isDone ? `<button onclick="convertToChargingTask('${last.id}')" style="background:#7c3aed;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">⚡ המר למשימה</button>` : ''}
     </div>`;
     if (isDone) {
       const results = last.resultsJson ? JSON.parse(last.resultsJson) : rows.map(r => ({ cells: Array.isArray(r) ? r : (r.cells || []), battery:'', range:'', status: r.status || '' }));
       html += _batteryTableHTML(headers, results, false);
     } else {
-      html += _batteryTableHTML(headers, rows.map(r => ({ cells: Array.isArray(r) ? r : (r.cells || []), battery:'', range:'', status: r.status || '' })), false);
+      const displayRows = progress || rows.map(r => ({ cells: Array.isArray(r) ? r : (r.cells || []), battery:'', range:'', status: r.status || '' }));
+      html += _batteryTableHTML(headers, displayRows, false);
     }
     wrap.innerHTML = html;
     document.getElementById('battery-submit-wrap').style.display = 'none';
@@ -5476,6 +5487,7 @@ function renderDriverBatteryModal() {
   document.getElementById('dbattery-rows-container').innerHTML = html;
 }
 
+let _dbattSaveTimer = null;
 function dbattInput(idx, field, val) {
   _dbattRows[idx][field] = val;
   const row = document.getElementById('dbatt-row-' + idx);
@@ -5488,6 +5500,16 @@ function dbattInput(idx, field, val) {
   try {
     localStorage.setItem('_dbattProgress_' + _dbattDocId, JSON.stringify(_dbattRows.map(r => ({ battery: r.battery, range: r.range }))));
   } catch(e) {}
+  clearTimeout(_dbattSaveTimer);
+  _dbattSaveTimer = setTimeout(async () => {
+    if (!_dbattDocId || !window._CONFIG_DONE) return;
+    try {
+      const { updateDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+      await updateDoc(_docRef('battery_assignments', _dbattDocId), {
+        progressJson: JSON.stringify(_dbattRows.map(r => ({ cells: r.cells, battery: r.battery, range: r.range, status: r.status || '' }))),
+      });
+    } catch(e) {}
+  }, 1500);
 }
 
 async function submitDriverBattery() {
