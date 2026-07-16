@@ -5265,19 +5265,13 @@ function mergeBatteryFiles() {
   };
   const rows1 = filterFile(f1);
   const rows2 = filterFile(f2);
-  _batteryRows = [...rows1, ...rows2];
+  // if filter found nothing, fall back to ALL rows (no status filter)
   if (!_batteryRows.length) {
-    // collect unique values from likely status columns to help debug
-    const uniq = new Set();
-    [f1, f2].forEach(fd => {
-      if (!fd) return;
-      const si = fd.headers.findIndex(h => h.includes('סטטוס') || /status/i.test(h));
-      fd.dataRows.forEach(r => { uniq.add(String(si >= 0 ? r[si] : r[0] || '').trim()); });
-    });
-    const sample = [...uniq].filter(Boolean).slice(0, 5).join(' | ');
-    console.log('🔋 status samples:', [...uniq]);
-    showToast('לא נמצאו שורות. ערכי סטטוס: ' + (sample || 'לא נמצאו'));
-    return;
+    const allRows = [...(f1 ? f1.dataRows.map(r => ({ cells: r, battery: '', range: '', status: '' })) : []),
+                     ...(f2 ? f2.dataRows.map(r => ({ cells: r, battery: '', range: '', status: '' })) : [])];
+    if (!allRows.length) { showToast('הקובץ ריק'); return; }
+    _batteryRows = allRows;
+    showToast('⚠️ לא נמצאה עמודת סטטוס — מציג את כל השורות');
   }
   renderBatteryTable();
   document.getElementById('batt-convert-wrap').style.display = 'none';
