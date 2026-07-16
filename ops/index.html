@@ -1160,14 +1160,14 @@ if ('serviceWorker' in navigator) {
     <div style="display:flex;gap:10px;align-items:stretch;margin-bottom:12px">
       <div style="flex:1;display:flex;flex-direction:column;gap:8px">
         <!-- File 1 -->
-        <div id="batt-file1-zone" style="border:2px dashed #22c55e;border-radius:14px;padding:16px;text-align:center;background:#f0fff4;cursor:pointer" onclick="document.getElementById('battery-file-input-1').click()">
+        <div id="batt-file1-zone" style="border:2px dashed var(--border);border-radius:14px;padding:16px;text-align:center;background:transparent;cursor:pointer;transition:border-color .2s,background .2s" onclick="document.getElementById('battery-file-input-1').click()">
           <div style="font-size:24px;margin-bottom:4px">📂</div>
           <div style="font-weight:700;font-size:14px;color:var(--dark)">קובץ ראשון</div>
           <div id="batt-file1-name" style="font-size:12px;color:var(--muted);margin-top:2px">לחץ לבחירה</div>
           <input type="file" id="battery-file-input-1" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleBatteryFile(this,0)">
         </div>
         <!-- File 2 -->
-        <div id="batt-file2-zone" style="border:2px dashed #a3e635;border-radius:14px;padding:16px;text-align:center;background:#f7fee7;cursor:pointer" onclick="document.getElementById('battery-file-input-2').click()">
+        <div id="batt-file2-zone" style="border:2px dashed var(--border);border-radius:14px;padding:16px;text-align:center;background:transparent;cursor:pointer;transition:border-color .2s,background .2s" onclick="document.getElementById('battery-file-input-2').click()">
           <div style="font-size:24px;margin-bottom:4px">📂</div>
           <div style="font-weight:700;font-size:14px;color:var(--dark)">קובץ שני (אופציונלי)</div>
           <div id="batt-file2-name" style="font-size:12px;color:var(--muted);margin-top:2px">לחץ לבחירה</div>
@@ -5149,6 +5149,7 @@ function openBatteryScreen() {
   document.getElementById('batt-convert-wrap').style.display = 'none';
   document.getElementById('batt-file1-name').textContent = 'לחץ לבחירה';
   document.getElementById('batt-file2-name').textContent = 'לחץ לבחירה';
+  ['batt-file1-zone','batt-file2-zone'].forEach(id => { const el = document.getElementById(id); if(el){el.style.borderColor='';el.style.background='transparent';} });
   _loadBatteryAssignments();
 }
 
@@ -5224,6 +5225,8 @@ function handleBatteryFile(input, fileIndex) {
       _batteryParsedFiles[fileIndex] = { headers, dataRows, name: file.name };
       const nameEl = document.getElementById(fileIndex === 0 ? 'batt-file1-name' : 'batt-file2-name');
       if (nameEl) nameEl.textContent = `✅ ${file.name} (${dataRows.length} שורות)`;
+      const zoneEl = document.getElementById(fileIndex === 0 ? 'batt-file1-zone' : 'batt-file2-zone');
+      if (zoneEl) { zoneEl.style.borderColor = '#22c55e'; zoneEl.style.background = '#f0fff4'; }
       if (_batteryParsedFiles[0] || _batteryParsedFiles[1]) {
         document.getElementById('batt-convert-wrap').style.display = '';
       }
@@ -5328,6 +5331,7 @@ async function clearBatteryTable() {
   document.getElementById('batt-convert-wrap').style.display = 'none';
   document.getElementById('batt-file1-name').textContent = 'לחץ לבחירה';
   document.getElementById('batt-file2-name').textContent = 'לחץ לבחירה';
+  ['batt-file1-zone','batt-file2-zone'].forEach(id => { const el = document.getElementById(id); if(el){el.style.borderColor='';el.style.background='transparent';} });
   showToast('🗑️ הבדיקה נמחקה');
 }
 
