@@ -5282,8 +5282,16 @@ function _loadBatteryAssignments() {
       const displayRows = progress || rows.map(r => ({ cells: Array.isArray(r) ? r : (r.cells || []), battery:'', range:'', status: r.status || '' }));
       _batteryRows = displayRows;
       _batteryHeaders = headers;
-      html += _batteryTableHTML(headers, displayRows, true, true);
       _batteryEditDocId = last.id;
+      const needCharge2 = displayRows.map((r,i)=>({r,i})).filter(({r}) => parseInt(r.battery) !== 100);
+      const full1002    = displayRows.map((r,i)=>({r,i})).filter(({r}) => parseInt(r.battery) === 100);
+      if (needCharge2.length) {
+        html += _batteryTableHTML(headers, needCharge2.map(x=>x.r), true, true, needCharge2.map(x=>x.i));
+      }
+      if (full1002.length) {
+        html += `<div style="font-size:12px;font-weight:800;color:#166534;margin:12px 0 4px">✅ טעינה מלאה — ${full1002.length} רכבים</div>`;
+        html += `<div style="background:#dcfce7;border-radius:12px;overflow:hidden;border:2px solid #22c55e">` + _batteryTableHTML(headers, full1002.map(x=>x.r), true, true, full1002.map(x=>x.i)) + `</div>`;
+      }
     }
     wrap.innerHTML = html;
     document.getElementById('battery-submit-wrap').style.display = 'none';
@@ -5390,7 +5398,7 @@ function mergeBatteryFiles() {
 }
 
 // showBatteryCols=false → hides battery/range columns entirely (manager preview before send)
-function _batteryTableHTML(headers, rows, editable, showBatteryCols = true) {
+function _batteryTableHTML(headers, rows, editable, showBatteryCols = true, indexMap = null) {
   const colCount = headers.length || (rows[0]?.cells.length || 1);
   const baseWidths = headers.length
     ? headers.map(h => {
@@ -5409,15 +5417,16 @@ function _batteryTableHTML(headers, rows, editable, showBatteryCols = true) {
     </div>`;
   }
   html += rows.map((row, i) => {
+    const ri = indexMap ? indexMap[i] : i;
     const filled = row.battery !== '' || row.range !== '';
     const bg = filled ? '#f0fff4' : '#fff';
     const batteryCell = editable
-      ? `<div><input type="number" min="1" max="100" value="${esc(row.battery)}" placeholder="%" oninput="_clampBatteryInput(this);batteryInputChange(${i},'battery',this.value)" style="width:100%;border:1.5px solid #22c55e;border-radius:7px;padding:5px 4px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;background:#f0fff4"></div>`
+      ? `<div><input type="number" min="1" max="100" value="${esc(row.battery)}" placeholder="%" oninput="_clampBatteryInput(this);batteryInputChange(${ri},'battery',this.value)" style="width:100%;border:1.5px solid #22c55e;border-radius:7px;padding:5px 4px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;background:#f0fff4"></div>`
       : `<div style="font-size:13px;font-weight:800;text-align:center;color:${row.battery ? '#166534' : '#aaa'}">${row.battery ? row.battery + '%' : '—'}</div>`;
     const rangeCell = editable
-      ? `<div><input type="text" value="${esc(row.range)}" placeholder="קמ" oninput="batteryInputChange(${i},'range',this.value)" style="width:100%;border:1.5px solid #22c55e;border-radius:7px;padding:5px 4px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;background:#f0fff4"></div>`
+      ? `<div><input type="text" value="${esc(row.range)}" placeholder="קמ" oninput="batteryInputChange(${ri},'range',this.value)" style="width:100%;border:1.5px solid #22c55e;border-radius:7px;padding:5px 4px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;background:#f0fff4"></div>`
       : `<div style="font-size:13px;font-weight:800;text-align:center;color:${row.range ? '#166534' : '#aaa'}">${row.range ? row.range + ' קמ' : '—'}</div>`;
-    return `<div id="batt-row-${i}" style="display:grid;grid-template-columns:${colW};gap:3px;align-items:center;background:${bg};border:1.5px solid ${filled&&showBatteryCols?'#22c55e':'var(--border)'};border-top:none;padding:4px 6px;direction:rtl;min-width:max-content">
+    return `<div id="batt-row-${ri}" style="display:grid;grid-template-columns:${colW};gap:3px;align-items:center;background:${bg};border:1.5px solid ${filled&&showBatteryCols?'#22c55e':'var(--border)'};border-top:none;padding:4px 6px;direction:rtl;min-width:max-content">
       ${row.cells.map(c => `<div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:2px 0">${esc(c)}</div>`).join('')}
       ${showBatteryCols ? batteryCell + rangeCell : ''}
     </div>`;
