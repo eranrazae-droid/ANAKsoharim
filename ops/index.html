@@ -5681,8 +5681,19 @@ async function convertToChargingTask(batteryDocId) {
     const snap = await getDoc(_docRef('battery_assignments', batteryDocId));
     if (!snap.exists()) { showToast('⚠️ לא נמצאה הבדיקה'); return; }
     const data = snap.data();
-    const results = data.resultsJson ? JSON.parse(data.resultsJson) : [];
+    // prefer resultsJson (driver submitted), then progressJson (live edits), else empty
+    const results = data.resultsJson
+      ? JSON.parse(data.resultsJson)
+      : data.progressJson
+        ? JSON.parse(data.progressJson)
+        : [];
     const headers = data.headers || [];
+    // validate all rows have battery filled
+    const missing = results.filter(r => !r.battery || r.battery === '');
+    if (missing.length) {
+      showToast(`⚠️ נותרו ${missing.length} רכבים ללא אחוזי סוללה`);
+      return;
+    }
     // only cars with battery < 100%
     const toCharge = results
       .filter(r => { const b = parseInt(r.battery); return isNaN(b) || b < 100; })
