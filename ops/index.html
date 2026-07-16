@@ -2094,7 +2094,12 @@ function loadDriverBadges() {
       _setCardBadge('driver-battery', snap.docs.filter(d => d.data().status === 'pending').length);
     });
     _onSnap(_query(_colRef('charging_tasks'), _where('status','==','active')), snap => {
-      _setCardBadge('driver-charging', snap.size);
+      let pendingCars = 0;
+      snap.docs.forEach(d => {
+        const cars = d.data().carsJson ? JSON.parse(d.data().carsJson) : [];
+        pendingCars += cars.filter(c => !c.charged).length;
+      });
+      _setCardBadge('driver-charging', pendingCars, '#1d4ed8');
     });
     _onSnap(_docRef('yard','current'), snap => {
       const status = snap.exists() ? snap.data().status : null;
