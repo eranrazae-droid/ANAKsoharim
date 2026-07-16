@@ -5244,35 +5244,47 @@ function mergeBatteryFiles() {
   const f1 = _batteryParsedFiles[0];
   const f2 = _batteryParsedFiles[1];
   if (!f1 && !f2) { showToast('⚠️ נא להעלות לפחות קובץ אחד'); return; }
-  _batteryHeaders = (f1 || f2).headers;
-  const matchStatus = v => {
-    if (v.includes('מרגש')) return 'מרגש לצלם לפרסם';
-    if (v.includes('מקדמה')) return 'מקדמה';
-    return null;
-  };
-  // each file may have different column structure — compute statusIdx per file
-  const filterFile = fileData => {
-    if (!fileData) return [];
-    const sIdx = fileData.headers.findIndex(h => h.includes('סטטוס') || /status/i.test(h));
-    return fileData.dataRows
-      .map(r => {
-        let status = sIdx >= 0 ? matchStatus(String(r[sIdx] || '').trim()) : null;
-        if (!status) { for (const c of r) { status = matchStatus(String(c || '').trim()); if (status) break; } }
-        return { r, status };
+
+  // columns to keep (in display order)
+  const WANTED = [
+    { label: 'מספר רישוי', pat: /מספר.?רישוי|לוחית/i },
+    { label: 'שנת ייצור',  pat: /שנת.?ייצור|שנה/i },
+    { label: 'יצרן',       pat: /יצרן/i },
+    { label: 'דגם',        pat: /^דגם$/i },
+    { label: 'סטטוס הרכב', pat: /סטטוס/i },
+  ];
+
+  const ALLOWED_STATUSES = ['מרגש לצלם לפרסם', 'מקדמה'];
+
+  const processFile = fd => {
+    if (!fd) return [];
+    // map each wanted col to its index in THIS file's headers
+    const colIdxs = WANTED.map(w => fd.headers.findIndex(h => w.pat.test(h)));
+    const statusColPos = WANTED.findIndex(w => w.label === 'סטטוס הרכב');
+    const statusIdx = colIdxs[statusColPos];
+    return fd.dataRows
+      .filter(r => {
+        if (statusIdx < 0) return true; // no status col → keep all
+        const v = String(r[statusIdx] || '').trim();
+        return ALLOWED_STATUSES.some(s => v.includes(s.slice(0, 4)));
       })
-      .filter(({ status }) => status !== null)
-      .map(({ r, status }) => ({ cells: r, battery: '', range: '', status }));
+      .map(r => {
+        const cells = colIdxs.map(ci => ci >= 0 ? String(r[ci] ?? '').trim() : '');
+        const statusVal = statusIdx >= 0 ? String(r[statusIdx] || '').trim() : '';
+        const status = ALLOWED_STATUSES.find(s => statusVal.includes(s.slice(0, 4))) || statusVal;
+        return { cells, battery: '', range: '', status };
+      });
   };
-  const rows1 = filterFile(f1);
-  const rows2 = filterFile(f2);
-  // if filter found nothing, fall back to ALL rows (no status filter)
-  if (!_batteryRows.length) {
-    const allRows = [...(f1 ? f1.dataRows.map(r => ({ cells: r, battery: '', range: '', status: '' })) : []),
-                     ...(f2 ? f2.dataRows.map(r => ({ cells: r, battery: '', range: '', status: '' })) : [])];
-    if (!allRows.length) { showToast('הקובץ ריק'); return; }
-    _batteryRows = allRows;
-    showToast('⚠️ לא נמצאה עמודת סטטוס — מציג את כל השורות');
-  }
+
+  // determine display headers from first available file
+  const refHdrs = (f1 || f2).headers;
+  _batteryHeaders = WANTED
+    .filter(w => refHdrs.some(h => w.pat.test(h)))
+    .map(w => w.label);
+
+  _batteryRows = [...processFile(f1), ...processFile(f2)];
+
+  if (!_batteryRows.length) { showToast('לא נמצאו שורות בסטטוסים הרלוונטיים'); return; }
   renderBatteryTable();
   document.getElementById('batt-convert-wrap').style.display = 'none';
   document.getElementById('battery-submit-wrap').style.display = '';
