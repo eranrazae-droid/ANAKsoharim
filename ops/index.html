@@ -5266,7 +5266,19 @@ function mergeBatteryFiles() {
   const rows1 = filterFile(f1);
   const rows2 = filterFile(f2);
   _batteryRows = [...rows1, ...rows2];
-  if (!_batteryRows.length) { showToast('לא נמצאו שורות בסטטוסים הרלוונטיים (מרגש לצלם לפרסם / מקדמה)'); return; }
+  if (!_batteryRows.length) {
+    // collect unique values from likely status columns to help debug
+    const uniq = new Set();
+    [f1, f2].forEach(fd => {
+      if (!fd) return;
+      const si = fd.headers.findIndex(h => h.includes('סטטוס') || /status/i.test(h));
+      fd.dataRows.forEach(r => { uniq.add(String(si >= 0 ? r[si] : r[0] || '').trim()); });
+    });
+    const sample = [...uniq].filter(Boolean).slice(0, 5).join(' | ');
+    console.log('🔋 status samples:', [...uniq]);
+    showToast('לא נמצאו שורות. ערכי סטטוס: ' + (sample || 'לא נמצאו'));
+    return;
+  }
   renderBatteryTable();
   document.getElementById('batt-convert-wrap').style.display = 'none';
   document.getElementById('battery-submit-wrap').style.display = '';
