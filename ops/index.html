@@ -5262,18 +5262,11 @@ function mergeBatteryFiles() {
     const colIdxs = WANTED.map(w => fd.headers.findIndex(h => w.pat.test(h)));
     const statusColPos = WANTED.findIndex(w => w.label === 'סטטוס הרכב');
     const statusIdx = colIdxs[statusColPos];
-    return fd.dataRows
-      .filter(r => {
-        if (statusIdx < 0) return true;
-        const v = String(r[statusIdx] || '').trim();
-        return ALLOWED_STATUSES.some(s => v.includes(s.slice(0, 3)));
-      })
-      .map(r => {
-        const cells = colIdxs.map(ci => ci >= 0 ? String(r[ci] ?? '').trim() : '');
-        const statusVal = statusIdx >= 0 ? String(r[statusIdx] || '').trim() : '';
-        const status = ALLOWED_STATUSES.find(s => statusVal.includes(s.slice(0, 3))) || statusVal;
-        return { cells, battery: '', range: '', status };
-      });
+    return fd.dataRows.map(r => {
+      const cells = colIdxs.map(ci => ci >= 0 ? String(r[ci] ?? '').trim() : '');
+      const statusVal = statusIdx >= 0 ? String(r[statusIdx] || '').trim() : '';
+      return { cells, battery: '', range: '', status: statusVal };
+    });
   };
 
   // determine display headers from first available file
