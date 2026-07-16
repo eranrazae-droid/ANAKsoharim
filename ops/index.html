@@ -5260,13 +5260,27 @@ function _loadBatteryAssignments() {
       html += _batteryTableHTML(headers, results, false, true);
     } else {
       const displayRows = progress || rows.map(r => ({ cells: Array.isArray(r) ? r : (r.cells || []), battery:'', range:'', status: r.status || '' }));
-      // after sending — always show battery/range cols (read-only, live progress)
-      html += _batteryTableHTML(headers, displayRows, false, true);
+      _batteryRows = displayRows;
+      _batteryHeaders = headers;
+      html += _batteryTableHTML(headers, displayRows, true, true);
+      html += `<div style="padding:12px 0"><button onclick="saveManagerBatteryEdits('${last.id}')" style="background:#22c55e;color:#fff;border:none;border-radius:12px;padding:10px 20px;font-family:Heebo,sans-serif;font-weight:800;font-size:14px;cursor:pointer">💾 שמור עריכות</button></div>`;
     }
     wrap.innerHTML = html;
     document.getElementById('battery-submit-wrap').style.display = 'none';
   });
 }
+
+async function saveManagerBatteryEdits(docId) {
+  if (!window._CONFIG_DONE) return;
+  try {
+    const { updateDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    await updateDoc(_docRef('battery_assignments', docId), {
+      progressJson: JSON.stringify(_batteryRows.map(r => ({ cells: r.cells, battery: r.battery || '', range: r.range || '', status: r.status || '' }))),
+    });
+    showToast('✅ נשמר');
+  } catch(e) { showToast('⚠️ שגיאה בשמירה'); }
+}
+window.saveManagerBatteryEdits = saveManagerBatteryEdits;
 
 function handleBatteryFile(input, fileIndex) {
   const file = input.files[0];
