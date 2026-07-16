@@ -5894,7 +5894,14 @@ async function markCarCharged(docId, carIdx) {
     const data = snap.data();
     const cars = data.carsJson ? JSON.parse(data.carsJson) : [];
     if (!cars[carIdx]) return;
-    cars[carIdx].charged = true;
+    const origBattery = parseInt(cars[carIdx].battery);
+    const origRange   = parseFloat(cars[carIdx].range);
+    const calcRange = (!isNaN(origBattery) && origBattery > 0 && !isNaN(origRange))
+      ? Math.round(origRange / origBattery * 100)
+      : '';
+    cars[carIdx].charged  = true;
+    cars[carIdx].battery  = '100';
+    cars[carIdx].range    = calcRange !== '' ? String(calcRange) : (cars[carIdx].range || '');
     const allCharged = cars.every(c => c.charged);
     await updateDoc(_docRef('charging_tasks', docId), {
       carsJson: JSON.stringify(cars),
