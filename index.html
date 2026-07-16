@@ -2706,6 +2706,34 @@ display:none !important;
       return true;
     }
 
+    // פופאפ שנפתח ברגע שהלקוח מסמן הסכמה — עם כפתור מעבר לתשלום
+    function openPaymentGate(){
+      const cb=document.getElementById('c_consent');
+      if(!cb||!cb.checked) return;
+      const name=((document.getElementById('c_name')||{}).value||'').trim();
+      const phone=((document.getElementById('c_phone')||{}).value||'').replace(/\s/g,'');
+      if(!name){ alert('נא למלא שם מלא'); cb.checked=false; return; }
+      if(!/^0\d{1,2}-?\d{7}$/.test(phone)){ alert('נא להזין מספר טלפון נייד תקין'); cb.checked=false; return; }
+      const modal=document.createElement('div');
+      modal.setAttribute('data-gate','1');
+      modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;direction:rtl';
+      modal.innerHTML='<div style="background:#fff;border-radius:20px;max-width:400px;width:100%;padding:28px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.4)">'
+        +'<div style="font-size:46px">🎉</div>'
+        +'<div style="font-size:22px;font-weight:900;margin-top:8px">מעולה, '+name+'!</div>'
+        +'<div style="color:#4b5563;font-size:15px;line-height:1.7;margin-top:8px">הפרטים מוכנים. נותר רק להשלים תשלום של <b>300 ₪</b> כדי לשריין את הקופון ולנעול את המחיר.</div>'
+        +'<button onclick="proceedToPayment(this)" class="gold-btn" style="width:100%;margin-top:20px;font-size:17px;padding:16px">💳 מעבר לתשלום</button>'
+        +'<button onclick="var m=this.closest(&quot;[data-gate]&quot;);if(m)m.remove()" style="width:100%;margin-top:10px;background:none;border:none;color:#6b7280;font-size:14px;cursor:pointer">חזרה</button>'
+        +'</div>';
+      modal.addEventListener('click',function(ev){ if(ev.target===modal) modal.remove(); });
+      document.body.appendChild(modal);
+    }
+    function proceedToPayment(btn){
+      const m=btn.closest('[data-gate]'); if(m) m.remove();
+      const pb=document.getElementById('paymentBtns');
+      if(pb){ pb.style.display='grid'; setTimeout(function(){ pb.scrollIntoView({behavior:'smooth',block:'center'}); },80); }
+      saveLead('התחיל תשלום קופון');
+    }
+
     function openBitPayment(e){
       if(e) e.preventDefault();
       if(!checkoutGate()) return;
@@ -2796,12 +2824,12 @@ display:none !important;
                   <input id="c_phone" type="tel" required pattern="0[0-9]{1,2}-?[0-9]{7}" placeholder="05X-XXXXXXX" style="text-align:right;direction:rtl;margin-top:4px" />
                 </label>
                 <label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;color:#374151;line-height:1.5;cursor:pointer">
-                  <input id="c_consent" type="checkbox" style="width:18px;height:18px;margin-top:2px;flex-shrink:0" />
+                  <input id="c_consent" type="checkbox" onchange="openPaymentGate()" style="width:18px;height:18px;margin-top:2px;flex-shrink:0" />
                   <span>קראתי ואני מסכים/ה ל<a href="#" onclick="showPage('termsPage');return false" style="color:#a16207;font-weight:700">תקנון</a> ול<a href="#" onclick="showPage('privacyPage');return false" style="color:#a16207;font-weight:700">מדיניות הפרטיות</a>, ומאשר/ת קבלת פנייה מנציג אוטודילר.</span>
                 </label>
               </div>
             </div>
-            <div id="paymentBtns" style="margin-top:18px;display:grid;gap:10px">
+            <div id="paymentBtns" style="margin-top:18px;display:none;gap:10px">
               <div style="font-size:15px;font-weight:700;color:var(--muted);text-align:center">בחרו אמצעי תשלום:</div>
               <div id="payBtnsRow" style="display:grid;grid-template-columns:1fr 1fr;gap:10px"></div>
               <div style="font-size:16px;color:var(--muted);text-align:center">לאחר התשלום לחצו כאן:</div>
