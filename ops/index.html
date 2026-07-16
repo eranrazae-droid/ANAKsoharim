@@ -8033,7 +8033,7 @@ async function completeTdLivePanel() {
   if (!_tdLivePanelId) return;
   const data = _tdLivePanelData || {};
   try {
-    const { addDoc, collection } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const { addDoc, collection, updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
 
     // build pre-filled intake draft from test drive answers
     const tdChecks = data.checks || data.draft?.checks || {};
@@ -8064,6 +8064,8 @@ async function completeTdLivePanel() {
       fromTestDrive: _tdLivePanelId,
       draft: intakeDraft,
     });
+    // mark test drive as transferred so it no longer appears as pending
+    await updateDoc(doc(window._db, 'test_drives', _tdLivePanelId), { status: 'transferred' });
   } catch(e) { console.warn('intake create', e); }
   if (_tdLivePanelUnsub) { _tdLivePanelUnsub(); _tdLivePanelUnsub = null; }
   _tdLivePanelId = null;
