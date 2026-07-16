@@ -8033,38 +8033,41 @@ async function completeTdLivePanel() {
   if (!_tdLivePanelId) return;
   const data = _tdLivePanelData || {};
   try {
-    const { addDoc, collection, updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const { addDoc, collection, updateDoc, doc, getDocs, query, where } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
 
-    // build pre-filled intake draft from test drive answers
-    const tdChecks = data.checks || data.draft?.checks || {};
-    const tdNotes  = data.notes  || data.draft?.notes  || {};
-    const tdDashLights  = data.dashLights  || data.draft?.dashLights  || [];
-    const tdDashOther   = data.dashOtherText || data.draft?.dashOtherText || '';
-    const tdToIntake = { 'td-oil':'c-oil','td-coolant':'c-coolant','td-glass':'c-glass-break','td-windows':'c-windows','td-mirrors':'c-mirrors','td-lights':'c-lights-break','td-lights-burnt':'c-bulbs','td-ac':'c-ac','td-ac-noise':'c-ac-noise','td-dashboard':'c-dashboard','td-drive':'c-drive' };
-    const tdDashMap  = { 'td-dash-engine':'dash-check-engine','td-dash-tire':'dash-tire-pressure','td-dash-service':'dash-service','td-dash-collision':'dash-collision','td-dash-fuel':'dash-fuel','td-dash-istop':'dash-istop','td-dash-other':'dash-other' };
-    const intakeChecks = {}, intakeNotes = {}, intakeDash = {};
-    Object.entries(tdChecks).forEach(([k,v]) => { const ik=tdToIntake[k]; if(ik) intakeChecks[ik]=v; });
-    Object.entries(tdNotes).forEach(([k,t]) => { const ik=tdToIntake[k]; if(ik&&t) intakeNotes[ik]=t; });
-    tdDashLights.forEach(k => { const ik=tdDashMap[k]; if(ik) intakeDash[ik]=true; });
-    if (tdDashOther) intakeNotes['c-dashboard'] = tdDashOther;
-    const intakeDraft = { checks:intakeChecks, notes:intakeNotes, dashChecks:intakeDash, km:data.km||data.draft?.km||'' };
-
-    await addDoc(collection(window._db, 'intake_assignments'), {
-      plate: data.plate || '',
-      brand: data.maker || '',
-      model: '',
-      color: data.color || '',
-      year: data.year || '',
-      spot: '',
-      km: data.km || data.draft?.km || '',
-      assignedTo: data.assignedTo || currentUser.name,
-      createdBy: currentUser.name,
-      status: 'pending',
-      createdAt: _serverTs(),
-      fromTestDrive: _tdLivePanelId,
-      draft: intakeDraft,
-    });
-    // mark test drive as transferred so it no longer appears as pending
+    // check if intake already exists for this test drive (avoid duplicate)
+    const existingSnap = await getDocs(query(collection(window._db, 'intake_assignments'), where('fromTestDrive', '==', _tdLivePanelId)));
+    if (existingSnap.empty) {
+      // build pre-filled intake draft from test drive answers
+      const tdChecks = data.checks || data.draft?.checks || {};
+      const tdNotes  = data.notes  || data.draft?.notes  || {};
+      const tdDashLights  = data.dashLights  || data.draft?.dashLights  || [];
+      const tdDashOther   = data.dashOtherText || data.draft?.dashOtherText || '';
+      const tdToIntake = { 'td-oil':'c-oil','td-coolant':'c-coolant','td-glass':'c-glass-break','td-windows':'c-windows','td-mirrors':'c-mirrors','td-lights':'c-lights-break','td-lights-burnt':'c-bulbs','td-ac':'c-ac','td-ac-noise':'c-ac-noise','td-dashboard':'c-dashboard','td-drive':'c-drive' };
+      const tdDashMap  = { 'td-dash-engine':'dash-check-engine','td-dash-tire':'dash-tire-pressure','td-dash-service':'dash-service','td-dash-collision':'dash-collision','td-dash-fuel':'dash-fuel','td-dash-istop':'dash-istop','td-dash-other':'dash-other' };
+      const intakeChecks = {}, intakeNotes = {}, intakeDash = {};
+      Object.entries(tdChecks).forEach(([k,v]) => { const ik=tdToIntake[k]; if(ik) intakeChecks[ik]=v; });
+      Object.entries(tdNotes).forEach(([k,t]) => { const ik=tdToIntake[k]; if(ik&&t) intakeNotes[ik]=t; });
+      tdDashLights.forEach(k => { const ik=tdDashMap[k]; if(ik) intakeDash[ik]=true; });
+      if (tdDashOther) intakeNotes['c-dashboard'] = tdDashOther;
+      const intakeDraft = { checks:intakeChecks, notes:intakeNotes, dashChecks:intakeDash, km:data.km||data.draft?.km||'' };
+      await addDoc(collection(window._db, 'intake_assignments'), {
+        plate: data.plate || '',
+        brand: data.maker || '',
+        model: '',
+        color: data.color || '',
+        year: data.year || '',
+        spot: '',
+        km: data.km || data.draft?.km || '',
+        assignedTo: data.assignedTo || currentUser.name,
+        createdBy: currentUser.name,
+        status: 'pending',
+        createdAt: _serverTs(),
+        fromTestDrive: _tdLivePanelId,
+        draft: intakeDraft,
+      });
+    }
+    // always mark test drive as transferred so it stops appearing as pending
     await updateDoc(doc(window._db, 'test_drives', _tdLivePanelId), { status: 'transferred' });
   } catch(e) { console.warn('intake create', e); }
   if (_tdLivePanelUnsub) { _tdLivePanelUnsub(); _tdLivePanelUnsub = null; }
