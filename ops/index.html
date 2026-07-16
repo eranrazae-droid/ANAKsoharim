@@ -5168,45 +5168,46 @@ function _loadBatteryChargingTasks() {
       const data = d.data();
       const headers = data.headers || [];
       const cars = data.carsJson ? JSON.parse(data.carsJson) : [];
-      const plateIdx = headers.findIndex(h => /מספר|לוחית/.test(h));
-      const makeIdx  = headers.findIndex(h => /יצרן/.test(h));
-      const modelIdx = headers.findIndex(h => /דגם/.test(h));
-      const yearIdx  = headers.findIndex(h => /שנת|שנה/.test(h));
       const toCharge = cars.map((car,idx)=>({car,idx})).filter(x=>!x.car.charged).sort((a,b)=>(a.car.status==='מקדמה'?0:1)-(b.car.status==='מקדמה'?0:1));
       const charged  = cars.map((car,idx)=>({car,idx})).filter(x=> x.car.charged);
       const ts = data.createdAt?.toDate ? data.createdAt.toDate().toLocaleDateString('he-IL') : '';
 
-      const carRow = ({car, idx}, showBtn) => {
-        const isMakdama = car.status === 'מקדמה';
-        const plate = plateIdx>=0?car.cells[plateIdx]:car.cells[0]||'';
-        const make  = makeIdx >=0?car.cells[makeIdx] :'';
-        const model = modelIdx>=0?car.cells[modelIdx]:'';
-        const year  = yearIdx >=0?car.cells[yearIdx] :'';
-        const border = showBtn ? (isMakdama?'#ef4444':'#eab308') : '#22c55e';
-        const bg     = showBtn ? (isMakdama?'#fff1f2':'#fefce8') : '#f0fff4';
-        return `<div style="background:${bg};border:2px solid ${border};border-radius:12px;padding:10px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:10px;direction:rtl">
-          <div>
-            ${isMakdama&&showBtn?`<span style="font-size:10px;font-weight:800;background:#ef4444;color:#fff;border-radius:5px;padding:1px 6px;display:inline-block;margin-bottom:2px">⚠️ מקדמה</span><br>`:''}
-            <span style="font-size:16px;font-weight:900;color:var(--dark)">${esc(plate)}</span>
-            <span style="font-size:12px;color:var(--muted);margin-right:8px">${esc(make)} ${esc(model)}${year?' · '+esc(year):''}</span>
-            ${car.battery?`<span style="font-size:11px;color:#92400e;margin-right:6px">🔋 ${esc(car.battery)}%</span>`:''}
-          </div>
-          ${showBtn
-            ? `<button onclick="markCarCharged('${d.id}',${idx})" style="flex-shrink:0;background:#22c55e;color:#fff;border:none;border-radius:10px;padding:7px 12px;font-family:Heebo,sans-serif;font-size:13px;font-weight:900;cursor:pointer">הוטען ✓</button>`
-            : `<span style="font-size:20px">✅</span>`}
+      const colW = headers.length
+        ? [...headers.map(h => {
+            if (/דגם|יצרן/.test(h)) return 'minmax(80px,1.4fr)';
+            if (/מספר|לוחית/.test(h)) return 'minmax(75px,1.2fr)';
+            return 'minmax(60px,1fr)';
+          }), '80px'].join(' ')
+        : '1fr 80px';
+
+      const headerRow = () => `<div style="display:grid;grid-template-columns:${colW};gap:3px;background:var(--dark);color:#fff;border-radius:10px 10px 0 0;padding:6px 8px;font-size:11px;font-weight:700;direction:rtl;min-width:max-content">
+        ${headers.map(h=>`<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(h)}</div>`).join('')}
+        <div style="text-align:center">פעולה</div>
+      </div>`;
+
+      const tableRow = ({car, idx}, showBtn) => {
+        const isMakdama = !showBtn ? false : car.status === 'מקדמה';
+        const bg     = showBtn ? (isMakdama ? '#fff1f2' : '#f0fff4') : '#f8f8f8';
+        const border = showBtn ? (isMakdama ? '#ef4444' : '#22c55e') : '#d1d5db';
+        const btn = showBtn
+          ? `<button onclick="markCarCharged('${d.id}',${idx})" style="background:#22c55e;color:#fff;border:none;border-radius:8px;padding:5px 10px;font-family:Heebo,sans-serif;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap">הוטען ✓</button>`
+          : `<span style="font-size:18px;text-align:center;display:block">✅</span>`;
+        return `<div style="display:grid;grid-template-columns:${colW};gap:3px;align-items:center;background:${bg};border:1.5px solid ${border};border-top:none;padding:5px 8px;direction:rtl;min-width:max-content">
+          ${car.cells.map((c,ci) => `<div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c)}${ci===0&&isMakdama?` <span style="font-size:9px;background:#ef4444;color:#fff;border-radius:4px;padding:1px 4px">מקדמה</span>`:''}</div>`).join('')}
+          <div style="text-align:center">${btn}</div>
         </div>`;
       };
 
-      html += `<div style="margin-bottom:20px">
+      html += `<div style="margin-bottom:24px">
         <div style="font-size:13px;font-weight:900;color:#5b21b6;margin-bottom:8px">🔌 משימת טעינה · ${ts} · נוצר ע"י ${esc(data.createdBy||'')}</div>`;
 
       if (toCharge.length) {
-        html += `<div style="font-size:12px;font-weight:800;color:#854d0e;margin-bottom:6px">⚡ לטעינה — ${toCharge.length} רכבים</div>`;
-        toCharge.forEach(x => { html += carRow(x, true); });
+        html += `<div style="font-size:12px;font-weight:800;color:#166534;margin-bottom:4px">⚡ לטעינה — ${toCharge.length} רכבים</div>`;
+        html += `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:12px">${headerRow()}${toCharge.map(x=>tableRow(x,true)).join('')}</div>`;
       }
       if (charged.length) {
-        html += `<div style="font-size:12px;font-weight:800;color:#166534;margin:10px 0 6px">✅ הוטענו — ${charged.length} רכבים</div>`;
-        charged.forEach(x => { html += carRow(x, false); });
+        html += `<div style="font-size:12px;font-weight:800;color:#6b7280;margin-bottom:4px">✅ הוטענו — ${charged.length} רכבים</div>`;
+        html += `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch">${headerRow()}${charged.map(x=>tableRow(x,false)).join('')}</div>`;
       }
       html += `</div>`;
     });
