@@ -5250,38 +5250,23 @@ function mergeBatteryFiles() {
     if (v.includes('מקדמה')) return 'מקדמה';
     return null;
   };
-  const statusIdx = _batteryHeaders.findIndex(h => h.includes('סטטוס') || /status/i.test(h));
-  const getRowStatus = r => {
-    if (statusIdx >= 0) return matchStatus(String(r[statusIdx] || '').trim());
-    for (const cell of r) {
-      const m = matchStatus(String(cell || '').trim());
-      if (m) return m;
-    }
-    return null;
-  };
-  const filterAndMap = rows => {
-    return rows
-      .map(r => ({ r, status: getRowStatus(r) }))
+  // each file may have different column structure — compute statusIdx per file
+  const filterFile = fileData => {
+    if (!fileData) return [];
+    const sIdx = fileData.headers.findIndex(h => h.includes('סטטוס') || /status/i.test(h));
+    return fileData.dataRows
+      .map(r => {
+        let status = sIdx >= 0 ? matchStatus(String(r[sIdx] || '').trim()) : null;
+        if (!status) { for (const c of r) { status = matchStatus(String(c || '').trim()); if (status) break; } }
+        return { r, status };
+      })
       .filter(({ status }) => status !== null)
       .map(({ r, status }) => ({ cells: r, battery: '', range: '', status }));
   };
-  // DEBUG
-  console.log('🔋 headers:', _batteryHeaders);
-  console.log('🔋 statusIdx:', statusIdx);
-  if (f1) console.log('🔋 f1 first 3 rows:', f1.dataRows.slice(0,3));
-  if (f2) console.log('🔋 f2 first 3 rows:', f2.dataRows.slice(0,3));
-  const rows1 = f1 ? filterAndMap(f1.dataRows) : [];
-  const rows2 = f2 ? filterAndMap(f2.dataRows) : [];
+  const rows1 = filterFile(f1);
+  const rows2 = filterFile(f2);
   _batteryRows = [...rows1, ...rows2];
-  console.log('🔋 filtered rows:', _batteryRows.length);
-  if (!_batteryRows.length) {
-    // show what status values exist to help debug
-    const allStatuses = new Set();
-    [...(f1?.dataRows||[]), ...(f2?.dataRows||[])].forEach(r => { if(statusIdx>=0) allStatuses.add(String(r[statusIdx]||'').trim()); });
-    console.log('🔋 status values found:', [...allStatuses]);
-    showToast('לא נמצאו שורות. פתח קונסולה לפרטים');
-    return;
-  }
+  if (!_batteryRows.length) { showToast('לא נמצאו שורות בסטטוסים הרלוונטיים (מרגש לצלם לפרסם / מקדמה)'); return; }
   renderBatteryTable();
   document.getElementById('batt-convert-wrap').style.display = 'none';
   document.getElementById('battery-submit-wrap').style.display = '';
