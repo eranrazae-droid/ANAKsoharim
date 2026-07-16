@@ -5242,10 +5242,23 @@ function mergeBatteryFiles() {
   const f2 = _batteryParsedFiles[1];
   if (!f1 && !f2) { showToast('⚠️ נא להעלות לפחות קובץ אחד'); return; }
   _batteryHeaders = (f1 || f2).headers;
-  const rows1 = f1 ? f1.dataRows : [];
-  const rows2 = f2 ? f2.dataRows : [];
-  _batteryRows = [...rows1, ...rows2].map(r => ({ cells: r, battery: '', range: '' }));
-  if (!_batteryRows.length) { showToast('לא נמצאו שורות'); return; }
+  const statusIdx = _batteryHeaders.findIndex(h => /סטטוס|status/i.test(h));
+  const ALLOWED_STATUSES = ['מרגש לצלם לפרסם', 'מקדמה'];
+  const filterAndMap = rows => {
+    const filtered = statusIdx >= 0
+      ? rows.filter(r => ALLOWED_STATUSES.some(s => String(r[statusIdx] || '').trim() === s))
+      : rows;
+    return filtered.map(r => ({
+      cells: r,
+      battery: '',
+      range: '',
+      status: statusIdx >= 0 ? String(r[statusIdx] || '').trim() : '',
+    }));
+  };
+  const rows1 = f1 ? filterAndMap(f1.dataRows) : [];
+  const rows2 = f2 ? filterAndMap(f2.dataRows) : [];
+  _batteryRows = [...rows1, ...rows2];
+  if (!_batteryRows.length) { showToast('לא נמצאו שורות בסטטוסים הרלוונטיים (מרגש לצלם לפרסם / מקדמה)'); return; }
   renderBatteryTable();
   document.getElementById('batt-convert-wrap').style.display = 'none';
   document.getElementById('battery-submit-wrap').style.display = '';
@@ -5330,7 +5343,7 @@ async function submitBatteryAssignment() {
       sentBy: currentUser.name,
       status: 'pending',
       headers: _batteryHeaders,
-      rowsJson: JSON.stringify(_batteryRows.map(r => r.cells)),
+      rowsJson: JSON.stringify(_batteryRows.map(r => ({ cells: r.cells, status: r.status || '' }))),
       createdAt: _serverTs(),
     });
     _notifyDriver(driver, `🔋 נשלחה אליך בדיקת טעינה חדשה. כנס לאפליקציה ענק הרכבים.`);
@@ -5387,8 +5400,9 @@ function openDriverBatteryModal(docId) {
     const parsedRows = data.rowsJson ? JSON.parse(data.rowsJson) : (data.rows || []);
     const saved = localStorage.getItem('_dbattProgress_' + docId);
     const savedData = saved ? JSON.parse(saved) : null;
-    _dbattRows = parsedRows.map((cells, i) => ({
-      cells,
+    _dbattRows = parsedRows.map((row, i) => ({
+      cells:   Array.isArray(row) ? row : (row.cells || []),
+      status:  Array.isArray(row) ? '' : (row.status || ''),
       battery: savedData?.[i]?.battery || '',
       range:   savedData?.[i]?.range   || '',
     }));
@@ -5462,7 +5476,7 @@ async function submitDriverBattery() {
       status: 'done',
       completedBy: currentUser.name,
       completedAt: _serverTs(),
-      resultsJson: JSON.stringify(_dbattRows.map(r => ({ cells: r.cells, battery: r.battery, range: r.range }))),
+      resultsJson: JSON.stringify(_dbattRows.map(r => ({ cells: r.cells, battery: r.battery, range: r.range, status: r.status || '' }))),
       notes: document.getElementById('dbattery-notes').value.trim(),
     });
     localStorage.removeItem('_dbattProgress_' + _dbattDocId);
@@ -5477,6 +5491,7 @@ async function submitDriverBattery() {
 
 window.openBatteryScreen = openBatteryScreen;
 window.handleBatteryFile = handleBatteryFile;
+window.mergeBatteryFiles = mergeBatteryFiles;
 window.batteryInputChange = batteryInputChange;
 window.clearBatteryTable = clearBatteryTable;
 window.submitBatteryAssignment = submitBatteryAssignment;
@@ -5500,7 +5515,7 @@ async function convertToChargingTask(batteryDocId) {
     // only cars with battery < 100%
     const toCharge = results
       .filter(r => { const b = parseInt(r.battery); return isNaN(b) || b < 100; })
-      .map(r => ({ cells: r.cells, battery: r.battery || '', range: r.range || '', charged: false }));
+      .map(r => ({ cells: r.cells, battery: r.battery || '', range: r.range || '', charged: false, status: r.status || '' }));
     if (!toCharge.length) { showToast('כל הרכבים בטעינה מלאה 🎉'); return; }
     await addDoc(collection(window._db, 'charging_tasks'), {
       createdBy: currentUser.name,
@@ -5584,25 +5599,35 @@ function renderChargingTaskModal(data) {
   }
 
   function carRow(car, idx, isCharged) {
-    const bg = isCharged ? '#f0fff4' : '#fefce8';
-    const border = isCharged ? '#22c55e' : '#eab308';
-    const pct = car.battery ? car.battery + '%' : '—';
+    const isMakdama = !isCharged && car.status === 'מקדמה';
+    const bg = isCharged ? '#f0fff4' : (isMakdama ? '#fff1f2' : '#fefce8');
+    const border = isCharged ? '#22c55e' : (isMakdama ? '#ef4444' : '#eab308');
     const btn = isCharged
       ? `<span style="font-size:11px;font-weight:700;color:#166534">✅ הוטען</span>`
       : `<button onclick="markCarCharged('${document.getElementById('charging-task-id').value}',${idx})" style="background:#22c55e;color:#fff;border:none;border-radius:8px;padding:5px 10px;font-family:Heebo,sans-serif;font-size:12px;font-weight:800;cursor:pointer">הוטען ✓</button>`;
+    const urgentBadge = isMakdama ? `<span style="font-size:9px;font-weight:800;background:#ef4444;color:#fff;border-radius:5px;padding:1px 5px;margin-left:4px">מקדמה</span>` : '';
     return `<div style="display:grid;grid-template-columns:${colW} 90px;gap:3px;align-items:center;background:${bg};border:2px solid ${border};border-top:none;padding:5px 8px;direction:rtl;min-width:max-content">
-      ${car.cells.map(c=>`<div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c)}</div>`).join('')}
+      ${car.cells.map((c,ci) => `<div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c)}${ci===0 ? urgentBadge : ''}</div>`).join('')}
       <div style="text-align:center">${btn}</div>
     </div>`;
   }
 
-  // map original indices
+  // sort: מקדמה first in toCharge section
+  const toChargeWithIdx = cars.map((car, idx) => ({ car, idx })).filter(x => !x.car.charged);
+  toChargeWithIdx.sort((a, b) => {
+    const am = a.car.status === 'מקדמה' ? 0 : 1;
+    const bm = b.car.status === 'מקדמה' ? 0 : 1;
+    return am - bm;
+  });
+
   let html = '';
   if (toCharge.length) {
-    html += `<div style="font-weight:800;font-size:14px;color:#854d0e;background:#fef9c3;border-radius:10px;padding:8px 12px;margin-bottom:6px;margin-top:10px">⚡ צריך להטעין — ${toCharge.length} רכבים</div>`;
+    const makdamaCount = toChargeWithIdx.filter(x => x.car.status === 'מקדמה').length;
+    const makdamaNote = makdamaCount ? ` · <span style="color:#ef4444">${makdamaCount} מקדמה ⚠️</span>` : '';
+    html += `<div style="font-weight:800;font-size:14px;color:#854d0e;background:#fef9c3;border-radius:10px;padding:8px 12px;margin-bottom:6px;margin-top:10px">⚡ צריך להטעין — ${toCharge.length} רכבים${makdamaNote}</div>`;
     html += `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:16px">`;
     html += headerRow();
-    cars.forEach((car, idx) => { if (!car.charged) html += carRow(car, idx, false); });
+    toChargeWithIdx.forEach(({ car, idx }) => { html += carRow(car, idx, false); });
     html += '</div>';
   }
   if (charged.length) {
