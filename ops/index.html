@@ -3401,25 +3401,23 @@ function openDriverIntake(id) {
     });
   }
   // restore localStorage draft BEFORE opening modal (sync — no flicker)
-  const hasLocal = !!localStorage.getItem('intake_draft_' + id);
-  if (hasLocal) restoreIntakeDraft(id);
+  const localDraftStr = localStorage.getItem('intake_draft_' + id);
+  const localChecks = localDraftStr ? (JSON.parse(localDraftStr).checks || {}) : {};
+  const hasLocalChecks = Object.keys(localChecks).length > 0;
+  if (localDraftStr) restoreIntakeDraft(id);
   openModal('modal-driver-intake');
-  // always fetch from Firestore — if local draft has no checks yet, apply Firestore draft (handles TD→intake transfer)
-  if (window._CONFIG_DONE) {
+  // fetch from Firestore only if local has no checks — handles TD→intake pre-fill
+  if (!hasLocalChecks && window._CONFIG_DONE) {
     import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(({ getDoc, doc }) => {
       getDoc(doc(window._db, 'intake_assignments', id)).then(snap => {
         if (!snap.exists()) return;
         const fd = snap.data().draft;
-        if (!fd) return;
-        const localDraftStr = localStorage.getItem('intake_draft_' + id);
-        const localChecks = localDraftStr ? (JSON.parse(localDraftStr).checks || {}) : {};
-        if (Object.keys(localChecks).length === 0) {
-          _applyIntakeDraftObj(fd);
-          if (fd.dashChecks?.['dash-other']) {
-            const ta = document.getElementById('cn-c-dashboard'); if (ta) ta.style.display = 'block';
-          }
-          try { localStorage.setItem('intake_draft_' + id, JSON.stringify(fd)); } catch {}
+        if (!fd || !Object.keys(fd.checks || {}).length) return;
+        _applyIntakeDraftObj(fd);
+        if (fd.dashChecks?.['dash-other']) {
+          const ta = document.getElementById('cn-c-dashboard'); if (ta) ta.style.display = 'block';
         }
+        try { localStorage.setItem('intake_draft_' + id, JSON.stringify(fd)); } catch {}
       }).catch(()=>{});
     });
   }
@@ -5088,14 +5086,61 @@ window.submitDriverInv = submitDriverInv;
 ══════════════════════════════════════════ */
 let _batteryHeaders = [];
 let _batteryRows = [];  // [{cells:[...], battery:'', range:''}]
+let _batteryUnsub = null;
+let _batteryMode = 'live'; // 'live'=Firestore | 'preview'=new upload
+let _batteryDocId = '';
 
 function openBatteryScreen() {
   showScreen('battery');
   document.getElementById('battery-user-badge').textContent = currentUser.name;
   _batteryHeaders = [];
   _batteryRows = [];
+  _batteryMode = 'live';
+  _batteryDocId = '';
   document.getElementById('battery-table-wrap').innerHTML = '';
   document.getElementById('battery-submit-wrap').style.display = 'none';
+  _loadBatteryAssignments();
+}
+
+function _loadBatteryAssignments() {
+  if (!window._CONFIG_DONE) return;
+  if (_batteryUnsub) _batteryUnsub();
+  const wrap = document.getElementById('battery-table-wrap');
+  wrap.innerHTML = '<div class="loading"><div class="spinner"></div> טוען...</div>';
+  _batteryUnsub = _onSnap(_colRef('battery_assignments'), snap => {
+    if (_batteryMode === 'preview') return;
+    const mine = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(d => d.sentBy === currentUser.name)
+      .sort((a, b) => {
+        const ta = a.createdAt?.toMillis?.() ?? 0;
+        const tb = b.createdAt?.toMillis?.() ?? 0;
+        return tb - ta;
+      });
+    const last = mine[0];
+    if (!last) {
+      wrap.innerHTML = '<div class="empty-state" style="padding:40px 20px;text-align:center;color:var(--muted)">טרם נשלחה בדיקת סוללות</div>';
+      _batteryDocId = '';
+      return;
+    }
+    _batteryDocId = last.id;
+    const rows = last.rowsJson ? JSON.parse(last.rowsJson) : [];
+    const headers = last.headers || [];
+    const isDriver = last.status === 'pending';
+    const isDone = last.status === 'done';
+    const ts = last.createdAt?.toDate ? last.createdAt.toDate().toLocaleDateString('he-IL') : '';
+    let html = `<div style="border-radius:12px;padding:10px 14px;margin-bottom:12px;font-size:13px;font-weight:700;background:${isDone?'#f0fff4':'#fef3c7'};border:2px solid ${isDone?'#22c55e':'#f59e0b'};color:${isDone?'#166534':'#92400e'}">
+      ${isDone ? '✅ הנהג השלים את הבדיקה' : '⏳ ממתין לנהג — ' + esc(last.assignedTo)} &nbsp;·&nbsp; ${ts} &nbsp;·&nbsp; ${rows.length} רכבים
+    </div>`;
+    if (isDone) {
+      const results = last.resultsJson ? JSON.parse(last.resultsJson) : rows.map(cells => ({ cells, battery:'', range:'' }));
+      html += _batteryTableHTML(headers, results, false);
+    } else {
+      html += _batteryTableHTML(headers, rows.map(r => ({ cells: r, battery:'', range:'' })), false);
+    }
+    wrap.innerHTML = html;
+    document.getElementById('battery-submit-wrap').style.display = 'none';
+  });
 }
 
 function handleBatteryFile(input) {
@@ -5124,6 +5169,7 @@ function handleBatteryFile(input) {
         _batteryRows = nonEmpty.slice(1).map(r => ({ cells: r, battery: '', range: '' }));
       }
       if (!_batteryRows.length) { showToast('לא נמצאו שורות בקובץ'); return; }
+      _batteryMode = 'preview';
       renderBatteryTable();
       document.getElementById('battery-submit-wrap').style.display = '';
     } catch(err) {
@@ -5135,12 +5181,8 @@ function handleBatteryFile(input) {
   input.value = '';
 }
 
-function renderBatteryTable() {
-  const headers = _batteryHeaders;
-  const colCount = headers.length || (_batteryRows[0]?.cells.length || 1);
-  // columns: car details (from right in RTL) then battery% then range (leftmost)
-  // In RTL grid: first columns = rightmost visually. Last two = leftmost visually.
-  // So car detail columns come FIRST, then אחוזי סוללה, then טווח נסיעה
+function _batteryTableHTML(headers, rows, editable) {
+  const colCount = headers.length || (rows[0]?.cells.length || 1);
   const colWidths = headers.length
     ? [...headers.map(h => {
         if (h.includes('דגם') || h.includes('צבע') || h.includes('יצרן')) return 'minmax(80px,1.4fr)';
@@ -5149,7 +5191,6 @@ function renderBatteryTable() {
       }), '72px', '80px']
     : [...Array(colCount).fill('minmax(60px,1fr)'), '72px', '80px'];
   const colW = colWidths.join(' ');
-
   let html = `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch">`;
   if (headers.length) {
     html += `<div style="display:grid;grid-template-columns:${colW};gap:3px;background:var(--dark);color:#fff;border-radius:10px 10px 0 0;padding:6px 8px;font-size:11px;font-weight:700;direction:rtl;min-width:max-content">
@@ -5158,16 +5199,26 @@ function renderBatteryTable() {
       <div style="text-align:center;color:#86efac">טווח<br>נסיעה</div>
     </div>`;
   }
-  html += _batteryRows.map((row, i) => {
-    const bg = row.battery ? '#f0fff4' : '#fff';
-    return `<div id="batt-row-${i}" style="display:grid;grid-template-columns:${colW};gap:3px;align-items:center;background:${bg};border:1.5px solid var(--border);border-top:none;padding:4px 6px;direction:rtl;min-width:max-content">
+  html += rows.map((row, i) => {
+    const filled = row.battery !== '' || row.range !== '';
+    const bg = filled ? '#f0fff4' : '#fff';
+    const batteryCell = editable
+      ? `<div><input type="number" min="0" max="100" value="${esc(row.battery)}" placeholder="%" oninput="batteryInputChange(${i},'battery',this.value)" style="width:100%;border:1.5px solid #22c55e;border-radius:7px;padding:5px 4px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;background:#f0fff4"></div>`
+      : `<div style="font-size:13px;font-weight:800;text-align:center;color:${row.battery ? '#166534' : '#aaa'}">${row.battery ? row.battery + '%' : '—'}</div>`;
+    const rangeCell = editable
+      ? `<div><input type="text" value="${esc(row.range)}" placeholder="קמ" oninput="batteryInputChange(${i},'range',this.value)" style="width:100%;border:1.5px solid #22c55e;border-radius:7px;padding:5px 4px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;background:#f0fff4"></div>`
+      : `<div style="font-size:13px;font-weight:800;text-align:center;color:${row.range ? '#166534' : '#aaa'}">${row.range ? row.range + ' קמ' : '—'}</div>`;
+    return `<div id="batt-row-${i}" style="display:grid;grid-template-columns:${colW};gap:3px;align-items:center;background:${bg};border:1.5px solid ${filled?'#22c55e':'var(--border)'};border-top:none;padding:4px 6px;direction:rtl;min-width:max-content">
       ${row.cells.map(c => `<div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:2px 0">${esc(c)}</div>`).join('')}
-      <div><input type="number" min="0" max="100" value="${esc(row.battery)}" placeholder="%" oninput="batteryInputChange(${i},'battery',this.value)" style="width:100%;border:1.5px solid #22c55e;border-radius:7px;padding:5px 4px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;background:#f0fff4"></div>
-      <div><input type="text" value="${esc(row.range)}" placeholder="קמ" oninput="batteryInputChange(${i},'range',this.value)" style="width:100%;border:1.5px solid #22c55e;border-radius:7px;padding:5px 4px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;background:#f0fff4"></div>
+      ${batteryCell}${rangeCell}
     </div>`;
   }).join('');
   html += '</div>';
-  document.getElementById('battery-table-wrap').innerHTML = html;
+  return html;
+}
+
+function renderBatteryTable() {
+  document.getElementById('battery-table-wrap').innerHTML = _batteryTableHTML(_batteryHeaders, _batteryRows, true);
 }
 
 function batteryInputChange(idx, field, val) {
@@ -5176,11 +5227,21 @@ function batteryInputChange(idx, field, val) {
   if (row) row.style.background = val ? '#f0fff4' : '#fff';
 }
 
-function clearBatteryTable() {
+async function clearBatteryTable() {
+  if (!confirm('למחוק את בדיקת הסוללות?')) return;
+  if (_batteryDocId && window._CONFIG_DONE) {
+    try {
+      const { deleteDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+      await deleteDoc(_docRef('battery_assignments', _batteryDocId));
+    } catch(e) { console.error('clearBattery', e); }
+  }
   _batteryHeaders = [];
   _batteryRows = [];
-  document.getElementById('battery-table-wrap').innerHTML = '';
+  _batteryMode = 'live';
+  _batteryDocId = '';
+  document.getElementById('battery-table-wrap').innerHTML = '<div class="empty-state" style="padding:40px 20px;text-align:center;color:var(--muted)">טרם נשלחה בדיקת סוללות</div>';
   document.getElementById('battery-submit-wrap').style.display = 'none';
+  showToast('🗑️ הבדיקה נמחקה');
 }
 
 async function submitBatteryAssignment() {
@@ -5200,7 +5261,10 @@ async function submitBatteryAssignment() {
     });
     _notifyDriver(driver, `🔋 נשלחה אליך בדיקת סוללות חדשה. כנס לאפליקציה ענק הרכבים.`);
     showToast('✅ נשלח לנהג ' + driver);
-    clearBatteryTable();
+    _batteryHeaders = [];
+    _batteryRows = [];
+    _batteryMode = 'live';
+    document.getElementById('battery-submit-wrap').style.display = 'none';
     document.getElementById('battery-driver-select').value = '';
   } catch(e) {
     console.error('submitBatteryAssignment', e);
