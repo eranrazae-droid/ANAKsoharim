@@ -304,8 +304,12 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
       <div class="deal-val computed" id="total-deal">—</div>
     </div>
     <div class="deal-row">
-      <div class="deal-label" style="display:flex;align-items:center;gap:8px"><button id="btn-cash-100" onclick="toggleCash100()" title="השלם ל-100% מימון" style="background:#0d1f3c;color:#fde047;border:1.5px solid #fde047;border-radius:5px;width:22px;height:22px;font-size:14px;font-weight:900;cursor:pointer;font-family:Heebo,sans-serif;display:flex;align-items:center;justify-content:center;padding:0;flex-shrink:0">□</button>כסף שהלקוח מביא</div>
+      <div class="deal-label" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><button id="btn-cash-100" onclick="toggleCash100()" title="השלם ל-100% מימון" style="background:#0d1f3c;color:#fde047;border:1.5px solid #fde047;border-radius:5px;width:22px;height:22px;font-size:14px;font-weight:900;cursor:pointer;font-family:Heebo,sans-serif;display:flex;align-items:center;justify-content:center;padding:0;flex-shrink:0">□</button>כסף שהלקוח מביא<button onclick="toggleErn()" id="btn-ern" style="background:transparent;color:#ef4444;border:1.5px solid #ef4444;border-radius:5px;padding:1px 7px;font-size:11px;font-weight:900;cursor:pointer;font-family:Heebo,sans-serif;white-space:nowrap">או ERN</button></div>
       <div class="deal-val"><input class="deal-input" id="cash" type="text" placeholder="0 ₪" oninput="onCashInput()" onfocus="onNumFocus(this)" onblur="onNumBlur(this)" inputmode="numeric"></div>
+    </div>
+    <div class="deal-row" id="ern-row" style="display:none">
+      <div class="deal-label" style="color:#ef4444;font-weight:700">ERN</div>
+      <div class="deal-val"><input class="deal-input" id="ern-input" type="text" placeholder="מספר ERN" style="color:#ef4444;font-weight:700" onfocus="this.select()"></div>
     </div>
     <div class="deal-row finance-row">
       <div class="deal-label">סכום מימון</div>
@@ -552,6 +556,17 @@ function pmt(principal, rate, n) {
 }
 
 var _cash100Active = false;
+var _ernOpen = false;
+function toggleErn() {
+  _ernOpen = !_ernOpen;
+  var row = document.getElementById('ern-row');
+  var btn = document.getElementById('btn-ern');
+  row.style.display = _ernOpen ? 'grid' : 'none';
+  btn.style.background = _ernOpen ? '#ef4444' : 'transparent';
+  btn.style.color = _ernOpen ? '#fff' : '#ef4444';
+  if (_ernOpen) document.getElementById('ern-input').focus();
+  else document.getElementById('ern-input').value = '';
+}
 
 function parseNumInput(val) {
   return parseFloat(String(val || '').replace(/[^0-9.]/g, '')) || 0;
@@ -835,6 +850,7 @@ function buildQuoteItem(id, existingSaves) {
     tradeIn: parseNumInput(document.getElementById('trade-in').value),
     oldLoan: parseNumInput(document.getElementById('old-loan').value),
     cash: parseNumInput(document.getElementById('cash').value),
+    ern: document.getElementById('ern-input').value.trim() || '',
     finance: currentFinanceAmt,
     monthly: currentMonthly,
     n: currentN,
@@ -916,6 +932,7 @@ function loadHistoryItem(item) {
   document.getElementById('trade-in').value      = item.tradeIn  ? Math.round(item.tradeIn).toLocaleString('he-IL')  + ' ₪' : '';
   document.getElementById('old-loan').value      = item.oldLoan  ? Math.round(item.oldLoan).toLocaleString('he-IL')  + ' ₪' : '';
   document.getElementById('cash').value          = item.cash     ? Math.round(item.cash).toLocaleString('he-IL')     + ' ₪' : '';
+  if (item.ern) { _ernOpen = false; toggleErn(); document.getElementById('ern-input').value = item.ern; }
   calc();
   if (item.inProcess) { hideAdvanceBtns(); }
   renderSessionSaves(item.saves || []);
