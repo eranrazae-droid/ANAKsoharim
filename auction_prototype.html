@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ענק הרכבים — מכרזים יומיים</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --gold:#c9a227;--gold-light:#f0c842;--gold-dim:rgba(201,162,39,.15);
+  --navy:#1a1a2e;--navy2:#0f0f1e;--navy3:#252545;
+  --bg:#f4f6fb;--card:#fff;--border:#e0e4ef;
+  --text:#1a1a2e;--muted:#7a839a;
+  --green:#16a34a;--red:#dc2626;--blue:#2563eb;
+}
+body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);font-size:15px;min-height:100vh}
+
+/* ===== VIEWS ===== */
+.view{display:none}
+.view.active{display:block}
+
+/* ===== HEADER ===== */
+.header{background:var(--navy);padding:0 24px;position:sticky;top:0;z-index:200;box-shadow:0 2px 20px rgba(0,0,0,.3)}
+.header-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;gap:16px;height:64px}
+.logo{font-size:22px;font-weight:900;color:#fff;text-decoration:none;white-space:nowrap}
+.logo span{color:var(--gold)}
+.header-badge{background:var(--gold);color:#000;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px}
+.header-nav{display:flex;gap:4px;margin-right:auto}
+.nav-link{color:rgba(255,255,255,.6);font-size:14px;font-weight:600;padding:8px 14px;border-radius:8px;cursor:pointer;transition:.15s;border:none;background:none;font-family:inherit}
+.nav-link:hover,.nav-link.active{color:#fff;background:rgba(255,255,255,.08)}
+.header-actions{display:flex;gap:10px;align-items:center}
+.btn-login{background:transparent;border:1.5px solid rgba(255,255,255,.25);color:#fff;padding:8px 18px;border-radius:8px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;transition:.15s}
+.btn-login:hover{border-color:var(--gold);color:var(--gold)}
+.btn-register{background:var(--gold);color:#000;border:none;padding:8px 18px;border-radius:8px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;transition:.15s}
+.btn-register:hover{background:var(--gold-light)}
+
+/* ===== HERO ===== */
+.hero{background:linear-gradient(135deg,var(--navy2) 0%,var(--navy) 100%);padding:40px 24px;text-align:center;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 70% 50%,rgba(201,162,39,.08),transparent 60%)}
+.hero-inner{max-width:800px;margin:0 auto;position:relative}
+.hero-tag{display:inline-block;background:var(--gold-dim);color:var(--gold);border:1px solid rgba(201,162,39,.3);border-radius:999px;padding:5px 16px;font-size:12px;font-weight:700;margin-bottom:16px;letter-spacing:.05em}
+.hero h1{font-size:clamp(28px,5vw,52px);font-weight:900;color:#fff;line-height:1.1;margin-bottom:12px}
+.hero h1 em{color:var(--gold);font-style:normal}
+.hero p{color:rgba(255,255,255,.55);font-size:15px;margin-bottom:28px}
+
+/* Daily schedule strip */
+.schedule-strip{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-bottom:0}
+.sched-card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:16px 24px;text-align:center;min-width:160px}
+.sched-time{font-size:28px;font-weight:900;color:var(--gold);line-height:1}
+.sched-label{font-size:12px;color:rgba(255,255,255,.5);margin-top:4px}
+.sched-status{font-size:11px;font-weight:700;margin-top:8px;padding:3px 10px;border-radius:999px;display:inline-block}
+.sched-status.live{background:rgba(220,38,38,.2);color:#f87171}
+.sched-status.soon{background:rgba(201,162,39,.2);color:var(--gold)}
+.sched-status.done{background:rgba(255,255,255,.08);color:rgba(255,255,255,.4)}
+
+/* ===== TODAY'S AUCTIONS ===== */
+.section{max-width:1200px;margin:0 auto;padding:32px 24px}
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.section-title{font-size:22px;font-weight:900}
+.section-title span{color:var(--gold)}
+.live-dot{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--red)}
+.live-dot::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--red);animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* Auction cards */
+.auctions-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(480px,1fr));gap:24px}
+.auction-card{background:var(--card);border-radius:20px;overflow:hidden;box-shadow:0 2px 16px rgba(0,0,0,.07);border:1px solid var(--border);transition:.2s;cursor:pointer}
+.auction-card:hover{box-shadow:0 8px 32px rgba(0,0,0,.12);transform:translateY(-2px)}
+.auction-card.live-card{border-color:rgba(220,38,38,.3);box-shadow:0 2px 16px rgba(220,38,38,.08)}
+
+/* Image area */
+.card-img{position:relative;height:220px;background:linear-gradient(135deg,#e8eaf6,#c5cae9);overflow:hidden}
+.card-img img{width:100%;height:100%;object-fit:cover}
+.card-img-placeholder{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:80px;background:linear-gradient(135deg,#1a1a2e,#2d2d5e)}
+.card-badges{position:absolute;top:12px;right:12px;display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.badge{display:inline-block;padding:4px 12px;border-radius:999px;font-size:11px;font-weight:700;backdrop-filter:blur(8px)}
+.badge-live{background:rgba(220,38,38,.9);color:#fff}
+.badge-soon{background:rgba(201,162,39,.9);color:#000}
+.badge-done{background:rgba(0,0,0,.6);color:#fff}
+.badge-type{background:rgba(26,26,46,.8);color:#fff}
+.card-timer{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,.8));padding:12px 16px 14px;display:flex;align-items:center;justify-content:space-between}
+.timer-label{font-size:11px;color:rgba(255,255,255,.6);font-weight:600}
+.timer-display{font-size:20px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.timer-display.urgent{color:#f87171}
+
+/* Card body */
+.card-body{padding:20px}
+.car-name{font-size:20px;font-weight:900;margin-bottom:4px}
+.car-sub{font-size:13px;color:var(--muted);margin-bottom:14px}
+.car-specs{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+.spec{display:flex;align-items:center;gap:5px;font-size:13px;color:var(--muted)}
+.spec-icon{font-size:14px}
+.spec strong{color:var(--text);font-weight:700}
+.price-row{display:flex;align-items:flex-end;gap:12px;margin-bottom:16px;padding:12px 14px;background:#f8f9ff;border-radius:10px;border:1px solid var(--border)}
+.price-current{flex:1}
+.price-label{font-size:11px;color:var(--muted);font-weight:600;margin-bottom:2px}
+.price-value{font-size:26px;font-weight:900;color:var(--text)}
+.price-value small{font-size:13px;color:var(--muted);font-weight:400}
+.price-start{text-align:center;border-right:1px solid var(--border);padding-right:12px}
+.bids-count{text-align:center}
+.bids-num{font-size:20px;font-weight:900;color:var(--gold)}
+.card-actions{display:flex;gap:10px}
+.btn-bid{flex:1;background:linear-gradient(135deg,var(--gold),#a07a10);color:#000;border:none;border-radius:10px;padding:14px;font-family:inherit;font-size:15px;font-weight:900;cursor:pointer;transition:.15s}
+.btn-bid:hover{filter:brightness(1.1);transform:scale(1.01)}
+.btn-bid:disabled{background:#ccc;cursor:not-allowed;transform:none;filter:none}
+.btn-watch{background:#f0f2fa;border:none;border-radius:10px;padding:14px 16px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;color:var(--text);transition:.15s;display:flex;align-items:center;gap:6px}
+.btn-watch:hover{background:var(--gold-dim);color:var(--gold)}
+.btn-watch.watching{background:var(--gold-dim);color:var(--gold)}
+
+/* ===== AUCTION DETAIL VIEW ===== */
+.detail-layout{max-width:1200px;margin:0 auto;padding:28px 24px;display:grid;grid-template-columns:1fr 380px;gap:28px;align-items:start}
+.detail-gallery{border-radius:16px;overflow:hidden;background:var(--card);border:1px solid var(--border)}
+.gallery-main{height:340px;background:linear-gradient(135deg,#1a1a2e,#2d2d5e);display:flex;align-items:center;justify-content:center;font-size:120px;position:relative}
+.gallery-thumbs{display:flex;gap:8px;padding:12px;background:var(--card);overflow-x:auto}
+.thumb{width:72px;height:52px;border-radius:8px;background:linear-gradient(135deg,#e8eaf6,#c5cae9);border:2px solid transparent;cursor:pointer;font-size:22px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:.15s}
+.thumb.active{border-color:var(--gold)}
+.detail-info{background:var(--card);border-radius:16px;border:1px solid var(--border);padding:20px}
+.detail-specs{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0;padding:16px;background:#f8f9ff;border-radius:12px}
+.dspec{display:flex;flex-direction:column;gap:2px}
+.dspec-label{font-size:11px;color:var(--muted);font-weight:600}
+.dspec-val{font-size:14px;font-weight:700}
+.inspection-box{background:rgba(22,163,74,.07);border:1px solid rgba(22,163,74,.2);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#166534}
+.inspection-box strong{display:block;margin-bottom:4px;font-size:14px}
+
+/* Bid panel */
+.bid-panel{background:var(--card);border-radius:16px;border:1px solid var(--border);position:sticky;top:80px}
+.bid-panel-header{padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.bid-panel-header h3{font-size:17px;font-weight:900}
+.bid-current{padding:16px 20px;background:#f8f9ff;border-bottom:1px solid var(--border)}
+.bid-current-label{font-size:12px;color:var(--muted);font-weight:600;margin-bottom:4px}
+.bid-current-val{font-size:36px;font-weight:900;color:var(--text);line-height:1}
+.bid-current-who{font-size:12px;color:var(--green);font-weight:600;margin-top:4px}
+.countdown-big{padding:14px 20px;display:flex;gap:8px;justify-content:center;border-bottom:1px solid var(--border)}
+.cnt-unit{text-align:center;flex:1}
+.cnt-num{font-size:28px;font-weight:900;color:var(--navy);line-height:1;font-variant-numeric:tabular-nums}
+.cnt-num.urgent{color:var(--red)}
+.cnt-label{font-size:10px;color:var(--muted);font-weight:600;margin-top:2px}
+.cnt-sep{font-size:24px;font-weight:900;color:var(--muted);padding-top:2px}
+.bid-input-area{padding:16px 20px;border-bottom:1px solid var(--border)}
+.bid-input-label{font-size:12px;color:var(--muted);font-weight:600;margin-bottom:8px}
+.bid-presets{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+.bid-preset{background:#f0f2fa;border:1.5px solid var(--border);color:var(--text);border-radius:8px;padding:7px 12px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:.15s}
+.bid-preset:hover{border-color:var(--gold);color:var(--gold);background:var(--gold-dim)}
+.bid-preset.active{border-color:var(--gold);background:var(--gold-dim);color:var(--gold)}
+.bid-custom{display:flex;gap:8px;align-items:center}
+.bid-input{flex:1;border:1.5px solid var(--border);border-radius:8px;padding:10px 14px;font-family:inherit;font-size:15px;font-weight:700;outline:none;transition:.15s}
+.bid-input:focus{border-color:var(--gold)}
+.bid-currency{font-size:14px;color:var(--muted);white-space:nowrap}
+.bid-btn-main{width:100%;background:linear-gradient(135deg,var(--gold),#a07a10);color:#000;border:none;border-radius:10px;padding:16px;font-family:inherit;font-size:17px;font-weight:900;cursor:pointer;transition:.15s;margin-top:10px}
+.bid-btn-main:hover{filter:brightness(1.08)}
+.bid-btn-main:active{transform:scale(.98)}
+.proxy-row{display:flex;align-items:center;gap:10px;padding:12px 20px;border-bottom:1px solid var(--border);background:#fafbff;cursor:pointer}
+.proxy-row input[type=checkbox]{width:17px;height:17px;accent-color:var(--gold);cursor:pointer}
+.proxy-label{font-size:13px;font-weight:600}
+.proxy-desc{font-size:12px;color:var(--muted)}
+.bid-history{padding:0 20px 16px}
+.bid-history h4{font-size:13px;font-weight:700;color:var(--muted);margin:14px 0 10px;text-transform:uppercase;letter-spacing:.05em}
+.bid-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f0f2fa;font-size:13px}
+.bid-row:last-child{border-bottom:none}
+.bid-row-name{font-weight:600}
+.bid-row-name.me{color:var(--green)}
+.bid-row-amount{font-weight:900}
+.bid-row-time{color:var(--muted);font-size:11px}
+
+/* ===== TOAST ===== */
+.toasts{position:fixed;top:80px;left:50%;transform:translateX(-50%);z-index:999;display:flex;flex-direction:column;gap:8px;pointer-events:none;width:340px;max-width:95vw}
+.toast{background:var(--navy);color:#fff;border-radius:12px;padding:14px 18px;display:flex;align-items:center;gap:12px;box-shadow:0 8px 32px rgba(0,0,0,.25);animation:slideIn .3s ease;pointer-events:auto}
+.toast.outbid{background:#7f1d1d;border:1px solid rgba(248,113,113,.3)}
+.toast.win{background:#14532d;border:1px solid rgba(134,239,172,.3)}
+.toast.placed{background:#1e3a5f;border:1px solid rgba(96,165,250,.3)}
+.toast-icon{font-size:22px;flex-shrink:0}
+.toast-text strong{display:block;font-size:14px;font-weight:700}
+.toast-text span{font-size:12px;color:rgba(255,255,255,.6)}
+@keyframes slideIn{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:translateY(0)}}
+
+/* ===== MODAL ===== */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:500;display:none;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.open{display:flex}
+.modal{background:#fff;border-radius:20px;padding:32px;max-width:420px;width:100%;text-align:center}
+.modal h2{font-size:22px;font-weight:900;margin-bottom:8px}
+.modal p{color:var(--muted);font-size:14px;margin-bottom:24px;line-height:1.6}
+.modal-amount{font-size:42px;font-weight:900;color:var(--gold);margin:16px 0}
+.modal-car{font-size:14px;color:var(--muted);margin-bottom:24px}
+.modal-actions{display:flex;gap:12px}
+.modal-confirm{flex:1;background:linear-gradient(135deg,var(--gold),#a07a10);color:#000;border:none;border-radius:10px;padding:14px;font-family:inherit;font-size:16px;font-weight:900;cursor:pointer}
+.modal-cancel{background:#f0f2fa;border:none;border-radius:10px;padding:14px 20px;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;color:var(--text)}
+.modal-note{font-size:12px;color:var(--muted);margin-top:16px}
+
+/* ===== REGISTER MODAL ===== */
+.reg-field{text-align:right;margin-bottom:14px}
+.reg-field label{display:block;font-size:13px;font-weight:700;margin-bottom:5px}
+.reg-field input{width:100%;border:1.5px solid var(--border);border-radius:8px;padding:10px 14px;font-family:inherit;font-size:14px;outline:none;transition:.15s}
+.reg-field input:focus{border-color:var(--gold)}
+.reg-submit{width:100%;background:linear-gradient(135deg,var(--gold),#a07a10);color:#000;border:none;border-radius:10px;padding:14px;font-family:inherit;font-size:16px;font-weight:900;cursor:pointer;margin-top:8px}
+
+/* ===== FOOTER ===== */
+.footer{background:var(--navy);color:rgba(255,255,255,.4);text-align:center;padding:20px;font-size:12px;margin-top:48px}
+
+/* ===== MOBILE ===== */
+@media(max-width:900px){
+  .detail-layout{grid-template-columns:1fr}
+  .bid-panel{position:static}
+  .auctions-grid{grid-template-columns:1fr}
+  .header-nav{display:none}
+}
+@media(max-width:500px){
+  .header-inner{padding:0}
+  .section{padding:20px 14px}
+  .detail-layout{padding:16px 14px}
+  .card-body{padding:14px}
+  .bid-presets{gap:4px}
+  .bid-preset{padding:6px 9px;font-size:12px}
+}
+</style>
+</head>
+<body>
+
+<!-- ===== HEADER ===== -->
+<header class="header">
+  <div class="header-inner">
+    <a class="logo" href="#" onclick="showView('home')">ענק <span>הרכבים</span></a>
+    <span class="header-badge">מכרזים יומיים</span>
+    <nav class="header-nav">
+      <button class="nav-link active" onclick="showView('home')">מכרזים היום</button>
+      <button class="nav-link" onclick="showView('home')">ארכיון</button>
+      <button class="nav-link" onclick="showView('home')">איך זה עובד?</button>
+    </nav>
+    <div class="header-actions">
+      <button class="btn-login" onclick="openRegister()">כניסה</button>
+      <button class="btn-register" onclick="openRegister()">הרשמה חינם</button>
+    </div>
+  </div>
+</header>
+
+<!-- ===== HOME VIEW ===== -->
+<div class="view active" id="view-home">
+
+  <!-- Hero -->
+  <div class="hero">
+    <div class="hero-inner">
+      <div class="hero-tag">🔥 רכב אחד בכל יום · ישירות מענק הרכבים</div>
+      <h1>מכרז רכב יומי.<br><em>מחיר שוק. ללא מו"מ.</em></h1>
+      <p>כל יום בשעה 10:00 — רכב אחד, שעתיים בלבד, הגבוה ביותר זוכה</p>
+      <div class="schedule-strip">
+        <div class="sched-card">
+          <div class="sched-time">10:00</div>
+          <div class="sched-label">מכרז יומי</div>
+          <div class="sched-status live" id="status1">🔴 פעיל עכשיו</div>
+        </div>
+        <div class="sched-card">
+          <div class="sched-time">12:00</div>
+          <div class="sched-label">המכרז נסגר</div>
+          <div class="sched-status done">✅ מסתיים</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Auctions -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title">מכרזי <span>היום</span></div>
+      <div class="live-dot">שידור חי</div>
+    </div>
+    <div class="auctions-grid">
+
+      <!-- CARD 1 — LIVE -->
+      <div class="auction-card live-card" onclick="showDetail(0)">
+        <div class="card-img">
+          <div class="card-img-placeholder">🚗</div>
+          <div class="card-badges">
+            <span class="badge badge-live">🔴 פעיל</span>
+            <span class="badge badge-type">גיל מלאי</span>
+          </div>
+          <div class="card-timer">
+            <span class="timer-label">מסתיים בעוד</span>
+            <span class="timer-display urgent" id="timer-home-0">01:23:45</span>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="car-name">טויוטה קורולה</div>
+          <div class="car-sub">2022 · אוטומטית · ידיים ראשונות</div>
+          <div class="car-specs">
+            <div class="spec"><span class="spec-icon">🛣️</span><strong>38,200</strong> ק"מ</div>
+            <div class="spec"><span class="spec-icon">⛽</span><strong>היברידי</strong></div>
+            <div class="spec"><span class="spec-icon">🎨</span><strong>לבן פנינה</strong></div>
+          </div>
+          <div class="price-row">
+            <div class="price-current">
+              <div class="price-label">הצעה נוכחית</div>
+              <div class="price-value" id="card-price-0">₪89,500 <small></small></div>
+            </div>
+            <div class="price-start">
+              <div class="price-label">פתיחה</div>
+              <div style="font-size:15px;font-weight:700">₪75,000</div>
+            </div>
+            <div class="bids-count">
+              <div class="price-label">הצעות</div>
+              <div class="bids-num" id="card-bids-0">14</div>
+            </div>
+          </div>
+          <div class="card-actions">
+            <button class="btn-bid" onclick="event.stopPropagation();showDetail(0)">הצע מחיר →</button>
+            <button class="btn-watch" id="watch-0" onclick="event.stopPropagation();toggleWatch(0)">🔔 עקוב</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- CARD 2 — TOMORROW TEASER -->
+      <div class="auction-card" style="opacity:.7;cursor:default">
+        <div class="card-img">
+          <div class="card-img-placeholder" style="background:linear-gradient(135deg,#2d2d2d,#1a1a1a);font-size:48px">🔒<br><span style="font-size:18px;font-weight:700;color:rgba(255,255,255,.5);display:block;margin-top:8px">מחר</span></div>
+          <div class="card-badges">
+            <span class="badge badge-done">מחר 10:00</span>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="car-name" style="color:var(--muted)">מכרז מחר — עדיין סודי</div>
+          <div class="car-sub">הרכב יוכרז הלילה ב-20:00</div>
+          <div style="padding:16px;background:#f8f9ff;border-radius:10px;border:1px solid var(--border);text-align:center;margin:16px 0">
+            <div style="font-size:13px;color:var(--muted);margin-bottom:10px">רוצה להיות הראשון לדעת?</div>
+            <button class="btn-watch watching" style="width:100%" onclick="showToast('placed','🔔','מעולה!','תקבל התראה ב-SMS כשהרכב יוכרז')">🔔 שלח לי התראה</button>
+          </div>
+          <div style="font-size:13px;color:var(--muted);text-align:center">📲 SMS חינם · ביטול בכל עת</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- How it works strip -->
+  <div style="background:#fff;border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:28px 24px;margin-top:8px">
+    <div style="max-width:900px;margin:0 auto">
+      <div style="text-align:center;font-size:18px;font-weight:900;margin-bottom:20px">איך זה עובד? <span style="color:var(--gold)">4 צעדים פשוטים</span></div>
+      <div style="display:flex;gap:0;text-align:center;flex-wrap:wrap">
+        <div style="flex:1;min-width:180px;padding:0 20px;border-left:1px solid var(--border)">
+          <div style="font-size:32px;margin-bottom:8px">🔍</div>
+          <div style="font-weight:700;margin-bottom:4px">1. בוחרים רכב</div>
+          <div style="font-size:13px;color:var(--muted)">קוראים את הפרטים, בדיקת מכון, תמונות</div>
+        </div>
+        <div style="flex:1;min-width:180px;padding:0 20px;border-left:1px solid var(--border)">
+          <div style="font-size:32px;margin-bottom:8px">✍️</div>
+          <div style="font-weight:700;margin-bottom:4px">2. נרשמים</div>
+          <div style="font-size:13px;color:var(--muted)">חינם ומהיר — שם ומספר טלפון בלבד</div>
+        </div>
+        <div style="flex:1;min-width:180px;padding:0 20px;border-left:1px solid var(--border)">
+          <div style="font-size:32px;margin-bottom:8px">🏷️</div>
+          <div style="font-weight:700;margin-bottom:4px">3. מציעים מחיר</div>
+          <div style="font-size:13px;color:var(--muted)">שעתיים, כל הצעה גלויה, בזמן אמת</div>
+        </div>
+        <div style="flex:1;min-width:180px;padding:0 20px">
+          <div style="font-size:32px;margin-bottom:8px">🚗</div>
+          <div style="font-weight:700;margin-bottom:4px">4. זוכים ואוספים</div>
+          <div style="font-size:13px;color:var(--muted)">העברת בעלות תוך 48 שעות</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ===== DETAIL VIEW ===== -->
+<div class="view" id="view-detail">
+  <div style="background:var(--navy);padding:10px 24px">
+    <div style="max-width:1200px;margin:0 auto">
+      <button onclick="showView('home')" style="background:none;border:none;color:rgba(255,255,255,.6);font-family:inherit;font-size:14px;cursor:pointer;font-weight:600">← חזרה למכרזים</button>
+    </div>
+  </div>
+
+  <div class="detail-layout">
+    <!-- Left: gallery + info -->
+    <div>
+      <div class="detail-gallery">
+        <div class="gallery-main" id="gallery-main">🚗</div>
+        <div class="gallery-thumbs">
+          <div class="thumb active" onclick="selectThumb(this,'🚗')">🚗</div>
+          <div class="thumb" onclick="selectThumb(this,'🔧')">🔧</div>
+          <div class="thumb" onclick="selectThumb(this,'💺')">💺</div>
+          <div class="thumb" onclick="selectThumb(this,'🛞')">🛞</div>
+          <div class="thumb" onclick="selectThumb(this,'📋')">📋</div>
+        </div>
+      </div>
+
+      <div style="background:var(--card);border-radius:16px;border:1px solid var(--border);padding:20px;margin-top:16px">
+        <div style="font-size:18px;font-weight:900;margin-bottom:4px" id="detail-name">טויוטה קורולה</div>
+        <div style="font-size:14px;color:var(--muted);margin-bottom:16px" id="detail-sub">2022 · אוטומטית · ידיים ראשונות</div>
+
+        <div class="detail-specs" id="detail-specs">
+          <div class="dspec"><span class="dspec-label">שנה</span><span class="dspec-val">2022</span></div>
+          <div class="dspec"><span class="dspec-label">ק"מ</span><span class="dspec-val">38,200</span></div>
+          <div class="dspec"><span class="dspec-label">הילוכים</span><span class="dspec-val">אוטומטי</span></div>
+          <div class="dspec"><span class="dspec-label">דלק</span><span class="dspec-val">היברידי</span></div>
+          <div class="dspec"><span class="dspec-label">צבע</span><span class="dspec-val">לבן פנינה</span></div>
+          <div class="dspec"><span class="dspec-label">בעלות</span><span class="dspec-val">ראשון</span></div>
+          <div class="dspec"><span class="dspec-label">טסט עד</span><span class="dspec-val">מרץ 2026</span></div>
+          <div class="dspec"><span class="dspec-label">מחירון</span><span class="dspec-val">₪105,000</span></div>
+        </div>
+
+        <div class="inspection-box">
+          <strong>✅ בדיקת מכון — תקין</strong>
+          בוצעה ב-מכון מורשה · 15.07.2026 · אין ממצאים משמעותיים · מנוע תקין · גוף ללא נזקי חבטות
+        </div>
+
+        <div style="font-size:14px;line-height:1.8;color:var(--muted)" id="detail-desc">
+          רכב מטיפול ראשון ידיים, עלה מהמפעל ישירות לענק הרכבים. כל ההיסטוריה מתועדת. שנה אחת ישב בחניון רזרבי — ולכן מוצא במכרז במחיר מיוחד. מצב מצוין לכל אורכו.
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: bid panel -->
+    <div class="bid-panel">
+      <div class="bid-panel-header">
+        <h3 id="panel-car-name">טויוטה קורולה 2022</h3>
+        <span class="badge badge-live" id="panel-status">🔴 פעיל</span>
+      </div>
+
+      <div class="bid-current">
+        <div class="bid-current-label">הצעה מובילה כרגע</div>
+        <div class="bid-current-val" id="panel-price">₪89,500</div>
+        <div class="bid-current-who" id="panel-leader">👤 א.כ. מתל אביב</div>
+      </div>
+
+      <div class="countdown-big">
+        <div class="cnt-unit"><div class="cnt-num" id="cnt-h">01</div><div class="cnt-label">שעות</div></div>
+        <div class="cnt-sep">:</div>
+        <div class="cnt-unit"><div class="cnt-num" id="cnt-m">23</div><div class="cnt-label">דקות</div></div>
+        <div class="cnt-sep">:</div>
+        <div class="cnt-unit"><div class="cnt-num" id="cnt-s">45</div><div class="cnt-label">שניות</div></div>
+      </div>
+
+      <div class="bid-input-area">
+        <div class="bid-input-label">בחרו סכום להצעה</div>
+        <div class="bid-presets">
+          <button class="bid-preset" onclick="setBidAmount(500)">+500</button>
+          <button class="bid-preset active" onclick="setBidAmount(1000)">+1,000</button>
+          <button class="bid-preset" onclick="setBidAmount(2000)">+2,000</button>
+          <button class="bid-preset" onclick="setBidAmount(5000)">+5,000</button>
+        </div>
+        <div class="bid-custom">
+          <input class="bid-input" id="bid-input" type="number" value="90500" min="90000" step="500">
+          <span class="bid-currency">₪</span>
+        </div>
+        <button class="bid-btn-main" onclick="placeBid()">הצע ₪<span id="bid-btn-amount">90,500</span> →</button>
+      </div>
+
+      <div class="proxy-row" onclick="toggleProxy()">
+        <input type="checkbox" id="proxy-check">
+        <div>
+          <div class="proxy-label">🤖 הצעה אוטומטית (Proxy)</div>
+          <div class="proxy-desc">הגדר מחיר מקסימום — המערכת תציע עבורך</div>
+        </div>
+      </div>
+
+      <div class="bid-history">
+        <h4>היסטוריית הצעות</h4>
+        <div id="bid-history-list">
+          <div class="bid-row"><span class="bid-row-name">א.כ.</span><span class="bid-row-amount">₪89,500</span><span class="bid-row-time">11:31:08</span></div>
+          <div class="bid-row"><span class="bid-row-name">מ.ל.</span><span class="bid-row-amount">₪88,000</span><span class="bid-row-time">11:28:44</span></div>
+          <div class="bid-row"><span class="bid-row-name">י.ש.</span><span class="bid-row-amount">₪86,500</span><span class="bid-row-time">11:25:12</span></div>
+          <div class="bid-row"><span class="bid-row-name">א.כ.</span><span class="bid-row-amount">₪85,000</span><span class="bid-row-time">11:19:33</span></div>
+          <div class="bid-row"><span class="bid-row-name">מ.ל.</span><span class="bid-row-amount">₪83,500</span><span class="bid-row-time">11:14:07</span></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ===== FOOTER ===== -->
+<footer class="footer">
+  ענק הרכבים — מכרזים יומיים · כל הזכויות שמורות · מכרז זה מנוהל ישירות על ידי ענק הרכבים בע"מ
+</footer>
+
+<!-- ===== TOASTS ===== -->
+<div class="toasts" id="toasts"></div>
+
+<!-- ===== BID CONFIRM MODAL ===== -->
+<div class="modal-overlay" id="modal-bid">
+  <div class="modal">
+    <div style="font-size:36px;margin-bottom:12px">🏷️</div>
+    <h2>אישור הצעת מחיר</h2>
+    <div class="modal-amount" id="modal-amount">₪90,500</div>
+    <div class="modal-car" id="modal-car">טויוטה קורולה 2022</div>
+    <p>הצעה זו מחייבת. הזוכה ידרש לסיים את הרכישה תוך 48 שעות.</p>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeBidModal()">ביטול</button>
+      <button class="modal-confirm" onclick="confirmBid()">אישור →</button>
+    </div>
+    <div class="modal-note">* אין עמלת קנייה · מחיר סופי = מחיר המכרז</div>
+  </div>
+</div>
+
+<!-- ===== REGISTER MODAL ===== -->
+<div class="modal-overlay" id="modal-register">
+  <div class="modal" style="max-width:380px">
+    <div style="font-size:36px;margin-bottom:12px">🚀</div>
+    <h2>הרשמה חינם</h2>
+    <p>30 שניות ואתה מוכן להציע</p>
+    <div class="reg-field"><label>שם מלא</label><input type="text" placeholder="ישראל ישראלי"></div>
+    <div class="reg-field"><label>מספר טלפון</label><input type="tel" placeholder="050-0000000"></div>
+    <div class="reg-field"><label>אימייל</label><input type="email" placeholder="you@example.com"></div>
+    <button class="reg-submit" onclick="registerUser()">הרשם וקבל התראות →</button>
+    <div class="modal-note" style="margin-top:12px">✅ ללא תשלום · תקבל SMS כשמוצאים אותך</div>
+    <button onclick="closeRegister()" style="background:none;border:none;color:var(--muted);font-family:inherit;font-size:13px;margin-top:10px;cursor:pointer">סגור</button>
+  </div>
+</div>
+
+<script>
+// ===== STATE =====
+const cars = [
+  {
+    name:'טויוטה קורולה',sub:'2022 · אוטומטית · ידיים ראשונות',
+    emoji:'🚗',price:89500,bids:14,start:75000,status:'live',
+    timer:83*60+45
+  },
+  {
+    name:'יונדאי טוסון',sub:'2023 · אוטומטית · שריטה קלה בפגוש',
+    emoji:'🚙',price:95000,bids:0,start:95000,status:'soon',
+    timer:38*60+12
+  }
+];
+
+let currentCar = 0;
+let bidAmount = 90500;
+let watching = [false, true];
+let loggedIn = false;
+
+// ===== VIEWS =====
+function showView(name){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+name).classList.add('active');
+  window.scrollTo(0,0);
+}
+
+function showDetail(idx){
+  currentCar = idx;
+  const car = cars[idx];
+  document.getElementById('detail-name').textContent = car.name;
+  document.getElementById('detail-sub').textContent = car.sub;
+  document.getElementById('panel-car-name').textContent = car.name + ' ' + car.sub.split('·')[0].trim();
+  document.getElementById('panel-price').textContent = '₪' + car.price.toLocaleString();
+  document.getElementById('panel-status').textContent = car.status==='live'?'🔴 פעיל':'⏳ בקרוב';
+  document.getElementById('panel-status').className = 'badge ' + (car.status==='live'?'badge-live':'badge-soon');
+  document.getElementById('gallery-main').textContent = car.emoji;
+
+  // reset bid
+  const nextBid = car.price + 1000;
+  bidAmount = nextBid;
+  document.getElementById('bid-input').value = nextBid;
+  document.getElementById('bid-btn-amount').textContent = nextBid.toLocaleString();
+  document.getElementById('bid-input').min = car.price + 500;
+
+  if(idx===1){
+    document.querySelector('.bid-btn-main').disabled = true;
+    document.querySelector('.bid-btn-main').textContent = 'מתחיל ב-12:00';
+  } else {
+    document.querySelector('.bid-btn-main').disabled = false;
+  }
+
+  showView('detail');
+}
+
+// ===== GALLERY =====
+function selectThumb(el, emoji){
+  document.querySelectorAll('.thumb').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('gallery-main').textContent = emoji;
+}
+
+// ===== WATCH =====
+function toggleWatch(idx){
+  watching[idx] = !watching[idx];
+  const btn = document.getElementById('watch-'+idx);
+  if(watching[idx]){
+    btn.textContent = '🔔 עוקב';
+    btn.classList.add('watching');
+    showToast('placed','🔔','נוסף לעוקבים!','תקבל התראה כשתוצא ממך');
+  } else {
+    btn.textContent = '🔔 עקוב';
+    btn.classList.remove('watching');
+  }
+}
+
+// ===== BID =====
+function setBidAmount(increment){
+  const car = cars[currentCar];
+  const newAmt = car.price + increment;
+  bidAmount = newAmt;
+  document.getElementById('bid-input').value = newAmt;
+  document.getElementById('bid-btn-amount').textContent = newAmt.toLocaleString();
+  document.querySelectorAll('.bid-preset').forEach(b=>b.classList.remove('active'));
+  event.target.classList.add('active');
+}
+
+document.getElementById('bid-input').addEventListener('input', function(){
+  bidAmount = parseInt(this.value)||0;
+  document.getElementById('bid-btn-amount').textContent = bidAmount.toLocaleString();
+});
+
+function placeBid(){
+  if(!loggedIn){ openRegister(); return; }
+  const car = cars[currentCar];
+  if(bidAmount <= car.price){
+    showToast('outbid','⚠️','הצעה נמוכה מדי','ההצעה חייבת להיות גבוהה מ-₪'+car.price.toLocaleString());
+    return;
+  }
+  document.getElementById('modal-amount').textContent = '₪'+bidAmount.toLocaleString();
+  document.getElementById('modal-car').textContent = car.name + ' ' + car.sub.split('·')[0].trim();
+  document.getElementById('modal-bid').classList.add('open');
+}
+
+function closeBidModal(){
+  document.getElementById('modal-bid').classList.remove('open');
+}
+
+function confirmBid(){
+  closeBidModal();
+  const car = cars[currentCar];
+  const oldPrice = car.price;
+  car.price = bidAmount;
+  car.bids++;
+
+  // update UI
+  document.getElementById('panel-price').textContent = '₪'+bidAmount.toLocaleString();
+  document.getElementById('panel-leader').textContent = '👤 אתה — המציע המוביל!';
+  document.getElementById('panel-leader').style.color = 'var(--green)';
+  document.getElementById('card-price-'+currentCar).textContent = '₪'+bidAmount.toLocaleString();
+  document.getElementById('card-bids-'+currentCar).textContent = car.bids;
+
+  // Add to history
+  const now = new Date();
+  const timeStr = now.toTimeString().slice(0,8);
+  const hist = document.getElementById('bid-history-list');
+  const row = document.createElement('div');
+  row.className='bid-row';
+  row.innerHTML=`<span class="bid-row-name me">אתה</span><span class="bid-row-amount">₪${bidAmount.toLocaleString()}</span><span class="bid-row-time">${timeStr}</span>`;
+  hist.insertBefore(row, hist.firstChild);
+
+  // next bid
+  const nextBid = bidAmount + 1000;
+  document.getElementById('bid-input').value = nextBid;
+  document.getElementById('bid-btn-amount').textContent = nextBid.toLocaleString();
+  bidAmount = nextBid;
+
+  showToast('placed','✅','הצעה הוגשה!','אתה המציע המוביל ב-₪'+car.price.toLocaleString());
+
+  // Simulate outbid after 4 seconds
+  setTimeout(()=>{
+    if(Math.random() > 0.4){
+      const outbidAmt = car.price + 1500;
+      car.price = outbidAmt;
+      car.bids++;
+      document.getElementById('panel-price').textContent = '₪'+outbidAmt.toLocaleString();
+      document.getElementById('panel-leader').textContent = '👤 מ.ל. מירושלים';
+      document.getElementById('panel-leader').style.color = 'var(--red)';
+      document.getElementById('card-price-'+currentCar).textContent = '₪'+outbidAmt.toLocaleString();
+      document.getElementById('card-bids-'+currentCar).textContent = car.bids;
+
+      const row2=document.createElement('div');
+      row2.className='bid-row';
+      const t2=new Date().toTimeString().slice(0,8);
+      row2.innerHTML=`<span class="bid-row-name">מ.ל.</span><span class="bid-row-amount">₪${outbidAmt.toLocaleString()}</span><span class="bid-row-time">${t2}</span>`;
+      hist.insertBefore(row2,hist.firstChild);
+
+      const nextBid2 = outbidAmt+1000;
+      document.getElementById('bid-input').value=nextBid2;
+      document.getElementById('bid-btn-amount').textContent=nextBid2.toLocaleString();
+      bidAmount=nextBid2;
+
+      showToast('outbid','😤','הוצאת ממך!','מ.ל. הציע ₪'+outbidAmt.toLocaleString()+' — הצע יותר!');
+    }
+  },4000);
+}
+
+function toggleProxy(){
+  const cb = document.getElementById('proxy-check');
+  cb.checked = !cb.checked;
+}
+
+// ===== TOASTS =====
+function showToast(type, icon, title, sub){
+  const container = document.getElementById('toasts');
+  const toast = document.createElement('div');
+  toast.className='toast '+type;
+  toast.innerHTML=`<span class="toast-icon">${icon}</span><div class="toast-text"><strong>${title}</strong><span>${sub}</span></div>`;
+  container.appendChild(toast);
+  setTimeout(()=>toast.remove(), 4500);
+}
+
+// ===== REGISTER =====
+function openRegister(){
+  document.getElementById('modal-register').classList.add('open');
+}
+function closeRegister(){
+  document.getElementById('modal-register').classList.remove('open');
+}
+function registerUser(){
+  loggedIn = true;
+  closeRegister();
+  document.querySelector('.btn-login').textContent='שלום!';
+  document.querySelector('.btn-register').style.display='none';
+  showToast('placed','🎉','נרשמת בהצלחה!','תקבל התראות SMS על מכרזים');
+}
+
+// ===== TIMERS =====
+function updateTimers(){
+  cars.forEach((car,i)=>{
+    if(car.timer > 0) car.timer--;
+    const s = car.timer;
+    const h = Math.floor(s/3600);
+    const m = Math.floor((s%3600)/60);
+    const sec = s%60;
+    const str = String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0');
+
+    const homeEl = document.getElementById('timer-home-'+i);
+    if(homeEl) homeEl.textContent = str;
+
+    if(i===currentCar && document.getElementById('view-detail').classList.contains('active')){
+      const urgent = s < 600;
+      document.getElementById('cnt-h').textContent=String(h).padStart(2,'0');
+      document.getElementById('cnt-m').textContent=String(m).padStart(2,'0');
+      document.getElementById('cnt-s').textContent=String(sec).padStart(2,'0');
+      ['cnt-h','cnt-m','cnt-s'].forEach(id=>{
+        document.getElementById(id).classList.toggle('urgent',urgent);
+      });
+      if(s===60) showToast('outbid','⏰','דקה אחרונה!','הצע עכשיו לפני שייגמר');
+    }
+  });
+}
+setInterval(updateTimers, 1000);
+
+// ===== CLOSE MODALS ON OVERLAY CLICK =====
+document.querySelectorAll('.modal-overlay').forEach(o=>{
+  o.addEventListener('click',e=>{ if(e.target===o) o.classList.remove('open'); });
+});
+</script>
+</body>
+</html>
