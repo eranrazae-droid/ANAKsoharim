@@ -2094,11 +2094,11 @@ function loadDriverBadges() {
     _onSnap(_query(_colRef('battery_assignments'), _where('assignedTo','==',name)), snap => {
       _setCardBadge('driver-battery', snap.docs.filter(d => d.data().status === 'pending' && !d.data().converted).length);
     });
-    _onSnap(_query(_colRef('charging_tasks'), _where('status','!=','deleted')), snap => {
-      const relevant = snap.docs.filter(d => ['active','done'].includes(d.data().status));
+    const _driverChargingState = { active: {}, done: {} };
+    function _updateDriverChargingCard() {
+      const allDocs = { ..._driverChargingState.active, ..._driverChargingState.done };
       let totalCars = 0, pendingCars = 0;
-      relevant.forEach(d => {
-        const cars = d.data().carsJson ? JSON.parse(d.data().carsJson) : [];
+      Object.values(allDocs).forEach(cars => {
         totalCars += cars.length;
         pendingCars += cars.filter(c => !c.charged).length;
       });
@@ -2113,6 +2113,16 @@ function loadDriverBadges() {
         _setCardBadge('driver-charging', pendingCars, '#1d4ed8');
         if (sub && pendingCars === 0) sub.textContent = 'רכבים לטעינה';
       }
+    }
+    _onSnap(_query(_colRef('charging_tasks'), _where('status','==','active')), snap => {
+      _driverChargingState.active = {};
+      snap.docs.forEach(d => { _driverChargingState.active[d.id] = d.data().carsJson ? JSON.parse(d.data().carsJson) : []; });
+      _updateDriverChargingCard();
+    });
+    _onSnap(_query(_colRef('charging_tasks'), _where('status','==','done')), snap => {
+      _driverChargingState.done = {};
+      snap.docs.forEach(d => { _driverChargingState.done[d.id] = d.data().carsJson ? JSON.parse(d.data().carsJson) : []; });
+      _updateDriverChargingCard();
     });
     _onSnap(_docRef('yard','current'), snap => {
       const status = snap.exists() ? snap.data().status : null;
@@ -2222,11 +2232,11 @@ function loadManagerBadges() {
     _onSnap(_query(_colRef('battery_assignments'), _where('status','==','done')), snap => {
       _setCardBadge('battery', snap.size);
     });
-    _onSnap(_query(_colRef('charging_tasks'), _where('status','!=','deleted')), snap => {
-      const relevant = snap.docs.filter(d => ['active','done'].includes(d.data().status));
+    const _mgrChargingState = { active: {}, done: {} };
+    function _updateMgrChargingCard() {
+      const allDocs = { ..._mgrChargingState.active, ..._mgrChargingState.done };
       let totalCars = 0, pendingCars = 0;
-      relevant.forEach(d => {
-        const cars = d.data().carsJson ? JSON.parse(d.data().carsJson) : [];
+      Object.values(allDocs).forEach(cars => {
         totalCars += cars.length;
         pendingCars += cars.filter(c => !c.charged).length;
       });
@@ -2240,6 +2250,16 @@ function loadManagerBadges() {
       } else if (card) {
         if (sub && pendingCars === 0) sub.textContent = 'אחוזי טעינה וטווח נסיעה';
       }
+    }
+    _onSnap(_query(_colRef('charging_tasks'), _where('status','==','active')), snap => {
+      _mgrChargingState.active = {};
+      snap.docs.forEach(d => { _mgrChargingState.active[d.id] = d.data().carsJson ? JSON.parse(d.data().carsJson) : []; });
+      _updateMgrChargingCard();
+    });
+    _onSnap(_query(_colRef('charging_tasks'), _where('status','==','done')), snap => {
+      _mgrChargingState.done = {};
+      snap.docs.forEach(d => { _mgrChargingState.done[d.id] = d.data().carsJson ? JSON.parse(d.data().carsJson) : []; });
+      _updateMgrChargingCard();
     });
     _onSnap(_query(_colRef('refreshes'), _where('status','==','pending')), snap => {
       _setCardBadge('_refresh', snap.size);
