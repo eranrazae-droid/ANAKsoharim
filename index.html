@@ -2623,13 +2623,8 @@ function filterAndRender() {
       rows += '<td><span class="fuel-badge ' + fuelClass(c.fuel) + '">' + c.fuel + '</span></td>';
       rows += '<td><div class="col-catalog">' + fmt(c.catalog) + '</div></td>';
       var carKey = (c.brand + '||' + c.model).replace(/[^a-zA-Z0-9א-ת|]/g, '_');
-      var isOut = typeof stockStatus[carKey] === 'string' && stockStatus[carKey] === 'אזל';
       var dealerFmt = fmt(c.dealer);
-      var priceHtml = isOut
-        ? '<span style="font-weight:700;color:#e24b4a;text-decoration:line-through;text-decoration-color:#e24b4a;text-decoration-thickness:3px;">' + dealerFmt + '</span>'
-        : dealerFmt;
-      var toggleBtn = window.isAdmin ? '<button class="stock-toggle' + (isOut ? ' out' : '') + '" onclick="toggleStock(\'' + carKey + '\',this)" title="' + (isOut ? 'לא זמין' : 'זמין') + '"></button>' : '';
-      rows += '<td class="col-dealer"><div style="display:flex;align-items:center;gap:6px">' + toggleBtn + '<span class="price-val' + (isOut ? ' out-strike' : '') + '">' + priceHtml + '</span>' + (window.isAdmin ? '<button onclick="openEditPrice(event,\'' + carKey + '\','+c.dealer+')" title="עריכת מחיר" style="background:none;border:none;cursor:pointer;font-size:13px;opacity:0.6;padding:0;line-height:1">✏️</button>' : '') + '</div></td>';
+      rows += '<td class="col-dealer"><div style="display:flex;align-items:center;gap:6px"><span class="price-val">' + dealerFmt + '</span>' + (window.isAdmin ? '<button onclick="openEditPrice(event,\'' + carKey + '\','+c.dealer+')" title="עריכת מחיר" style="background:none;border:none;cursor:pointer;font-size:13px;opacity:0.6;padding:0;line-height:1">✏️</button>' : '') + '</div></td>';
       rows += '<td class="col-discount"><span class="discount-pill">−' + fmt(c.discount) + '</span></td>';
       rows += '<td><div class="col-monthly">' + fmt(pmt(c.catalog)) + '<small>100 תשלומים</small></div></td>';
       rows += '<td colspan="2"><div class="color-pairs">' + makePairsHtml(c, false) + '</div></td>';
@@ -2657,13 +2652,7 @@ function filterAndRender() {
     cards += '<span class="fuel-badge ' + fuelClass(c.fuel) + '">' + c.fuel + '</span></div>';
     cards += '<div class="mc-grid">';
     cards += '<div class="mc-box"><div class="mc-box-label">מחירון כולל רישוי</div><div class="mc-box-val catalog" style="white-space:nowrap">' + fmt(c.catalog) + '</div></div>';
-    var carKey2 = (c.brand + '||' + c.model).replace(/[^a-zA-Z0-9א-ת|]/g, '_');
-    var isOut2 = typeof stockStatus[carKey2] === 'string' && stockStatus[carKey2] === 'אזל';
-    var dealerDisplay = isOut2
-      ? '<span style="text-decoration:line-through;color:#e24b4a;">' + fmt(c.dealer) + '</span> <span style="font-size:11px;background:#fdecea;color:#e24b4a;padding:2px 5px;border-radius:4px;">אזל</span>'
-      : fmt(c.dealer);
-    var adminToggle = window.isAdmin ? '<br><button onclick="toggleStock(\'' + carKey2 + '\',this)" style="margin-top:4px;background:none;border:1px solid #ccc;border-radius:6px;font-size:11px;padding:2px 8px;cursor:pointer;">' + (isOut2 ? '✅ זמין' : '🔴 אזל') + '</button>' : '';
-    cards += '<div class="mc-box"><div class="mc-box-label">מחיר לסוחר כולל רישוי</div><div class="mc-box-val" style="white-space:nowrap">' + dealerDisplay + adminToggle + '</div></div>';
+    cards += '<div class="mc-box"><div class="mc-box-label">מחיר לסוחר כולל רישוי</div><div class="mc-box-val" style="white-space:nowrap">' + fmt(c.dealer) + '</div></div>';
     cards += '</div>';
     cards += '<div class="mc-monthly-box"><div><div class="mc-monthly-label">החזר חודשי משוער</div><div class="mc-monthly-sub">100 תשלומים</div></div>';
     cards += '<div class="mc-monthly-val" style="white-space:nowrap">' + fmt(pmt(c.catalog)) + '</div></div>';
@@ -4129,10 +4118,6 @@ function showError(id, msg) {
       <div class="admin-stat"><div class="admin-stat-val" id="statToday">—</div><div class="admin-stat-label">כניסות היום</div></div>
       <div class="admin-stat"><div class="admin-stat-val" id="statActive">—</div><div class="admin-stat-label">פעילים השבוע</div></div>
       <div class="admin-stat"><div class="admin-stat-val" id="statSuspect" style="color:#e24b4a">—</div><div class="admin-stat-label">חשודים בשיתוף</div></div>
-    </div>
-    <div style="margin:12px 0;padding:12px;background:#fff3cd;border-radius:8px;border:1px solid #ffc107;">
-      <div style="font-size:13px;font-weight:700;margin-bottom:8px;">🔧 ניהול מלאי</div>
-      <button onclick="resetAllStock()" style="background:#e24b4a;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;font-family:Heebo,sans-serif;cursor:pointer;">🗑️ אפס כל סטטוסי אזל</button>
     </div>
     <div style="margin-bottom:12px;">
       <button onclick="openAddCar()" style="background:#1a1a2e;color:#c9a227;border:1.5px solid #c9a227;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;font-family:Heebo,sans-serif;cursor:pointer;">➕ הוסף רכב ידנית</button>
