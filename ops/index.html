@@ -2119,11 +2119,13 @@ function loadDriverBadges() {
     _onSnap(_query(_colRef('charging_tasks'), _where('status','==','active')), snap => {
       Object.keys(_dcActive).forEach(k => delete _dcActive[k]);
       snap.docs.forEach(d => { _dcActive[d.id] = d.data().carsJson ? JSON.parse(d.data().carsJson) : []; });
+      console.log('[charging-driver] active snap:', snap.size, 'docs, pending per task:', Object.entries(_dcActive).map(([id,cars])=>({id, pending: cars.filter(c=>!c.charged).length, total: cars.length})));
       _renderDriverChargingCard();
     });
     _onSnap(_query(_colRef('charging_tasks'), _where('status','==','done')), snap => {
       Object.keys(_dcDone).forEach(k => delete _dcDone[k]);
       snap.docs.forEach(d => { _dcDone[d.id] = true; });
+      console.log('[charging-driver] done snap:', snap.size, 'docs');
       _renderDriverChargingCard();
     });
     _onSnap(_docRef('yard','current'), snap => {
@@ -2258,11 +2260,13 @@ function loadManagerBadges() {
     _onSnap(_query(_colRef('charging_tasks'), _where('status','==','active')), snap => {
       Object.keys(_mcActive).forEach(k => delete _mcActive[k]);
       snap.docs.forEach(d => { _mcActive[d.id] = d.data().carsJson ? JSON.parse(d.data().carsJson) : []; });
+      console.log('[charging-mgr] active snap:', snap.size, 'docs, _mcActive keys:', Object.keys(_mcActive), 'per-task pending:', Object.entries(_mcActive).map(([id,cars])=>({id, pending: cars.filter(c=>!c.charged).length, total: cars.length})));
       _renderMgrChargingCard();
     });
     _onSnap(_query(_colRef('charging_tasks'), _where('status','==','done')), snap => {
       Object.keys(_mcDone).forEach(k => delete _mcDone[k]);
       snap.docs.forEach(d => { _mcDone[d.id] = true; });
+      console.log('[charging-mgr] done snap:', snap.size, 'docs, _mcDone keys:', Object.keys(_mcDone));
       _renderMgrChargingCard();
     });
     _onSnap(_query(_colRef('refreshes'), _where('status','==','pending')), snap => {
