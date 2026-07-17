@@ -2094,9 +2094,10 @@ function loadDriverBadges() {
     _onSnap(_query(_colRef('battery_assignments'), _where('assignedTo','==',name)), snap => {
       _setCardBadge('driver-battery', snap.docs.filter(d => d.data().status === 'pending' && !d.data().converted).length);
     });
-    _onSnap(_query(_colRef('charging_tasks'), _where('status','==','active')), snap => {
+    _onSnap(_query(_colRef('charging_tasks'), _where('status','!=','deleted')), snap => {
+      const relevant = snap.docs.filter(d => ['active','done'].includes(d.data().status));
       let totalCars = 0, pendingCars = 0;
-      snap.docs.forEach(d => {
+      relevant.forEach(d => {
         const cars = d.data().carsJson ? JSON.parse(d.data().carsJson) : [];
         totalCars += cars.length;
         pendingCars += cars.filter(c => !c.charged).length;
@@ -2104,14 +2105,13 @@ function loadDriverBadges() {
       const card = document.getElementById('menu-card-driver-charging');
       const sub = document.getElementById('sub-driver-charging');
       if (totalCars > 0 && pendingCars === 0) {
-        // all done — green card
         if (card) { card.style.background = '#16a34a'; card.style.color = '#fff'; card.querySelectorAll('.mc-title,.mc-sub').forEach(el => el.style.color = '#fff'); }
         if (sub) sub.textContent = 'כל הטעינות בוצעו בהצלחה ✅';
         const badge = document.getElementById('badge-driver-charging');
         if (badge) badge.style.display = 'none';
       } else {
         _setCardBadge('driver-charging', pendingCars, '#1d4ed8');
-        if (sub && pendingCars > 0) sub.textContent = 'רכבים לטעינה';
+        if (sub && pendingCars === 0) sub.textContent = 'רכבים לטעינה';
       }
     });
     _onSnap(_docRef('yard','current'), snap => {
@@ -2222,9 +2222,10 @@ function loadManagerBadges() {
     _onSnap(_query(_colRef('battery_assignments'), _where('status','==','done')), snap => {
       _setCardBadge('battery', snap.size);
     });
-    _onSnap(_query(_colRef('charging_tasks'), _where('status','==','active')), snap => {
+    _onSnap(_query(_colRef('charging_tasks'), _where('status','!=','deleted')), snap => {
+      const relevant = snap.docs.filter(d => ['active','done'].includes(d.data().status));
       let totalCars = 0, pendingCars = 0;
-      snap.docs.forEach(d => {
+      relevant.forEach(d => {
         const cars = d.data().carsJson ? JSON.parse(d.data().carsJson) : [];
         totalCars += cars.length;
         pendingCars += cars.filter(c => !c.charged).length;
@@ -2237,7 +2238,6 @@ function loadManagerBadges() {
         const badge = document.getElementById('badge-battery');
         if (badge) badge.style.display = 'none';
       } else if (card) {
-        // restore default (battery_assignments badge handles the count)
         if (sub && pendingCars === 0) sub.textContent = 'אחוזי טעינה וטווח נסיעה';
       }
     });
