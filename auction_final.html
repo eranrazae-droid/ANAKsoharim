@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>ענק הרכבים | מכרזים</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --gold:#c9a227;--gold2:#f0c842;--gold-dim:rgba(201,162,39,.15);--gold-border:rgba(201,162,39,.35);
+  --navy:#1a1a2e;--navy2:#0f0f1e;--navy3:#252548;
+  --bg:#f2f4fb;--card:#fff;--border:#e0e4ef;
+  --text:#1a1a2e;--muted:#7a839a;--muted2:#aab0c4;
+  --green:#16a34a;--green-bg:rgba(22,163,74,.08);--green-border:rgba(22,163,74,.25);
+  --red:#dc2626;--red-bg:rgba(220,38,38,.08);
+  --radius:16px;--radius-sm:10px;
+}
+html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);font-size:15px;-webkit-font-smoothing:antialiased}
+
+/* ── VIEWS ── */
+.view{display:none;min-height:100vh}
+.view.active{display:block}
+
+/* ── GATE (registration wall) ── */
+#view-gate{background:var(--navy2);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center}
+.gate-logo{font-size:28px;font-weight:900;color:#fff;margin-bottom:6px}
+.gate-logo span{color:var(--gold)}
+.gate-tag{display:inline-block;background:var(--gold);color:#000;font-size:11px;font-weight:700;padding:3px 14px;border-radius:999px;margin-bottom:28px;letter-spacing:.06em}
+.gate-card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:32px 28px;width:100%;max-width:380px}
+.gate-card h2{font-size:20px;font-weight:900;color:#fff;margin-bottom:6px}
+.gate-card p{font-size:13px;color:rgba(255,255,255,.5);margin-bottom:24px;line-height:1.6}
+.gate-step{display:none}
+.gate-step.active{display:block}
+.field{margin-bottom:14px;text-align:right}
+.field label{display:block;font-size:12px;font-weight:700;color:rgba(255,255,255,.5);margin-bottom:5px}
+.field input{width:100%;background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.12);color:#fff;border-radius:10px;padding:12px 14px;font-family:inherit;font-size:14px;outline:none;transition:.15s}
+.field input:focus{border-color:var(--gold)}
+.field input::placeholder{color:rgba(255,255,255,.25)}
+.btn-gold{width:100%;background:linear-gradient(135deg,var(--gold),#a07a10);color:#000;border:none;border-radius:10px;padding:14px;font-family:inherit;font-size:15px;font-weight:900;cursor:pointer;transition:.15s;margin-top:4px}
+.btn-gold:hover{filter:brightness(1.08)}
+.gate-note{font-size:12px;color:rgba(255,255,255,.3);margin-top:14px;line-height:1.6}
+.otp-inputs{display:flex;gap:8px;justify-content:center;margin:16px 0}
+.otp-input{width:44px;height:52px;background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.15);color:#fff;border-radius:10px;text-align:center;font-size:22px;font-weight:900;font-family:inherit;outline:none}
+.otp-input:focus{border-color:var(--gold)}
+.card-preview{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:12px 16px;display:flex;align-items:center;gap:12px;margin:12px 0;font-size:13px;color:rgba(255,255,255,.7)}
+.card-icon{font-size:24px}
+
+/* ── HEADER ── */
+.header{background:var(--navy);padding:0 16px;position:sticky;top:0;z-index:100;box-shadow:0 2px 16px rgba(0,0,0,.25)}
+.header-inner{max-width:480px;margin:0 auto;display:flex;align-items:center;height:56px;gap:10px}
+.h-logo{font-size:18px;font-weight:900;color:#fff;cursor:pointer;flex:1}
+.h-logo span{color:var(--gold)}
+.h-tag{background:var(--gold);color:#000;font-size:9px;font-weight:700;padding:2px 8px;border-radius:999px;vertical-align:middle;margin-right:4px}
+.h-nav{display:flex;gap:2px}
+.h-btn{background:none;border:none;color:rgba(255,255,255,.55);font-family:inherit;font-size:13px;font-weight:600;padding:6px 10px;border-radius:8px;cursor:pointer;transition:.15s}
+.h-btn:hover,.h-btn.active{color:#fff;background:rgba(255,255,255,.08)}
+.h-profile{width:34px;height:34px;border-radius:50%;background:var(--gold);color:#000;font-size:13px;font-weight:900;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center}
+
+/* ── HOME ── */
+.home-wrap{max-width:480px;margin:0 auto;padding-bottom:40px}
+
+/* Video hero */
+.video-hero{position:relative;background:var(--navy2);overflow:hidden;aspect-ratio:16/9}
+.video-placeholder{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:linear-gradient(160deg,#1a1a3e,#0d0d1a)}
+.play-btn{width:64px;height:64px;border-radius:50%;background:rgba(201,162,39,.9);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:24px;transition:.15s;backdrop-filter:blur(8px)}
+.play-btn:hover{transform:scale(1.08);background:var(--gold)}
+.video-title{font-size:14px;font-weight:700;color:rgba(255,255,255,.7)}
+.video-car-name{font-size:22px;font-weight:900;color:#fff}
+.video-badge{position:absolute;top:12px;right:12px;background:rgba(220,38,38,.9);color:#fff;font-size:11px;font-weight:700;padding:4px 12px;border-radius:999px;display:flex;align-items:center;gap:5px}
+.dot-live{width:6px;height:6px;border-radius:50%;background:#fff;animation:blink 1s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.video-overlay-info{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,.85));padding:16px}
+
+/* Countdown section */
+.countdown-section{background:var(--card);border-bottom:1px solid var(--border);padding:16px}
+.cnt-label-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:12px;font-weight:700}
+.cnt-label-text{color:var(--muted)}
+.cnt-day{color:var(--gold);font-weight:700}
+.cnt-blocks{display:flex;gap:8px;justify-content:center}
+.cnt-block{flex:1;background:#f8f9ff;border:1px solid var(--border);border-radius:10px;padding:10px 4px;text-align:center}
+.cnt-num{font-size:28px;font-weight:900;color:var(--navy);line-height:1;font-variant-numeric:tabular-nums;transition:color .3s}
+.cnt-num.urgent{color:var(--red)}
+.cnt-unit{font-size:10px;color:var(--muted);font-weight:600;margin-top:2px}
+.cnt-sep{font-size:20px;font-weight:900;color:var(--muted2);padding-top:8px}
+
+/* Car info card */
+.car-info-card{background:var(--card);margin:0;padding:16px;border-bottom:1px solid var(--border)}
+.car-title{font-size:22px;font-weight:900;margin-bottom:2px}
+.car-sub{font-size:13px;color:var(--muted);margin-bottom:12px}
+.specs-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.spec-pill{display:flex;align-items:center;gap:4px;background:#f0f2fa;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:700}
+.price-card{background:linear-gradient(135deg,#f8f9ff,#f0f2fa);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;align-items:center;gap:0;margin-bottom:12px}
+.price-open{flex:1;border-left:1px solid var(--border);padding-left:14px;margin-left:14px}
+.price-current-lbl{font-size:11px;color:var(--muted);font-weight:600;margin-bottom:3px}
+.price-current-val{font-size:30px;font-weight:900;color:var(--text);line-height:1}
+.price-open-lbl{font-size:11px;color:var(--muted);font-weight:600;margin-bottom:3px}
+.price-open-val{font-size:16px;font-weight:700}
+.bids-chip{background:var(--gold-dim);border:1px solid var(--gold-border);border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;color:var(--gold);display:inline-block;margin-bottom:12px}
+
+/* Bid list */
+.bid-list-section{background:var(--card);border-bottom:1px solid var(--border);padding:0 16px}
+.section-title-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border)}
+.section-title-row h3{font-size:14px;font-weight:700}
+.all-bids-label{font-size:12px;color:var(--gold);font-weight:700;cursor:pointer}
+.bid-item{display:flex;align-items:center;padding:10px 0;border-bottom:1px solid #f0f2fa;gap:10px}
+.bid-item:last-child{border-bottom:none}
+.bid-avatar{width:34px;height:34px;border-radius:50%;background:var(--navy3);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.bid-avatar.me{background:var(--gold);color:#000}
+.bid-info{flex:1}
+.bid-name{font-size:13px;font-weight:700}
+.bid-time{font-size:11px;color:var(--muted)}
+.bid-amount{font-size:15px;font-weight:900}
+.bid-crown{font-size:16px}
+
+/* Sticky bid bar */
+.sticky-bid{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--border);padding:12px 16px;z-index:100;box-shadow:0 -4px 20px rgba(0,0,0,.1)}
+.sticky-bid-inner{max-width:480px;margin:0 auto}
+.bid-row-input{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.amount-display{flex:1;background:#f8f9ff;border:2px solid var(--gold);border-radius:10px;padding:10px 14px;font-size:18px;font-weight:900;text-align:center;color:var(--navy)}
+.bid-up{background:var(--navy);color:#fff;border:none;border-radius:10px;width:44px;height:44px;font-size:20px;font-weight:900;cursor:pointer;font-family:inherit;transition:.15s}
+.bid-up:active{background:var(--navy3)}
+.btn-place-bid{width:100%;background:linear-gradient(135deg,var(--gold),#a07a10);color:#000;border:none;border-radius:12px;padding:15px;font-family:inherit;font-size:16px;font-weight:900;cursor:pointer;transition:.15s}
+.btn-place-bid:hover{filter:brightness(1.06)}
+.btn-place-bid:disabled{background:#ccc;cursor:not-allowed;filter:none}
+.bid-note{font-size:11px;color:var(--muted);text-align:center;margin-top:6px}
+.bottom-spacer{height:130px}
+
+/* Extension banner */
+.extension-banner{background:linear-gradient(135deg,var(--red),#7f1d1d);color:#fff;padding:10px 16px;text-align:center;font-size:13px;font-weight:700;display:none}
+.extension-banner.show{display:block;animation:flashIn .4s ease}
+@keyframes flashIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── ARCHIVE ── */
+.archive-wrap{max-width:480px;margin:0 auto;padding:16px 16px 40px}
+.archive-grid{display:flex;flex-direction:column;gap:12px;margin-top:16px}
+.archive-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;display:flex;gap:0}
+.archive-img{width:110px;height:80px;background:linear-gradient(135deg,var(--navy),var(--navy3));display:flex;align-items:center;justify-content:center;font-size:36px;flex-shrink:0}
+.archive-body{padding:10px 14px;flex:1;display:flex;flex-direction:column;justify-content:center}
+.archive-name{font-size:15px;font-weight:900;margin-bottom:2px}
+.archive-date{font-size:12px;color:var(--muted)}
+.archive-sold{font-size:11px;font-weight:700;color:var(--green);margin-top:4px}
+
+/* ── PROFILE ── */
+.profile-wrap{max-width:480px;margin:0 auto;padding:16px 16px 40px}
+.profile-header{background:var(--navy);border-radius:var(--radius);padding:24px;text-align:center;margin-bottom:16px;color:#fff}
+.profile-avatar{width:64px;height:64px;border-radius:50%;background:var(--gold);color:#000;font-size:24px;font-weight:900;display:flex;align-items:center;justify-content:center;margin:0 auto 12px}
+.profile-name{font-size:20px;font-weight:900}
+.profile-phone{font-size:13px;color:rgba(255,255,255,.5);margin-top:2px}
+.profile-stat-row{display:flex;gap:12px;margin-top:16px}
+.profile-stat{flex:1;background:rgba(255,255,255,.08);border-radius:10px;padding:10px;text-align:center}
+.profile-stat-num{font-size:20px;font-weight:900;color:var(--gold)}
+.profile-stat-lbl{font-size:11px;color:rgba(255,255,255,.5);margin-top:2px}
+.profile-section{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px}
+.profile-section h3{font-size:14px;font-weight:700;margin-bottom:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.notif-item{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #f0f2fa}
+.notif-item:last-child{border-bottom:none}
+.notif-icon{font-size:20px;width:36px;height:36px;background:#f0f2fa;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.notif-text{flex:1;font-size:13px;line-height:1.5}
+.notif-time{font-size:11px;color:var(--muted)}
+.toggle-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f0f2fa}
+.toggle-row:last-child{border-bottom:none}
+.toggle-label{font-size:14px;font-weight:600}
+.toggle{position:relative;width:44px;height:24px;cursor:pointer}
+.toggle input{opacity:0;width:0;height:0}
+.toggle-slider{position:absolute;inset:0;background:#ddd;border-radius:999px;transition:.3s}
+.toggle-slider::before{content:'';position:absolute;width:18px;height:18px;right:3px;top:3px;background:#fff;border-radius:50%;transition:.3s}
+.toggle input:checked+.toggle-slider{background:var(--gold)}
+.toggle input:checked+.toggle-slider::before{transform:translateX(-20px)}
+
+/* ── TERMS ── */
+.terms-wrap{max-width:480px;margin:0 auto;padding:16px 16px 40px;font-size:13px;line-height:1.8;color:var(--text)}
+.terms-wrap h2{font-size:18px;font-weight:900;margin-bottom:16px}
+.terms-wrap h3{font-size:14px;font-weight:700;margin:18px 0 6px;color:var(--navy)}
+.terms-wrap p{color:var(--muted);margin-bottom:8px}
+
+/* ── MODALS ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:300;display:none;align-items:flex-end;justify-content:center;padding:0}
+.modal-overlay.open{display:flex}
+.modal{background:#fff;border-radius:20px 20px 0 0;padding:28px 20px 36px;width:100%;max-width:480px;animation:slideUp .3s ease}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.modal-handle{width:36px;height:4px;background:#e0e4ef;border-radius:2px;margin:0 auto 20px}
+.modal h2{font-size:20px;font-weight:900;margin-bottom:6px;text-align:center}
+.modal p{font-size:13px;color:var(--muted);text-align:center;margin-bottom:20px;line-height:1.6}
+.modal-amount{font-size:44px;font-weight:900;color:var(--gold);text-align:center;margin:12px 0}
+.modal-car-name{font-size:14px;color:var(--muted);text-align:center;margin-bottom:20px}
+.modal-actions{display:flex;flex-direction:column;gap:10px}
+.btn-confirm{background:linear-gradient(135deg,var(--gold),#a07a10);color:#000;border:none;border-radius:12px;padding:15px;font-family:inherit;font-size:16px;font-weight:900;cursor:pointer;width:100%}
+.btn-cancel{background:#f0f2fa;color:var(--text);border:none;border-radius:12px;padding:13px;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;width:100%}
+.modal-warning{font-size:12px;color:var(--muted);text-align:center;margin-top:12px}
+.modal-success-icon{font-size:56px;text-align:center;margin-bottom:12px}
+
+/* ── CHAT ── */
+.chat-fab{position:fixed;bottom:150px;left:16px;width:48px;height:48px;background:var(--navy);border:none;border-radius:50%;color:#fff;font-size:22px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.2);z-index:90;transition:.2s}
+.chat-fab:hover{background:var(--navy3)}
+.chat-badge{position:absolute;top:-2px;right:-2px;width:16px;height:16px;background:var(--red);border-radius:50%;font-size:9px;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center}
+.chat-panel{position:fixed;bottom:0;left:0;right:0;height:60vh;background:#fff;border-radius:20px 20px 0 0;z-index:200;display:none;flex-direction:column;box-shadow:0 -8px 32px rgba(0,0,0,.15);max-width:480px;margin:0 auto}
+.chat-panel.open{display:flex}
+.chat-header{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.chat-header h3{font-size:15px;font-weight:700}
+.chat-close{background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted)}
+.chat-messages{flex:1;overflow-y:auto;padding:12px 16px;display:flex;flex-direction:column;gap:10px}
+.chat-msg{max-width:75%;padding:10px 14px;border-radius:16px;font-size:13px;line-height:1.5}
+.chat-msg.agent{background:#f0f2fa;color:var(--text);align-self:flex-start;border-radius:4px 16px 16px 16px}
+.chat-msg.user{background:var(--gold);color:#000;font-weight:600;align-self:flex-end;border-radius:16px 4px 16px 16px}
+.chat-input-row{padding:10px 12px;border-top:1px solid var(--border);display:flex;gap:8px}
+.chat-input{flex:1;border:1.5px solid var(--border);border-radius:999px;padding:9px 14px;font-family:inherit;font-size:13px;outline:none}
+.chat-input:focus{border-color:var(--gold)}
+.chat-send{background:var(--gold);border:none;border-radius:50%;width:36px;height:36px;font-size:16px;cursor:pointer}
+
+/* ── TOAST ── */
+.toasts{position:fixed;top:70px;left:50%;transform:translateX(-50%);z-index:400;display:flex;flex-direction:column;gap:8px;width:340px;max-width:90vw;pointer-events:none}
+.toast{background:var(--navy);color:#fff;border-radius:12px;padding:12px 16px;display:flex;align-items:center;gap:10px;box-shadow:0 8px 24px rgba(0,0,0,.2);animation:toastIn .3s ease;pointer-events:auto}
+.toast.win{background:#14532d;border:1px solid rgba(134,239,172,.3)}
+.toast.warn{background:#7f1d1d;border:1px solid rgba(248,113,113,.3)}
+.toast.info{background:var(--navy3);border:1px solid rgba(255,255,255,.1)}
+@keyframes toastIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+.toast-ico{font-size:20px}
+.toast-body strong{display:block;font-size:13px;font-weight:700}
+.toast-body span{font-size:11px;color:rgba(255,255,255,.6)}
+
+/* ── FROZEN OVERLAY ── */
+.frozen-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500;display:none;align-items:center;justify-content:center;flex-direction:column;gap:16px;color:#fff;text-align:center;padding:24px}
+.frozen-overlay.show{display:flex}
+.frozen-icon{font-size:48px}
+.frozen-title{font-size:22px;font-weight:900}
+.frozen-sub{font-size:14px;color:rgba(255,255,255,.6)}
+
+/* ── BOTTOM NAV ── */
+.bottom-nav{display:none}
+
+@media(max-width:520px){
+  .bottom-nav{display:flex;position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--border);z-index:80;max-width:480px;margin:0 auto}
+  .bottom-nav.with-bid{bottom:0;display:none}
+  .bn-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 0;cursor:pointer;font-size:10px;font-weight:600;color:var(--muted);gap:2px;border:none;background:none;font-family:inherit}
+  .bn-item.active{color:var(--gold)}
+  .bn-icon{font-size:20px}
+  .h-nav{display:none}
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════ GATE ══════════════ -->
+<div class="view active" id="view-gate">
+  <div style="background:var(--navy2);min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px">
+    <div class="gate-logo">ענק <span>הרכבים</span></div>
+    <div class="gate-tag">מכרזים יומיים</div>
+    <div class="gate-card">
+
+      <!-- Step 1: phone -->
+      <div class="gate-step active" id="gate-s1">
+        <h2>כניסה למכרזים</h2>
+        <p>האתר פתוח לרשומים בלבד.<br>הכנס מספר טלפון לקבלת קוד.</p>
+        <div class="field"><label>מספר טלפון</label><input type="tel" id="phone-in" placeholder="050-0000000"></div>
+        <button class="btn-gold" onclick="gateNext(1)">שלח קוד SMS ←</button>
+        <div class="gate-note">רשום? הכנס אותו מספר טלפון</div>
+      </div>
+
+      <!-- Step 2: OTP -->
+      <div class="gate-step" id="gate-s2">
+        <h2>קוד אימות</h2>
+        <p>שלחנו קוד ל-<strong id="phone-display" style="color:#fff"></strong></p>
+        <div class="otp-inputs">
+          <input class="otp-input" maxlength="1" oninput="otpMove(this,0)">
+          <input class="otp-input" maxlength="1" oninput="otpMove(this,1)">
+          <input class="otp-input" maxlength="1" oninput="otpMove(this,2)">
+          <input class="otp-input" maxlength="1" oninput="otpMove(this,3)">
+        </div>
+        <button class="btn-gold" onclick="gateNext(2)">אמת ←</button>
+        <div class="gate-note">הקוד לדמו: <strong style="color:var(--gold)">1234</strong></div>
+      </div>
+
+      <!-- Step 3: card -->
+      <div class="gate-step" id="gate-s3">
+        <h2>כרטיס לביטחון</h2>
+        <p>פרטי כרטיס אשראי לאבטחת ההצעה.<br>לא נגבה דבר אלא אם לא תתקדם לעסקה.</p>
+        <div class="field"><label>מספר כרטיס</label><input type="text" placeholder="0000 0000 0000 0000" maxlength="19"></div>
+        <div style="display:flex;gap:10px">
+          <div class="field" style="flex:1"><label>תוקף</label><input type="text" placeholder="MM/YY"></div>
+          <div class="field" style="flex:1"><label>CVV</label><input type="text" placeholder="000"></div>
+        </div>
+        <div class="card-preview"><span class="card-icon">🔒</span><span>לא נגבה כלום — אחזקה בלבד.<br>קנס 5,000₪ רק אם לא תתקדם לעסקה.</span></div>
+        <button class="btn-gold" onclick="gateNext(3)">כנס למכרזים ←</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ HOME / AUCTION ══════════════ -->
+<div class="view" id="view-home">
+  <div class="header">
+    <div class="header-inner">
+      <div class="h-logo" onclick="showView('home')">ענק <span>הרכבים</span> <span class="h-tag">מכרזים</span></div>
+      <div class="h-nav">
+        <button class="h-btn active" onclick="showView('home')">מכרז</button>
+        <button class="h-btn" onclick="showView('archive')">ארכיון</button>
+        <button class="h-btn" onclick="showView('profile')">פרופיל</button>
+      </div>
+      <button class="h-profile" onclick="showView('profile')">א</button>
+    </div>
+  </div>
+
+  <div class="home-wrap">
+
+    <!-- Extension banner -->
+    <div class="extension-banner" id="ext-banner">⚡ הצעה אחרונה הגיעה! המכרז הוארך בדקה נוספת</div>
+
+    <!-- Video hero -->
+    <div class="video-hero">
+      <div class="video-placeholder" id="video-area">
+        <div class="video-car-name">טויוטה קורולה 2023</div>
+        <button class="play-btn" onclick="playVideo()">▶</button>
+        <div class="video-title">לחץ לצפייה בסרטון הרכב</div>
+      </div>
+      <div class="video-badge" id="live-badge"><div class="dot-live"></div> שידור חי</div>
+    </div>
+
+    <!-- Countdown -->
+    <div class="countdown-section">
+      <div class="cnt-label-row">
+        <span class="cnt-label-text" id="cnt-label">מכרז מסתיים בעוד</span>
+        <span class="cnt-day">שלישי · 11:00–11:15</span>
+      </div>
+      <div class="cnt-blocks">
+        <div class="cnt-block"><div class="cnt-num" id="cnt-h">00</div><div class="cnt-unit">שעות</div></div>
+        <div class="cnt-sep">:</div>
+        <div class="cnt-block"><div class="cnt-num" id="cnt-m">14</div><div class="cnt-unit">דקות</div></div>
+        <div class="cnt-sep">:</div>
+        <div class="cnt-block"><div class="cnt-num" id="cnt-s">58</div><div class="cnt-unit">שניות</div></div>
+      </div>
+    </div>
+
+    <!-- Car info -->
+    <div class="car-info-card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <div class="car-title">טויוטה קורולה</div>
+          <div class="car-sub">2023 · אוטומטית · ליסינג חוזר</div>
+        </div>
+        <button onclick="shareWA()" style="background:none;border:none;font-size:22px;cursor:pointer;padding:4px" title="שתף בוואצאפ">📤</button>
+      </div>
+      <div class="specs-row">
+        <div class="spec-pill">🛣️ 28,400 ק"מ</div>
+        <div class="spec-pill">⛽ היברידי</div>
+        <div class="spec-pill">🎨 לבן</div>
+        <div class="spec-pill">✅ בדיקת מכון</div>
+      </div>
+      <div class="price-card">
+        <div style="flex:1">
+          <div class="price-current-lbl">הצעה גבוהה ביותר</div>
+          <div class="price-current-val" id="top-price">₪91,000</div>
+        </div>
+        <div class="price-open">
+          <div class="price-open-lbl">מחיר פתיחה</div>
+          <div class="price-open-val">₪85,000</div>
+        </div>
+      </div>
+      <div class="bids-chip" id="bids-chip">12 הצעות עד כה</div>
+    </div>
+
+    <!-- Bid list -->
+    <div class="bid-list-section">
+      <div class="section-title-row">
+        <h3>כל ההצעות — בזמן אמת</h3>
+        <span class="all-bids-label">גלוי לכולם</span>
+      </div>
+      <div id="bid-list">
+        <div class="bid-item"><div class="bid-avatar">מ.כ</div><div class="bid-info"><div class="bid-name">מ.כ. מחיפה</div><div class="bid-time">11:14:02</div></div><div class="bid-amount">₪91,000</div><div class="bid-crown">👑</div></div>
+        <div class="bid-item"><div class="bid-avatar">א.ל</div><div class="bid-info"><div class="bid-name">א.ל. מתל אביב</div><div class="bid-time">11:13:44</div></div><div class="bid-amount">₪90,500</div></div>
+        <div class="bid-item"><div class="bid-avatar">ר.מ</div><div class="bid-info"><div class="bid-name">ר.מ. מירושלים</div><div class="bid-time">11:13:21</div></div><div class="bid-amount">₪90,000</div></div>
+        <div class="bid-item"><div class="bid-avatar">מ.כ</div><div class="bid-info"><div class="bid-name">מ.כ. מחיפה</div><div class="bid-time">11:12:55</div></div><div class="bid-amount">₪89,500</div></div>
+        <div class="bid-item"><div class="bid-avatar">ד.פ</div><div class="bid-info"><div class="bid-name">ד.פ. מרמת גן</div><div class="bid-time">11:12:30</div></div><div class="bid-amount">₪89,000</div></div>
+      </div>
+    </div>
+
+    <div class="bottom-spacer"></div>
+  </div>
+
+  <!-- Sticky bid bar -->
+  <div class="sticky-bid" id="sticky-bid">
+    <div class="sticky-bid-inner">
+      <div class="bid-row-input">
+        <button class="bid-up" onclick="adjustBid(-500)">−</button>
+        <div class="amount-display" id="bid-display">₪91,500</div>
+        <button class="bid-up" onclick="adjustBid(500)">+</button>
+      </div>
+      <button class="btn-place-bid" id="bid-btn" onclick="openBidModal()">הצע ₪<span id="bid-btn-amount">91,500</span> ←</button>
+      <div class="bid-note">הצעה = מחויבות · לא ניתן לבטל · קפיצות של 500₪</div>
+    </div>
+  </div>
+
+  <!-- Chat FAB -->
+  <button class="chat-fab" onclick="toggleChat()">💬<span class="chat-badge">1</span></button>
+
+  <!-- Bottom nav mobile -->
+  <div class="bottom-nav" id="bottom-nav">
+    <button class="bn-item active" onclick="showView('home')"><span class="bn-icon">🔨</span>מכרז</button>
+    <button class="bn-item" onclick="showView('archive')"><span class="bn-icon">📋</span>ארכיון</button>
+    <button class="bn-item" onclick="showView('profile')"><span class="bn-icon">👤</span>פרופיל</button>
+    <button class="bn-item" onclick="showView('terms')"><span class="bn-icon">📄</span>תקנון</button>
+  </div>
+</div>
+
+<!-- ══════════════ ARCHIVE ══════════════ -->
+<div class="view" id="view-archive">
+  <div class="header"><div class="header-inner">
+    <div class="h-logo" onclick="showView('home')">ענק <span>הרכבים</span> <span class="h-tag">מכרזים</span></div>
+    <div class="h-nav">
+      <button class="h-btn" onclick="showView('home')">מכרז</button>
+      <button class="h-btn active">ארכיון</button>
+      <button class="h-btn" onclick="showView('profile')">פרופיל</button>
+    </div>
+    <button class="h-profile" onclick="showView('profile')">א</button>
+  </div></div>
+  <div class="archive-wrap">
+    <h2 style="font-size:20px;font-weight:900">מכרזים קודמים</h2>
+    <p style="font-size:13px;color:var(--muted);margin-top:4px">מחירי הזכייה לא מוצגים</p>
+    <div class="archive-grid">
+      <div class="archive-card"><div class="archive-img">🚗</div><div class="archive-body"><div class="archive-name">יונדאי i35 2022</div><div class="archive-date">שלישי, 8 ביולי 2026</div><div class="archive-sold">✅ נמכר</div></div></div>
+      <div class="archive-card"><div class="archive-img">🚙</div><div class="archive-body"><div class="archive-name">מאזדה 3 2023</div><div class="archive-date">שלישי, 1 ביולי 2026</div><div class="archive-sold">✅ נמכר</div></div></div>
+      <div class="archive-card"><div class="archive-img">🚕</div><div class="archive-body"><div class="archive-name">קיה ספורטאג' 2022</div><div class="archive-date">שלישי, 24 ביוני 2026</div><div class="archive-sold">✅ נמכר</div></div></div>
+      <div class="archive-card"><div class="archive-img">🚐</div><div class="archive-body"><div class="archive-name">טויוטה RAV4 2021</div><div class="archive-date">שלישי, 17 ביוני 2026</div><div class="archive-sold">✅ נמכר</div></div></div>
+      <div class="archive-card"><div class="archive-img">🏎️</div><div class="archive-body"><div class="archive-name">הונדה סיוויק 2023</div><div class="archive-date">שלישי, 10 ביוני 2026</div><div class="archive-sold">✅ נמכר</div></div></div>
+    </div>
+  </div>
+  <div class="bottom-nav" id="bn-archive">
+    <button class="bn-item" onclick="showView('home')"><span class="bn-icon">🔨</span>מכרז</button>
+    <button class="bn-item active"><span class="bn-icon">📋</span>ארכיון</button>
+    <button class="bn-item" onclick="showView('profile')"><span class="bn-icon">👤</span>פרופיל</button>
+    <button class="bn-item" onclick="showView('terms')"><span class="bn-icon">📄</span>תקנון</button>
+  </div>
+</div>
+
+<!-- ══════════════ PROFILE ══════════════ -->
+<div class="view" id="view-profile">
+  <div class="header"><div class="header-inner">
+    <div class="h-logo" onclick="showView('home')">ענק <span>הרכבים</span> <span class="h-tag">מכרזים</span></div>
+    <div class="h-nav">
+      <button class="h-btn" onclick="showView('home')">מכרז</button>
+      <button class="h-btn" onclick="showView('archive')">ארכיון</button>
+      <button class="h-btn active">פרופיל</button>
+    </div>
+    <button class="h-profile" onclick="showView('profile')">א</button>
+  </div></div>
+  <div class="profile-wrap">
+    <div class="profile-header">
+      <div class="profile-avatar">א</div>
+      <div class="profile-name">אביב כהן</div>
+      <div class="profile-phone">050-1234567</div>
+      <div class="profile-stat-row">
+        <div class="profile-stat"><div class="profile-stat-num">7</div><div class="profile-stat-lbl">מכרזים</div></div>
+        <div class="profile-stat"><div class="profile-stat-num">3</div><div class="profile-stat-lbl">הצעות</div></div>
+        <div class="profile-stat"><div class="profile-stat-num">0</div><div class="profile-stat-lbl">זכיות</div></div>
+      </div>
+    </div>
+
+    <div class="profile-section">
+      <h3>התראות שלי</h3>
+      <div class="notif-item"><div class="notif-icon">🔨</div><div class="notif-text">מכרז חדש: <strong>טויוטה קורולה 2023</strong><br>שלישי 15.7 · 11:00</div><div class="notif-time">ראשון 08:02</div></div>
+      <div class="notif-item"><div class="notif-icon">📤</div><div class="notif-text">שיתפת את <strong>יונדאי i35</strong> בוואצאפ</div><div class="notif-time">8.7</div></div>
+      <div class="notif-item"><div class="notif-icon">✅</div><div class="notif-text">נרשמת למכרזים בהצלחה</div><div class="notif-time">1.7</div></div>
+    </div>
+
+    <div class="profile-section">
+      <h3>הגדרות</h3>
+      <div class="toggle-row"><span class="toggle-label">SMS על מכרז חדש</span><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+      <div class="toggle-row"><span class="toggle-label">תזכורת בשלישי 10:00</span><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+      <div class="toggle-row"><span class="toggle-label">עדכוני הצעות</span><label class="toggle"><input type="checkbox"><span class="toggle-slider"></span></label></div>
+    </div>
+
+    <div class="profile-section">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div><div style="font-size:14px;font-weight:700">כרטיס אשראי</div><div style="font-size:12px;color:var(--muted);margin-top:2px">****  ****  ****  4521 · תקין</div></div>
+        <span style="font-size:20px">💳</span>
+      </div>
+    </div>
+
+    <button onclick="showView('terms')" style="width:100%;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;color:var(--muted)">📄 תקנון ותנאי שימוש</button>
+  </div>
+  <div class="bottom-nav">
+    <button class="bn-item" onclick="showView('home')"><span class="bn-icon">🔨</span>מכרז</button>
+    <button class="bn-item" onclick="showView('archive')"><span class="bn-icon">📋</span>ארכיון</button>
+    <button class="bn-item active"><span class="bn-icon">👤</span>פרופיל</button>
+    <button class="bn-item" onclick="showView('terms')"><span class="bn-icon">📄</span>תקנון</button>
+  </div>
+</div>
+
+<!-- ══════════════ TERMS ══════════════ -->
+<div class="view" id="view-terms">
+  <div class="header"><div class="header-inner">
+    <button onclick="history.back()||showView('home')" style="background:none;border:none;color:rgba(255,255,255,.6);font-family:inherit;font-size:14px;cursor:pointer">← חזרה</button>
+    <div class="h-logo" style="text-align:center">תקנון המכרז</div>
+    <div style="width:60px"></div>
+  </div></div>
+  <div class="terms-wrap">
+    <h2>תקנון ותנאי שימוש — מכרזי ענק הרכבים</h2>
+    <h3>1. כללי</h3>
+    <p>מכרזי ענק הרכבים מופעלים על ידי ענק הרכבים בע"מ. ההשתתפות מותרת לבעלי כרטיס אשראי תקף בלבד. הרישום והצפייה חינמיים.</p>
+    <h3>2. מועדי המכרז</h3>
+    <p>מכרז מתקיים כל יום שלישי בין השעות 11:00–11:15. מכרז מוארך אוטומטית בדקה אחת בכל פעם שמתקבלת הצעה בדקה האחרונה.</p>
+    <h3>3. הצעות מחיר</h3>
+    <p>כל הצעה גלויה לכלל המשתתפים. קפיצות של 500₪ בלבד. לא ניתן לבטל הצעה לאחר הגשתה. ניתן להציע שוב ולהעלות את הצעתך.</p>
+    <h3>4. ביטחון כרטיס אשראי</h3>
+    <p>פרטי כרטיס האשראי נדרשים לאבטחה בלבד. לא תגבה עמלה על ההשתתפות. קנס של 5,000₪ יגבה אוטומטית מהזוכה שלא יתקדם לעסקה תוך 5 ימי עסקים.</p>
+    <h3>5. סגירת עסקה</h3>
+    <p>הזוכה מחויב להגיע לסניף ענק הרכבים ולסגור את העסקה תוך 5 ימי עסקים. ניתן לרכוש במזומן, אשראי או מימון. אי-אישור מימון אינו מבטל את מחויבות הרכישה.</p>
+    <h3>6. תקלות טכניות</h3>
+    <p>בעת תקלה טכנית, המכרז יוקפא ויוארך בהתאם לזמן ההשבתה. ענק הרכבים אינה אחראית לתקלות תקשורת מצד המשתתפים.</p>
+    <h3>7. חסימת משתמש</h3>
+    <p>זוכה שלא הגיע לסניף ולא שילם את הקנס ייחסם מהפלטפורמה לצמיתות.</p>
+    <h3>8. פרטיות</h3>
+    <p>פרטי המשתתפים נשמרים בסודיות. שמות המציעים מוצגים בראשי תיבות בלבד.</p>
+  </div>
+</div>
+
+<!-- ══════════════ MODALS ══════════════ -->
+<!-- Bid confirm -->
+<div class="modal-overlay" id="modal-bid">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div style="font-size:36px;text-align:center;margin-bottom:8px">🏷️</div>
+    <h2>אישור הצעה</h2>
+    <div class="modal-amount" id="modal-amt">₪91,500</div>
+    <div class="modal-car-name">טויוטה קורולה 2023</div>
+    <p>הצעה זו סופית ולא ניתנת לביטול.<br>אם תזכה — תצטרך לסגור עסקה תוך 5 ימים.</p>
+    <div class="modal-actions">
+      <button class="btn-confirm" onclick="confirmBid()">אשר הצעה ←</button>
+      <button class="btn-cancel" onclick="closeModal('modal-bid')">ביטול</button>
+    </div>
+    <div class="modal-warning">⚠️ קנס 5,000₪ אם הזוכה לא יתקדם לעסקה</div>
+  </div>
+</div>
+
+<!-- Win modal -->
+<div class="modal-overlay" id="modal-win">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-success-icon">🏆</div>
+    <h2>זכית במכרז!</h2>
+    <div class="modal-amount" id="win-amt">₪91,500</div>
+    <div class="modal-car-name">טויוטה קורולה 2023</div>
+    <p>נציג ייצור איתך קשר בדקות הקרובות.<br>SMS אישור נשלח לטלפון שלך.</p>
+    <div class="modal-actions">
+      <button class="btn-confirm" onclick="closeModal('modal-win')">אחלה! ←</button>
+    </div>
+  </div>
+</div>
+
+<!-- Video modal -->
+<div class="modal-overlay" id="modal-video">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2>סרטון הרכב</h2>
+    <div style="background:linear-gradient(135deg,var(--navy),var(--navy3));border-radius:12px;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;margin:16px 0;font-size:64px">🚗</div>
+    <p>טויוטה קורולה 2023 · היברידי · 28,400 ק"מ<br>רכב ליסינג חוזר · בדיקת מכון תקינה</p>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('modal-video')">סגור</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ CHAT ══════════════ -->
+<div class="chat-panel" id="chat-panel">
+  <div class="chat-header">
+    <h3>💬 תמיכה חיה · זמין 11:00–11:15</h3>
+    <button class="chat-close" onclick="toggleChat()">✕</button>
+  </div>
+  <div class="chat-messages" id="chat-msgs">
+    <div class="chat-msg agent">שלום! אני נציג ענק הרכבים. איך אפשר לעזור?</div>
+  </div>
+  <div class="chat-input-row">
+    <input class="chat-input" id="chat-in" placeholder="כתוב שאלה..." onkeydown="if(event.key==='Enter')sendChat()">
+    <button class="chat-send" onclick="sendChat()">➤</button>
+  </div>
+</div>
+
+<!-- ══════════════ FROZEN ══════════════ -->
+<div class="frozen-overlay" id="frozen">
+  <div class="frozen-icon">⏸️</div>
+  <div class="frozen-title">המכרז מוקפא</div>
+  <div class="frozen-sub">תקלה טכנית זוהתה · המכרז יוארך בהתאם<br>אנחנו על זה — המשך בקרוב</div>
+</div>
+
+<!-- TOASTS -->
+<div class="toasts" id="toasts"></div>
+
+<script>
+// ══ STATE ══
+let bidAmount = 91500;
+let currentBids = 12;
+let topPrice = 91000;
+let timerSec = 14*60+58;
+let auctionActive = true;
+let chatOpen = false;
+const OPEN_PRICE = 85000;
+
+// ══ GATE ══
+let gateStep = 1;
+function gateNext(step){
+  if(step===1){
+    const p=document.getElementById('phone-in').value;
+    if(!p){showToast('warn','⚠️','הכנס מספר טלפון','');return}
+    document.getElementById('phone-display').textContent=p;
+    document.getElementById('gate-s1').classList.remove('active');
+    document.getElementById('gate-s2').classList.add('active');
+    showToast('info','📱','קוד נשלח!','הקוד לדמו: 1234');
+  } else if(step===2){
+    const inputs=document.querySelectorAll('.otp-input');
+    const code=[...inputs].map(i=>i.value).join('');
+    if(code!=='1234'){showToast('warn','❌','קוד שגוי','נסה שוב: 1234');return}
+    document.getElementById('gate-s2').classList.remove('active');
+    document.getElementById('gate-s3').classList.add('active');
+  } else if(step===3){
+    showView('home');
+    showToast('win','🎉','ברוך הבא!','אתה עכשיו רשום ויכול להציע');
+  }
+}
+function otpMove(el,idx){
+  const inputs=document.querySelectorAll('.otp-input');
+  if(el.value&&idx<3)inputs[idx+1].focus();
+}
+
+// ══ VIEWS ══
+function showView(name){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+name).classList.add('active');
+  window.scrollTo(0,0);
+  if(name==='home'){
+    document.getElementById('sticky-bid').style.display=auctionActive?'block':'none';
+  }
+}
+
+// ══ VIDEO ══
+function playVideo(){
+  document.getElementById('modal-video').classList.add('open');
+}
+
+// ══ BID ══
+function adjustBid(delta){
+  bidAmount = Math.max(topPrice+500, bidAmount+delta);
+  updateBidDisplay();
+}
+function updateBidDisplay(){
+  document.getElementById('bid-display').textContent='₪'+bidAmount.toLocaleString();
+  document.getElementById('bid-btn-amount').textContent=bidAmount.toLocaleString();
+  document.getElementById('modal-amt').textContent='₪'+bidAmount.toLocaleString();
+}
+function openBidModal(){
+  if(bidAmount<=topPrice){showToast('warn','⚠️','הסכום נמוך','ההצעה חייבת להיות גבוהה מ-₪'+topPrice.toLocaleString());return}
+  document.getElementById('modal-amt').textContent='₪'+bidAmount.toLocaleString();
+  document.getElementById('modal-bid').classList.add('open');
+}
+function confirmBid(){
+  closeModal('modal-bid');
+  topPrice=bidAmount;
+  currentBids++;
+  addBidRow('אתה',bidAmount,true);
+  document.getElementById('top-price').textContent='₪'+topPrice.toLocaleString();
+  document.getElementById('bids-chip').textContent=currentBids+' הצעות עד כה';
+  bidAmount=topPrice+500;
+  updateBidDisplay();
+  showToast('win','✅','הצעה הוגשה!','אתה המוביל ב-₪'+topPrice.toLocaleString());
+
+  // Simulate competitor after 3s
+  if(timerSec>60){
+    setTimeout(()=>{
+      if(!auctionActive)return;
+      const compBid=topPrice+500;
+      topPrice=compBid; currentBids++;
+      addBidRow('מ.כ.',compBid,false);
+      document.getElementById('top-price').textContent='₪'+topPrice.toLocaleString();
+      document.getElementById('bids-chip').textContent=currentBids+' הצעות עד כה';
+      bidAmount=topPrice+500; updateBidDisplay();
+      showToast('warn','🔥','הוצאת ממך!','מ.כ. הציע ₪'+compBid.toLocaleString());
+    },3000);
+  }
+}
+function addBidRow(name,amount,isMe){
+  const list=document.getElementById('bid-list');
+  const now=new Date();
+  const t=now.toTimeString().slice(0,8);
+  const row=document.createElement('div');
+  row.className='bid-item';
+  const initials=name==='אתה'?'אתה':name.substring(0,3);
+  row.innerHTML=`<div class="bid-avatar${isMe?' me':''}">${initials}</div><div class="bid-info"><div class="bid-name">${isMe?'אתה — הצעה שלך':name}</div><div class="bid-time">${t}</div></div><div class="bid-amount">₪${amount.toLocaleString()}</div><div class="bid-crown">👑</div>`;
+  // Remove previous crown
+  list.querySelectorAll('.bid-crown').forEach(c=>c.textContent='');
+  list.insertBefore(row,list.firstChild);
+}
+
+// ══ TIMER ══
+function updateTimer(){
+  if(!auctionActive)return;
+  if(timerSec>0)timerSec--;
+  const h=Math.floor(timerSec/3600);
+  const m=Math.floor((timerSec%3600)/60);
+  const s=timerSec%60;
+  document.getElementById('cnt-h').textContent=String(h).padStart(2,'0');
+  document.getElementById('cnt-m').textContent=String(m).padStart(2,'0');
+  document.getElementById('cnt-s').textContent=String(s).padStart(2,'0');
+  const urgent=timerSec<60;
+  ['cnt-h','cnt-m','cnt-s'].forEach(id=>document.getElementById(id).classList.toggle('urgent',urgent));
+  if(timerSec===60)showToast('warn','⏰','דקה אחרונה!','כל הצעה מאריכה ב-60 שניות');
+  if(timerSec===0) endAuction();
+}
+setInterval(updateTimer,1000);
+
+// Extension — simulate on bid in last minute
+function extendIfNeeded(){
+  if(timerSec<=60){
+    timerSec+=60;
+    const banner=document.getElementById('ext-banner');
+    banner.classList.add('show');
+    setTimeout(()=>banner.classList.remove('show'),4000);
+    showToast('info','⚡','הוארך דקה!','הצעה בדקה האחרונה');
+  }
+}
+
+// Override confirmBid to extend
+const _origConfirm=confirmBid;
+function confirmBid(){
+  closeModal('modal-bid');
+  topPrice=bidAmount;
+  currentBids++;
+  addBidRow('אתה',bidAmount,true);
+  document.getElementById('top-price').textContent='₪'+topPrice.toLocaleString();
+  document.getElementById('bids-chip').textContent=currentBids+' הצעות עד כה';
+  bidAmount=topPrice+500;
+  updateBidDisplay();
+  showToast('win','✅','הצעה הוגשה!','אתה המוביל ב-₪'+topPrice.toLocaleString());
+  extendIfNeeded();
+  if(timerSec>60){
+    setTimeout(()=>{
+      if(!auctionActive)return;
+      const compBid=topPrice+500;
+      topPrice=compBid; currentBids++;
+      addBidRow('מ.כ.',compBid,false);
+      document.getElementById('top-price').textContent='₪'+topPrice.toLocaleString();
+      document.getElementById('bids-chip').textContent=currentBids+' הצעות עד כה';
+      bidAmount=topPrice+500; updateBidDisplay();
+      showToast('warn','🔥','הוצאת ממך!','מ.כ. הציע ₪'+compBid.toLocaleString());
+    },3000);
+  }
+}
+
+function endAuction(){
+  auctionActive=false;
+  document.getElementById('sticky-bid').style.display='none';
+  document.getElementById('cnt-label').textContent='המכרז הסתיים';
+  document.getElementById('live-badge').style.display='none';
+  document.getElementById('modal-win').classList.add('open');
+  document.getElementById('win-amt').textContent='₪'+topPrice.toLocaleString();
+  showToast('win','🏆','המכרז הסתיים!','הזוכה יקבל שיחה עכשיו');
+}
+
+// ══ FREEZE (demo) ══
+let frozen=false;
+document.addEventListener('keydown',e=>{
+  if(e.key==='f'||e.key==='F'){
+    frozen=!frozen;
+    document.getElementById('frozen').classList.toggle('show',frozen);
+    if(!frozen)showToast('win','▶️','המכרז חודש','זמן הוארך בהתאם');
+  }
+});
+
+// ══ SHARE ══
+function shareWA(){
+  const txt='🚗 מכרז ענק הרכבים — טויוטה קורולה 2023\n⏰ שלישי 11:00–11:15\n💰 פתיחה: ₪85,000\nהירשם: ענק-מכרזים.co.il';
+  if(navigator.share){navigator.share({text:txt})}
+  else{showToast('info','📤','קישור לשיתוף','נשלח לוואצאפ')}
+}
+
+// ══ CHAT ══
+const chatReplies=['כמובן, במה אוכל לעזור?','בדוק את הדוח בדף הרכב','הצעות לא ניתנות לביטול לאחר הגשה','נציג יצור קשר תוך דקות מהסיום'];
+let replyIdx=0;
+function toggleChat(){chatOpen=!chatOpen;document.getElementById('chat-panel').classList.toggle('open',chatOpen)}
+function sendChat(){
+  const inp=document.getElementById('chat-in');
+  const msg=inp.value.trim();
+  if(!msg)return;
+  const msgs=document.getElementById('chat-msgs');
+  msgs.innerHTML+=`<div class="chat-msg user">${msg}</div>`;
+  inp.value='';
+  msgs.scrollTop=msgs.scrollHeight;
+  setTimeout(()=>{
+    msgs.innerHTML+=`<div class="chat-msg agent">${chatReplies[replyIdx%chatReplies.length]}</div>`;
+    replyIdx++;msgs.scrollTop=msgs.scrollHeight;
+  },900);
+}
+
+// ══ MODAL ══
+function closeModal(id){document.getElementById(id).classList.remove('open')}
+document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open')}));
+
+// ══ TOAST ══
+function showToast(type,icon,title,sub){
+  const el=document.createElement('div');
+  el.className='toast '+type;
+  el.innerHTML=`<span class="toast-ico">${icon}</span><div class="toast-body"><strong>${title}</strong><span>${sub}</span></div>`;
+  document.getElementById('toasts').appendChild(el);
+  setTimeout(()=>el.remove(),4000);
+}
+
+// Init
+updateBidDisplay();
+</script>
+</body>
+</html>
