@@ -2222,6 +2222,25 @@ function loadManagerBadges() {
     _onSnap(_query(_colRef('battery_assignments'), _where('status','==','done')), snap => {
       _setCardBadge('battery', snap.size);
     });
+    _onSnap(_query(_colRef('charging_tasks'), _where('status','==','active')), snap => {
+      let totalCars = 0, pendingCars = 0;
+      snap.docs.forEach(d => {
+        const cars = d.data().carsJson ? JSON.parse(d.data().carsJson) : [];
+        totalCars += cars.length;
+        pendingCars += cars.filter(c => !c.charged).length;
+      });
+      const card = document.getElementById('menu-card-battery');
+      const sub = document.getElementById('sub-battery');
+      if (totalCars > 0 && pendingCars === 0) {
+        if (card) { card.style.background = '#16a34a'; card.style.color = '#fff'; card.querySelectorAll('.mc-title,.mc-sub').forEach(el => el.style.color = '#fff'); }
+        if (sub) sub.textContent = 'כל הטעינות בוצעו בהצלחה ✅';
+        const badge = document.getElementById('badge-battery');
+        if (badge) badge.style.display = 'none';
+      } else if (card) {
+        // restore default (battery_assignments badge handles the count)
+        if (sub && pendingCars === 0) sub.textContent = 'אחוזי טעינה וטווח נסיעה';
+      }
+    });
     _onSnap(_query(_colRef('refreshes'), _where('status','==','pending')), snap => {
       _setCardBadge('_refresh', snap.size);
     });
