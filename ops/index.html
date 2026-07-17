@@ -3421,8 +3421,12 @@ let _currentIntakeId = null;
 let _currentIntakeVehicle = null;
 let _diHeaderUnsub = null;
 let _intakeSubmitting = false;
+let _intakeInputController = null;
 
 function openDriverIntake(id) {
+  clearTimeout(window._draftSyncTimer);
+  if (_intakeInputController) { _intakeInputController.abort(); }
+  _intakeInputController = new AbortController();
   _currentIntakeId = id;
   if (_mgLiveUnsub) { _mgLiveUnsub(); _mgLiveUnsub = null; }
   const _lb = document.getElementById('di-live-banner'); if (_lb) _lb.style.display = 'none';
@@ -3475,9 +3479,9 @@ function openDriverIntake(id) {
       }).catch(()=>{});
     });
   }
-  // auto-save on any text input
+  // auto-save on any text input — signal ensures old listeners are removed on next intake open
   document.querySelectorAll('#modal-driver-intake textarea, #di-km, #di-code, #di-notes').forEach(el => {
-    el.addEventListener('input', saveIntakeDraft);
+    el.addEventListener('input', saveIntakeDraft, { signal: _intakeInputController.signal });
   });
 }
 
@@ -4200,6 +4204,9 @@ let _mgLiveLastEdit = 0;
 let _mgLiveMode = false;
 
 async function openManagerIntakeLive(id) {
+  clearTimeout(window._draftSyncTimer);
+  if (_intakeInputController) { _intakeInputController.abort(); }
+  _intakeInputController = new AbortController();
   _currentIntakeId = id;
   // clear form same as openDriverIntake
   document.querySelectorAll('#modal-driver-intake .ci-box').forEach(b => b.classList.remove('v-active','x-active'));
@@ -4241,12 +4248,12 @@ async function openManagerIntakeLive(id) {
   if (submitBtn) submitBtn.style.display = '';
 
   openModal('modal-driver-intake');
-  // track manager edits to avoid overwriting active typing
+  // track manager edits — signal ensures old listeners are removed on next intake open
   document.querySelectorAll('#modal-driver-intake textarea, #di-km, #di-code, #di-notes').forEach(el => {
     el.addEventListener('input', () => {
       _mgLiveLastEdit = Date.now();
       saveIntakeDraft();
-    });
+    }, { signal: _intakeInputController.signal });
   });
 }
 window.openManagerIntakeLive = openManagerIntakeLive;
