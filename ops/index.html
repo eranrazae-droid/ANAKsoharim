@@ -3420,6 +3420,7 @@ async function saveEditIntake() {
 let _currentIntakeId = null;
 let _currentIntakeVehicle = null;
 let _diHeaderUnsub = null;
+let _intakeSubmitting = false;
 
 function openDriverIntake(id) {
   _currentIntakeId = id;
@@ -3494,6 +3495,11 @@ const _photoKeys = ['c-battery-original','c-oil','c-coolant','c-safety','c-light
 async function submitDriverIntake() {
   if (!_currentIntakeId) { showToast('שגיאה: אין קליטה פתוחה'); return; }
   if (!window._CONFIG_DONE) { showToast('Firebase לא מחובר'); return; }
+  if (_intakeSubmitting) { showToast('⏳ שולח, אנא המתן...'); return; }
+  _intakeSubmitting = true;
+  const _submitBtn = document.querySelector('#modal-driver-intake .btn-submit');
+  if (_submitBtn) { _submitBtn.disabled = true; _submitBtn.style.opacity = '0.6'; }
+  try {
   // Build dashboard note from checkboxes
   const dashX = document.querySelector('.ci-box[data-key="c-dashboard"].x-active');
   if (dashX) {
@@ -3592,6 +3598,7 @@ async function submitDriverIntake() {
 
   // upload battery photos
   if (_batteryPhotoFiles?.length) {
+    let _batteryCompressOk = false;
     try {
       const b64s = [];
       for (let i = 0; i < _batteryPhotoFiles.length; i++) {
@@ -3599,9 +3606,11 @@ async function submitDriverIntake() {
         b64s.push(await compressToBase64(_batteryPhotoFiles[i]));
       }
       window._batteryPhotoUrls = { battery: b64s };
+      _batteryCompressOk = true;
     } catch(pe) {
       console.warn('battery photo upload failed', pe);
-      showToast('⚠️ תמונת מצבר לא הועלתה: ' + (pe.code || pe.message), 4000);
+      showToast('⚠️ שגיאה בעיבוד תמונת מצבר — נסה שוב', 4000);
+      return;
     }
   }
 
@@ -3628,7 +3637,12 @@ async function submitDriverIntake() {
 
 
   // auto-create tasks for X-marked items
-  await createIntakeTasks(checklist, notes, _currentIntakeVehicle);
+  try {
+    await createIntakeTasks(checklist, notes, _currentIntakeVehicle);
+  } catch(te) {
+    console.warn('createIntakeTasks partial error:', te);
+    // tasks may be partially created — Firestore write already succeeded, continue closing
+  }
 
   const _donePlate = _currentIntakeVehicle?.plate || '';
   const _doneDriver = currentUser.name;
@@ -3657,6 +3671,10 @@ async function submitDriverIntake() {
   } else {
     closeModal('modal-driver-intake');
     openVehiclesScreen();
+  }
+  } finally {
+    _intakeSubmitting = false;
+    if (_submitBtn) { _submitBtn.disabled = false; _submitBtn.style.opacity = ''; }
   }
 }
 
@@ -3978,7 +3996,7 @@ function addBatteryPhoto(input) {
   if (!grid) return;
   grid.innerHTML = _batteryPhotoFiles.map((f, i) => {
     const url = URL.createObjectURL(f);
-    return `<div class="ci-photo-box"><img src="${url}"><button class="rm-btn" onclick="_batteryPhotoFiles.splice(${i},1);addBatteryPhoto({files:[]})">✕</button></div>`;
+    return `<div class="ci-photo-box"><img src="${url}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" style="width:100%;height:100%;object-fit:cover"><span style="display:none;align-items:center;justify-content:center;width:100%;height:100%;font-size:12px;font-weight:700;color:#166534;background:#dcfce7;border-radius:8px">✓ נבחרה</span><button class="rm-btn" onclick="_batteryPhotoFiles.splice(${i},1);addBatteryPhoto({files:[]})">✕</button></div>`;
   }).join('');
 }
 window.addBatteryPhoto = addBatteryPhoto;
