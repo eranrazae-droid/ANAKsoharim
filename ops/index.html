@@ -2095,12 +2095,24 @@ function loadDriverBadges() {
       _setCardBadge('driver-battery', snap.docs.filter(d => d.data().status === 'pending' && !d.data().converted).length);
     });
     _onSnap(_query(_colRef('charging_tasks'), _where('status','==','active')), snap => {
-      let pendingCars = 0;
+      let totalCars = 0, pendingCars = 0;
       snap.docs.forEach(d => {
         const cars = d.data().carsJson ? JSON.parse(d.data().carsJson) : [];
+        totalCars += cars.length;
         pendingCars += cars.filter(c => !c.charged).length;
       });
-      _setCardBadge('driver-charging', pendingCars, '#1d4ed8');
+      const card = document.getElementById('menu-card-driver-charging');
+      const sub = document.getElementById('sub-driver-charging');
+      if (totalCars > 0 && pendingCars === 0) {
+        // all done — green card
+        if (card) { card.style.background = '#16a34a'; card.style.color = '#fff'; card.querySelectorAll('.mc-title,.mc-sub').forEach(el => el.style.color = '#fff'); }
+        if (sub) sub.textContent = 'כל הטעינות בוצעו בהצלחה ✅';
+        const badge = document.getElementById('badge-driver-charging');
+        if (badge) badge.style.display = 'none';
+      } else {
+        _setCardBadge('driver-charging', pendingCars, '#1d4ed8');
+        if (sub && pendingCars > 0) sub.textContent = 'רכבים לטעינה';
+      }
     });
     _onSnap(_docRef('yard','current'), snap => {
       const status = snap.exists() ? snap.data().status : null;
