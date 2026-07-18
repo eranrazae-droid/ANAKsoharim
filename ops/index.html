@@ -2094,13 +2094,35 @@ function loadDriverBadges() {
     _onSnap(_query(_colRef('battery_assignments'), _where('assignedTo','==',name)), snap => {
       _setCardBadge('driver-battery', snap.docs.filter(d => d.data().status === 'pending' && !d.data().converted).length);
     });
+    const _dcTasks = {};
+    function _renderDriverChargingCard() {
+      const card = document.getElementById('menu-card-driver-charging');
+      const sub = document.getElementById('sub-driver-charging');
+      const allCars = Object.values(_dcTasks).flat();
+      if (allCars.length === 0 && Object.keys(_dcTasks).length === 0) return;
+      const pending = allCars.filter(c => !c.charged).length;
+      if (Object.keys(_dcTasks).length > 0 && pending === 0) {
+        if (card) { card.style.background = '#16a34a'; card.style.color = '#fff'; card.querySelectorAll('.mc-title,.mc-sub').forEach(el => el.style.color = '#fff'); }
+        if (sub) sub.textContent = 'כל הטעינות בוצעו בהצלחה ✅';
+        const badge = document.getElementById('badge-driver-charging'); if (badge) badge.style.display = 'none';
+      } else if (pending > 0) {
+        _setCardBadge('driver-charging', pending, '#1d4ed8');
+        if (sub) sub.textContent = 'רכבים לטעינה';
+      } else {
+        if (card) { card.style.background = ''; card.style.color = ''; card.querySelectorAll('.mc-title,.mc-sub').forEach(el => el.style.color = ''); }
+        if (sub) sub.textContent = 'רכבים לטעינה';
+        const badge = document.getElementById('badge-driver-charging'); if (badge) badge.style.display = 'none';
+      }
+    }
     _onSnap(_query(_colRef('charging_tasks'), _where('status','==','active')), snap => {
-      let pendingCars = 0;
-      snap.docs.forEach(d => {
-        const cars = d.data().carsJson ? JSON.parse(d.data().carsJson) : [];
-        pendingCars += cars.filter(c => !c.charged).length;
-      });
-      _setCardBadge('driver-charging', pendingCars, '#1d4ed8');
+      snap.docs.forEach(d => { _dcTasks[d.id] = d.data().carsJson ? JSON.parse(d.data().carsJson) : []; });
+      snap.docChanges().filter(c => c.type === 'removed').forEach(c => delete _dcTasks[c.doc.id]);
+      _renderDriverChargingCard();
+    });
+    _onSnap(_query(_colRef('charging_tasks'), _where('status','==','done')), snap => {
+      snap.docs.forEach(d => { _dcTasks[d.id] = d.data().carsJson ? JSON.parse(d.data().carsJson) : []; });
+      snap.docChanges().filter(c => c.type === 'removed').forEach(c => delete _dcTasks[c.doc.id]);
+      _renderDriverChargingCard();
     });
     _onSnap(_docRef('yard','current'), snap => {
       const status = snap.exists() ? snap.data().status : null;
@@ -2207,8 +2229,42 @@ function loadManagerBadges() {
     _onSnap(_query(_colRef('inventory_assignments'), _where('status','==','done')), snap => {
       _setCardBadge('inventory', snap.size);
     });
+    let _batteryAssignmentsDone = 0;
+    const _mcTasks = {};
+    function _renderMgrChargingCard() {
+      const card = document.getElementById('menu-card-battery');
+      const sub = document.getElementById('sub-battery');
+      const badge = document.getElementById('badge-battery');
+      const allCars = Object.values(_mcTasks).flat();
+      const hasTasks = Object.keys(_mcTasks).length > 0;
+      const pending = allCars.filter(c => !c.charged).length;
+      if (hasTasks && pending === 0) {
+        if (card) { card.style.background = '#16a34a'; card.style.color = '#fff'; card.querySelectorAll('.mc-title,.mc-sub').forEach(el => el.style.color = '#fff'); }
+        if (sub) sub.textContent = 'כל הטעינות בוצעו בהצלחה ✅';
+        if (badge) badge.style.display = 'none';
+      } else if (pending > 0) {
+        if (card) { card.style.background = '#1e40af'; card.style.color = '#fff'; card.querySelectorAll('.mc-title,.mc-sub').forEach(el => el.style.color = '#fff'); }
+        if (sub) sub.textContent = 'אחוזי טעינה וטווח נסיעה';
+        if (badge) { badge.style.display = 'inline-block'; badge.textContent = _batteryAssignmentsDone || ''; }
+      } else {
+        if (card) { card.style.background = ''; card.style.color = ''; card.querySelectorAll('.mc-title,.mc-sub').forEach(el => el.style.color = ''); }
+        if (sub) sub.textContent = 'אחוזי טעינה וטווח נסיעה';
+        if (badge) { badge.style.display = _batteryAssignmentsDone > 0 ? 'inline-block' : 'none'; if (_batteryAssignmentsDone > 0) badge.textContent = _batteryAssignmentsDone; }
+      }
+    }
     _onSnap(_query(_colRef('battery_assignments'), _where('status','==','done')), snap => {
-      _setCardBadge('battery', snap.size);
+      _batteryAssignmentsDone = snap.size;
+      _renderMgrChargingCard();
+    });
+    _onSnap(_query(_colRef('charging_tasks'), _where('status','==','active')), snap => {
+      snap.docs.forEach(d => { _mcTasks[d.id] = d.data().carsJson ? JSON.parse(d.data().carsJson) : []; });
+      snap.docChanges().filter(c => c.type === 'removed').forEach(c => delete _mcTasks[c.doc.id]);
+      _renderMgrChargingCard();
+    });
+    _onSnap(_query(_colRef('charging_tasks'), _where('status','==','done')), snap => {
+      snap.docs.forEach(d => { _mcTasks[d.id] = d.data().carsJson ? JSON.parse(d.data().carsJson) : []; });
+      snap.docChanges().filter(c => c.type === 'removed').forEach(c => delete _mcTasks[c.doc.id]);
+      _renderMgrChargingCard();
     });
     _onSnap(_query(_colRef('refreshes'), _where('status','==','pending')), snap => {
       _setCardBadge('_refresh', snap.size);
@@ -3420,8 +3476,13 @@ async function saveEditIntake() {
 let _currentIntakeId = null;
 let _currentIntakeVehicle = null;
 let _diHeaderUnsub = null;
+let _intakeSubmitting = false;
+let _intakeInputController = null;
 
 function openDriverIntake(id) {
+  clearTimeout(window._draftSyncTimer);
+  if (_intakeInputController) { _intakeInputController.abort(); }
+  _intakeInputController = new AbortController();
   _currentIntakeId = id;
   if (_mgLiveUnsub) { _mgLiveUnsub(); _mgLiveUnsub = null; }
   const _lb = document.getElementById('di-live-banner'); if (_lb) _lb.style.display = 'none';
@@ -3474,9 +3535,9 @@ function openDriverIntake(id) {
       }).catch(()=>{});
     });
   }
-  // auto-save on any text input
+  // auto-save on any text input — signal ensures old listeners are removed on next intake open
   document.querySelectorAll('#modal-driver-intake textarea, #di-km, #di-code, #di-notes').forEach(el => {
-    el.addEventListener('input', saveIntakeDraft);
+    el.addEventListener('input', saveIntakeDraft, { signal: _intakeInputController.signal });
   });
 }
 
@@ -3494,6 +3555,11 @@ const _photoKeys = ['c-battery-original','c-oil','c-coolant','c-safety','c-light
 async function submitDriverIntake() {
   if (!_currentIntakeId) { showToast('שגיאה: אין קליטה פתוחה'); return; }
   if (!window._CONFIG_DONE) { showToast('Firebase לא מחובר'); return; }
+  if (_intakeSubmitting) { showToast('⏳ שולח, אנא המתן...'); return; }
+  _intakeSubmitting = true;
+  const _submitBtn = document.querySelector('#modal-driver-intake .btn-submit');
+  if (_submitBtn) { _submitBtn.disabled = true; _submitBtn.style.opacity = '0.6'; }
+  try {
   // Build dashboard note from checkboxes
   const dashX = document.querySelector('.ci-box[data-key="c-dashboard"].x-active');
   if (dashX) {
@@ -3592,6 +3658,7 @@ async function submitDriverIntake() {
 
   // upload battery photos
   if (_batteryPhotoFiles?.length) {
+    let _batteryCompressOk = false;
     try {
       const b64s = [];
       for (let i = 0; i < _batteryPhotoFiles.length; i++) {
@@ -3599,9 +3666,11 @@ async function submitDriverIntake() {
         b64s.push(await compressToBase64(_batteryPhotoFiles[i]));
       }
       window._batteryPhotoUrls = { battery: b64s };
+      _batteryCompressOk = true;
     } catch(pe) {
       console.warn('battery photo upload failed', pe);
-      showToast('⚠️ תמונת מצבר לא הועלתה: ' + (pe.code || pe.message), 4000);
+      showToast('⚠️ שגיאה בעיבוד תמונת מצבר — נסה שוב', 4000);
+      return;
     }
   }
 
@@ -3628,7 +3697,12 @@ async function submitDriverIntake() {
 
 
   // auto-create tasks for X-marked items
-  await createIntakeTasks(checklist, notes, _currentIntakeVehicle);
+  try {
+    await createIntakeTasks(checklist, notes, _currentIntakeVehicle);
+  } catch(te) {
+    console.warn('createIntakeTasks partial error:', te);
+    // tasks may be partially created — Firestore write already succeeded, continue closing
+  }
 
   const _donePlate = _currentIntakeVehicle?.plate || '';
   const _doneDriver = currentUser.name;
@@ -3657,6 +3731,10 @@ async function submitDriverIntake() {
   } else {
     closeModal('modal-driver-intake');
     openVehiclesScreen();
+  }
+  } finally {
+    _intakeSubmitting = false;
+    if (_submitBtn) { _submitBtn.disabled = false; _submitBtn.style.opacity = ''; }
   }
 }
 
@@ -3978,7 +4056,7 @@ function addBatteryPhoto(input) {
   if (!grid) return;
   grid.innerHTML = _batteryPhotoFiles.map((f, i) => {
     const url = URL.createObjectURL(f);
-    return `<div class="ci-photo-box"><img src="${url}"><button class="rm-btn" onclick="_batteryPhotoFiles.splice(${i},1);addBatteryPhoto({files:[]})">✕</button></div>`;
+    return `<div class="ci-photo-box"><img src="${url}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" style="width:100%;height:100%;object-fit:cover"><span style="display:none;align-items:center;justify-content:center;width:100%;height:100%;font-size:12px;font-weight:700;color:#166534;background:#dcfce7;border-radius:8px">✓ נבחרה</span><button class="rm-btn" onclick="_batteryPhotoFiles.splice(${i},1);addBatteryPhoto({files:[]})">✕</button></div>`;
   }).join('');
 }
 window.addBatteryPhoto = addBatteryPhoto;
@@ -4182,6 +4260,9 @@ let _mgLiveLastEdit = 0;
 let _mgLiveMode = false;
 
 async function openManagerIntakeLive(id) {
+  clearTimeout(window._draftSyncTimer);
+  if (_intakeInputController) { _intakeInputController.abort(); }
+  _intakeInputController = new AbortController();
   _currentIntakeId = id;
   // clear form same as openDriverIntake
   document.querySelectorAll('#modal-driver-intake .ci-box').forEach(b => b.classList.remove('v-active','x-active'));
@@ -4223,12 +4304,12 @@ async function openManagerIntakeLive(id) {
   if (submitBtn) submitBtn.style.display = '';
 
   openModal('modal-driver-intake');
-  // track manager edits to avoid overwriting active typing
+  // track manager edits — signal ensures old listeners are removed on next intake open
   document.querySelectorAll('#modal-driver-intake textarea, #di-km, #di-code, #di-notes').forEach(el => {
     el.addEventListener('input', () => {
       _mgLiveLastEdit = Date.now();
       saveIntakeDraft();
-    });
+    }, { signal: _intakeInputController.signal });
   });
 }
 window.openManagerIntakeLive = openManagerIntakeLive;
@@ -7199,7 +7280,7 @@ function notifyRefreshDriver(driverName, plate) {
 }
 
 function openNewRefreshAssign() {
-  ['ra-plate','ra-type','ra-year','ra-color','ra-parking','ra-driver'].forEach(id => { const el=document.getElementById(id); if(el)el.value=''; });
+  ['ra-plate','ra-type','ra-year','ra-color','ra-parking','ra-notes','ra-driver'].forEach(id => { const el=document.getElementById(id); if(el)el.value=''; });
   const st = document.getElementById('ra-fetch-status'); if(st) { st.textContent=''; st.style.color='var(--muted)'; }
   openModal('modal-refresh-assign');
 }
@@ -7236,11 +7317,12 @@ async function submitRefreshAssign() {
   const year = document.getElementById('ra-year')?.value.trim();
   const color = document.getElementById('ra-color')?.value.trim();
   const parking = document.getElementById('ra-parking')?.value.trim();
+  const managerNotes = document.getElementById('ra-notes')?.value.trim() || '';
   const assignedTo = document.getElementById('ra-driver')?.value;
   if (!plate) return showToast('נא להזין לוחית רישוי');
   if (!assignedTo) return showToast('נא לבחור נהג');
   const { addDoc, collection, serverTimestamp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-  await addDoc(collection(window._db, 'refreshes'), { plate, vehicleType, year, color, parking, assignedTo, status: 'pending', createdAt: serverTimestamp() });
+  await addDoc(collection(window._db, 'refreshes'), { plate, vehicleType, year, color, parking, managerNotes, assignedTo, status: 'pending', createdAt: serverTimestamp() });
   closeModal('modal-refresh-assign');
   showToast('✅ רענון נוסף בהצלחה');
   _notifyDriver(assignedTo, `🔄 רענון רכב חדש ממתין לך — ${plate}${vehicleType?' '+vehicleType:''}${year?' שנת '+year:''}. כנס לאפליקציה ענק הרכבים.`);
@@ -7273,7 +7355,7 @@ async function openRefreshForm(id) {
   _currentRefreshData = snap.data();
   const r = _currentRefreshData;
   document.getElementById('rf-title').innerHTML = `רענון – ${esc(r.plate||'')} <button class="modal-close" onclick="saveRfDraftAndClose()">✕</button>`;
-  document.getElementById('rf-vehicle-info').innerHTML = `<strong>${esc(r.plate||'')}</strong>${r.vehicleType?' · '+esc(r.vehicleType):''}${r.parking?' · חניה '+esc(r.parking):''}`;
+  document.getElementById('rf-vehicle-info').innerHTML = `<strong>${esc(r.plate||'')}</strong>${r.vehicleType?' · '+esc(r.vehicleType):''}${r.parking?' · חניה '+esc(r.parking):''}${r.managerNotes?`<div style="margin-top:6px;font-size:13px;color:#374151"><span style="font-weight:700">הערת מנהל:</span> ${esc(r.managerNotes)}</div>`:''}` ;
   if (r.formData) {
     const fd = r.formData;
     ['rf-oil','rf-water','rf-battery','rf-battery-orig','rf-safety','rf-lights-break','rf-glass-break','rf-bulbs','rf-frames','rf-tires','rf-glove','rf-windows','rf-ac','rf-dashboard','rf-sunroof','rf-smell','rf-plastic','rf-upholstery','rf-steering','rf-test-drive'].forEach(key => {
@@ -7433,6 +7515,7 @@ async function openEditRefresh(id) {
   document.getElementById('re-year').value = r.year || '';
   document.getElementById('re-color').value = r.color || '';
   document.getElementById('re-parking').value = r.parking || '';
+  document.getElementById('re-notes').value = r.managerNotes || '';
   openModal('modal-refresh-edit');
 }
 async function submitEditRefresh() {
@@ -7445,6 +7528,7 @@ async function submitEditRefresh() {
     year: document.getElementById('re-year').value.trim(),
     color: document.getElementById('re-color').value.trim(),
     parking: document.getElementById('re-parking').value.trim(),
+    managerNotes: document.getElementById('re-notes').value.trim(),
   });
   closeModal('modal-refresh-edit');
   showToast('✅ פרטים עודכנו');
@@ -9052,6 +9136,7 @@ function _restoreTdLivePanelIfNeeded() {
       <div class="form-group"><label>צבע</label><input id="re-color" class="form-input"></div>
     </div>
     <div class="form-group"><label>מסי חניה</label><input id="re-parking" class="form-input"></div>
+    <div class="form-group"><label>הערת מנהל</label><textarea id="re-notes" class="form-textarea" placeholder="הערה חופשית..." rows="3"></textarea></div>
     <button class="btn-submit" onclick="submitEditRefresh()" style="width:100%;margin-top:8px">שמור שינויים ✅</button>
   </div>
 </div>
@@ -9072,6 +9157,7 @@ function _restoreTdLivePanelIfNeeded() {
       <div class="form-group"><label>צבע</label><input id="ra-color" class="form-input" placeholder="לבן"></div>
     </div>
     <div class="form-group"><label>מסי חניה</label><input id="ra-parking" class="form-input" placeholder="מספר חניה"></div>
+    <div class="form-group"><label>הערת מנהל</label><textarea id="ra-notes" class="form-textarea" placeholder="הערה חופשית..." rows="3"></textarea></div>
     <div class="form-group">
       <label>נהג <span style="color:#ef4444">*</span></label>
       <select id="ra-driver" class="form-input">
