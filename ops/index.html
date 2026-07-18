@@ -5788,7 +5788,8 @@ async function convertToChargingTask(batteryDocId) {
     const headers = data.headers || [];
     // validate results exist and all rows have battery + range filled
     if (!results.length) { showToast('לא ניתן להמיר למשימת טעינה עד שכל הרכבים הושלמו.'); return; }
-    const missing = results.filter(r => !r.battery || r.battery === '' || !r.range || r.range === '');
+    const isMissing = v => v === '' || v === null || v === undefined;
+    const missing = results.filter(r => isMissing(r.battery) || isMissing(r.range));
     if (missing.length) {
       showToast('לא ניתן להמיר למשימת טעינה עד שכל הרכבים הושלמו.');
       return;
