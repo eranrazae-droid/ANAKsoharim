@@ -5469,13 +5469,16 @@ function mergeBatteryFiles() {
 // showBatteryCols=false → hides battery/range columns entirely (manager preview before send)
 function _batteryTableHTML(headers, rows, editable, showBatteryCols = true, indexMap = null) {
   const colCount = headers.length || (rows[0]?.cells.length || 1);
+  const COL_WIDTHS = {
+    'מספר רישוי': '90px',
+    'שנת ייצור':  '80px',
+    'יצרן':       '90px',
+    'דגם':        '140px',
+    'סטטוס':      '80px',
+  };
   const baseWidths = headers.length
-    ? headers.map(h => {
-        if (h.includes('דגם') || h.includes('צבע') || h.includes('יצרן')) return 'minmax(80px,1.4fr)';
-        if (h.includes('מספר') || h.includes('לוחית')) return 'minmax(75px,1.2fr)';
-        return 'minmax(60px,1fr)';
-      })
-    : Array(colCount).fill('minmax(60px,1fr)');
+    ? headers.map(h => COL_WIDTHS[h] || '80px')
+    : Array(colCount).fill('80px');
   const colWidths = showBatteryCols ? [...baseWidths, '72px', '80px'] : baseWidths;
   const colW = colWidths.join(' ');
   let html = `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch">`;
