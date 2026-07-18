@@ -5786,10 +5786,11 @@ async function convertToChargingTask(batteryDocId) {
         ? JSON.parse(data.progressJson)
         : [];
     const headers = data.headers || [];
-    // validate all rows have battery filled
-    const missing = results.filter(r => !r.battery || r.battery === '');
+    // validate results exist and all rows have battery + range filled
+    if (!results.length) { showToast('לא ניתן להמיר למשימת טעינה עד שכל הרכבים הושלמו.'); return; }
+    const missing = results.filter(r => !r.battery || r.battery === '' || !r.range || r.range === '');
     if (missing.length) {
-      showToast(`⚠️ נותרו ${missing.length} רכבים ללא אחוזי סוללה`);
+      showToast('לא ניתן להמיר למשימת טעינה עד שכל הרכבים הושלמו.');
       return;
     }
     const toCharge  = results.filter(r => { const b = parseInt(r.battery); return isNaN(b) || b < 100; })
