@@ -5606,6 +5606,13 @@ function openDriverBatteryScreen() {
       .filter(d => d.assignedTo === currentUser.name && d.status === 'pending' && !d.converted);
     if (!docs.length) {
       container.innerHTML = '<div class="empty-state" style="padding:40px 20px;text-align:center;color:var(--muted)">אין בדיקות טעינה ממתינות 🔋</div>';
+      if (document.getElementById('modal-driver-battery').classList.contains('open')) closeModal('modal-driver-battery');
+      return;
+    }
+    if (docs.length === 1) {
+      const modalOpen = document.getElementById('modal-driver-battery').classList.contains('open');
+      const sameDoc = _dbattDocId === docs[0].id;
+      if (!modalOpen || !sameDoc) openDriverBatteryModal(docs[0].id);
       return;
     }
     container.innerHTML = docs.map(d => {
