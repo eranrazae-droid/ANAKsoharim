@@ -4801,8 +4801,7 @@ function handleInventoryFile(input) {
       if (!nonEmpty.length) { showToast('הקובץ ריק'); return; }
       // check if first row is a header (no cell looks like a plate number)
       const firstRow = nonEmpty[0];
-      const looksLikePlate = v => /^\d{5,9}$/.test(v.replace(/[-\s]/g,''));
-      if (firstRow.some(looksLikePlate)) {
+      if (firstRow.some(v => /\d/.test(v))) {
         inventoryHeaders = [];
         inventoryRows = nonEmpty.map(r => ({ cells: r, status: null }));
       } else {
@@ -5387,9 +5386,8 @@ function handleBatteryFile(input, fileIndex) {
       const nonEmpty = rows.map(r => r.map(c => String(c).trim())).filter(r => r.some(c => c !== ''));
       if (!nonEmpty.length) { showToast('הקובץ ריק'); return; }
       const firstRow = nonEmpty[0];
-      const looksLikePlate = v => /^\d{5,9}$/.test(v.replace(/[-\s]/g,''));
       let headers, dataRows;
-      if (firstRow.some(looksLikePlate)) {
+      if (firstRow.some(v => /\d/.test(v))) {
         headers = [];
         dataRows = nonEmpty;
       } else {
