@@ -4798,6 +4798,7 @@ function handleInventoryFile(input) {
       const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
       // filter out completely empty rows
       const nonEmpty = rows.map(r => r.map(c => String(c).trim())).filter(r => r.some(c => c !== ''));
+      console.log('[DBG1] nonEmpty.length=', nonEmpty.length);
       if (!nonEmpty.length) { showToast('הקובץ ריק'); return; }
       // check if first row is a header (no cell looks like a plate number)
       const firstRow = nonEmpty[0];
@@ -4808,6 +4809,7 @@ function handleInventoryFile(input) {
         inventoryHeaders = firstRow;
         inventoryRows = nonEmpty.slice(1).map(r => ({ cells: r, status: null }));
       }
+      console.log('[DBG2] inventoryRows.length=', inventoryRows.length, 'hasHeader=', inventoryHeaders.length > 0);
       if (!inventoryRows.length) { showToast('לא נמצאו שורות בקובץ'); return; }
       // sort by יצרן then דגם
       const mfrIdx = inventoryHeaders.findIndex(h => h.includes('יצרן'));
@@ -4834,6 +4836,7 @@ function handleInventoryFile(input) {
 }
 
 function renderInventoryList() {
+  console.log('[DBG3] renderInventoryList rows to render=', inventoryRows.length);
   _invMode = 'preview';
   const container = document.getElementById('inv-list');
   const hasCols = inventoryHeaders.length > 0;
@@ -4856,6 +4859,7 @@ function renderInventoryList() {
   html += inventoryRows.map((item,i) => `<div style="display:grid;grid-template-columns:repeat(${colCount},1fr);gap:4px;align-items:center;background:#fff;border:2px solid var(--border);border-radius:${hasCols&&i===0?'0':'8px'};padding:8px 10px;margin-bottom:4px;direction:rtl">${item.cells.map(c=>`<div style="font-size:14px;font-weight:600">${esc(c)}</div>`).join('')}</div>`).join('');
 
   container.innerHTML = html;
+  console.log('[DBG4] #inv-list children=', container.children.length);
   document.getElementById('inv-submit-wrap').style.display = 'block';
 }
 
