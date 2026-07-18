@@ -308,7 +308,6 @@ if ('serviceWorker' in navigator) {
       <div class="stat-card" id="stat-pickup-driver-card" style="display:none;cursor:pointer;background:linear-gradient(135deg,#1e3a8a,#1e40af);color:#fff" onclick="openDriverPickupModal()"><div class="num" id="stat-pickup-driver-count" style="color:#fff">0</div><div class="lbl" style="color:rgba(255,255,255,.8)">🚙 לאיסוף</div></div>
       <div style="display:none"><div id="stat-parts">—</div></div>
     </div>
-    <div id="debug-charging-panel" style="background:#1e293b;color:#f1f5f9;border-radius:12px;padding:12px 16px;margin-bottom:14px;font-size:13px;font-family:monospace;line-height:1.8;direction:ltr;text-align:left">🔍 DEBUG — טוען נתוני טעינה...</div>
     <div class="menu-grid" id="menu-grid"></div>
     <button id="btn-test-drive-home" onclick="openTestDriveFromHome()" style="display:none;position:fixed;bottom:24px;right:16px;z-index:200;width:auto;margin:0;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;border:none;border-radius:10px;padding:7px 12px;font-family:Heebo,sans-serif;font-size:12px;font-weight:800;cursor:pointer;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.25)">🏎️ נסיעות מבחן<span id="badge-test-drive" style="display:none;position:absolute;top:-5px;right:-5px;background:#ef4444;color:#fff;border-radius:999px;font-size:10px;font-weight:900;padding:1px 5px;min-width:16px;text-align:center"></span></button>
   </div>
@@ -2120,13 +2119,11 @@ function loadDriverBadges() {
     _onSnap(_query(_colRef('charging_tasks'), _where('status','==','active')), snap => {
       Object.keys(_dcActive).forEach(k => delete _dcActive[k]);
       snap.docs.forEach(d => { _dcActive[d.id] = d.data().carsJson ? JSON.parse(d.data().carsJson) : []; });
-      console.log('[charging-driver] active snap:', snap.size, 'docs, pending per task:', Object.entries(_dcActive).map(([id,cars])=>({id, pending: cars.filter(c=>!c.charged).length, total: cars.length})));
       _renderDriverChargingCard();
     });
     _onSnap(_query(_colRef('charging_tasks'), _where('status','==','done')), snap => {
       Object.keys(_dcDone).forEach(k => delete _dcDone[k]);
       snap.docs.forEach(d => { _dcDone[d.id] = true; });
-      console.log('[charging-driver] done snap:', snap.size, 'docs');
       _renderDriverChargingCard();
     });
     _onSnap(_docRef('yard','current'), snap => {
@@ -2240,15 +2237,12 @@ function loadManagerBadges() {
       const card = document.getElementById('menu-card-battery');
       const sub = document.getElementById('sub-battery');
       const badge = document.getElementById('badge-battery');
-      const dbg = document.getElementById('debug-charging-panel');
       const activeIds = Object.keys(_mcActive);
       const doneIds = Object.keys(_mcDone);
-      let decidedColor = 'רגיל';
       if (activeIds.length > 0) {
-        let pending = 0, total = 0;
-        activeIds.forEach(id => { const cars = _mcActive[id]; total += cars.length; pending += cars.filter(c => !c.charged).length; });
+        let pending = 0;
+        activeIds.forEach(id => { const cars = _mcActive[id]; pending += cars.filter(c => !c.charged).length; });
         if (pending === 0) {
-          decidedColor = 'ירוק';
           if (card) { card.style.background = '#16a34a'; card.style.color = '#fff'; card.querySelectorAll('.mc-title,.mc-sub').forEach(el => el.style.color = '#fff'); }
           if (sub) sub.textContent = 'כל הטעינות בוצעו בהצלחה ✅';
           if (badge) badge.style.display = 'none';
@@ -2257,18 +2251,14 @@ function loadManagerBadges() {
           if (sub) sub.textContent = 'אחוזי טעינה וטווח נסיעה';
           if (badge) { badge.style.display = 'inline-block'; badge.textContent = _batteryAssignmentsDone || ''; }
         }
-        if (dbg) dbg.innerHTML = `<b>🔍 DEBUG — קוביית טעינה (מנהל)</b><br>משימות active: ${activeIds.length} | done: ${doneIds.length}<br>${activeIds.map(id=>{const cars=_mcActive[id];const ch=cars.filter(c=>c.charged).length;return `משימה ${id.slice(-4)}: סה״כ ${cars.length}, טעונים ${ch}, ממתינים ${cars.length-ch}`;}).join('<br>')}<br><b>צבע שנבחר: ${decidedColor}</b>`;
       } else if (doneIds.length > 0) {
-        decidedColor = 'ירוק (done)';
         if (card) { card.style.background = '#16a34a'; card.style.color = '#fff'; card.querySelectorAll('.mc-title,.mc-sub').forEach(el => el.style.color = '#fff'); }
         if (sub) sub.textContent = 'כל הטעינות בוצעו בהצלחה ✅';
         if (badge) badge.style.display = 'none';
-        if (dbg) dbg.innerHTML = `<b>🔍 DEBUG — קוביית טעינה (מנהל)</b><br>משימות active: 0 | done: ${doneIds.length}<br><b>צבע שנבחר: ${decidedColor}</b>`;
       } else {
         if (card) { card.style.background = ''; card.style.color = ''; card.querySelectorAll('.mc-title,.mc-sub').forEach(el => el.style.color = ''); }
         if (sub) sub.textContent = 'אחוזי טעינה וטווח נסיעה';
         if (badge) { badge.style.display = _batteryAssignmentsDone > 0 ? 'inline-block' : 'none'; if (_batteryAssignmentsDone > 0) badge.textContent = _batteryAssignmentsDone; }
-        if (dbg) dbg.innerHTML = `<b>🔍 DEBUG — קוביית טעינה (מנהל)</b><br>משימות active: 0 | done: 0<br><b>לא נמצאה משימת טעינה</b>`;
       }
     }
     _onSnap(_query(_colRef('battery_assignments'), _where('status','==','done')), snap => {
