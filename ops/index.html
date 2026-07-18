@@ -234,7 +234,10 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
 
 /* ===== LIVE TEST DRIVE PANEL ===== */
 #td-live-panel{position:fixed;left:0;top:0;height:100%;width:100%;background:var(--card);z-index:4500;display:none;flex-direction:column;box-shadow:4px 0 24px rgba(0,0,0,.3)}
-@media(min-width:700px){#td-live-panel{width:min(420px,38vw);border-right:2px solid var(--border)}}
+@media(min-width:700px){
+  #td-live-panel{width:min(420px,38vw);border-right:2px solid var(--border)}
+  body.td-panel-open #screen-home{margin-left:min(420px,38vw);width:calc(100% - min(420px,38vw))}
+}
 .td-lp-ci{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;border:2px solid var(--border);background:var(--surface2);font-size:16px;font-weight:900;cursor:pointer;transition:.15s}
 .td-lp-ci.v-active{background:#16a34a;border-color:#16a34a;color:#fff}
 .td-lp-ci.x-active{background:#dc2626;border-color:#dc2626;color:#fff}
@@ -8922,6 +8925,7 @@ function openTdLivePanel(id, initialData) {
   localStorage.setItem('anak_td_mgr_panel', id);
   const panel = document.getElementById('td-live-panel');
   panel.style.display = 'flex';
+  document.body.classList.add('td-panel-open');
   if (initialData) { _tdLivePanelData = initialData; _renderTdLivePanel(initialData); }
   import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(({ onSnapshot, doc }) => {
     _tdLivePanelUnsub = onSnapshot(doc(window._db, 'test_drives', id), snap => {
@@ -9109,6 +9113,7 @@ async function completeTdLivePanel() {
   _tdLivePanelData = null;
   localStorage.removeItem('anak_td_mgr_panel');
   document.getElementById('td-live-panel').style.display = 'none';
+  document.body.classList.remove('td-panel-open');
   showToast('✅ הרכב הועבר לקליטה');
 }
 window.completeTdLivePanel = completeTdLivePanel;
