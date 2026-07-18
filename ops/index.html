@@ -1214,20 +1214,11 @@ if ('serviceWorker' in navigator) {
   <div style="padding:16px 16px 100px" id="dbattery-list">
     <div class="loading"><div class="spinner"></div> טוען...</div>
   </div>
-</div>
-
-<!-- ====== MODAL: DRIVER BATTERY FILL ====== -->
-<div class="modal-overlay" id="modal-driver-battery">
-  <div class="modal-box" style="max-height:90vh;display:flex;flex-direction:column;overflow:hidden">
-    <div class="modal-title" style="position:sticky;top:0;z-index:10;background:#fff;flex-shrink:0">🔋 בדיקת טעינה
-      <button class="modal-close" onclick="closeModal('modal-driver-battery')">✕</button>
-    </div>
-    <div style="overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch;padding-bottom:8px">
-      <input type="hidden" id="dbattery-id">
-      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch" id="dbattery-rows-container"></div>
-      <input type="hidden" id="dbattery-notes" value="">
-      <button class="btn-submit" onclick="submitDriverBattery()" style="margin-top:14px">✅ שלח בדיקה</button>
-    </div>
+  <div id="dbattery-inline-wrap" style="display:none;padding:16px 16px 100px">
+    <input type="hidden" id="dbattery-id">
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch" id="dbattery-rows-container"></div>
+    <input type="hidden" id="dbattery-notes" value="">
+    <button class="btn-submit" onclick="submitDriverBattery()" style="margin-top:14px">✅ שלח בדיקה</button>
   </div>
 </div>
 
@@ -5611,6 +5602,8 @@ let _dbattRows = [];  // [{cells, battery, range}]
 function openDriverBatteryScreen() {
   showScreen('driver-battery');
   document.getElementById('dbattery-user-badge').textContent = currentUser.name;
+  document.getElementById('dbattery-list').style.display = '';
+  document.getElementById('dbattery-inline-wrap').style.display = 'none';
   if (_dbattUnsub) _dbattUnsub();
   const container = document.getElementById('dbattery-list');
   container.innerHTML = '<div class="loading"><div class="spinner"></div> טוען...</div>';
@@ -5620,13 +5613,12 @@ function openDriverBatteryScreen() {
       .filter(d => d.assignedTo === currentUser.name && d.status === 'pending' && !d.converted);
     if (!docs.length) {
       container.innerHTML = '<div class="empty-state" style="padding:40px 20px;text-align:center;color:var(--muted)">אין בדיקות טעינה ממתינות 🔋</div>';
-      if (document.getElementById('modal-driver-battery').classList.contains('open')) closeModal('modal-driver-battery');
       return;
     }
     if (docs.length === 1) {
-      const modalOpen = document.getElementById('modal-driver-battery').classList.contains('open');
+      const inlineOpen = document.getElementById('dbattery-inline-wrap').style.display !== 'none';
       const sameDoc = _dbattDocId === docs[0].id;
-      if (!modalOpen || !sameDoc) openDriverBatteryModal(docs[0].id);
+      if (!inlineOpen || !sameDoc) openDriverBatteryModal(docs[0].id);
       return;
     }
     container.innerHTML = docs.map(d => {
@@ -5664,7 +5656,8 @@ function openDriverBatteryModal(docId) {
       document.getElementById('dbattery-notes').value = '';
       renderDriverBatteryModal();
       firstLoad = false;
-      openModal('modal-driver-battery');
+      document.getElementById('dbattery-list').style.display = 'none';
+      document.getElementById('dbattery-inline-wrap').style.display = '';
     } else if (serverProgress) {
       // Live sync: update inputs that aren't currently focused
       serverProgress.forEach((sp, i) => {
@@ -5774,7 +5767,6 @@ async function submitDriverBattery() {
     });
     localStorage.removeItem('_dbattProgress_' + _dbattDocId);
     _dbattDocId = null;
-    closeModal('modal-driver-battery');
     showToast('✅ בדיקת הטעינה נשלחה!');
     showScreen('driver-battery');
   } catch(e) {
