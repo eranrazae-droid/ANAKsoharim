@@ -2094,36 +2094,34 @@ function loadDriverBadges() {
     _onSnap(_query(_colRef('battery_assignments'), _where('assignedTo','==',name)), snap => {
       _setCardBadge('driver-battery', snap.docs.filter(d => d.data().status === 'pending' && !d.data().converted).length);
     });
-    const _dcActive = {}, _dcDone = {};
+    const _dcTasks = {};
     function _renderDriverChargingCard() {
       const card = document.getElementById('menu-card-driver-charging');
       const sub = document.getElementById('sub-driver-charging');
-      const activeIds = Object.keys(_dcActive);
-      if (activeIds.length > 0) {
-        let pending = 0;
-        activeIds.forEach(id => { pending += _dcActive[id].filter(c => !c.charged).length; });
-        if (pending === 0) {
-          if (card) { card.style.background = '#16a34a'; card.style.color = '#fff'; card.querySelectorAll('.mc-title,.mc-sub').forEach(el => el.style.color = '#fff'); }
-          if (sub) sub.textContent = 'כל הטעינות בוצעו בהצלחה ✅';
-          const badge = document.getElementById('badge-driver-charging'); if (badge) badge.style.display = 'none';
-        } else {
-          _setCardBadge('driver-charging', pending, '#1d4ed8');
-          if (sub) sub.textContent = 'רכבים לטעינה';
-        }
-      } else if (Object.keys(_dcDone).length > 0) {
+      const allCars = Object.values(_dcTasks).flat();
+      if (allCars.length === 0 && Object.keys(_dcTasks).length === 0) return;
+      const pending = allCars.filter(c => !c.charged).length;
+      if (Object.keys(_dcTasks).length > 0 && pending === 0) {
         if (card) { card.style.background = '#16a34a'; card.style.color = '#fff'; card.querySelectorAll('.mc-title,.mc-sub').forEach(el => el.style.color = '#fff'); }
         if (sub) sub.textContent = 'כל הטעינות בוצעו בהצלחה ✅';
+        const badge = document.getElementById('badge-driver-charging'); if (badge) badge.style.display = 'none';
+      } else if (pending > 0) {
+        _setCardBadge('driver-charging', pending, '#1d4ed8');
+        if (sub) sub.textContent = 'רכבים לטעינה';
+      } else {
+        if (card) { card.style.background = ''; card.style.color = ''; card.querySelectorAll('.mc-title,.mc-sub').forEach(el => el.style.color = ''); }
+        if (sub) sub.textContent = 'רכבים לטעינה';
         const badge = document.getElementById('badge-driver-charging'); if (badge) badge.style.display = 'none';
       }
     }
     _onSnap(_query(_colRef('charging_tasks'), _where('status','==','active')), snap => {
-      Object.keys(_dcActive).forEach(k => delete _dcActive[k]);
-      snap.docs.forEach(d => { _dcActive[d.id] = d.data().carsJson ? JSON.parse(d.data().carsJson) : []; });
+      snap.docs.forEach(d => { _dcTasks[d.id] = d.data().carsJson ? JSON.parse(d.data().carsJson) : []; });
+      snap.docChanges().filter(c => c.type === 'removed').forEach(c => delete _dcTasks[c.doc.id]);
       _renderDriverChargingCard();
     });
     _onSnap(_query(_colRef('charging_tasks'), _where('status','==','done')), snap => {
-      Object.keys(_dcDone).forEach(k => delete _dcDone[k]);
-      snap.docs.forEach(d => { _dcDone[d.id] = true; });
+      snap.docs.forEach(d => { _dcTasks[d.id] = d.data().carsJson ? JSON.parse(d.data().carsJson) : []; });
+      snap.docChanges().filter(c => c.type === 'removed').forEach(c => delete _dcTasks[c.doc.id]);
       _renderDriverChargingCard();
     });
     _onSnap(_docRef('yard','current'), snap => {
@@ -2232,29 +2230,22 @@ function loadManagerBadges() {
       _setCardBadge('inventory', snap.size);
     });
     let _batteryAssignmentsDone = 0;
-    const _mcActive = {}, _mcDone = {};
+    const _mcTasks = {};
     function _renderMgrChargingCard() {
       const card = document.getElementById('menu-card-battery');
       const sub = document.getElementById('sub-battery');
       const badge = document.getElementById('badge-battery');
-      const activeIds = Object.keys(_mcActive);
-      const doneIds = Object.keys(_mcDone);
-      if (activeIds.length > 0) {
-        let pending = 0;
-        activeIds.forEach(id => { const cars = _mcActive[id]; pending += cars.filter(c => !c.charged).length; });
-        if (pending === 0) {
-          if (card) { card.style.background = '#16a34a'; card.style.color = '#fff'; card.querySelectorAll('.mc-title,.mc-sub').forEach(el => el.style.color = '#fff'); }
-          if (sub) sub.textContent = 'כל הטעינות בוצעו בהצלחה ✅';
-          if (badge) badge.style.display = 'none';
-        } else {
-          if (card) { card.style.background = '#1e40af'; card.style.color = '#fff'; card.querySelectorAll('.mc-title,.mc-sub').forEach(el => el.style.color = '#fff'); }
-          if (sub) sub.textContent = 'אחוזי טעינה וטווח נסיעה';
-          if (badge) { badge.style.display = 'inline-block'; badge.textContent = _batteryAssignmentsDone || ''; }
-        }
-      } else if (doneIds.length > 0) {
+      const allCars = Object.values(_mcTasks).flat();
+      const hasTasks = Object.keys(_mcTasks).length > 0;
+      const pending = allCars.filter(c => !c.charged).length;
+      if (hasTasks && pending === 0) {
         if (card) { card.style.background = '#16a34a'; card.style.color = '#fff'; card.querySelectorAll('.mc-title,.mc-sub').forEach(el => el.style.color = '#fff'); }
         if (sub) sub.textContent = 'כל הטעינות בוצעו בהצלחה ✅';
         if (badge) badge.style.display = 'none';
+      } else if (pending > 0) {
+        if (card) { card.style.background = '#1e40af'; card.style.color = '#fff'; card.querySelectorAll('.mc-title,.mc-sub').forEach(el => el.style.color = '#fff'); }
+        if (sub) sub.textContent = 'אחוזי טעינה וטווח נסיעה';
+        if (badge) { badge.style.display = 'inline-block'; badge.textContent = _batteryAssignmentsDone || ''; }
       } else {
         if (card) { card.style.background = ''; card.style.color = ''; card.querySelectorAll('.mc-title,.mc-sub').forEach(el => el.style.color = ''); }
         if (sub) sub.textContent = 'אחוזי טעינה וטווח נסיעה';
@@ -2266,13 +2257,13 @@ function loadManagerBadges() {
       _renderMgrChargingCard();
     });
     _onSnap(_query(_colRef('charging_tasks'), _where('status','==','active')), snap => {
-      Object.keys(_mcActive).forEach(k => delete _mcActive[k]);
-      snap.docs.forEach(d => { _mcActive[d.id] = d.data().carsJson ? JSON.parse(d.data().carsJson) : []; });
+      snap.docs.forEach(d => { _mcTasks[d.id] = d.data().carsJson ? JSON.parse(d.data().carsJson) : []; });
+      snap.docChanges().filter(c => c.type === 'removed').forEach(c => delete _mcTasks[c.doc.id]);
       _renderMgrChargingCard();
     });
     _onSnap(_query(_colRef('charging_tasks'), _where('status','==','done')), snap => {
-      Object.keys(_mcDone).forEach(k => delete _mcDone[k]);
-      snap.docs.forEach(d => { _mcDone[d.id] = true; });
+      snap.docs.forEach(d => { _mcTasks[d.id] = d.data().carsJson ? JSON.parse(d.data().carsJson) : []; });
+      snap.docChanges().filter(c => c.type === 'removed').forEach(c => delete _mcTasks[c.doc.id]);
       _renderMgrChargingCard();
     });
     _onSnap(_query(_colRef('refreshes'), _where('status','==','pending')), snap => {
