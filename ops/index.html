@@ -308,6 +308,7 @@ if ('serviceWorker' in navigator) {
       <div class="stat-card" id="stat-pickup-driver-card" style="display:none;cursor:pointer;background:linear-gradient(135deg,#1e3a8a,#1e40af);color:#fff" onclick="openDriverPickupModal()"><div class="num" id="stat-pickup-driver-count" style="color:#fff">0</div><div class="lbl" style="color:rgba(255,255,255,.8)">🚙 לאיסוף</div></div>
       <div style="display:none"><div id="stat-parts">—</div></div>
     </div>
+    <div id="debug-charging-panel" style="display:none;background:#1e293b;color:#f1f5f9;border-radius:12px;padding:12px 16px;margin-bottom:14px;font-size:13px;font-family:monospace;line-height:1.8;direction:ltr;text-align:left"></div>
     <div class="menu-grid" id="menu-grid"></div>
     <button id="btn-test-drive-home" onclick="openTestDriveFromHome()" style="display:none;position:fixed;bottom:24px;right:16px;z-index:200;width:auto;margin:0;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;border:none;border-radius:10px;padding:7px 12px;font-family:Heebo,sans-serif;font-size:12px;font-weight:800;cursor:pointer;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.25)">🏎️ נסיעות מבחן<span id="badge-test-drive" style="display:none;position:absolute;top:-5px;right:-5px;background:#ef4444;color:#fff;border-radius:999px;font-size:10px;font-weight:900;padding:1px 5px;min-width:16px;text-align:center"></span></button>
   </div>
@@ -2241,20 +2242,32 @@ function loadManagerBadges() {
       const card = document.getElementById('menu-card-battery');
       const sub = document.getElementById('sub-battery');
       const activeIds = Object.keys(_mcActive);
+      const doneIds = Object.keys(_mcDone);
+      let decidedColor = 'לא השתנה';
       if (activeIds.length > 0) {
         let pending = 0;
         activeIds.forEach(id => { pending += _mcActive[id].filter(c => !c.charged).length; });
         if (pending === 0) {
+          decidedColor = 'ירוק';
           if (card) { card.style.background = '#16a34a'; card.style.color = '#fff'; card.querySelectorAll('.mc-title,.mc-sub').forEach(el => el.style.color = '#fff'); }
           if (sub) sub.textContent = 'כל הטעינות בוצעו בהצלחה ✅';
           const badge = document.getElementById('badge-battery'); if (badge) badge.style.display = 'none';
-        } else if (card) {
-          if (sub) sub.textContent = 'אחוזי טעינה וטווח נסיעה';
+        } else {
+          decidedColor = 'רגיל (יש ממתינים)';
+          if (card) { if (sub) sub.textContent = 'אחוזי טעינה וטווח נסיעה'; }
         }
-      } else if (Object.keys(_mcDone).length > 0) {
+        const dbg = document.getElementById('debug-charging-panel');
+        if (dbg) { dbg.style.display='block'; dbg.innerHTML = `<b>🔍 DEBUG — קוביית טעינה (מנהל)</b><br>משימות active: ${activeIds.length}<br>משימות done: ${doneIds.length}<br>${activeIds.map(id=>{const cars=_mcActive[id];const ch=cars.filter(c=>c.charged).length;return `משימה ${id.slice(-4)}: ${cars.length} רכבים, ${ch} טעונים, ${cars.length-ch} ממתינים`;}).join('<br>')}<br><b>צבע שנבחר: ${decidedColor}</b>`; }
+      } else if (doneIds.length > 0) {
+        decidedColor = 'ירוק (done)';
         if (card) { card.style.background = '#16a34a'; card.style.color = '#fff'; card.querySelectorAll('.mc-title,.mc-sub').forEach(el => el.style.color = '#fff'); }
         if (sub) sub.textContent = 'כל הטעינות בוצעו בהצלחה ✅';
         const badge = document.getElementById('badge-battery'); if (badge) badge.style.display = 'none';
+        const dbg = document.getElementById('debug-charging-panel');
+        if (dbg) { dbg.style.display='block'; dbg.innerHTML = `<b>🔍 DEBUG — קוביית טעינה (מנהל)</b><br>משימות active: 0<br>משימות done: ${doneIds.length}<br><b>צבע שנבחר: ${decidedColor}</b>`; }
+      } else {
+        const dbg = document.getElementById('debug-charging-panel');
+        if (dbg) { dbg.style.display='block'; dbg.innerHTML = `<b>🔍 DEBUG — קוביית טעינה (מנהל)</b><br>משימות active: 0<br>משימות done: 0<br><b>לא נמצאה משימה רלוונטית</b>`; }
       }
     }
     _onSnap(_query(_colRef('charging_tasks'), _where('status','==','active')), snap => {
