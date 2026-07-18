@@ -349,7 +349,10 @@ if ('serviceWorker' in navigator) {
 <div id="td-live-panel">
   <div style="background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
     <span style="font-weight:800;font-size:15px">🏎️ נסיעת מבחן — שידור חי</span>
-    <span id="td-live-status-badge" style="font-size:12px;font-weight:700;background:rgba(255,255,255,.2);border-radius:8px;padding:3px 10px">⏳ ממתין</span>
+    <div style="display:flex;align-items:center;gap:8px">
+      <button id="td-delete-btn" onclick="deleteTdLivePanel()" style="display:none;background:#dc2626;color:#fff;border:none;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer">🗑 מחק נסיעה</button>
+      <span id="td-live-status-badge" style="font-size:12px;font-weight:700;background:rgba(255,255,255,.2);border-radius:8px;padding:3px 10px">⏳ ממתין</span>
+    </div>
   </div>
   <div id="td-live-vehicle-info" style="padding:10px 14px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:14px;font-weight:800;flex-shrink:0"></div>
   <div id="td-live-content" style="flex:1;overflow-y:auto;padding:8px 14px"></div>
@@ -2155,7 +2158,18 @@ function loadDriverBadges() {
     _onSnap(_query(_colRef('test_drives'), _where('assignedTo','==',name), _where('status','==','pending')), snap => {
       const badge = document.getElementById('badge-test-drive');
       if (badge) { badge.textContent = snap.size; badge.style.display = snap.size ? 'block' : 'none'; }
-      if (!snap.size) { localStorage.removeItem('anak_td_active'); return; }
+      if (!snap.size) {
+        const cancelledId = localStorage.getItem('anak_td_active');
+        localStorage.removeItem('anak_td_active');
+        if (cancelledId) {
+          _tdAllForms = _tdAllForms.filter(x => x.id !== cancelledId);
+          const modal = document.getElementById('modal-fill-test-drive');
+          if (modal?.classList.contains('open') && document.getElementById('tdf-id')?.value === cancelledId) {
+            closeModal('modal-fill-test-drive');
+          }
+        }
+        return;
+      }
       const firstDoc = snap.docs[0];
       const f = { id: firstDoc.id, ...firstDoc.data() };
       const _tdDone = JSON.parse(localStorage.getItem('anak_td_done')||'[]');
@@ -8929,6 +8943,8 @@ function openTdLivePanel(id, initialData) {
   const panel = document.getElementById('td-live-panel');
   panel.style.display = 'flex';
   document.body.classList.add('td-panel-open');
+  const delBtn = document.getElementById('td-delete-btn');
+  if (delBtn) delBtn.style.display = currentUser?.role === 'manager' ? '' : 'none';
   if (initialData) { _tdLivePanelData = initialData; _renderTdLivePanel(initialData); }
   import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(({ onSnapshot, doc }) => {
     _tdLivePanelUnsub = onSnapshot(doc(window._db, 'test_drives', id), snap => {
@@ -9120,6 +9136,24 @@ async function completeTdLivePanel() {
   showToast('✅ הרכב הועבר לקליטה');
 }
 window.completeTdLivePanel = completeTdLivePanel;
+
+async function deleteTdLivePanel() {
+  if (!_tdLivePanelId) return;
+  if (!confirm('האם למחוק את נסיעת המבחן? הפעולה תסגור את הטופס גם אצל הנהג.')) return;
+  if (!_updateDoc || !_docRef) { showToast('⚠️ Firebase לא מחובר'); return; }
+  const id = _tdLivePanelId;
+  try {
+    await _updateDoc(_docRef('test_drives', id), { status: 'cancelled' });
+  } catch(e) { console.error('deleteTdLivePanel', e); showToast('⚠️ שגיאה במחיקה'); return; }
+  if (_tdLivePanelUnsub) { _tdLivePanelUnsub(); _tdLivePanelUnsub = null; }
+  _tdLivePanelId = null;
+  _tdLivePanelData = null;
+  localStorage.removeItem('anak_td_mgr_panel');
+  document.getElementById('td-live-panel').style.display = 'none';
+  document.body.classList.remove('td-panel-open');
+  showToast('נסיעת המבחן בוטלה');
+}
+window.deleteTdLivePanel = deleteTdLivePanel;
 
 // restore live panel on manager home load
 function _restoreTdLivePanelIfNeeded() {
