@@ -426,6 +426,27 @@ display:none !important;
     const SB_URL = 'https://vwfmfjjdusirabgbkhvw.supabase.co';
     const SB_KEY = 'sb_publishable_E6Dd48mtyJyw5_6vgP2lzw_Gaj-QcAx';
     const SITE_SOURCE = 'אוטודילר'; // מזהה מקור הליד (JOY MOTORS משתמש בערך אחר)
+
+    // ===== Meta Pixel — אירועי המרה =====
+    const COUPON_VALUE = 300; // סכום הקופון בפועל (לא מחיר הרכב)
+    function adGenId(){ return 'ad_' + Date.now().toString(36) + Math.random().toString(36).slice(2,9); }
+    function fbqTrack(ev, params, opts){ try{ if(typeof fbq==='function'){ opts ? fbq('track', ev, params||{}, opts) : fbq('track', ev, params||{}); } }catch(e){} }
+    function adCarParams(){
+      var c = (typeof selectedCar!=='undefined' && selectedCar) ? selectedCar : null;
+      if(!c) return {};
+      return { content_ids:[String(c.id)], content_type:'product', content_name:((c.brand||'')+' '+(c.model||'')).trim() };
+    }
+    window._adOrder = null; // הזמנה נוכחית (order_id + event_id ל-dedup)
+    // Contact בלחיצה על וואטסאפ / טלפון
+    document.addEventListener('click', function(e){
+      try{
+        var el = e.target && e.target.closest ? e.target.closest('a,button') : null;
+        if(!el) return;
+        var href = (el.getAttribute && el.getAttribute('href')) || '';
+        var onc = (el.getAttribute && el.getAttribute('onclick')) || '';
+        if(/wa\.me|whatsapp/i.test(href+onc) || /^tel:/i.test(href)){ fbqTrack('Contact', {}); }
+      }catch(_){}
+    }, true);
     let _sb = null;
     function sbClient(){ try{ if(!_sb && window.supabase) _sb = window.supabase.createClient(SB_URL, SB_KEY); }catch(e){} return _sb; }
     async function sbLoad(){
@@ -2391,6 +2412,7 @@ display:none !important;
     function openCar(id){
       selectedCar = enrich(cars.find(c => c.id === id));
       selectedTrack = "";
+      fbqTrack('ViewContent', Object.assign({value:COUPON_VALUE, currency:'ILS'}, adCarParams()));
       document.getElementById('carBreadcrumb').textContent = `${selectedCar.brand} ${selectedCar.model}`;
       const hasRealImage = selectedCar.image && !selectedCar.image.startsWith('data:image/svg');
       const carImageWrap = document.getElementById('carImage').parentElement;
@@ -2750,6 +2772,10 @@ display:none !important;
       const pb=document.getElementById('paymentSection');
       if(pb){ pb.style.display='block'; setTimeout(function(){ pb.scrollIntoView({behavior:'smooth',block:'center'}); },80); }
       saveLead('התחיל תשלום קופון');
+      if(window._adOrder && !window._adOrder.addPayFired){
+        fbqTrack('AddPaymentInfo', Object.assign({value:COUPON_VALUE, currency:'ILS'}, adCarParams()));
+        window._adOrder.addPayFired = true;
+      }
     }
 
     function openBitPayment(e){
@@ -2794,6 +2820,9 @@ display:none !important;
         showPage('catalogPage');
         return;
       }
+      // הזמנה חדשה + InitiateCheckout
+      window._adOrder = { order_id: adGenId(), event_id: adGenId(), purchaseFired:false, addPayFired:false };
+      fbqTrack('InitiateCheckout', Object.assign({value:COUPON_VALUE, currency:'ILS'}, adCarParams()));
       const wrap = document.getElementById('checkoutWrap');
       wrap.innerHTML = `
         <div class="voucher-checkout">
@@ -2863,6 +2892,20 @@ display:none !important;
 
     function completeCheckout(){
       saveLead('לחץ שילמתי — שלח וואטסאפ');
+      // Purchase — פעם אחת בלבד לכל הזמנה (dedup). * כרגע מבוסס על הצהרת הלקוח ("שילמתי"),
+      //   כי אין אימות-שרת. כשיחובר שער סליקה אמיתי — יש להעביר את הבלוק הזה ל-callback של השרת.
+      try{
+        if(window._adOrder && !window._adOrder.purchaseFired){
+          var okKey = 'ad_purchased_' + window._adOrder.order_id;
+          if(!localStorage.getItem(okKey)){
+            fbqTrack('Purchase',
+              Object.assign({ value:COUPON_VALUE, currency:'ILS', order_id: window._adOrder.order_id }, adCarParams()),
+              { eventID: window._adOrder.event_id });
+            try{ localStorage.setItem(okKey, '1'); }catch(e){}
+          }
+          window._adOrder.purchaseFired = true;
+        }
+      }catch(e){ console.warn('purchase pixel', e); }
       const wrap = document.getElementById('checkoutWrap');
       const phone = document.getElementById('c_phone')?.value || "";
       const wa = `https://wa.me/972508396030?text=${encodeURIComponent('היי, שילמתי קופון על ' + selectedCar.brand + ' ' + selectedCar.model + ' ורוצה להתקדם לעסקה')}`;
@@ -3183,6 +3226,7 @@ display:none !important;
           if(res2&&res2.error){ await c.from('leads').insert(row); }
         }
       } }catch(e){ console.warn('chat lead', e); }
+      fbqTrack('Lead', {content_name:'צ׳אט ייעוץ', currency:'ILS', value:0});
       document.getElementById('chatForm').style.display='none';
       document.getElementById('chatThanks').style.display='block';
     }
@@ -3202,6 +3246,7 @@ display:none !important;
           if(res2&&res2.error){ await c.from('leads').insert(row); }
         }
       } }catch(e){ console.warn('car page lead', e); }
+      fbqTrack('Lead', Object.assign({content_name:'עמוד רכב', currency:'ILS', value:0}, adCarParams()));
       document.getElementById('cpLeadForm').style.display='none';
       document.getElementById('cpLeadThanks').style.display='block';
     }
