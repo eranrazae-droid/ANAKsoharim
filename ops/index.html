@@ -72,6 +72,25 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
 .stat-card .num{font-size:26px;font-weight:900;color:var(--gold)}
 .stat-card .lbl{font-size:11px;color:var(--muted);font-weight:600;margin-top:2px}
 .menu-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+/* Manager home with calendar */
+.home-body.has-calendar #home-layout{display:flex;gap:20px;align-items:flex-start}
+.home-body.has-calendar #home-cards-area{flex:1;min-width:0}
+.home-body.has-calendar #home-calendar-area{display:block !important;width:340px;flex-shrink:0;border-right:2px solid var(--border);padding-right:20px}
+.home-body.has-calendar .menu-grid{grid-template-columns:repeat(3,1fr) !important}
+@media (max-width:900px){
+  .home-body.has-calendar #home-layout{flex-direction:column}
+  .home-body.has-calendar #home-calendar-area{width:auto;border-right:none;border-top:2px solid var(--border);padding-right:0;padding-top:16px;margin-top:8px}
+  .home-body.has-calendar .menu-grid{grid-template-columns:repeat(2,1fr) !important}
+}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.cal-dow{text-align:center;font-size:11px;font-weight:800;color:var(--muted);padding:4px 0}
+.cal-day{position:relative;text-align:center;padding:9px 0;border-radius:9px;cursor:pointer;font-size:14px;font-weight:700;user-select:none}
+.cal-day:hover{background:var(--surface2)}
+.cal-day.empty{cursor:default;pointer-events:none}
+.cal-day.today{color:var(--gold)}
+.cal-day.selected{background:var(--dark);color:#fff}
+.cal-dot{position:absolute;bottom:3px;left:50%;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;background:#7c3aed}
+.cal-day.selected .cal-dot{background:#fff}
 .user-bg-active,.user-bg-active .screen{background-color:transparent !important}
 .user-bg-active .app-header{background:rgba(10,10,30,0.55) !important;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
 .user-bg-active .menu-card{background:rgba(0,0,0,0.12) !important;backdrop-filter:blur(1px);-webkit-backdrop-filter:blur(1px);border:1.5px solid rgba(255,255,255,0.25) !important;color:#fff !important;box-shadow:0 2px 10px rgba(0,0,0,0.25)}
@@ -312,14 +331,48 @@ if ('serviceWorker' in navigator) {
       <h2 id="home-welcome">שלום 👋</h2>
       <p id="home-date"></p>
     </div>
-    <div class="stats-row" id="stats-row">
-      <div class="stat-card"><div class="num" id="stat-tasks">—</div><div class="lbl">משימות פתוחות</div></div>
-      <div class="stat-card" id="stat-vehicles-card" style="display:none"><div class="num" id="stat-vehicles">—</div><div class="lbl">רכבים במגרש</div></div>
-      <div class="stat-card" id="stat-pickup-driver-card" style="display:none;cursor:pointer;background:linear-gradient(135deg,#1e3a8a,#1e40af);color:#fff" onclick="openDriverPickupModal()"><div class="num" id="stat-pickup-driver-count" style="color:#fff">0</div><div class="lbl" style="color:rgba(255,255,255,.8)">🚙 לאיסוף</div></div>
-      <div style="display:none"><div id="stat-parts">—</div></div>
+    <div id="home-layout">
+      <div id="home-cards-area">
+        <div class="stats-row" id="stats-row">
+          <div class="stat-card"><div class="num" id="stat-tasks">—</div><div class="lbl">משימות פתוחות</div></div>
+          <div class="stat-card" id="stat-vehicles-card" style="display:none"><div class="num" id="stat-vehicles">—</div><div class="lbl">רכבים במגרש</div></div>
+          <div class="stat-card" id="stat-pickup-driver-card" style="display:none;cursor:pointer;background:linear-gradient(135deg,#1e3a8a,#1e40af);color:#fff" onclick="openDriverPickupModal()"><div class="num" id="stat-pickup-driver-count" style="color:#fff">0</div><div class="lbl" style="color:rgba(255,255,255,.8)">🚙 לאיסוף</div></div>
+          <div style="display:none"><div id="stat-parts">—</div></div>
+        </div>
+        <div class="menu-grid" id="menu-grid"></div>
+      </div>
+      <div id="home-calendar-area" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <button onclick="calNav(-1)" style="background:var(--surface2);border:none;border-radius:8px;width:32px;height:32px;font-size:18px;font-weight:900;cursor:pointer">‹</button>
+          <div id="cal-title" style="font-weight:900;font-size:16px"></div>
+          <button onclick="calNav(1)" style="background:var(--surface2);border:none;border-radius:8px;width:32px;height:32px;font-size:18px;font-weight:900;cursor:pointer">›</button>
+        </div>
+        <div id="cal-body"></div>
+        <div style="margin-top:16px;display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <div id="cal-agenda-title" style="font-weight:800;font-size:14px"></div>
+          <button onclick="openAddCalEvent()" style="background:var(--gold);color:#000;border:none;border-radius:10px;padding:7px 14px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer;white-space:nowrap">➕ הוסף משימה</button>
+        </div>
+        <div id="cal-agenda" style="margin-top:10px"></div>
+      </div>
     </div>
-    <div class="menu-grid" id="menu-grid"></div>
     <button id="btn-test-drive-home" onclick="openTestDriveFromHome()" style="display:none;position:fixed;bottom:24px;right:16px;z-index:200;width:auto;margin:0;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;border:none;border-radius:10px;padding:7px 12px;font-family:Heebo,sans-serif;font-size:12px;font-weight:800;cursor:pointer;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.25)">🏎️ נסיעות מבחן<span id="badge-test-drive" style="display:none;position:absolute;top:-5px;right:-5px;background:#ef4444;color:#fff;border-radius:999px;font-size:10px;font-weight:900;padding:1px 5px;min-width:16px;text-align:center"></span></button>
+  </div>
+</div>
+
+<!-- modal: calendar event -->
+<div class="modal-overlay" id="modal-cal-event">
+  <div class="modal-box">
+    <div class="modal-title"><span id="cal-ev-heading">משימה חדשה</span> <button class="modal-close" onclick="closeModal('modal-cal-event')">✕</button></div>
+    <input type="hidden" id="cal-ev-id">
+    <div class="form-group"><label>כותרת <span style="color:#ef4444">*</span></label><input id="cal-ev-title" class="form-input" placeholder="תיאור המשימה"></div>
+    <div class="form-group"><label>תאריך <span style="color:#ef4444">*</span></label><input id="cal-ev-date" type="date" class="form-input"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="form-group"><label>משעה</label><input id="cal-ev-start" type="time" class="form-input"></div>
+      <div class="form-group"><label>עד שעה</label><input id="cal-ev-end" type="time" class="form-input"></div>
+    </div>
+    <div class="form-group"><label>הערות</label><textarea id="cal-ev-notes" class="form-textarea" placeholder="הערה חופשית..." rows="2"></textarea></div>
+    <button class="btn-submit" onclick="submitCalEvent()" style="width:100%;margin-top:8px">שמור ✅</button>
+    <button id="cal-ev-delete-btn" onclick="deleteCalEvent()" style="display:none;width:100%;margin-top:8px;background:#ef4444;color:#fff;border:none;border-radius:10px;padding:10px;font-family:Heebo,sans-serif;font-weight:800;font-size:14px;cursor:pointer">🗑️ מחיקה</button>
   </div>
 </div>
 
@@ -1880,6 +1933,9 @@ function goHome() {
 function renderHome() {
   const isManager = currentUser.role === 'manager';
   const isPickupAgent = currentUser.role === 'pickup_agent';
+  // reset calendar layout — only the manager gets the calendar
+  const _hb = document.querySelector('#screen-home .home-body');
+  if (_hb) _hb.classList.remove('has-calendar');
   document.getElementById('home-welcome').textContent =
     'שלום, ' + currentUser.name + ' 👋';
   const now = new Date();
@@ -2002,9 +2058,166 @@ function renderHome() {
   if (tdBtn) tdBtn.style.display = isManager ? 'inline-flex' : 'none';
 
   loadStats();
-  if (isManager) { loadManagerBadges(); setTimeout(_restoreTdLivePanelIfNeeded, 800); }
+  if (isManager) { loadManagerBadges(); setTimeout(_restoreTdLivePanelIfNeeded, 800); initManagerCalendar(); }
   else loadDriverBadges();
 }
+
+/* ═══════════════════════════════════════════════════════
+   HOME CALENDAR (manager)
+═══════════════════════════════════════════════════════ */
+let _calEvents = [];
+let _calMonth = new Date();
+let _calSelected = null;
+let _calUnsub = null;
+
+function _ymd(dt) {
+  const y = dt.getFullYear(), m = String(dt.getMonth()+1).padStart(2,'0'), d = String(dt.getDate()).padStart(2,'0');
+  return `${y}-${m}-${d}`;
+}
+
+function initManagerCalendar() {
+  const hb = document.querySelector('#screen-home .home-body');
+  if (hb) hb.classList.add('has-calendar');
+  if (!_calSelected) _calSelected = _ymd(new Date());
+  _calMonth = new Date(); _calMonth.setDate(1);
+  if (!_calUnsub && window._CONFIG_DONE) {
+    try {
+      _calUnsub = _onSnap(_colRef('calendar_events'), snap => {
+        _calEvents = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderCalendar(); renderAgenda();
+      });
+    } catch(e) { console.warn('calendar listener failed', e); }
+  }
+  renderCalendar(); renderAgenda();
+}
+
+function renderCalendar() {
+  const title = document.getElementById('cal-title');
+  const body = document.getElementById('cal-body');
+  if (!body) return;
+  const y = _calMonth.getFullYear(), m = _calMonth.getMonth();
+  const monthNames = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+  if (title) title.textContent = monthNames[m] + ' ' + y;
+  const startDow = new Date(y, m, 1).getDay();
+  const daysInMonth = new Date(y, m+1, 0).getDate();
+  const dows = ['א','ב','ג','ד','ה','ו','ש'];
+  const todayStr = _ymd(new Date());
+  const counts = {};
+  _calEvents.forEach(e => { if (e.date) counts[e.date] = (counts[e.date]||0)+1; });
+  let cells = dows.map(d => `<div class="cal-dow">${d}</div>`).join('');
+  for (let i=0;i<startDow;i++) cells += `<div class="cal-day empty"></div>`;
+  for (let d=1; d<=daysInMonth; d++) {
+    const ds = _ymd(new Date(y, m, d));
+    const cls = ['cal-day'];
+    if (ds === todayStr) cls.push('today');
+    if (ds === _calSelected) cls.push('selected');
+    const dot = counts[ds] ? '<span class="cal-dot"></span>' : '';
+    cells += `<div class="${cls.join(' ')}" onclick="calSelectDay('${ds}')">${d}${dot}</div>`;
+  }
+  body.innerHTML = `<div class="cal-grid">${cells}</div>`;
+}
+
+function renderAgenda() {
+  const at = document.getElementById('cal-agenda-title');
+  const box = document.getElementById('cal-agenda');
+  if (!box) return;
+  const sel = _calSelected || _ymd(new Date());
+  const [yy,mm,dd] = sel.split('-');
+  if (at) at.textContent = `משימות ${dd}/${mm}`;
+  const items = _calEvents.filter(e => e.date === sel)
+    .sort((a,b) => (a.startTime||'').localeCompare(b.startTime||''));
+  if (!items.length) {
+    box.innerHTML = `<div style="color:var(--muted);font-size:13px;padding:14px 4px;text-align:center">אין משימות ליום זה</div>`;
+    return;
+  }
+  box.innerHTML = items.map(e => {
+    const time = e.startTime ? (e.endTime ? `${e.startTime}–${e.endTime}` : e.startTime) : '';
+    return `<div onclick="openEditCalEvent('${e.id}')" style="display:flex;gap:10px;align-items:flex-start;background:#fff;border:1px solid var(--border);border-right:4px solid #7c3aed;border-radius:10px;padding:10px 12px;margin-bottom:8px;cursor:pointer">
+      ${time ? `<div style="font-size:12px;font-weight:800;color:#7c3aed;white-space:nowrap;min-width:44px">${esc(time)}</div>` : ''}
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:14px">${esc(e.title||'')}</div>
+        ${e.notes ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">${esc(e.notes)}</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function calNav(dir) {
+  _calMonth = new Date(_calMonth.getFullYear(), _calMonth.getMonth()+dir, 1);
+  renderCalendar();
+}
+window.calNav = calNav;
+
+function calSelectDay(ds) {
+  _calSelected = ds;
+  renderCalendar(); renderAgenda();
+}
+window.calSelectDay = calSelectDay;
+
+function openAddCalEvent() {
+  document.getElementById('cal-ev-id').value = '';
+  document.getElementById('cal-ev-title').value = '';
+  document.getElementById('cal-ev-date').value = _calSelected || _ymd(new Date());
+  document.getElementById('cal-ev-start').value = '';
+  document.getElementById('cal-ev-end').value = '';
+  document.getElementById('cal-ev-notes').value = '';
+  document.getElementById('cal-ev-heading').textContent = 'משימה חדשה';
+  document.getElementById('cal-ev-delete-btn').style.display = 'none';
+  openModal('modal-cal-event');
+}
+window.openAddCalEvent = openAddCalEvent;
+
+function openEditCalEvent(id) {
+  const e = _calEvents.find(x => x.id === id);
+  if (!e) return;
+  document.getElementById('cal-ev-id').value = e.id;
+  document.getElementById('cal-ev-title').value = e.title || '';
+  document.getElementById('cal-ev-date').value = e.date || '';
+  document.getElementById('cal-ev-start').value = e.startTime || '';
+  document.getElementById('cal-ev-end').value = e.endTime || '';
+  document.getElementById('cal-ev-notes').value = e.notes || '';
+  document.getElementById('cal-ev-heading').textContent = 'עריכת משימה';
+  document.getElementById('cal-ev-delete-btn').style.display = 'block';
+  openModal('modal-cal-event');
+}
+window.openEditCalEvent = openEditCalEvent;
+
+async function submitCalEvent() {
+  const id = document.getElementById('cal-ev-id').value;
+  const title = document.getElementById('cal-ev-title').value.trim();
+  const date = document.getElementById('cal-ev-date').value;
+  const startTime = document.getElementById('cal-ev-start').value;
+  const endTime = document.getElementById('cal-ev-end').value;
+  const notes = document.getElementById('cal-ev-notes').value.trim();
+  if (!title) return showToast('נא להזין כותרת');
+  if (!date) return showToast('נא לבחור תאריך');
+  const { addDoc, updateDoc, doc, collection, serverTimestamp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  try {
+    if (id) {
+      await updateDoc(doc(window._db,'calendar_events',id), { title, date, startTime, endTime, notes });
+    } else {
+      await addDoc(collection(window._db,'calendar_events'), { title, date, startTime, endTime, notes, createdAt: serverTimestamp() });
+    }
+    _calSelected = date;
+    const [yy,mm] = date.split('-'); _calMonth = new Date(+yy, +mm-1, 1);
+    closeModal('modal-cal-event');
+    showToast('✅ נשמר');
+  } catch(e) { showToast('שגיאה בשמירה: ' + (e.code||e.message)); }
+}
+window.submitCalEvent = submitCalEvent;
+
+async function deleteCalEvent() {
+  const id = document.getElementById('cal-ev-id').value;
+  if (!id) return;
+  if (!confirm('למחוק משימה זו?')) return;
+  const { deleteDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  try {
+    await deleteDoc(doc(window._db,'calendar_events',id));
+    closeModal('modal-cal-event');
+    showToast('🗑️ נמחק');
+  } catch(e) { showToast('שגיאה: ' + (e.code||e.message)); }
+}
+window.deleteCalEvent = deleteCalEvent;
 
 function goToScreen(name) {
   if (name === 'parts' && currentUser.role !== 'manager') return;
