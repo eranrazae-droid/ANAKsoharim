@@ -2270,8 +2270,15 @@ function listenForTaskDone() {
 function loadManagerBadges() {
   if (!window._CONFIG_DONE) return;
   try {
-    _onSnap(_query(_colRef('intake_assignments'), _where('status','==','done')), snap => {
-      _setCardBadge('vehicles', snap.size);
+    // מאזין מלא: מחמם את _intakeCache כדי שמסך קליטת רכב ייטען מיידית, וגם מזין את ה-badge
+    _onSnap(_colRef('intake_assignments'), snap => {
+      _intakeCache = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        .sort((a,b) => (b.createdAt?.toMillis?.()??0) - (a.createdAt?.toMillis?.()??0));
+      _setCardBadge('vehicles', _intakeCache.filter(v => v.status === 'done').length);
+      const screen = document.getElementById('screen-vehicles');
+      if (screen && screen.classList.contains('active') && currentUser.role === 'manager') {
+        _renderIntakeList(_intakeCache);
+      }
     });
     _onSnap(_query(_colRef('pit_checks'), _where('status','==','sent')), snap => {
       _setCardBadge('pits', snap.size);
@@ -3407,10 +3414,11 @@ function loadVehicles() {
     // אם _driverIntakeDocs === null הספינר נשאר; ה-callback של ה-badge ירנדר בהגיע snapshot
     return;
   }
-  // מנהל בלבד
+  // מנהל בלבד — הנתונים מגיעים מהמאזין החם ב-loadManagerBadges (מחמם את _intakeCache)
   if (_intakeCache !== null) {
     _renderIntakeList(_intakeCache);
   }
+  // אם _intakeCache עדיין null, המאזין החם ירנדר כשה-snapshot הראשון יגיע (המסך פעיל)
   // ארכיון קליטות — מאזין חי למנהל, כדי שקופסת הארכיון ומונה "נבדק" יופיעו
   if (archiveUnsub) { archiveUnsub(); archiveUnsub = null; }
   archiveUnsub = _onSnap(_colRef('intake_archive'), snap => {
@@ -3418,12 +3426,6 @@ function loadVehicles() {
       .sort((a,b) => (b.checkedAt?.toMillis?.()??0) - (a.checkedAt?.toMillis?.()??0));
     if (_intakeCache !== null) _renderIntakeList(_intakeCache);
     else _renderArchiveSection(_archiveItems);
-  });
-  const q = _query(_colRef('intake_assignments'), _orderBy('createdAt','desc'));
-  vehicleUnsub = _onSnap(q, snap => {
-    const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    _intakeCache = all;
-    _renderIntakeList(all);
   });
 }
 
