@@ -3814,7 +3814,10 @@ async function submitDriverIntake() {
     showToast('⚠️ נא למלא קוד רכב');
     return;
   }
-  if (!_batteryPhotoFiles || !_batteryPhotoFiles.length) {
+  // תמונת מצבר תקפה = "צלם מצבר" הייעודי או תמונה שצולמה תחת "בדיקת מצבר"
+  const _hasBatteryPhoto = (_batteryPhotoFiles && _batteryPhotoFiles.length) ||
+                           (ciPhotoFiles['c-battery-original'] && ciPhotoFiles['c-battery-original'].length);
+  if (!_hasBatteryPhoto) {
     document.getElementById('file-battery')?.closest('.ci-note-row')?.scrollIntoView({ behavior:'smooth', block:'center' });
     showToast('⚠️ נא לצלם תמונה של המצבר');
     return;
@@ -4090,7 +4093,7 @@ function _renderViewIntakeModal(v) {
     const note = noteText ? `<div style="font-size:12px;color:#555;margin-top:4px">📝 ${esc(noteText)}</div>` : '';
     // match photos by exact key or any key that starts with the same prefix
     const keyPhotos = key === 'c-battery-original'
-      ? Object.values(v.batteryPhotoUrls || {}).flat()
+      ? [...Object.values(v.batteryPhotoUrls || {}).flat(), ...(photos['c-battery-original'] || [])]
       : (photos[key]||[]).length ? photos[key]
         : Object.entries(photos).filter(([k]) => k.startsWith(key) || key.startsWith(k)).flatMap(([,v]) => v);
     const plate = esc(v.plate || '');
@@ -4223,10 +4226,17 @@ function evClick(val) {
   const vBtn = document.getElementById('di-ev-v');
   const xBtn = document.getElementById('di-ev-x');
   const fields = document.getElementById('di-ev-fields');
-  const isActive = (val === 'v' ? vBtn : xBtn).classList.contains('v-active') || (val === 'x' ? xBtn : vBtn).classList.contains('x-active');
+  const clicked = val === 'v' ? vBtn : xBtn;
+  const alreadyActive = clicked.classList.contains('v-active') || clicked.classList.contains('x-active');
   // reset both
   vBtn.classList.remove('v-active','x-active'); vBtn.style.color='transparent';
   xBtn.classList.remove('v-active','x-active'); xBtn.style.color='transparent';
+  if (alreadyActive) {
+    // לחיצה חוזרת על אותה תיבה מבטלת את הבחירה
+    if (fields) fields.style.display = 'none';
+    saveIntakeDraft();
+    return;
+  }
   if (val === 'v') { vBtn.classList.add('v-active'); vBtn.style.color=''; }
   else             { xBtn.classList.add('x-active'); xBtn.style.color=''; }
   if (fields) fields.style.display = (val === 'v') ? 'block' : 'none';
