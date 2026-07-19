@@ -1121,6 +1121,11 @@ if ('serviceWorker' in navigator) {
       <tbody id="yard-tbody"></tbody>
     </table>
   </div>
+  <div id="yard-zoom-ctrl" style="position:fixed;bottom:20px;left:16px;z-index:60;display:flex;align-items:center;gap:6px;background:#fff;border:2px solid var(--border);border-radius:999px;padding:6px 10px;box-shadow:0 4px 16px rgba(0,0,0,0.18)">
+    <button onclick="yardZoom(-1)" style="background:var(--dark);color:#fff;border:none;border-radius:50%;width:36px;height:36px;font-size:22px;font-weight:900;cursor:pointer;line-height:1">−</button>
+    <span id="yard-zoom-label" style="font-size:13px;font-weight:800;min-width:44px;text-align:center">100%</span>
+    <button onclick="yardZoom(1)" style="background:var(--dark);color:#fff;border:none;border-radius:50%;width:36px;height:36px;font-size:22px;font-weight:900;cursor:pointer;line-height:1">+</button>
+  </div>
 </div>
 
 <!-- ====== SCREEN: INVENTORY CHECK ====== -->
@@ -6599,7 +6604,21 @@ function openYardScreen() {
     const btn = document.getElementById('yard-publish-btn');
     if (btn) { btn.textContent = '📤 שלח לנהגים'; btn.style.background = 'var(--gold)'; btn.style.color = '#000'; btn.onclick = publishYard; btn.disabled = false; }
   }
+  _applyYardZoom();
 }
+
+let _yardZoom = 1;
+function yardZoom(dir) {
+  _yardZoom = Math.min(2.5, Math.max(0.5, +(_yardZoom + dir * 0.15).toFixed(2)));
+  _applyYardZoom();
+}
+function _applyYardZoom() {
+  const t = document.getElementById('yard-table');
+  if (t) t.style.zoom = _yardZoom;
+  const lbl = document.getElementById('yard-zoom-label');
+  if (lbl) lbl.textContent = Math.round(_yardZoom * 100) + '%';
+}
+window.yardZoom = yardZoom;
 
 function startYard(mode) {
   closeModal('modal-yard-start');
