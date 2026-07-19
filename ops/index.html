@@ -1652,6 +1652,8 @@ let taskUnsub = null;
 let vehicleUnsub = null;
 let archiveUnsub = null;
 let _archiveItems = [];
+let _intakeCache = null;
+let _driverIntakeDocs = null;
 let partsUnsub = null;
 let yardUnsub = null;
 var yardData = {};
@@ -2095,7 +2097,13 @@ function loadDriverBadges() {
       _setCardBadge('tasks', _badgeTaskIds.size);
     });
     _onSnap(_query(_colRef('intake_assignments'), _where('assignedTo','==',name)), snap => {
-      _setCardBadge('vehicles', snap.docs.filter(d => d.data().status === 'pending').length);
+      _driverIntakeDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      _setCardBadge('vehicles', _driverIntakeDocs.filter(d => d.status === 'pending').length);
+      const screen = document.getElementById('screen-vehicles');
+      if (screen && screen.classList.contains('active') && currentUser?.role !== 'manager') {
+        _intakeCache = _driverIntakeDocs;
+        _renderIntakeList(_driverIntakeDocs);
+      }
     });
     _onSnap(_query(_colRef('inventory_assignments'), _where('assignedTo','==',name)), snap => {
       _setCardBadge('driver-inventory', snap.docs.filter(d => d.data().status === 'pending').length);
@@ -3206,6 +3214,8 @@ function openVehiclesScreen() {
   const liveBtn = document.getElementById('btn-live-intake');
   if (liveBtn) liveBtn.style.display = isManager ? 'flex' : 'none';
   showScreen('vehicles');
+  if (archiveUnsub) { archiveUnsub(); archiveUnsub = null; }
+  _archiveItems = [];
   loadVehicles();
   if (isManager) loadBatteryAlerts();
 }
@@ -3279,115 +3289,123 @@ async function viewArchivedIntake(id) {
 }
 window.viewArchivedIntake = viewArchivedIntake;
 
+function _renderIntakeList(all) {
+  const isManager = currentUser.role === 'manager';
+  const summary = document.getElementById('vehicle-open-summary');
+  const container = document.getElementById('vehicle-list-container');
+
+  const statusLabel = { pending: 'ממתין לקליטה', done: 'בוצע', checked: 'נבדק' };
+  const statusColor = { pending: 'var(--warning)', done: 'var(--success)', checked: 'var(--info)' };
+
+  function intakeCard(v) {
+    const ts = v.createdAt?.toDate ? v.createdAt.toDate().toLocaleString('he-IL') : '';
+    const st = v.status || 'pending';
+    const label = statusLabel[st] || st;
+    const color = statusColor[st] || 'var(--muted)';
+
+    if (isManager) {
+      const canCheck = st === 'done';
+      const cardClick = st === 'pending'
+        ? `openManagerIntakeLive('${v.id}')`
+        : `viewIntakeForm('${v.id}')`;
+      return `<div class="vehicle-card" style="border-right:5px solid ${color}${st==='done'?';background:#f0fdf4':''}">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+          <div onclick="${cardClick}" style="flex:1;cursor:pointer;min-width:0">
+            <div class="vehicle-plate">${esc(v.plate)}</div>
+            <div class="vehicle-info">${[v.brand,v.model,v.year].filter(Boolean).map(esc).join(' ')}</div>
+            <div class="vehicle-meta" style="margin-top:4px">
+              ${v.color ? `<span class="tag assignee">🎨 ${esc(v.color)}</span>` : ''}
+              <span class="tag assignee">👤 ${esc(v.assignedTo)}</span>
+              ${v.spot ? `<span class="tag assignee">🅿️ חניה ${esc(v.spot)}</span>` : ''}
+            </div>
+            ${ts ? `<div class="task-time" style="margin-top:4px">${ts}</div>` : ''}
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">
+            <span style="background:${color};color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;white-space:nowrap">${label}</span>
+            ${st === 'pending' ? `<button onclick="resendIntakeNotify('${esc(v.assignedTo)}','${esc(v.plate)}','${esc(v.brand||'')}','${esc(v.model||'')}')" style="background:#25d366;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">📲 שלח התראה</button>` : ''}
+            ${st === 'pending' ? `<button onclick="openEditIntake('${v.id}')" style="background:#6366f1;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">✏️ עריכה</button>` : ''}
+            ${st === 'done' ? `<button onclick="resendIntake('${v.id}')" style="background:#f59e0b;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">🔄 שליחה מחדש</button>` : ''}
+            ${canCheck ? `<button onclick="markChecked('${v.id}')" style="background:var(--dark);color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">📁 שלח לארכיון</button>` : ''}
+            <button onclick="deleteIntake('${v.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">🗑️ מחיקה</button>
+          </div>
+        </div>
+      </div>`;
+    } else {
+      if (st !== 'pending') return '';
+      return `<div class="vehicle-card" style="border-right:5px solid ${color};cursor:pointer" onclick="openDriverIntake('${v.id}')">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div class="vehicle-plate">${esc(v.plate)}</div>
+            <div class="vehicle-info">${[v.brand,v.model,v.year].filter(Boolean).map(esc).join(' ')}</div>
+            ${v.spot ? `<div style="font-size:13px;font-weight:700;color:var(--dark);margin-top:4px">🅿️ חניה ${esc(v.spot)}</div>` : ''}
+            ${ts ? `<div class="task-time" style="margin-top:4px">${ts}</div>` : ''}
+          </div>
+          <span style="background:${color};color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700">פתיחה ▶</span>
+        </div>
+      </div>`;
+    }
+  }
+
+  if (isManager) {
+    const drivers = ['ליאל','עופר','גיל','איתי'];
+    summary.style.display = 'grid';
+    const activeFilter = window._vehicleDriverFilter || null;
+    summary.innerHTML = drivers.map(name => {
+      const pending = all.filter(v => v.assignedTo === name && v.status === 'pending').length;
+      const done    = all.filter(v => v.assignedTo === name && v.status === 'done').length;
+      const checked = _archiveItems.filter(v => v.assignedTo === name).length;
+      const isActive = activeFilter === name;
+      return `<div onclick="filterVehiclesByDriver('${name}')" style="background:${isActive?'var(--dark)':'#fff'};border:2px solid ${isActive?'var(--dark)':'var(--border)'};border-radius:14px;padding:14px 10px;text-align:center;cursor:pointer;transition:all .15s">
+        <div style="font-size:12px;font-weight:800;margin-bottom:4px;color:${isActive?'#fff':'var(--dark)'}">${name}</div>
+        <div style="font-size:20px;font-weight:900;color:${isActive?'#fbbf24':'var(--warning)'}">${pending} ⏳</div>
+        <div style="font-size:12px;font-weight:700;color:${isActive?'#86efac':'var(--success)'}">בוצע ${done} · נבדק ${checked}</div>
+      </div>`;
+    }).join('');
+
+    const f = window._vehicleDriverFilter;
+    const activeRaw = all.filter(v => (v.status === 'pending' || v.status === 'done') && (!f || v.assignedTo === f));
+    const active = [...activeRaw.filter(v => v.status === 'done'), ...activeRaw.filter(v => v.status === 'pending')];
+
+    container.innerHTML = active.length
+      ? active.map(intakeCard).join('')
+      : `<div class="empty-state"><div class="es-icon">🚗</div><h3>${f ? 'אין קליטות פעילות עבור ' + f : 'אין קליטות פעילות'}</h3><p>לחץ + קליטת רכב להוסיף</p></div>`;
+
+    _renderArchiveSection(_archiveItems);
+  } else {
+    summary.style.display = 'none';
+    const mine = all.filter(v => v.assignedTo === currentUser.name && v.status === 'pending');
+    if (!mine.length) {
+      container.innerHTML = `<div class="empty-state"><div class="es-icon">✅</div><h3>אין קליטות ממתינות</h3><p>כל הקליטות הושלמו</p></div>`;
+      return;
+    }
+    container.innerHTML = mine.map(intakeCard).join('');
+  }
+}
+
 function loadVehicles() {
   if (!window._CONFIG_DONE) {
     document.getElementById('vehicle-list-container').innerHTML = '<div class="empty-state"><div class="es-icon">🔌</div><h3>Firebase לא מחובר</h3></div>';
     return;
   }
-  if (vehicleUnsub) vehicleUnsub();
-  if (archiveUnsub) { try { archiveUnsub(); } catch(e) {} archiveUnsub = null; }
-  // load archive separately — no orderBy to avoid missing-index crash on new collection
-  try {
-    archiveUnsub = _onSnap(_colRef('intake_archive'), snap => {
-      _archiveItems = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-        .sort((a,b) => (b.checkedAt?.toMillis?.()??0) - (a.checkedAt?.toMillis?.()??0));
-      _renderArchiveSection(_archiveItems);
-    });
-  } catch(e) { console.warn('archive listener failed:', e); }
+  if (vehicleUnsub) { vehicleUnsub(); vehicleUnsub = null; }
+  if (currentUser.role !== 'manager') {
+    // נהג: הנתונים מגיעים מ-listener הקיים של ה-badge
+    if (_driverIntakeDocs !== null) {
+      _intakeCache = _driverIntakeDocs;
+      _renderIntakeList(_driverIntakeDocs);
+    }
+    // אם _driverIntakeDocs === null הספינר נשאר; ה-callback של ה-badge ירנדר בהגיע snapshot
+    return;
+  }
+  // מנהל בלבד
+  if (_intakeCache !== null) {
+    _renderIntakeList(_intakeCache);
+  }
   const q = _query(_colRef('intake_assignments'), _orderBy('createdAt','desc'));
   vehicleUnsub = _onSnap(q, snap => {
     const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    const isManager = currentUser.role === 'manager';
-    const summary = document.getElementById('vehicle-open-summary');
-    const container = document.getElementById('vehicle-list-container');
-
-    const statusLabel = { pending: 'ממתין לקליטה', done: 'בוצע', checked: 'נבדק' };
-    const statusColor = { pending: 'var(--warning)', done: 'var(--success)', checked: 'var(--info)' };
-
-    function intakeCard(v) {
-      const ts = v.createdAt?.toDate ? v.createdAt.toDate().toLocaleString('he-IL') : '';
-      const st = v.status || 'pending';
-      const label = statusLabel[st] || st;
-      const color = statusColor[st] || 'var(--muted)';
-
-      if (isManager) {
-        const canCheck = st === 'done';
-        const cardClick = st === 'pending'
-          ? `openManagerIntakeLive('${v.id}')`
-          : `viewIntakeForm('${v.id}')`;
-        return `<div class="vehicle-card" style="border-right:5px solid ${color}${st==='done'?';background:#f0fdf4':''}">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
-            <div onclick="${cardClick}" style="flex:1;cursor:pointer;min-width:0">
-              <div class="vehicle-plate">${esc(v.plate)}</div>
-              <div class="vehicle-info">${[v.brand,v.model,v.year].filter(Boolean).map(esc).join(' ')}</div>
-              <div class="vehicle-meta" style="margin-top:4px">
-                ${v.color ? `<span class="tag assignee">🎨 ${esc(v.color)}</span>` : ''}
-                <span class="tag assignee">👤 ${esc(v.assignedTo)}</span>
-                ${v.spot ? `<span class="tag assignee">🅿️ חניה ${esc(v.spot)}</span>` : ''}
-              </div>
-              ${ts ? `<div class="task-time" style="margin-top:4px">${ts}</div>` : ''}
-            </div>
-            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">
-              <span style="background:${color};color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;white-space:nowrap">${label}</span>
-              ${st === 'pending' ? `<button onclick="resendIntakeNotify('${esc(v.assignedTo)}','${esc(v.plate)}','${esc(v.brand||'')}','${esc(v.model||'')}')" style="background:#25d366;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">📲 שלח התראה</button>` : ''}
-              ${st === 'pending' ? `<button onclick="openEditIntake('${v.id}')" style="background:#6366f1;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">✏️ עריכה</button>` : ''}
-              ${st === 'done' ? `<button onclick="resendIntake('${v.id}')" style="background:#f59e0b;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">🔄 שליחה מחדש</button>` : ''}
-              ${canCheck ? `<button onclick="markChecked('${v.id}')" style="background:var(--dark);color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">📁 שלח לארכיון</button>` : ''}
-              <button onclick="deleteIntake('${v.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">🗑️ מחיקה</button>
-            </div>
-          </div>
-        </div>`;
-      } else {
-        // Driver: only show pending ones with open button
-        if (st !== 'pending') return '';
-        return `<div class="vehicle-card" style="border-right:5px solid ${color};cursor:pointer" onclick="openDriverIntake('${v.id}')">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <div>
-              <div class="vehicle-plate">${esc(v.plate)}</div>
-              <div class="vehicle-info">${[v.brand,v.model,v.year].filter(Boolean).map(esc).join(' ')}</div>
-              ${v.spot ? `<div style="font-size:13px;font-weight:700;color:var(--dark);margin-top:4px">🅿️ חניה ${esc(v.spot)}</div>` : ''}
-              ${ts ? `<div class="task-time" style="margin-top:4px">${ts}</div>` : ''}
-            </div>
-            <span style="background:${color};color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700">פתיחה ▶</span>
-          </div>
-        </div>`;
-      }
-    }
-
-    if (isManager) {
-      const drivers = ['ליאל','עופר','גיל','איתי'];
-      summary.style.display = 'grid';
-      const activeFilter = window._vehicleDriverFilter || null;
-      summary.innerHTML = drivers.map(name => {
-        const pending = all.filter(v => v.assignedTo === name && v.status === 'pending').length;
-        const done    = all.filter(v => v.assignedTo === name && v.status === 'done').length;
-        const checked = _archiveItems.filter(v => v.assignedTo === name).length;
-        const isActive = activeFilter === name;
-        return `<div onclick="filterVehiclesByDriver('${name}')" style="background:${isActive?'var(--dark)':'#fff'};border:2px solid ${isActive?'var(--dark)':'var(--border)'};border-radius:14px;padding:14px 10px;text-align:center;cursor:pointer;transition:all .15s">
-          <div style="font-size:12px;font-weight:800;margin-bottom:4px;color:${isActive?'#fff':'var(--dark)'}">${name}</div>
-          <div style="font-size:20px;font-weight:900;color:${isActive?'#fbbf24':'var(--warning)'}">${pending} ⏳</div>
-          <div style="font-size:12px;font-weight:700;color:${isActive?'#86efac':'var(--success)'}">בוצע ${done} · נבדק ${checked}</div>
-        </div>`;
-      }).join('');
-
-      const f = window._vehicleDriverFilter;
-      const activeRaw = all.filter(v => (v.status === 'pending' || v.status === 'done') && (!f || v.assignedTo === f));
-      const active = [...activeRaw.filter(v => v.status === 'done'), ...activeRaw.filter(v => v.status === 'pending')];
-
-      container.innerHTML = active.length
-        ? active.map(intakeCard).join('')
-        : `<div class="empty-state"><div class="es-icon">🚗</div><h3>${f ? 'אין קליטות פעילות עבור ' + f : 'אין קליטות פעילות'}</h3><p>לחץ + קליטת רכב להוסיף</p></div>`;
-
-      _renderArchiveSection(_archiveItems);
-    } else {
-      summary.style.display = 'none';
-      const mine = all.filter(v => v.assignedTo === currentUser.name && v.status === 'pending');
-      if (!mine.length) {
-        container.innerHTML = `<div class="empty-state"><div class="es-icon">✅</div><h3>אין קליטות ממתינות</h3><p>כל הקליטות הושלמו</p></div>`;
-        return;
-      }
-      container.innerHTML = mine.map(intakeCard).join('');
-    }
+    _intakeCache = all;
+    _renderIntakeList(all);
   });
 }
 
@@ -5117,9 +5135,8 @@ async function selectCarType(type) {
 }
 
 function filterVehiclesByDriver(name) {
-  // toggle: click same driver again to show all
   window._vehicleDriverFilter = (window._vehicleDriverFilter === name) ? null : name;
-  loadVehicles();
+  if (_intakeCache !== null) _renderIntakeList(_intakeCache);
 }
 
 window.filterVehiclesByDriver = filterVehiclesByDriver;
@@ -5178,6 +5195,16 @@ function toggleIntakeArchive() {
   const open = body.style.display === 'none';
   body.style.display = open ? 'block' : 'none';
   icon.style.transform = open ? 'rotate(180deg)' : '';
+  if (open && !archiveUnsub) {
+    archiveUnsub = _onSnap(_colRef('intake_archive'), snap => {
+      _archiveItems = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        .sort((a,b) => (b.checkedAt?.toMillis?.()??0) - (a.checkedAt?.toMillis?.()??0));
+      _renderArchiveSection(_archiveItems);
+    });
+  } else if (!open && archiveUnsub) {
+    archiveUnsub();
+    archiveUnsub = null;
+  }
 }
 window.toggleIntakeArchive = toggleIntakeArchive;
 
