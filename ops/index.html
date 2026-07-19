@@ -1579,10 +1579,10 @@ if ('serviceWorker' in navigator) {
 <div class="toast" id="toast"></div>
 
 <!-- SheetJS for Excel parsing -->
-<script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
-<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script defer src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
+<script defer src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <!-- html2pdf for PDF download -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
 <!-- ====== FIREBASE ====== -->
 <script type="module">
@@ -3401,6 +3401,14 @@ function loadVehicles() {
   if (_intakeCache !== null) {
     _renderIntakeList(_intakeCache);
   }
+  // ארכיון קליטות — מאזין חי למנהל, כדי שקופסת הארכיון ומונה "נבדק" יופיעו
+  if (archiveUnsub) { archiveUnsub(); archiveUnsub = null; }
+  archiveUnsub = _onSnap(_colRef('intake_archive'), snap => {
+    _archiveItems = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((a,b) => (b.checkedAt?.toMillis?.()??0) - (a.checkedAt?.toMillis?.()??0));
+    if (_intakeCache !== null) _renderIntakeList(_intakeCache);
+    else _renderArchiveSection(_archiveItems);
+  });
   const q = _query(_colRef('intake_assignments'), _orderBy('createdAt','desc'));
   vehicleUnsub = _onSnap(q, snap => {
     const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -5195,16 +5203,6 @@ function toggleIntakeArchive() {
   const open = body.style.display === 'none';
   body.style.display = open ? 'block' : 'none';
   icon.style.transform = open ? 'rotate(180deg)' : '';
-  if (open && !archiveUnsub) {
-    archiveUnsub = _onSnap(_colRef('intake_archive'), snap => {
-      _archiveItems = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-        .sort((a,b) => (b.checkedAt?.toMillis?.()??0) - (a.checkedAt?.toMillis?.()??0));
-      _renderArchiveSection(_archiveItems);
-    });
-  } else if (!open && archiveUnsub) {
-    archiveUnsub();
-    archiveUnsub = null;
-  }
 }
 window.toggleIntakeArchive = toggleIntakeArchive;
 
