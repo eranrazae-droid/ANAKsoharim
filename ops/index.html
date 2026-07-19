@@ -84,13 +84,13 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
 }
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
 .cal-dow{text-align:center;font-size:11px;font-weight:800;color:var(--muted);padding:4px 0}
-.cal-day{position:relative;text-align:center;padding:9px 0;border-radius:9px;cursor:pointer;font-size:14px;font-weight:700;user-select:none}
-.cal-day:hover{background:var(--surface2)}
+.cal-day{text-align:center;padding:4px 0;cursor:pointer;user-select:none}
 .cal-day.empty{cursor:default;pointer-events:none}
-.cal-day.today{color:var(--gold)}
-.cal-day.selected{background:var(--dark);color:#fff}
-.cal-dot{position:absolute;bottom:3px;left:50%;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;background:#7c3aed}
-.cal-day.selected .cal-dot{background:#fff}
+.cal-num{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;font-size:14px;font-weight:700;box-sizing:border-box}
+.cal-day:hover .cal-num{background:var(--surface2)}
+.cal-day.today .cal-num{color:var(--gold)}
+.cal-day.has-ev .cal-num{border:2px solid #7c3aed}
+.cal-day.selected .cal-num{background:var(--dark);color:#fff}
 .user-bg-active,.user-bg-active .screen{background-color:transparent !important}
 .user-bg-active .app-header{background:rgba(10,10,30,0.55) !important;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
 .user-bg-active .menu-card{background:rgba(0,0,0,0.12) !important;backdrop-filter:blur(1px);-webkit-backdrop-filter:blur(1px);border:1.5px solid rgba(255,255,255,0.25) !important;color:#fff !important;box-shadow:0 2px 10px rgba(0,0,0,0.25)}
@@ -2111,8 +2111,8 @@ function renderCalendar() {
     const cls = ['cal-day'];
     if (ds === todayStr) cls.push('today');
     if (ds === _calSelected) cls.push('selected');
-    const dot = counts[ds] ? '<span class="cal-dot"></span>' : '';
-    cells += `<div class="${cls.join(' ')}" onclick="calSelectDay('${ds}')">${d}${dot}</div>`;
+    if (counts[ds]) cls.push('has-ev');
+    cells += `<div class="${cls.join(' ')}" onclick="calSelectDay('${ds}')"><span class="cal-num">${d}</span></div>`;
   }
   body.innerHTML = `<div class="cal-grid">${cells}</div>`;
 }
@@ -4708,9 +4708,10 @@ async function openManagerIntakeLive(id) {
         document.getElementById('di-title').textContent = `👁️ מעקב קליטה – ${v.plate}`;
         document.getElementById('di-vehicle-info').innerHTML =
           `<strong>${esc(v.plate)}</strong> &nbsp;${[v.brand,v.model,v.color,v.year ? 'שנת '+v.year : ''].filter(Boolean).map(esc).join(' • ')}`;
-        // apply liveDraft only if manager hasn't edited in the last 3s
-        if (Date.now() - _mgLiveLastEdit > 3000 && v.liveDraft) {
-          _applyIntakeDraftObj(v.liveDraft);
+        // apply liveDraft (driver typing) or the TD→intake draft, if manager hasn't edited in the last 3s
+        if (Date.now() - _mgLiveLastEdit > 3000) {
+          if (v.liveDraft) _applyIntakeDraftObj(v.liveDraft);
+          else if (v.draft && Object.keys(v.draft.checks || {}).length) _applyIntakeDraftObj(v.draft);
         }
       });
     });
