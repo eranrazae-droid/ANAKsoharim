@@ -3245,13 +3245,19 @@ function _renderArchiveSection(archived) {
   const archiveWrap = document.getElementById('intake-archive-wrap');
   const archiveList = document.getElementById('intake-archive-list');
   if (!archiveWrap || !archiveList) return;
+  archiveWrap.style.display = 'block';
   const f = window._vehicleDriverFilter;
   const filtered = archived.filter(v => !f || v.assignedTo === f);
-  if (!filtered.length) { archiveWrap.style.display = 'none'; return; }
-  archiveWrap.style.display = 'block';
+  if (!filtered.length) {
+    archiveList.innerHTML = `<div style="text-align:center;color:var(--muted);font-size:13px;padding:16px">אין קליטות בארכיון${f ? ' עבור ' + esc(f) : ''}</div>`;
+    return;
+  }
   archiveList.innerHTML = filtered.map(v => {
     const ts = v.createdAt?.toDate ? v.createdAt.toDate().toLocaleString('he-IL') : '';
-    return `<div class="vehicle-card" style="border-right:5px solid var(--info);margin-bottom:8px">
+    const src = v._src || 'archive';
+    const viewFn = src === 'assignments' ? 'viewIntakeForm' : 'viewArchivedIntake';
+    const delFn  = src === 'assignments' ? 'deleteIntake' : 'deleteArchivedIntake';
+    return `<div class="vehicle-card" data-plate="${esc(v.plate)}" style="border-right:5px solid var(--info);margin-bottom:8px">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
         <div>
           <div class="vehicle-plate">${esc(v.plate)}</div>
@@ -3265,8 +3271,8 @@ function _renderArchiveSection(archived) {
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">
           <span style="background:var(--info,#0ea5e9);color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700">נבדק ✓</span>
-          <button onclick="viewArchivedIntake('${v.id}')" style="background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">👁️ צפייה</button>
-          <button onclick="deleteArchivedIntake('${v.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">🗑️ מחיקה</button>
+          <button onclick="${viewFn}('${v.id}')" style="background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">👁️ צפייה</button>
+          <button onclick="${delFn}('${v.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">🗑️ מחיקה</button>
         </div>
       </div>
     </div>`;
@@ -3347,13 +3353,17 @@ function _renderIntakeList(all) {
   }
 
   if (isManager) {
+    // ארכיון = collection intake_archive + קליטות ישנות שנבדקו שנשארו ב-intake_assignments
+    const archivedFromCol = _archiveItems.map(v => ({ ...v, _src: 'archive' }));
+    const checkedInAssign = all.filter(v => v.status === 'checked').map(v => ({ ...v, _src: 'assignments' }));
+    const archivedAll = archivedFromCol.concat(checkedInAssign);
     const drivers = ['ליאל','עופר','גיל','איתי'];
     summary.style.display = 'grid';
     const activeFilter = window._vehicleDriverFilter || null;
     summary.innerHTML = drivers.map(name => {
       const pending = all.filter(v => v.assignedTo === name && v.status === 'pending').length;
       const done    = all.filter(v => v.assignedTo === name && v.status === 'done').length;
-      const checked = _archiveItems.filter(v => v.assignedTo === name).length;
+      const checked = archivedAll.filter(v => v.assignedTo === name).length;
       const isActive = activeFilter === name;
       return `<div onclick="filterVehiclesByDriver('${name}')" style="background:${isActive?'var(--dark)':'#fff'};border:2px solid ${isActive?'var(--dark)':'var(--border)'};border-radius:14px;padding:14px 10px;text-align:center;cursor:pointer;transition:all .15s">
         <div style="font-size:12px;font-weight:800;margin-bottom:4px;color:${isActive?'#fff':'var(--dark)'}">${name}</div>
@@ -3370,7 +3380,7 @@ function _renderIntakeList(all) {
       ? active.map(intakeCard).join('')
       : `<div class="empty-state"><div class="es-icon">🚗</div><h3>${f ? 'אין קליטות פעילות עבור ' + f : 'אין קליטות פעילות'}</h3><p>לחץ + קליטת רכב להוסיף</p></div>`;
 
-    _renderArchiveSection(_archiveItems);
+    _renderArchiveSection(archivedAll);
   } else {
     summary.style.display = 'none';
     const mine = all.filter(v => v.assignedTo === currentUser.name && v.status === 'pending');
