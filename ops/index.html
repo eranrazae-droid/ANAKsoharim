@@ -3783,6 +3783,21 @@ async function submitDriverIntake() {
   // notes on x-marked items are optional — do not block submission
 
   const checklist = getChecklist();
+  // לוח שעונים: אסוף את המנורות שסומנו כדי שיישמרו ויוצגו למנהל
+  const _dashLabels = {
+    'dash-check-engine':'מנורת צ׳ק אנג׳ין','dash-tire-pressure':'לחץ אוויר','dash-service':'טיפול',
+    'dash-collision':'מנורת התגשות','dash-fuel':'מנורת דלק','dash-istop':'iStop'
+  };
+  const dashChecks = {};
+  ['dash-check-engine','dash-tire-pressure','dash-service','dash-collision','dash-fuel','dash-istop','dash-other'].forEach(id => {
+    const el = document.getElementById(id); if (el) dashChecks[id] = el.checked;
+  });
+  if (checklist['c-dashboard'] === 'x') {
+    const dashOtherText = document.getElementById('cn-c-dashboard')?.value.trim() || '';
+    const parts = Object.keys(_dashLabels).filter(id => dashChecks[id]).map(id => _dashLabels[id]);
+    if (dashChecks['dash-other']) parts.push(dashOtherText ? ('אחר: ' + dashOtherText) : 'אחר');
+    if (parts.length) checklist['c-dashboard_note'] = parts.join(' · ');
+  }
   const notes     = document.getElementById('di-notes').value.trim();
   const km        = document.getElementById('di-km').value.trim();
   const code      = document.getElementById('di-code').value.trim();
@@ -3852,6 +3867,7 @@ async function submitDriverIntake() {
   try {
     await _updateDoc(_docRef('intake_assignments', _currentIntakeId), {
       checklist,
+      dashChecks,
       notes,
       km,
       code,
