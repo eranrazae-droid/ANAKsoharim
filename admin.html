@@ -279,8 +279,13 @@
               <select id="f-status"><option>זמין מיידי</option><option>אזל במלאי</option></select>
             </div>
             <div class="form-group" style="grid-column:span 2">
-              <label>תמונה לקטלוג Meta / פיד (URL) — לא מוצגת באתר</label>
-              <input id="f-catimg" type="url" placeholder="https://... תמונה אחת לפיד ה-XML"/>
+              <label>תמונה לקטלוג Meta / פיד — לא מוצגת באתר</label>
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                <button type="button" class="btn-sm" onclick="document.getElementById('f-catimg-file').click()">📷 בחר תמונה</button>
+                <span id="f-catimg-name" style="font-size:13px;color:var(--muted)">לא נבחרה תמונה</span>
+                <input type="file" id="f-catimg-file" accept="image/*" style="display:none" onchange="handleCatalogImage(this,'f')"/>
+              </div>
+              <input id="f-catimg" type="url" placeholder="או הדבק כתובת https://..." style="margin-top:8px"/>
             </div>
             <div class="form-group">
               <label>הצג בקטלוג Meta</label>
@@ -415,8 +420,13 @@
         <select id="e-status"><option>זמין מיידי</option><option>אזל במלאי</option></select>
       </div>
       <div class="form-group" style="grid-column:span 2">
-        <label>תמונה לקטלוג Meta / פיד (URL) — לא מוצגת באתר</label>
-        <input id="e-catimg" type="url" placeholder="https://... תמונה אחת לפיד ה-XML"/>
+        <label>תמונה לקטלוג Meta / פיד — לא מוצגת באתר</label>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button type="button" class="btn-sm" onclick="document.getElementById('e-catimg-file').click()">📷 בחר תמונה</button>
+          <span id="e-catimg-name" style="font-size:13px;color:var(--muted)">לא נבחרה תמונה</span>
+          <input type="file" id="e-catimg-file" accept="image/*" style="display:none" onchange="handleCatalogImage(this,'e')"/>
+        </div>
+        <input id="e-catimg" type="url" placeholder="או הדבק כתובת https://..." style="margin-top:8px"/>
       </div>
       <div class="form-group">
         <label>הצג בקטלוג Meta</label>
@@ -970,6 +980,8 @@
     document.getElementById('f-year').value='2026';
     document.getElementById('f-badge').value='דיל חם';
     document.getElementById('f-catimg').value='';
+    document.getElementById('f-catimg-name').textContent='לא נבחרה תמונה';
+    document.getElementById('f-catimg-file').value='';
     document.getElementById('f-metashow').value='1';
     calcPreview();
   }
@@ -1839,6 +1851,23 @@
     });
   }
 
+  // תמונת קטלוג Meta — מועלית ל-Cloudinary ומקבלת כתובת ציבורית (Meta לא יכול לקרוא data URL)
+  function handleCatalogImage(input, prefix){
+    const file=input.files[0];
+    if(!file)return;
+    if(file.size>15*1024*1024){toast('⚠️ תמונה גדולה מדי - עד 15MB');return;}
+    document.getElementById(prefix+'-catimg-name').textContent='⏳ מעלה תמונה...';
+    uploadToStorage(file, 'catalog').then(function(url){
+      if(url){
+        document.getElementById(prefix+'-catimg').value=url;
+        document.getElementById(prefix+'-catimg-name').textContent='✅ '+file.name;
+        toast('✅ תמונת הקטלוג הועלתה!');
+      } else {
+        document.getElementById(prefix+'-catimg-name').textContent='❌ ההעלאה נכשלה — הדבק כתובת ידנית';
+      }
+    });
+  }
+
   function handleGallery(input){
     const files=Array.from(input.files).slice(0,8);
     galleryImages=[];
@@ -1884,6 +1913,7 @@
     document.getElementById('e-range').value = c.range||'';
     toggleRangeField('e-range-wrap', c.engine||'בנזין');
     document.getElementById('e-catimg').value = c.catalog_image||'';
+    document.getElementById('e-catimg-name').textContent = c.catalog_image ? '✅ תמונה קיימת' : 'לא נבחרה תמונה';
     document.getElementById('e-metashow').value = c.meta_hide ? '0' : '1';
     document.getElementById('e-metaid').value = ensureMetaId(c);
     document.getElementById('e-catalog').value = c.catalogPriceNumber;
