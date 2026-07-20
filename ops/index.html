@@ -1323,6 +1323,7 @@ if ('serviceWorker' in navigator) {
     <div class="logo">🚙 מכוניות לאיסוף</div>
     <div class="user-badge" id="pickup-user-badge" onclick="logout()"></div>
   </div>
+  <div id="pickup-dup-banner" style="display:none;margin:12px 16px 0;background:#fef9c3;border:2px solid #ca8a04;border-radius:12px;padding:12px 14px;font-size:13px;font-weight:700;color:#854d0e"></div>
   <div style="padding:12px 16px 0;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
     <select id="pickup-filter-city" onchange="renderPickupCars()" style="flex:1;min-width:120px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700">
       <option value="">כל הערים</option>
@@ -1361,8 +1362,6 @@ if ('serviceWorker' in navigator) {
       <div id="freetext-img-loading" style="display:none;align-items:center;gap:6px;font-size:13px;color:var(--muted);padding:9px"><span>⏳ מחלץ נתונים...</span></div>
     </div>
     <textarea id="freetext-pickup-input" rows="6" style="display:none"></textarea>
-    <!-- DIAG (temporary) — raw OCR output -->
-    <div id="pickup-ocr-diag" style="display:none;white-space:pre-wrap;direction:ltr;text-align:left;background:#0f172a;color:#a5f3fc;font-family:monospace;font-size:11px;line-height:1.5;padding:10px;border-radius:8px;max-height:220px;overflow:auto;margin-bottom:10px"></div>
     <button onclick="parseFreeTextPickup()" style="display:none;margin-top:10px;background:var(--gold);color:#000;border:none;border-radius:10px;padding:10px;font-family:Heebo,sans-serif;font-weight:900;font-size:14px;cursor:pointer;flex-shrink:0">🔍 זהה רכבים</button>
     <div id="freetext-pickup-preview" style="margin-top:12px;overflow-y:auto;flex:1"></div>
     <button id="freetext-pickup-save-btn" onclick="saveFreeTextPickup()" style="display:none;margin-top:10px;background:#16a34a;color:#fff;border:none;border-radius:10px;padding:12px;font-family:Heebo,sans-serif;font-weight:900;font-size:15px;cursor:pointer;flex-shrink:0">✅ שמור את כל הרכבים</button>
@@ -8009,6 +8008,7 @@ let _pickupSortMode = 0; // 0=newest first, 1=wait high→low, 2=wait low→high
 
 let _pickupArchiveLoaded = false;
 let _pickupArchiveOpen = false;
+let _pickupArchiveCars = [];
 
 function openPickupScreen() {
   document.getElementById('pickup-user-badge').textContent = currentUser.name;
@@ -8027,7 +8027,8 @@ function loadPickupArchiveCount() {
     const cnt = document.getElementById('pickup-archive-count');
     if (cnt) cnt.textContent = snap.size ? `${snap.size} רכבים נאספו • לחץ להצגה/הסתרה` : 'אין רכבים בארכיון';
     _pickupArchiveLoaded = true;
-    _renderPickupArchive(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    _pickupArchiveCars = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    _renderPickupArchive(_pickupArchiveCars);
   });
 }
 
@@ -8037,11 +8038,8 @@ function togglePickupArchive() {
   if (!body) return;
   if (!_pickupArchiveOpen) { body.style.display = 'none'; return; }
   body.style.display = 'flex';
-  if (!_pickupArchiveLoaded) {
-    body.innerHTML = '<div class="loading"><div class="spinner"></div> טוען...</div>';
-    _pickupArchiveLoaded = true;
-    // data will be rendered by the live listener already set in loadPickupArchiveCount
-  }
+  // render the current archive data now (the live listener only fires on changes)
+  _renderPickupArchive(_pickupArchiveCars);
 }
 window.togglePickupArchive = togglePickupArchive;
 
@@ -8563,12 +8561,6 @@ async function extractTextFromImage(input) {
       const parsed = _rowTexts
         ? _rowTexts.map(_parseRowText).filter(c => /^\d{7,8}$/.test(c.plate) && !/^00/.test(c.plate) && (c.year || c.km))
         : _parsePlatesFromOcr(fullText || '', digitsOnly || '');
-      // DIAG (temporary): show raw OCR output
-      const _diag = document.getElementById('pickup-ocr-diag');
-      if (_diag) {
-        _diag.style.display = 'block';
-        _diag.textContent = `ROWS DETECTED: ${rows.length}\nPARSED PLATES: ${parsed.length}\n${parsed.map(p=>p.plate).join(', ')}\n\n===== OCR TEXT =====\n${fullText}`;
-      }
       if (parsed.length) {
         document.getElementById('freetext-pickup-input').value = (fullText || '').trim();
         _freetextParsed = parsed;
@@ -8846,15 +8838,38 @@ async function saveFreeTextPickup() {
   const btn = document.getElementById('freetext-pickup-save-btn');
   btn.disabled = true;
   try {
+    const _norm = p => String(p||'').replace(/\D/g,'');
+    const active = _pickupAllCars || [];
+    const archived = _pickupArchiveCars || [];
+    let added = 0;
+    const dupExists = [], dupCollected = [];
     for (const car of _freetextParsed) {
+      const pn = _norm(car.plate);
+      if (!pn) continue;
+      if (archived.some(c => _norm(c.plate) === pn)) { dupCollected.push(car); continue; }
+      if (active.some(c => _norm(c.plate) === pn)) { dupExists.push(car); continue; }
       await _addDoc(_colRef('pickup_cars'), { ...car, createdBy: currentUser.name, createdAt: _serverTs() });
+      added++;
     }
     closeModal('modal-freetext-pickup');
-    showToast(`✅ ${_freetextParsed.length} רכבים נוספו`);
+    if (added) showToast(`✅ ${added} רכבים נוספו`);
+    _showPickupDupBanner(dupExists, dupCollected);
   } catch(e) { showToast('שגיאה בשמירה'); }
   btn.disabled = false;
 }
 window.saveFreeTextPickup = saveFreeTextPickup;
+
+function _showPickupDupBanner(dupExists, dupCollected) {
+  const banner = document.getElementById('pickup-dup-banner');
+  if (!banner) return;
+  if (!dupExists.length && !dupCollected.length) { banner.style.display = 'none'; banner.innerHTML = ''; return; }
+  const line = (c, collected) => `<div style="margin:2px 0">🚗 <b>${esc(c.plate||'')}</b>${c.type ? ' — ' + esc(c.type) : ''} — ${collected ? 'רכב זה קיים וכבר נאסף' : 'רכב זה קיים'}</div>`;
+  banner.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+    <div style="flex:1">⚠️ לא נוספו רכבים כפולים:${dupExists.map(c => line(c, false)).join('')}${dupCollected.map(c => line(c, true)).join('')}</div>
+    <button onclick="document.getElementById('pickup-dup-banner').style.display='none'" style="background:#854d0e;color:#fff;border:none;border-radius:8px;width:24px;height:24px;font-size:13px;cursor:pointer;flex-shrink:0;line-height:1">✕</button>
+  </div>`;
+  banner.style.display = 'block';
+}
 
 // ── Send pickup car to driver ──
 const _PICKUP_DRIVER_LIST = ['עופר', 'גיל', 'איתי', 'הילה'];
