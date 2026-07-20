@@ -392,6 +392,27 @@ if ('serviceWorker' in navigator) {
         <option value="monthly">כל חודש (באותו תאריך)</option>
       </select>
     </div>
+    <div class="form-group">
+      <label>תזכורת</label>
+      <select id="cal-ev-reminder" class="form-input">
+        <option value="">ללא</option>
+        <option value="0">בעת האירוע</option>
+        <option value="5">5 דקות לפני</option>
+        <option value="10">10 דקות לפני</option>
+        <option value="15">15 דקות לפני</option>
+        <option value="30">30 דקות לפני</option>
+        <option value="60">שעה אחת לפני</option>
+        <option value="120">שעתיים לפני</option>
+        <option value="1440">יום אחד לפני</option>
+      </select>
+    </div>
+    <div class="form-group" style="position:relative">
+      <label>שלח תזכורת ל</label>
+      <div id="cal-ev-recipients-box" onclick="_toggleRecipientPicker(event)" style="min-height:44px;border:1.5px solid var(--border);border-radius:10px;padding:6px 10px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;cursor:pointer;background:#fff">
+        <span id="cal-ev-recipients-placeholder" style="color:var(--muted);font-size:13px">לחץ לבחירת נמענים...</span>
+      </div>
+      <div id="cal-ev-recipients-dropdown" style="display:none;position:absolute;z-index:20;top:100%;right:0;left:0;background:var(--card);border:2px solid var(--border);border-radius:12px;padding:8px;box-shadow:0 8px 30px rgba(0,0,0,0.18);margin-top:4px"></div>
+    </div>
     <div class="form-group"><label>הערות</label><textarea id="cal-ev-notes" class="form-textarea" placeholder="הערה חופשית..." rows="2"></textarea></div>
     <button class="btn-submit" onclick="submitCalEvent()" style="width:100%;margin-top:8px">שמור ✅</button>
     <button id="cal-ev-delete-btn" onclick="deleteCalEvent()" style="display:none;width:100%;margin-top:8px;background:#ef4444;color:#fff;border:none;border-radius:10px;padding:10px;font-family:Heebo,sans-serif;font-weight:800;font-size:14px;cursor:pointer">🗑️ מחיקה</button>
@@ -2175,10 +2196,11 @@ function renderAgenda() {
   box.innerHTML = items.map(e => {
     const time = e.startTime ? (e.endTime ? `${e.startTime}–${e.endTime}` : e.startTime) : '';
     const rep = (e.repeat && e.repeat !== 'none') ? ' 🔁' : '';
+    const rem = (e.reminderMinutes !== null && e.reminderMinutes !== undefined) ? ' 🔔' : '';
     return `<div onclick="openEditCalEvent('${e.id}')" style="display:flex;gap:10px;align-items:flex-start;background:#fff;border:1px solid var(--border);border-right:4px solid #7c3aed;border-radius:10px;padding:10px 12px;margin-bottom:8px;cursor:pointer">
       ${time ? `<div style="font-size:12px;font-weight:800;color:#7c3aed;white-space:nowrap;min-width:44px">${esc(time)}</div>` : ''}
       <div style="flex:1;min-width:0">
-        <div style="font-weight:700;font-size:14px">${esc(e.title||'')}${rep}</div>
+        <div style="font-weight:700;font-size:14px">${esc(e.title||'')}${rep}${rem}</div>
         ${e.notes ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">${esc(e.notes)}</div>` : ''}
       </div>
     </div>`;
@@ -2282,6 +2304,75 @@ function _normalizeTime(raw) {
 }
 window._normalizeTime = _normalizeTime;
 
+// ── recipients chip-picker for calendar task reminders ──
+let _calEvRecipients = [];
+
+function _calRecipientPool() {
+  const base = ['עופר','גיל','איתי'];
+  const mine = currentUser?.name;
+  return mine && !base.includes(mine) ? [mine, ...base] : base;
+}
+
+function _renderCalRecipients() {
+  const box = document.getElementById('cal-ev-recipients-box');
+  const placeholder = document.getElementById('cal-ev-recipients-placeholder');
+  if (!box) return;
+  box.querySelectorAll('.cal-ev-chip').forEach(el => el.remove());
+  if (_calEvRecipients.length) {
+    if (placeholder) placeholder.style.display = 'none';
+    _calEvRecipients.forEach(name => {
+      const chip = document.createElement('span');
+      chip.className = 'cal-ev-chip';
+      chip.style.cssText = 'display:inline-flex;align-items:center;gap:5px;background:#f0eaff;color:#5b21b6;border-radius:999px;padding:4px 6px 4px 10px;font-size:13px;font-weight:700';
+      chip.innerHTML = `${esc(name)} <button type="button" style="background:#5b21b6;color:#fff;border:none;border-radius:50%;width:16px;height:16px;font-size:10px;line-height:1;cursor:pointer;padding:0">✕</button>`;
+      chip.querySelector('button').onclick = (ev) => { ev.stopPropagation(); _removeCalRecipient(name); };
+      box.appendChild(chip);
+    });
+  } else if (placeholder) {
+    placeholder.style.display = '';
+  }
+  _renderRecipientDropdown();
+}
+
+function _renderRecipientDropdown() {
+  const dd = document.getElementById('cal-ev-recipients-dropdown');
+  if (!dd) return;
+  const remaining = _calRecipientPool().filter(n => !_calEvRecipients.includes(n));
+  dd.innerHTML = remaining.length
+    ? remaining.map(name => `<div onclick="event.stopPropagation();_addCalRecipient('${esc(name)}')" style="padding:9px 10px;border-radius:8px;cursor:pointer;font-weight:700;font-size:14px" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">${esc(name)}</div>`).join('')
+    : `<div style="padding:9px 10px;color:var(--muted);font-size:13px;text-align:center">כל השמות נבחרו</div>`;
+}
+
+function _toggleRecipientPicker(ev) {
+  if (ev) ev.stopPropagation();
+  const dd = document.getElementById('cal-ev-recipients-dropdown');
+  if (!dd) return;
+  const open = dd.style.display === 'block';
+  if (open) { dd.style.display = 'none'; return; }
+  _renderRecipientDropdown();
+  dd.style.display = 'block';
+}
+window._toggleRecipientPicker = _toggleRecipientPicker;
+
+function _addCalRecipient(name) {
+  if (!_calEvRecipients.includes(name)) _calEvRecipients.push(name);
+  _renderCalRecipients();
+}
+window._addCalRecipient = _addCalRecipient;
+
+function _removeCalRecipient(name) {
+  _calEvRecipients = _calEvRecipients.filter(n => n !== name);
+  _renderCalRecipients();
+}
+window._removeCalRecipient = _removeCalRecipient;
+
+document.addEventListener('click', (ev) => {
+  const box = document.getElementById('cal-ev-recipients-box');
+  const dd = document.getElementById('cal-ev-recipients-dropdown');
+  if (!box || !dd || dd.style.display !== 'block') return;
+  if (!box.contains(ev.target) && !dd.contains(ev.target)) dd.style.display = 'none';
+});
+
 function openAddCalEvent() {
   document.getElementById('cal-ev-id').value = '';
   document.getElementById('cal-ev-title').value = '';
@@ -2290,6 +2381,9 @@ function openAddCalEvent() {
   document.getElementById('cal-ev-start').value = '';
   document.getElementById('cal-ev-notes').value = '';
   document.getElementById('cal-ev-repeat').value = 'none';
+  document.getElementById('cal-ev-reminder').value = '';
+  _calEvRecipients = [];
+  _renderCalRecipients();
   document.getElementById('cal-ev-heading').textContent = 'משימה חדשה';
   document.getElementById('cal-ev-delete-btn').style.display = 'none';
   openModal('modal-cal-event');
@@ -2306,6 +2400,9 @@ function openEditCalEvent(id) {
   document.getElementById('cal-ev-start').value = e.startTime || '';
   document.getElementById('cal-ev-notes').value = e.notes || '';
   document.getElementById('cal-ev-repeat').value = e.repeat || 'none';
+  document.getElementById('cal-ev-reminder').value = (e.reminderMinutes === null || e.reminderMinutes === undefined) ? '' : String(e.reminderMinutes);
+  _calEvRecipients = [...(e.reminderTo || [])];
+  _renderCalRecipients();
   document.getElementById('cal-ev-heading').textContent = 'עריכת משימה';
   document.getElementById('cal-ev-delete-btn').style.display = 'block';
   openModal('modal-cal-event');
@@ -2319,14 +2416,18 @@ async function submitCalEvent() {
   const startTime = _normalizeTime(document.getElementById('cal-ev-start').value);
   const notes = document.getElementById('cal-ev-notes').value.trim();
   const repeat = document.getElementById('cal-ev-repeat').value || 'none';
+  const reminderRaw = document.getElementById('cal-ev-reminder').value;
+  const reminderMinutes = reminderRaw === '' ? null : parseInt(reminderRaw, 10);
+  const reminderTo = [..._calEvRecipients];
   if (!title) return showToast('נא להזין כותרת');
   if (!date) return showToast('נא לבחור תאריך');
+  if (reminderMinutes !== null && !reminderTo.length) return showToast('נא לבחור למי לשלוח את התזכורת');
   const { addDoc, updateDoc, doc, collection, serverTimestamp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
   try {
     if (id) {
-      await updateDoc(doc(window._db,'calendar_events',id), { title, date, startTime, endTime: '', notes, repeat });
+      await updateDoc(doc(window._db,'calendar_events',id), { title, date, startTime, endTime: '', notes, repeat, reminderMinutes, reminderTo, reminderSent: false });
     } else {
-      await addDoc(collection(window._db,'calendar_events'), { title, date, startTime, endTime: '', notes, repeat, createdAt: serverTimestamp() });
+      await addDoc(collection(window._db,'calendar_events'), { title, date, startTime, endTime: '', notes, repeat, reminderMinutes, reminderTo, reminderSent: false, createdAt: serverTimestamp() });
     }
     _calSelected = date;
     const [yy,mm] = date.split('-'); _calMonth = new Date(+yy, +mm-1, 1);
