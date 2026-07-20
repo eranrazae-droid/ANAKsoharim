@@ -399,6 +399,18 @@ if ('serviceWorker' in navigator) {
 </div>
 
 <!-- modal: driver pickup cars -->
+<!-- modal: who collected the pickup car -->
+<div class="modal-overlay" id="modal-collect-pickup">
+  <div class="modal-box">
+    <div class="modal-title">✅ הרכב נאסף <button class="modal-close" onclick="closeModal('modal-collect-pickup')">✕</button></div>
+    <div class="form-group">
+      <label>על ידי מי נאסף הרכב? <span style="color:#ef4444">*</span></label>
+      <input id="collect-pickup-by" type="text" class="form-input" placeholder="שם / חברת גרירה / הערה חופשית">
+    </div>
+    <button class="btn-submit" onclick="submitCollectPickup()" style="width:100%">אישור והעברה לארכיון ✅</button>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-driver-pickup">
   <div class="modal-box" style="max-height:85vh;overflow-y:auto">
     <div class="modal-title">🚙 רכבים לאיסוף <button class="modal-close" onclick="closeModal('modal-driver-pickup')">✕</button></div>
@@ -8182,6 +8194,7 @@ function _renderPickupArchive(docs) {
           ${c.collectedBy ? `<div style="font-weight:700;color:#16a34a;margin-top:3px">✅ ${e(c.collectedBy)}</div>` : ''}
         </div>
       </div>
+      ${c.collectedByText ? `<div style="margin-top:8px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px">🧾 נאסף על ידי: <b>${e(c.collectedByText)}</b></div>` : ''}
     </div>`;
   }).join('');
 }
@@ -9144,15 +9157,38 @@ async function sendPickupToDriver(id, driverName) {
 }
 window.sendPickupToDriver = sendPickupToDriver;
 
-async function collectPickupCar(id) {
-  if (!confirm('לסמן רכב זה כנאסף ולהעביר לארכיון?')) return;
-  const { addDoc, deleteDoc, doc, collection } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-  const car = _pickupAllCars.find(c => c.id === id) || {};
-  await addDoc(collection(window._db, 'pickup_archive'), { ...car, collectedAt: _serverTs(), collectedBy: currentUser.name });
-  await deleteDoc(doc(window._db, 'pickup_cars', id));
-  showToast('✅ הרכב הועבר לארכיון');
+let _pendingCollectId = null;
+let _pendingCollectFromHome = false;
+
+function collectPickupCar(id) {
+  _pendingCollectId = id;
+  _pendingCollectFromHome = false;
+  document.getElementById('collect-pickup-by').value = '';
+  openModal('modal-collect-pickup');
+  setTimeout(() => document.getElementById('collect-pickup-by')?.focus(), 50);
 }
 window.collectPickupCar = collectPickupCar;
+
+async function submitCollectPickup() {
+  const id = _pendingCollectId;
+  if (!id) return;
+  const collectedByText = document.getElementById('collect-pickup-by').value.trim();
+  if (!collectedByText) {
+    showToast('נא להזין על ידי מי נאסף הרכב');
+    document.getElementById('collect-pickup-by')?.focus();
+    return;
+  }
+  const { addDoc, deleteDoc, doc, collection } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  const cars = _pendingCollectFromHome ? _driverPickupCars : _pickupAllCars;
+  const car = cars.find(c => c.id === id) || {};
+  await addDoc(collection(window._db, 'pickup_archive'), { ...car, collectedAt: _serverTs(), collectedBy: currentUser.name, collectedByText });
+  await deleteDoc(doc(window._db, 'pickup_cars', id));
+  closeModal('modal-collect-pickup');
+  _pendingCollectId = null;
+  if (_pendingCollectFromHome) { closeModal('modal-driver-pickup'); loadStats(); }
+  showToast('✅ הרכב הועבר לארכיון');
+}
+window.submitCollectPickup = submitCollectPickup;
 
 // ── Driver pickup card on home screen ──
 let _driverPickupCars = [];
@@ -9208,22 +9244,12 @@ function _renderDriverPickupModal() {
   }).join('');
 }
 
-async function collectPickupCarFromHome(id) {
-  const btn = event.target;
-  btn.disabled = true;
-  btn.textContent = 'מעביר לארכיון...';
-  try {
-    const { addDoc, deleteDoc, doc, collection } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-    const car = _driverPickupCars.find(c => c.id === id) || {};
-    await addDoc(collection(window._db, 'pickup_archive'), { ...car, collectedAt: _serverTs(), collectedBy: currentUser.name });
-    await deleteDoc(doc(window._db, 'pickup_cars', id));
-    showToast('✅ הרכב הועבר לארכיון');
-    if (!_driverPickupCars.filter(c => c.id !== id).length) closeModal('modal-driver-pickup');
-  } catch(e) {
-    showToast('שגיאה בעדכון');
-    btn.disabled = false;
-    btn.textContent = '✅ הרכב נאסף';
-  }
+function collectPickupCarFromHome(id) {
+  _pendingCollectId = id;
+  _pendingCollectFromHome = true;
+  document.getElementById('collect-pickup-by').value = '';
+  openModal('modal-collect-pickup');
+  setTimeout(() => document.getElementById('collect-pickup-by')?.focus(), 50);
 }
 function _openDocBlob(carId) {
   const car = _driverPickupCars.find(c => c.id === carId);
