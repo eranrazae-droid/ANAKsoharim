@@ -8257,6 +8257,15 @@ function _testExpiredSoon(test) {
   return exp <= soon;
 }
 
+// test has actually expired: valid through the end of MM/YYYY
+function _testExpired(test) {
+  if (!test) return false;
+  const m = String(test).match(/^(\d{1,2})\/(\d{4})$/);
+  if (!m) return false;
+  const lastDay = new Date(parseInt(m[2]), parseInt(m[1]), 0); // last day of that month
+  return lastDay < new Date();
+}
+
 function _pickupCardHtml(c) {
   const e = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const km = c.km ? _fmtKm(c.km) + ' ק"מ' : '';
@@ -8271,11 +8280,11 @@ function _pickupCardHtml(c) {
         <div class="vehicle-meta">
           ${c.color ? `<span class="tag assignee">🎨 ${e(c.color)}</span>` : ''}
           ${km ? `<span class="tag assignee">🛣️ ${e(km)}</span>` : ''}
-          ${c.test ? `<span class="tag assignee" style="color:${_testExpiredSoon(c.test)?'#dc2626':'inherit'}">🔧 טסט: ${e(c.test)}</span>` : ''}
           ${c.contact ? `<span class="tag assignee">👤 ${e(c.contact)}</span>` : ''}
           ${c.city ? `<span class="tag assignee">🏙️ ${e(c.city)}</span>` : ''}
           ${c.address ? `<span class="tag assignee">📍 ${e(c.address)}</span>` : ''}
         </div>
+        ${c.test ? `<div style="margin-top:6px;font-size:13px;font-weight:800;color:${_testExpired(c.test)?'#dc2626':'var(--dark)'}">🔧 טסט: ${e(c.test)}${_testExpired(c.test)?' — פג תוקף':''}</div>` : ''}
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">
         ${waitLabel ? `<span style="background:#d97706;color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;white-space:nowrap">⏱ ${waitLabel}</span>` : ''}
