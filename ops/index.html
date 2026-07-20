@@ -366,9 +366,9 @@ if ('serviceWorker' in navigator) {
     <input type="hidden" id="cal-ev-id">
     <div class="form-group"><label>כותרת <span style="color:#ef4444">*</span></label><input id="cal-ev-title" class="form-input" placeholder="תיאור המשימה"></div>
     <div class="form-group"><label>תאריך <span style="color:#ef4444">*</span></label><input id="cal-ev-date" type="date" class="form-input"></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div class="form-group"><label>משעה</label><input id="cal-ev-start" type="time" class="form-input"></div>
-      <div class="form-group"><label>עד שעה</label><input id="cal-ev-end" type="time" class="form-input"></div>
+    <div class="form-group">
+      <label>שעה</label>
+      <input id="cal-ev-start" type="text" inputmode="numeric" placeholder="לדוגמה: 845 ← 8:45" class="form-input" onblur="this.value=_normalizeTime(this.value)">
     </div>
     <div class="form-group">
       <label>חזרה</label>
@@ -2176,12 +2176,31 @@ function calSelectDay(ds) {
 }
 window.calSelectDay = calSelectDay;
 
+// normalize a free-typed time into HH:MM (e.g. "845" -> "08:45", "8" -> "08:00")
+function _normalizeTime(raw) {
+  if (!raw) return '';
+  const s = String(raw).trim();
+  const colon = s.match(/^(\d{1,2})[:.](\d{1,2})$/);
+  let h, m;
+  if (colon) { h = +colon[1]; m = +colon[2]; }
+  else {
+    const d = s.replace(/\D/g, '');
+    if (!d) return '';
+    if (d.length === 1 || d.length === 2) { h = +d; m = 0; }
+    else if (d.length === 3) { h = +d.slice(0,1); m = +d.slice(1); }
+    else if (d.length === 4) { h = +d.slice(0,2); m = +d.slice(2); }
+    else return '';
+  }
+  if (h > 23 || m > 59) return '';
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+}
+window._normalizeTime = _normalizeTime;
+
 function openAddCalEvent() {
   document.getElementById('cal-ev-id').value = '';
   document.getElementById('cal-ev-title').value = '';
   document.getElementById('cal-ev-date').value = _calSelected || _ymd(new Date());
   document.getElementById('cal-ev-start').value = '';
-  document.getElementById('cal-ev-end').value = '';
   document.getElementById('cal-ev-notes').value = '';
   document.getElementById('cal-ev-repeat').value = 'none';
   document.getElementById('cal-ev-heading').textContent = 'משימה חדשה';
@@ -2197,7 +2216,6 @@ function openEditCalEvent(id) {
   document.getElementById('cal-ev-title').value = e.title || '';
   document.getElementById('cal-ev-date').value = e.date || '';
   document.getElementById('cal-ev-start').value = e.startTime || '';
-  document.getElementById('cal-ev-end').value = e.endTime || '';
   document.getElementById('cal-ev-notes').value = e.notes || '';
   document.getElementById('cal-ev-repeat').value = e.repeat || 'none';
   document.getElementById('cal-ev-heading').textContent = 'עריכת משימה';
@@ -2210,8 +2228,7 @@ async function submitCalEvent() {
   const id = document.getElementById('cal-ev-id').value;
   const title = document.getElementById('cal-ev-title').value.trim();
   const date = document.getElementById('cal-ev-date').value;
-  const startTime = document.getElementById('cal-ev-start').value;
-  const endTime = document.getElementById('cal-ev-end').value;
+  const startTime = _normalizeTime(document.getElementById('cal-ev-start').value);
   const notes = document.getElementById('cal-ev-notes').value.trim();
   const repeat = document.getElementById('cal-ev-repeat').value || 'none';
   if (!title) return showToast('נא להזין כותרת');
@@ -2219,9 +2236,9 @@ async function submitCalEvent() {
   const { addDoc, updateDoc, doc, collection, serverTimestamp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
   try {
     if (id) {
-      await updateDoc(doc(window._db,'calendar_events',id), { title, date, startTime, endTime, notes, repeat });
+      await updateDoc(doc(window._db,'calendar_events',id), { title, date, startTime, endTime: '', notes, repeat });
     } else {
-      await addDoc(collection(window._db,'calendar_events'), { title, date, startTime, endTime, notes, repeat, createdAt: serverTimestamp() });
+      await addDoc(collection(window._db,'calendar_events'), { title, date, startTime, endTime: '', notes, repeat, createdAt: serverTimestamp() });
     }
     _calSelected = date;
     const [yy,mm] = date.split('-'); _calMonth = new Date(+yy, +mm-1, 1);
