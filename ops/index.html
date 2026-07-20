@@ -8513,7 +8513,7 @@ async function extractTextFromImage(input) {
     setSpan('⏳ מעבד תמונה...');
     const { canvas, rows } = await prepAndSlice(file);
 
-    let digitsOnly = '', fullText = '';
+    let digitsOnly = '', fullText = '', _rowTexts = null;
     if (rows.length >= 2) {
       // OCR each detected row separately (single line) — reliable for uniform tables
       let _ocrRow = 0;
@@ -8524,10 +8524,12 @@ async function extractTextFromImage(input) {
         }
       }});
       await worker.setParameters({ tessedit_pageseg_mode: '7' });
+      _rowTexts = [];
       for (let r = 0; r < rows.length; r++) {
         _ocrRow = r;
         const blob = await toBlob(cropStrip(canvas, rows[r][0], rows[r][1]));
         const { data: { text } } = await worker.recognize(blob);
+        _rowTexts.push(text);
         fullText += text + '\n';
       }
       await worker.terminate();
@@ -8547,7 +8549,10 @@ async function extractTextFromImage(input) {
     console.log('[OCR] full:', fullText);
 
     if (digitsOnly.trim() || fullText.trim()) {
-      const parsed = _parsePlatesFromOcr(fullText || '', digitsOnly || '');
+      // when sliced by rows, parse each row into one car (avoids cross-row mixing & false plates)
+      const parsed = _rowTexts
+        ? _rowTexts.map(_parseRowText).filter(c => /^\d{7,8}$/.test(c.plate) && !/^00/.test(c.plate) && (c.year || c.km))
+        : _parsePlatesFromOcr(fullText || '', digitsOnly || '');
       // DIAG (temporary): show raw OCR output
       const _diag = document.getElementById('pickup-ocr-diag');
       if (_diag) {
@@ -8671,6 +8676,26 @@ function _fmtKm(raw) {
   return isNaN(Number(digits)) ? raw : Number(digits).toLocaleString('en-US');
 }
 
+// Parse a single OCR'd table row into one car (plate + year + km from that row)
+function _parseRowText(text) {
+  const t = ' ' + String(text).replace(/[|/\\]/g, ' ').replace(/\s+/g, ' ') + ' ';
+  const plateM = t.match(/(?<!\d)(\d{7,8})(?!\d)/);
+  const plate = plateM ? plateM[1] : '';
+  const yearM = t.match(/\b(19[89]\d|20[0-3]\d)\b/) || t.match(/(19[89]\d|20[0-3]\d)/);
+  const year = yearM ? yearM[1] : '';
+  // km: prefer a number with a thousands separator (20,682 / 143.724); else a 4-5 digit
+  // standalone that isn't the plate or the year (handles 82400 / 47000 / 6046)
+  let km = '';
+  const kmSep = t.match(/(\d{1,3}[.,]\d{3})/);
+  if (kmSep) km = _fmtKm(kmSep[1]);
+  else {
+    const nums = [...t.matchAll(/(?<!\d)(\d{4,5})(?!\d)/g)].map(m => m[1])
+      .filter(n => n !== plate && !/^(19[89]\d|20[0-3]\d)$/.test(n));
+    if (nums.length) km = _fmtKm(nums[0]);
+  }
+  return { plate, type: '', year, color: '', km, test: '', contact: '', city: '', address: '' };
+}
+
 function _extractPhone(str) {
   const m = str.match(/0\d[-\s]?\d{3}[-\s]?\d{4,5}/);
   return m ? m[0].replace(/[\s-]/g,'') : '';
@@ -8747,7 +8772,7 @@ function _renderFreetextPreview() {
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
         ${[
           ['לוחית','plate'],['סוג','type'],['שנה','year'],['צבע','color'],
-          ['קמ"ש','km'],['תוקף טסט','test'],['איש קשר','contact'],['עיר','city'],['כתובת','address']
+          ['קמ','km'],['תוקף טסט','test'],['איש קשר','contact'],['עיר','city'],['כתובת','address']
         ].map(([label,key]) => `
           <div>
             <div style="font-size:10px;color:var(--muted)">${label}</div>
