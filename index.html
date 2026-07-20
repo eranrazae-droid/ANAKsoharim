@@ -469,7 +469,7 @@ display:none !important;
     function fbEvent(ev, custom, opts){
       opts = opts||{};
       var eventID = opts.eventID || adGenId();
-      try{ if(typeof fbq==='function') fbq('track', ev, custom||{}, { eventID: eventID }); }catch(e){}
+      try{ if(typeof fbq==='function') fbq(opts.customEvent ? 'trackCustom' : 'track', ev, custom||{}, { eventID: eventID }); }catch(e){}
       try{
         fetch('/.netlify/functions/capi', { method:'POST', headers:{'Content-Type':'application/json'}, keepalive:true,
           body: JSON.stringify({ event_name:ev, event_id:eventID, event_source_url:location.href,
@@ -2946,20 +2946,20 @@ display:none !important;
 
     function completeCheckout(){
       saveLead('לחץ שילמתי — שלח וואטסאפ');
-      // Purchase — פעם אחת בלבד לכל הזמנה (dedup). * כרגע מבוסס על הצהרת הלקוח ("שילמתי"),
-      //   כי אין אימות-שרת. כשיחובר שער סליקה אמיתי — יש להעביר את הבלוק הזה ל-callback של השרת.
+      // ⚠️ לחיצת "שילמתי" של הלקוח אינה אישור תשלום אמיתי — לכן שולחים כאן אירוע מותאם PaymentSubmitted (לא Purchase).
+      //    את Purchase יש לשלוח אך ורק מהשרת (capi.js) לאחר webhook מספק סליקה או אישור מנהל שהתשלום התקבל בפועל.
       try{
-        if(window._adOrder && !window._adOrder.purchaseFired){
-          var okKey = 'ad_purchased_' + window._adOrder.order_id;
+        if(window._adOrder && !window._adOrder.submitFired){
+          var okKey = 'ad_paysubmit_' + window._adOrder.order_id;
           if(!localStorage.getItem(okKey)){
-            fbEvent('Purchase',
+            fbEvent('PaymentSubmitted',
               Object.assign({ order_id: window._adOrder.order_id }, adCarParams()),
-              { eventID: window._adOrder.event_id, order_id: window._adOrder.order_id });
+              { eventID: window._adOrder.event_id, order_id: window._adOrder.order_id, customEvent:true });
             try{ localStorage.setItem(okKey, '1'); }catch(e){}
           }
-          window._adOrder.purchaseFired = true;
+          window._adOrder.submitFired = true;
         }
-      }catch(e){ console.warn('purchase pixel', e); }
+      }catch(e){ console.warn('paysubmit pixel', e); }
       const wrap = document.getElementById('checkoutWrap');
       const phone = document.getElementById('c_phone')?.value || "";
       const wa = `https://wa.me/972508396030?text=${encodeURIComponent('היי, שילמתי קופון על ' + selectedCar.brand + ' ' + selectedCar.model + ' ורוצה להתקדם לעסקה')}`;
