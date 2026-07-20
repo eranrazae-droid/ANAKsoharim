@@ -133,6 +133,7 @@
       <div class="nav-item" onclick="showTab('tasks')"><span class="nav-icon">📋</span><span>משימות</span></div>
       <div class="nav-item" onclick="showTab('pay')"><span class="nav-icon">💰</span><span>שכר</span></div>
       <div class="nav-item" onclick="showTab('vouchers')"><span class="nav-icon">🎟</span><span>קופונים</span></div>
+      <div class="nav-item" onclick="showTab('meta')"><span class="nav-icon">🔗</span><span>מזהי Meta</span></div>
     </nav>
     <div class="sidebar-footer">
       <button class="btn btn-line btn-sm" style="width:100%;margin-bottom:8px;background:#0369a1;color:#fff;border:none" onclick="openCloudinarySettings()">☁️ הגדרות Cloudinary</button>
@@ -376,6 +377,29 @@
           <div style="background:var(--gold-soft);color:#a16207;padding:8px 14px;border-radius:10px;font-size:13px;font-weight:700">300 ₪ - מחיר השקה</div>
         </div>
         <div class="card panel"><div id="vouchersList"></div></div>
+      </div>
+
+      <div id="tab-meta" class="hidden">
+        <div class="section-hd">
+          <div><div class="eyebrow">Meta</div><h2>מיגרציית מזהי Meta (content_id)</h2></div>
+        </div>
+        <div class="card panel">
+          <p style="color:var(--muted);font-size:14px;line-height:1.7;margin-bottom:16px">
+            יישור <code>meta_content_id</code> של המלאי החי למפת 38 מזהי הקטלוג הקנונית. תחילה הצג דוח בלבד (ללא כתיבה). ההחלה כותבת ל-Supabase ודורסת מזהים שגויים — רק היכן שיש התאמה חד-משמעית. רכב ללא התאמה ודאית לא ייגע.
+          </p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+            <button class="btn btn-black" onclick="metaMigratePreview()">🔍 הצג דוח בלבד</button>
+            <button id="metaApplyBtn" class="btn" disabled onclick="metaMigrateApply()" style="opacity:.5;cursor:not-allowed">⬆️ החל את המיגרציה</button>
+          </div>
+          <div id="metaMigrateMsg" style="font-size:13px;color:var(--muted);margin-bottom:12px"></div>
+          <div id="metaMigrateCounts" style="display:none;gap:10px;flex-wrap:wrap;margin-bottom:14px"></div>
+          <div style="overflow-x:auto"><table id="metaMigrateTable" style="width:100%;border-collapse:collapse;font-size:13px;display:none">
+            <thead><tr style="text-align:right;border-bottom:2px solid #e5e7eb">
+              <th style="padding:8px">רכב</th><th style="padding:8px">מזהה קיים</th><th style="padding:8px">מזהה מוצע</th><th style="padding:8px">סטטוס</th>
+            </tr></thead>
+            <tbody id="metaMigrateBody"></tbody>
+          </table></div>
+        </div>
       </div>
 
     </div>
@@ -717,8 +741,8 @@
   let leads = JSON.parse(localStorage.getItem('autodealer_leads')||'[]');
   let vouchers = JSON.parse(localStorage.getItem('autodealer_vouchers')||'[]');
 
-  const tabTitles={dashboard:'דשבורד',inventory:'מלאי רכבים',addcar:'הוספת רכב',leads:'לידים',tasks:'משימות',pay:'שכר',vouchers:'קופונים'};
-  const tabOrder=['dashboard','inventory','addcar','leads','tasks','pay','vouchers'];
+  const tabTitles={dashboard:'דשבורד',inventory:'מלאי רכבים',addcar:'הוספת רכב',leads:'לידים',tasks:'משימות',pay:'שכר',vouchers:'קופונים',meta:'מיגרציית מזהי Meta'};
+  const tabOrder=['dashboard','inventory','addcar','leads','tasks','pay','vouchers','meta'];
 
   function login(){
     if(document.getElementById('pwInput').value===PASS){
@@ -779,7 +803,6 @@
     document.getElementById('appWrapper').classList.remove('hidden');
     loadCarsFromSupabase().then(data => {
       if(data && data.length > 0) { cars = cleanCars(data); localStorage.setItem(STORAGE_KEY, JSON.stringify(cars)); }
-      backfillMetaIds();
       renderAll();
     });
   }
@@ -953,12 +976,85 @@
     return id;
   }
 
-  // מיישר מזהי Meta לקטלוג הקנוני: היכן שיש התאמה חד-משמעית — דורס גם מזהה קיים שגוי.
-  // רכב ללא התאמה ודאית (למשל טויוטה סיטי / ג'אקו כפול) לא נוגעים בו — נשמר מה שהוזן ידנית.
-  function backfillMetaIds(){
-    let changed=false;
-    cars.forEach(c=>{ const m=matchExistingMetaId(c.brand,c.model); if(m && c.meta_content_id!==m){ c.meta_content_id=m; changed=true; } });
-    if(changed){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(cars)); }catch(e){} saveToCloud(cars); }
+  // ===== מיגרציית מזהי Meta — ידנית בלבד, מאחורי הכניסה. אין הרצה אוטומטית. =====
+  const META_MIGRATE_PREVIEW_URL = '/admin-api/meta-id-migration/preview';
+  const META_MIGRATE_APPLY_URL   = '/admin-api/meta-id-migration/apply';
+  let _metaPreview = null; // {total, changed, duplicates:[]}
+
+  function _esc(v){ return (v==null?'':String(v)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function _metaStatusColor(s){
+    if(s.indexOf('updated')>=0) return '#b45309';
+    if(s.indexOf('filled')>=0) return '#2563eb';
+    if(s.indexOf('already-correct')>=0) return '#16a34a';
+    return '#64748b';
+  }
+
+  async function metaMigratePreview(){
+    const msg=document.getElementById('metaMigrateMsg');
+    msg.textContent='⏳ טוען דוח מקדימה...';
+    document.getElementById('metaMigrateTable').style.display='none';
+    document.getElementById('metaMigrateCounts').style.display='none';
+    const applyBtn=document.getElementById('metaApplyBtn');
+    applyBtn.disabled=true; applyBtn.style.opacity='.5'; applyBtn.style.cursor='not-allowed';
+    _metaPreview=null;
+    try{
+      const r=await fetch(META_MIGRATE_PREVIEW_URL,{method:'GET',headers:{'Accept':'application/json'}});
+      const d=await r.json();
+      if(!r.ok){ msg.textContent='❌ שגיאה: '+(d.error||r.status); return; }
+      _metaPreview={ total:d.total, changed:d.changed, duplicates:d.duplicates||[] };
+      // טבלה
+      const body=document.getElementById('metaMigrateBody'); body.innerHTML='';
+      (d.report||[]).forEach(row=>{
+        const changedRow = row.before!==row.after;
+        const tr=document.createElement('tr');
+        tr.style.borderBottom='1px solid #f1f5f9';
+        if(changedRow) tr.style.background='#fffbeb';
+        tr.innerHTML='<td style="padding:8px">'+_esc(row.name)+'</td>'+
+          '<td style="padding:8px;font-family:monospace">'+_esc(row.before||'—')+'</td>'+
+          '<td style="padding:8px;font-family:monospace">'+_esc(row.after||'—')+'</td>'+
+          '<td style="padding:8px;color:'+_metaStatusColor(row.status)+'">'+_esc(row.status)+'</td>';
+        body.appendChild(tr);
+      });
+      document.getElementById('metaMigrateTable').style.display='table';
+      // מונים
+      const dupCount=(d.duplicates||[]).length;
+      const cnt=document.getElementById('metaMigrateCounts');
+      cnt.style.display='flex';
+      cnt.innerHTML=[
+        ['changed', d.changed, '#b45309'],
+        ['unchanged', (d.total-d.changed), '#16a34a'],
+        ['exceptions', d.exceptions_count||0, '#64748b'],
+        ['duplicates', dupCount, dupCount?'#dc2626':'#16a34a']
+      ].map(x=>'<div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;padding:8px 14px"><b style="color:'+x[2]+'">'+x[1]+'</b> <span style="color:#64748b;font-size:12px">'+x[0]+'</span></div>').join('');
+      // כפתור החלה — מושבת אם יש כפילויות או אין מה לשנות
+      if(dupCount>0){ msg.innerHTML='⚠️ נמצאו כפילויות — ההחלה מושבתת. פרט: '+_esc(JSON.stringify(d.duplicates)); }
+      else if(d.changed===0){ msg.textContent='✅ אין מה לעדכן — כל המזהים כבר תקינים.'; }
+      else { msg.textContent='✅ הדוח מוכן. '+d.changed+' רשומות יעודכנו. אין כפילויות — ניתן להחיל.';
+        applyBtn.disabled=false; applyBtn.style.opacity='1'; applyBtn.style.cursor='pointer'; }
+    }catch(e){ msg.textContent='❌ שגיאת רשת: '+String(e); }
+  }
+
+  async function metaMigrateApply(){
+    if(!_metaPreview){ toast('הרץ דוח מקדימה קודם'); return; }
+    if(_metaPreview.duplicates.length>0){ toast('קיימות כפילויות — לא ניתן להחיל'); return; }
+    if(_metaPreview.changed<=0){ toast('אין מה לעדכן'); return; }
+    if(!confirm('⚠️ פעולה זו תדרוס '+_metaPreview.changed+' מזהי Meta במסד הנתונים החי (מתוך '+_metaPreview.total+' רשומות).\n\nלהמשיך?')) return;
+    const secret=prompt('הזן את סוד המיגרציה (MIGRATE_TOKEN שהוגדר ב-Netlify):');
+    if(!secret){ return; }
+    const msg=document.getElementById('metaMigrateMsg'); msg.textContent='⏳ מחיל מיגרציה...';
+    try{
+      const r=await fetch(META_MIGRATE_APPLY_URL,{ method:'POST',
+        headers:{'Content-Type':'application/json','x-migrate-token':secret},
+        body:JSON.stringify({ expectedTotal:_metaPreview.total, expectedChanged:_metaPreview.changed }) });
+      const d=await r.json();
+      if(!r.ok || !d.applied){ msg.textContent='❌ ההחלה נכשלה: '+(d.error||r.status); return; }
+      msg.textContent='✅ הוחל בהצלחה — '+d.changed+' רשומות עודכנו ב-Supabase.';
+      const applyBtn=document.getElementById('metaApplyBtn');
+      applyBtn.disabled=true; applyBtn.style.opacity='.5'; applyBtn.style.cursor='not-allowed';
+      _metaPreview=null;
+      // רענון מלאי מהענן
+      loadCarsFromSupabase().then(data=>{ if(data&&data.length){ cars=cleanCars(data); localStorage.setItem(STORAGE_KEY, JSON.stringify(cars)); renderAll(); } });
+    }catch(e){ msg.textContent='❌ שגיאת רשת: '+String(e); }
   }
 
   function addCar(){

@@ -1,9 +1,11 @@
-// מיגרציה חד-פעמית ואידמפוטנטית של meta_content_id במלאי Supabase.
+// מיגרציה אידמפוטנטית של meta_content_id במלאי Supabase.
 // דורסת מזהים שגויים היכן שיש התאמה חד-משמעית למפת 38 מזהי הקטלוג הקנונית.
-// שימוש:
-//   דוח בלבד (dry-run):  /.netlify/functions/migrate-metaids
-//   הרצה בפועל:          /.netlify/functions/migrate-metaids?apply=1&confirm=REPLACE-META-IDS
-// אבטחה: הכתיבה בפועל דורשת confirm=REPLACE-META-IDS (וגם token אם הוגדר MIGRATE_TOKEN).
+// שימוש (דרך נתיבים ידידותיים ב-netlify.toml, מופעל מתוך מערכת הניהול):
+//   דוח בלבד (GET, ללא כתיבה):  /admin-api/meta-id-migration/preview
+//   החלה (POST בלבד):           /admin-api/meta-id-migration/apply
+// אבטחה: ההחלה היא POST בלבד, דורשת כותרת x-migrate-token == process.env.MIGRATE_TOKEN
+//   (סוד שרת שאינו בקוד צד-לקוח). ניתן להשבית לאחר הרצה עם MIGRATE_DISABLED=1.
+//   אין מילת אישור ציבורית בכתובת.
 const https = require('https');
 
 const SB_URL = 'https://vwfmfjjdusirabgbkhvw.supabase.co';
@@ -48,14 +50,16 @@ function reqJson(method, url, headers, bodyObj){
 }
 
 exports.handler = async (event) => {
-  const q = (event && event.queryStringParameters) || {};
-  const apply = q.apply === '1' || q.apply === 'true';
-  const CORS = { 'Content-Type':'application/json; charset=utf-8', 'Access-Control-Allow-Origin':'*' };
+  const H = { 'Content-Type':'application/json; charset=utf-8' };
+  const method = (event && event.httpMethod) || 'GET';
+  const isApply = method === 'POST';           // GET = דוח בלבד, POST = החלה
+  if (method === 'OPTIONS') return { statusCode:200, headers:H, body:'' };
+  if (method !== 'GET' && method !== 'POST') return { statusCode:405, headers:H, body:JSON.stringify({error:'method not allowed'}) };
 
   try {
     const auth = { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY };
     const got = await reqJson('GET', SB_URL + '/rest/v1/inventory?id=eq.1&select=data', auth);
-    let rows; try{ rows = JSON.parse(got.body); }catch(e){ return { statusCode:502, headers:CORS, body:JSON.stringify({error:'bad inventory json', raw:got.body}) }; }
+    let rows; try{ rows = JSON.parse(got.body); }catch(e){ return { statusCode:502, headers:H, body:JSON.stringify({error:'bad inventory json', raw:got.body}) }; }
     const cars = (rows && rows[0] && Array.isArray(rows[0].data)) ? rows[0].data : [];
 
     const report = [];
@@ -79,24 +83,36 @@ exports.handler = async (event) => {
     const byId = {};
     cars.forEach(c => { if(c && c.meta_content_id){ (byId[c.meta_content_id]=byId[c.meta_content_id]||[]).push(((c.brand||'')+' '+(c.model||'')).trim()); } });
     const duplicates = Object.keys(byId).filter(k => byId[k].length>1).map(k => ({ meta_content_id:k, cars:byId[k] }));
+    const exceptions = report.filter(r => r.status.indexOf('no canonical match')>=0);
 
     let applied = false, writeStatus = null;
-    if(apply){
-      const confirmOk = q.confirm === 'REPLACE-META-IDS';
-      const tokenOk = !process.env.MIGRATE_TOKEN || q.token === process.env.MIGRATE_TOKEN;
-      if(!confirmOk) return { statusCode:403, headers:CORS, body:JSON.stringify({ error:'missing confirm=REPLACE-META-IDS' }) };
-      if(!tokenOk)   return { statusCode:403, headers:CORS, body:JSON.stringify({ error:'bad token' }) };
+    if(isApply){
+      // 8) endpoint ההחלה ניתן להשבתה לאחר הרצה מוצלחת
+      if(process.env.MIGRATE_DISABLED === '1') return { statusCode:410, headers:H, body:JSON.stringify({ error:'apply endpoint disabled (set MIGRATE_DISABLED)' }) };
+      // 6) אימות סוד שרת מכותרת — אינו נמצא בקוד צד-לקוח. חובה להגדיר MIGRATE_TOKEN.
+      const hdr = event.headers || {};
+      const token = hdr['x-migrate-token'] || hdr['X-Migrate-Token'];
+      if(!process.env.MIGRATE_TOKEN) return { statusCode:403, headers:H, body:JSON.stringify({ error:'server secret MIGRATE_TOKEN is not set' }) };
+      if(token !== process.env.MIGRATE_TOKEN) return { statusCode:403, headers:H, body:JSON.stringify({ error:'bad or missing x-migrate-token' }) };
+      // 4) חסימת כתיבה אם יש כפילויות
+      if(duplicates.length > 0) return { statusCode:409, headers:H, body:JSON.stringify({ error:'duplicates present — refusing to write', duplicates }) };
+      // 4) בדיקת התאמת מספר הרשומות מול הדוח המקדים
+      let body = {}; try{ body = JSON.parse(event.body||'{}'); }catch(e){}
+      if(body.expectedTotal != null && Number(body.expectedTotal) !== cars.length)
+        return { statusCode:409, headers:H, body:JSON.stringify({ error:'record count mismatch', expectedTotal:body.expectedTotal, actualTotal:cars.length }) };
+      if(body.expectedChanged != null && Number(body.expectedChanged) !== changed)
+        return { statusCode:409, headers:H, body:JSON.stringify({ error:'changed count mismatch — rerun preview', expectedChanged:body.expectedChanged, actualChanged:changed }) };
+
       if(changed > 0){
         const w = await reqJson('PATCH', SB_URL + '/rest/v1/inventory?id=eq.1',
           Object.assign({}, auth, { Prefer:'return=minimal' }), { data: cars });
         writeStatus = w.status; applied = (w.status>=200 && w.status<300);
-        if(!applied) return { statusCode:502, headers:CORS, body:JSON.stringify({ error:'supabase write failed', writeStatus, raw:w.body, report }) };
-      } else { applied = true; /* אין מה לעדכן */ }
+        if(!applied) return { statusCode:502, headers:H, body:JSON.stringify({ error:'supabase write failed', writeStatus, raw:w.body }) };
+      } else { applied = true; }
     }
 
-    const exceptions = report.filter(r => r.status.indexOf('no canonical match')>=0);
-    return { statusCode:200, headers:CORS, body:JSON.stringify({
-      mode: apply ? 'APPLIED' : 'DRY-RUN (add ?apply=1&confirm=REPLACE-META-IDS to write)',
+    return { statusCode:200, headers:H, body:JSON.stringify({
+      mode: isApply ? 'APPLIED' : 'PREVIEW (read-only)',
       total: cars.length,
       changed,
       applied,
@@ -107,6 +123,6 @@ exports.handler = async (event) => {
       report
     }, null, 2) };
   } catch (e) {
-    return { statusCode:502, headers:CORS, body:JSON.stringify({ error:String(e) }) };
+    return { statusCode:502, headers:H, body:JSON.stringify({ error:String(e) }) };
   }
 };
