@@ -8678,6 +8678,24 @@ function _fmtKm(raw) {
   return isNaN(Number(digits)) ? raw : Number(digits).toLocaleString('en-US');
 }
 
+// Expand common Israeli city abbreviations (tolerating spaces/gershayim from OCR)
+const _CITY_ABBR = [
+  [/(^|\s)פ\s*["״׳']?\s*ת(\s|$)/g, '$1פתח תקווה$2'],
+  [/(^|\s)ת\s*["״׳']?\s*א(\s|$)/g, '$1תל אביב$2'],
+  [/(^|\s)ב\s*["״׳']?\s*ש(\s|$)/g, '$1באר שבע$2'],
+  [/(^|\s)ר\s*["״׳']?\s*ג(\s|$)/g, '$1רמת גן$2'],
+  [/(^|\s)ר\s*["״׳']?\s*ל(\s|$)/g, '$1ראשון לציון$2'],
+  [/(^|\s)כ\s*["״׳']?\s*ס(\s|$)/g, '$1כפר סבא$2'],
+  [/(^|\s)ר\s*["״׳']?\s*ע(\s|$)/g, '$1רעננה$2'],
+  [/(^|\s)נ\s*["״׳']?\s*ת(\s|$)/g, '$1נתניה$2'],
+  [/(^|\s)ק\s*["״׳']?\s*ג(\s|$)/g, '$1קרית גת$2'],
+];
+function _expandCityAbbr(s) {
+  let t = ' ' + String(s) + ' ';
+  for (const [re, full] of _CITY_ABBR) t = t.replace(re, full);
+  return t.replace(/\s+/g, ' ').trim();
+}
+
 // Parse a single OCR'd table row into one car (plate + year + km from that row)
 function _parseRowText(text) {
   const t = ' ' + String(text).replace(/[|/\\]/g, ' ').replace(/\s+/g, ' ') + ' ';
@@ -8698,10 +8716,18 @@ function _parseRowText(text) {
     if (n && n.length === 6 && n[0] === '1') n = n.slice(1);
     if (n) km = _fmtKm(n);
   }
-  // address = trailing location text that appears after the last number in the row
-  const address = String(text).replace(/^[\s\S]*\d/, '')
-    .replace(/[|/\\"'.,]/g, ' ').replace(/[A-Za-z]/g, ' ').replace(/\s+/g, ' ').trim();
-  return { plate, type: '', year, color: '', km, test: '', contact: '', city: '', address };
+  // location = trailing text after the last number; split into city + street using the
+  // same fuzzy city matcher used for free text (keep quotes for abbreviation expansion)
+  let loc = String(text).replace(/^[\s\S]*\d/, '')
+    .replace(/[|/\\]/g, ' ').replace(/[A-Za-z]/g, ' ').replace(/\s+/g, ' ').trim();
+  loc = _expandCityAbbr(loc);
+  let city = '', address = '';
+  if (loc) {
+    const mc = _fuzzyMatchCity(loc);
+    if (mc.city && mc.adj !== undefined && mc.adj < 0.4) { city = mc.city; address = (mc.rest || '').replace(/["״׳']/g,'').trim(); }
+    else { address = loc.replace(/["״׳']/g,'').trim(); }
+  }
+  return { plate, type: '', year, color: '', km, test: '', contact: '', city, address };
 }
 
 function _extractPhone(str) {
