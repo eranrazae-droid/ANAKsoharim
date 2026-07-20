@@ -2213,7 +2213,14 @@ function _renderCalDatePicker() {
   const title = document.getElementById('cal-dp-title');
   if (!body) return;
   const y = _calDpMonth.getFullYear(), m = _calDpMonth.getMonth();
-  if (title) title.textContent = _CAL_MONTHS[m] + ' ' + y;
+  if (title) {
+    const selStyle = 'font-family:Heebo,sans-serif;font-weight:900;font-size:15px;border:none;background:var(--surface2);border-radius:8px;padding:4px 8px;cursor:pointer;color:var(--text)';
+    const monthOpts = _CAL_MONTHS.map((mn,i) => `<option value="${i}"${i===m?' selected':''}>${mn}</option>`).join('');
+    const yNow = new Date().getFullYear();
+    let yearOpts = '';
+    for (let yy = yNow-3; yy <= yNow+10; yy++) yearOpts += `<option value="${yy}"${yy===y?' selected':''}>${yy}</option>`;
+    title.innerHTML = `<select onchange="_calDpSetMonth(this.value)" style="${selStyle}">${monthOpts}</select> <select onchange="_calDpSetYear(this.value)" style="${selStyle}">${yearOpts}</select>`;
+  }
   const startDow = new Date(y, m, 1).getDay();
   const daysInMonth = new Date(y, m+1, 0).getDate();
   const dows = ['א','ב','ג','ד','ה','ו','ש'];
@@ -2235,6 +2242,10 @@ function _calDpNav(dir) {
   _renderCalDatePicker();
 }
 window._calDpNav = _calDpNav;
+function _calDpSetMonth(m) { _calDpMonth = new Date(_calDpMonth.getFullYear(), +m, 1); _renderCalDatePicker(); }
+window._calDpSetMonth = _calDpSetMonth;
+function _calDpSetYear(y) { _calDpMonth = new Date(+y, _calDpMonth.getMonth(), 1); _renderCalDatePicker(); }
+window._calDpSetYear = _calDpSetYear;
 function _calDpSelect(ds) {
   _setCalDate(ds);
   const p = document.getElementById('cal-date-picker'); if (p) p.style.display = 'none';
