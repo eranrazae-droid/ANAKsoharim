@@ -8481,6 +8481,16 @@ async function extractTextFromImage(input) {
           }
           darkCount[y] = cnt;
         }
+        // remove grid lines (full-height vertical + full-width horizontal borders)
+        // so a "|" separator isn't read as a "1" and stuck onto the km value
+        for (let x = 0; x < W; x++) {
+          let cd = 0;
+          for (let yy = 0; yy < H; yy++) if (d[(yy*W + x)*4] === 0) cd++;
+          if (cd > H * 0.5) for (let yy = 0; yy < H; yy++) { const i = (yy*W + x)*4; d[i]=d[i+1]=d[i+2]=255; }
+        }
+        for (let yy = 0; yy < H; yy++) {
+          if (darkCount[yy] > W * 0.5) { const off = yy*W*4; for (let x = 0; x < W; x++) { const i = off + x*4; d[i]=d[i+1]=d[i+2]=255; } }
+        }
         ctx.putImageData(id, 0, 0);
         // detect text row bands using a dynamic valley threshold that adapts to the image
         let sumDark = 0, cntRows = 0;
@@ -8689,11 +8699,17 @@ function _parseRowText(text) {
   const kmSep = t.match(/(\d{1,3}[.,]\d{3})/);
   if (kmSep) km = _fmtKm(kmSep[1]);
   else {
-    const nums = [...t.matchAll(/(?<!\d)(\d{4,5})(?!\d)/g)].map(m => m[1])
+    const nums = [...t.matchAll(/(?<!\d)(\d{4,6})(?!\d)/g)].map(m => m[1])
       .filter(n => n !== plate && !/^(19[89]\d|20[0-3]\d)$/.test(n));
-    if (nums.length) km = _fmtKm(nums[0]);
+    // a 6-digit km with a leading 1 usually comes from a "|" separator read as "1"
+    let n = nums[0];
+    if (n && n.length === 6 && n[0] === '1') n = n.slice(1);
+    if (n) km = _fmtKm(n);
   }
-  return { plate, type: '', year, color: '', km, test: '', contact: '', city: '', address: '' };
+  // address = trailing location text that appears after the last number in the row
+  const address = String(text).replace(/^[\s\S]*\d/, '')
+    .replace(/[|/\\"'.,]/g, ' ').replace(/[A-Za-z]/g, ' ').replace(/\s+/g, ' ').trim();
+  return { plate, type: '', year, color: '', km, test: '', contact: '', city: '', address };
 }
 
 function _extractPhone(str) {
