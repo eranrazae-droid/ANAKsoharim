@@ -8416,12 +8416,11 @@ function _parsePlatesFromOcr(fullText, digitsText) {
   return results;
 }
 
-async function _fetchGovDataForAll() {
-  for (let i = 0; i < _freetextParsed.length; i++) {
-    const car = _freetextParsed[i];
-    if (!car.plate) continue;
-    car._fetching = true;
-    _renderFreetextPreview();
+async function _fetchGovDataForAll(onProgress) {
+  const cars = _freetextParsed.filter(c => c.plate);
+  let done = 0;
+  // fetch all plates in parallel (much faster than one-by-one)
+  await Promise.all(cars.map(async car => {
     try {
       const filters = encodeURIComponent(JSON.stringify({ mispar_rechev: car.plate }));
       const res = await fetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3&filters=${filters}&limit=1`);
@@ -8439,9 +8438,10 @@ async function _fetchGovDataForAll() {
         car._fetched = true;
       }
     } catch(e) {}
-    car._fetching = false;
-    _renderFreetextPreview();
-  }
+    done++;
+    if (onProgress) onProgress(Math.round(done / cars.length * 100));
+  }));
+  _renderFreetextPreview();
 }
 
 async function extractTextFromImage(input) {
@@ -8588,8 +8588,9 @@ async function extractTextFromImage(input) {
       if (parsed.length) {
         document.getElementById('freetext-pickup-input').value = (fullText || '').trim();
         _freetextParsed = parsed;
-        _renderFreetextPreview();
-        _fetchGovDataForAll();
+        // keep the loader running while pulling vehicle data — so when it ends, everything is ready
+        setSpan('⏳ מושך נתוני רכבים... 0%');
+        await _fetchGovDataForAll(pct => setSpan(`⏳ מושך נתוני רכבים... ${pct}%`));
       } else {
         document.getElementById('freetext-pickup-input').value = (fullText || '').trim();
         parseFreeTextPickup();
