@@ -1361,6 +1361,8 @@ if ('serviceWorker' in navigator) {
       <div id="freetext-img-loading" style="display:none;align-items:center;gap:6px;font-size:13px;color:var(--muted);padding:9px"><span>⏳ מחלץ נתונים...</span></div>
     </div>
     <textarea id="freetext-pickup-input" rows="6" style="display:none"></textarea>
+    <!-- DIAG (temporary) — raw OCR output -->
+    <div id="pickup-ocr-diag" style="display:none;white-space:pre-wrap;direction:ltr;text-align:left;background:#0f172a;color:#a5f3fc;font-family:monospace;font-size:11px;line-height:1.5;padding:10px;border-radius:8px;max-height:220px;overflow:auto;margin-bottom:10px"></div>
     <button onclick="parseFreeTextPickup()" style="display:none;margin-top:10px;background:var(--gold);color:#000;border:none;border-radius:10px;padding:10px;font-family:Heebo,sans-serif;font-weight:900;font-size:14px;cursor:pointer;flex-shrink:0">🔍 זהה רכבים</button>
     <div id="freetext-pickup-preview" style="margin-top:12px;overflow-y:auto;flex:1"></div>
     <button id="freetext-pickup-save-btn" onclick="saveFreeTextPickup()" style="display:none;margin-top:10px;background:#16a34a;color:#fff;border:none;border-radius:10px;padding:12px;font-family:Heebo,sans-serif;font-weight:900;font-size:15px;cursor:pointer;flex-shrink:0">✅ שמור את כל הרכבים</button>
@@ -8525,6 +8527,12 @@ async function extractTextFromImage(input) {
 
     if (digitsOnly.trim() || fullText.trim()) {
       const parsed = _parsePlatesFromOcr(fullText || '', digitsOnly || '');
+      // DIAG (temporary): show raw OCR output
+      const _diag = document.getElementById('pickup-ocr-diag');
+      if (_diag) {
+        _diag.style.display = 'block';
+        _diag.textContent = `PARSED PLATES: ${parsed.length}\n${parsed.map(p=>p.plate).join(', ')}\n\n===== DIGITS OCR =====\n${digitsOnly}\n\n===== FULL OCR =====\n${fullText}`;
+      }
       if (parsed.length) {
         document.getElementById('freetext-pickup-input').value = (fullText || '').trim();
         _freetextParsed = parsed;
