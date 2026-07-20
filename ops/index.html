@@ -8201,6 +8201,7 @@ function cyclePickupSort() {
 }
 window.cyclePickupSort = cyclePickupSort;
 
+let _pickupTestBackfillDone = false;
 function loadPickupCars() {
   const list = document.getElementById('pickup-list');
   if (!list) return;
@@ -8209,12 +8210,39 @@ function loadPickupCars() {
     _pickupAllCars = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     _rebuildPickupCityFilter();
     renderPickupCars();
+    if (!_pickupTestBackfillDone) {
+      _pickupTestBackfillDone = true;
+      _backfillPickupTestDates();
+    }
   }, err => {
     console.error('pickup_cars listen error:', err);
     list.innerHTML = `<div style="text-align:center;padding:40px 20px;color:#ef4444;font-size:14px">שגיאה בטעינה: ${err?.code || err?.message || 'אין גישה'}</div>`;
   });
 }
 window.loadPickupCars = loadPickupCars;
+
+// one-time silent backfill: pull the missing test (tokef) date for existing cars
+// that don't have one yet, so old records get it without any manual action
+async function _backfillPickupTestDates() {
+  const targets = _pickupAllCars.filter(c => c.plate && !_parseTestDate(c.test));
+  if (!targets.length) return;
+  const { updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  for (const car of targets) {
+    try {
+      const filters = encodeURIComponent(JSON.stringify({ mispar_rechev: car.plate }));
+      const res = await fetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3&filters=${filters}&limit=1`);
+      const json = await res.json();
+      const rec = json?.result?.records?.[0];
+      if (rec?.tokef_dt) {
+        const d = new Date(rec.tokef_dt);
+        if (!isNaN(d)) {
+          const test = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+          await updateDoc(doc(window._db, 'pickup_cars', car.id), { test });
+        }
+      }
+    } catch(e) { /* skip this car, continue with the rest */ }
+  }
+}
 
 function _rebuildPickupCityFilter() {
   const sel = document.getElementById('pickup-filter-city');
