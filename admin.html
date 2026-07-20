@@ -433,8 +433,8 @@
         <select id="e-metashow"><option value="1">כן — בפיד</option><option value="0">לא — הסתר מהפיד</option></select>
       </div>
       <div class="form-group" style="grid-column:span 3">
-        <label>מזהה Meta קבוע (g:id) — לא ניתן לשינוי</label>
-        <input id="e-metaid" type="text" readonly style="background:#f5f5f5;color:#666;font-family:monospace"/>
+        <label>מזהה Meta קבוע (g:id) — שנה רק אם צריך להתאים לקטלוג הקיים</label>
+        <input id="e-metaid" type="text" placeholder="ריק = יווצר אוטומטית" style="font-family:monospace"/>
       </div>
       <input id="e-catalog" type="hidden"/>
       <input id="e-price" type="hidden"/>
@@ -907,7 +907,32 @@
   }
 
   // מזהה Meta קבוע לכל רכב — נוצר פעם אחת ולא משתנה לעולם (זהה ל-g:id בפיד ול-content_ids באירועי הפיקסל)
-  const META_ID_OVERRIDE = { 'Ultra RWD':'boqwy0lswj','Niro HEV LX':'zusxps8pyt','G6 Core+ RWD':'pji79zen63','SEAL U BOOST':'ldfwwl7bno','SEALION COMF':'ys2yq42hq5' };
+  // מיפוי 38 מזהי הקטלוג הקיימים ב-Meta (זהה ל-catalog-xml.js). מפתח = דגם הרכב במלאי.
+  const META_ID_BY_MODEL_RAW = {
+    'Ultra RWD':'boqwy0lswj','G6 Core+ RWD':'pji79zen63','NIRO HEV LX 1.6':'zusxps8pyt',
+    'BYD SEALION DESIGN 5 DM-i':'s7x208qk17','BYD SEALION COMF 5 DM-i':'ys2yq42hq5','BYD SEAL U BOOST  DM-i':'ldfwwl7bno',
+    'PICANTO LX PLUS 1.2':'v4vovvsjur','ARIZO 8 PHEV COMFORT 1.5':'742opmtpgb',
+    'TIGGO 9 PRO PHEV LUXURY + גג 1.5':'hhcs2egn5a','TIGGO 7 PRO PHEV LUXURY + גג 1.5':'ngh3409m94',
+    'TIGGO 4 COMFORT HEV 1.5':'pzvraxvq1n','TIGGO 8 PRO PHEV NOBLE + גג 1.5':'fxhq9au8i3','FX COMFORT HEV 1.5':'9egvoqm8zi',
+    'ACTIVE 2008':'cfbw9bj8i3','OCTAVIA FL SELECTION 1.5':'5x99nrhghk','OMODA 7 PHV - Harmony':'tnl6imzcgm',
+    'OMODA 9 PHEV - Harmony':'9ce73qfbjx','THE NEW CROSSTREK LUXURY 2.5':'47he7lwg6l','ARONA STYLE 1.0':'r6rqj79r25',
+    'OUTLANDER INSTYLE FL 2.5 גג':'2if572suv6','KAMIQ FL SELECTION 1.0':'tc644a8ggd','StarRay EM-i Pro':'6bey5nudn3',
+    'OUTLANDER EXECUTIVE 2.5':'tnyzyzrzmt','SONATA LIMITED FL HYBRID 2.0':'imn9xsw08i','KONA PREMIUM HYBRID 1.6':'80w1sumrt0',
+    'TUCSON PURE HYBRID 1.6':'fyo12b6yp2','ELANTRA PREMIUM FL HYBRID 1.6':'149a1rfwp1','YARIS CROSS ECO HSD 1.5':'icviu52dz7',
+    'JAECOO 7 LUXURY PHEV 1.5':'tuap37v2id','EX5 PRO':'rje839v4np','JAECOO 7 PREMIUM PHEV 1.5':'g8w3y2rd35',
+    'C10 LIFE':'36rjevja9f','RANGER XLT 4X4':'qfyq3aympk','COROLLA CROSS ACTIVE MC':'es0ae94upl',
+    'COROLLA CROSS ACTIVE':'briwwf3fqa','COROLLA CROSS ADVENTURE':'ig69ke37xd'
+  };
+  const META_ID_CONTAINS = [['ranger','qfyq3aympk'],['c10','36rjevja9f']];
+  function _mnorm(s){ return (s==null?'':String(s)).toLowerCase().replace(/[^a-z0-9\u0590-\u05ff]+/g,''); }
+  const META_ID_EXACT = (function(){ const o={}; for(const k in META_ID_BY_MODEL_RAW){ o[_mnorm(k)]=META_ID_BY_MODEL_RAW[k]; } return o; })();
+  function matchExistingMetaId(brand, model){
+    const nm=_mnorm(model), nbm=_mnorm((brand||'')+' '+(model||''));
+    if(META_ID_EXACT[nm]) return META_ID_EXACT[nm];
+    if(META_ID_EXACT[nbm]) return META_ID_EXACT[nbm];
+    for(let i=0;i<META_ID_CONTAINS.length;i++){ if(nm.indexOf(META_ID_CONTAINS[i][0])>=0) return META_ID_CONTAINS[i][1]; }
+    return null;
+  }
   function _newMetaId(){
     let s='';
     const abc='abcdefghijklmnopqrstuvwxyz0123456789';
@@ -918,19 +943,21 @@
     return cars.some(c=>c.meta_content_id===id && c.id!==exceptId);
   }
   // מבטיח שלרכב יש מזהה Meta קבוע. מחזיר את המזהה. לא דורס מזהה קיים.
+  // רכב שתואם לקטלוג הקיים מקבל את מזהה ה-CSV; רכב חדש מקבל מזהה אקראי חדש.
   function ensureMetaId(car){
     if(car.meta_content_id) return car.meta_content_id;
-    const model=((car.model)||'').trim();
-    for(const k in META_ID_OVERRIDE){ if(model && (model===k || model.indexOf(k)===0 || k.indexOf(model)===0)){ car.meta_content_id=META_ID_OVERRIDE[k]; return car.meta_content_id; } }
+    const m=matchExistingMetaId(car.brand, car.model);
+    if(m){ car.meta_content_id=m; return m; }
     let id; do { id=_newMetaId(); } while(metaIdInUse(id, car.id));
     car.meta_content_id=id;
     return id;
   }
 
-  // משייך מזהה Meta קבוע לכל רכב שאין לו — פעם אחת, ושומר. לא משנה מזהים קיימים.
+  // משייך לרכבים קיימים רק מזהה שתואם לקטלוג Meta הקיים (לא ממציא מזהה אקראי — כדי לא ליצור כפילות).
+  // רכב שלא נמצא לו מזהה תואם נשאר ריק, ויש להזין לו מזהה ידנית בטופס העריכה.
   function backfillMetaIds(){
     let changed=false;
-    cars.forEach(c=>{ if(!c.meta_content_id){ ensureMetaId(c); changed=true; } });
+    cars.forEach(c=>{ if(!c.meta_content_id){ const m=matchExistingMetaId(c.brand,c.model); if(m){ c.meta_content_id=m; changed=true; } } });
     if(changed){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(cars)); }catch(e){} saveToCloud(cars); }
   }
 
@@ -1915,7 +1942,7 @@
     document.getElementById('e-catimg').value = c.catalog_image||'';
     document.getElementById('e-catimg-name').textContent = c.catalog_image ? '✅ תמונה קיימת' : 'לא נבחרה תמונה';
     document.getElementById('e-metashow').value = c.meta_hide ? '0' : '1';
-    document.getElementById('e-metaid').value = ensureMetaId(c);
+    document.getElementById('e-metaid').value = c.meta_content_id || matchExistingMetaId(c.brand,c.model) || '';
     document.getElementById('e-catalog').value = c.catalogPriceNumber;
     document.getElementById('e-price').value = c.autodealerPriceNumber;
     document.getElementById('e-cost').value = getCost(c) || '';
@@ -2329,7 +2356,7 @@
         gallery: editGalleryImages.filter(Boolean).length ? editGalleryImages.filter(Boolean) : (c.gallery||[]),
         catalog_image: document.getElementById('e-catimg').value.trim(),
         meta_hide: (document.getElementById('e-metashow').value==='0'),
-        meta_content_id: c.meta_content_id || document.getElementById('e-metaid').value || undefined,
+        meta_content_id: (document.getElementById('e-metaid').value.trim() || c.meta_content_id || undefined),
       };
     });
     saveCars();
