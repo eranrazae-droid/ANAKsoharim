@@ -8482,10 +8482,14 @@ async function extractTextFromImage(input) {
           darkCount[y] = cnt;
         }
         ctx.putImageData(id, 0, 0);
-        // detect text row bands (ignore near-full-width grid lines)
-        const lineThr = W*0.5, textThr = Math.max(3, W*0.012), gapMax = Math.round(H*0.008)+4, minH = Math.round(H*0.012)+6;
+        // detect text row bands using a dynamic valley threshold that adapts to the image
+        let sumDark = 0, cntRows = 0;
+        for (let yy = 0; yy < H; yy++) if (darkCount[yy] > W*0.005) { sumDark += darkCount[yy]; cntRows++; }
+        const meanDark = cntRows ? sumDark / cntRows : W*0.05;
+        const sepLow = meanDark * 0.45, lineThr = W*0.55;
+        const minH = Math.round(H*0.01) + 6, gapMax = 3;
         const isText = new Uint8Array(H);
-        for (let y = 0; y < H; y++) isText[y] = (darkCount[y] > textThr && darkCount[y] < lineThr) ? 1 : 0;
+        for (let yy = 0; yy < H; yy++) isText[yy] = (darkCount[yy] > sepLow && darkCount[yy] < lineThr) ? 1 : 0;
         const rows = []; let y = 0;
         while (y < H) {
           if (!isText[y]) { y++; continue; }
