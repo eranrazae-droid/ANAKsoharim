@@ -8441,8 +8441,8 @@ async function extractTextFromImage(input) {
   try {
     const setSpan = t => { const s = document.getElementById('freetext-img-loading').querySelector('span'); if (s) s.textContent = t; };
 
-    // Prepare canvas: upscale + grayscale + binarize (black text on white) for clean OCR
-    const prepImg = file => new Promise(res => {
+    // Prepare canvas: upscale + grayscale + Otsu binarize, and detect row bands to slice by
+    const prepAndSlice = file => new Promise(res => {
       const img = new Image();
       img.onload = () => {
         const sc = 3, W = img.width * sc, H = img.height * sc;
@@ -8452,15 +8452,13 @@ async function extractTextFromImage(input) {
         ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(img, 0, 0, W, H);
         const id = ctx.getImageData(0, 0, W, H); const d = id.data;
-        const N = d.length / 4;
-        // grayscale + histogram
+        const N = W * H;
         const hist = new Array(256).fill(0);
         let sumAll = 0;
         for (let i = 0; i < d.length; i += 4) {
           const g = (0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2]) | 0;
           d[i]=d[i+1]=d[i+2]=g; hist[g]++; sumAll += g;
         }
-        // Otsu threshold — optimal split between text and background
         let wB = 0, sumB = 0, maxVar = -1, thr = 127;
         for (let t = 0; t < 256; t++) {
           wB += hist[t]; if (!wB) continue;
@@ -8471,56 +8469,75 @@ async function extractTextFromImage(input) {
           if (between > maxVar) { maxVar = between; thr = t; }
         }
         const dark = (sumAll / N) < 128;
-        for (let i = 0; i < d.length; i += 4) {
-          const on = dark ? (d[i] > thr) : (d[i] < thr); // text -> black, background -> white
-          const px = on ? 0 : 255;
-          d[i]=d[i+1]=d[i+2]=px;
+        const darkCount = new Int32Array(H);
+        for (let y = 0; y < H; y++) {
+          let cnt = 0; const off = y * W * 4;
+          for (let x = 0; x < W; x++) {
+            const i = off + x*4;
+            const on = dark ? (d[i] > thr) : (d[i] < thr);
+            const px = on ? 0 : 255;
+            d[i]=d[i+1]=d[i+2]=px;
+            if (on) cnt++;
+          }
+          darkCount[y] = cnt;
         }
         ctx.putImageData(id, 0, 0);
-        res(c);
+        // detect text row bands (ignore near-full-width grid lines)
+        const lineThr = W*0.5, textThr = Math.max(3, W*0.012), gapMax = Math.round(H*0.008)+4, minH = Math.round(H*0.012)+6;
+        const isText = new Uint8Array(H);
+        for (let y = 0; y < H; y++) isText[y] = (darkCount[y] > textThr && darkCount[y] < lineThr) ? 1 : 0;
+        const rows = []; let y = 0;
+        while (y < H) {
+          if (!isText[y]) { y++; continue; }
+          let y0 = y, y1 = y, gap = 0; y++;
+          while (y < H && (isText[y] || gap < gapMax)) { if (isText[y]) { y1 = y; gap = 0; } else gap++; y++; }
+          if (y1 - y0 >= minH) rows.push([Math.max(0, y0-6), Math.min(H, y1+6)]);
+        }
+        res({ canvas: c, rows });
       };
       img.src = URL.createObjectURL(file);
     });
 
-    const canvasToBlob = c => new Promise(r => c.toBlob(r, 'image/png'));
-
-    setSpan('⏳ מעבד תמונה...');
-    const canvas = await prepImg(file);
-    const blob = await canvasToBlob(canvas);
-
-    // progress across the 4 OCR passes → shown as a percentage
-    let _ocrPass = 0; const _OCR_TOTAL = 4;
-    const _ocrLog = m => {
-      if (m && m.status && m.status.indexOf('recogniz') !== -1) {
-        const pct = Math.min(99, Math.round(((_ocrPass + (m.progress || 0)) / _OCR_TOTAL) * 100));
-        setSpan(`⏳ מחלץ נתונים מהתמונה... ${pct}%`);
-      }
+    const toBlob = c => new Promise(r => c.toBlob(r, 'image/png'));
+    const cropStrip = (canvas, y0, y1) => {
+      const h = y1 - y0;
+      const s = document.createElement('canvas'); s.width = canvas.width; s.height = h;
+      s.getContext('2d').drawImage(canvas, 0, y0, canvas.width, h, 0, 0, canvas.width, h);
+      return s;
     };
 
-    // Run with PSM 11 (sparse) + PSM 6 (uniform block) for higher recall on tables
-    const worker = await Tesseract.createWorker('eng', 1, { logger: _ocrLog });
-    await worker.setParameters({
-      tessedit_char_whitelist: '0123456789',
-      tessedit_pageseg_mode: '11',
-    });
-    _ocrPass = 0;
-    const { data: { text: _digits11 } } = await worker.recognize(blob);
-    await worker.setParameters({ tessedit_pageseg_mode: '6' });
-    _ocrPass = 1;
-    const { data: { text: _digits6 } } = await worker.recognize(blob);
-    await worker.terminate();
-    const digitsOnly = `${_digits11}\n${_digits6}`;
+    setSpan('⏳ מעבד תמונה...');
+    const { canvas, rows } = await prepAndSlice(file);
 
-    // Also run heb+eng for context (model, year, km)
-    const worker2 = await Tesseract.createWorker('heb+eng', 1, { logger: _ocrLog });
-    await worker2.setParameters({ tessedit_pageseg_mode: '11' });
-    _ocrPass = 2;
-    const { data: { text: _full11 } } = await worker2.recognize(blob);
-    await worker2.setParameters({ tessedit_pageseg_mode: '6' });
-    _ocrPass = 3;
-    const { data: { text: _full6 } } = await worker2.recognize(blob);
-    await worker2.terminate();
-    const fullText = `${_full11}\n${_full6}`;
+    let digitsOnly = '', fullText = '';
+    if (rows.length >= 2) {
+      // OCR each detected row separately (single line) — reliable for uniform tables
+      let _ocrRow = 0;
+      const worker = await Tesseract.createWorker('heb+eng', 1, { logger: m => {
+        if (m && m.status && m.status.indexOf('recogniz') !== -1) {
+          const pct = Math.min(99, Math.round(((_ocrRow + (m.progress || 0)) / rows.length) * 100));
+          setSpan(`⏳ מחלץ נתונים מהתמונה... ${pct}%`);
+        }
+      }});
+      await worker.setParameters({ tessedit_pageseg_mode: '7' });
+      for (let r = 0; r < rows.length; r++) {
+        _ocrRow = r;
+        const blob = await toBlob(cropStrip(canvas, rows[r][0], rows[r][1]));
+        const { data: { text } } = await worker.recognize(blob);
+        fullText += text + '\n';
+      }
+      await worker.terminate();
+      digitsOnly = fullText;
+    } else {
+      // fallback: whole-image OCR
+      setSpan('⏳ מחלץ נתונים מהתמונה...');
+      const blob = await toBlob(canvas);
+      const w = await Tesseract.createWorker('heb+eng', 1);
+      await w.setParameters({ tessedit_pageseg_mode: '6' });
+      const { data: { text } } = await w.recognize(blob);
+      await w.terminate();
+      fullText = text; digitsOnly = text;
+    }
 
     console.log('[OCR] digits:', digitsOnly);
     console.log('[OCR] full:', fullText);
@@ -8531,7 +8548,7 @@ async function extractTextFromImage(input) {
       const _diag = document.getElementById('pickup-ocr-diag');
       if (_diag) {
         _diag.style.display = 'block';
-        _diag.textContent = `PARSED PLATES: ${parsed.length}\n${parsed.map(p=>p.plate).join(', ')}\n\n===== DIGITS OCR =====\n${digitsOnly}\n\n===== FULL OCR =====\n${fullText}`;
+        _diag.textContent = `ROWS DETECTED: ${rows.length}\nPARSED PLATES: ${parsed.length}\n${parsed.map(p=>p.plate).join(', ')}\n\n===== OCR TEXT =====\n${fullText}`;
       }
       if (parsed.length) {
         document.getElementById('freetext-pickup-input').value = (fullText || '').trim();
