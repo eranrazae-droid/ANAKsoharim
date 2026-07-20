@@ -953,11 +953,11 @@
     return id;
   }
 
-  // משייך לרכבים קיימים רק מזהה שתואם לקטלוג Meta הקיים (לא ממציא מזהה אקראי — כדי לא ליצור כפילות).
-  // רכב שלא נמצא לו מזהה תואם נשאר ריק, ויש להזין לו מזהה ידנית בטופס העריכה.
+  // מיישר מזהי Meta לקטלוג הקנוני: היכן שיש התאמה חד-משמעית — דורס גם מזהה קיים שגוי.
+  // רכב ללא התאמה ודאית (למשל טויוטה סיטי / ג'אקו כפול) לא נוגעים בו — נשמר מה שהוזן ידנית.
   function backfillMetaIds(){
     let changed=false;
-    cars.forEach(c=>{ if(!c.meta_content_id){ const m=matchExistingMetaId(c.brand,c.model); if(m){ c.meta_content_id=m; changed=true; } } });
+    cars.forEach(c=>{ const m=matchExistingMetaId(c.brand,c.model); if(m && c.meta_content_id!==m){ c.meta_content_id=m; changed=true; } });
     if(changed){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(cars)); }catch(e){} saveToCloud(cars); }
   }
 
