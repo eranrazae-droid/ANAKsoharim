@@ -1364,6 +1364,7 @@ if ('serviceWorker' in navigator) {
     <div id="pickup-archive-body" style="display:none;flex-direction:column;gap:10px"></div>
   </div>
   <button class="fab" onclick="openFreeTextPickupModal()" style="bottom:24px;right:16px;left:auto;transform:none">+ הוספת רכב</button>
+  <button onclick="openTextPickupModal()" style="position:fixed;bottom:84px;right:16px;left:auto;background:#7c3aed;color:#fff;border:none;border-radius:999px;padding:12px 20px;font-family:Heebo,sans-serif;font-weight:900;font-size:14px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,0.2);z-index:50">📝 הוספה לפי מלל</button>
 </div>
 
 <!-- ====== MODAL: ADD PICKUP CAR (freetext + image) ====== -->
@@ -1383,8 +1384,8 @@ if ('serviceWorker' in navigator) {
       </div>
       <div id="freetext-img-loading" style="display:none;align-items:center;gap:6px;font-size:13px;color:var(--muted);padding:9px"><span>⏳ מחלץ נתונים...</span></div>
     </div>
-    <textarea id="freetext-pickup-input" rows="6" style="display:none"></textarea>
-    <button onclick="parseFreeTextPickup()" style="display:none;margin-top:10px;background:var(--gold);color:#000;border:none;border-radius:10px;padding:10px;font-family:Heebo,sans-serif;font-weight:900;font-size:14px;cursor:pointer;flex-shrink:0">🔍 זהה רכבים</button>
+    <textarea id="freetext-pickup-input" rows="6" placeholder="הדבק שורה לכל רכב, למשל:&#10;64665702 קיה פיקנטו 2021 לבן 50000 קמ דני 054-3055532 תל אביב&#10;12345678 יונדאי i35 אדום 2019 חיפה" style="display:none;width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:14px;box-sizing:border-box;resize:vertical;flex-shrink:0"></textarea>
+    <button id="pickup-detect-btn" onclick="parseFreeTextPickup()" style="display:none;margin-top:10px;background:var(--gold);color:#000;border:none;border-radius:10px;padding:10px;font-family:Heebo,sans-serif;font-weight:900;font-size:14px;cursor:pointer;flex-shrink:0">🔍 זהה רכבים</button>
     <div id="freetext-pickup-preview" style="margin-top:12px;overflow-y:auto;flex:1"></div>
     <button id="freetext-pickup-save-btn" onclick="saveFreeTextPickup()" style="display:none;margin-top:10px;background:#16a34a;color:#fff;border:none;border-radius:10px;padding:12px;font-family:Heebo,sans-serif;font-weight:900;font-size:15px;cursor:pointer;flex-shrink:0">✅ שמור את כל הרכבים</button>
   </div>
@@ -8436,10 +8437,24 @@ function openFreeTextPickupModal() {
   document.getElementById('freetext-img-preview').style.display = 'none';
   document.getElementById('freetext-img-loading').style.display = 'none';
   document.getElementById('freetext-img-label').style.display = '';
+  // image mode — hide the free-text box + detect button
+  document.getElementById('freetext-pickup-input').style.display = 'none';
+  document.getElementById('pickup-detect-btn').style.display = 'none';
   _freetextParsed = [];
   openModal('modal-freetext-pickup');
 }
 window.openFreeTextPickupModal = openFreeTextPickupModal;
+
+function openTextPickupModal() {
+  openFreeTextPickupModal();
+  // text mode — reveal the free-text box + detect button, hide the image row
+  document.getElementById('freetext-img-label').style.display = 'none';
+  const ta = document.getElementById('freetext-pickup-input');
+  ta.style.display = 'block';
+  document.getElementById('pickup-detect-btn').style.display = 'block';
+  setTimeout(() => ta.focus(), 50);
+}
+window.openTextPickupModal = openTextPickupModal;
 
 function clearPickupImage() {
   document.getElementById('freetext-img-input').value = '';
