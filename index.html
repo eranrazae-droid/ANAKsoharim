@@ -451,18 +451,20 @@ display:none !important;
         return o;
       }catch(e){ return {}; }
     })();
-    // פרמטרים סטנדרטיים לאירוע רכב (content_ids + contents לפי דרישת Meta)
-    function adCarParams(){
+    // פרמטרים סטנדרטיים לאירוע רכב. value: מחיר הרכב לאירועי צפייה/עניין, סכום הקופון (300) לתשלום/רכישה.
+    function adCarParams(value){
       var c = (typeof selectedCar!=='undefined' && selectedCar) ? selectedCar : null;
-      if(!c) return { value:COUPON_VALUE, currency:'ILS' };
+      var v = (value!=null) ? Number(value) : COUPON_VALUE;
+      if(!c) return { value:v, currency:'ILS' };
       var id = metaContentId(c);
       return {
         content_ids:[id], content_type:'product',
         content_name:((c.brand||'')+' '+(c.model||'')).trim(),
-        contents:[{ id:id, quantity:1, item_price:COUPON_VALUE }],
-        value:COUPON_VALUE, currency:'ILS'
+        contents:[{ id:id, quantity:1, item_price:v }],
+        value:v, currency:'ILS'
       };
     }
+    function adCarPrice(){ var c=(typeof selectedCar!=='undefined'&&selectedCar)?selectedCar:null; return c ? (Number(c.autodealerPriceNumber)||COUPON_VALUE) : COUPON_VALUE; }
     // שולח אירוע גם לפיקסל (דפדפן) וגם ל-Conversions API (שרת) — אותו event_id ל-deduplication
     function fbEvent(ev, custom, opts){
       opts = opts||{};
@@ -2460,7 +2462,7 @@ display:none !important;
     function openCar(id){
       selectedCar = enrich(cars.find(c => c.id === id));
       selectedTrack = "";
-      fbEvent('ViewContent', adCarParams());
+      fbEvent('ViewContent', adCarParams(adCarPrice()));
       document.getElementById('carBreadcrumb').textContent = `${selectedCar.brand} ${selectedCar.model}`;
       const hasRealImage = selectedCar.image && !selectedCar.image.startsWith('data:image/svg');
       const carImageWrap = document.getElementById('carImage').parentElement;
@@ -2874,7 +2876,7 @@ display:none !important;
       }
       // הזמנה חדשה + AddToCart (בחירת רכב לרכישת קופון)
       window._adOrder = { order_id: adGenId(), event_id: adGenId(), purchaseFired:false, initFired:false };
-      fbEvent('AddToCart', adCarParams());
+      fbEvent('AddToCart', adCarParams(adCarPrice()));
       const wrap = document.getElementById('checkoutWrap');
       wrap.innerHTML = `
         <div class="voucher-checkout">
