@@ -441,6 +441,16 @@ display:none !important;
     }
     function adGenId(){ return 'ad_' + Date.now().toString(36) + Math.random().toString(36).slice(2,9); }
     function _getCookie(n){ try{ var m=document.cookie.match('(^|;)\\s*'+n+'\\s*=\\s*([^;]+)'); return m?m.pop():''; }catch(e){ return ''; } }
+    // לכידת UTM + fbclid (נשמר גם ב-localStorage לשימוש חוזר עם ההזמנה/ליד)
+    window._adUtm = (function(){
+      try{
+        var q = new URLSearchParams(location.search||''); var o={};
+        ['utm_source','utm_medium','utm_campaign','utm_content','utm_term','fbclid'].forEach(function(k){ var v=q.get(k); if(v) o[k]=v; });
+        if(Object.keys(o).length){ try{ localStorage.setItem('ad_utm', JSON.stringify(o)); }catch(e){} }
+        else { try{ var s=localStorage.getItem('ad_utm'); if(s) o=JSON.parse(s)||{}; }catch(e){} }
+        return o;
+      }catch(e){ return {}; }
+    })();
     // פרמטרים סטנדרטיים לאירוע רכב (content_ids + contents לפי דרישת Meta)
     function adCarParams(){
       var c = (typeof selectedCar!=='undefined' && selectedCar) ? selectedCar : null;
@@ -461,7 +471,8 @@ display:none !important;
       try{
         fetch('/.netlify/functions/capi', { method:'POST', headers:{'Content-Type':'application/json'}, keepalive:true,
           body: JSON.stringify({ event_name:ev, event_id:eventID, event_source_url:location.href,
-            custom_data:custom||{}, user_data:{ fbp:_getCookie('_fbp'), fbc:_getCookie('_fbc') }, order_id:opts.order_id||null }) }).catch(function(){});
+            custom_data:custom||{}, user_data:{ fbp:_getCookie('_fbp'), fbc:_getCookie('_fbc') },
+            utm: window._adUtm||{}, order_id:opts.order_id||null }) }).catch(function(){});
       }catch(e){}
       return eventID;
     }
@@ -2713,6 +2724,7 @@ display:none !important;
     function openPayboxPayment(e){
       if(e) e.preventDefault();
       if(!checkoutGate()) return;
+      if(window._adOrder && !window._adOrder.addPayFired){ fbEvent('AddPaymentInfo', adCarParams()); window._adOrder.addPayFired = true; }
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
       const PAYBOX_PHONE = '0528744107';
       const amount = 300;
@@ -2730,6 +2742,7 @@ display:none !important;
     function openCreditPayment(e){
       if(e) e.preventDefault();
       if(!checkoutGate()) return;
+      if(window._adOrder && !window._adOrder.addPayFired){ fbEvent('AddPaymentInfo', adCarParams()); window._adOrder.addPayFired = true; }
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
       if(CREDIT_PAY_LINK){
         if(isMobile){ window.open(CREDIT_PAY_LINK, '_blank'); }
@@ -2768,8 +2781,8 @@ display:none !important;
           action: action||'',
           created_at: new Date().toISOString()
         };
-        const vres=await c.from('leads').insert(Object.assign({},vrow,{source:SITE_SOURCE}));
-        if(vres&&vres.error){ await c.from('leads').insert(vrow); }
+        const vres=await c.from('leads').insert(Object.assign({},vrow,{source:SITE_SOURCE,utm:JSON.stringify(window._adUtm||{})}));
+        if(vres&&vres.error){ const vres2=await c.from('leads').insert(Object.assign({},vrow,{source:SITE_SOURCE})); if(vres2&&vres2.error){ await c.from('leads').insert(vrow); } }
       }catch(e){ console.warn('saveLead', e); }
     }
     // ולידציה + אישור תקנון לפני תשלום
@@ -2819,6 +2832,7 @@ display:none !important;
     function openBitPayment(e){
       if(e) e.preventDefault();
       if(!checkoutGate()) return;
+      if(window._adOrder && !window._adOrder.addPayFired){ fbEvent('AddPaymentInfo', adCarParams()); window._adOrder.addPayFired = true; }
       const BIT_PHONE = '052-874-4107';
       const amount = 300;
       const modal = document.createElement('div');
@@ -3273,7 +3287,7 @@ display:none !important;
       var tradeinPlate=tradein?((document.getElementById('chat_tradein_plate')||{}).value||'').trim():'';
       var row={name:name,phone:phone,email:'',car:(typeof selectedCar!=='undefined'&&selectedCar)?(selectedCar.brand+' '+selectedCar.model):'',action:'צ׳אט ייעוץ',created_at:new Date().toISOString()};
       try{ var c=sbClient(); if(c){
-        var res=await c.from('leads').insert(Object.assign({},row,{tradein:tradein,financing:financing,tradein_plate:tradeinPlate,source:SITE_SOURCE}));
+        var res=await c.from('leads').insert(Object.assign({},row,{tradein:tradein,financing:financing,tradein_plate:tradeinPlate,source:SITE_SOURCE,utm:JSON.stringify(window._adUtm||{})}));
         if(res&&res.error){ // אולי עמודת source חסרה — ננסה בלי source אך עם פרטי הטרייד-אין
           var res2=await c.from('leads').insert(Object.assign({},row,{tradein:tradein,financing:financing,tradein_plate:tradeinPlate}));
           if(res2&&res2.error){ await c.from('leads').insert(row); }
@@ -3293,7 +3307,7 @@ display:none !important;
       var tradeinPlate=tradein?((document.getElementById('cp_tradein_plate')||{}).value||'').trim():'';
       var row={name:name,phone:phone,email:'',car:(typeof selectedCar!=='undefined'&&selectedCar)?(selectedCar.brand+' '+selectedCar.model):'',action:'עמוד רכב',created_at:new Date().toISOString()};
       try{ var c=sbClient(); if(c){
-        var res=await c.from('leads').insert(Object.assign({},row,{tradein:tradein,financing:financing,tradein_plate:tradeinPlate,source:SITE_SOURCE}));
+        var res=await c.from('leads').insert(Object.assign({},row,{tradein:tradein,financing:financing,tradein_plate:tradeinPlate,source:SITE_SOURCE,utm:JSON.stringify(window._adUtm||{})}));
         if(res&&res.error){ // אולי עמודת source חסרה — ננסה בלי source אך עם פרטי הטרייד-אין
           var res2=await c.from('leads').insert(Object.assign({},row,{tradein:tradein,financing:financing,tradein_plate:tradeinPlate}));
           if(res2&&res2.error){ await c.from('leads').insert(row); }

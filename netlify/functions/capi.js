@@ -50,6 +50,7 @@ exports.handler = async (event) => {
     }]
   };
   if (p.order_id) payload.data[0].custom_data.order_id = p.order_id;
+  if (p.utm && typeof p.utm === 'object') { try { Object.keys(p.utm).forEach(function(k){ payload.data[0].custom_data[k] = p.utm[k]; }); } catch(e){} }
 
   try {
     const url = 'https://graph.facebook.com/' + GRAPH_VERSION + '/' + PIXEL_ID + '/events?access_token=' + encodeURIComponent(token);
