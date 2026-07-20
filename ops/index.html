@@ -323,7 +323,7 @@ if ('serviceWorker' in navigator) {
   <div id="task-notif-stack" style="position:fixed;top:0;left:0;right:0;z-index:9000;display:flex;flex-direction:column;align-items:center;pointer-events:none"></div>
   <div class="app-header">
     <div class="logo">ענק <span>הרכבים</span></div>
-    <button id="btn-whatsapp-settings" onclick="goToScreen('_notify')" style="display:none;background:rgba(255,255,255,0.15);border:none;border-radius:999px;color:#fff;font-size:13px;font-weight:700;padding:6px 14px;cursor:pointer;font-family:Heebo,sans-serif">⚙️ WhatsApp</button>
+    <button id="btn-whatsapp-settings" onclick="goToScreen('_notify')" style="display:none;background:rgba(255,255,255,0.15);border:none;border-radius:999px;color:#fff;font-size:13px;font-weight:700;padding:6px 14px;cursor:pointer;font-family:Heebo,sans-serif">⚙️ SMS</button>
     <div class="user-badge" id="home-user-badge" onclick="logout()">יציאה</div>
   </div>
   <div class="home-body">
@@ -1665,7 +1665,7 @@ if ('serviceWorker' in navigator) {
 
 <div class="modal-overlay" id="modal-notify-settings">
   <div class="modal-box" style="max-height:85vh;overflow-y:auto">
-    <div class="modal-title">📲 הגדרות הודעות WhatsApp <button class="modal-close" onclick="closeModal('modal-notify-settings')">✕</button></div>
+    <div class="modal-title">📨 הגדרות הודעות SMS <button class="modal-close" onclick="closeModal('modal-notify-settings')">✕</button></div>
     <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">הגדר את Green API פעם אחת — ואז הודעות ישלחו לנהגים אוטומטית ללא כל פעולה מצידם.</p>
     <div id="notify-settings-body"></div>
     <button class="btn-submit" onclick="saveNotifySettings()" style="width:100%;margin-top:4px">💾 שמור הגדרות</button>
@@ -7277,10 +7277,11 @@ async function resetYard() {
 }
 
 /* ═══════════════════════════════════════════════════════
-   WHATSAPP NOTIFICATIONS (Twilio via Firebase Function)
+   SMS NOTIFICATIONS (Twilio via Firebase Function)
 ═══════════════════════════════════════════════════════ */
 var _driverContacts = null;
-const _WA_FUNC_URL = 'https://sendwhatsapp-' + (window.location.hostname.includes('anak-soharim') ? 'jqqhv7qqga-ew.a.run.app' : 'YOUR_FUNCTION_URL');
+// after `firebase deploy --only functions`, replace with the real sendSms Cloud Run URL
+const _SMS_FUNC_URL = 'https://sendsms-YOUR_FUNCTION_URL';
 
 async function _loadDriverContacts() {
   if (_driverContacts) return _driverContacts;
@@ -7292,48 +7293,30 @@ async function _loadDriverContacts() {
   return _driverContacts;
 }
 
-async function _sendWhatsApp(phone, message) {
+async function _sendSms(phone, message) {
   if (!phone) return;
   const contacts = await _loadDriverContacts();
-  const instanceId = (contacts['_gaInstance']?.value || '').trim();
-  const apiToken   = (contacts['_gaToken']?.value   || '').trim();
-  if (!instanceId || !apiToken) {
-    showToast('⚠️ WhatsApp: חסרים פרטי Green API בהגדרות הודעות', 5000);
+  const accountSid = (contacts['_twilioSid']?.value   || '').trim();
+  const authToken  = (contacts['_twilioToken']?.value || '').trim();
+  const from       = (contacts['_twilioFrom']?.value  || '').trim();
+  if (!accountSid || !authToken || !from) {
+    showToast('⚠️ SMS: חסרים פרטי Twilio בהגדרות הודעות', 5000);
     return;
   }
-  const phoneDigits = phone.replace(/\D/g, '');
   try {
-    // resolve correct chatId via Green API check
-    let chatId = phoneDigits + '@c.us';
-    try {
-      const chk = await fetch(
-        `https://api.green-api.com/waInstance${instanceId}/checkWhatsapp/${apiToken}`,
-        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phoneNumber: phoneDigits }) }
-      );
-      const chkData = await chk.json().catch(() => ({}));
-      if (chkData.chatId) chatId = chkData.chatId;
-      else if (chkData.existsWhatsapp === false) {
-        showToast(`⚠️ המספר ${phone} לא רשום בוואטסאפ`, 5000);
-        return;
-      }
-    } catch(_) {}
-
-    const res = await fetch(
-      `https://api.green-api.com/waInstance${instanceId}/sendMessage/${apiToken}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chatId, message })
-      }
-    );
+    const res = await fetch(_SMS_FUNC_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accountSid, authToken, from, to: phone, message })
+    });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      console.error('Green API error', res.status, data);
-      showToast(`⚠️ WhatsApp שגיאה ${res.status}: ${JSON.stringify(data).slice(0,80)}`, 6000);
+      console.error('Twilio SMS error', res.status, data);
+      showToast(`⚠️ SMS שגיאה ${res.status}: ${JSON.stringify(data).slice(0,80)}`, 6000);
     }
   } catch(e) {
-    console.error('WhatsApp fetch error', e);
-    showToast(`⚠️ WhatsApp: שגיאת חיבור — ${e.message}`, 6000);
+    console.error('SMS fetch error', e);
+    showToast(`⚠️ SMS: שגיאת חיבור — ${e.message}`, 6000);
   }
 }
 
@@ -7360,18 +7343,18 @@ async function _checkDriverNotifications() {
 async function _notifyDriver(driverName, message) {
   const contacts = await _loadDriverContacts();
   const c = contacts[driverName];
-  if (c?.phone) { _sendWhatsApp(c.phone, message); return; }
+  if (c?.phone) { _sendSms(c.phone, message); return; }
   // fallback: if notifying manager ('ליאל') and no phone set, try _managerPhone
   if (driverName === 'ליאל') {
     const mp = contacts['_managerPhone']?.value;
-    if (mp) _sendWhatsApp(mp, message);
+    if (mp) _sendSms(mp, message);
   }
 }
 
 async function _notifyAllDrivers(message) {
   const contacts = await _loadDriverContacts();
   for (const [key, c] of Object.entries(contacts)) {
-    if (!key.startsWith('_') && key !== 'ליאל' && c?.phone) _sendWhatsApp(c.phone, message);
+    if (!key.startsWith('_') && key !== 'ליאל' && c?.phone) _sendSms(c.phone, message);
   }
 }
 
@@ -7381,18 +7364,20 @@ async function openNotifySettings() {
 }
 async function _openNotifySettingsInner() {
   const contacts = await _loadDriverContacts();
-  const gaInstance   = contacts['_gaInstance']?.value   || '';
-  const gaToken      = contacts['_gaToken']?.value      || '';
+  const twilioSid   = contacts['_twilioSid']?.value   || '';
+  const twilioToken = contacts['_twilioToken']?.value || '';
+  const twilioFrom  = contacts['_twilioFrom']?.value  || '';
   const managerPhone = contacts['_managerPhone']?.value || '';
   const drivers = ['ליאל','עופר','גיל','איתי'];
   const apiRow = `
-    <div style="border:2px solid #25d366;border-radius:12px;padding:12px 14px;margin-bottom:14px;background:#f0fff4">
-      <div style="font-weight:900;font-size:14px;margin-bottom:4px;color:#128c3e">📱 Green API — פרטי חיבור</div>
-      <div style="font-size:11px;color:#555;margin-bottom:8px;line-height:1.5">הירשם ב-<b>green-api.com</b> → צור Instance → סרוק QR עם WhatsApp → העתק ID וטוקן</div>
+    <div style="border:2px solid #f22f46;border-radius:12px;padding:12px 14px;margin-bottom:14px;background:#fff5f6">
+      <div style="font-weight:900;font-size:14px;margin-bottom:4px;color:#c81e37">📨 Twilio — פרטי חיבור (SMS)</div>
+      <div style="font-size:11px;color:#555;margin-bottom:8px;line-height:1.5">ב-<b>console.twilio.com</b>: Account SID + Auth Token מהדף הראשי, ומספר טלפון SMS שקנית תחת Phone Numbers</div>
       <div style="display:flex;flex-direction:column;gap:6px">
-        <input id="nc-ga-instance" value="${gaInstance}" placeholder="Instance ID (לדוגמה: 1101234567)" style="border:1.5px solid #25d366;border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:13px;direction:ltr;text-align:left">
-        <input id="nc-ga-token"    value="${gaToken}"    placeholder="API Token Instance" style="border:1.5px solid #25d366;border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:13px;direction:ltr;text-align:left">
-        <input id="nc-manager-phone" value="${managerPhone}" placeholder="טלפון מנהל לקבלת התראות (972501234567)" style="border:1.5px solid #25d366;border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:13px;direction:ltr;text-align:left">
+        <input id="nc-twilio-sid"   value="${twilioSid}"   placeholder="Account SID (ACxxxxxxxx...)" style="border:1.5px solid #f22f46;border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:13px;direction:ltr;text-align:left">
+        <input id="nc-twilio-token" value="${twilioToken}" placeholder="Auth Token" style="border:1.5px solid #f22f46;border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:13px;direction:ltr;text-align:left">
+        <input id="nc-twilio-from"  value="${twilioFrom}"  placeholder="מספר Twilio לשליחה (+15551234567)" style="border:1.5px solid #f22f46;border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:13px;direction:ltr;text-align:left">
+        <input id="nc-manager-phone" value="${managerPhone}" placeholder="טלפון מנהל לקבלת התראות (972501234567)" style="border:1.5px solid #f22f46;border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:13px;direction:ltr;text-align:left">
       </div>
     </div>`;
   const rows = drivers.map(name => {
@@ -7400,7 +7385,7 @@ async function _openNotifySettingsInner() {
     return `<div style="border:1.5px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:10px;background:#fff">
       <div style="font-weight:900;font-size:15px;margin-bottom:8px">👤 ${name}</div>
       <input id="nc-phone-${name}" value="${c.phone||''}" placeholder="מספר טלפון (972501234567)" style="border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:14px;direction:ltr;text-align:left;width:100%;box-sizing:border-box;margin-bottom:6px">
-      <button onclick="testWhatsApp('${name}')" style="background:#25d366;color:#fff;border:none;border-radius:8px;padding:7px;width:100%;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer">📲 שלח הודעת בדיקה</button>
+      <button onclick="testSms('${name}')" style="background:#f22f46;color:#fff;border:none;border-radius:8px;padding:7px;width:100%;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer">📨 שלח הודעת בדיקה</button>
     </div>`;
   }).join('');
   document.getElementById('notify-settings-body').innerHTML = apiRow + rows;
@@ -7410,10 +7395,12 @@ async function _openNotifySettingsInner() {
 async function saveNotifySettings() {
   const drivers = ['ליאל','עופר','גיל','איתי'];
   const data = {};
-  const gaInstance = document.getElementById('nc-ga-instance')?.value.trim();
-  const gaToken    = document.getElementById('nc-ga-token')?.value.trim();
-  if (gaInstance) data['_gaInstance'] = { value: gaInstance };
-  if (gaToken)    data['_gaToken']    = { value: gaToken };
+  const twilioSid   = document.getElementById('nc-twilio-sid')?.value.trim();
+  const twilioToken = document.getElementById('nc-twilio-token')?.value.trim();
+  const twilioFrom  = document.getElementById('nc-twilio-from')?.value.trim();
+  if (twilioSid)   data['_twilioSid']   = { value: twilioSid };
+  if (twilioToken) data['_twilioToken'] = { value: twilioToken };
+  if (twilioFrom)  data['_twilioFrom']  = { value: twilioFrom };
   const managerPhone = document.getElementById('nc-manager-phone')?.value.trim();
   if (managerPhone) data['_managerPhone'] = { value: managerPhone };
   drivers.forEach(name => {
@@ -7427,11 +7414,11 @@ async function saveNotifySettings() {
   showToast('✅ הגדרות נשמרו');
 }
 
-async function testWhatsApp(name) {
+async function testSms(name) {
   const phone = document.getElementById(`nc-phone-${name}`)?.value.trim();
   if (!phone) return showToast(`נא להזין מספר טלפון עבור ${name}`);
   showToast(`📤 שולח בדיקה ל-${name}...`, 3000);
-  await _sendWhatsApp(phone, `✅ בדיקה — מערכת ענק הרכבים מחוברת ל-${name}`);
+  await _sendSms(phone, `✅ בדיקה — מערכת ענק הרכבים מחוברת ל-${name}`);
 }
 async function resendIntakeNotify(driver, plate, brand, model) {
   await _notifyDriver(driver, `🚗 קליטת רכב ממתינה לך — ${plate} ${brand} ${model}. כנס לאפליקציה ענק הרכבים.`);
@@ -7472,7 +7459,7 @@ async function sendBroadcast() {
 }
 window.openBroadcast = openBroadcast;
 window.sendBroadcast = sendBroadcast;
-window.testWhatsApp = testWhatsApp;
+window.testSms = testSms;
 
 // ─── Live Intake View ─────────────────────────────────
 let _liveIntakeUnsub = null;
