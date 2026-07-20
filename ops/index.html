@@ -1347,7 +1347,7 @@ if ('serviceWorker' in navigator) {
 <div class="modal-overlay" id="modal-freetext-pickup">
   <div class="modal-box" style="max-height:90vh;display:flex;flex-direction:column">
     <div class="modal-title">🚙 הוספת רכב <button class="modal-close" onclick="closeModal('modal-freetext-pickup')">✕</button></div>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:10px">הדבק טקסט חופשי או צרף תמונה — הנתונים יזוהו אוטומטית.</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px">צרף תמונה של הרשימה — הנתונים יזוהו אוטומטית.</div>
     <!-- Image upload row -->
     <div style="display:flex;gap:8px;margin-bottom:10px;flex-shrink:0">
       <label id="freetext-img-label" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:9px;border-radius:10px;border:1.5px dashed var(--border);background:var(--surface2);cursor:pointer;font-size:13px;font-weight:700;color:var(--muted)">
@@ -1360,8 +1360,8 @@ if ('serviceWorker' in navigator) {
       </div>
       <div id="freetext-img-loading" style="display:none;align-items:center;gap:6px;font-size:13px;color:var(--muted);padding:9px"><span>⏳ מחלץ נתונים...</span></div>
     </div>
-    <textarea id="freetext-pickup-input" rows="6" placeholder="למשל:&#10;64665702 קיה פיקנטו 2021 לבן 50000 קמ דני 054-3055532 ילדי טהרן 1 תל אביב&#10;&#10;מספר 12345678 יונדאי i35 אדום 2019 חיפה רחוב הרצל 5" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:14px;box-sizing:border-box;resize:vertical;flex-shrink:0"></textarea>
-    <button onclick="parseFreeTextPickup()" style="margin-top:10px;background:var(--gold);color:#000;border:none;border-radius:10px;padding:10px;font-family:Heebo,sans-serif;font-weight:900;font-size:14px;cursor:pointer;flex-shrink:0">🔍 זהה רכבים</button>
+    <textarea id="freetext-pickup-input" rows="6" style="display:none"></textarea>
+    <button onclick="parseFreeTextPickup()" style="display:none;margin-top:10px;background:var(--gold);color:#000;border:none;border-radius:10px;padding:10px;font-family:Heebo,sans-serif;font-weight:900;font-size:14px;cursor:pointer;flex-shrink:0">🔍 זהה רכבים</button>
     <div id="freetext-pickup-preview" style="margin-top:12px;overflow-y:auto;flex:1"></div>
     <button id="freetext-pickup-save-btn" onclick="saveFreeTextPickup()" style="display:none;margin-top:10px;background:#16a34a;color:#fff;border:none;border-radius:10px;padding:12px;font-family:Heebo,sans-serif;font-weight:900;font-size:15px;cursor:pointer;flex-shrink:0">✅ שמור את כל הרכבים</button>
   </div>
@@ -8430,23 +8430,27 @@ async function extractTextFromImage(input) {
   try {
     const setSpan = t => { const s = document.getElementById('freetext-img-loading').querySelector('span'); if (s) s.textContent = t; };
 
-    // Prepare canvas: scale 4x, invert dark backgrounds
+    // Prepare canvas: upscale + grayscale + binarize (black text on white) for clean OCR
     const prepImg = file => new Promise(res => {
       const img = new Image();
       img.onload = () => {
-        const sc = 4, W = img.width * sc, H = img.height * sc;
+        const sc = 3, W = img.width * sc, H = img.height * sc;
         const c = document.createElement('canvas');
         c.width = W; c.height = H;
         const ctx = c.getContext('2d');
-        ctx.imageSmoothingEnabled = false;
+        ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(img, 0, 0, W, H);
-        const id = ctx.getImageData(0, 0, W, H);
-        let s = 0;
-        for (let i = 0; i < id.data.length; i += 4) s += id.data[i];
-        if (s / (id.data.length / 4) < 128) {
-          for (let i = 0; i < id.data.length; i += 4) { id.data[i]=255-id.data[i]; id.data[i+1]=255-id.data[i+1]; id.data[i+2]=255-id.data[i+2]; }
-          ctx.putImageData(id, 0, 0);
+        const id = ctx.getImageData(0, 0, W, H); const d = id.data;
+        let sum = 0;
+        for (let i = 0; i < d.length; i += 4) { const g = 0.299*d[i]+0.587*d[i+1]+0.114*d[i+2]; d[i]=d[i+1]=d[i+2]=g; sum += g; }
+        const mean = sum / (d.length / 4);
+        const dark = mean < 128;
+        for (let i = 0; i < d.length; i += 4) {
+          const on = dark ? (d[i] > mean) : (d[i] < mean); // text pixels -> black, background -> white
+          const px = on ? 0 : 255;
+          d[i]=d[i+1]=d[i+2]=px;
         }
+        ctx.putImageData(id, 0, 0);
         res(c);
       };
       img.src = URL.createObjectURL(file);
@@ -8458,28 +8462,36 @@ async function extractTextFromImage(input) {
     const canvas = await prepImg(file);
     const blob = await canvasToBlob(canvas);
 
-    setSpan('⏳ מזהה מספרי רישוי...');
+    // progress across the 4 OCR passes → shown as a percentage
+    let _ocrPass = 0; const _OCR_TOTAL = 4;
+    const _ocrLog = m => {
+      if (m && m.status && m.status.indexOf('recogniz') !== -1) {
+        const pct = Math.min(99, Math.round(((_ocrPass + (m.progress || 0)) / _OCR_TOTAL) * 100));
+        setSpan(`⏳ מחלץ נתונים מהתמונה... ${pct}%`);
+      }
+    };
 
-    // Run with PSM 11 (sparse text — finds text scattered in image, best for tables)
-    // using correct Tesseract.js v5 worker API
-    const worker = await Tesseract.createWorker('eng');
+    // Run with PSM 11 (sparse) + PSM 6 (uniform block) for higher recall on tables
+    const worker = await Tesseract.createWorker('eng', 1, { logger: _ocrLog });
     await worker.setParameters({
       tessedit_char_whitelist: '0123456789',
       tessedit_pageseg_mode: '11',
     });
+    _ocrPass = 0;
     const { data: { text: _digits11 } } = await worker.recognize(blob);
-    // מעבר שני: PSM 6 (בלוק אחיד) קורא שורות בטבלה טוב יותר — איחוד להעלאת אחוז הזיהוי
     await worker.setParameters({ tessedit_pageseg_mode: '6' });
+    _ocrPass = 1;
     const { data: { text: _digits6 } } = await worker.recognize(blob);
     await worker.terminate();
     const digitsOnly = `${_digits11}\n${_digits6}`;
 
     // Also run heb+eng for context (model, year, km)
-    setSpan('⏳ מזהה טקסט...');
-    const worker2 = await Tesseract.createWorker('heb+eng');
+    const worker2 = await Tesseract.createWorker('heb+eng', 1, { logger: _ocrLog });
     await worker2.setParameters({ tessedit_pageseg_mode: '11' });
+    _ocrPass = 2;
     const { data: { text: _full11 } } = await worker2.recognize(blob);
     await worker2.setParameters({ tessedit_pageseg_mode: '6' });
+    _ocrPass = 3;
     const { data: { text: _full6 } } = await worker2.recognize(blob);
     await worker2.terminate();
     const fullText = `${_full11}\n${_full6}`;
