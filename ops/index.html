@@ -365,7 +365,20 @@ if ('serviceWorker' in navigator) {
     <div class="modal-title"><span id="cal-ev-heading">משימה חדשה</span> <button class="modal-close" onclick="closeModal('modal-cal-event')">✕</button></div>
     <input type="hidden" id="cal-ev-id">
     <div class="form-group"><label>כותרת <span style="color:#ef4444">*</span></label><input id="cal-ev-title" class="form-input" placeholder="תיאור המשימה"></div>
-    <div class="form-group"><label>תאריך <span style="color:#ef4444">*</span></label><input id="cal-ev-date" type="date" class="form-input"></div>
+    <div class="form-group" style="position:relative">
+      <label>תאריך <span style="color:#ef4444">*</span></label>
+      <input id="cal-ev-date-display" type="text" readonly class="form-input" placeholder="בחר תאריך" onclick="_openCalDatePicker()" style="cursor:pointer">
+      <input type="hidden" id="cal-ev-date">
+      <div id="cal-date-picker" style="display:none;position:absolute;z-index:20;top:100%;right:0;left:0;background:var(--card);border:2px solid var(--border);border-radius:14px;padding:12px;box-shadow:0 8px 30px rgba(0,0,0,0.18);margin-top:4px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <button type="button" onclick="_calDpNav(-1)" style="background:var(--surface2);border:none;border-radius:8px;width:32px;height:32px;font-size:18px;font-weight:900;cursor:pointer">‹</button>
+          <div id="cal-dp-title" style="font-weight:900;font-size:15px"></div>
+          <button type="button" onclick="_calDpNav(1)" style="background:var(--surface2);border:none;border-radius:8px;width:32px;height:32px;font-size:18px;font-weight:900;cursor:pointer">›</button>
+        </div>
+        <div id="cal-dp-body"></div>
+        <div style="text-align:center;margin-top:8px"><button type="button" onclick="_calDpSelectToday()" style="background:none;border:none;color:var(--gold);font-weight:800;font-size:13px;cursor:pointer">היום</button></div>
+      </div>
+    </div>
     <div class="form-group">
       <label>שעה</label>
       <input id="cal-ev-start" type="text" inputmode="numeric" maxlength="5" placeholder="לדוגמה: 845 ← 8:45" class="form-input" oninput="this.value=this.value.replace(/\D/g,'').slice(0,4)" onblur="this.value=_normalizeTime(this.value)">
@@ -2176,6 +2189,60 @@ function calSelectDay(ds) {
 }
 window.calSelectDay = calSelectDay;
 
+// ── custom date picker for the task modal (matches the home calendar look) ──
+let _calDpMonth = new Date();
+const _CAL_MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+function _setCalDate(ds) {
+  document.getElementById('cal-ev-date').value = ds || '';
+  const disp = document.getElementById('cal-ev-date-display');
+  if (disp) disp.value = ds ? (() => { const [y,m,d] = ds.split('-'); return `${d}/${m}/${y}`; })() : '';
+}
+function _openCalDatePicker() {
+  const p = document.getElementById('cal-date-picker');
+  if (!p) return;
+  if (p.style.display === 'block') { p.style.display = 'none'; return; }
+  const cur = document.getElementById('cal-ev-date').value;
+  _calDpMonth = cur ? new Date(cur + 'T00:00') : new Date();
+  _calDpMonth.setDate(1);
+  _renderCalDatePicker();
+  p.style.display = 'block';
+}
+window._openCalDatePicker = _openCalDatePicker;
+function _renderCalDatePicker() {
+  const body = document.getElementById('cal-dp-body');
+  const title = document.getElementById('cal-dp-title');
+  if (!body) return;
+  const y = _calDpMonth.getFullYear(), m = _calDpMonth.getMonth();
+  if (title) title.textContent = _CAL_MONTHS[m] + ' ' + y;
+  const startDow = new Date(y, m, 1).getDay();
+  const daysInMonth = new Date(y, m+1, 0).getDate();
+  const dows = ['א','ב','ג','ד','ה','ו','ש'];
+  const todayStr = _ymd(new Date());
+  const sel = document.getElementById('cal-ev-date').value;
+  let cells = dows.map(d => `<div class="cal-dow">${d}</div>`).join('');
+  for (let i=0;i<startDow;i++) cells += `<div class="cal-day empty"></div>`;
+  for (let d=1; d<=daysInMonth; d++) {
+    const ds = _ymd(new Date(y, m, d));
+    const cls = ['cal-day'];
+    if (ds === todayStr) cls.push('today');
+    if (ds === sel) cls.push('selected');
+    cells += `<div class="${cls.join(' ')}" onclick="_calDpSelect('${ds}')"><span class="cal-num">${d}</span></div>`;
+  }
+  body.innerHTML = `<div class="cal-grid">${cells}</div>`;
+}
+function _calDpNav(dir) {
+  _calDpMonth = new Date(_calDpMonth.getFullYear(), _calDpMonth.getMonth()+dir, 1);
+  _renderCalDatePicker();
+}
+window._calDpNav = _calDpNav;
+function _calDpSelect(ds) {
+  _setCalDate(ds);
+  const p = document.getElementById('cal-date-picker'); if (p) p.style.display = 'none';
+}
+window._calDpSelect = _calDpSelect;
+function _calDpSelectToday() { _calDpSelect(_ymd(new Date())); }
+window._calDpSelectToday = _calDpSelectToday;
+
 // normalize a free-typed time into HH:MM (e.g. "845" -> "08:45", "8" -> "08:00")
 function _normalizeTime(raw) {
   if (!raw) return '';
@@ -2199,7 +2266,8 @@ window._normalizeTime = _normalizeTime;
 function openAddCalEvent() {
   document.getElementById('cal-ev-id').value = '';
   document.getElementById('cal-ev-title').value = '';
-  document.getElementById('cal-ev-date').value = _calSelected || _ymd(new Date());
+  _setCalDate(_calSelected || _ymd(new Date()));
+  document.getElementById('cal-date-picker').style.display = 'none';
   document.getElementById('cal-ev-start').value = '';
   document.getElementById('cal-ev-notes').value = '';
   document.getElementById('cal-ev-repeat').value = 'none';
@@ -2214,7 +2282,8 @@ function openEditCalEvent(id) {
   if (!e) return;
   document.getElementById('cal-ev-id').value = e.id;
   document.getElementById('cal-ev-title').value = e.title || '';
-  document.getElementById('cal-ev-date').value = e.date || '';
+  _setCalDate(e.date || '');
+  document.getElementById('cal-date-picker').style.display = 'none';
   document.getElementById('cal-ev-start').value = e.startTime || '';
   document.getElementById('cal-ev-notes').value = e.notes || '';
   document.getElementById('cal-ev-repeat').value = e.repeat || 'none';
