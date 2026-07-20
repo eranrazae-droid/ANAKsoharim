@@ -1423,7 +1423,7 @@ if ('serviceWorker' in navigator) {
     </div>
     <div class="form-group">
       <label>תוקף טסט</label>
-      <input type="text" id="pickup-test" placeholder="08/2026" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:14px;box-sizing:border-box">
+      <input type="text" id="pickup-test" placeholder="31/08/2026" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:14px;box-sizing:border-box">
     </div>
     <div class="form-group">
       <label>איש קשר</label>
@@ -8248,22 +8248,29 @@ function renderPickupCars() {
 }
 window.renderPickupCars = renderPickupCars;
 
+// parse either DD/MM/YYYY (current) or legacy MM/YYYY into a Date
+function _parseTestDate(test) {
+  if (!test) return null;
+  const full = String(test).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (full) return new Date(parseInt(full[3]), parseInt(full[2]) - 1, parseInt(full[1]));
+  const legacy = String(test).match(/^(\d{1,2})\/(\d{4})$/);
+  if (legacy) return new Date(parseInt(legacy[2]), parseInt(legacy[1]) - 1, 1);
+  return null;
+}
+
 function _testExpiredSoon(test) {
-  if (!test) return false;
-  const m = test.match(/^(\d{1,2})\/(\d{4})$/);
-  if (!m) return false;
-  const exp = new Date(parseInt(m[2]), parseInt(m[1]) - 1, 1);
+  const exp = _parseTestDate(test);
+  if (!exp) return false;
   const soon = new Date(); soon.setMonth(soon.getMonth() + 2);
   return exp <= soon;
 }
 
-// test has actually expired: valid through the end of MM/YYYY
+// test has actually expired (past today)
 function _testExpired(test) {
-  if (!test) return false;
-  const m = String(test).match(/^(\d{1,2})\/(\d{4})$/);
-  if (!m) return false;
-  const lastDay = new Date(parseInt(m[2]), parseInt(m[1]), 0); // last day of that month
-  return lastDay < new Date();
+  const exp = _parseTestDate(test);
+  if (!exp) return false;
+  const today = new Date(); today.setHours(0,0,0,0);
+  return exp < today;
 }
 
 function _pickupCardHtml(c) {
@@ -8378,6 +8385,10 @@ async function pickupLookupPlate() {
     document.getElementById('pickup-type').value = [maker, model].filter(Boolean).join(' ');
     document.getElementById('pickup-year').value = rec.shnat_yitzur || '';
     document.getElementById('pickup-color').value = rec.tzeva_rechev || '';
+    if (rec.tokef_dt) {
+      const d = new Date(rec.tokef_dt);
+      if (!isNaN(d)) document.getElementById('pickup-test').value = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+    }
     status.textContent = '✅ פרטים נטענו'; status.style.color = 'var(--success,#16a34a)';
   } catch(e) {
     status.textContent = '⚠️ שגיאה בחיבור'; status.style.color = 'var(--danger,#ef4444)';
@@ -8549,7 +8560,7 @@ async function _fetchGovDataForAll(onProgress) {
         // tokef_dt = test/registration validity date, format: "2025-01-31T00:00:00"
         if (rec.tokef_dt) {
           const d = new Date(rec.tokef_dt);
-          if (!isNaN(d)) car.test = `${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+          if (!isNaN(d)) car.test = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
         }
         car._fetched = true;
       }
@@ -8989,7 +9000,7 @@ async function parseFreeTextPickup() {
         car.color = String(rec.tzeva_rechev || car.color || '');
         if (rec.tokef_dt) {
           const d = new Date(rec.tokef_dt);
-          if (!isNaN(d)) car.test = `${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+          if (!isNaN(d)) car.test = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
         }
         car._fetched = true;
       }
