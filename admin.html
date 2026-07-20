@@ -278,6 +278,14 @@
               <label>סטטוס מלאי</label>
               <select id="f-status"><option>זמין מיידי</option><option>אזל במלאי</option></select>
             </div>
+            <div class="form-group" style="grid-column:span 2">
+              <label>תמונה לקטלוג Meta / פיד (URL) — לא מוצגת באתר</label>
+              <input id="f-catimg" type="url" placeholder="https://... תמונה אחת לפיד ה-XML"/>
+            </div>
+            <div class="form-group">
+              <label>הצג בקטלוג Meta</label>
+              <select id="f-metashow"><option value="1">כן — בפיד</option><option value="0">לא — הסתר מהפיד</option></select>
+            </div>
             <div class="form-group" style="grid-column:span 3">
               <label>תיאור קצר</label>
               <textarea id="f-summary" placeholder="תיאור הרכב..."></textarea>
@@ -405,6 +413,18 @@
       <div class="form-group">
         <label>סטטוס מלאי</label>
         <select id="e-status"><option>זמין מיידי</option><option>אזל במלאי</option></select>
+      </div>
+      <div class="form-group" style="grid-column:span 2">
+        <label>תמונה לקטלוג Meta / פיד (URL) — לא מוצגת באתר</label>
+        <input id="e-catimg" type="url" placeholder="https://... תמונה אחת לפיד ה-XML"/>
+      </div>
+      <div class="form-group">
+        <label>הצג בקטלוג Meta</label>
+        <select id="e-metashow"><option value="1">כן — בפיד</option><option value="0">לא — הסתר מהפיד</option></select>
+      </div>
+      <div class="form-group" style="grid-column:span 3">
+        <label>מזהה Meta קבוע (g:id) — לא ניתן לשינוי</label>
+        <input id="e-metaid" type="text" readonly style="background:#f5f5f5;color:#666;font-family:monospace"/>
       </div>
       <input id="e-catalog" type="hidden"/>
       <input id="e-price" type="hidden"/>
@@ -749,6 +769,7 @@
     document.getElementById('appWrapper').classList.remove('hidden');
     loadCarsFromSupabase().then(data => {
       if(data && data.length > 0) { cars = cleanCars(data); localStorage.setItem(STORAGE_KEY, JSON.stringify(cars)); }
+      backfillMetaIds();
       renderAll();
     });
   }
@@ -875,6 +896,34 @@
     saveToCloud(cleaned);
   }
 
+  // מזהה Meta קבוע לכל רכב — נוצר פעם אחת ולא משתנה לעולם (זהה ל-g:id בפיד ול-content_ids באירועי הפיקסל)
+  const META_ID_OVERRIDE = { 'Ultra RWD':'boqwy0lswj','Niro HEV LX':'zusxps8pyt','G6 Core+ RWD':'pji79zen63','SEAL U BOOST':'ldfwwl7bno','SEALION COMF':'ys2yq42hq5' };
+  function _newMetaId(){
+    let s='';
+    const abc='abcdefghijklmnopqrstuvwxyz0123456789';
+    for(let i=0;i<10;i++){ s += abc[Math.floor(Math.random()*abc.length)]; }
+    return s;
+  }
+  function metaIdInUse(id, exceptId){
+    return cars.some(c=>c.meta_content_id===id && c.id!==exceptId);
+  }
+  // מבטיח שלרכב יש מזהה Meta קבוע. מחזיר את המזהה. לא דורס מזהה קיים.
+  function ensureMetaId(car){
+    if(car.meta_content_id) return car.meta_content_id;
+    const model=((car.model)||'').trim();
+    for(const k in META_ID_OVERRIDE){ if(model && (model===k || model.indexOf(k)===0 || k.indexOf(model)===0)){ car.meta_content_id=META_ID_OVERRIDE[k]; return car.meta_content_id; } }
+    let id; do { id=_newMetaId(); } while(metaIdInUse(id, car.id));
+    car.meta_content_id=id;
+    return id;
+  }
+
+  // משייך מזהה Meta קבוע לכל רכב שאין לו — פעם אחת, ושומר. לא משנה מזהים קיימים.
+  function backfillMetaIds(){
+    let changed=false;
+    cars.forEach(c=>{ if(!c.meta_content_id){ ensureMetaId(c); changed=true; } });
+    if(changed){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(cars)); }catch(e){} saveToCloud(cars); }
+  }
+
   function addCar(){
     const brand=document.getElementById('f-brand').value.trim();
     const model=document.getElementById('f-model').value.trim();
@@ -897,8 +946,11 @@
       range:document.getElementById('f-range').value||'',
       catalogPriceNumber:cat,autodealerPriceNumber:price,
       summary:document.getElementById('f-summary').value.trim()||'רכב חדש במבצע.',
-      stockStatus:document.getElementById('f-status').value
+      stockStatus:document.getElementById('f-status').value,
+      catalog_image:document.getElementById('f-catimg').value.trim(),
+      meta_hide:(document.getElementById('f-metashow').value==='0')
     });
+    ensureMetaId(cars[0]);
     saveCars(); saveCarToDB(cars[0]); clearForm();toast('✅ הרכב נוסף למלאי!');showTab('inventory');
   }
 
@@ -917,6 +969,8 @@
     galleryImages=[];
     document.getElementById('f-year').value='2026';
     document.getElementById('f-badge').value='דיל חם';
+    document.getElementById('f-catimg').value='';
+    document.getElementById('f-metashow').value='1';
     calcPreview();
   }
 
@@ -1829,6 +1883,9 @@
     document.getElementById('e-engine').value = c.engine||'בנזין';
     document.getElementById('e-range').value = c.range||'';
     toggleRangeField('e-range-wrap', c.engine||'בנזין');
+    document.getElementById('e-catimg').value = c.catalog_image||'';
+    document.getElementById('e-metashow').value = c.meta_hide ? '0' : '1';
+    document.getElementById('e-metaid').value = ensureMetaId(c);
     document.getElementById('e-catalog').value = c.catalogPriceNumber;
     document.getElementById('e-price').value = c.autodealerPriceNumber;
     document.getElementById('e-cost').value = getCost(c) || '';
@@ -2240,6 +2297,9 @@
         specLink: document.getElementById('e-specLink').value.trim()||'',
         image: (imageVal === '' ? '' : (finalImage||c.image)),
         gallery: editGalleryImages.filter(Boolean).length ? editGalleryImages.filter(Boolean) : (c.gallery||[]),
+        catalog_image: document.getElementById('e-catimg').value.trim(),
+        meta_hide: (document.getElementById('e-metashow').value==='0'),
+        meta_content_id: c.meta_content_id || document.getElementById('e-metaid').value || undefined,
       };
     });
     saveCars();

@@ -43,7 +43,7 @@ exports.handler = async () => {
         : (title + (c.year?(' '+c.year):'') + (c.engine?(' · '+c.engine):'') + ' — רכב חדש 0 ק"מ מיבואן רשמי.');
       const avail = (c.stockStatus === 'אזל במלאי') ? 'out of stock' : 'in stock';
       const link = SITE + '/?car=' + encodeURIComponent(c.id);
-      const img = c.image || (SITE + '/og-image.png');
+      const img = (c.catalog_image && c.catalog_image.trim()) ? c.catalog_image.trim() : (c.image || (SITE + '/og-image.png'));
       lines.push([
         csvCell(id), csvCell(title), csvCell(desc), csvCell(avail), csvCell('new'),
         csvCell(price + ' ILS'), csvCell(link), csvCell(img), csvCell(c.brand||'')
