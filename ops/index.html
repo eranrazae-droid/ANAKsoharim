@@ -370,6 +370,15 @@ if ('serviceWorker' in navigator) {
       <div class="form-group"><label>משעה</label><input id="cal-ev-start" type="time" class="form-input"></div>
       <div class="form-group"><label>עד שעה</label><input id="cal-ev-end" type="time" class="form-input"></div>
     </div>
+    <div class="form-group">
+      <label>חזרה</label>
+      <select id="cal-ev-repeat" class="form-input">
+        <option value="none">לא חוזר</option>
+        <option value="daily">כל יום</option>
+        <option value="weekly">כל שבוע (באותו יום בשבוע)</option>
+        <option value="monthly">כל חודש (באותו תאריך)</option>
+      </select>
+    </div>
     <div class="form-group"><label>הערות</label><textarea id="cal-ev-notes" class="form-textarea" placeholder="הערה חופשית..." rows="2"></textarea></div>
     <button class="btn-submit" onclick="submitCalEvent()" style="width:100%;margin-top:8px">שמור ✅</button>
     <button id="cal-ev-delete-btn" onclick="deleteCalEvent()" style="display:none;width:100%;margin-top:8px;background:#ef4444;color:#fff;border:none;border-radius:10px;padding:10px;font-family:Heebo,sans-serif;font-weight:800;font-size:14px;cursor:pointer">🗑️ מחיקה</button>
@@ -2092,6 +2101,19 @@ function initManagerCalendar() {
   renderCalendar(); renderAgenda();
 }
 
+// does event e occur on date string ds (YYYY-MM-DD), considering its repeat rule
+function _calOccursOn(e, ds) {
+  if (!e.date || ds < e.date) return false;
+  const rep = e.repeat || 'none';
+  if (rep === 'none') return ds === e.date;
+  if (ds === e.date) return true;
+  const a = new Date(e.date + 'T00:00'), b = new Date(ds + 'T00:00');
+  if (rep === 'daily')   return true;
+  if (rep === 'weekly')  return a.getDay() === b.getDay();
+  if (rep === 'monthly') return a.getDate() === b.getDate();
+  return ds === e.date;
+}
+
 function renderCalendar() {
   const title = document.getElementById('cal-title');
   const body = document.getElementById('cal-body');
@@ -2103,8 +2125,6 @@ function renderCalendar() {
   const daysInMonth = new Date(y, m+1, 0).getDate();
   const dows = ['א','ב','ג','ד','ה','ו','ש'];
   const todayStr = _ymd(new Date());
-  const counts = {};
-  _calEvents.forEach(e => { if (e.date) counts[e.date] = (counts[e.date]||0)+1; });
   let cells = dows.map(d => `<div class="cal-dow">${d}</div>`).join('');
   for (let i=0;i<startDow;i++) cells += `<div class="cal-day empty"></div>`;
   for (let d=1; d<=daysInMonth; d++) {
@@ -2112,7 +2132,7 @@ function renderCalendar() {
     const cls = ['cal-day'];
     if (ds === todayStr) cls.push('today');
     if (ds === _calSelected) cls.push('selected');
-    if (counts[ds]) cls.push('has-ev');
+    if (_calEvents.some(e => _calOccursOn(e, ds))) cls.push('has-ev');
     cells += `<div class="${cls.join(' ')}" onclick="calSelectDay('${ds}')"><span class="cal-num">${d}</span></div>`;
   }
   body.innerHTML = `<div class="cal-grid">${cells}</div>`;
@@ -2125,7 +2145,7 @@ function renderAgenda() {
   const sel = _calSelected || _ymd(new Date());
   const [yy,mm,dd] = sel.split('-');
   if (at) at.textContent = `משימות ${dd}/${mm}`;
-  const items = _calEvents.filter(e => e.date === sel)
+  const items = _calEvents.filter(e => _calOccursOn(e, sel))
     .sort((a,b) => (a.startTime||'').localeCompare(b.startTime||''));
   if (!items.length) {
     box.innerHTML = `<div style="color:var(--muted);font-size:13px;padding:14px 4px;text-align:center">אין משימות ליום זה</div>`;
@@ -2133,10 +2153,11 @@ function renderAgenda() {
   }
   box.innerHTML = items.map(e => {
     const time = e.startTime ? (e.endTime ? `${e.startTime}–${e.endTime}` : e.startTime) : '';
+    const rep = (e.repeat && e.repeat !== 'none') ? ' 🔁' : '';
     return `<div onclick="openEditCalEvent('${e.id}')" style="display:flex;gap:10px;align-items:flex-start;background:#fff;border:1px solid var(--border);border-right:4px solid #7c3aed;border-radius:10px;padding:10px 12px;margin-bottom:8px;cursor:pointer">
       ${time ? `<div style="font-size:12px;font-weight:800;color:#7c3aed;white-space:nowrap;min-width:44px">${esc(time)}</div>` : ''}
       <div style="flex:1;min-width:0">
-        <div style="font-weight:700;font-size:14px">${esc(e.title||'')}</div>
+        <div style="font-weight:700;font-size:14px">${esc(e.title||'')}${rep}</div>
         ${e.notes ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">${esc(e.notes)}</div>` : ''}
       </div>
     </div>`;
@@ -2162,6 +2183,7 @@ function openAddCalEvent() {
   document.getElementById('cal-ev-start').value = '';
   document.getElementById('cal-ev-end').value = '';
   document.getElementById('cal-ev-notes').value = '';
+  document.getElementById('cal-ev-repeat').value = 'none';
   document.getElementById('cal-ev-heading').textContent = 'משימה חדשה';
   document.getElementById('cal-ev-delete-btn').style.display = 'none';
   openModal('modal-cal-event');
@@ -2177,6 +2199,7 @@ function openEditCalEvent(id) {
   document.getElementById('cal-ev-start').value = e.startTime || '';
   document.getElementById('cal-ev-end').value = e.endTime || '';
   document.getElementById('cal-ev-notes').value = e.notes || '';
+  document.getElementById('cal-ev-repeat').value = e.repeat || 'none';
   document.getElementById('cal-ev-heading').textContent = 'עריכת משימה';
   document.getElementById('cal-ev-delete-btn').style.display = 'block';
   openModal('modal-cal-event');
@@ -2190,14 +2213,15 @@ async function submitCalEvent() {
   const startTime = document.getElementById('cal-ev-start').value;
   const endTime = document.getElementById('cal-ev-end').value;
   const notes = document.getElementById('cal-ev-notes').value.trim();
+  const repeat = document.getElementById('cal-ev-repeat').value || 'none';
   if (!title) return showToast('נא להזין כותרת');
   if (!date) return showToast('נא לבחור תאריך');
   const { addDoc, updateDoc, doc, collection, serverTimestamp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
   try {
     if (id) {
-      await updateDoc(doc(window._db,'calendar_events',id), { title, date, startTime, endTime, notes });
+      await updateDoc(doc(window._db,'calendar_events',id), { title, date, startTime, endTime, notes, repeat });
     } else {
-      await addDoc(collection(window._db,'calendar_events'), { title, date, startTime, endTime, notes, createdAt: serverTimestamp() });
+      await addDoc(collection(window._db,'calendar_events'), { title, date, startTime, endTime, notes, repeat, createdAt: serverTimestamp() });
     }
     _calSelected = date;
     const [yy,mm] = date.split('-'); _calMonth = new Date(+yy, +mm-1, 1);
