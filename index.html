@@ -427,15 +427,45 @@ display:none !important;
     const SB_KEY = 'sb_publishable_E6Dd48mtyJyw5_6vgP2lzw_Gaj-QcAx';
     const SITE_SOURCE = 'אוטודילר'; // מזהה מקור הליד (JOY MOTORS משתמש בערך אחר)
 
-    // ===== Meta Pixel — אירועי המרה =====
-    const COUPON_VALUE = 300; // סכום הקופון בפועל (לא מחיר הרכב)
+    // ===== Meta — אירועי המרה + Conversions API =====
+    const COUPON_VALUE = 300; // סכום הקופון בפועל (לא מחיר הרכב), ILS
+    // דריסות מזהי מוצר לרכבים ספציפיים (זהים לקטלוג Meta). כל השאר מקבל מזהה יציב אוטומטי.
+    const META_ID_OVERRIDE = { 'Ultra RWD':'boqwy0lswj','Niro HEV LX':'zusxps8pyt','G6 Core+ RWD':'pji79zen63','SEAL U BOOST':'ldfwwl7bno','SEALION COMF':'ys2yq42hq5' };
+    function _stableId(s){ s=(s||'').toString(); var h=5381; for(var i=0;i<s.length;i++){ h=(((h<<5)+h)+s.charCodeAt(i))&0xffffffff; } return 'ad'+(h>>>0).toString(36); }
+    function metaContentId(car){
+      if(!car) return '';
+      if(car.metaContentId) return car.metaContentId;
+      var model=(car.model||'').trim();
+      for(var k in META_ID_OVERRIDE){ if(model && (model===k || model.indexOf(k)===0 || k.indexOf(model)===0)) return META_ID_OVERRIDE[k]; }
+      return _stableId(((car._rawBrand||car.brand||'')+'|'+model));
+    }
     function adGenId(){ return 'ad_' + Date.now().toString(36) + Math.random().toString(36).slice(2,9); }
-    function fbqTrack(ev, params, opts){ try{ if(typeof fbq==='function'){ opts ? fbq('track', ev, params||{}, opts) : fbq('track', ev, params||{}); } }catch(e){} }
+    function _getCookie(n){ try{ var m=document.cookie.match('(^|;)\\s*'+n+'\\s*=\\s*([^;]+)'); return m?m.pop():''; }catch(e){ return ''; } }
+    // פרמטרים סטנדרטיים לאירוע רכב (content_ids + contents לפי דרישת Meta)
     function adCarParams(){
       var c = (typeof selectedCar!=='undefined' && selectedCar) ? selectedCar : null;
-      if(!c) return {};
-      return { content_ids:[String(c.id)], content_type:'product', content_name:((c.brand||'')+' '+(c.model||'')).trim() };
+      if(!c) return { value:COUPON_VALUE, currency:'ILS' };
+      var id = metaContentId(c);
+      return {
+        content_ids:[id], content_type:'product',
+        content_name:((c.brand||'')+' '+(c.model||'')).trim(),
+        contents:[{ id:id, quantity:1, item_price:COUPON_VALUE }],
+        value:COUPON_VALUE, currency:'ILS'
+      };
     }
+    // שולח אירוע גם לפיקסל (דפדפן) וגם ל-Conversions API (שרת) — אותו event_id ל-deduplication
+    function fbEvent(ev, custom, opts){
+      opts = opts||{};
+      var eventID = opts.eventID || adGenId();
+      try{ if(typeof fbq==='function') fbq('track', ev, custom||{}, { eventID: eventID }); }catch(e){}
+      try{
+        fetch('/.netlify/functions/capi', { method:'POST', headers:{'Content-Type':'application/json'}, keepalive:true,
+          body: JSON.stringify({ event_name:ev, event_id:eventID, event_source_url:location.href,
+            custom_data:custom||{}, user_data:{ fbp:_getCookie('_fbp'), fbc:_getCookie('_fbc') }, order_id:opts.order_id||null }) }).catch(function(){});
+      }catch(e){}
+      return eventID;
+    }
+    function fbqTrack(ev, params, opts){ try{ if(typeof fbq==='function'){ opts ? fbq('track', ev, params||{}, opts) : fbq('track', ev, params||{}); } }catch(e){} }
     window._adOrder = null; // הזמנה נוכחית (order_id + event_id ל-dedup)
     // Contact בלחיצה על וואטסאפ / טלפון
     document.addEventListener('click', function(e){
@@ -444,7 +474,7 @@ display:none !important;
         if(!el) return;
         var href = (el.getAttribute && el.getAttribute('href')) || '';
         var onc = (el.getAttribute && el.getAttribute('onclick')) || '';
-        if(/wa\.me|whatsapp/i.test(href+onc) || /^tel:/i.test(href)){ fbqTrack('Contact', {}); }
+        if(/wa\.me|whatsapp/i.test(href+onc) || /^tel:/i.test(href)){ fbEvent('Contact', {}); }
       }catch(_){}
     }, true);
     let _sb = null;
@@ -458,6 +488,7 @@ display:none !important;
       }catch(e){ console.warn('sbLoad ex', e); return null; }
     }
   </script>
+  <meta name="facebook-domain-verification" content="azan2vduymyl0fpdev2pkai5dsy21m" />
   <!-- Meta Pixel Code -->
   <script>
   !function(f,b,e,v,n,t,s)
@@ -1294,6 +1325,11 @@ display:none !important;
           </div>
 
           <div>
+            <h2 style="font-size:20px;margin-bottom:12px">5א. פיקסל של Meta (Facebook), התאמה מתקדמת ו-Conversions API</h2>
+            <p style="line-height:1.9;color:var(--muted)">האתר עושה שימוש ב-<strong>Meta Pixel</strong> וב-<strong>Conversions API</strong> של חברת Meta (Facebook / Instagram) לצורך מדידת ביצועי פרסום, ניתוח שימוש והצגת מודעות מותאמות. במסגרת זו נאספים נתונים כגון דפים שנצפו, אירועי המרה (צפייה ברכב, התחלת רכישת קופון, השלמת רכישה, השארת פרטים ויצירת קשר), מזהי עוגיות של Meta (‎_fbp / _fbc), כתובת IP וסוג הדפדפן. חלק מהנתונים נשלחים גם משרתי האתר ישירות ל-Meta (Conversions API) לצורך מדידה מדויקת ומניעת כפילויות. ייתכן שימוש ב<strong>התאמה מתקדמת (Advanced Matching)</strong> להתאמת האירועים לחשבון המשתמש ב-Meta. השימוש בכלים אלה כפוף למנגנון ההסכמה לעוגיות שבאתר — ניתן לסרב או לנהל את ההעדפות דרך באנר העוגיות והגדרות הדפדפן. למידע נוסף ראו את <a href="https://www.facebook.com/privacy/policy/" target="_blank" rel="noreferrer" style="color:#a16207;font-weight:700">מדיניות הפרטיות של Meta</a>.</p>
+          </div>
+
+          <div>
             <h2 style="font-size:20px;margin-bottom:12px">6. זכויותיך</h2>
             <p style="line-height:1.9;color:var(--muted)">בהתאם לחוק הגנת הפרטיות, יש לך זכות לעיין במידע שנאסף עליך, לבקש תיקון מידע שגוי ולבקש מחיקת המידע שלך ממאגרי הנתונים שלנו. לפנייה בנושא זה:</p>
             <div style="margin-top:12px;display:grid;gap:8px;color:var(--muted)">
@@ -1839,7 +1875,7 @@ display:none !important;
     // תרגום שמות יצרנים לעברית (דגם ותת-דגם נשארים באנגלית - שמות רשמיים)
     const BRAND_HE={'BYD':'בי.ווי.די','MG':"אם.ג'י",'AVATR':'אווטאר','XPENG':'אקספנג','LEAPMOTOR':'ליפמוטור','GEELY':'גילי','JAECOO':"ג'אקו",'CHERY':"צ'רי",'OMODA':'אומודה'};
     function heBrand(b){ return BRAND_HE[(b||'').trim().toUpperCase()]||b; }
-    function cleanCars(arr){ return hideRemoved(arr).map(c=>({...c,brand:heBrand(c.brand),image:(c.image&&c.image.includes('supabase.co'))?'':c.image,gallery:(c.gallery||[]).filter(g=>g&&!g.includes('supabase.co'))})); }
+    function cleanCars(arr){ return hideRemoved(arr).map(c=>{ var o={...c,_rawBrand:c.brand,brand:heBrand(c.brand),image:(c.image&&c.image.includes('supabase.co'))?'':c.image,gallery:(c.gallery||[]).filter(g=>g&&!g.includes('supabase.co'))}; o.metaContentId=metaContentId(o); return o; }); }
     async function initCars(){
       // Try cloud first, then localStorage, then seed data
       const fromCloud = await loadFromCloud();
@@ -2335,6 +2371,7 @@ display:none !important;
       const titles = {homePage:'אוטודילר',catalogPage:'רכבים | אוטודילר',carPage:'רכב | אוטודילר',checkoutPage:'שריון | אוטודילר'};
       history.pushState({page:id}, titles[id]||'אוטודילר', '#'+id);
       _toggleBack(id);
+      try{ if(typeof fbq==='function') fbq('track','PageView'); }catch(e){}
     }
     function goHome(){ window._navStack=[]; showPage('homePage', true); }
     function goBack(){
@@ -2412,7 +2449,7 @@ display:none !important;
     function openCar(id){
       selectedCar = enrich(cars.find(c => c.id === id));
       selectedTrack = "";
-      fbqTrack('ViewContent', Object.assign({value:COUPON_VALUE, currency:'ILS'}, adCarParams()));
+      fbEvent('ViewContent', adCarParams());
       document.getElementById('carBreadcrumb').textContent = `${selectedCar.brand} ${selectedCar.model}`;
       const hasRealImage = selectedCar.image && !selectedCar.image.startsWith('data:image/svg');
       const carImageWrap = document.getElementById('carImage').parentElement;
@@ -2558,6 +2595,7 @@ display:none !important;
       document.getElementById('carPage').classList.add('active');
       history.pushState({page:'carPage'},'רכב | אוטודילר','#carPage');
       _toggleBack('carPage');
+      try{ if(typeof fbq==='function') fbq('track','PageView'); }catch(e){}
       window.scrollTo({top:0, behavior:'smooth'});
       const homeExtra = document.getElementById('homeExtra');
       if(homeExtra) homeExtra.style.display = 'none';
@@ -2772,9 +2810,9 @@ display:none !important;
       const pb=document.getElementById('paymentSection');
       if(pb){ pb.style.display='block'; setTimeout(function(){ pb.scrollIntoView({behavior:'smooth',block:'center'}); },80); }
       saveLead('התחיל תשלום קופון');
-      if(window._adOrder && !window._adOrder.addPayFired){
-        fbqTrack('AddPaymentInfo', Object.assign({value:COUPON_VALUE, currency:'ILS'}, adCarParams()));
-        window._adOrder.addPayFired = true;
+      if(window._adOrder && !window._adOrder.initFired){
+        fbEvent('InitiateCheckout', adCarParams());
+        window._adOrder.initFired = true;
       }
     }
 
@@ -2820,9 +2858,9 @@ display:none !important;
         showPage('catalogPage');
         return;
       }
-      // הזמנה חדשה + InitiateCheckout
-      window._adOrder = { order_id: adGenId(), event_id: adGenId(), purchaseFired:false, addPayFired:false };
-      fbqTrack('InitiateCheckout', Object.assign({value:COUPON_VALUE, currency:'ILS'}, adCarParams()));
+      // הזמנה חדשה + AddToCart (בחירת רכב לרכישת קופון)
+      window._adOrder = { order_id: adGenId(), event_id: adGenId(), purchaseFired:false, initFired:false };
+      fbEvent('AddToCart', adCarParams());
       const wrap = document.getElementById('checkoutWrap');
       wrap.innerHTML = `
         <div class="voucher-checkout">
@@ -2898,9 +2936,9 @@ display:none !important;
         if(window._adOrder && !window._adOrder.purchaseFired){
           var okKey = 'ad_purchased_' + window._adOrder.order_id;
           if(!localStorage.getItem(okKey)){
-            fbqTrack('Purchase',
-              Object.assign({ value:COUPON_VALUE, currency:'ILS', order_id: window._adOrder.order_id }, adCarParams()),
-              { eventID: window._adOrder.event_id });
+            fbEvent('Purchase',
+              Object.assign({ order_id: window._adOrder.order_id }, adCarParams()),
+              { eventID: window._adOrder.event_id, order_id: window._adOrder.order_id });
             try{ localStorage.setItem(okKey, '1'); }catch(e){}
           }
           window._adOrder.purchaseFired = true;
@@ -2992,6 +3030,21 @@ display:none !important;
     initCars();
     renderLeads();
     previewAdminCalc();
+
+    // קישור עמוק מהפיד/מודעה: /?car=<id> — פותח את עמוד הרכב לאחר טעינת המלאי
+    (function openDeepLinkCar(){
+      try{
+        var m = (location.search.match(/[?&]car=([^&]+)/) || (location.hash||'').match(/car[=\-]([^&]+)/));
+        if(!m) return;
+        var cid = decodeURIComponent(m[1]); var tries=0;
+        var iv = setInterval(function(){
+          tries++;
+          var car = (typeof cars!=='undefined') && cars.find(function(c){ return String(c.id)===String(cid); });
+          if(car){ clearInterval(iv); openCar(car.id); }
+          else if(tries>40){ clearInterval(iv); }
+        }, 200);
+      }catch(e){}
+    })();
   </script>
 
   <!-- כפתור נגישות -->
@@ -3226,7 +3279,7 @@ display:none !important;
           if(res2&&res2.error){ await c.from('leads').insert(row); }
         }
       } }catch(e){ console.warn('chat lead', e); }
-      fbqTrack('Lead', {content_name:'צ׳אט ייעוץ', currency:'ILS', value:0});
+      fbEvent('Lead', {content_name:'צ׳אט ייעוץ', currency:'ILS', value:0});
       document.getElementById('chatForm').style.display='none';
       document.getElementById('chatThanks').style.display='block';
     }
@@ -3246,7 +3299,7 @@ display:none !important;
           if(res2&&res2.error){ await c.from('leads').insert(row); }
         }
       } }catch(e){ console.warn('car page lead', e); }
-      fbqTrack('Lead', Object.assign({content_name:'עמוד רכב', currency:'ILS', value:0}, adCarParams()));
+      fbEvent('Lead', Object.assign({content_name:'עמוד רכב', currency:'ILS'}, adCarParams()));
       document.getElementById('cpLeadForm').style.display='none';
       document.getElementById('cpLeadThanks').style.display='block';
     }
