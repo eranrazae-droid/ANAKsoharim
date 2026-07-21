@@ -1705,7 +1705,7 @@ if ('serviceWorker' in navigator) {
 <!-- ====== FIREBASE ====== -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, initializeFirestore, collection, addDoc, onSnapshot, doc, updateDoc, setDoc, query, orderBy, serverTimestamp, where }
+import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, setDoc, query, orderBy, serverTimestamp, where }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
@@ -1729,16 +1729,7 @@ const CONFIG_DONE = !firebaseConfig.apiKey.includes("PASTE");
 let db, app, storage;
 if (CONFIG_DONE) {
   app     = initializeApp(firebaseConfig);
-  // Force long-polling. On this network the default WebSocket streaming
-  // transport stalls, which made every onSnapshot AND every write hang.
-  // Forcing long-polling skips the stalling stream entirely (auto-detect
-  // still tries the stream first and eats the timeout), so screens load and
-  // writes complete reliably.
-  try {
-    db = initializeFirestore(app, { experimentalForceLongPolling: true }, 'default');
-  } catch (_e) {
-    db = getFirestore(app, 'default');
-  }
+  db      = getFirestore(app, 'default');
   storage = getStorage(app);
 }
 
