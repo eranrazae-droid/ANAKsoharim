@@ -8726,10 +8726,11 @@ window.deletePickupCar = deletePickupCar;
 
 // ── Upload ownership transfers: split file into pages, OCR the plate on each,
 //    and attach every page to the matching pickup car ──
-let _ownershipPages = []; // [{ img, plate, carId }]
+let _ownFlow = null; // { images, idx, pages:[{img,plate,carId}], worker, pendingCarId }
 
 function openOwnershipModal() {
-  _ownershipPages = [];
+  if (_ownFlow && _ownFlow.worker) { try { _ownFlow.worker.terminate(); } catch (e) {} }
+  _ownFlow = null;
   document.getElementById('ownership-file').value = '';
   document.getElementById('ownership-status').textContent = '';
   document.getElementById('ownership-results').innerHTML = '';
@@ -8830,6 +8831,31 @@ function _matchNearestPlate(tokens) {
   return { plate: tokens[0] || '', carId: null };
 }
 
+// Rich, early-exit plate OCR for one page. Tries the tight plate-cell crop
+// first (fast), then the top region, then wider/offset crops — stopping as
+// soon as a token snaps to a known pickup plate.
+async function _ownOcrPage(worker, img) {
+  let tokens = [];
+  const groups = [
+    [{ x0: 0.55, y0: 0.15, x1: 0.80, y1: 0.215 }, 4, ['6', '7']],
+    [{ x1: 1, y1: 0.45 }, 2, ['6', '11']],
+    [{ x0: 0.55, y0: 0.15, x1: 0.80, y1: 0.215 }, 4, ['8', '11']],
+    [{ x0: 0.52, y0: 0.135, x1: 0.82, y1: 0.205 }, 4, ['6', '7', '11']],
+    [{ x0: 0.50, y0: 0.16, x1: 0.86, y1: 0.225 }, 4, ['6', '11']],
+    [{ x1: 1, y1: 0.55 }, 2, ['4', '3']],
+  ];
+  for (const [box, scale, psms] of groups) {
+    const prep = await _prepRegion(img, box, scale);
+    for (const psm of psms) {
+      await worker.setParameters({ tessedit_pageseg_mode: psm });
+      tokens = tokens.concat(_plateTokens((await worker.recognize(prep)).data.text));
+    }
+    const m = _matchNearestPlate(tokens);
+    if (m.carId) return m;
+  }
+  return _matchNearestPlate(tokens);
+}
+
 async function handleOwnershipFiles(input) {
   const files = [...(input.files || [])];
   if (!files.length) return;
@@ -8837,9 +8863,7 @@ async function handleOwnershipFiles(input) {
   const results = document.getElementById('ownership-results');
   results.innerHTML = '';
   document.getElementById('ownership-commit-btn').style.display = 'none';
-  _ownershipPages = [];
   try {
-    // 1) turn every file into page images
     status.textContent = '⏳ מפצל את הקובץ לעמודים...';
     const images = [];
     for (const f of files) {
@@ -8847,38 +8871,10 @@ async function handleOwnershipFiles(input) {
       else if (f.type.startsWith('image/')) images.push(await _fileToDataUrl(f));
     }
     if (!images.length) { status.textContent = 'לא זוהו עמודים בקובץ'; return; }
-
-    // 2) OCR each page to read the plate (digits-only, contrast-stretched header)
     const worker = await Tesseract.createWorker('eng', 1);
     await worker.setParameters({ tessedit_char_whitelist: '0123456789' });
-    for (let i = 0; i < images.length; i++) {
-      status.textContent = `⏳ מזהה מספרי רכב... ${i + 1}/${images.length}`;
-      let plate = '', carId = null;
-      try {
-        let tokens = [];
-        // pass A: whole top region (top 45%), two page-seg modes
-        const header = await _prepRegion(images[i], { x1: 1, y1: 0.45 }, 2);
-        for (const psm of ['6', '11']) {
-          await worker.setParameters({ tessedit_pageseg_mode: psm });
-          tokens = tokens.concat(_plateTokens((await worker.recognize(header)).data.text));
-        }
-        // pass B: tight crop on the "מספר הרכב" value cell, zoomed 4x
-        const cell = await _prepRegion(images[i], { x0: 0.55, y0: 0.15, x1: 0.80, y1: 0.215 }, 4);
-        for (const psm of ['6', '7', '8', '11']) {
-          await worker.setParameters({ tessedit_pageseg_mode: psm });
-          tokens = tokens.concat(_plateTokens((await worker.recognize(cell)).data.text));
-        }
-        const m = _matchNearestPlate(tokens);
-        plate = m.plate; carId = m.carId;
-      } catch (e) { console.error('ownership OCR failed', e); }
-      _ownershipPages.push({ img: images[i], plate, carId });
-    }
-    await worker.terminate();
-
-    const matched = _ownershipPages.filter(p => p.carId).length;
-    status.textContent = `זוהו ${_ownershipPages.length} עמודים • ${matched} שויכו אוטומטית. בדוק ואשר:`;
-    _renderOwnershipResults();
-    document.getElementById('ownership-commit-btn').style.display = 'block';
+    _ownFlow = { images, idx: 0, pages: [], worker, pendingCarId: null };
+    await _ownProcessNext();
   } catch (e) {
     console.error('handleOwnershipFiles error', e);
     status.textContent = 'שגיאה בעיבוד הקובץ';
@@ -8886,47 +8882,91 @@ async function handleOwnershipFiles(input) {
 }
 window.handleOwnershipFiles = handleOwnershipFiles;
 
-function _renderOwnershipResults() {
-  const box = document.getElementById('ownership-results');
-  const carOptions = _pickupAllCars
-    .slice()
-    .sort((a, b) => _normPlate(a.plate).localeCompare(_normPlate(b.plate)))
-    .map(c => ({ id: c.id, label: `${c.plate || ''}${c.type ? ' — ' + c.type : ''}` }));
-  box.innerHTML = _ownershipPages.map((p, idx) => {
-    const car = p.carId ? _pickupAllCars.find(c => c.id === p.carId) : null;
-    if (car) {
-      // auto-matched — green, just for confirmation
-      const label = `${car.plate || ''}${car.type ? ' — ' + car.type : ''}`;
-      return `<div style="display:flex;gap:10px;align-items:center;background:#dcfce7;border-radius:12px;padding:10px;border-right:4px solid #059669">
-        <img src="${p.img}" onclick="openLightbox(this.src)" style="width:52px;height:66px;object-fit:cover;border-radius:6px;cursor:zoom-in;flex-shrink:0;border:1px solid var(--border)">
-        <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:800;color:#166534">✅ מספר רכב: ${esc(p.plate)}</div>
-          <div style="font-size:12px;color:#166534;margin-top:3px">ישויך ל: <b>${esc(label)}</b></div>
-        </div>
-      </div>`;
-    }
-    // not matched automatically — fallback manual pick
-    const opts = ['<option value="">— בחר רכב ידנית —</option>']
-      .concat(carOptions.map(o => `<option value="${o.id}">${esc(o.label)}</option>`))
-      .join('');
-    return `<div style="display:flex;gap:10px;align-items:center;background:var(--surface2);border-radius:12px;padding:10px;border-right:4px solid #f59e0b">
-      <img src="${p.img}" onclick="openLightbox(this.src)" style="width:52px;height:66px;object-fit:cover;border-radius:6px;cursor:zoom-in;flex-shrink:0;border:1px solid var(--border)">
-      <div style="flex:1;min-width:0">
-        <div style="font-size:13px;font-weight:800;margin-bottom:4px;color:#b45309">⚠️ ${p.plate ? 'מספר ' + esc(p.plate) + ' לא נמצא ברשימה' : 'לא זוהה מספר רכב'}</div>
-        <select onchange="setOwnershipCar(${idx}, this.value)" style="width:100%;padding:7px 9px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-family:Heebo,sans-serif;font-size:13px">${opts}</select>
-      </div>
-    </div>`;
-  }).join('');
+function _ownCarOptions() {
+  return ['<option value="">— בחר רכב —</option>']
+    .concat(_pickupAllCars.slice()
+      .sort((a, b) => _normPlate(a.plate).localeCompare(_normPlate(b.plate)))
+      .map(c => `<option value="${c.id}">${esc((c.plate || '') + (c.type ? ' — ' + c.type : ''))}</option>`))
+    .join('');
 }
 
-function setOwnershipCar(idx, carId) {
-  if (_ownershipPages[idx]) { _ownershipPages[idx].carId = carId || null; _renderOwnershipResults(); }
+function _ownDoneListHtml() {
+  if (!_ownFlow || !_ownFlow.pages.length) return '';
+  return '<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px">' + _ownFlow.pages.map(p => {
+    const car = _pickupAllCars.find(c => c.id === p.carId);
+    const label = car ? (car.plate || '') + (car.type ? ' — ' + car.type : '') : p.plate;
+    return `<div style="background:#dcfce7;border-radius:8px;padding:6px 10px;border-right:3px solid #059669;font-size:12px;font-weight:700;color:#166534">✅ ${esc(p.plate || '')} → ${esc(label)}</div>`;
+  }).join('') + '</div>';
 }
-window.setOwnershipCar = setOwnershipCar;
+
+async function _ownProcessNext() {
+  const f = _ownFlow; if (!f) return;
+  const status = document.getElementById('ownership-status');
+  const results = document.getElementById('ownership-results');
+  const n = f.images.length;
+  if (f.idx >= n) {
+    try { await f.worker.terminate(); } catch (e) {}
+    status.textContent = `✅ כל ${n} העמודים שויכו. אשר להצמדה:`;
+    results.innerHTML = _ownDoneListHtml();
+    document.getElementById('ownership-commit-btn').style.display = 'block';
+    return;
+  }
+  const cur = f.idx + 1;
+  status.textContent = `🔍 מזהה רכב ${cur} מתוך ${n}...`;
+  results.innerHTML = _ownDoneListHtml() +
+    `<div style="text-align:center;background:var(--surface2);border-radius:12px;padding:12px">
+      <div style="font-weight:800;margin-bottom:8px">עמוד ${cur} מתוך ${n}</div>
+      <img src="${f.images[f.idx]}" style="max-height:220px;max-width:100%;border-radius:8px;border:1px solid var(--border)">
+      <div style="margin-top:8px;color:var(--muted);font-size:13px">⏳ מזהה מספר רכב...</div>
+    </div>`;
+  await new Promise(r => setTimeout(r, 40)); // let the UI paint before the heavy OCR
+  let m = { plate: '', carId: null };
+  try { m = await _ownOcrPage(f.worker, f.images[f.idx]); } catch (e) { console.error('own ocr', e); }
+  if (m.carId) {
+    f.pages.push({ img: f.images[f.idx], plate: m.plate, carId: m.carId });
+    f.idx++;
+    return _ownProcessNext();
+  }
+  // not matched — block here until the user assigns this page to a car
+  f.pendingCarId = null;
+  status.textContent = `⚠️ עמוד ${cur} מתוך ${n} — בחר רכב כדי להמשיך`;
+  results.innerHTML = _ownDoneListHtml() +
+    `<div style="background:#fff7ed;border:1px solid #f59e0b;border-radius:12px;padding:12px">
+      <div style="font-weight:800;color:#b45309;margin-bottom:8px">⚠️ עמוד ${cur} מתוך ${n} — לא זוהה אוטומטית${m.plate ? ` (נקרא: ${esc(m.plate)})` : ''}</div>
+      <div style="text-align:center;margin-bottom:10px"><img src="${f.images[f.idx]}" onclick="openLightbox(this.src)" style="max-height:260px;max-width:100%;border-radius:8px;border:1px solid var(--border);cursor:zoom-in"></div>
+      <select onchange="_ownManualSelect(this.value)" style="width:100%;padding:9px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-family:Heebo,sans-serif;font-size:14px;margin-bottom:10px">${_ownCarOptions()}</select>
+      <button id="own-continue-btn" onclick="_ownContinue()" disabled style="width:100%;padding:12px;border-radius:10px;border:none;background:#9ca3af;color:#fff;font-family:Heebo,sans-serif;font-weight:800;font-size:14px;cursor:not-allowed">המשך לעמוד הבא ←</button>
+    </div>`;
+}
+
+function _ownManualSelect(carId) {
+  if (!_ownFlow) return;
+  _ownFlow.pendingCarId = carId || null;
+  const btn = document.getElementById('own-continue-btn');
+  if (btn) {
+    const on = !!carId;
+    btn.disabled = !on;
+    btn.style.background = on ? '#059669' : '#9ca3af';
+    btn.style.cursor = on ? 'pointer' : 'not-allowed';
+  }
+}
+window._ownManualSelect = _ownManualSelect;
+
+function _ownContinue() {
+  const f = _ownFlow; if (!f) return;
+  if (!f.pendingCarId) { showToast('בחר רכב לעמוד זה'); return; }
+  const car = _pickupAllCars.find(c => c.id === f.pendingCarId);
+  f.pages.push({ img: f.images[f.idx], plate: car ? _normPlate(car.plate) : '', carId: f.pendingCarId });
+  f.pendingCarId = null;
+  f.idx++;
+  _ownProcessNext();
+}
+window._ownContinue = _ownContinue;
 
 async function commitOwnershipAttach() {
-  const toAttach = _ownershipPages.filter(p => p.carId);
-  if (!toAttach.length) { showToast('לא נבחר אף רכב לשיוך'); return; }
+  const f = _ownFlow;
+  const toAttach = (f ? f.pages : []).filter(p => p.carId);
+  if (!toAttach.length) { showToast('אין עמודים לשיוך'); return; }
   const btn = document.getElementById('ownership-commit-btn');
   btn.disabled = true;
   const { updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
