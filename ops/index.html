@@ -1385,6 +1385,7 @@ if ('serviceWorker' in navigator) {
     </select>
     <button id="pickup-sort-btn" onclick="cyclePickupSort()" style="flex:1;min-width:160px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;text-align:center">סינון לפי זמן המתנה מהגבוה לנמוך</button>
     <button id="pickup-select-btn" onclick="togglePickupSelectMode()" style="flex:1;min-width:120px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;text-align:center">☑️ בחירה מרובה</button>
+    <button onclick="openOwnershipModal()" style="flex:1;min-width:150px;padding:8px 10px;border-radius:10px;border:none;background:#7c3aed;color:#fff;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer;text-align:center">📤 העלאת בעלויות</button>
   </div>
   <div style="padding:12px 16px 0" id="pickup-list">
     <div class="loading"><div class="spinner"></div> טוען...</div>
@@ -1489,6 +1490,19 @@ if ('serviceWorker' in navigator) {
       <div id="pickup-doc-preview" style="margin-top:8px"></div>
     </div>
     <button class="btn-submit" id="pickup-submit-btn" onclick="submitPickupCar()">✅ הוסף רכב</button>
+  </div>
+</div>
+
+<!-- ====== MODAL: UPLOAD OWNERSHIP TRANSFERS ====== -->
+<div class="modal-overlay" id="modal-upload-ownership">
+  <div class="modal-box" style="max-height:90vh;overflow-y:auto">
+    <div class="modal-title">📤 העלאת בעלויות <button class="modal-close" onclick="closeModal('modal-upload-ownership')">✕</button></div>
+    <p style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:12px">העלה קובץ PDF (מספר עמודים) או תמונות של אישורי העברת בעלות. המערכת תפצל לפי עמוד, תזהה את מספר הרכב בכל דף, ותצמיד כל בעלות לרכב המתאים ברשימת האיסוף.</p>
+    <input type="file" id="ownership-file" accept="image/*,application/pdf" multiple style="display:none" onchange="handleOwnershipFiles(this)">
+    <button type="button" onclick="document.getElementById('ownership-file').click()" style="width:100%;background:#6366f1;color:#fff;border:none;border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-weight:800;font-size:15px;cursor:pointer">📎 בחר קובץ / תמונות</button>
+    <div id="ownership-status" style="margin-top:12px;font-size:13px;color:var(--muted);text-align:center"></div>
+    <div id="ownership-results" style="margin-top:12px;display:flex;flex-direction:column;gap:10px"></div>
+    <button id="ownership-commit-btn" onclick="commitOwnershipAttach()" style="display:none;width:100%;margin-top:14px;background:#059669;color:#fff;border:none;border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-weight:800;font-size:15px;cursor:pointer">✅ שייך והצמד לרכבים</button>
   </div>
 </div>
 
@@ -1710,6 +1724,9 @@ if ('serviceWorker' in navigator) {
 <script defer src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <!-- html2pdf for PDF download -->
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<!-- pdf.js for reading/splitting uploaded PDF ownership files -->
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>window.addEventListener('load',()=>{ if(window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; });</script>
 
 <!-- ====== FIREBASE ====== -->
 <script type="module">
@@ -8699,6 +8716,155 @@ async function deletePickupCar(id) {
   showToast('הרכב הוסר');
 }
 window.deletePickupCar = deletePickupCar;
+
+// ── Upload ownership transfers: split file into pages, OCR the plate on each,
+//    and attach every page to the matching pickup car ──
+let _ownershipPages = []; // [{ img, plate, carId }]
+
+function openOwnershipModal() {
+  _ownershipPages = [];
+  document.getElementById('ownership-file').value = '';
+  document.getElementById('ownership-status').textContent = '';
+  document.getElementById('ownership-results').innerHTML = '';
+  document.getElementById('ownership-commit-btn').style.display = 'none';
+  openModal('modal-upload-ownership');
+}
+window.openOwnershipModal = openOwnershipModal;
+
+async function _pdfFileToImages(file) {
+  if (!window.pdfjsLib) throw new Error('pdf.js not loaded');
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  const imgs = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const vp1 = page.getViewport({ scale: 1 });
+    const scale = Math.min(2, 1100 / vp1.width);
+    const vp = page.getViewport({ scale });
+    const canvas = document.createElement('canvas');
+    canvas.width = vp.width; canvas.height = vp.height;
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+    imgs.push(canvas.toDataURL('image/jpeg', 0.72));
+  }
+  return imgs;
+}
+
+function _fileToDataUrl(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = e => res(e.target.result);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
+
+function _normPlate(p) { return String(p || '').replace(/\D/g, ''); }
+
+function _extractPlateMatch(text) {
+  const tokens = (text.match(/\d{6,9}/g) || []).filter(t => t.length === 7 || t.length === 8);
+  const known = _pickupAllCars.map(c => ({ id: c.id, plate: _normPlate(c.plate) })).filter(c => c.plate);
+  // exact match to a car already in the pickup list
+  for (const t of tokens) {
+    const hit = known.find(k => k.plate === t);
+    if (hit) return { plate: t, carId: hit.id };
+  }
+  // tolerate a single OCR misread digit
+  for (const t of tokens) {
+    for (const k of known) {
+      if (Math.abs(k.plate.length - t.length) <= 1 && _levenshtein(t, k.plate) <= 1) return { plate: k.plate, carId: k.id };
+    }
+  }
+  return { plate: tokens[0] || '', carId: null };
+}
+
+async function handleOwnershipFiles(input) {
+  const files = [...(input.files || [])];
+  if (!files.length) return;
+  const status = document.getElementById('ownership-status');
+  const results = document.getElementById('ownership-results');
+  results.innerHTML = '';
+  document.getElementById('ownership-commit-btn').style.display = 'none';
+  _ownershipPages = [];
+  try {
+    // 1) turn every file into page images
+    status.textContent = '⏳ מפצל את הקובץ לעמודים...';
+    const images = [];
+    for (const f of files) {
+      if (f.type === 'application/pdf') images.push(...await _pdfFileToImages(f));
+      else if (f.type.startsWith('image/')) images.push(await _fileToDataUrl(f));
+    }
+    if (!images.length) { status.textContent = 'לא זוהו עמודים בקובץ'; return; }
+
+    // 2) OCR each page to read the plate
+    const worker = await Tesseract.createWorker('eng', 1);
+    await worker.setParameters({ tessedit_pageseg_mode: '6' });
+    for (let i = 0; i < images.length; i++) {
+      status.textContent = `⏳ מזהה מספרי רכב... ${i + 1}/${images.length}`;
+      let plate = '', carId = null;
+      try {
+        const { data: { text } } = await worker.recognize(images[i]);
+        ({ plate, carId } = _extractPlateMatch(text));
+      } catch (e) { console.error('ownership OCR failed', e); }
+      _ownershipPages.push({ img: images[i], plate, carId });
+    }
+    await worker.terminate();
+
+    status.textContent = `זוהו ${_ownershipPages.length} עמודים. בדוק את השיוך ואשר:`;
+    _renderOwnershipResults();
+    document.getElementById('ownership-commit-btn').style.display = 'block';
+  } catch (e) {
+    console.error('handleOwnershipFiles error', e);
+    status.textContent = 'שגיאה בעיבוד הקובץ';
+  }
+}
+window.handleOwnershipFiles = handleOwnershipFiles;
+
+function _renderOwnershipResults() {
+  const box = document.getElementById('ownership-results');
+  const carOptions = _pickupAllCars
+    .slice()
+    .sort((a, b) => _normPlate(a.plate).localeCompare(_normPlate(b.plate)))
+    .map(c => ({ id: c.id, label: `${c.plate || ''}${c.type ? ' — ' + c.type : ''}` }));
+  box.innerHTML = _ownershipPages.map((p, idx) => {
+    const opts = ['<option value="">— לא לשייך —</option>']
+      .concat(carOptions.map(o => `<option value="${o.id}"${o.id === p.carId ? ' selected' : ''}>${esc(o.label)}</option>`))
+      .join('');
+    const matched = !!p.carId;
+    return `<div style="display:flex;gap:10px;align-items:center;background:var(--surface2);border-radius:12px;padding:10px;border-right:4px solid ${matched ? '#059669' : '#f59e0b'}">
+      <img src="${p.img}" onclick="openLightbox(this.src)" style="width:52px;height:66px;object-fit:cover;border-radius:6px;cursor:zoom-in;flex-shrink:0;border:1px solid var(--border)">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:800;margin-bottom:4px">🚗 מספר רכב: ${p.plate ? esc(p.plate) : '<span style="color:#f59e0b">לא זוהה</span>'}</div>
+        <select onchange="setOwnershipCar(${idx}, this.value)" style="width:100%;padding:7px 9px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-family:Heebo,sans-serif;font-size:13px">${opts}</select>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function setOwnershipCar(idx, carId) {
+  if (_ownershipPages[idx]) _ownershipPages[idx].carId = carId || null;
+}
+window.setOwnershipCar = setOwnershipCar;
+
+async function commitOwnershipAttach() {
+  const toAttach = _ownershipPages.filter(p => p.carId);
+  if (!toAttach.length) { showToast('לא נבחר אף רכב לשיוך'); return; }
+  const btn = document.getElementById('ownership-commit-btn');
+  btn.disabled = true;
+  const { updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  let ok = 0;
+  for (const p of toAttach) {
+    try {
+      await updateDoc(doc(window._db, 'pickup_cars', p.carId), {
+        doc: p.img, docMime: 'image/jpeg', docName: `בעלות ${p.plate || ''}.jpg`.trim()
+      });
+      ok++;
+    } catch (e) { console.error('attach ownership failed for', p.carId, e); }
+  }
+  btn.disabled = false;
+  closeModal('modal-upload-ownership');
+  showToast(`✅ ${ok} בעלויות שויכו לרכבים`);
+}
+window.commitOwnershipAttach = commitOwnershipAttach;
 
 // ── Free text pickup parser ──
 
