@@ -1385,7 +1385,12 @@ if ('serviceWorker' in navigator) {
     </select>
     <button id="pickup-sort-btn" onclick="cyclePickupSort()" style="flex:1;min-width:160px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;text-align:center">סינון לפי זמן המתנה מהגבוה לנמוך</button>
     <button id="pickup-select-btn" onclick="togglePickupSelectMode()" style="flex:1;min-width:120px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;text-align:center">☑️ בחירה מרובה</button>
-    <button onclick="openOwnershipModal()" style="flex:1;min-width:150px;padding:8px 10px;border-radius:10px;border:none;background:#7c3aed;color:#fff;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer;text-align:center">📤 העלאת בעלויות</button>
+  </div>
+  <!-- three add buttons in a row -->
+  <div style="padding:10px 16px 0;display:flex;gap:8px">
+    <button onclick="openFreeTextPickupModal()" style="flex:1;min-width:0;padding:11px 8px;border-radius:10px;border:none;background:var(--gold);color:#000;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer">🖼️ הוספה לפי תמונה</button>
+    <button onclick="openTextPickupModal()" style="flex:1;min-width:0;padding:11px 8px;border-radius:10px;border:none;background:#7c3aed;color:#fff;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer">📝 הוספה לפי מלל</button>
+    <button onclick="openOwnershipModal()" style="flex:1;min-width:0;padding:11px 8px;border-radius:10px;border:none;background:#2563eb;color:#fff;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer">📤 העלאת בעלויות</button>
   </div>
   <div style="padding:12px 16px 0" id="pickup-list">
     <div class="loading"><div class="spinner"></div> טוען...</div>
@@ -1393,6 +1398,7 @@ if ('serviceWorker' in navigator) {
   <!-- batch action bar (shown in select mode) -->
   <div id="pickup-batch-bar" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:2px solid var(--border);padding:12px 16px;gap:10px;align-items:center;z-index:60;box-shadow:0 -4px 16px rgba(0,0,0,0.12)">
     <span id="pickup-batch-count" style="font-weight:800;font-size:14px;flex-shrink:0">נבחרו 0</span>
+    <button onclick="toggleSelectAllPickup()" id="pickup-selectall-btn" style="flex-shrink:0;background:#2563eb;color:#fff;border:none;border-radius:10px;padding:12px 12px;font-family:Heebo,sans-serif;font-weight:700;font-size:14px;cursor:pointer">סמן הכל</button>
     <button onclick="batchCollectPickup()" style="flex:1;background:#059669;color:#fff;border:none;border-radius:10px;padding:12px;font-family:Heebo,sans-serif;font-weight:800;font-size:14px;cursor:pointer">✅ הרכבים נאספו</button>
     <button onclick="togglePickupSelectMode()" style="flex-shrink:0;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:14px;cursor:pointer">ביטול</button>
   </div>
@@ -1405,8 +1411,6 @@ if ('serviceWorker' in navigator) {
     <input id="pickup-archive-search" oninput="renderPickupArchiveFiltered()" placeholder="🔍 חיפוש בארכיון (לוחית, דגם, עיר, מי אסף)..." style="display:none;width:100%;padding:9px 12px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;box-sizing:border-box;margin-bottom:10px">
     <div id="pickup-archive-body" style="display:none;flex-direction:column;gap:10px"></div>
   </div>
-  <button class="fab" onclick="openFreeTextPickupModal()" style="bottom:24px;right:16px;left:auto;transform:none">+ הוספת רכב</button>
-  <button onclick="openTextPickupModal()" style="position:fixed;bottom:84px;right:16px;left:auto;background:#7c3aed;color:#fff;border:none;border-radius:999px;padding:12px 20px;font-family:Heebo,sans-serif;font-weight:900;font-size:14px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,0.2);z-index:50">📝 הוספה לפי מלל</button>
 </div>
 
 <!-- ====== MODAL: ADD PICKUP CAR (freetext + image) ====== -->
@@ -8271,6 +8275,7 @@ let _pickupArchiveOpen = false;
 let _pickupArchiveCars = [];
 let _pickupSelectMode = false;
 let _pickupSelected = new Set();
+let _pickupShownIds = [];
 
 function togglePickupSelectMode() {
   _pickupSelectMode = !_pickupSelectMode;
@@ -8281,6 +8286,8 @@ function togglePickupSelectMode() {
     btn.style.color = _pickupSelectMode ? '#fff' : 'var(--text)';
     btn.textContent = _pickupSelectMode ? '✖ סיום בחירה' : '☑️ בחירה מרובה';
   }
+  const saBtn = document.getElementById('pickup-selectall-btn');
+  if (saBtn) saBtn.textContent = 'סמן הכל';
   _updatePickupBatchBar();
   renderPickupCars();
 }
@@ -8482,12 +8489,25 @@ function renderPickupCars() {
   }
   // assigned cars always float to top (stable)
   cars.sort((a, b) => (b.assignedDriver ? 1 : 0) - (a.assignedDriver ? 1 : 0));
+  _pickupShownIds = cars.map(c => c.id);
   if (!cars.length) {
     list.innerHTML = '<div style="text-align:center;padding:60px 20px;color:var(--muted);font-size:15px">אין רכבים לאיסוף</div>';
     return;
   }
   list.innerHTML = cars.map(_pickupCardHtml).join('');
 }
+
+// "סמן הכל" — select every visible car (or clear if all already selected)
+function toggleSelectAllPickup() {
+  const allSelected = _pickupShownIds.length > 0 && _pickupShownIds.every(id => _pickupSelected.has(id));
+  if (allSelected) _pickupSelected.clear();
+  else _pickupShownIds.forEach(id => _pickupSelected.add(id));
+  const btn = document.getElementById('pickup-selectall-btn');
+  if (btn) btn.textContent = allSelected ? 'סמן הכל' : 'נקה הכל';
+  _updatePickupBatchBar();
+  renderPickupCars();
+}
+window.toggleSelectAllPickup = toggleSelectAllPickup;
 window.renderPickupCars = renderPickupCars;
 
 // parse either DD/MM/YYYY (current) or legacy MM/YYYY into a Date
@@ -8524,8 +8544,8 @@ function _pickupCardHtml(c) {
   if (_pickupSelectMode) {
     const checked = _pickupSelected.has(c.id);
     return `<div class="vehicle-card" style="border-right:5px solid ${waitColor};margin-bottom:8px;cursor:pointer;${checked?'background:#dcfce7;border:2px solid #059669':''}" onclick="togglePickupSelect('${e(c.id)}')">
-      <div style="display:flex;align-items:flex-start;gap:10px">
-        <div style="font-size:22px;flex-shrink:0;line-height:1.2">${checked?'✅':'⬜'}</div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="font-size:26px;flex-shrink:0;line-height:1;padding-right:2px">${checked?'✅':'⬜'}</div>
         <div style="flex:1;min-width:0">
           <div class="vehicle-plate">${e(c.plate||'')}</div>
           ${c.type ? `<div class="vehicle-info">${e(c.type)}${c.year ? ' · ' + e(c.year) : ''}</div>` : ''}
@@ -8739,12 +8759,14 @@ async function _pdfFileToImages(file) {
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
     const vp1 = page.getViewport({ scale: 1 });
-    const scale = Math.min(2, 1100 / vp1.width);
+    const scale = Math.min(3, 1600 / vp1.width);
     const vp = page.getViewport({ scale });
     const canvas = document.createElement('canvas');
     canvas.width = vp.width; canvas.height = vp.height;
-    await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
-    imgs.push(canvas.toDataURL('image/jpeg', 0.72));
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height); // white bg (avoid black from transparency)
+    await page.render({ canvasContext: ctx, viewport: vp }).promise;
+    imgs.push(canvas.toDataURL('image/jpeg', 0.75));
   }
   return imgs;
 }
@@ -8760,20 +8782,62 @@ function _fileToDataUrl(file) {
 
 function _normPlate(p) { return String(p || '').replace(/\D/g, ''); }
 
-function _extractPlateMatch(text) {
-  const tokens = (text.match(/\d{6,9}/g) || []).filter(t => t.length === 7 || t.length === 8);
-  const known = _pickupAllCars.map(c => ({ id: c.id, plate: _normPlate(c.plate) })).filter(c => c.plate);
-  // exact match to a car already in the pickup list
-  for (const t of tokens) {
-    const hit = known.find(k => k.plate === t);
-    if (hit) return { plate: t, carId: hit.id };
+function _loadImg(src) {
+  return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+}
+
+// upscale + grayscale + autocontrast (2% cutoff) a region of the page for OCR.
+// Binarizing these faint scans destroyed the text, so we stretch contrast
+// instead. topFrac<1 keeps only the top part (where "מספר הרכב" sits).
+async function _prepForOcr(dataUrl, topFrac) {
+  const img = await _loadImg(dataUrl);
+  const sw = img.width, sh = Math.round(img.height * (topFrac || 1));
+  const sc = 2;
+  const c = document.createElement('canvas');
+  c.width = sw * sc; c.height = sh * sc;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, 0, 0, sw, sh, 0, 0, c.width, c.height);
+  const id = ctx.getImageData(0, 0, c.width, c.height), d = id.data;
+  const total = d.length / 4;
+  const hist = new Array(256).fill(0);
+  for (let i = 0; i < d.length; i += 4) {
+    const g = (0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2]) | 0;
+    d[i] = d[i+1] = d[i+2] = g; hist[g]++;
   }
-  // tolerate a single OCR misread digit
+  const cut = total * 0.02;
+  let lo = 0, hi = 255, acc = 0;
+  for (let t = 0; t < 256; t++) { acc += hist[t]; if (acc > cut) { lo = t; break; } }
+  acc = 0;
+  for (let t = 255; t >= 0; t--) { acc += hist[t]; if (acc > cut) { hi = t; break; } }
+  const range = Math.max(1, hi - lo);
+  for (let i = 0; i < d.length; i += 4) {
+    let v = (d[i] - lo) * 255 / range; v = v < 0 ? 0 : v > 255 ? 255 : v;
+    d[i] = d[i+1] = d[i+2] = v;
+  }
+  ctx.putImageData(id, 0, 0);
+  return c.toDataURL('image/png');
+}
+
+function _plateTokens(text) {
+  return (text.match(/\d{6,9}/g) || []).filter(t => t.length === 7 || t.length === 8);
+}
+
+// snap a set of OCR'd digit tokens to the nearest plate among the cars already
+// in the pickup list. The candidate pool is small, so even a 1-char OCR error
+// still resolves to the correct car; anything further is left for manual pick.
+function _matchNearestPlate(tokens) {
+  const known = _pickupAllCars.map(c => ({ id: c.id, plate: _normPlate(c.plate) })).filter(c => c.plate.length >= 7);
+  let best = { dist: 99, carId: null, plate: '' };
   for (const t of tokens) {
     for (const k of known) {
-      if (Math.abs(k.plate.length - t.length) <= 1 && _levenshtein(t, k.plate) <= 1) return { plate: k.plate, carId: k.id };
+      if (Math.abs(k.plate.length - t.length) > 1) continue;
+      const dd = _levenshtein(t, k.plate);
+      if (dd < best.dist) best = { dist: dd, carId: k.id, plate: k.plate };
     }
   }
+  if (best.carId && best.dist <= 1) return { plate: best.plate, carId: best.carId };
   return { plate: tokens[0] || '', carId: null };
 }
 
@@ -8795,21 +8859,37 @@ async function handleOwnershipFiles(input) {
     }
     if (!images.length) { status.textContent = 'לא זוהו עמודים בקובץ'; return; }
 
-    // 2) OCR each page to read the plate
+    // 2) OCR each page to read the plate (digits-only, contrast-stretched header)
     const worker = await Tesseract.createWorker('eng', 1);
-    await worker.setParameters({ tessedit_pageseg_mode: '6' });
+    await worker.setParameters({ tessedit_char_whitelist: '0123456789' });
     for (let i = 0; i < images.length; i++) {
       status.textContent = `⏳ מזהה מספרי רכב... ${i + 1}/${images.length}`;
       let plate = '', carId = null;
       try {
-        const { data: { text } } = await worker.recognize(images[i]);
-        ({ plate, carId } = _extractPlateMatch(text));
+        const header = await _prepForOcr(images[i], 0.45);
+        let tokens = [];
+        for (const psm of ['6', '11']) {
+          await worker.setParameters({ tessedit_pageseg_mode: psm });
+          const { data: { text } } = await worker.recognize(header);
+          tokens = tokens.concat(_plateTokens(text));
+        }
+        let m = _matchNearestPlate(tokens);
+        // fallback: focus tighter on the plate cell band if nothing matched
+        if (!m.carId) {
+          const cell = await _prepForOcr(images[i], 0.24);
+          await worker.setParameters({ tessedit_pageseg_mode: '6' });
+          const { data: { text } } = await worker.recognize(cell);
+          tokens = tokens.concat(_plateTokens(text));
+          m = _matchNearestPlate(tokens);
+        }
+        plate = m.plate; carId = m.carId;
       } catch (e) { console.error('ownership OCR failed', e); }
       _ownershipPages.push({ img: images[i], plate, carId });
     }
     await worker.terminate();
 
-    status.textContent = `זוהו ${_ownershipPages.length} עמודים. בדוק את השיוך ואשר:`;
+    const matched = _ownershipPages.filter(p => p.carId).length;
+    status.textContent = `זוהו ${_ownershipPages.length} עמודים • ${matched} שויכו אוטומטית. בדוק ואשר:`;
     _renderOwnershipResults();
     document.getElementById('ownership-commit-btn').style.display = 'block';
   } catch (e) {
@@ -8826,14 +8906,26 @@ function _renderOwnershipResults() {
     .sort((a, b) => _normPlate(a.plate).localeCompare(_normPlate(b.plate)))
     .map(c => ({ id: c.id, label: `${c.plate || ''}${c.type ? ' — ' + c.type : ''}` }));
   box.innerHTML = _ownershipPages.map((p, idx) => {
-    const opts = ['<option value="">— לא לשייך —</option>']
-      .concat(carOptions.map(o => `<option value="${o.id}"${o.id === p.carId ? ' selected' : ''}>${esc(o.label)}</option>`))
+    const car = p.carId ? _pickupAllCars.find(c => c.id === p.carId) : null;
+    if (car) {
+      // auto-matched — green, just for confirmation
+      const label = `${car.plate || ''}${car.type ? ' — ' + car.type : ''}`;
+      return `<div style="display:flex;gap:10px;align-items:center;background:#dcfce7;border-radius:12px;padding:10px;border-right:4px solid #059669">
+        <img src="${p.img}" onclick="openLightbox(this.src)" style="width:52px;height:66px;object-fit:cover;border-radius:6px;cursor:zoom-in;flex-shrink:0;border:1px solid var(--border)">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:800;color:#166534">✅ מספר רכב: ${esc(p.plate)}</div>
+          <div style="font-size:12px;color:#166534;margin-top:3px">ישויך ל: <b>${esc(label)}</b></div>
+        </div>
+      </div>`;
+    }
+    // not matched automatically — fallback manual pick
+    const opts = ['<option value="">— בחר רכב ידנית —</option>']
+      .concat(carOptions.map(o => `<option value="${o.id}">${esc(o.label)}</option>`))
       .join('');
-    const matched = !!p.carId;
-    return `<div style="display:flex;gap:10px;align-items:center;background:var(--surface2);border-radius:12px;padding:10px;border-right:4px solid ${matched ? '#059669' : '#f59e0b'}">
+    return `<div style="display:flex;gap:10px;align-items:center;background:var(--surface2);border-radius:12px;padding:10px;border-right:4px solid #f59e0b">
       <img src="${p.img}" onclick="openLightbox(this.src)" style="width:52px;height:66px;object-fit:cover;border-radius:6px;cursor:zoom-in;flex-shrink:0;border:1px solid var(--border)">
       <div style="flex:1;min-width:0">
-        <div style="font-size:13px;font-weight:800;margin-bottom:4px">🚗 מספר רכב: ${p.plate ? esc(p.plate) : '<span style="color:#f59e0b">לא זוהה</span>'}</div>
+        <div style="font-size:13px;font-weight:800;margin-bottom:4px;color:#b45309">⚠️ ${p.plate ? 'מספר ' + esc(p.plate) + ' לא נמצא ברשימה' : 'לא זוהה מספר רכב'}</div>
         <select onchange="setOwnershipCar(${idx}, this.value)" style="width:100%;padding:7px 9px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-family:Heebo,sans-serif;font-size:13px">${opts}</select>
       </div>
     </div>`;
@@ -8841,7 +8933,7 @@ function _renderOwnershipResults() {
 }
 
 function setOwnershipCar(idx, carId) {
-  if (_ownershipPages[idx]) _ownershipPages[idx].carId = carId || null;
+  if (_ownershipPages[idx]) { _ownershipPages[idx].carId = carId || null; _renderOwnershipResults(); }
 }
 window.setOwnershipCar = setOwnershipCar;
 
