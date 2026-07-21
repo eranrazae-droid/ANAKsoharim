@@ -8344,6 +8344,16 @@ function _coordOfCity(city) {
   if (n.length >= 3) for (const k in _CITY_COORD_NORM) { if (k.startsWith(n) || n.startsWith(k)) return _CITY_COORD_NORM[k]; }
   return null;
 }
+// resolve a pickup car's effective city, applying locality aliases found in
+// either the city or the address (e.g. "עין המפרץ" → "עכו")
+function _pickupCity(c) {
+  const n = _normCityName(`${c.city || ''} ${c.address || ''}`);
+  for (const a of (typeof _CITY_ALIASES !== 'undefined' ? _CITY_ALIASES : [])) {
+    if (a.alias && n.includes(_normCityName(a.alias))) return a.city;
+  }
+  return c.city || '';
+}
+
 function _haversineKm(a, b) {
   const R = 6371, toR = x => x * Math.PI / 180;
   const dLat = toR(b[0] - a[0]), dLng = toR(b[1] - a[1]);
@@ -8358,7 +8368,7 @@ function _computeTaskClosest() {
     const tc = _coordOfCity(t.regionCity); if (!tc) continue;
     let best = { km: Infinity, id: null };
     for (const car of _pickupAllCars) {
-      const cc = _coordOfCity(car.city); if (!cc) continue;
+      const cc = _coordOfCity(_pickupCity(car)); if (!cc) continue;
       const km = _haversineKm(cc, tc);
       if (km <= _TASK_RADIUS_KM && km < best.km) best = { km, id: car.id };
     }
@@ -8684,7 +8694,7 @@ function _testExpired(test) {
 
 // tasks within air-distance radius of this car's city — shown inside the card
 function _pickupRegionTasksHtml(c, e) {
-  const carC = _coordOfCity(c.city);
+  const carC = _coordOfCity(_pickupCity(c));
   if (!carC) return '';
   const rows = [];
   for (const t of _regionTasksCache) {
@@ -8722,7 +8732,7 @@ function _pickupCardHtml(c) {
           ${c.color ? `<span class="tag assignee">🎨 ${e(c.color)}</span>` : ''}
           ${km ? `<span class="tag assignee">🛣️ ${e(km)}</span>` : ''}
           ${c.contact ? `<span class="tag assignee">👤 ${e(c.contact)}</span>` : ''}
-          ${c.city ? `<span class="tag assignee">🏙️ ${e(c.city)}</span>` : ''}
+          ${_pickupCity(c) ? `<span class="tag assignee">🏙️ ${e(_pickupCity(c))}</span>` : ''}
           ${c.address ? `<span class="tag assignee">📍 ${e(c.address)}</span>` : ''}
         </div>
         ${(c.test || c.doc) ? `<div style="margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -9497,6 +9507,7 @@ function _levenshtein(a, b) {
 // To add more: { alias: 'שם היישוב', city: 'העיר המשויכת' }
 const _CITY_ALIASES = [
   { alias: 'עין המפרץ', city: 'עכו' },
+  { alias: 'המפרץ', city: 'עכו' },
 ];
 
 function _fuzzyMatchCity(raw) {
