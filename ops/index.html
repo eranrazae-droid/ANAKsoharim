@@ -1384,7 +1384,7 @@ if ('serviceWorker' in navigator) {
       <option value="">כל הערים</option>
     </select>
     <button id="pickup-sort-btn" onclick="cyclePickupSort()" style="flex:1;min-width:160px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;text-align:center">סינון לפי זמן המתנה מהגבוה לנמוך</button>
-    <button id="pickup-select-btn" onclick="togglePickupSelectMode()" style="flex:1;min-width:120px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;text-align:center">☑️ בחירה מרובה</button>
+    <button id="pickup-select-btn" onclick="toggleSelectAllPickup()" style="flex:1;min-width:120px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;text-align:center">☑️ סמן הכל</button>
   </div>
   <!-- three add buttons in a row -->
   <div style="padding:10px 16px 0;display:flex;gap:8px">
@@ -1398,9 +1398,8 @@ if ('serviceWorker' in navigator) {
   <!-- batch action bar (shown in select mode) -->
   <div id="pickup-batch-bar" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:2px solid var(--border);padding:12px 16px;gap:10px;align-items:center;z-index:60;box-shadow:0 -4px 16px rgba(0,0,0,0.12)">
     <span id="pickup-batch-count" style="font-weight:800;font-size:14px;flex-shrink:0">נבחרו 0</span>
-    <button onclick="toggleSelectAllPickup()" id="pickup-selectall-btn" style="flex-shrink:0;background:#2563eb;color:#fff;border:none;border-radius:10px;padding:12px 12px;font-family:Heebo,sans-serif;font-weight:700;font-size:14px;cursor:pointer">סמן הכל</button>
     <button onclick="batchCollectPickup()" style="flex:1;background:#059669;color:#fff;border:none;border-radius:10px;padding:12px;font-family:Heebo,sans-serif;font-weight:800;font-size:14px;cursor:pointer">✅ הרכבים נאספו</button>
-    <button onclick="togglePickupSelectMode()" style="flex-shrink:0;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:14px;cursor:pointer">ביטול</button>
+    <button onclick="clearPickupSelection()" style="flex-shrink:0;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:14px;cursor:pointer">ביטול</button>
   </div>
   <!-- archive section -->
   <div id="pickup-archive-wrap" style="padding:0 16px 160px">
@@ -8273,39 +8272,38 @@ let _pickupSortMode = 0; // 0=newest first, 1=wait high→low, 2=wait low→high
 let _pickupArchiveLoaded = false;
 let _pickupArchiveOpen = false;
 let _pickupArchiveCars = [];
-let _pickupSelectMode = false;
 let _pickupSelected = new Set();
 let _pickupShownIds = [];
-
-function togglePickupSelectMode() {
-  _pickupSelectMode = !_pickupSelectMode;
-  _pickupSelected.clear();
-  const btn = document.getElementById('pickup-select-btn');
-  if (btn) {
-    btn.style.background = _pickupSelectMode ? '#059669' : 'var(--surface2)';
-    btn.style.color = _pickupSelectMode ? '#fff' : 'var(--text)';
-    btn.textContent = _pickupSelectMode ? '✖ סיום בחירה' : '☑️ בחירה מרובה';
-  }
-  const saBtn = document.getElementById('pickup-selectall-btn');
-  if (saBtn) saBtn.textContent = 'סמן הכל';
-  _updatePickupBatchBar();
-  renderPickupCars();
-}
-window.togglePickupSelectMode = togglePickupSelectMode;
 
 function togglePickupSelect(id) {
   if (_pickupSelected.has(id)) _pickupSelected.delete(id);
   else _pickupSelected.add(id);
+  _syncSelectAllLabel();
   _updatePickupBatchBar();
   renderPickupCars();
 }
 window.togglePickupSelect = togglePickupSelect;
 
+function clearPickupSelection() {
+  _pickupSelected.clear();
+  _syncSelectAllLabel();
+  _updatePickupBatchBar();
+  renderPickupCars();
+}
+window.clearPickupSelection = clearPickupSelection;
+
+function _syncSelectAllLabel() {
+  const btn = document.getElementById('pickup-select-btn');
+  if (!btn) return;
+  const allSelected = _pickupShownIds.length > 0 && _pickupShownIds.every(id => _pickupSelected.has(id));
+  btn.textContent = allSelected ? '❎ נקה הכל' : '☑️ סמן הכל';
+}
+
 function _updatePickupBatchBar() {
   const bar = document.getElementById('pickup-batch-bar');
   const cnt = document.getElementById('pickup-batch-count');
   if (!bar) return;
-  bar.style.display = _pickupSelectMode ? 'flex' : 'none';
+  bar.style.display = _pickupSelected.size > 0 ? 'flex' : 'none';
   if (cnt) cnt.textContent = `נבחרו ${_pickupSelected.size}`;
 }
 
@@ -8324,12 +8322,10 @@ function openPickupScreen() {
   _pickupArchiveLoaded = false;
   _pickupArchiveOpen = false;
   // reset multi-select state on every entry
-  _pickupSelectMode = false;
   _pickupSelected.clear();
   _pendingCollectBatch = null;
   _updatePickupBatchBar();
-  const selBtn = document.getElementById('pickup-select-btn');
-  if (selBtn) { selBtn.style.background = 'var(--surface2)'; selBtn.style.color = 'var(--text)'; selBtn.textContent = '☑️ בחירה מרובה'; }
+  _syncSelectAllLabel();
   const body = document.getElementById('pickup-archive-body');
   if (body) body.style.display = 'none';
   showScreen('pickup');
@@ -8492,9 +8488,11 @@ function renderPickupCars() {
   _pickupShownIds = cars.map(c => c.id);
   if (!cars.length) {
     list.innerHTML = '<div style="text-align:center;padding:60px 20px;color:var(--muted);font-size:15px">אין רכבים לאיסוף</div>';
+    _syncSelectAllLabel();
     return;
   }
   list.innerHTML = cars.map(_pickupCardHtml).join('');
+  _syncSelectAllLabel();
 }
 
 // "סמן הכל" — select every visible car (or clear if all already selected)
@@ -8502,8 +8500,7 @@ function toggleSelectAllPickup() {
   const allSelected = _pickupShownIds.length > 0 && _pickupShownIds.every(id => _pickupSelected.has(id));
   if (allSelected) _pickupSelected.clear();
   else _pickupShownIds.forEach(id => _pickupSelected.add(id));
-  const btn = document.getElementById('pickup-selectall-btn');
-  if (btn) btn.textContent = allSelected ? 'סמן הכל' : 'נקה הכל';
+  _syncSelectAllLabel();
   _updatePickupBatchBar();
   renderPickupCars();
 }
@@ -8541,24 +8538,11 @@ function _pickupCardHtml(c) {
   const days = _pickupDays(c);
   const waitLabel = days === null ? '' : `${days} ימי המתנה`;
   const waitColor = days === null ? '#6b7280' : days > 14 ? '#dc2626' : days > 7 ? '#f59e0b' : '#16a34a';
-  if (_pickupSelectMode) {
-    const checked = _pickupSelected.has(c.id);
-    return `<div class="vehicle-card" style="border-right:5px solid ${waitColor};margin-bottom:8px;cursor:pointer;${checked?'background:#dcfce7;border:2px solid #059669':''}" onclick="togglePickupSelect('${e(c.id)}')">
-      <div style="display:flex;align-items:center;gap:12px">
-        <div style="font-size:26px;flex-shrink:0;line-height:1;padding-right:2px">${checked?'✅':'⬜'}</div>
-        <div style="flex:1;min-width:0">
-          <div class="vehicle-plate">${e(c.plate||'')}</div>
-          ${c.type ? `<div class="vehicle-info">${e(c.type)}${c.year ? ' · ' + e(c.year) : ''}</div>` : ''}
-          <div class="vehicle-meta">
-            ${c.city ? `<span class="tag assignee">🏙️ ${e(c.city)}</span>` : ''}
-            ${waitLabel ? `<span class="tag assignee">⏱ ${waitLabel}</span>` : ''}
-          </div>
-        </div>
-      </div>
-    </div>`;
-  }
-  return `<div class="vehicle-card" style="border-right:5px solid ${waitColor};margin-bottom:8px;cursor:pointer" onclick="openEditPickupModal('${e(c.id)}')">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+  const checked = _pickupSelected.has(c.id);
+  return `<div class="vehicle-card" style="border-right:5px solid ${waitColor};margin-bottom:8px;cursor:pointer;${checked?'background:#dcfce7;border:2px solid #059669':''}" onclick="openEditPickupModal('${e(c.id)}')">
+   <div style="display:flex;align-items:center;gap:10px">
+    <div onclick="event.stopPropagation();togglePickupSelect('${e(c.id)}')" title="סימון" style="font-size:26px;flex-shrink:0;line-height:1;cursor:pointer">${checked?'✅':'⬜'}</div>
+    <div style="flex:1;min-width:0;display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
       <div style="flex:1;min-width:0">
         <div class="vehicle-plate">${e(c.plate||'')}</div>
         ${c.type ? `<div class="vehicle-info">${e(c.type)}${c.year ? ' · ' + e(c.year) : ''}</div>` : ''}
@@ -8579,6 +8563,7 @@ function _pickupCardHtml(c) {
         <button onclick="event.stopPropagation();deletePickupCar('${e(c.id)}')" style="background:#ef4444;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">🗑️ הסר</button>
       </div>
     </div>
+   </div>
   </div>`;
 }
 
@@ -9684,7 +9669,7 @@ async function submitCollectPickup() {
     }
     closeModal('modal-collect-pickup');
     _pendingCollectBatch = null;
-    if (_pickupSelectMode) togglePickupSelectMode(); // exit select mode + clear
+    clearPickupSelection();
     showToast(`✅ ${ok} רכבים הועברו לארכיון`);
     return;
   }
