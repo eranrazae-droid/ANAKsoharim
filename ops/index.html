@@ -1705,7 +1705,7 @@ if ('serviceWorker' in navigator) {
 <!-- ====== FIREBASE ====== -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, setDoc, query, orderBy, serverTimestamp, where }
+import { getFirestore, initializeFirestore, collection, addDoc, onSnapshot, doc, updateDoc, setDoc, query, orderBy, serverTimestamp, where }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
@@ -1729,7 +1729,14 @@ const CONFIG_DONE = !firebaseConfig.apiKey.includes("PASTE");
 let db, app, storage;
 if (CONFIG_DONE) {
   app     = initializeApp(firebaseConfig);
-  db      = getFirestore(app, 'default');
+  // auto-detect networks/proxies that stall Firestore's default streaming
+  // transport and fall back to long-polling — prevents onSnapshot AND writes
+  // from hanging forever on such networks
+  try {
+    db = initializeFirestore(app, { experimentalAutoDetectLongPolling: true }, 'default');
+  } catch (_e) {
+    db = getFirestore(app, 'default');
+  }
   storage = getStorage(app);
 }
 
@@ -5530,15 +5537,18 @@ async function submitInventory() {
     const rowsJson = JSON.stringify(
       (inventoryRows||[]).map(r => (r.cells||[]).map(c => (c == null ? '' : String(c))))
     );
-    const { addDoc, collection, serverTimestamp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-    await addDoc(collection(window._db, 'inventory_assignments'), {
+    const writeP = _addDoc(_colRef('inventory_assignments'), {
       assignedTo: driver,
       sentBy:     currentUser.name,
-      createdAt:  serverTimestamp(),
+      createdAt:  _serverTs(),
       headers:    safeHeaders,
       rowsJson,
       status:     'pending'
     });
+    await Promise.race([
+      writeP,
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 15000))
+    ]);
     _invMode = 'live';
     document.getElementById('inv-submit-wrap').style.display = 'none';
     showToast(`✅ נשלח ל${driver} לבדיקה!`);
