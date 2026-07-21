@@ -432,6 +432,16 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
+<!-- modal: were the region tasks handled during collection? -->
+<div class="modal-overlay" id="modal-task-handled">
+  <div class="modal-box">
+    <div class="modal-title">📍 משימות באזור הרכב <button class="modal-close" onclick="closeModal('modal-task-handled')">✕</button></div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:10px">סמן אילו משימות טופלו במהלך האיסוף — הן יימחקו. מה שלא תסמן יישאר.</p>
+    <div id="task-handled-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px"></div>
+    <button class="btn-submit" onclick="submitTasksHandled()" style="width:100%">אישור</button>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-driver-pickup">
   <div class="modal-box" style="max-height:85vh;overflow-y:auto">
     <div class="modal-title">🚙 רכבים לאיסוף <button class="modal-close" onclick="closeModal('modal-driver-pickup')">✕</button></div>
@@ -9922,8 +9932,44 @@ async function submitCollectPickup() {
   _pendingCollectId = null;
   if (_pendingCollectFromHome) { closeModal('modal-driver-pickup'); loadStats(); }
   showToast('✅ הרכב הועבר לארכיון');
+  _askTasksHandled(car);
 }
 window.submitCollectPickup = submitCollectPickup;
+
+// after a car is collected, ask which of its in-radius region tasks were handled
+let _handledPending = [];
+function _askTasksHandled(car) {
+  if (!car) return;
+  const carC = _coordOfCity(_pickupCity(car)); if (!carC) return;
+  const rows = [];
+  for (const t of _regionTasksCache) {
+    const tc = _coordOfCity(t.regionCity); if (!tc) continue;
+    if (_haversineKm(carC, tc) <= _TASK_RADIUS_KM) rows.push({ id: t.id, title: t.title, regionCity: t.regionCity });
+  }
+  if (!rows.length) return;
+  _handledPending = rows.map(r => ({ ...r, checked: false }));
+  document.getElementById('task-handled-list').innerHTML = _handledPending.map((r, i) =>
+    `<label style="display:flex;align-items:center;gap:10px;background:var(--surface2);border-radius:10px;padding:10px;cursor:pointer">
+      <input type="checkbox" onchange="_toggleHandled(${i},this.checked)" style="width:20px;height:20px;flex-shrink:0">
+      <span style="font-size:14px;font-weight:600">${esc(r.title)}${r.regionCity ? ` <span style="color:var(--muted)">(${esc(r.regionCity)})</span>` : ''}</span>
+    </label>`).join('');
+  openModal('modal-task-handled');
+}
+window._toggleHandled = (i, ch) => { if (_handledPending[i]) _handledPending[i].checked = ch; };
+
+async function submitTasksHandled() {
+  const toDelete = _handledPending.filter(r => r.checked);
+  closeModal('modal-task-handled');
+  if (toDelete.length) {
+    const { deleteDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    for (const r of toDelete) {
+      try { await deleteDoc(doc(window._db, 'tasks', r.id)); } catch (e) { console.error('delete handled task', e); }
+    }
+    showToast(`✅ ${toDelete.length} משימות טופלו ונמחקו`);
+  }
+  _handledPending = [];
+}
+window.submitTasksHandled = submitTasksHandled;
 
 // ── Driver pickup card on home screen ──
 let _driverPickupCars = [];
