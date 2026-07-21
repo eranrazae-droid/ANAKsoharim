@@ -1386,12 +1386,6 @@ if ('serviceWorker' in navigator) {
     <button id="pickup-sort-btn" onclick="cyclePickupSort()" style="flex:1;min-width:160px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;text-align:center">סינון לפי זמן המתנה מהגבוה לנמוך</button>
     <button id="pickup-select-btn" onclick="toggleSelectAllPickup()" style="flex:1;min-width:120px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;text-align:center">☑️ סמן הכל</button>
   </div>
-  <!-- three add buttons in a row -->
-  <div style="padding:10px 16px 0;display:flex;gap:8px">
-    <button onclick="openFreeTextPickupModal()" style="flex:1;min-width:0;padding:11px 8px;border-radius:10px;border:none;background:var(--gold);color:#000;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer">🖼️ הוספה לפי תמונה</button>
-    <button onclick="openTextPickupModal()" style="flex:1;min-width:0;padding:11px 8px;border-radius:10px;border:none;background:#7c3aed;color:#fff;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer">📝 הוספה לפי מלל</button>
-    <button onclick="openOwnershipModal()" style="flex:1;min-width:0;padding:11px 8px;border-radius:10px;border:none;background:#2563eb;color:#fff;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer">📤 העלאת בעלויות</button>
-  </div>
   <div style="padding:12px 16px 0" id="pickup-list">
     <div class="loading"><div class="spinner"></div> טוען...</div>
   </div>
@@ -1409,6 +1403,12 @@ if ('serviceWorker' in navigator) {
     </div>
     <input id="pickup-archive-search" oninput="renderPickupArchiveFiltered()" placeholder="🔍 חיפוש בארכיון (לוחית, דגם, עיר, מי אסף)..." style="display:none;width:100%;padding:9px 12px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;box-sizing:border-box;margin-bottom:10px">
     <div id="pickup-archive-body" style="display:none;flex-direction:column;gap:10px"></div>
+  </div>
+  <!-- fixed, centered add buttons -->
+  <div id="pickup-add-bar" style="position:fixed;bottom:16px;left:0;right:0;display:flex;justify-content:center;gap:8px;padding:0 16px;z-index:55;pointer-events:none">
+    <button onclick="openFreeTextPickupModal()" style="pointer-events:auto;padding:12px 16px;border-radius:999px;border:none;background:var(--gold);color:#000;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,0.18)">🖼️ הוספה לפי תמונה</button>
+    <button onclick="openTextPickupModal()" style="pointer-events:auto;padding:12px 16px;border-radius:999px;border:none;background:#7c3aed;color:#fff;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,0.18)">📝 הוספה לפי מלל</button>
+    <button onclick="openOwnershipModal()" style="pointer-events:auto;padding:12px 16px;border-radius:999px;border:none;background:#2563eb;color:#fff;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,0.18)">📤 העלאת בעלויות</button>
   </div>
 </div>
 
@@ -8302,8 +8302,10 @@ function _syncSelectAllLabel() {
 function _updatePickupBatchBar() {
   const bar = document.getElementById('pickup-batch-bar');
   const cnt = document.getElementById('pickup-batch-count');
-  if (!bar) return;
-  bar.style.display = _pickupSelected.size > 0 ? 'flex' : 'none';
+  const addBar = document.getElementById('pickup-add-bar');
+  const active = _pickupSelected.size > 0;
+  if (bar) bar.style.display = active ? 'flex' : 'none';
+  if (addBar) addBar.style.display = active ? 'none' : 'flex';
   if (cnt) cnt.textContent = `נבחרו ${_pickupSelected.size}`;
 }
 
@@ -8771,19 +8773,21 @@ function _loadImg(src) {
   return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
 }
 
-// upscale + grayscale + autocontrast (2% cutoff) a region of the page for OCR.
+// Crop a region (fractional box), upscale, grayscale + autocontrast (2% cutoff).
 // Binarizing these faint scans destroyed the text, so we stretch contrast
-// instead. topFrac<1 keeps only the top part (where "מספר הרכב" sits).
-async function _prepForOcr(dataUrl, topFrac) {
+// instead. box = {x0,y0,x1,y1} as fractions (default whole page); scale = zoom.
+async function _prepRegion(dataUrl, box, scale) {
   const img = await _loadImg(dataUrl);
-  const sw = img.width, sh = Math.round(img.height * (topFrac || 1));
-  const sc = 2;
+  box = box || {};
+  const x0 = Math.round(img.width * (box.x0 || 0)), y0 = Math.round(img.height * (box.y0 || 0));
+  const x1 = Math.round(img.width * (box.x1 == null ? 1 : box.x1)), y1 = Math.round(img.height * (box.y1 == null ? 1 : box.y1));
+  const sw = Math.max(1, x1 - x0), sh = Math.max(1, y1 - y0), sc = scale || 2;
   const c = document.createElement('canvas');
   c.width = sw * sc; c.height = sh * sc;
   const ctx = c.getContext('2d');
   ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
   ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(img, 0, 0, sw, sh, 0, 0, c.width, c.height);
+  ctx.drawImage(img, x0, y0, sw, sh, 0, 0, c.width, c.height);
   const id = ctx.getImageData(0, 0, c.width, c.height), d = id.data;
   const total = d.length / 4;
   const hist = new Array(256).fill(0);
@@ -8851,22 +8855,20 @@ async function handleOwnershipFiles(input) {
       status.textContent = `⏳ מזהה מספרי רכב... ${i + 1}/${images.length}`;
       let plate = '', carId = null;
       try {
-        const header = await _prepForOcr(images[i], 0.45);
         let tokens = [];
+        // pass A: whole top region (top 45%), two page-seg modes
+        const header = await _prepRegion(images[i], { x1: 1, y1: 0.45 }, 2);
         for (const psm of ['6', '11']) {
           await worker.setParameters({ tessedit_pageseg_mode: psm });
-          const { data: { text } } = await worker.recognize(header);
-          tokens = tokens.concat(_plateTokens(text));
+          tokens = tokens.concat(_plateTokens((await worker.recognize(header)).data.text));
         }
-        let m = _matchNearestPlate(tokens);
-        // fallback: focus tighter on the plate cell band if nothing matched
-        if (!m.carId) {
-          const cell = await _prepForOcr(images[i], 0.24);
-          await worker.setParameters({ tessedit_pageseg_mode: '6' });
-          const { data: { text } } = await worker.recognize(cell);
-          tokens = tokens.concat(_plateTokens(text));
-          m = _matchNearestPlate(tokens);
+        // pass B: tight crop on the "מספר הרכב" value cell, zoomed 4x
+        const cell = await _prepRegion(images[i], { x0: 0.55, y0: 0.15, x1: 0.80, y1: 0.215 }, 4);
+        for (const psm of ['6', '7', '8', '11']) {
+          await worker.setParameters({ tessedit_pageseg_mode: psm });
+          tokens = tokens.concat(_plateTokens((await worker.recognize(cell)).data.text));
         }
+        const m = _matchNearestPlate(tokens);
         plate = m.plate; carId = m.carId;
       } catch (e) { console.error('ownership OCR failed', e); }
       _ownershipPages.push({ img: images[i], plate, carId });
