@@ -1484,6 +1484,7 @@ if ('serviceWorker' in navigator) {
         <button type="button" onclick="document.getElementById('pickup-doc-file').click()" style="background:#6366f1;color:#fff;border:none;border-radius:10px;padding:9px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">📎 צרף קובץ / תמונה</button>
         <input type="file" id="pickup-doc-file" accept="image/*,application/pdf" style="display:none" onchange="previewPickupDoc(this)">
         <span id="pickup-doc-name" style="font-size:12px;color:var(--muted)"></span>
+        <button type="button" id="pickup-doc-remove-btn" onclick="clearPickupDoc()" style="display:none;background:#ef4444;color:#fff;border:none;border-radius:10px;padding:9px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">🗑️ מחק קובץ</button>
       </div>
       <div id="pickup-doc-preview" style="margin-top:8px"></div>
     </div>
@@ -8564,7 +8565,25 @@ function _pickupFillForm(c) {
   document.getElementById('pickup-doc-preview').innerHTML = c.doc ? _pickupDocThumb(c.doc, c.docMime, c.docName) : '';
   _pickupDocData = c.doc || null;
   _pickupDocMime = c.docMime || '';
+  _togglePickupDocRemove(!!c.doc);
 }
+
+// show/hide the "delete file" button depending on whether a doc is attached
+function _togglePickupDocRemove(show) {
+  const btn = document.getElementById('pickup-doc-remove-btn');
+  if (btn) btn.style.display = show ? 'inline-block' : 'none';
+}
+
+// remove the attached document/image from the pickup form
+function clearPickupDoc() {
+  _pickupDocData = null;
+  _pickupDocMime = '';
+  document.getElementById('pickup-doc-file').value = '';
+  document.getElementById('pickup-doc-name').textContent = '';
+  document.getElementById('pickup-doc-preview').innerHTML = '';
+  _togglePickupDocRemove(false);
+}
+window.clearPickupDoc = clearPickupDoc;
 
 function _pickupDocThumb(data, mime, name) {
   if (!data) return '';
@@ -8583,6 +8602,7 @@ function previewPickupDoc(input) {
   reader.onload = e => {
     _pickupDocData = e.target.result;
     document.getElementById('pickup-doc-preview').innerHTML = _pickupDocThumb(_pickupDocData, _pickupDocMime, file.name);
+    _togglePickupDocRemove(true);
   };
   reader.readAsDataURL(file);
 }
@@ -8652,7 +8672,9 @@ async function submitPickupCar() {
     contact: document.getElementById('pickup-contact').value.trim(),
     city: document.getElementById('pickup-city').value.trim(),
     address: document.getElementById('pickup-address').value.trim(),
-    ...(_pickupDocData ? { doc: _pickupDocData, docMime: _pickupDocMime, docName } : {}),
+    ...(_pickupDocData
+      ? { doc: _pickupDocData, docMime: _pickupDocMime, docName }
+      : { doc: null, docMime: null, docName: null }),
   };
   try {
     if (_pickupEditId) {
