@@ -1334,10 +1334,20 @@ if ('serviceWorker' in navigator) {
     <div id="batt-convert-wrap" style="display:none;margin-bottom:16px">
       <button onclick="mergeBatteryFiles()" style="width:100%;background:#7c3aed;color:#fff;border:none;border-radius:14px;padding:14px;font-family:Heebo,sans-serif;font-weight:900;font-size:16px;cursor:pointer">📊 המר לטבלה</button>
     </div>
-    <!-- Charging tasks list -->
-    <div id="battery-charging-tasks-wrap" style="margin-bottom:16px"></div>
-    <!-- Table preview -->
-    <div id="battery-table-wrap"></div>
+    <!-- two panels: right = cars in check (editable), left = converted to charging task -->
+    <div id="batt-panels" style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">
+      <div style="flex:1;min-width:280px;order:1">
+        <div id="batt-convert-bar" style="display:none;margin-bottom:8px">
+          <button onclick="convertSelectedBatteryToTask()" style="width:100%;background:#7c3aed;color:#fff;border:none;border-radius:12px;padding:12px;font-family:Heebo,sans-serif;font-weight:900;font-size:15px;cursor:pointer">⚡ המר נבחרים למשימה (<span id="batt-convert-count">0</span>)</button>
+        </div>
+        <div style="font-size:13px;font-weight:900;color:#374151;margin-bottom:6px">🔋 רכבים בבדיקה</div>
+        <div id="battery-table-wrap"></div>
+      </div>
+      <div style="flex:1;min-width:280px;order:2">
+        <div style="font-size:13px;font-weight:900;color:#5b21b6;margin-bottom:6px">⚡ הומרו למשימת טעינה</div>
+        <div id="battery-charging-tasks-wrap"></div>
+      </div>
+    </div>
     <!-- Send bar -->
     <div id="battery-submit-wrap" style="display:none;position:fixed;bottom:0;right:0;left:0;padding:12px 16px;background:#fff;border-top:1px solid var(--border);z-index:50">
       <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px">בחר נהג אחד או יותר — הרכבים יתחלקו שווה ביניהם</div>
@@ -6037,6 +6047,11 @@ function _loadBatteryChargingTasks() {
   });
 }
 
+let _battMgr = {};              // asgId → { headers, assignedTo, status, ts, rows:[{cells,battery,range,status}], convertedIdx:[] }
+let _battSelected = new Set();   // "asgId:idx"
+let _battSaveTimers = {};
+let _battMgrLastEdit = 0;
+
 function _loadBatteryAssignments() {
   if (!window._CONFIG_DONE) return;
   if (_batteryUnsub) _batteryUnsub();
@@ -6044,6 +6059,8 @@ function _loadBatteryAssignments() {
   wrap.innerHTML = '<div class="loading"><div class="spinner"></div> טוען...</div>';
   _batteryUnsub = _onSnap(_colRef('battery_assignments'), snap => {
     if (_batteryMode === 'preview') return;
+    // don't blow away the manager's inputs mid-typing
+    if (Date.now() - _battMgrLastEdit < 2500) return;
     const mine = snap.docs
       .map(d => ({ id: d.id, ...d.data() }))
       .filter(d => d.sentBy === currentUser.name && !d.converted)
@@ -6051,59 +6068,154 @@ function _loadBatteryAssignments() {
     if (!mine.length) {
       wrap.innerHTML = '<div class="empty-state" style="padding:40px 20px;text-align:center;color:var(--muted)">טרם נשלחה בדיקת טעינה</div>';
       _batteryDocId = '';
+      _battMgr = {};
       document.getElementById('battery-submit-wrap').style.display = 'none';
+      _updateConvertBar();
       return;
     }
     _batteryDocId = mine[mine.length - 1].id;
-    // one active assignment → keep the manager's inline editing; several → read-only monitoring per driver
-    const editable = mine.length === 1;
-    wrap.innerHTML = mine.map(a => _renderBatteryAssignmentBlock(a, editable)).join('');
+    _battMgr = {};
+    for (const a of mine) {
+      const src = a.resultsJson ? JSON.parse(a.resultsJson)
+        : a.progressJson ? JSON.parse(a.progressJson)
+        : (a.rowsJson ? JSON.parse(a.rowsJson) : []).map(r => ({ cells: Array.isArray(r) ? r : (r.cells || []), battery: '', range: '', status: (r && r.status) || '' }));
+      _battMgr[a.id] = {
+        headers: a.headers || [],
+        assignedTo: a.assignedTo || '',
+        status: a.status,
+        ts: a.createdAt?.toDate ? a.createdAt.toDate().toLocaleDateString('he-IL') : '',
+        rows: src.map(r => ({ cells: r.cells || [], battery: r.battery ?? '', range: r.range ?? '', status: r.status || '' })),
+        convertedIdx: a.convertedIdx || [],
+      };
+    }
+    // drop selections that no longer exist
+    for (const key of [..._battSelected]) {
+      const [asg, idx] = key.split(':');
+      if (!_battMgr[asg] || (_battMgr[asg].convertedIdx || []).includes(+idx)) _battSelected.delete(key);
+    }
+    wrap.innerHTML = mine.map(a => _renderBattMgrBlock(a.id)).join('');
     document.getElementById('battery-submit-wrap').style.display = 'none';
+    _updateConvertBar();
   });
 }
 
-function _renderBatteryAssignmentBlock(a, editable) {
-  const rows = a.rowsJson ? JSON.parse(a.rowsJson) : [];
-  const headers = a.headers || [];
-  const isDone = a.status === 'done';
-  const ts = a.createdAt?.toDate ? a.createdAt.toDate().toLocaleDateString('he-IL') : '';
-  const progress = a.progressJson ? JSON.parse(a.progressJson) : null;
-  const filledCount = progress ? progress.filter(r => r.battery !== '').length : 0;
-  const statusLabel = isDone
-    ? '✅ הבדיקה הושלמה'
-    : progress ? `🔄 ממלא כעת — ${filledCount}/${rows.length}` : '⏳ ממתין למילוי';
-  const bannerBg = isDone ? '#f0fff4' : (progress ? '#eff6ff' : '#fef3c7');
-  const bannerBorder = isDone ? '#22c55e' : (progress ? '#3b82f6' : '#f59e0b');
-  const bannerColor = isDone ? '#166534' : (progress ? '#1e40af' : '#92400e');
-  let html = `<div style="margin-bottom:18px">
-    <div style="border-radius:12px;padding:10px 14px;margin-bottom:8px;font-size:13px;font-weight:700;background:${bannerBg};border:2px solid ${bannerBorder};color:${bannerColor};display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-      <span>🧑‍🔧 נהג: <b>${esc(a.assignedTo || '')}</b> &nbsp;·&nbsp; ${statusLabel} &nbsp;·&nbsp; ${ts} &nbsp;·&nbsp; ${rows.length} רכבים</span>
-      <button onclick="convertToChargingTask('${a.id}')" style="background:#7c3aed;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">⚡ המר למשימה</button>
-    </div>`;
-  if (isDone) {
-    const results = a.resultsJson ? JSON.parse(a.resultsJson) : rows.map(r => ({ cells: Array.isArray(r) ? r : (r.cells || []), battery:'', range:'', status: r.status || '' }));
-    const needCharge = results.filter(r => parseInt(r.battery) !== 100);
-    const full100    = results.filter(r => parseInt(r.battery) === 100);
-    if (needCharge.length) {
-      html += `<div style="font-size:12px;font-weight:800;color:#374151;margin-bottom:4px">⚡ לטעינה — ${needCharge.length} רכבים</div>`;
-      html += _batteryTableHTML(headers, needCharge, false, true);
-    }
-    if (full100.length) {
-      html += `<div style="font-size:12px;font-weight:800;color:#166534;margin:12px 0 4px">✅ טעינה מלאה — ${full100.length} רכבים</div>`;
-      html += `<div style="background:#dcfce7;border-radius:12px;overflow:hidden;border:2px solid #22c55e">` + _batteryTableHTML(headers, full100, false, true) + `</div>`;
-    }
-  } else {
-    const displayRows = progress || rows.map(r => ({ cells: Array.isArray(r) ? r : (r.cells || []), battery:'', range:'', status: r.status || '' }));
-    if (editable) {
-      _batteryRows = displayRows;
-      _batteryHeaders = headers;
-      _batteryEditDocId = a.id;
-    }
-    html += _batteryTableHTML(headers, displayRows, editable, true);
-  }
+function _renderBattMgrBlock(asgId) {
+  const m = _battMgr[asgId];
+  if (!m) return '';
+  const conv = new Set(m.convertedIdx || []);
+  const remaining = m.rows.filter((_, i) => !conv.has(i));
+  const isDone = m.status === 'done';
+  const filledCount = m.rows.filter(r => r.battery !== '' && r.range !== '').length;
+  const statusLabel = isDone ? '✅ הושלמה' : `🔄 מולאו ${filledCount}/${m.rows.length}`;
+  const bg = isDone ? '#f0fff4' : '#eff6ff', bd = isDone ? '#22c55e' : '#3b82f6', cl = isDone ? '#166534' : '#1e40af';
+  let html = `<div style="margin-bottom:16px">
+    <div style="border-radius:10px;padding:8px 12px;margin-bottom:6px;font-size:12px;font-weight:700;background:${bg};border:2px solid ${bd};color:${cl}">🧑‍🔧 נהג: <b>${esc(m.assignedTo)}</b> · ${statusLabel} · ${m.ts}</div>`;
+  html += remaining.length ? _battMgrTableHTML(asgId, m.headers, m.rows, m.convertedIdx)
+    : '<div style="text-align:center;color:var(--muted);font-size:13px;padding:14px">כל הרכבים הומרו למשימה ✓</div>';
   html += `</div>`;
   return html;
 }
+
+function _battMgrTableHTML(asgId, headers, rows, convertedIdx) {
+  const conv = new Set(convertedIdx || []);
+  const colCount = headers.length || (rows[0]?.cells.length || 1);
+  const base = headers.length
+    ? headers.map(h => /דגם/.test(h) ? 'minmax(90px,1.4fr)' : /מספר|לוחית/.test(h) ? 'minmax(80px,1.2fr)' : 'minmax(55px,1fr)')
+    : Array(colCount).fill('1fr');
+  const colW = [...base, '58px', '64px', '34px'].join(' ');
+  let html = `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch"><div style="display:grid;grid-template-columns:${colW};gap:3px;background:var(--dark);color:#fff;border-radius:10px 10px 0 0;padding:6px 8px;font-size:11px;font-weight:700;direction:rtl;min-width:max-content">
+    ${headers.map(h => `<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(h)}</div>`).join('')}
+    <div style="text-align:center;color:#86efac">%<br>סוללה</div><div style="text-align:center;color:#86efac">טווח</div><div style="text-align:center">✔</div>
+  </div>`;
+  rows.forEach((row, idx) => {
+    if (conv.has(idx)) return;
+    const filled = row.battery !== '' && row.range !== '';
+    const checked = _battSelected.has(asgId + ':' + idx);
+    html += `<div id="bm-${asgId}-${idx}" style="display:grid;grid-template-columns:${colW};gap:3px;align-items:center;background:${filled ? '#f0fff4' : '#fff'};border:1.5px solid ${filled ? '#22c55e' : 'var(--border)'};border-top:none;padding:4px 6px;direction:rtl;min-width:max-content">
+      ${row.cells.map(c => `<div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c)}</div>`).join('')}
+      <div><input type="number" min="1" max="100" value="${esc(row.battery)}" placeholder="%" onfocus="_battMgrLastEdit=Date.now()" oninput="_clampBatteryInput(this);_battMgrEdit('${asgId}',${idx},'battery',this.value)" style="width:100%;border:1.5px solid #22c55e;border-radius:6px;padding:4px 2px;font-family:Heebo,sans-serif;font-size:12px;font-weight:700;text-align:center;box-sizing:border-box;background:#f0fff4"></div>
+      <div><input type="text" value="${esc(row.range)}" placeholder="קמ" onfocus="_battMgrLastEdit=Date.now()" oninput="_battMgrEdit('${asgId}',${idx},'range',this.value)" style="width:100%;border:1.5px solid #22c55e;border-radius:6px;padding:4px 2px;font-family:Heebo,sans-serif;font-size:12px;font-weight:700;text-align:center;box-sizing:border-box;background:#f0fff4"></div>
+      <div style="text-align:center"><input type="checkbox" ${checked ? 'checked' : ''} ${filled ? '' : 'disabled'} onchange="_battMgrToggle('${asgId}',${idx},this.checked)" style="width:18px;height:18px"></div>
+    </div>`;
+  });
+  html += '</div>';
+  return html;
+}
+
+function _battMgrEdit(asgId, idx, field, val) {
+  _battMgrLastEdit = Date.now();
+  const m = _battMgr[asgId]; if (!m || !m.rows[idx]) return;
+  m.rows[idx][field] = val;
+  const filled = m.rows[idx].battery !== '' && m.rows[idx].range !== '';
+  const el = document.getElementById(`bm-${asgId}-${idx}`);
+  if (el) {
+    el.style.background = filled ? '#f0fff4' : '#fff';
+    el.style.borderColor = filled ? '#22c55e' : 'var(--border)';
+    const cb = el.querySelector('input[type=checkbox]');
+    if (cb) { cb.disabled = !filled; if (!filled && cb.checked) { cb.checked = false; _battSelected.delete(asgId + ':' + idx); _updateConvertBar(); } }
+  }
+  clearTimeout(_battSaveTimers[asgId]);
+  _battSaveTimers[asgId] = setTimeout(async () => {
+    try {
+      const { updateDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+      await updateDoc(_docRef('battery_assignments', asgId), {
+        progressJson: JSON.stringify(m.rows.map(r => ({ cells: r.cells, battery: r.battery || '', range: r.range || '', status: r.status || '' }))),
+      });
+    } catch(e) { console.error('battMgrEdit save', e); }
+  }, 900);
+}
+window._battMgrEdit = _battMgrEdit;
+
+function _battMgrToggle(asgId, idx, checked) {
+  const key = asgId + ':' + idx;
+  if (checked) _battSelected.add(key); else _battSelected.delete(key);
+  _updateConvertBar();
+}
+window._battMgrToggle = _battMgrToggle;
+
+function _updateConvertBar() {
+  const bar = document.getElementById('batt-convert-bar');
+  const cnt = document.getElementById('batt-convert-count');
+  if (cnt) cnt.textContent = _battSelected.size;
+  if (bar) bar.style.display = _battSelected.size > 0 ? 'block' : 'none';
+}
+
+async function convertSelectedBatteryToTask() {
+  if (!_battSelected.size) { showToast('לא נבחרו רכבים'); return; }
+  const byAsg = {};
+  for (const key of _battSelected) { const [asg, idx] = key.split(':'); (byAsg[asg] = byAsg[asg] || []).push(+idx); }
+  let headers = [];
+  const toCharge = [], fullBattery = [];
+  for (const asg in byAsg) {
+    const m = _battMgr[asg]; if (!m) continue;
+    if (!headers.length) headers = m.headers;
+    for (const idx of byAsg[asg]) {
+      const r = m.rows[idx]; if (!r) continue;
+      const b = parseInt(r.battery);
+      if (b === 100) fullBattery.push({ cells: r.cells, battery: r.battery || '', range: r.range || '', status: r.status || '' });
+      else toCharge.push({ cells: r.cells, battery: r.battery || '', range: r.range || '', charged: false, status: r.status || '' });
+    }
+  }
+  if (!toCharge.length && !fullBattery.length) { showToast('אין רכבים להמרה'); return; }
+  try {
+    const { addDoc, updateDoc, collection } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    await addDoc(collection(window._db, 'charging_tasks'), {
+      createdBy: currentUser.name, createdAt: _serverTs(), status: 'active',
+      headers, carsJson: JSON.stringify(toCharge), fullBatteryCarsJson: JSON.stringify(fullBattery),
+    });
+    for (const asg in byAsg) {
+      const m = _battMgr[asg]; if (!m) continue;
+      const merged = [...new Set([...(m.convertedIdx || []), ...byAsg[asg]])];
+      m.convertedIdx = merged;
+      await updateDoc(_docRef('battery_assignments', asg), { convertedIdx: merged });
+    }
+    _battSelected.clear();
+    _updateConvertBar();
+    _battMgrLastEdit = 0; // allow immediate re-render
+    showToast(`✅ ${toCharge.length + fullBattery.length} רכבים הומרו למשימת טעינה`);
+  } catch(e) { console.error('convertSelected', e); showToast('⚠️ שגיאה בהמרה'); }
+}
+window.convertSelectedBatteryToTask = convertSelectedBatteryToTask;
 
 
 function handleBatteryFile(input, fileIndex) {
