@@ -502,6 +502,11 @@ if ('serviceWorker' in navigator) {
       </div>
       <div id="req-plate-result" style="margin-top:6px;font-size:13px;color:var(--muted)"></div>
     </div>
+    <div class="form-group" style="position:relative">
+      <label>עיר (למשימת אזור — לא חובה)</label>
+      <input class="form-input" id="req-task-city" autocomplete="off" placeholder="התחל להקליד עיר..." oninput="_cityAutocomplete('req-task-city','req-task-city-dd')" onblur="_cityBlur('req-task-city-dd')">
+      <div id="req-task-city-dd" style="display:none;position:absolute;left:0;right:0;top:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;max-height:220px;overflow-y:auto;z-index:1000;box-shadow:0 6px 20px rgba(0,0,0,0.15)"></div>
+    </div>
     <div class="form-group">
       <label>תיאור המשימה <span style="color:#ef4444">*</span></label>
       <textarea class="form-textarea" id="req-task-text" rows="3" placeholder="תאר את המשימה..."></textarea>
@@ -3410,6 +3415,7 @@ function openRequestTaskModal() {
   document.getElementById('req-task-photo-preview').innerHTML = '';
   document.getElementById('req-task-file').value = '';
   document.getElementById('req-task-plate').value = '';
+  document.getElementById('req-task-city').value = '';
   document.getElementById('req-plate-result').textContent = '';
   _reqTaskPhotoData = null;
   _reqTaskCol = null;
@@ -3501,11 +3507,14 @@ async function submitTaskRequest() {
   const btn = document.getElementById('req-task-send-btn');
   btn.disabled = true;
   try {
+    const reqCity = document.getElementById('req-task-city')?.value.trim() || '';
     const ref = await _addDoc(_colRef('task_requests'), {
       driverName: currentUser.name,
       column: col,
       text,
       photo: _reqTaskPhotoData,
+      regionCity: reqCity,
+      region: _regionOfCity(reqCity),
       vehicle: _reqVehicleInfo || (document.getElementById('req-task-plate')?.value.trim() ? { plate: document.getElementById('req-task-plate').value.trim(), maker:'', model:'', year:'' } : null),
       status: 'pending',
       createdAt: _serverTs()
@@ -3642,6 +3651,8 @@ async function approveTaskRequest(approved) {
       assignedTo: usedCol,
       label: usedCol,
       status: 'open',
+      regionCity: req.regionCity || '',
+      region: req.region || _regionOfCity(req.regionCity || ''),
       createdBy: req.driverName,
       createdAt: _serverTs()
     });
