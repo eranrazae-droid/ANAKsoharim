@@ -5290,7 +5290,15 @@ function loadLastInventoryAssignment() {
   const savedBanner = localStorage.getItem('_lastInvBanner');
   if (savedBanner) { doneBanner.style.display = 'block'; doneBanner.innerHTML = savedBanner; }
 
+  // if Firestore doesn't respond in 8s, stop showing an endless spinner
+  const _invTimeout = setTimeout(() => {
+    if (container.querySelector('.loading')) {
+      container.innerHTML = `<div class="empty-state" style="padding:40px 20px;text-align:center;color:#ef4444">⚠️ הטעינה נכשלה — בדוק חיבור ונסה לרענן את הדף</div>`;
+    }
+  }, 8000);
+
   _invUnsub = _onSnap(_colRef('inventory_assignments'), snap => {
+    clearTimeout(_invTimeout);
     if (_invMode === 'preview') return; // user uploaded new file — don't overwrite
     const mine = snap.docs
       .map(d => ({ id: d.id, ...d.data() }))
@@ -5342,6 +5350,10 @@ function loadLastInventoryAssignment() {
       renderInvPending(headers, rows);
       window._lastInvStatus = 'pending';
     }
+  }, err => {
+    clearTimeout(_invTimeout);
+    console.error('[INVENTORY] listener error', err.code, err.message);
+    container.innerHTML = `<div class="empty-state" style="padding:40px 20px;text-align:center;color:#ef4444">⚠️ שגיאת חיבור: ${esc(err.code||err.message)}</div>`;
   });
 }
 
@@ -5552,7 +5564,13 @@ function loadDriverInventoryAssignments() {
   if (_dinvUnsub) _dinvUnsub();
   const container = document.getElementById('dinv-list');
   container.innerHTML = '<div class="loading"><div class="spinner"></div> טוען...</div>';
+  const _dinvTimeout = setTimeout(() => {
+    if (container.querySelector('.loading')) {
+      container.innerHTML = `<div class="empty-state" style="padding:40px 20px;text-align:center;color:#ef4444">⚠️ הטעינה נכשלה — בדוק חיבור ונסה לרענן את הדף</div>`;
+    }
+  }, 8000);
   _dinvUnsub = _onSnap(_colRef('inventory_assignments'), snap => {
+    clearTimeout(_dinvTimeout);
     const docs = snap.docs
       .map(d => ({ id: d.id, ...d.data() }))
       .filter(d => d.assignedTo === currentUser.name && d.status === 'pending');
@@ -5568,6 +5586,10 @@ function loadDriverInventoryAssignments() {
         <div class="vehicle-meta"><span class="cond-badge" style="background:#fef3c7;color:#92400e">${d.rowsJson ? JSON.parse(d.rowsJson).length : (d.rows?.length||0)} שורות לבדיקה</span></div>
       </div>`;
     }).join('');
+  }, err => {
+    clearTimeout(_dinvTimeout);
+    console.error('[DRIVER INVENTORY] listener error', err.code, err.message);
+    container.innerHTML = `<div class="empty-state" style="padding:40px 20px;text-align:center;color:#ef4444">⚠️ שגיאת חיבור: ${esc(err.code||err.message)}</div>`;
   });
 }
 
