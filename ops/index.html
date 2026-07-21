@@ -8330,9 +8330,41 @@ window._pickCity = _pickCity;
 function _cityBlur(ddId) { setTimeout(() => { const d = document.getElementById(ddId); if (d) d.style.display = 'none'; }, 200); }
 window._cityBlur = _cityBlur;
 
-// open (non-done) tasks that carry a region, kept live while on the pickup screen
+// open (non-done) tasks that carry a city, kept live while on the pickup screen
 let _regionTasksCache = [];
 let _regionTasksUnsub = null;
+
+// ── City coordinates + air-distance matching (radius) ──
+const _TASK_RADIUS_KM = 40;
+const _CITY_COORD = {"אום אל־פחם":[32.516,35.152],"אור עקיבא":[32.508,34.917],"באקה אל־גרבייה":[32.417,35.037],"בית שאן":[32.497,35.499],"דלית אל־כרמל":[32.696,35.048],"חיפה":[32.794,34.989],"טבריה":[32.789,35.531],"טירת כרמל":[32.760,34.972],"טמרה":[32.851,35.207],"יקנעם עילית":[32.657,35.110],"כרמיאל":[32.916,35.292],"כפר קאסם":[32.114,34.977],"מעלות־תרשיחא":[33.016,35.270],"מגדל העמק":[32.675,35.240],"נוף הגליל":[32.708,35.317],"נהריה":[33.007,35.095],"נשר":[32.766,35.043],"נצרת":[32.702,35.303],"עכו":[32.928,35.082],"עפולה":[32.607,35.289],"עראבה":[32.851,35.338],"צפת":[32.965,35.498],"קריית אתא":[32.811,35.113],"קריית ביאליק":[32.827,35.086],"קריית ים":[32.848,35.070],"קריית מוצקין":[32.836,35.077],"קריית שמונה":[33.207,35.570],"שפרעם":[32.805,35.169],"סח'נין":[32.865,35.298],"טייבה":[32.267,35.010],"טירה":[32.234,34.951],"קלנסווה":[32.285,34.981],"אלעד":[32.050,34.951],"אריאל":[32.105,35.187],"באר יעקב":[31.943,34.834],"בת ים":[32.023,34.751],"בני ברק":[32.083,34.833],"גבעת שמואל":[32.078,34.849],"גבעתיים":[32.072,34.812],"הוד השרון":[32.150,34.889],"הרצליה":[32.166,34.843],"חולון":[32.010,34.779],"חדרה":[32.434,34.919],"חריש":[32.462,35.048],"יהוד־מונוסון":[32.033,34.889],"יבנה":[31.878,34.739],"ירושלים":[31.769,35.217],"כפר סבא":[32.178,34.907],"לוד":[31.951,34.895],"מודיעין־מכבים־רעות":[31.898,35.010],"מעלה אדומים":[31.773,35.298],"נס ציונה":[31.929,34.799],"נתניה":[32.321,34.853],"אור יהודה":[32.030,34.849],"פתח תקווה":[32.087,34.887],"ראש העין":[32.095,34.956],"ראשון לציון":[31.964,34.805],"רחובות":[31.894,34.809],"רמלה":[31.925,34.866],"רעננה":[32.184,34.871],"רמת גן":[32.070,34.824],"רמת השרון":[32.146,34.840],"תל אביב–יפו":[32.080,34.780],"אופקים":[31.315,34.620],"אילת":[29.557,34.952],"אשדוד":[31.802,34.656],"אשקלון":[31.668,34.574],"באר שבע":[31.252,34.791],"בית שמש":[31.745,34.988],"דימונה":[31.070,35.033],"נתיבות":[31.421,34.588],"ערד":[31.259,35.213],"קריית גת":[31.610,34.771],"קריית מלאכי":[31.730,34.745],"רהט":[31.393,34.754],"שדרות":[31.525,34.596]};
+const _CITY_COORD_NORM = (() => { const o = {}; for (const k in _CITY_COORD) o[_normCityName(k)] = _CITY_COORD[k]; return o; })();
+function _coordOfCity(city) {
+  const n = _normCityName(city); if (!n) return null;
+  if (_CITY_COORD_NORM[n]) return _CITY_COORD_NORM[n];
+  if (n.length >= 3) for (const k in _CITY_COORD_NORM) { if (k.startsWith(n) || n.startsWith(k)) return _CITY_COORD_NORM[k]; }
+  return null;
+}
+function _haversineKm(a, b) {
+  const R = 6371, toR = x => x * Math.PI / 180;
+  const dLat = toR(b[0] - a[0]), dLng = toR(b[1] - a[1]);
+  const s = Math.sin(dLat/2) ** 2 + Math.cos(toR(a[0])) * Math.cos(toR(b[0])) * Math.sin(dLng/2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+// taskId → id of the nearest pickup car within radius (recomputed on each render)
+let _taskClosestCarId = {};
+function _computeTaskClosest() {
+  _taskClosestCarId = {};
+  for (const t of _regionTasksCache) {
+    const tc = _coordOfCity(t.regionCity); if (!tc) continue;
+    let best = { km: Infinity, id: null };
+    for (const car of _pickupAllCars) {
+      const cc = _coordOfCity(car.city); if (!cc) continue;
+      const km = _haversineKm(cc, tc);
+      if (km <= _TASK_RADIUS_KM && km < best.km) best = { km, id: car.id };
+    }
+    if (best.id) _taskClosestCarId[t.id] = best.id;
+  }
+}
 
 function togglePickupSelect(id) {
   if (_pickupSelected.has(id)) _pickupSelected.delete(id);
@@ -8446,7 +8478,7 @@ function loadPickupRegionTasks() {
   if (_regionTasksUnsub) _regionTasksUnsub();
   _regionTasksUnsub = _onSnap(_colRef('tasks'), snap => {
     _regionTasksCache = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-      .filter(t => t.region && t.status !== 'done' && t.type !== 'divider');
+      .filter(t => t.regionCity && t.status !== 'done' && t.type !== 'divider');
     renderPickupCars();
   }, err => console.error('region tasks listen error', err));
 }
@@ -8602,6 +8634,7 @@ function renderPickupCars() {
   }
   // assigned cars always float to top (stable)
   cars.sort((a, b) => (b.assignedDriver ? 1 : 0) - (a.assignedDriver ? 1 : 0));
+  _computeTaskClosest();
   _pickupShownIds = cars.map(c => c.id);
   if (!cars.length) {
     list.innerHTML = '<div style="text-align:center;padding:60px 20px;color:var(--muted);font-size:15px">אין רכבים לאיסוף</div>';
@@ -8649,15 +8682,25 @@ function _testExpired(test) {
   return exp < today;
 }
 
-// tasks whose region matches this car's city — shown inside the card
+// tasks within air-distance radius of this car's city — shown inside the card
 function _pickupRegionTasksHtml(c, e) {
-  const reg = _regionOfCity(c.city);
-  if (!reg) return '';
-  const rt = _regionTasksCache.filter(t => t.region === reg);
-  if (!rt.length) return '';
+  const carC = _coordOfCity(c.city);
+  if (!carC) return '';
+  const rows = [];
+  for (const t of _regionTasksCache) {
+    const tc = _coordOfCity(t.regionCity); if (!tc) continue;
+    const km = _haversineKm(carC, tc);
+    if (km > _TASK_RADIUS_KM) continue;
+    rows.push({ t, km });
+  }
+  if (!rows.length) return '';
+  rows.sort((a, b) => a.km - b.km);
   return `<div style="margin-top:8px;background:#fef3c7;border:1px solid #f59e0b;border-radius:10px;padding:8px 10px">
-    <div style="font-size:11px;font-weight:900;color:#92400e;margin-bottom:4px">📍 משימות באזור ${e(reg)}</div>
-    ${rt.map(t => `<div style="font-size:13px;color:#78350f;font-weight:600;line-height:1.5">• ${e(t.title)}${t.regionCity ? ` <span style="color:#b45309">(${e(t.regionCity)})</span>` : ''}</div>`).join('')}
+    <div style="font-size:11px;font-weight:900;color:#92400e;margin-bottom:4px">📍 משימות בקרבת מקום (עד ${_TASK_RADIUS_KM} ק"מ)</div>
+    ${rows.map(({ t, km }) => {
+      const closest = _taskClosestCarId[t.id] === c.id;
+      return `<div style="font-size:13px;color:#78350f;font-weight:600;line-height:1.6">• ${e(t.title)}${t.regionCity ? ` <span style="color:#b45309">(${e(t.regionCity)})</span>` : ''} — <b>${Math.round(km)} ק"מ</b>${closest ? ` <span style="background:#16a34a;color:#fff;border-radius:6px;padding:1px 7px;font-size:11px;font-weight:800;white-space:nowrap">🎯 הכי קרוב למשימה</span>` : ''}</div>`;
+    }).join('')}
   </div>`;
 }
 
