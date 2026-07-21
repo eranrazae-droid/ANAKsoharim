@@ -1384,9 +1384,16 @@ if ('serviceWorker' in navigator) {
       <option value="">כל הערים</option>
     </select>
     <button id="pickup-sort-btn" onclick="cyclePickupSort()" style="flex:1;min-width:160px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;text-align:center">סינון לפי זמן המתנה מהגבוה לנמוך</button>
+    <button id="pickup-select-btn" onclick="togglePickupSelectMode()" style="flex:1;min-width:120px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;text-align:center">☑️ בחירה מרובה</button>
   </div>
   <div style="padding:12px 16px 0" id="pickup-list">
     <div class="loading"><div class="spinner"></div> טוען...</div>
+  </div>
+  <!-- batch action bar (shown in select mode) -->
+  <div id="pickup-batch-bar" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:2px solid var(--border);padding:12px 16px;gap:10px;align-items:center;z-index:60;box-shadow:0 -4px 16px rgba(0,0,0,0.12)">
+    <span id="pickup-batch-count" style="font-weight:800;font-size:14px;flex-shrink:0">נבחרו 0</span>
+    <button onclick="batchCollectPickup()" style="flex:1;background:#059669;color:#fff;border:none;border-radius:10px;padding:12px;font-family:Heebo,sans-serif;font-weight:800;font-size:14px;cursor:pointer">✅ הרכבים נאספו</button>
+    <button onclick="togglePickupSelectMode()" style="flex-shrink:0;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:14px;cursor:pointer">ביטול</button>
   </div>
   <!-- archive section -->
   <div id="pickup-archive-wrap" style="padding:0 16px 160px">
@@ -1394,6 +1401,7 @@ if ('serviceWorker' in navigator) {
       <span style="font-weight:800;font-size:15px">📁 רכבים שנאספו</span>
       <span id="pickup-archive-count" style="font-size:12px;color:var(--muted)">לחץ להצגה</span>
     </div>
+    <input id="pickup-archive-search" oninput="renderPickupArchiveFiltered()" placeholder="🔍 חיפוש בארכיון (לוחית, דגם, עיר, מי אסף)..." style="display:none;width:100%;padding:9px 12px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;box-sizing:border-box;margin-bottom:10px">
     <div id="pickup-archive-body" style="display:none;flex-direction:column;gap:10px"></div>
   </div>
   <button class="fab" onclick="openFreeTextPickupModal()" style="bottom:24px;right:16px;left:auto;transform:none">+ הוספת רכב</button>
@@ -8243,11 +8251,60 @@ let _pickupSortMode = 0; // 0=newest first, 1=wait high→low, 2=wait low→high
 let _pickupArchiveLoaded = false;
 let _pickupArchiveOpen = false;
 let _pickupArchiveCars = [];
+let _pickupSelectMode = false;
+let _pickupSelected = new Set();
+
+function togglePickupSelectMode() {
+  _pickupSelectMode = !_pickupSelectMode;
+  _pickupSelected.clear();
+  const btn = document.getElementById('pickup-select-btn');
+  if (btn) {
+    btn.style.background = _pickupSelectMode ? '#059669' : 'var(--surface2)';
+    btn.style.color = _pickupSelectMode ? '#fff' : 'var(--text)';
+    btn.textContent = _pickupSelectMode ? '✖ סיום בחירה' : '☑️ בחירה מרובה';
+  }
+  _updatePickupBatchBar();
+  renderPickupCars();
+}
+window.togglePickupSelectMode = togglePickupSelectMode;
+
+function togglePickupSelect(id) {
+  if (_pickupSelected.has(id)) _pickupSelected.delete(id);
+  else _pickupSelected.add(id);
+  _updatePickupBatchBar();
+  renderPickupCars();
+}
+window.togglePickupSelect = togglePickupSelect;
+
+function _updatePickupBatchBar() {
+  const bar = document.getElementById('pickup-batch-bar');
+  const cnt = document.getElementById('pickup-batch-count');
+  if (!bar) return;
+  bar.style.display = _pickupSelectMode ? 'flex' : 'none';
+  if (cnt) cnt.textContent = `נבחרו ${_pickupSelected.size}`;
+}
+
+function batchCollectPickup() {
+  if (!_pickupSelected.size) { showToast('לא נבחרו רכבים'); return; }
+  _pendingCollectBatch = [..._pickupSelected];
+  _pendingCollectFromHome = false;
+  document.getElementById('collect-pickup-by').value = '';
+  openModal('modal-collect-pickup');
+  setTimeout(() => document.getElementById('collect-pickup-by')?.focus(), 50);
+}
+window.batchCollectPickup = batchCollectPickup;
 
 function openPickupScreen() {
   document.getElementById('pickup-user-badge').textContent = currentUser.name;
   _pickupArchiveLoaded = false;
   _pickupArchiveOpen = false;
+  // reset multi-select state on every entry
+  _pickupSelectMode = false;
+  _pickupSelected.clear();
+  _pendingCollectBatch = null;
+  _updatePickupBatchBar();
+  const selBtn = document.getElementById('pickup-select-btn');
+  if (selBtn) { selBtn.style.background = 'var(--surface2)'; selBtn.style.color = 'var(--text)'; selBtn.textContent = '☑️ בחירה מרובה'; }
   const body = document.getElementById('pickup-archive-body');
   if (body) body.style.display = 'none';
   showScreen('pickup');
@@ -8269,19 +8326,40 @@ function loadPickupArchiveCount() {
 function togglePickupArchive() {
   _pickupArchiveOpen = !_pickupArchiveOpen;
   const body = document.getElementById('pickup-archive-body');
+  const search = document.getElementById('pickup-archive-search');
   if (!body) return;
-  if (!_pickupArchiveOpen) { body.style.display = 'none'; return; }
+  if (!_pickupArchiveOpen) {
+    body.style.display = 'none';
+    if (search) search.style.display = 'none';
+    return;
+  }
   body.style.display = 'flex';
+  if (search) search.style.display = 'block';
   // render the current archive data now (the live listener only fires on changes)
   _renderPickupArchive(_pickupArchiveCars);
 }
 window.togglePickupArchive = togglePickupArchive;
 
+// re-render the archive applying the current search term
+function renderPickupArchiveFiltered() {
+  _renderPickupArchive(_pickupArchiveCars);
+}
+window.renderPickupArchiveFiltered = renderPickupArchiveFiltered;
+
 function _renderPickupArchive(docs) {
   const body = document.getElementById('pickup-archive-body');
   if (!body || !_pickupArchiveOpen) return;
-  if (!docs.length) { body.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted)">אין רכבים בארכיון</div>'; return; }
-  const sorted = [...docs].sort((a,b) => (b.collectedAt?.seconds||0) - (a.collectedAt?.seconds||0));
+  const term = (document.getElementById('pickup-archive-search')?.value || '').trim().toLowerCase();
+  let filtered = docs;
+  if (term) {
+    filtered = docs.filter(c => [c.plate, c.type, c.brand, c.year, c.color, c.city, c.address, c.contact, c.collectedBy, c.collectedByText]
+      .filter(Boolean).join(' ').toLowerCase().includes(term));
+  }
+  if (!filtered.length) {
+    body.innerHTML = `<div style="text-align:center;padding:20px;color:var(--muted)">${term ? 'לא נמצאו רכבים תואמים' : 'אין רכבים בארכיון'}</div>`;
+    return;
+  }
+  const sorted = [...filtered].sort((a,b) => (b.collectedAt?.seconds||0) - (a.collectedAt?.seconds||0));
   body.innerHTML = sorted.map(c => {
     const dt = c.collectedAt?.seconds
       ? new Date(c.collectedAt.seconds * 1000).toLocaleString('he-IL', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })
@@ -8425,6 +8503,22 @@ function _pickupCardHtml(c) {
   const days = _pickupDays(c);
   const waitLabel = days === null ? '' : `${days} ימי המתנה`;
   const waitColor = days === null ? '#6b7280' : days > 14 ? '#dc2626' : days > 7 ? '#f59e0b' : '#16a34a';
+  if (_pickupSelectMode) {
+    const checked = _pickupSelected.has(c.id);
+    return `<div class="vehicle-card" style="border-right:5px solid ${waitColor};margin-bottom:8px;cursor:pointer;${checked?'background:#dcfce7;border:2px solid #059669':''}" onclick="togglePickupSelect('${e(c.id)}')">
+      <div style="display:flex;align-items:flex-start;gap:10px">
+        <div style="font-size:22px;flex-shrink:0;line-height:1.2">${checked?'✅':'⬜'}</div>
+        <div style="flex:1;min-width:0">
+          <div class="vehicle-plate">${e(c.plate||'')}</div>
+          ${c.type ? `<div class="vehicle-info">${e(c.type)}${c.year ? ' · ' + e(c.year) : ''}</div>` : ''}
+          <div class="vehicle-meta">
+            ${c.city ? `<span class="tag assignee">🏙️ ${e(c.city)}</span>` : ''}
+            ${waitLabel ? `<span class="tag assignee">⏱ ${waitLabel}</span>` : ''}
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }
   return `<div class="vehicle-card" style="border-right:5px solid ${waitColor};margin-bottom:8px;cursor:pointer" onclick="openEditPickupModal('${e(c.id)}')">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
       <div style="flex:1;min-width:0">
@@ -9264,6 +9358,7 @@ window.sendPickupToDriver = sendPickupToDriver;
 
 let _pendingCollectId = null;
 let _pendingCollectFromHome = false;
+let _pendingCollectBatch = null; // array of ids when collecting several at once
 
 function collectPickupCar(id) {
   _pendingCollectId = id;
@@ -9275,8 +9370,6 @@ function collectPickupCar(id) {
 window.collectPickupCar = collectPickupCar;
 
 async function submitCollectPickup() {
-  const id = _pendingCollectId;
-  if (!id) return;
   const collectedByText = document.getElementById('collect-pickup-by').value.trim();
   if (!collectedByText) {
     showToast('נא להזין על ידי מי נאסף הרכב');
@@ -9284,6 +9377,29 @@ async function submitCollectPickup() {
     return;
   }
   const { addDoc, deleteDoc, doc, collection } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+
+  // batch mode — several cars collected in one action
+  if (_pendingCollectBatch && _pendingCollectBatch.length) {
+    const ids = _pendingCollectBatch;
+    let ok = 0;
+    for (const id of ids) {
+      const car = _pickupAllCars.find(c => c.id === id);
+      if (!car) continue;
+      try {
+        await addDoc(collection(window._db, 'pickup_archive'), { ...car, collectedAt: _serverTs(), collectedBy: currentUser.name, collectedByText });
+        await deleteDoc(doc(window._db, 'pickup_cars', id));
+        ok++;
+      } catch (err) { console.error('batch collect failed for', id, err); }
+    }
+    closeModal('modal-collect-pickup');
+    _pendingCollectBatch = null;
+    if (_pickupSelectMode) togglePickupSelectMode(); // exit select mode + clear
+    showToast(`✅ ${ok} רכבים הועברו לארכיון`);
+    return;
+  }
+
+  const id = _pendingCollectId;
+  if (!id) return;
   const cars = _pendingCollectFromHome ? _driverPickupCars : _pickupAllCars;
   const car = cars.find(c => c.id === id) || {};
   await addDoc(collection(window._db, 'pickup_archive'), { ...car, collectedAt: _serverTs(), collectedBy: currentUser.name, collectedByText });
