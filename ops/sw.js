@@ -1,4 +1,4 @@
-// v5 — force update
+// v6 — force update
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', e => e.waitUntil(clients.claim()));
 

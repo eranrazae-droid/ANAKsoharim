@@ -1729,11 +1729,13 @@ const CONFIG_DONE = !firebaseConfig.apiKey.includes("PASTE");
 let db, app, storage;
 if (CONFIG_DONE) {
   app     = initializeApp(firebaseConfig);
-  // auto-detect networks/proxies that stall Firestore's default streaming
-  // transport and fall back to long-polling — prevents onSnapshot AND writes
-  // from hanging forever on such networks
+  // Force long-polling. On this network the default WebSocket streaming
+  // transport stalls, which made every onSnapshot AND every write hang.
+  // Forcing long-polling skips the stalling stream entirely (auto-detect
+  // still tries the stream first and eats the timeout), so screens load and
+  // writes complete reliably.
   try {
-    db = initializeFirestore(app, { experimentalAutoDetectLongPolling: true }, 'default');
+    db = initializeFirestore(app, { experimentalForceLongPolling: true }, 'default');
   } catch (_e) {
     db = getFirestore(app, 'default');
   }
