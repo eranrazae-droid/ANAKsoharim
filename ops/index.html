@@ -628,6 +628,11 @@ if ('serviceWorker' in navigator) {
       <label>כותרת המשימה</label>
       <input class="form-input" id="et-title" placeholder="כותרת...">
     </div>
+    <div class="form-group" style="position:relative">
+      <label>עיר (למשימת אזור — לא חובה)</label>
+      <input class="form-input" id="et-city" autocomplete="off" placeholder="התחל להקליד עיר..." oninput="_cityAutocomplete('et-city','et-city-dd')" onblur="_cityBlur('et-city-dd')">
+      <div id="et-city-dd" style="display:none;position:absolute;left:0;right:0;top:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;max-height:220px;overflow-y:auto;z-index:30;box-shadow:0 6px 20px rgba(0,0,0,0.15)"></div>
+    </div>
     <div class="form-group">
       <label>תווית</label>
       <select class="form-select" id="et-label">
@@ -670,6 +675,11 @@ if ('serviceWorker' in navigator) {
     <div class="form-group">
       <label>כותרת המשימה</label>
       <input class="form-input" id="task-title" placeholder="לדוגמא: שטיפת רכב לוח 123-45">
+    </div>
+    <div class="form-group" style="position:relative">
+      <label>עיר (למשימת אזור — לא חובה)</label>
+      <input class="form-input" id="task-city" autocomplete="off" placeholder="התחל להקליד עיר..." oninput="_cityAutocomplete('task-city','task-city-dd')" onblur="_cityBlur('task-city-dd')">
+      <div id="task-city-dd" style="display:none;position:absolute;left:0;right:0;top:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;max-height:220px;overflow-y:auto;z-index:30;box-shadow:0 6px 20px rgba(0,0,0,0.15)"></div>
     </div>
     <div class="form-group">
       <label>תווית</label>
@@ -3305,6 +3315,7 @@ async function openEditTask(id) {
   const t = snap.data();
   document.getElementById('et-id').value = id;
   document.getElementById('et-title').value = t.title || '';
+  document.getElementById('et-city').value = t.regionCity || '';
   document.getElementById('et-label').value = t.label || 'משימות כלליות';
   const existingColor = t.color || '';
   document.getElementById('et-color').value = existingColor;
@@ -3326,10 +3337,13 @@ async function saveEditTask() {
   const title = document.getElementById('et-title').value.trim();
   if (!title) return showToast('נא להזין כותרת');
   try {
+    const etCity = document.getElementById('et-city').value.trim();
     await _updateDoc(_docRef('tasks', id), {
       title,
       label: document.getElementById('et-label').value,
       color: document.getElementById('et-color').value,
+      regionCity: etCity,
+      region: _regionOfCity(etCity),
     });
     closeModal('modal-edit-task');
     showToast('✅ המשימה עודכנה!');
@@ -3366,6 +3380,7 @@ function toggleTaskDone(id, currentStatus) {
 
 function openNewTaskModal() {
   document.getElementById('task-title').value = '';
+  document.getElementById('task-city').value = '';
   document.getElementById('task-label').value = 'משימות כלליות';
   document.getElementById('task-color').value = '';
   document.querySelectorAll('#task-color-picker .color-swatch').forEach((s,i) => s.classList.toggle('selected', i===0));
@@ -3690,12 +3705,15 @@ async function submitTask() {
   const btn = document.querySelector('#modal-task .btn-submit');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ שומר...'; }
   try {
+    const taskCity = document.getElementById('task-city').value.trim();
     await _addDoc(_colRef('tasks'), {
       title,
       assignedTo: 'כולם',
       label:      document.getElementById('task-label').value,
       color:      document.getElementById('task-color').value,
       status:     'open',
+      regionCity: taskCity,
+      region:     _regionOfCity(taskCity),
       createdBy:  currentUser.name,
       createdAt:  _serverTs()
     });
@@ -8277,6 +8295,45 @@ let _pickupArchiveCars = [];
 let _pickupSelected = new Set();
 let _pickupShownIds = [];
 
+// ── City → region mapping (from the manager's Excel) ──
+const _CITY_REGION = {"אום אל־פחם": "צפון", "אור עקיבא": "צפון", "באקה אל־גרבייה": "צפון", "בית שאן": "צפון", "דלית אל־כרמל": "צפון", "חיפה": "צפון", "טבריה": "צפון", "טירת כרמל": "צפון", "טמרה": "צפון", "יקנעם עילית": "צפון", "כרמיאל": "צפון", "כפר קאסם": "צפון", "מעלות־תרשיחא": "צפון", "מגדל העמק": "צפון", "נוף הגליל": "צפון", "נהריה": "צפון", "נשר": "צפון", "נצרת": "צפון", "עכו": "צפון", "עפולה": "צפון", "עראבה": "צפון", "צפת": "צפון", "קריית אתא": "צפון", "קריית ביאליק": "צפון", "קריית ים": "צפון", "קריית מוצקין": "צפון", "קריית שמונה": "צפון", "שפרעם": "צפון", "סח'נין": "צפון", "טייבה": "צפון", "טירה": "צפון", "קלנסווה": "צפון", "אלעד": "מרכז", "אריאל": "מרכז", "באר יעקב": "מרכז", "בת ים": "מרכז", "בני ברק": "מרכז", "גבעת שמואל": "מרכז", "גבעתיים": "מרכז", "הוד השרון": "מרכז", "הרצליה": "מרכז", "חולון": "מרכז", "חדרה": "מרכז", "חריש": "מרכז", "יהוד־מונוסון": "מרכז", "יבנה": "מרכז", "ירושלים": "מרכז", "כפר סבא": "מרכז", "לוד": "מרכז", "מודיעין־מכבים־רעות": "מרכז", "מעלה אדומים": "מרכז", "נס ציונה": "מרכז", "נתניה": "מרכז", "אור יהודה": "מרכז", "פתח תקווה": "מרכז", "ראש העין": "מרכז", "ראשון לציון": "מרכז", "רחובות": "מרכז", "רמלה": "מרכז", "רעננה": "מרכז", "רמת גן": "מרכז", "רמת השרון": "מרכז", "תל אביב–יפו": "מרכז", "אופקים": "דרום", "אילת": "דרום", "אשדוד": "דרום", "אשקלון": "דרום", "באר שבע": "דרום", "בית שמש": "דרום", "דימונה": "דרום", "נתיבות": "דרום", "ערד": "דרום", "קריית גת": "דרום", "קריית מלאכי": "דרום", "רהט": "דרום", "שדרות": "דרום"};
+function _normCityName(s) {
+  return String(s || '')
+    .replace(/[־–—-]/g, ' ')  // maqaf ־ / en–em dash / hyphen → space
+    .replace(/['"׳״`]/g, '')        // gershayim / quotes → remove
+    .replace(/\s+/g, ' ').trim();
+}
+const _CITY_REGION_NORM = (() => { const o = {}; for (const k in _CITY_REGION) o[_normCityName(k)] = _CITY_REGION[k]; return o; })();
+const _CITY_LIST = Object.keys(_CITY_REGION).sort((a, b) => a.localeCompare(b, 'he'));
+function _regionOfCity(city) {
+  const n = _normCityName(city); if (!n) return '';
+  if (_CITY_REGION_NORM[n]) return _CITY_REGION_NORM[n];
+  if (n.length >= 3) for (const k in _CITY_REGION_NORM) { if (k.startsWith(n) || n.startsWith(k)) return _CITY_REGION_NORM[k]; }
+  return '';
+}
+function _cityAutocomplete(inputId, ddId) {
+  const input = document.getElementById(inputId), dd = document.getElementById(ddId);
+  if (!input || !dd) return;
+  const v = _normCityName(input.value);
+  if (!v) { dd.style.display = 'none'; dd.innerHTML = ''; return; }
+  const matches = _CITY_LIST.filter(c => _normCityName(c).startsWith(v)).slice(0, 10);
+  if (!matches.length) { dd.style.display = 'none'; dd.innerHTML = ''; return; }
+  dd.innerHTML = matches.map(c => `<div onclick="_pickCity('${inputId}','${ddId}',this.dataset.c)" data-c="${c.replace(/"/g,'&quot;')}" style="padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:14px">${c}</div>`).join('');
+  dd.style.display = 'block';
+}
+window._cityAutocomplete = _cityAutocomplete;
+function _pickCity(inputId, ddId, city) {
+  const input = document.getElementById(inputId); if (input) input.value = city;
+  const dd = document.getElementById(ddId); if (dd) { dd.style.display = 'none'; dd.innerHTML = ''; }
+}
+window._pickCity = _pickCity;
+function _cityBlur(ddId) { setTimeout(() => { const d = document.getElementById(ddId); if (d) d.style.display = 'none'; }, 200); }
+window._cityBlur = _cityBlur;
+
+// open (non-done) tasks that carry a region, kept live while on the pickup screen
+let _regionTasksCache = [];
+let _regionTasksUnsub = null;
+
 function togglePickupSelect(id) {
   if (_pickupSelected.has(id)) _pickupSelected.delete(id);
   else _pickupSelected.add(id);
@@ -8380,8 +8437,19 @@ function openPickupScreen() {
   showScreen('pickup');
   loadPickupCars();
   loadPickupArchiveCount();
+  loadPickupRegionTasks();
 }
 window.openPickupScreen = openPickupScreen;
+
+// keep the region-tagged open tasks live so pickup cards can show them
+function loadPickupRegionTasks() {
+  if (_regionTasksUnsub) _regionTasksUnsub();
+  _regionTasksUnsub = _onSnap(_colRef('tasks'), snap => {
+    _regionTasksCache = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .filter(t => t.region && t.status !== 'done' && t.type !== 'divider');
+    renderPickupCars();
+  }, err => console.error('region tasks listen error', err));
+}
 
 function loadPickupArchiveCount() {
   _onSnap(_colRef('pickup_archive'), snap => {
@@ -8581,6 +8649,18 @@ function _testExpired(test) {
   return exp < today;
 }
 
+// tasks whose region matches this car's city — shown inside the card
+function _pickupRegionTasksHtml(c, e) {
+  const reg = _regionOfCity(c.city);
+  if (!reg) return '';
+  const rt = _regionTasksCache.filter(t => t.region === reg);
+  if (!rt.length) return '';
+  return `<div style="margin-top:8px;background:#fef3c7;border:1px solid #f59e0b;border-radius:10px;padding:8px 10px">
+    <div style="font-size:11px;font-weight:900;color:#92400e;margin-bottom:4px">📍 משימות באזור ${e(reg)}</div>
+    ${rt.map(t => `<div style="font-size:13px;color:#78350f;font-weight:600;line-height:1.5">• ${e(t.title)}${t.regionCity ? ` <span style="color:#b45309">(${e(t.regionCity)})</span>` : ''}</div>`).join('')}
+  </div>`;
+}
+
 function _pickupCardHtml(c) {
   const e = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const km = c.km ? _fmtKm(c.km) + ' ק"מ' : '';
@@ -8606,6 +8686,7 @@ function _pickupCardHtml(c) {
           ${c.test ? `<span style="font-size:13px;font-weight:800;color:${_testExpired(c.test)?'#dc2626':'var(--dark)'}">🔧 טסט: ${e(c.test)}${_testExpired(c.test)?' — פג תוקף':''}</span>` : ''}
           ${c.doc ? `<span style="background:#38bdf8;color:#fff;border-radius:999px;padding:3px 11px;font-size:12px;font-weight:800;white-space:nowrap">✓ אישור העברת בעלות</span>` : ''}
         </div>` : ''}
+        ${_pickupRegionTasksHtml(c, e)}
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">
         ${waitLabel ? `<span style="background:#d97706;color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;white-space:nowrap">⏱ ${waitLabel}</span>` : ''}
