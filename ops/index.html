@@ -3616,12 +3616,16 @@ function expandTaskReqModal(idx) {
   _showTaskReqApproval(r.id, r.data);
 }
 
-let _lbZoom = 1;
+let _lbZoom = 1, _lbPanX = 0, _lbPanY = 0, _lbDragging = false, _lbDragStart = null;
+function _lbApply() {
+  const img = document.getElementById('lightbox-img');
+  img.style.transform = `translate(${_lbPanX}px, ${_lbPanY}px) scale(${_lbZoom})`;
+}
 function openLightbox(src) {
   const lb = document.getElementById('lightbox');
   const img = document.getElementById('lightbox-img');
   img.src = src;
-  _lbZoom = 1;
+  _lbZoom = 1; _lbPanX = 0; _lbPanY = 0; _lbDragging = false;
   img.style.transform = 'scale(1)';
   lb.style.display = 'flex';
   lb.style.alignItems = 'center';
@@ -3633,10 +3637,33 @@ document.addEventListener('wheel', e => {
   if (!lb || lb.style.display === 'none' || !lb.contains(e.target)) return;
   e.preventDefault();
   _lbZoom = Math.min(6, Math.max(0.5, _lbZoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15)));
+  if (_lbZoom <= 1) { _lbPanX = 0; _lbPanY = 0; }
   const img = document.getElementById('lightbox-img');
-  img.style.transform = `scale(${_lbZoom})`;
   img.style.transition = 'transform .08s';
+  _lbApply();
 }, { passive: false });
+// right-button drag pans the zoomed image
+document.addEventListener('mousedown', e => {
+  const lb = document.getElementById('lightbox');
+  if (e.button !== 2 || !lb || lb.style.display === 'none' || !lb.contains(e.target)) return;
+  e.preventDefault();
+  _lbDragging = true;
+  _lbDragStart = { x: e.clientX - _lbPanX, y: e.clientY - _lbPanY };
+});
+document.addEventListener('mousemove', e => {
+  if (!_lbDragging) return;
+  _lbPanX = e.clientX - _lbDragStart.x;
+  _lbPanY = e.clientY - _lbDragStart.y;
+  const img = document.getElementById('lightbox-img');
+  img.style.transition = 'none';
+  _lbApply();
+});
+document.addEventListener('mouseup', e => { if (e.button === 2) _lbDragging = false; });
+// keep the browser context menu from opening inside the lightbox
+document.addEventListener('contextmenu', e => {
+  const lb = document.getElementById('lightbox');
+  if (lb && lb.style.display !== 'none' && lb.contains(e.target)) e.preventDefault();
+});
 
 function _showTaskReqApproval(id, req) {
   _pendingTaskReqId = id;
