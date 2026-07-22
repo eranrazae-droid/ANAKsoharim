@@ -1373,11 +1373,16 @@ if ('serviceWorker' in navigator) {
   <div style="padding:16px 16px 100px" id="dbattery-list">
     <div class="loading"><div class="spinner"></div> טוען...</div>
   </div>
-  <div id="dbattery-inline-wrap" style="display:none;padding:16px 16px 100px">
+  <div id="dbattery-inline-wrap" style="display:none;padding:16px 16px 12px">
     <input type="hidden" id="dbattery-id">
     <div style="overflow-x:auto;-webkit-overflow-scrolling:touch" id="dbattery-rows-container"></div>
     <input type="hidden" id="dbattery-notes" value="">
     <button class="btn-submit" onclick="submitDriverBattery()" style="margin-top:14px">✅ שלח בדיקה</button>
+  </div>
+  <!-- charging tasks (below the check) -->
+  <div id="dbattery-charging-section" style="display:none;padding:0 16px 100px">
+    <div style="font-size:15px;font-weight:900;color:#5b21b6;margin:8px 0 10px;border-top:2px solid var(--border);padding-top:14px">🔌 רכבים לטעינה</div>
+    <div id="dbattery-charging-wrap"></div>
   </div>
 </div>
 
@@ -6471,11 +6476,25 @@ let _dbattDocId = null;
 let _dbattHeaders = [];
 let _dbattRows = [];  // [{cells, battery, range}]
 
+let _dbattChargingUnsub = null;
+function loadDriverBatteryCharging() {
+  if (!window._CONFIG_DONE) return;
+  if (_dbattChargingUnsub) _dbattChargingUnsub();
+  const section = document.getElementById('dbattery-charging-section');
+  const wrap = document.getElementById('dbattery-charging-wrap');
+  _dbattChargingUnsub = _onSnap(_query(_colRef('charging_tasks'), _where('status','==','active')), snap => {
+    if (!snap.size) { if (section) section.style.display = 'none'; return; }
+    if (section) section.style.display = 'block';
+    _renderChargingSnapshot(snap, wrap);
+  });
+}
+
 function openDriverBatteryScreen() {
   showScreen('driver-battery');
   document.getElementById('dbattery-user-badge').textContent = currentUser.name;
   document.getElementById('dbattery-list').style.display = '';
   document.getElementById('dbattery-inline-wrap').style.display = 'none';
+  loadDriverBatteryCharging();
   if (_dbattUnsub) _dbattUnsub();
   const container = document.getElementById('dbattery-list');
   container.innerHTML = '<div class="loading"><div class="spinner"></div> טוען...</div>';
@@ -6712,7 +6731,11 @@ function openDriverChargingScreen() {
   if (_dchargingUnsub) _dchargingUnsub();
   const container = document.getElementById('dcharging-list');
   container.innerHTML = '<div class="loading"><div class="spinner"></div> טוען...</div>';
-  _dchargingUnsub = _onSnap(_query(_colRef('charging_tasks'), _where('status','==','active')), snap => {
+  _dchargingUnsub = _onSnap(_query(_colRef('charging_tasks'), _where('status','==','active')), snap => _renderChargingSnapshot(snap, container));
+}
+
+function _renderChargingSnapshot(snap, container) {
+    if (!container) return;
     if (!snap.size) {
       container.innerHTML = '<div class="empty-state" style="padding:40px 20px;text-align:center;color:var(--muted)">אין משימות טעינה פעילות 🔌</div>';
       return;
@@ -6779,7 +6802,6 @@ function openDriverChargingScreen() {
       html += `</div>`;
     });
     container.innerHTML = html || '<div class="empty-state" style="padding:40px 20px;text-align:center;color:var(--muted)">אין רכבים לטעינה 🔌</div>';
-  });
 }
 
 function openChargingTaskModal(docId) {
