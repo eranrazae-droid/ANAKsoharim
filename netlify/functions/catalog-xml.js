@@ -1,5 +1,5 @@
 // פיד קטלוג XML ל-Meta (RSS 2.0 + מרחב שמות g:). נשלף ממלאי האתר ב-Supabase.
-// כתובת ציבורית: https://autodealer.co.il/catalog.xml  (rewrite ב-netlify.toml)
+// כתובת ציבורית: https://autodealer.co.il/catalog.xml (rewrite ב-netlify.toml)
 // המזהה (g:id) הוא meta_content_id הקבוע ששמור על כל רכב במסד הנתונים.
 const https = require('https');
 
@@ -11,7 +11,7 @@ const HIDDEN_IDS = [11,13];
 // מיפוי 38 מזהי הקטלוג הקיימים ב-Meta (מתוך meta_catalog_existing_ids.csv). מפתח = דגם הרכב במלאי.
 const META_ID_BY_MODEL_RAW = {
   'Ultra RWD':'boqwy0lswj','G6 Core+ RWD':'pji79zen63','NIRO HEV LX 1.6':'zusxps8pyt',
-  'BYD SEALION DESIGN 5 DM-i':'s7x208qk17','BYD SEALION COMF 5 DM-i':'ys2yq42hq5','BYD SEAL U BOOST  DM-i':'ldfwwl7bno',
+  'BYD SEALION DESIGN 5 DM-i':'s7x208qk17','BYD SEALION COMF 5 DM-i':'ys2yq42hq5','BYD SEAL U BOOST DM-i':'ldfwwl7bno',
   'PICANTO LX PLUS 1.2':'v4vovvsjur','ARIZO 8 PHEV COMFORT 1.5':'742opmtpgb',
   'TIGGO 9 PRO PHEV LUXURY + גג 1.5':'hhcs2egn5a','TIGGO 7 PRO PHEV LUXURY + גג 1.5':'ngh3409m94',
   'TIGGO 4 COMFORT HEV 1.5':'pzvraxvq1n','TIGGO 8 PRO PHEV NOBLE + גג 1.5':'fxhq9au8i3','FX COMFORT HEV 1.5':'9egvoqm8zi',
@@ -37,8 +37,8 @@ function matchExistingMetaId(brand, model){
 }
 function stableId(s){ s=(s||'').toString(); let h=5381; for(let i=0;i<s.length;i++){ h=(((h<<5)+h)+s.charCodeAt(i))&0xffffffff; } return 'ad'+(h>>>0).toString(36); }
 function metaContentId(car){
-  if(car && car.meta_content_id) return car.meta_content_id;       // מזהה קבוע ששמור במסד הנתונים
-  const m=matchExistingMetaId(car&&car.brand, car&&car.model);
+  if(car && car.meta_content_id) return car.meta_content_id; // מזהה קבוע ששמור במסד הנתונים
+const m=matchExistingMetaId(car&&car.brand, car&&car.model);
   if(m) return m;
   return stableId(((car.brand||'')+'|'+((car&&car.model)||'').trim()));
 }
@@ -51,35 +51,38 @@ exports.handler = async () => {
     const cars = (rows && rows[0] && Array.isArray(rows[0].data)) ? rows[0].data : [];
     let items = '';
     cars.forEach(c => {
-      if(!c || c.hidden || HIDDEN_IDS.indexOf(c.id)>=0) return;                 // רכב מוסתר לא בפיד
-      if(c.meta_hide) return;                                                    // הוסתר ידנית מקטלוג Meta
-      const price = Number(c.autodealerPriceNumber)||0;
-      if(price <= 1) return;
-      const id = metaContentId(c);
+      if(!c || c.hidden || HIDDEN_IDS.indexOf(c.id)>=0) return; // רכב מוסתר לא בפיד
+                 if(c.meta_hide) return; // הוסתר ידנית מקטלוג Meta
+                 const dealerPrice = Number(c.autodealerPriceNumber)||0;
+      if(dealerPrice <= 1) return;
+      const importerPrice = Number(c.catalogPriceNumber)||0;
+      const listPrice = importerPrice > 0 ? importerPrice : dealerPrice; // מחיר רגיל = מחירון יבואן; נופל למחיר אוטודילר אם אין מחירון
+                 const id = metaContentId(c);
       const title = ((c.brand||'')+' '+(c.model||'')+(c.year?(' '+c.year):'')).trim();
       const desc = (c.summary && c.summary.trim()) ? c.summary.trim()
         : (((c.brand||'')+' '+(c.model||'')).trim() + (c.engine?(' · '+c.engine):'') + ' — רכב חדש 0 ק"מ מיבואן רשמי, אחריות מלאה.');
       const avail = (c.stockStatus === 'אזל במלאי') ? 'out of stock' : 'in stock';
       const link = SITE + '/?car=' + encodeURIComponent(c.id);
-      const img = (c.catalog_image && c.catalog_image.trim()) ? c.catalog_image.trim() : (c.image || (SITE + '/og-image.png'));
-      items += '\n    <item>' +
-        '\n      <g:id>' + xmlEsc(id) + '</g:id>' +
-        '\n      <g:title>' + xmlEsc(title) + '</g:title>' +
-        '\n      <g:description>' + xmlEsc(desc) + '</g:description>' +
-        '\n      <g:availability>' + avail + '</g:availability>' +
-        '\n      <g:condition>new</g:condition>' +
-        '\n      <g:price>' + xmlEsc(price + ' ILS') + '</g:price>' +
-        '\n      <g:link>' + xmlEsc(link) + '</g:link>' +
-        '\n      <g:image_link>' + xmlEsc(img) + '</g:image_link>' +
-        '\n      <g:brand>' + xmlEsc(c.brand||'') + '</g:brand>' +
-        '\n    </item>';
+      const img = (c.catalog_image && c.catalog_image.trim()) ? c.catalog_image.trim() : ''; // רק תמונה ייעודית לקטלוג; בלי נפילה לתמונת האתר
+                 items += '\n <item>' +
+                   '\n <g:id>' + xmlEsc(id) + '</g:id>' +
+                   '\n <g:title>' + xmlEsc(title) + '</g:title>' +
+                   '\n <g:description>' + xmlEsc(desc) + '</g:description>' +
+                   '\n <g:availability>' + avail + '</g:availability>' +
+                   '\n <g:condition>new</g:condition>' +
+                   '\n <g:price>' + xmlEsc(listPrice + ' ILS') + '</g:price>' +
+                   (dealerPrice < listPrice ? ('\n <g:sale_price>' + xmlEsc(dealerPrice + ' ILS') + '</g:sale_price>') : '') +
+                   '\n <g:link>' + xmlEsc(link) + '</g:link>' +
+                   (img ? ('\n <g:image_link>' + xmlEsc(img) + '</g:image_link>') : '') +
+                   '\n <g:brand>' + xmlEsc(c.brand||'') + '</g:brand>' +
+                   '\n </item>';
     });
     const xml = '<?xml version="1.0" encoding="UTF-8"?>\n' +
-      '<rss xmlns:g="http://base.google.com/ns/1.0" version="2.0">\n  <channel>\n' +
-      '    <title>Autodealer — קטלוג רכבים</title>\n' +
-      '    <link>' + SITE + '</link>\n' +
-      '    <description>רכבים חדשים 0 ק"מ במחירי דיל</description>' +
-      items + '\n  </channel>\n</rss>\n';
+      '<rss xmlns:g="http://base.google.com/ns/1.0" version="2.0">\n <channel>\n' +
+      ' <title>Autodealer — קטלוג רכבים</title>\n' +
+      ' <link>' + SITE + '</link>\n' +
+      ' <description>רכבים חדשים 0 ק"מ במחירי דיל</description>' +
+      items + '\n </channel>\n</rss>\n';
     return { statusCode:200, headers:{ 'Content-Type':'application/xml; charset=utf-8', 'Cache-Control':'public, max-age=1800', 'Access-Control-Allow-Origin':'*' }, body: xml };
   } catch (e) {
     return { statusCode:502, headers:{ 'Content-Type':'text/plain' }, body:'feed error: ' + String(e) };
