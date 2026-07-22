@@ -6127,20 +6127,18 @@ function _battMgrTableHTML(asgId, headers, rows, convertedIdx) {
   const base = headers.length
     ? headers.map(h => /דגם/.test(h) ? 'minmax(90px,1.4fr)' : /מספר|לוחית/.test(h) ? 'minmax(80px,1.2fr)' : 'minmax(55px,1fr)')
     : Array(colCount).fill('1fr');
-  const colW = [...base, '58px', '64px', '34px'].join(' ');
+  const colW = [...base, '58px', '64px'].join(' ');
   let html = `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch"><div style="display:grid;grid-template-columns:${colW};gap:3px;background:var(--dark);color:#fff;border-radius:10px 10px 0 0;padding:6px 8px;font-size:11px;font-weight:700;direction:rtl;min-width:max-content">
     ${headers.map(h => `<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(h)}</div>`).join('')}
-    <div style="text-align:center;color:#86efac">אחוז<br>סוללה</div><div style="text-align:center;color:#86efac">טווח<br>נסיעה</div><div style="text-align:center">✔</div>
+    <div style="text-align:center;color:#86efac">אחוז<br>סוללה</div><div style="text-align:center;color:#86efac">טווח<br>נסיעה</div>
   </div>`;
   rows.forEach((row, idx) => {
     if (conv.has(idx)) return;
     const filled = row.battery !== '' && row.range !== '';
-    const checked = _battSelected.has(asgId + ':' + idx);
     html += `<div id="bm-${asgId}-${idx}" style="display:grid;grid-template-columns:${colW};gap:3px;align-items:center;background:${filled ? '#f0fff4' : '#fff'};border:1.5px solid ${filled ? '#22c55e' : 'var(--border)'};border-top:none;padding:4px 6px;direction:rtl;min-width:max-content">
       ${row.cells.map(c => `<div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c)}</div>`).join('')}
       <div><input type="number" min="1" max="100" value="${esc(row.battery)}" placeholder="%" onfocus="_battMgrLastEdit=Date.now()" oninput="_clampBatteryInput(this);_battMgrEdit('${asgId}',${idx},'battery',this.value)" style="width:100%;border:1.5px solid #22c55e;border-radius:6px;padding:4px 2px;font-family:Heebo,sans-serif;font-size:12px;font-weight:700;text-align:center;box-sizing:border-box;background:#f0fff4"></div>
       <div><input type="text" value="${esc(row.range)}" placeholder="קמ" onfocus="_battMgrLastEdit=Date.now()" oninput="_battMgrEdit('${asgId}',${idx},'range',this.value)" style="width:100%;border:1.5px solid #22c55e;border-radius:6px;padding:4px 2px;font-family:Heebo,sans-serif;font-size:12px;font-weight:700;text-align:center;box-sizing:border-box;background:#f0fff4"></div>
-      <div style="text-align:center"><input type="checkbox" ${checked ? 'checked' : ''} ${filled ? '' : 'disabled'} onchange="_battMgrToggle('${asgId}',${idx},this.checked)" style="width:18px;height:18px"></div>
     </div>`;
   });
   html += '</div>';
@@ -6217,11 +6215,25 @@ async function convertSelectedBatteryToTask() {
   }
   if (!toCharge.length && !fullBattery.length) { showToast('אין רכבים להמרה'); return; }
   try {
-    const { addDoc, updateDoc, collection } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-    await addDoc(collection(window._db, 'charging_tasks'), {
-      createdBy: currentUser.name, createdAt: _serverTs(), status: 'active',
-      headers, carsJson: JSON.stringify(toCharge), fullBatteryCarsJson: JSON.stringify(fullBattery),
-    });
+    const { addDoc, updateDoc, doc, getDocs, query, where, collection } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    // append to the existing active charging task (one table), or create it if none
+    const snap = await getDocs(query(collection(window._db, 'charging_tasks'), where('status', '==', 'active')));
+    let existing = null;
+    snap.forEach(d => { if (!existing || (d.data().createdAt?.toMillis?.() || 0) > (existing.data.createdAt?.toMillis?.() || 0)) existing = { id: d.id, data: d.data() }; });
+    if (existing) {
+      const cur = existing.data.carsJson ? JSON.parse(existing.data.carsJson) : [];
+      const curFull = existing.data.fullBatteryCarsJson ? JSON.parse(existing.data.fullBatteryCarsJson) : [];
+      await updateDoc(doc(window._db, 'charging_tasks', existing.id), {
+        carsJson: JSON.stringify([...cur, ...toCharge]),
+        fullBatteryCarsJson: JSON.stringify([...curFull, ...fullBattery]),
+        headers: (existing.data.headers && existing.data.headers.length) ? existing.data.headers : headers,
+      });
+    } else {
+      await addDoc(collection(window._db, 'charging_tasks'), {
+        createdBy: currentUser.name, createdAt: _serverTs(), status: 'active',
+        headers, carsJson: JSON.stringify(toCharge), fullBatteryCarsJson: JSON.stringify(fullBattery),
+      });
+    }
     for (const asg in byAsg) {
       const m = _battMgr[asg]; if (!m) continue;
       const merged = [...new Set([...(m.convertedIdx || []), ...byAsg[asg]])];
