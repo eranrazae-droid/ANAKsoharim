@@ -10,7 +10,7 @@ const SITE = 'https://autodealer.co.il';
 // ---- זהה בדיוק ל-catalog-xml.js ולצד הלקוח ----
 const META_ID_BY_MODEL_RAW = {
   'Ultra RWD':'boqwy0lswj','G6 Core+ RWD':'pji79zen63','NIRO HEV LX 1.6':'zusxps8pyt',
-  'BYD SEALION DESIGN 5 DM-i':'s7x208qk17','BYD SEALION COMF 5 DM-i':'ys2yq42hq5','BYD SEAL U BOOST  DM-i':'ldfwwl7bno',
+  'BYD SEALION DESIGN 5 DM-i':'s7x208qk17','BYD SEALION COMF 5 DM-i':'ys2yq42hq5','BYD SEAL U BOOST DM-i':'ldfwwl7bno',
   'PICANTO LX PLUS 1.2':'v4vovvsjur','ARIZO 8 PHEV COMFORT 1.5':'742opmtpgb',
   'TIGGO 9 PRO PHEV LUXURY + גג 1.5':'hhcs2egn5a','TIGGO 7 PRO PHEV LUXURY + גג 1.5':'ngh3409m94',
   'TIGGO 4 COMFORT HEV 1.5':'pzvraxvq1n','TIGGO 8 PRO PHEV NOBLE + גג 1.5':'fxhq9au8i3','FX COMFORT HEV 1.5':'9egvoqm8zi',
@@ -53,26 +53,29 @@ exports.handler = async () => {
   try {
     const rows = await fetchJson(
       SB_URL + '/rest/v1/inventory?id=eq.1&select=data',
-      { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY }
-    );
+                                     { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY }
+      );
     const cars = (rows && rows[0] && Array.isArray(rows[0].data)) ? rows[0].data : [];
-    const cols = ['id','title','description','availability','condition','price','link','image_link','brand'];
+    const cols = ['id','title','description','availability','condition','price','sale_price','link','image_link','brand'];
     const lines = [cols.join(',')];
     cars.forEach(c => {
       if(!c || c.hidden || HIDDEN_IDS.indexOf(c.id)>=0) return;
-      const price = Number(c.autodealerPriceNumber)||0;
-      if(price <= 1) return; // מסנן רכבי placeholder
+      const dealerPrice = Number(c.autodealerPriceNumber)||0;
+      if(dealerPrice <= 1) return;
+      const importerPrice = Number(c.catalogPriceNumber)||0;
+      const listPrice = importerPrice > 0 ? importerPrice : dealerPrice;
       const id = metaContentId(c);
       const title = ((c.brand||'')+' '+(c.model||'')).trim();
       const desc = (c.summary && c.summary.trim()) ? c.summary.trim()
         : (title + (c.year?(' '+c.year):'') + (c.engine?(' · '+c.engine):'') + ' — רכב חדש 0 ק"מ מיבואן רשמי.');
       const avail = (c.stockStatus === 'אזל במלאי') ? 'out of stock' : 'in stock';
       const link = SITE + '/?car=' + encodeURIComponent(c.id);
-      const img = (c.catalog_image && c.catalog_image.trim()) ? c.catalog_image.trim() : (c.image || (SITE + '/og-image.png'));
+      const img = (c.catalog_image && c.catalog_image.trim()) ? c.catalog_image.trim() : '';
+      const salePrice = dealerPrice < listPrice ? (dealerPrice + ' ILS') : '';
       lines.push([
         csvCell(id), csvCell(title), csvCell(desc), csvCell(avail), csvCell('new'),
-        csvCell(price + ' ILS'), csvCell(link), csvCell(img), csvCell(c.brand||'')
-      ].join(','));
+        csvCell(listPrice + ' ILS'), csvCell(salePrice), csvCell(link), csvCell(img), csvCell(c.brand||'')
+        ].join(','));
     });
     return {
       statusCode: 200,
