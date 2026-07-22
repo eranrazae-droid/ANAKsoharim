@@ -522,7 +522,7 @@ if ('serviceWorker' in navigator) {
       <textarea class="form-textarea" id="req-task-text" rows="3" placeholder="תאר את המשימה..."></textarea>
     </div>
     <div class="form-group">
-      <label>תמונה <span style="color:#ef4444">*</span></label>
+      <label>תמונה (לא חובה)</label>
       <button type="button" onclick="document.getElementById('req-task-file').click()" style="background:#1e293b;color:#fff;border:none;border-radius:10px;padding:10px 18px;font-family:Heebo,sans-serif;font-weight:700;font-size:14px;cursor:pointer">📷 צלם תמונה</button>
       <input type="file" id="req-task-file" accept="image/*" capture="environment" style="position:absolute;width:1px;height:1px;opacity:0" onchange="previewReqTaskPhoto(this)">
       <div id="req-task-photo-preview" style="margin-top:8px"></div>
@@ -3525,7 +3525,6 @@ function previewReqTaskPhoto(input) {
 async function submitTaskRequest() {
   const text = document.getElementById('req-task-text').value.trim();
   if (!text) return showToast('נא לכתוב תיאור משימה');
-  if (!_reqTaskPhotoData) return showToast('נא לצרף תמונה');
   const col = _reqTaskCol;
   if (!col) return showToast('נא לבחור עמודה');
   if (!window._CONFIG_DONE) return showToast('Firebase לא מחובר');
@@ -3537,7 +3536,7 @@ async function submitTaskRequest() {
       driverName: currentUser.name,
       column: col,
       text,
-      photo: _reqTaskPhotoData,
+      photo: _reqTaskPhotoData || null,
       regionCity: reqCity,
       region: _regionOfCity(reqCity),
       vehicle: _reqVehicleInfo || (document.getElementById('req-task-plate')?.value.trim() ? { plate: document.getElementById('req-task-plate').value.trim(), maker:'', model:'', year:'' } : null),
@@ -3617,13 +3616,27 @@ function expandTaskReqModal(idx) {
   _showTaskReqApproval(r.id, r.data);
 }
 
+let _lbZoom = 1;
 function openLightbox(src) {
   const lb = document.getElementById('lightbox');
-  document.getElementById('lightbox-img').src = src;
+  const img = document.getElementById('lightbox-img');
+  img.src = src;
+  _lbZoom = 1;
+  img.style.transform = 'scale(1)';
   lb.style.display = 'flex';
   lb.style.alignItems = 'center';
   lb.style.justifyContent = 'center';
 }
+// mouse-wheel zoom inside the lightbox (0.5x–6x)
+document.addEventListener('wheel', e => {
+  const lb = document.getElementById('lightbox');
+  if (!lb || lb.style.display === 'none' || !lb.contains(e.target)) return;
+  e.preventDefault();
+  _lbZoom = Math.min(6, Math.max(0.5, _lbZoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15)));
+  const img = document.getElementById('lightbox-img');
+  img.style.transform = `scale(${_lbZoom})`;
+  img.style.transition = 'transform .08s';
+}, { passive: false });
 
 function _showTaskReqApproval(id, req) {
   _pendingTaskReqId = id;
