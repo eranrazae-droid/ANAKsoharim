@@ -6501,6 +6501,7 @@ let _dbattUnsub = null;
 let _dbattDocId = null;
 let _dbattHeaders = [];
 let _dbattRows = [];  // [{cells, battery, range}]
+let _dbattConvertedIdx = [];  // row indices converted to a charging task (hidden from the check)
 
 let _dbattChargingUnsub = null;
 function loadDriverBatteryCharging() {
@@ -6559,6 +6560,7 @@ function openDriverBatteryModal(docId) {
     _dbattHeaders = data.headers || [];
     const parsedRows = data.rowsJson ? JSON.parse(data.rowsJson) : (data.rows || []);
     const serverProgress = data.progressJson ? JSON.parse(data.progressJson) : null;
+    const conv = data.convertedIdx || [];
 
     if (firstLoad) {
       const saved = localStorage.getItem('_dbattProgress_' + docId);
@@ -6569,12 +6571,18 @@ function openDriverBatteryModal(docId) {
         battery: serverProgress?.[i]?.battery || savedData?.[i]?.battery || '',
         range:   serverProgress?.[i]?.range   || savedData?.[i]?.range   || '',
       }));
+      _dbattConvertedIdx = conv;
       document.getElementById('dbattery-id').value = docId;
       document.getElementById('dbattery-notes').value = '';
       renderDriverBatteryModal();
       firstLoad = false;
       document.getElementById('dbattery-list').style.display = 'none';
       document.getElementById('dbattery-inline-wrap').style.display = '';
+    } else if (conv.length !== _dbattConvertedIdx.length) {
+      // manager converted some cars → drop them from the driver's check table
+      _dbattConvertedIdx = conv;
+      if (serverProgress) serverProgress.forEach((sp, i) => { if (_dbattRows[i]) { _dbattRows[i].battery = sp.battery || _dbattRows[i].battery; _dbattRows[i].range = sp.range || _dbattRows[i].range; } });
+      renderDriverBatteryModal();
     } else if (serverProgress) {
       // Live sync: update inputs that aren't currently focused
       serverProgress.forEach((sp, i) => {
@@ -6617,7 +6625,9 @@ function renderDriverBatteryModal() {
       <div style="text-align:center;color:#86efac">טווח<br>נסיעה</div>
     </div>`;
   }
+  const _convSet = new Set(_dbattConvertedIdx || []);
   html += _dbattRows.map((row, i) => {
+    if (_convSet.has(i)) return '';
     const filled = row.battery !== '' || row.range !== '';
     const bg = filled ? '#f0fff4' : '#fff';
     return `<div id="dbatt-row-${i}" style="display:grid;grid-template-columns:${colW};gap:3px;align-items:center;background:${bg};border:1.5px solid ${filled?'#22c55e':'var(--border)'};border-top:none;padding:4px 6px;direction:rtl;min-width:max-content">
