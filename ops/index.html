@@ -1705,8 +1705,8 @@ if ('serviceWorker' in navigator) {
 </div>
 
 <!-- ====== PHOTO ZOOM LIGHTBOX ====== -->
-<div id="photo-zoom-overlay" onclick="closePhotoZoom()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;flex-direction:column;align-items:center;justify-content:center;gap:16px">
-  <img id="photo-zoom-img" style="max-width:95vw;max-height:80vh;border-radius:12px;object-fit:contain">
+<div id="photo-zoom-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;flex-direction:column;align-items:center;justify-content:center;gap:16px">
+  <img id="photo-zoom-img" draggable="false" style="max-width:95vw;max-height:80vh;border-radius:12px;object-fit:contain;cursor:grab">
   <div style="display:flex;gap:12px" onclick="event.stopPropagation()">
     <button id="photo-zoom-dl-btn" onclick="downloadWithWatermark()" style="background:var(--gold);color:#000;border:none;border-radius:12px;padding:12px 24px;font-family:Heebo,sans-serif;font-weight:900;font-size:15px;cursor:pointer">⬇️ הורד תמונה</button>
     <button onclick="closePhotoZoom()" style="background:#fff;color:#000;border:none;border-radius:12px;padding:12px 24px;font-family:Heebo,sans-serif;font-weight:900;font-size:15px;cursor:pointer">✕ סגור</button>
@@ -3616,64 +3616,63 @@ function expandTaskReqModal(idx) {
   _showTaskReqApproval(r.id, r.data);
 }
 
-let _lbZoom = 1, _lbPanX = 0, _lbPanY = 0, _lbDragging = false, _lbDragStart = null;
-function _lbApply() {
-  const img = document.getElementById('lightbox-img');
-  img.style.transform = `translate(${_lbPanX}px, ${_lbPanY}px) scale(${_lbZoom})`;
+// ── Shared zoom/pan for ALL image viewers (lightbox + photo-zoom overlay) ──
+let _lbZoom = 1, _lbPanX = 0, _lbPanY = 0, _lbDragging = false, _lbDragStart = null, _lbDragImg = null;
+function _resetZoom() { _lbZoom = 1; _lbPanX = 0; _lbPanY = 0; _lbDragging = false; }
+function _applyZoom(img) { if (img) img.style.transform = `translate(${_lbPanX}px, ${_lbPanY}px) scale(${_lbZoom})`; }
+// whichever image overlay is currently open and contains the event target
+function _zoomImgFor(target) {
+  const lb = document.getElementById('lightbox');
+  if (lb && lb.style.display !== 'none' && lb.contains(target)) return { overlay: lb, img: document.getElementById('lightbox-img'), close: () => { lb.style.display = 'none'; } };
+  const pz = document.getElementById('photo-zoom-overlay');
+  if (pz && pz.style.display !== 'none' && pz.contains(target)) return { overlay: pz, img: document.getElementById('photo-zoom-img'), close: () => closePhotoZoom() };
+  return null;
 }
 function openLightbox(src) {
   const lb = document.getElementById('lightbox');
   const img = document.getElementById('lightbox-img');
   img.src = src;
-  _lbZoom = 1; _lbPanX = 0; _lbPanY = 0; _lbDragging = false;
+  _resetZoom();
   img.style.transform = 'scale(1)';
   lb.style.display = 'flex';
   lb.style.alignItems = 'center';
   lb.style.justifyContent = 'center';
 }
-// mouse-wheel zoom inside the lightbox (0.5x–6x)
+// mouse-wheel zoom (0.5x–6x)
 document.addEventListener('wheel', e => {
-  const lb = document.getElementById('lightbox');
-  if (!lb || lb.style.display === 'none' || !lb.contains(e.target)) return;
+  const t = _zoomImgFor(e.target);
+  if (!t) return;
   e.preventDefault();
   _lbZoom = Math.min(6, Math.max(0.5, _lbZoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15)));
   if (_lbZoom <= 1) { _lbPanX = 0; _lbPanY = 0; }
-  const img = document.getElementById('lightbox-img');
-  img.style.transition = 'transform .08s';
-  _lbApply();
+  t.img.style.transition = 'transform .08s';
+  _applyZoom(t.img);
 }, { passive: false });
-// left-button: drag the image to pan; click outside the image closes
-let _lbMoved = false;
+// left-button: drag the image to pan; click on the backdrop closes
 document.addEventListener('mousedown', e => {
-  const lb = document.getElementById('lightbox');
-  if (e.button !== 0 || !lb || lb.style.display === 'none' || !lb.contains(e.target)) return;
-  const img = document.getElementById('lightbox-img');
-  if (e.target === img) {
-    // start dragging the image
+  if (e.button !== 0) return;
+  const t = _zoomImgFor(e.target);
+  if (!t) return;
+  if (e.target === t.img) {
     e.preventDefault();
-    _lbDragging = true;
-    _lbMoved = false;
+    _lbDragging = true; _lbDragImg = t.img;
     _lbDragStart = { x: e.clientX - _lbPanX, y: e.clientY - _lbPanY };
-    img.style.cursor = 'grabbing';
-  } else {
-    // clicked the dark backdrop → close
-    lb.style.display = 'none';
+    t.img.style.cursor = 'grabbing';
+  } else if (e.target === t.overlay) {
+    t.close();
   }
 });
 document.addEventListener('mousemove', e => {
   if (!_lbDragging) return;
-  _lbMoved = true;
   _lbPanX = e.clientX - _lbDragStart.x;
   _lbPanY = e.clientY - _lbDragStart.y;
-  const img = document.getElementById('lightbox-img');
-  img.style.transition = 'none';
-  _lbApply();
+  if (_lbDragImg) _lbDragImg.style.transition = 'none';
+  _applyZoom(_lbDragImg);
 });
 document.addEventListener('mouseup', e => {
   if (e.button !== 0 || !_lbDragging) return;
   _lbDragging = false;
-  const img = document.getElementById('lightbox-img');
-  if (img) img.style.cursor = 'grab';
+  if (_lbDragImg) _lbDragImg.style.cursor = 'grab';
 });
 
 function _showTaskReqApproval(id, req) {
@@ -5891,7 +5890,10 @@ let _zoomPlate = '';
 
 function openPhotoZoom(url, plate) {
   _zoomPlate = plate || '';
-  document.getElementById('photo-zoom-img').src = url;
+  const img = document.getElementById('photo-zoom-img');
+  img.src = url;
+  _resetZoom();
+  img.style.transform = 'scale(1)';
   document.getElementById('photo-zoom-overlay').style.display = 'flex';
 }
 function closePhotoZoom() {
