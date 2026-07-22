@@ -6053,6 +6053,7 @@ function _loadBatteryChargingTasks() {
 }
 
 let _battMgr = {};              // asgId → { headers, assignedTo, status, ts, rows:[{cells,battery,range,status}], convertedIdx:[] }
+let _battMgrOrder = [];          // asgIds in display order
 let _battSelected = new Set();   // "asgId:idx"
 let _battSaveTimers = {};
 let _battMgrLastEdit = 0;
@@ -6098,10 +6099,18 @@ function _loadBatteryAssignments() {
       const [asg, idx] = key.split(':');
       if (!_battMgr[asg] || (_battMgr[asg].convertedIdx || []).includes(+idx)) _battSelected.delete(key);
     }
-    wrap.innerHTML = mine.map(a => _renderBattMgrBlock(a.id)).join('');
+    _battMgrOrder = mine.map(a => a.id);
+    wrap.innerHTML = _battMgrOrder.map(id => _renderBattMgrBlock(id)).join('');
     document.getElementById('battery-submit-wrap').style.display = 'none';
     _updateConvertBar();
   });
+}
+
+function _rerenderBattMgrRight() {
+  const wrap = document.getElementById('battery-table-wrap');
+  if (!wrap) return;
+  wrap.innerHTML = _battMgrOrder.map(id => _renderBattMgrBlock(id)).join('');
+  _updateConvertBar();
 }
 
 function _renderBattMgrBlock(asgId) {
@@ -6246,8 +6255,8 @@ async function convertSelectedBatteryToTask() {
       await updateDoc(_docRef('battery_assignments', asg), { convertedIdx: merged });
     }
     _battSelected.clear();
-    _updateConvertBar();
-    _battMgrLastEdit = 0; // allow immediate re-render
+    _battMgrLastEdit = 0; // allow the listener to re-render too
+    _rerenderBattMgrRight(); // drop converted rows from the checks table immediately
     showToast(`✅ ${toCharge.length + fullBattery.length} רכבים הומרו למשימת טעינה`);
   } catch(e) { console.error('convertSelected', e); showToast('⚠️ שגיאה בהמרה'); }
 }
