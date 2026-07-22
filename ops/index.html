@@ -6674,12 +6674,10 @@ function dbattInput(idx, field, val) {
 }
 
 async function submitDriverBattery() {
-  const isMissing = v => v === '' || v === null || v === undefined;
-  const missing = _dbattRows.filter(r => isMissing(r.battery) || isMissing(r.range));
-  if (missing.length) {
-    showToast('לא ניתן להשלים את בדיקת הטעינה עד שכל הרכבים הושלמו.');
-    const idx = _dbattRows.indexOf(missing[0]);
-    document.getElementById(`dbatt-row-${idx}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  // send whatever is filled — at least one car with both battery % and range
+  const filled = _dbattRows.filter(r => r.battery !== '' && r.range !== '');
+  if (!filled.length) {
+    showToast('מלא לפחות רכב אחד — אחוז סוללה וטווח נסיעה');
     return;
   }
   if (!window._CONFIG_DONE) { showToast('Firebase לא מחובר'); return; }
