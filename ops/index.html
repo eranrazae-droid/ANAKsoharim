@@ -535,8 +535,8 @@ if ('serviceWorker' in navigator) {
 <div id="task-req-pills" style="display:none;position:fixed;bottom:90px;left:50%;transform:translateX(-50%);z-index:200;pointer-events:none"></div>
 
 <!-- ── lightbox ── -->
-<div id="lightbox" onclick="this.style.display='none'" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;cursor:zoom-out;align-items:center;justify-content:center">
-  <img id="lightbox-img" style="max-width:96vw;max-height:96vh;border-radius:10px;object-fit:contain">
+<div id="lightbox" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;cursor:zoom-out;align-items:center;justify-content:center">
+  <img id="lightbox-img" draggable="false" style="max-width:96vw;max-height:96vh;border-radius:10px;object-fit:contain;cursor:grab">
 </div>
 
 <!-- ── modal: manager task request approval ── -->
@@ -3642,27 +3642,38 @@ document.addEventListener('wheel', e => {
   img.style.transition = 'transform .08s';
   _lbApply();
 }, { passive: false });
-// right-button drag pans the zoomed image
+// left-button: drag the image to pan; click outside the image closes
+let _lbMoved = false;
 document.addEventListener('mousedown', e => {
   const lb = document.getElementById('lightbox');
-  if (e.button !== 2 || !lb || lb.style.display === 'none' || !lb.contains(e.target)) return;
-  e.preventDefault();
-  _lbDragging = true;
-  _lbDragStart = { x: e.clientX - _lbPanX, y: e.clientY - _lbPanY };
+  if (e.button !== 0 || !lb || lb.style.display === 'none' || !lb.contains(e.target)) return;
+  const img = document.getElementById('lightbox-img');
+  if (e.target === img) {
+    // start dragging the image
+    e.preventDefault();
+    _lbDragging = true;
+    _lbMoved = false;
+    _lbDragStart = { x: e.clientX - _lbPanX, y: e.clientY - _lbPanY };
+    img.style.cursor = 'grabbing';
+  } else {
+    // clicked the dark backdrop → close
+    lb.style.display = 'none';
+  }
 });
 document.addEventListener('mousemove', e => {
   if (!_lbDragging) return;
+  _lbMoved = true;
   _lbPanX = e.clientX - _lbDragStart.x;
   _lbPanY = e.clientY - _lbDragStart.y;
   const img = document.getElementById('lightbox-img');
   img.style.transition = 'none';
   _lbApply();
 });
-document.addEventListener('mouseup', e => { if (e.button === 2) _lbDragging = false; });
-// keep the browser context menu from opening inside the lightbox
-document.addEventListener('contextmenu', e => {
-  const lb = document.getElementById('lightbox');
-  if (lb && lb.style.display !== 'none' && lb.contains(e.target)) e.preventDefault();
+document.addEventListener('mouseup', e => {
+  if (e.button !== 0 || !_lbDragging) return;
+  _lbDragging = false;
+  const img = document.getElementById('lightbox-img');
+  if (img) img.style.cursor = 'grab';
 });
 
 function _showTaskReqApproval(id, req) {
