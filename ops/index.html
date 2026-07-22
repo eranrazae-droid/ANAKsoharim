@@ -1338,7 +1338,7 @@ if ('serviceWorker' in navigator) {
     <div id="batt-panels" style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:280px;order:1">
         <div id="batt-convert-bar" style="display:none;margin-bottom:8px">
-          <button onclick="convertSelectedBatteryToTask()" style="width:100%;background:#7c3aed;color:#fff;border:none;border-radius:12px;padding:12px;font-family:Heebo,sans-serif;font-weight:900;font-size:15px;cursor:pointer">⚡ המר נבחרים למשימה (<span id="batt-convert-count">0</span>)</button>
+          <button onclick="convertSelectedBatteryToTask()" style="width:100%;background:#7c3aed;color:#fff;border:none;border-radius:12px;padding:12px;font-family:Heebo,sans-serif;font-weight:900;font-size:15px;cursor:pointer">⚡ המר למשימה (<span id="batt-convert-count">0</span>)</button>
         </div>
         <div style="font-size:13px;font-weight:900;color:#374151;margin-bottom:6px">🔋 רכבים בבדיקה</div>
         <div id="battery-table-wrap"></div>
@@ -6125,7 +6125,7 @@ function _battMgrTableHTML(asgId, headers, rows, convertedIdx) {
   const colW = [...base, '58px', '64px', '34px'].join(' ');
   let html = `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch"><div style="display:grid;grid-template-columns:${colW};gap:3px;background:var(--dark);color:#fff;border-radius:10px 10px 0 0;padding:6px 8px;font-size:11px;font-weight:700;direction:rtl;min-width:max-content">
     ${headers.map(h => `<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(h)}</div>`).join('')}
-    <div style="text-align:center;color:#86efac">%<br>סוללה</div><div style="text-align:center;color:#86efac">טווח</div><div style="text-align:center">✔</div>
+    <div style="text-align:center;color:#86efac">אחוז<br>סוללה</div><div style="text-align:center;color:#86efac">טווח<br>נסיעה</div><div style="text-align:center">✔</div>
   </div>`;
   rows.forEach((row, idx) => {
     if (conv.has(idx)) return;
@@ -6152,8 +6152,9 @@ function _battMgrEdit(asgId, idx, field, val) {
     el.style.background = filled ? '#f0fff4' : '#fff';
     el.style.borderColor = filled ? '#22c55e' : 'var(--border)';
     const cb = el.querySelector('input[type=checkbox]');
-    if (cb) { cb.disabled = !filled; if (!filled && cb.checked) { cb.checked = false; _battSelected.delete(asgId + ':' + idx); _updateConvertBar(); } }
+    if (cb) { cb.disabled = !filled; if (!filled && cb.checked) { cb.checked = false; _battSelected.delete(asgId + ':' + idx); } }
   }
+  _updateConvertBar();
   clearTimeout(_battSaveTimers[asgId]);
   _battSaveTimers[asgId] = setTimeout(async () => {
     try {
@@ -6173,17 +6174,30 @@ function _battMgrToggle(asgId, idx, checked) {
 }
 window._battMgrToggle = _battMgrToggle;
 
+// rows eligible for conversion: the checked ones, or (if none checked) every
+// filled, not-yet-converted row across all drivers
+function _battConvertCandidates() {
+  if (_battSelected.size) return [..._battSelected].map(k => { const [asg, idx] = k.split(':'); return { asg, idx: +idx }; });
+  const out = [];
+  for (const asg in _battMgr) {
+    const m = _battMgr[asg]; const conv = new Set(m.convertedIdx || []);
+    m.rows.forEach((r, idx) => { if (!conv.has(idx) && r.battery !== '' && r.range !== '') out.push({ asg, idx }); });
+  }
+  return out;
+}
 function _updateConvertBar() {
   const bar = document.getElementById('batt-convert-bar');
   const cnt = document.getElementById('batt-convert-count');
-  if (cnt) cnt.textContent = _battSelected.size;
-  if (bar) bar.style.display = _battSelected.size > 0 ? 'block' : 'none';
+  const n = _battConvertCandidates().length;
+  if (cnt) cnt.textContent = n;
+  if (bar) bar.style.display = n > 0 ? 'block' : 'none';
 }
 
 async function convertSelectedBatteryToTask() {
-  if (!_battSelected.size) { showToast('לא נבחרו רכבים'); return; }
+  const candidates = _battConvertCandidates();
+  if (!candidates.length) { showToast('אין רכבים עם אחוז סוללה וטווח נסיעה מלאים'); return; }
   const byAsg = {};
-  for (const key of _battSelected) { const [asg, idx] = key.split(':'); (byAsg[asg] = byAsg[asg] || []).push(+idx); }
+  for (const { asg, idx } of candidates) { (byAsg[asg] = byAsg[asg] || []).push(idx); }
   let headers = [];
   const toCharge = [], fullBattery = [];
   for (const asg in byAsg) {
