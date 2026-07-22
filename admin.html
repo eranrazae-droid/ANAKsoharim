@@ -381,6 +381,23 @@
 
       <div id="tab-meta" class="hidden">
         <div class="section-hd">
+          <div><div class="eyebrow">Meta</div><h2>תמונות קטלוג חסרות</h2></div>
+          <button class="btn btn-black" onclick="renderMissingCatalogImages()" style="font-size:13px">🔄 רענן</button>
+        </div>
+        <div class="card panel" style="margin-bottom:22px">
+          <p style="color:var(--muted);font-size:14px;line-height:1.7;margin-bottom:14px">
+            רכבים שמופיעים בפיד ל-Meta (לא מוסתרים, עם מחיר) אך <b>אין להם תמונת קטלוג</b> ייעודית ל-XML. ⚠️ הפיד משתמש <b>רק</b> בתמונה הייעודית — רכבים אלו יופיעו בקטלוג <b>ללא תמונה כלל</b> (Meta עלול לדחות אותם). הוסף להם תמונה בעריכת הרכב → „תמונה לקטלוג Meta / פיד”.
+          </p>
+          <div id="missingImgSummary" style="font-weight:900;margin-bottom:12px"></div>
+          <div style="overflow-x:auto"><table id="missingImgTable" style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead><tr style="text-align:right;border-bottom:2px solid #e5e7eb">
+              <th style="padding:8px">#</th><th style="padding:8px">רכב</th><th style="padding:8px">מזהה Meta</th><th style="padding:8px">בפיד</th><th style="padding:8px"></th>
+            </tr></thead>
+            <tbody id="missingImgBody"></tbody>
+          </table></div>
+        </div>
+
+        <div class="section-hd">
           <div><div class="eyebrow">Meta</div><h2>מיגרציית מזהי Meta (content_id)</h2></div>
         </div>
         <div class="card panel">
@@ -833,6 +850,7 @@
     if(id==='leads') loadLeadsFromCloud();
     if(id==='tasks') loadTasks();
     if(id==='pay') loadPay();
+    if(id==='meta') renderMissingCatalogImages();
     document.querySelectorAll('[id^="tab-"]').forEach(el=>el.classList.add('hidden'));
     document.getElementById('tab-'+id).classList.remove('hidden');
     document.querySelectorAll('.nav-item').forEach((el,i)=>el.classList.toggle('active',tabOrder[i]===id));
@@ -987,6 +1005,32 @@
     if(s.indexOf('filled')>=0) return '#2563eb';
     if(s.indexOf('already-correct')>=0) return '#16a34a';
     return '#64748b';
+  }
+
+  // דשבורד רכבים שחסרה להם תמונת קטלוג ל-XML (catalog_image)
+  function renderMissingCatalogImages(){
+    const body=document.getElementById('missingImgBody');
+    const summ=document.getElementById('missingImgSummary');
+    if(!body||!summ) return;
+    // רכבים שהיו נכללים בפיד: לא מוסתרים, לא meta_hide, מחיר>1
+    const eligible=cars.filter(c=>c && !c.hidden && !HIDDEN_IDS.includes(c.id) && !c.meta_hide && (Number(c.autodealerPriceNumber)||0)>1);
+    const missing=eligible.filter(c=>!(c.catalog_image && String(c.catalog_image).trim()));
+    body.innerHTML='';
+    missing.forEach((c,i)=>{
+      const mid = c.meta_content_id || matchExistingMetaId(c.brand,c.model) || '—';
+      const tr=document.createElement('tr');
+      tr.style.borderBottom='1px solid #f1f5f9';
+      tr.innerHTML='<td style="padding:8px;color:var(--muted)">'+(i+1)+'</td>'+
+        '<td style="padding:8px;font-weight:700">'+_esc((c.brand||'')+' '+(c.model||''))+'</td>'+
+        '<td style="padding:8px;font-family:monospace;font-size:12px">'+_esc(mid)+'</td>'+
+        '<td style="padding:8px;color:#dc2626;font-weight:700">🚫 ללא תמונה</td>'+
+        '<td style="padding:8px"><button onclick="editCar('+c.id+')" style="background:#D4A017;color:#000;border:none;border-radius:8px;padding:6px 14px;font-size:13px;font-weight:900;cursor:pointer">➕ הוסף תמונה</button></td>';
+      body.appendChild(tr);
+    });
+    summ.innerHTML = missing.length
+      ? ('🔴 '+missing.length+' מתוך '+eligible.length+' רכבים בפיד חסרים תמונת קטלוג')
+      : ('🟢 כל '+eligible.length+' הרכבים בפיד כוללים תמונת קטלוג');
+    summ.style.color = missing.length ? '#dc2626' : '#16a34a';
   }
 
   async function metaMigratePreview(){
