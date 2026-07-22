@@ -2808,8 +2808,21 @@ display:none !important;
           action: action||'',
           created_at: new Date().toISOString()
         };
-        const vres=await c.from('leads').insert(Object.assign({},vrow,{source:SITE_SOURCE,utm:JSON.stringify(window._adUtm||{})}));
-        if(vres&&vres.error){ const vres2=await c.from('leads').insert(Object.assign({},vrow,{source:SITE_SOURCE})); if(vres2&&vres2.error){ await c.from('leads').insert(vrow); } }
+        // מזהי ההזמנה + פיקסל — נשמרים על הליד כדי לשלוח Purchase מדויק (dedup + ייחוס) לאחר אישור תשלום ידני.
+        // מופרדים ל-extra כדי שאם עמודות ה-SQL עדיין לא קיימות, נפילה-אחורה תשמור לפחות את הליד הבסיסי.
+        const extra={};
+        if(window._adOrder && window._adOrder.order_id){
+          extra.order_id = window._adOrder.order_id;
+          extra.event_id = window._adOrder.event_id;
+          extra.amount = COUPON_VALUE;
+          extra.fbp = _getCookie('_fbp') || '';
+          extra.fbc = _getCookie('_fbc') || '';
+        }
+        const utm=JSON.stringify(window._adUtm||{});
+        let vres=await c.from('leads').insert(Object.assign({},vrow,extra,{source:SITE_SOURCE,utm:utm}));
+        if(vres&&vres.error){ vres=await c.from('leads').insert(Object.assign({},vrow,extra,{source:SITE_SOURCE})); }
+        if(vres&&vres.error){ vres=await c.from('leads').insert(Object.assign({},vrow,{source:SITE_SOURCE})); }
+        if(vres&&vres.error){ await c.from('leads').insert(vrow); }
       }catch(e){ console.warn('saveLead', e); }
     }
     // ולידציה + אישור תקנון לפני תשלום

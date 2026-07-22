@@ -1542,6 +1542,27 @@
     catch(e){ console.warn('lead save', e); }
     toast&&toast(saved?'הליד נשמר ✓':'שגיאה בשמירה — יש להריץ את ה-SQL ב-Supabase'); renderLeads();
   }
+  // אישור תשלום ידני → שולח Purchase לפייסבוק מצד השרת (rewrite ל-/.netlify/functions/mark-paid)
+  async function markPaid(id){
+    const l = leads.find(x=>String(x.id)===String(id)); if(!l) return;
+    if(!confirm('לאשר שהתשלום התקבל בפועל ולשלוח Purchase לפייסבוק?')) return;
+    let tok=sessionStorage.getItem('mark_paid_tok');
+    if(!tok){ tok=prompt('הזן את סוד אישור התשלום (MARK_PAID_TOKEN שהוגדר ב-Netlify):'); if(!tok) return; sessionStorage.setItem('mark_paid_tok',tok); }
+    try{
+      const res = await fetch('/admin-api/mark-paid', {
+        method:'POST', headers:{'Content-Type':'application/json','x-admin-token':tok},
+        body: JSON.stringify({ lead_id: l.id })
+      });
+      const data = await res.json().catch(()=>({}));
+      if(data && data.ok!==false){
+        l.paid = true; l.status = 'שולם'; l.paid_at = new Date().toISOString();
+        renderLeads(); toast(data.already ? 'כבר סומן כשולם ✓' : 'סומן כשולם ונשלח Purchase ✅');
+      } else {
+        if(data && data.reason==='unauthorized'){ sessionStorage.removeItem('mark_paid_tok'); toast('סוד שגוי — נסה שוב'); }
+        else toast('שגיאה בסימון כשולם' + (data && data.reason ? (' ('+data.reason+')') : ''));
+      }
+    }catch(e){ toast('שגיאת רשת בסימון כשולם'); }
+  }
   async function reopenLead(id){
     const l=leads.find(x=>String(x.id)===String(id)); if(l) l.status='פתוח';
     try{ const c=sbClient(); if(c) await c.from('leads').update({status:'פתוח'}).eq('id',id); }
@@ -1836,6 +1857,8 @@
             <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
               <button onclick="saveLead('${l.id}')" style="background:#D4A017;color:#000;border:none;border-radius:10px;padding:9px 22px;font-size:14px;font-weight:900;cursor:pointer">💾 עדכן</button>
               ${closed?`<button onclick="reopenLead('${l.id}')" style="background:#15803d;color:#fff;border:none;border-radius:10px;padding:9px 22px;font-size:14px;font-weight:900;cursor:pointer">🔓 פתח מחדש</button>`:''}
+              ${l.order_id && !l.paid ? `<button onclick="markPaid('${l.id}')" style="background:#16a34a;color:#fff;border:none;border-radius:10px;padding:9px 22px;font-size:14px;font-weight:900;cursor:pointer">✅ סמן כשולם</button>` : ''}
+              ${l.paid ? `<span style="background:#dbeafe;color:#1e40af;padding:8px 16px;border-radius:10px;font-size:13px;font-weight:900">💰 שולם</span>` : ''}
             </div>
           </div>
           ${phone?`<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
