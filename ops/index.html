@@ -152,10 +152,13 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
 .color-swatch{width:32px;height:32px;border-radius:50%;border:3px solid transparent;cursor:pointer;transition:transform .15s}
 .color-swatch.selected{border-color:#1a1a2e;transform:scale(1.2)}
 .task-card.done{opacity:.5}
-.task-card.dragging{opacity:.35;transform:scale(.97)}
-.task-drop-zone{min-height:0;height:0;border-radius:10px;transition:all .15s}
-.dragging-active .task-drop-zone{height:20px;background:rgba(99,102,241,.07);border:1px dashed #c7d2fe;border-radius:6px}
-.task-drop-zone.drag-over{height:36px !important;background:rgba(99,102,241,.2) !important;border:2px dashed #6366f1 !important}
+.task-card[draggable="true"]{cursor:grab}
+.task-card[draggable="true"]:active{cursor:grabbing}
+.task-card.dragging{opacity:.4;transform:scale(.98);background:#eef2ff;border:2px dashed #a5b4fc !important;box-shadow:none !important}
+.task-card.dragging *{visibility:hidden}
+.task-drop-zone{min-height:0;height:0;border-radius:10px;transition:height .15s ease,background .15s ease}
+.dragging-active .task-drop-zone{height:16px;background:rgba(99,102,241,.06);border:1px dashed #c7d2fe;border-radius:6px}
+.task-drop-zone.drag-over{height:44px !important;background:rgba(99,102,241,.22) !important;border:2px dashed #6366f1 !important}
 .task-top{display:flex;align-items:flex-start;gap:8px;margin-bottom:6px}
 .task-title{font-size:14px;font-weight:800;flex:1;line-height:1.4}
 .task-done-btn{background:none;border:2px solid var(--border);border-radius:999px;width:24px;height:24px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;transition:all .15s}
@@ -3002,6 +3005,23 @@ let _dragTaskEl   = null;
 function _onDragStart(e, taskId) {
   _dragTaskId = taskId;
   _dragTaskEl = e.currentTarget;
+  // Trello-style ghost: a slightly tilted clone with a soft shadow
+  try {
+    const ghost = _dragTaskEl.cloneNode(true);
+    ghost.id = '_dragGhost';
+    ghost.style.width = _dragTaskEl.offsetWidth + 'px';
+    ghost.style.transform = 'rotate(3deg)';
+    ghost.style.opacity = '0.97';
+    ghost.style.boxShadow = '0 14px 30px rgba(0,0,0,0.3)';
+    ghost.style.position = 'fixed';
+    ghost.style.top = '-9999px';
+    ghost.style.left = '-9999px';
+    ghost.style.pointerEvents = 'none';
+    document.body.appendChild(ghost);
+    const dx = Math.min(e.offsetX || 20, _dragTaskEl.offsetWidth - 10);
+    e.dataTransfer.setDragImage(ghost, dx, e.offsetY || 20);
+    setTimeout(() => ghost.remove(), 0);
+  } catch(_) {}
   setTimeout(() => {
     _dragTaskEl?.classList.add('dragging');
     document.getElementById('task-list-container')?.classList.add('dragging-active');
