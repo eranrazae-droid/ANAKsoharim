@@ -6215,23 +6215,28 @@ async function convertSelectedBatteryToTask() {
   }
   if (!toCharge.length && !fullBattery.length) { showToast('אין רכבים להמרה'); return; }
   try {
-    const { addDoc, updateDoc, doc, getDocs, query, where, collection } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-    // append to the existing active charging task (one table), or create it if none
+    const { addDoc, updateDoc, deleteDoc, doc, getDocs, query, where, collection } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    // merge ALL active charging tasks + the new cars into ONE table (delete extras)
     const snap = await getDocs(query(collection(window._db, 'charging_tasks'), where('status', '==', 'active')));
-    let existing = null;
-    snap.forEach(d => { if (!existing || (d.data().createdAt?.toMillis?.() || 0) > (existing.data.createdAt?.toMillis?.() || 0)) existing = { id: d.id, data: d.data() }; });
-    if (existing) {
-      const cur = existing.data.carsJson ? JSON.parse(existing.data.carsJson) : [];
-      const curFull = existing.data.fullBatteryCarsJson ? JSON.parse(existing.data.fullBatteryCarsJson) : [];
-      await updateDoc(doc(window._db, 'charging_tasks', existing.id), {
-        carsJson: JSON.stringify([...cur, ...toCharge]),
-        fullBatteryCarsJson: JSON.stringify([...curFull, ...fullBattery]),
-        headers: (existing.data.headers && existing.data.headers.length) ? existing.data.headers : headers,
+    const docsArr = snap.docs.map(d => ({ id: d.id, data: d.data() }))
+      .sort((a, b) => (a.data.createdAt?.toMillis?.() || 0) - (b.data.createdAt?.toMillis?.() || 0));
+    let allCars = [], allFull = [], keepHeaders = headers;
+    for (const dd of docsArr) {
+      allCars.push(...(dd.data.carsJson ? JSON.parse(dd.data.carsJson) : []));
+      allFull.push(...(dd.data.fullBatteryCarsJson ? JSON.parse(dd.data.fullBatteryCarsJson) : []));
+      if (dd.data.headers && dd.data.headers.length) keepHeaders = dd.data.headers;
+    }
+    allCars.push(...toCharge);
+    allFull.push(...fullBattery);
+    if (docsArr.length) {
+      await updateDoc(doc(window._db, 'charging_tasks', docsArr[0].id), {
+        carsJson: JSON.stringify(allCars), fullBatteryCarsJson: JSON.stringify(allFull), headers: keepHeaders,
       });
+      for (let i = 1; i < docsArr.length; i++) await deleteDoc(doc(window._db, 'charging_tasks', docsArr[i].id));
     } else {
       await addDoc(collection(window._db, 'charging_tasks'), {
         createdBy: currentUser.name, createdAt: _serverTs(), status: 'active',
-        headers, carsJson: JSON.stringify(toCharge), fullBatteryCarsJson: JSON.stringify(fullBattery),
+        headers: keepHeaders, carsJson: JSON.stringify(allCars), fullBatteryCarsJson: JSON.stringify(allFull),
       });
     }
     for (const asg in byAsg) {
@@ -6567,8 +6572,9 @@ function openDriverBatteryModal(docId) {
         if (!_dbattRows[i]) return;
         const rowEl = document.getElementById(`dbatt-row-${i}`);
         if (!rowEl) return;
-        const battEl = rowEl.querySelector('input[type="number"]');
-        const rngEl  = rowEl.querySelector('input[type="text"], input[inputmode="numeric"]:last-child');
+        const numInputs = rowEl.querySelectorAll('input[type="number"]');
+        const battEl = numInputs[0];
+        const rngEl  = numInputs[1];
         if (battEl && document.activeElement !== battEl && sp.battery !== _dbattRows[i].battery) {
           _dbattRows[i].battery = sp.battery || '';
           battEl.value = sp.battery || '';
