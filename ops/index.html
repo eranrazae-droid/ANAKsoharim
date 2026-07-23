@@ -1635,6 +1635,7 @@ if ('serviceWorker' in navigator) {
     </div>
     <div id="plate-scan-status" style="color:#facc15;font-size:14px;font-weight:700;margin-top:12px;text-align:center;line-height:1.5">כוון את הלוחית למסגרת הצהובה<br><span style="color:#94a3b8;font-size:12px;font-weight:400">הזיהוי אוטומטי — אין צורך ללחוץ</span></div>
     <div id="plate-scan-count" style="color:#86efac;font-size:13px;font-weight:800;margin-top:6px"></div>
+    <div id="plate-cloud-usage" style="display:none;color:#94a3b8;font-size:11px;margin-top:4px"></div>
     <canvas id="plate-canvas" style="display:none"></canvas>
     <!-- photo fallback (only if live camera unavailable) -->
     <input type="file" id="plate-file-input" accept="image/*" capture="environment" style="display:none" onchange="onPlatePhoto(this)">
@@ -7292,6 +7293,15 @@ async function _plateLoadCloudToken() {
     _plateCloudUsed = (usage && usage.month === _plateCloudMonthKey) ? (usage.count || 0) : 0;
     _plateCloudBlocked = _plateCloudUsed >= _PLATE_CLOUD_MONTHLY_LIMIT;
   } catch(e) { console.error('cloud token load', e); }
+  _plateUpdateCloudUsageDisplay();
+}
+
+function _plateUpdateCloudUsageDisplay() {
+  const el = document.getElementById('plate-cloud-usage');
+  if (!el) return;
+  if (!_plateCloudToken) { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  el.textContent = `☁️ קריאות ענן החודש: ${_plateCloudUsed} מתוך ${_PLATE_CLOUD_MONTHLY_LIMIT}`;
 }
 
 // fire-and-forget increment of the shared usage counter (best-effort; a lost
@@ -7299,6 +7309,7 @@ async function _plateLoadCloudToken() {
 // early — so it never blocks scanning prematurely)
 async function _plateCloudBumpUsage() {
   _plateCloudUsed++;
+  _plateUpdateCloudUsageDisplay();
   try {
     const { updateDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
     await updateDoc(_docRef('config', 'driver_contacts'), { _plateCloudUsage: { month: _plateCloudMonthKey, count: _plateCloudUsed } });
@@ -7314,11 +7325,11 @@ let _plateLastMarkAt = 0;
 function _plateCloudTry(srcCanvas) {
   if (_plateCloudBusy || !_plateCloudToken || _plateCloudBlocked) return;
   const now = Date.now();
-  if (now - _plateCloudLastAt < 1100) return;
+  if (now - _plateCloudLastAt < 1600) return;
   if (now - _plateLastMarkAt < 2500) return; // still pointing at the car we just marked
   // camera has been aimed at an unresolved plate for a while without a match —
   // stop hammering the cloud on it; resolve locally or move the camera to reset
-  if (_plateCloudMissStreak >= 4) return;
+  if (_plateCloudMissStreak >= 2) return;
   _plateCloudBusy = true; _plateCloudLastAt = now;
   // snapshot the canvas NOW — the scan loop keeps redrawing it
   const c = document.createElement('canvas');
@@ -7370,6 +7381,7 @@ function _plateCloudTry(srcCanvas) {
    JUST the plate rectangle at native resolution (~20KB upload instead of the
    whole band) and fires the cloud. Also keeps the TLS connection warm. ── */
 let _plateCloudLoopOn = false;
+let _plateYellowSinceAt = 0; // when the current plate-in-view streak started
 async function _plateCloudLoop() {
   const small = document.createElement('canvas');
   let lastPing = 0;
@@ -7400,17 +7412,24 @@ async function _plateCloudLoop() {
           }
         }
         if (cnt > sw * sh * 0.02 && maxX > minX + 15) {
-          // crop the yellow box (+margin) from the live video at native resolution
-          const px = bx + (minX / sw) * bw, pw = ((maxX - minX) / sw) * bw;
-          const py = by + (minY / sh) * bh, ph = Math.max(1, ((maxY - minY) / sh) * bh);
-          const ex = Math.max(0, px - pw * 0.12), ew = Math.min(vw - ex, pw * 1.24);
-          const ey = Math.max(0, py - ph * 0.25), eh = Math.min(vh - ey, ph * 1.5);
-          const out = document.createElement('canvas');
-          const sc2 = Math.min(2, 480 / ew);
-          out.width = Math.max(60, Math.round(ew * sc2)); out.height = Math.max(20, Math.round(eh * sc2));
-          out.getContext('2d').drawImage(v, ex, ey, ew, eh, 0, 0, out.width, out.height);
-          _plateCloudTry(out);
+          if (!_plateYellowSinceAt) _plateYellowSinceAt = now;
+          // give local OCR a real chance first — only escalate to cloud once
+          // the SAME plate has sat unresolved in view for a while (genuinely
+          // stubborn), not the instant any plate enters the frame
+          if (now - _plateYellowSinceAt > 900) {
+            // crop the yellow box (+margin) from the live video at native resolution
+            const px = bx + (minX / sw) * bw, pw = ((maxX - minX) / sw) * bw;
+            const py = by + (minY / sh) * bh, ph = Math.max(1, ((maxY - minY) / sh) * bh);
+            const ex = Math.max(0, px - pw * 0.12), ew = Math.min(vw - ex, pw * 1.24);
+            const ey = Math.max(0, py - ph * 0.25), eh = Math.min(vh - ey, ph * 1.5);
+            const out = document.createElement('canvas');
+            const sc2 = Math.min(2, 480 / ew);
+            out.width = Math.max(60, Math.round(ew * sc2)); out.height = Math.max(20, Math.round(eh * sc2));
+            out.getContext('2d').drawImage(v, ex, ey, ew, eh, 0, 0, out.width, out.height);
+            _plateCloudTry(out);
+          }
         } else {
+          _plateYellowSinceAt = 0;
           _plateCloudMissStreak = 0; // no plate in view — camera moved; next plate gets a clean slate
         }
       } catch(e) { console.error('cloud loop', e); }
@@ -7425,8 +7444,6 @@ async function _plateScanLoop() {
     if (grab && _plateWorkers.length) {
       const frame = grab.c;
       try {
-        // a plate is in view (yellow area) → fire the cloud NOW, in parallel with local OCR
-        if (grab.yellow > 0.035) _plateCloudTry(frame);
         // both page-seg modes run IN PARALLEL on separate workers (separate threads)
         const results = await Promise.all(_plateWorkers.map(w => w.recognize(frame).catch(() => ({ data: { text: '' } }))));
         let tokens = [];
@@ -7436,10 +7453,18 @@ async function _plateScanLoop() {
           const hit = _plateMatch(tokens);
           if (hit && !_plateScanSeen.has(hit.plate)) {
             _plateMarkFound(hit); // no pause — keep scanning
+            _plateUnresolvedAt = 0;
           } else if (!hit) {
-            _plateCloudTry(frame); // digits seen but unresolved — cloud immediately
+            // local read digits but couldn't match — only escalate to cloud once
+            // this has persisted a moment, not on the very first misread frame
+            if (!_plateUnresolvedAt) _plateUnresolvedAt = Date.now();
+            else if (Date.now() - _plateUnresolvedAt > 700) _plateCloudTry(frame);
           }
+        } else {
+          _plateUnresolvedAt = 0;
         }
+        // cloud is otherwise driven by the slower, cheaper _plateCloudLoop —
+        // this loop no longer fires it eagerly on every yellow-in-view frame
       } catch(e) { console.error('plate scan frame', e); }
     }
     await new Promise(r => setTimeout(r, 30)); // near-continuous
