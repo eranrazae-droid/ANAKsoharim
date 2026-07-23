@@ -7520,12 +7520,25 @@ function renderYardTable() {
     return _yardSpotCard(spot, [[keys[0], 'כניסה'], [keys[1], 'כביש 1'], [keys[2], 'כביש 2']], isManager);
   }).join('');
 
-  // right spots: even → בפנים, odd → בחוץ
+  // right spots: each row is a pair — even = בפנים, odd = בחוץ (same row)
+  const rightRowsHtml = RIGHT_ROWS.map(r => {
+    if (!r) return '';
+    if (flt) {
+      const keys = r.map(n => parseInt(n) % 2 === 0 ? 'R_' + n + '_בפנים' : 'R_' + n + '_בחוץ');
+      if (keys.every(isFilled)) return '';
+    }
+    return _yardRightRowCard(r, isManager);
+  }).join('');
+  const rightHeader = `<div class="yard-card" style="background:var(--dark);border:none;padding:8px 10px">
+    <div class="yard-num" style="visibility:hidden;min-width:44px;height:0"></div>
+    <div class="yard-fields">
+      <div class="yard-field" style="color:var(--gold);font-weight:900;text-align:center;font-size:14px">בפנים</div>
+      <div class="yard-field" style="color:var(--gold);font-weight:900;text-align:center;font-size:14px">בחוץ</div>
+    </div>
+  </div>`;
+
   const insideNums = [], outsideNums = [];
   RIGHT_ROWS.forEach(r => { if (!r) return; r.forEach(n => { (parseInt(n) % 2 === 0 ? insideNums : outsideNums).push(n); }); });
-  const insideRows = insideNums.map(n => { const k = 'R_' + n + '_בפנים'; if (flt && isFilled(k)) return ''; return _yardSpotCard(n, [[k, '']], isManager); }).join('');
-  const outsideRows = outsideNums.map(n => { const k = 'R_' + n + '_בחוץ'; if (flt && isFilled(k)) return ''; return _yardSpotCard(n, [[k, '']], isManager); }).join('');
-
   const allKeys = [
     ...LEFT_SPOTS.flatMap(s => ['L_' + s + '_כניסה', 'L_' + s + '_כביש_1', 'L_' + s + '_כביש_2']),
     ...insideNums.map(n => 'R_' + n + '_בפנים'),
@@ -7538,9 +7551,17 @@ function renderYardTable() {
       (isManager ? `<button class="yard-flt ${flt ? 'on' : ''}" onclick="toggleYardFilter()">${flt ? '↩ הצג הכל' : '🔎 ריקים בלבד'}</button>` : '') +
     `</div>` +
     _yardSection('חניות צד שמאל (1–34)', leftRows) +
-    _yardSection('בפנים', insideRows) +
-    _yardSection('בחוץ', outsideRows);
+    _yardSection('חניות מגרש', rightRowsHtml ? rightHeader + rightRowsHtml : '');
   renderYardInputValues();
+}
+
+function _yardRightRowCard(r, editable) {
+  let even = '', odd = '';
+  r.forEach(n => { if (parseInt(n) % 2 === 0) even = n; else odd = n; });
+  const f1 = even ? `<div class="yard-field"><span>${esc(even)}</span>${_yardCell('R_' + even + '_בפנים', editable)}</div>` : `<div class="yard-field"></div>`;
+  const f2 = odd ? `<div class="yard-field"><span>${esc(odd)}</span>${_yardCell('R_' + odd + '_בחוץ', editable)}</div>` : `<div class="yard-field"></div>`;
+  const badge = [even, odd].filter(Boolean).join('/');
+  return `<div class="yard-card"><div class="yard-num" style="font-size:13px;line-height:1.15">${esc(badge)}</div><div class="yard-fields">${f1}${f2}</div></div>`;
 }
 
 let _yardFilterEmpty = false;
