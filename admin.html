@@ -819,7 +819,7 @@
     document.getElementById('loginPage').classList.add('hidden');
     document.getElementById('appWrapper').classList.remove('hidden');
     loadCarsFromSupabase().then(data => {
-      if(data && data.length > 0) { cars = cleanCars(data); localStorage.setItem(STORAGE_KEY, JSON.stringify(cars)); }
+      if(Date.now() >= _localSaveMuteUntil && data && data.length > 0) { cars = cleanCars(data); localStorage.setItem(STORAGE_KEY, JSON.stringify(cars)); }
       renderAll();
     });
   }
@@ -833,6 +833,7 @@
         if(!Array.isArray(arr) || !arr.length) return;
         const editing = !document.getElementById('editModal').classList.contains('hidden');
         if(editing) return; // לא מרעננים באמצע עריכה
+        if(Date.now() < _localSaveMuteUntil) return; // הרגע שמרנו מקומית — לא נותנים לאירוע ישן לדרוס
         cars = cleanCars(arr);
         try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(cars)); }catch(e){}
         renderAll();
@@ -935,6 +936,9 @@
   }
 
   function isBadUrl(u){ return !u || u.startsWith('data:') || u.startsWith('blob:') || u.includes('supabase.co'); }
+  // חלון השתקה: אחרי שמירה מקומית, המצב המקומי הוא הסמכות ל-8 שניות —
+  // כדי שאירוע Realtime/טעינה ישנים לא ידרסו וימחקו רכב שזה עתה נוסף/נערך.
+  let _localSaveMuteUntil = 0;
   function saveCars(){
     const cleaned = cars.map(c=>({
       ...c,
@@ -942,6 +946,7 @@
       gallery: (c.gallery||[]).filter(g=>!isBadUrl(g))
     }));
     cars = cleaned;
+    _localSaveMuteUntil = Date.now() + 8000;
     try{ localStorage.setItem(STORAGE_KEY,JSON.stringify(cleaned)); }catch(e){}
     window.dispatchEvent(new StorageEvent('storage',{key:STORAGE_KEY,newValue:JSON.stringify(cleaned)}));
     saveToCloud(cleaned);
