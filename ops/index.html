@@ -6109,7 +6109,16 @@ function _loadBatteryChargingTasks() {
       const data = d.data();
       const headers = data.headers || [];
       const cars = data.carsJson ? JSON.parse(data.carsJson) : [];
-      const toCharge = cars.map((car,idx)=>({car,idx})).filter(x=>!x.car.charged).sort((a,b)=>(a.car.status==='מקדמה'?0:1)-(b.car.status==='מקדמה'?0:1));
+      // lowest battery % first (most urgent to charge); "מקדמה" status breaks ties
+      const toCharge = cars.map((car,idx)=>({car,idx})).filter(x=>!x.car.charged).sort((a,b)=>{
+        const ba = a.car.battery !== '' && a.car.battery != null ? parseInt(a.car.battery) : Infinity;
+        const bb = b.car.battery !== '' && b.car.battery != null ? parseInt(b.car.battery) : Infinity;
+        if (ba !== bb) return ba - bb;
+        return (a.car.status==='מקדמה'?0:1)-(b.car.status==='מקדמה'?0:1);
+      });
+      const lowestToChargeBattery = toCharge.length
+        ? Math.min(...toCharge.map(x => x.car.battery !== '' && x.car.battery != null ? parseInt(x.car.battery) : Infinity))
+        : Infinity;
       const chargedFromList = cars.map((car,idx)=>({car,idx})).filter(x=> x.car.charged);
       const fullBatteryCars = data.fullBatteryCarsJson ? JSON.parse(data.fullBatteryCarsJson) : [];
       const charged = [
@@ -6126,11 +6135,12 @@ function _loadBatteryChargingTasks() {
           })
         : ['1fr'];
 
-      const colW        = [...baseCols, '80px'].join(' ');
+      const colW        = [...baseCols, '58px', '80px'].join(' ');
       const colWCharged = [...baseCols, '60px', '72px'].join(' ');
 
       const headerRow = () => `<div style="display:grid;grid-template-columns:${colW};gap:3px;background:var(--dark);color:#fff;border-radius:10px 10px 0 0;padding:6px 8px;font-size:11px;font-weight:700;direction:rtl;min-width:max-content">
         ${headers.map(h=>`<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(h)}</div>`).join('')}
+        <div style="text-align:center;color:#86efac">אחוז<br>סוללה</div>
         <div style="text-align:center">פעולה</div>
       </div>`;
 
@@ -6142,11 +6152,13 @@ function _loadBatteryChargingTasks() {
 
       const toChargeRow = ({car, idx}) => {
         const isMakdama = car.status === 'מקדמה';
-        const bg     = isMakdama ? '#fff1f2' : 'transparent';
-        const border = isMakdama ? '#ef4444' : '#d1d5db';
+        const isLowest = car.battery !== '' && car.battery != null && parseInt(car.battery) === lowestToChargeBattery;
+        const bg     = isLowest ? '#cffafe' : (isMakdama ? '#fff1f2' : 'transparent');
+        const border = isLowest ? '#06b6d4' : (isMakdama ? '#ef4444' : '#d1d5db');
         const btn = `<button onclick="markCarCharged('${d.id}',${idx})" style="background:#22c55e;color:#fff;border:none;border-radius:8px;padding:5px 10px;font-family:Heebo,sans-serif;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap">הוטען ✓</button>`;
         return `<div style="display:grid;grid-template-columns:${colW};gap:3px;align-items:center;background:${bg};border:1.5px solid ${border};border-top:none;padding:5px 8px;direction:rtl;min-width:max-content">
           ${car.cells.map((c,ci) => `<div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c)}${ci===0&&isMakdama?` <span style="font-size:9px;background:#ef4444;color:#fff;border-radius:4px;padding:1px 4px">מקדמה</span>`:''}</div>`).join('')}
+          <div style="font-size:13px;font-weight:800;text-align:center;color:${isLowest?'#0e7490':'var(--dark)'}">${car.battery ? car.battery+'%' : '—'}</div>
           <div style="text-align:center">${btn}</div>
         </div>`;
       };
@@ -6917,7 +6929,16 @@ function _renderChargingSnapshot(snap, container) {
       const data = d.data();
       const headers = data.headers || [];
       const cars = data.carsJson ? JSON.parse(data.carsJson) : [];
-      const toCharge = cars.map((car,idx)=>({car,idx})).filter(x=>!x.car.charged).sort((a,b)=>(a.car.status==='מקדמה'?0:1)-(b.car.status==='מקדמה'?0:1));
+      // lowest battery % first (most urgent to charge); "מקדמה" status breaks ties
+      const toCharge = cars.map((car,idx)=>({car,idx})).filter(x=>!x.car.charged).sort((a,b)=>{
+        const ba = a.car.battery !== '' && a.car.battery != null ? parseInt(a.car.battery) : Infinity;
+        const bb = b.car.battery !== '' && b.car.battery != null ? parseInt(b.car.battery) : Infinity;
+        if (ba !== bb) return ba - bb;
+        return (a.car.status==='מקדמה'?0:1)-(b.car.status==='מקדמה'?0:1);
+      });
+      const lowestToChargeBattery = toCharge.length
+        ? Math.min(...toCharge.map(x => x.car.battery !== '' && x.car.battery != null ? parseInt(x.car.battery) : Infinity))
+        : Infinity;
       const charged  = cars.map((car,idx)=>({car,idx})).filter(x=> x.car.charged);
       const fullBatteryCars = data.fullBatteryCarsJson ? JSON.parse(data.fullBatteryCarsJson) : [];
       const ts = data.createdAt?.toDate ? data.createdAt.toDate().toLocaleDateString('he-IL') : '';
@@ -6927,14 +6948,14 @@ function _renderChargingSnapshot(snap, container) {
         if (/מספר|לוחית/.test(h)) return 'minmax(75px,1.2fr)';
         return 'minmax(60px,1fr)';
       }) : ['1fr'];
-      const colW        = [...baseCols, '80px'].join(' ');
+      const colW        = [...baseCols, '58px', '80px'].join(' ');
       const colWCharged = [...baseCols, '60px', '72px'].join(' ');
 
       const hdr = (cols) => `<div style="display:grid;grid-template-columns:${cols};gap:3px;background:var(--dark);color:#fff;border-radius:10px 10px 0 0;padding:6px 8px;font-size:11px;font-weight:700;direction:rtl;min-width:max-content">
         ${headers.map(h=>`<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(h)}</div>`).join('')}
         ${cols === colWCharged
           ? `<div style="text-align:center;color:#86efac">%<br>סוללה</div><div style="text-align:center;color:#86efac">טווח<br>נסיעה</div>`
-          : `<div style="text-align:center">פעולה</div>`}
+          : `<div style="text-align:center;color:#86efac">אחוז<br>סוללה</div><div style="text-align:center">פעולה</div>`}
       </div>`;
 
       html += `<div style="margin-bottom:24px"><div style="font-size:13px;font-weight:900;color:#5b21b6;margin-bottom:8px">🔌 משימת טעינה · ${ts}</div>`;
@@ -6944,10 +6965,12 @@ function _renderChargingSnapshot(snap, container) {
         html += `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:12px">${hdr(colW)}`;
         toCharge.forEach(({car,idx}) => {
           const isMakdama = car.status === 'מקדמה';
-          const bg = isMakdama ? '#fff1f2' : 'transparent';
-          const border = isMakdama ? '#ef4444' : '#d1d5db';
+          const isLowest = car.battery !== '' && car.battery != null && parseInt(car.battery) === lowestToChargeBattery;
+          const bg = isLowest ? '#cffafe' : (isMakdama ? '#fff1f2' : 'transparent');
+          const border = isLowest ? '#06b6d4' : (isMakdama ? '#ef4444' : '#d1d5db');
           html += `<div style="display:grid;grid-template-columns:${colW};gap:3px;align-items:center;background:${bg};border:1.5px solid ${border};border-top:none;padding:5px 8px;direction:rtl;min-width:max-content">
             ${car.cells.map((c,ci) => `<div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c)}${ci===0&&isMakdama?` <span style="font-size:9px;background:#ef4444;color:#fff;border-radius:4px;padding:1px 4px">מקדמה</span>`:''}</div>`).join('')}
+            <div style="font-size:13px;font-weight:800;text-align:center;color:${isLowest?'#0e7490':'var(--dark)'}">${car.battery ? car.battery+'%' : '—'}</div>
             <div style="text-align:center"><button onclick="markCarCharged('${d.id}',${idx})" style="background:#22c55e;color:#fff;border:none;border-radius:8px;padding:5px 10px;font-family:Heebo,sans-serif;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap">הוטען ✓</button></div>
           </div>`;
         });
