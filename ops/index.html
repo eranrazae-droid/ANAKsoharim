@@ -7126,7 +7126,18 @@ window.markCarCharged = markCarCharged;
    digits only) and matched ONLY against the plates in the open inventory list.
    Exact match marks immediately; a 1-digit-off match needs two agreeing frames
    (prevents wrong-car marks). No button presses between plates. */
-let _plateStream = null, _plateWorker = null, _plateLoopOn = false, _plateScanBusy = false;
+let _plateStream = null, _plateWorker = null, _plateWorkers = [], _plateLoopOn = false, _plateScanBusy = false;
+
+// two OCR workers, fixed psm 7 (single line) and psm 6 (block) — run in parallel
+async function _plateEnsureWorkers() {
+  if (_plateWorkers.length === 2) return;
+  const mk = async psm => {
+    const w = await Tesseract.createWorker('eng', 1);
+    await w.setParameters({ tessedit_char_whitelist: '0123456789', tessedit_pageseg_mode: psm });
+    return w;
+  };
+  _plateWorkers = await Promise.all([mk('7'), mk('6')]);
+}
 let _plateNearCount = {};
 if (!window._plateScanSeen) window._plateScanSeen = new Set();
 
@@ -7161,21 +7172,25 @@ function _plateTokensFrom(text) {
   return [...out];
 }
 
-// returns {idx, plate} or null. Exact → immediate; lev≤1 → needs 2 sightings.
+// returns {idx, plate} or null. Exact → immediate. lev≤1 → immediate when it
+// points to exactly ONE known plate (unambiguous); otherwise needs 2 sightings.
 function _plateMatch(tokens) {
   const known = _invKnownPlates();
   for (const t of tokens) {
     const hit = known.find(k => k.plate === t);
     if (hit) return hit;
   }
+  const nearPlates = new Map(); // plate → k
   for (const t of tokens) {
     for (const k of known) {
       if (Math.abs(k.plate.length - t.length) <= 1 && _levenshtein(t, k.plate) <= 1) {
+        nearPlates.set(k.plate, k);
         _plateNearCount[k.plate] = (_plateNearCount[k.plate] || 0) + 1;
-        if (_plateNearCount[k.plate] >= 2) return k;
       }
     }
   }
+  if (nearPlates.size === 1) return nearPlates.values().next().value; // unambiguous — take it now
+  for (const [plate, k] of nearPlates) if (_plateNearCount[plate] >= 2) return k;
   return null;
 }
 
@@ -7247,25 +7262,23 @@ function _plateGrabFrame() {
   return c;
 }
 
-let _platePsm = '7';
 async function _plateScanLoop() {
   while (_plateLoopOn) {
     const frame = _plateGrabFrame();
-    if (frame && _plateWorker) {
+    if (frame && _plateWorkers.length) {
       try {
-        // one OCR pass per frame; alternate psm 7/6 across frames (no double pass)
-        await _plateWorker.setParameters({ tessedit_pageseg_mode: _platePsm });
-        const { data: { text } } = await _plateWorker.recognize(frame);
-        const tokens = _plateTokensFrom(text);
+        // both page-seg modes run IN PARALLEL on separate workers (separate threads)
+        const results = await Promise.all(_plateWorkers.map(w => w.recognize(frame).catch(() => ({ data: { text: '' } }))));
+        let tokens = [];
+        for (const r of results) tokens = tokens.concat(_plateTokensFrom(r.data.text));
         _plateAutoZoomTick(tokens.length > 0);
-        if (!tokens.length) _platePsm = _platePsm === '7' ? '6' : '7';
         if (tokens.length) {
           const hit = _plateMatch(tokens);
           if (hit && !_plateScanSeen.has(hit.plate)) _plateMarkFound(hit); // no pause — keep scanning
         }
       } catch(e) { console.error('plate scan frame', e); }
     }
-    await new Promise(r => setTimeout(r, 40)); // near-continuous
+    await new Promise(r => setTimeout(r, 30)); // near-continuous
   }
 }
 
@@ -7296,10 +7309,7 @@ async function openPlateScanner() {
     await v.play();
     _plateEmptyFrames = 0;
     try { _plateSetupZoom(); } catch(e) { console.error('zoom setup', e); }
-    if (!_plateWorker) {
-      _plateWorker = await Tesseract.createWorker('eng', 1);
-      await _plateWorker.setParameters({ tessedit_char_whitelist: '0123456789' });
-    }
+    await _plateEnsureWorkers();
     _plateLoopOn = true;
     _plateScanLoop();
   } catch(e) {
@@ -7380,6 +7390,8 @@ function closePlateScanner() {
   if (_plateStream) { try { _plateStream.getTracks().forEach(t => t.stop()); } catch(e) {} _plateStream = null; }
   const v = document.getElementById('plate-video');
   if (v) v.srcObject = null;
+  for (const w of _plateWorkers) { try { w.terminate(); } catch(e) {} }
+  _plateWorkers = [];
   if (_plateWorker) { try { _plateWorker.terminate(); } catch(e) {} _plateWorker = null; }
   closeModal('modal-plate-scanner');
 }
