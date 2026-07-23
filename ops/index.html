@@ -152,6 +152,22 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
 .color-swatch{width:32px;height:32px;border-radius:50%;border:3px solid transparent;cursor:pointer;transition:transform .15s}
 .color-swatch.selected{border-color:#1a1a2e;transform:scale(1.2)}
 .task-card.done{opacity:.5}
+/* ── yard arrangement (mobile-first vertical layout) ── */
+#yard-list{max-width:640px;margin:0 auto}
+.yard-summary{position:sticky;top:0;z-index:6;background:#fff;padding:10px 12px;font-weight:800;font-size:14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+.yard-flt{background:var(--surface2);border:1px solid var(--border);border-radius:999px;padding:7px 14px;font-family:Heebo,sans-serif;font-weight:800;font-size:12px;cursor:pointer;color:var(--text)}
+.yard-flt.on{background:#6366f1;color:#fff;border-color:#6366f1}
+.yard-sec-h{position:sticky;top:44px;z-index:5;background:var(--dark);color:#fff;font-weight:800;font-size:14px;padding:9px 12px;border-radius:8px;margin:14px 0 8px}
+.yard-card{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--border);border-radius:12px;padding:8px 10px;margin-bottom:7px}
+.yard-num{flex-shrink:0;min-width:44px;height:44px;border-radius:10px;background:var(--dark);color:var(--gold);font-weight:900;font-size:16px;display:flex;align-items:center;justify-content:center;padding:0 6px}
+.yard-fields{flex:1;display:flex;gap:6px;min-width:0}
+.yard-field{flex:1;display:flex;flex-direction:column;gap:2px;min-width:0}
+.yard-field>span{font-size:10px;color:var(--muted);font-weight:800;text-align:center}
+.yard-inp{width:100%;box-sizing:border-box;border:1.5px solid var(--border);border-radius:8px;padding:11px 4px;font-family:Heebo,sans-serif;font-size:15px;font-weight:700;text-align:center;outline:none;background:#fff}
+.yard-inp.has{background:#dcfce7;border-color:#16a34a;color:#15803d}
+.yard-inp:focus{border-color:var(--gold)}
+.yard-val{width:100%;box-sizing:border-box;border:1.5px solid var(--border);border-radius:8px;padding:11px 4px;font-size:15px;font-weight:700;text-align:center;color:#c0c4d0;background:#fff}
+.yard-val.has{background:#dcfce7;border-color:#16a34a;color:#15803d}
 .task-card[draggable="true"]{cursor:grab}
 .task-card[draggable="true"]:active{cursor:grabbing}
 .task-card.dragging{opacity:.4;transform:scale(.98);background:#eef2ff;border:2px dashed #a5b4fc !important;box-shadow:none !important}
@@ -1230,37 +1246,19 @@ if ('serviceWorker' in navigator) {
   <!-- Reset info banner -->
   <div id="yard-reset-banner" style="display:none;padding:8px 16px;background:#eff6ff;border-bottom:1px solid #bfdbfe;font-size:12px;color:#1e40af;font-weight:700;text-align:right"></div>
   <!-- Vehicles to place panel -->
-  <div id="yard-to-place-panel" style="padding:12px 16px;background:#f8f9ff;border-bottom:1px solid var(--border);display:flex;gap:16px">
-    <div style="flex:1">
+  <div id="yard-to-place-panel" style="padding:12px 16px;background:#f8f9ff;border-bottom:1px solid var(--border);display:flex;gap:16px;flex-wrap:wrap">
+    <div style="flex:1;min-width:240px">
       <div style="font-weight:700;font-size:14px;color:var(--dark);margin-bottom:8px">🚗 רכבים שצריך להכניס לחניות</div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px" id="yard-to-place-grid"></div>
     </div>
-    <div style="flex:1;border-right:1px solid var(--border);padding-right:16px">
+    <div style="flex:1;min-width:240px">
       <div style="font-weight:700;font-size:14px;color:var(--dark);margin-bottom:8px">🏷️ מכוניות מכורות</div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px" id="yard-sold-grid"></div>
     </div>
   </div>
   <div id="yard-table-wrap" style="overflow:auto;padding:8px 8px 80px">
     <div id="yard-no-data-msg" style="display:none;text-align:center;padding:60px 20px;color:var(--muted);font-size:16px;font-weight:700">אין סידור מגרש פעיל כרגע</div>
-    <table id="yard-table" style="border-collapse:collapse;font-family:Heebo,sans-serif;font-size:13px">
-      <thead>
-        <tr style="background:var(--dark);color:#fff">
-          <th style="padding:8px 6px;text-align:center;font-size:12px;border:1px solid #333;min-width:48px">מס׳</th>
-          <th style="padding:8px 6px;text-align:center;font-size:12px;border:1px solid #333;color:var(--gold);min-width:90px"></th>
-          <th style="padding:8px 6px;text-align:center;font-size:12px;border:1px solid #333;color:var(--gold);min-width:160px">כביש</th>
-          <th style="padding:8px 6px;width:8px;background:#2a2a3e;border:1px solid #444"></th>
-          <th style="padding:8px 6px;text-align:center;font-size:12px;border:1px solid #333;min-width:56px">מס׳</th>
-          <th style="padding:8px 6px;text-align:center;font-size:12px;border:1px solid #333;color:var(--gold);min-width:90px">בפנים</th>
-          <th style="padding:8px 6px;text-align:center;font-size:12px;border:1px solid #333;color:var(--gold);min-width:90px">בחוץ</th>
-        </tr>
-      </thead>
-      <tbody id="yard-tbody"></tbody>
-    </table>
-  </div>
-  <div id="yard-zoom-ctrl" style="position:fixed;bottom:20px;left:16px;z-index:60;display:flex;align-items:center;gap:6px;background:#fff;border:2px solid var(--border);border-radius:999px;padding:6px 10px;box-shadow:0 4px 16px rgba(0,0,0,0.18)">
-    <button onclick="yardZoom(-1)" style="background:var(--dark);color:#fff;border:none;border-radius:50%;width:36px;height:36px;font-size:22px;font-weight:900;cursor:pointer;line-height:1">−</button>
-    <span id="yard-zoom-label" style="font-size:13px;font-weight:800;min-width:44px;text-align:center">100%</span>
-    <button onclick="yardZoom(1)" style="background:var(--dark);color:#fff;border:none;border-radius:50%;width:36px;height:36px;font-size:22px;font-weight:900;cursor:pointer;line-height:1">+</button>
+    <div id="yard-list"></div>
   </div>
 </div>
 
@@ -7394,8 +7392,8 @@ async function deletePitCheck(id) {
 function openYardScreen() {
   document.getElementById('yard-user-badge').textContent = currentUser.name;
   const isManager = currentUser.role === 'manager';
-  // Ensure table is visible before rendering (driver may have hidden it)
-  const tbl = document.getElementById('yard-table');
+  // Ensure list is visible before rendering (driver may have hidden it)
+  const tbl = document.getElementById('yard-list');
   const msg = document.getElementById('yard-no-data-msg');
   if (tbl) tbl.style.display = '';
   if (msg) msg.style.display = 'none';
@@ -7406,7 +7404,6 @@ function openYardScreen() {
     const btn = document.getElementById('yard-publish-btn');
     if (btn) { btn.textContent = '📤 שלח לנהגים'; btn.style.background = 'var(--gold)'; btn.style.color = '#000'; btn.onclick = publishYard; btn.disabled = false; }
   }
-  _applyYardZoom();
 }
 
 let _yardZoom = 1;
@@ -7473,7 +7470,7 @@ function loadYardData() {
       if (toolbar) toolbar.style.display = hasData ? 'flex' : 'none';
 
       const noDataMsg = document.getElementById('yard-no-data-msg');
-      const tbl = document.getElementById('yard-table');
+      const tbl = document.getElementById('yard-list');
       if (!hasData) {
         if (noDataMsg) noDataMsg.style.display = 'block';
         if (tbl) tbl.style.display = 'none';
@@ -7481,23 +7478,8 @@ function loadYardData() {
       }
       if (noDataMsg) noDataMsg.style.display = 'none';
       if (tbl) tbl.style.display = '';
-      // Render table then fill values, scale after layout settles
       renderYardTable();
       renderYardInputValues();
-      const wrap = document.getElementById('yard-table-wrap');
-      setTimeout(() => {
-        const t = document.getElementById('yard-table');
-        if (!wrap || !t) return;
-        const availW = window.innerWidth;
-        const availH = window.innerHeight - (wrap.getBoundingClientRect().top || 200);
-        const scaleX = availW / (t.scrollWidth + 2);
-        const scaleY = availH / (t.scrollHeight + 2);
-        const scale  = Math.min(scaleX, scaleY, 1);
-        t.style.transform = `scale(${scale})`;
-        t.style.transformOrigin = 'top right';
-        wrap.style.height = (t.scrollHeight * scale + 16) + 'px';
-        wrap.style.overflow = 'hidden';
-      }, 150);
       return;
     } else {
       // Manager: only react to status transitions, never overwrite live edits
@@ -7526,63 +7508,65 @@ function renderYardTable() {
   document.getElementById('yard-to-place-panel').style.display = isManager ? 'block' : 'none';
   if (isManager) renderToPlaceGrid(true);
 
-  const tbody = document.getElementById('yard-tbody');
-  let html = '';
-  for (let i = 0; i < Math.max(LEFT_SPOTS.length, RIGHT_ROWS.length); i++) {
-    const leftSpot = LEFT_SPOTS[i] || '';
-    const rightRow = i < RIGHT_ROWS.length ? RIGHT_ROWS[i] : null;
+  const list = document.getElementById('yard-list');
+  if (!list) return;
+  const flt = _yardFilterEmpty;
+  const isFilled = k => (yardData[k] || '').trim() !== '';
 
-    const leftNum = leftSpot ? `<td style="${tdStyle('center')};font-weight:700">${leftSpot}</td>` : `<td style="${tdStyle()}"></td>`;
-    const leftKnisa = leftSpot ? `<td style="${tdStyle()}">${spotInput('L_'+leftSpot+'_כניסה', isManager)}</td>` : `<td style="${tdStyle()}"></td>`;
-    const leftMagr  = leftSpot ? `<td style="${tdStyle()};padding:4px">
-      <div style="display:flex;gap:4px">
-        ${spotInput('L_'+leftSpot+'_כביש_1', isManager)}
-        ${spotInput('L_'+leftSpot+'_כביש_2', isManager)}
-      </div></td>` : `<td style="${tdStyle()}"></td>`;
+  // left spots (1–34): each has entrance + 2 road lanes
+  const leftRows = LEFT_SPOTS.map(spot => {
+    const keys = ['L_' + spot + '_כניסה', 'L_' + spot + '_כביש_1', 'L_' + spot + '_כביש_2'];
+    if (flt && keys.every(isFilled)) return '';
+    return _yardSpotCard(spot, [[keys[0], 'כניסה'], [keys[1], 'כביש 1'], [keys[2], 'כביש 2']], isManager);
+  }).join('');
 
-    const divider = `<td style="background:#c0c4d8;width:8px;border:1px solid #b0b4c8"></td>`;
+  // right spots: even → בפנים, odd → בחוץ
+  const insideNums = [], outsideNums = [];
+  RIGHT_ROWS.forEach(r => { if (!r) return; r.forEach(n => { (parseInt(n) % 2 === 0 ? insideNums : outsideNums).push(n); }); });
+  const insideRows = insideNums.map(n => { const k = 'R_' + n + '_בפנים'; if (flt && isFilled(k)) return ''; return _yardSpotCard(n, [[k, '']], isManager); }).join('');
+  const outsideRows = outsideNums.map(n => { const k = 'R_' + n + '_בחוץ'; if (flt && isFilled(k)) return ''; return _yardSpotCard(n, [[k, '']], isManager); }).join('');
 
-    let rightNumCell = '', rightPnim = '', rightHutz = '';
-    if (!rightRow) {
-      rightNumCell = `<td style="${tdStyle()}"></td>`;
-      rightPnim    = `<td style="${tdStyle()}"></td>`;
-      rightHutz    = `<td style="${tdStyle()}"></td>`;
-    } else {
-      const nums = rightRow;
-      if (nums.length === 2) {
-        // even number → בפנים, odd number → בחוץ
-        const even = nums[0]; // e.g. 40
-        const odd  = nums[1]; // e.g. 41
-        rightNumCell = `<td style="${tdStyle('center')};font-weight:700">${even}/${odd}</td>`;
-        rightPnim = `<td style="${tdStyle()};padding:4px">
-          <div style="display:flex;flex-direction:column;align-items:center">
-            <span style="font-size:10px;color:var(--muted);margin-bottom:2px">${even}</span>
-            ${spotInput('R_'+even+'_בפנים', isManager)}
-          </div></td>`;
-        rightHutz = `<td style="${tdStyle()};padding:4px">
-          <div style="display:flex;flex-direction:column;align-items:center">
-            <span style="font-size:10px;color:var(--muted);margin-bottom:2px">${odd}</span>
-            ${spotInput('R_'+odd+'_בחוץ', isManager)}
-          </div></td>`;
-      } else {
-        const num = nums[0];
-        const isEven = parseInt(num) % 2 === 0;
-        rightNumCell = `<td style="${tdStyle('center')};font-weight:700">${num}</td>`;
-        rightPnim = isEven
-          ? `<td style="${tdStyle()}">${spotInput('R_'+num+'_בפנים', isManager)}</td>`
-          : `<td style="${tdStyle()}"></td>`;
-        rightHutz = !isEven
-          ? `<td style="${tdStyle()}">${spotInput('R_'+num+'_בחוץ', isManager)}</td>`
-          : `<td style="${tdStyle()}"></td>`;
-      }
-    }
+  const allKeys = [
+    ...LEFT_SPOTS.flatMap(s => ['L_' + s + '_כניסה', 'L_' + s + '_כביש_1', 'L_' + s + '_כביש_2']),
+    ...insideNums.map(n => 'R_' + n + '_בפנים'),
+    ...outsideNums.map(n => 'R_' + n + '_בחוץ'),
+  ];
+  const filled = allKeys.filter(isFilled).length;
 
-    const rowBg = i % 2 === 0 ? '#fff' : '#f0f2ff';
-    html += `<tr style="background:${rowBg}">${leftNum}${leftKnisa}${leftMagr}${divider}${rightNumCell}${rightPnim}${rightHutz}</tr>`;
-  }
-  tbody.innerHTML = html;
+  list.innerHTML =
+    `<div class="yard-summary"><span>מולאו <b>${filled}</b> מתוך ${allKeys.length}</span>` +
+      (isManager ? `<button class="yard-flt ${flt ? 'on' : ''}" onclick="toggleYardFilter()">${flt ? '↩ הצג הכל' : '🔎 ריקים בלבד'}</button>` : '') +
+    `</div>` +
+    _yardSection('חניות צד שמאל (1–34)', leftRows) +
+    _yardSection('בפנים', insideRows) +
+    _yardSection('בחוץ', outsideRows);
   renderYardInputValues();
+}
 
+let _yardFilterEmpty = false;
+function toggleYardFilter() { _yardFilterEmpty = !_yardFilterEmpty; renderYardTable(); }
+window.toggleYardFilter = toggleYardFilter;
+
+function _yardSection(title, rows) {
+  if (!rows.trim()) return '';
+  return `<div class="yard-sec-h">${title}</div>${rows}`;
+}
+
+function _yardSpotCard(num, fields, editable) {
+  return `<div class="yard-card">
+    <div class="yard-num">${esc(num)}</div>
+    <div class="yard-fields">
+      ${fields.map(([key, label]) => `<div class="yard-field">${label ? `<span>${label}</span>` : ''}${_yardCell(key, editable)}</div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function _yardCell(key, editable) {
+  const val = yardData[key] || '';
+  if (!editable) return `<div data-key="${key}" class="yard-val ${val ? 'has' : ''}">${val ? esc(val) : '—'}</div>`;
+  return `<input data-key="${key}" value="${esc(val)}" placeholder="—" class="yard-inp ${val ? 'has' : ''}"
+    onchange="yardData[this.dataset.key]=this.value;this.classList.toggle('has',!!this.value.trim());_autoSaveYard()"
+    onkeydown="if(event.key==='Enter'||event.keyCode===13){event.preventDefault();yardData[this.dataset.key]=this.value;clearTimeout(_yardSaveTimer);_yardUpdate({data:yardData,updatedAt:_serverTs(),status:'draft'});_yardFocusNext(this);}">`;
 }
 
 function renderToPlaceGrid(isManager) {
@@ -7643,19 +7627,21 @@ function tdStyle(align) {
 }
 
 function renderYardInputValues() {
-  document.querySelectorAll('#yard-tbody input[data-key], #yard-to-place-grid input[data-key], #yard-sold-grid input[data-key]').forEach(inp => {
+  document.querySelectorAll('#yard-list input[data-key], #yard-to-place-grid input[data-key], #yard-sold-grid input[data-key]').forEach(inp => {
     inp.value = yardData[inp.dataset.key] || '';
+    if (inp.classList.contains('yard-inp')) inp.classList.toggle('has', !!inp.value.trim());
   });
   // Update read-only display divs
-  document.querySelectorAll('#yard-tbody div[data-key], #yard-to-place-grid div[data-key], #yard-sold-grid div[data-key]').forEach(div => {
+  document.querySelectorAll('#yard-list div[data-key], #yard-to-place-grid div[data-key], #yard-sold-grid div[data-key]').forEach(div => {
     const val = yardData[div.dataset.key] || '';
     div.textContent = val || '—';
-    div.style.color = val ? 'var(--dark)' : '#bbb';
+    if (div.classList.contains('yard-val')) div.classList.toggle('has', !!val.trim());
+    else div.style.color = val ? 'var(--dark)' : '#bbb';
   });
 }
 
 function _collectYardInputs() {
-  document.querySelectorAll('#yard-tbody input[data-key], #yard-to-place-grid input[data-key], #yard-sold-grid input[data-key]').forEach(inp => {
+  document.querySelectorAll('#yard-list input[data-key], #yard-to-place-grid input[data-key], #yard-sold-grid input[data-key]').forEach(inp => {
     yardData[inp.dataset.key] = inp.value;
   });
 }
