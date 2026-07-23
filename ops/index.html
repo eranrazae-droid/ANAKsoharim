@@ -7206,6 +7206,7 @@ function _plateMarkFound(hit) {
   }
   _plateScanSeen.add(hit.plate);
   _plateNearCount = {};
+  _plateCloudMissStreak = 0;
   _plateLastMarkAt = Date.now();
   resultEl.style.background = already ? '#0ea5e9' : '#22c55e';
   resultEl.textContent = already ? `✓ ${hit.plate} כבר סומנה` : `✅ ${hit.plate} נקלט וסומן`;
@@ -7268,8 +7269,16 @@ function _plateGrabFrame() {
 
 /* ── Cloud assist (Plate Recognizer): fired ONLY when local OCR sees digits but
    can't resolve them for ~0.9s — one throttled snapshot per stubborn plate.
-   Quota-safe: never fires on empty frames while walking between cars. ── */
+   Quota-safe: never fires on empty frames while walking between cars, tracks
+   monthly usage against the free 2,500 quota (shared team counter in
+   Firestore), and stops automatically — with ONE clear message, not spam —
+   before wasting calls that would fail anyway. ── */
+const _PLATE_CLOUD_MONTHLY_LIMIT = 2400; // stop a little short of the 2,500 free quota
 let _plateCloudToken = null, _plateCloudBusy = false, _plateCloudLastAt = 0, _plateUnresolvedAt = 0;
+let _plateCloudMonthKey = '', _plateCloudUsed = 0, _plateCloudBlocked = false, _plateCloudMissStreak = 0;
+
+function _curMonthKey() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
+
 async function _plateLoadCloudToken() {
   if (_plateCloudToken !== null) return;
   _plateCloudToken = '';
@@ -7277,14 +7286,39 @@ async function _plateLoadCloudToken() {
     const { getDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
     const s = await getDoc(_docRef('config', 'driver_contacts'));
     if (s.exists()) _plateCloudToken = (s.data()._plateToken && s.data()._plateToken.value) || '';
+    // shared monthly usage counter — same doc, so all drivers count against one quota
+    _plateCloudMonthKey = _curMonthKey();
+    const usage = s.exists() ? s.data()._plateCloudUsage : null;
+    _plateCloudUsed = (usage && usage.month === _plateCloudMonthKey) ? (usage.count || 0) : 0;
+    _plateCloudBlocked = _plateCloudUsed >= _PLATE_CLOUD_MONTHLY_LIMIT;
   } catch(e) { console.error('cloud token load', e); }
 }
+
+// fire-and-forget increment of the shared usage counter (best-effort; a lost
+// increment here just means the local cutoff is a call or two late, never
+// early — so it never blocks scanning prematurely)
+async function _plateCloudBumpUsage() {
+  _plateCloudUsed++;
+  try {
+    const { updateDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    await updateDoc(_docRef('config', 'driver_contacts'), { _plateCloudUsage: { month: _plateCloudMonthKey, count: _plateCloudUsed } });
+  } catch(e) {}
+  if (_plateCloudUsed >= _PLATE_CLOUD_MONTHLY_LIMIT && !_plateCloudBlocked) {
+    _plateCloudBlocked = true;
+    const status = document.getElementById('plate-scan-status');
+    if (status) status.innerHTML = '📵 המכסה החינמית החודשית של הענן נוצלה — הזיהוי ממשיך מקומית בלבד';
+  }
+}
+
 let _plateLastMarkAt = 0;
 function _plateCloudTry(srcCanvas) {
-  if (_plateCloudBusy || !_plateCloudToken) return;
+  if (_plateCloudBusy || !_plateCloudToken || _plateCloudBlocked) return;
   const now = Date.now();
   if (now - _plateCloudLastAt < 1100) return;
   if (now - _plateLastMarkAt < 2500) return; // still pointing at the car we just marked
+  // camera has been aimed at an unresolved plate for a while without a match —
+  // stop hammering the cloud on it; resolve locally or move the camera to reset
+  if (_plateCloudMissStreak >= 4) return;
   _plateCloudBusy = true; _plateCloudLastAt = now;
   // snapshot the canvas NOW — the scan loop keeps redrawing it
   const c = document.createElement('canvas');
@@ -7302,6 +7336,7 @@ function _plateCloudTry(srcCanvas) {
         method: 'POST', headers: { Authorization: 'Token ' + _plateCloudToken }, body: fd
       });
       const data = await resp.json().catch(() => ({}));
+      _plateCloudBumpUsage(); // count every real call against the shared quota
       const toks = [];
       for (const r of (data.results || [])) {
         const d0 = String(r.plate || '').replace(/\D/g, '');
@@ -7313,10 +7348,16 @@ function _plateCloudTry(srcCanvas) {
       }
       if (toks.length) {
         const hit = _plateMatch(toks);
-        if (hit && !_plateScanSeen.has(hit.plate)) { _plateMarkFound(hit); _plateUnresolvedAt = 0; }
+        if (hit && !_plateScanSeen.has(hit.plate)) { _plateMarkFound(hit); _plateUnresolvedAt = 0; _plateCloudMissStreak = 0; }
+        else _plateCloudMissStreak++;
+      } else {
+        _plateCloudMissStreak++;
       }
       if (resp.status === 401 || resp.status === 403) {
-        if (status) status.innerHTML = '⚠️ טוקן הענן שגוי — הזיהוי ממשיך מקומית';
+        // Plate Recognizer returns 403 both for a bad token and for an exhausted
+        // quota — either way, stop calling and tell the manager plainly.
+        _plateCloudBlocked = true;
+        if (status) status.innerHTML = '⚠️ הענן חסום (טוקן שגוי או שהמכסה נגמרה) — הזיהוי ממשיך מקומית';
       }
     } catch(e) { console.error('plate cloud', e); }
     if (status && status.innerHTML === '☁️ מזהה בענן...') status.innerHTML = 'כוון ללוחית הבאה 📷';
@@ -7369,6 +7410,8 @@ async function _plateCloudLoop() {
           out.width = Math.max(60, Math.round(ew * sc2)); out.height = Math.max(20, Math.round(eh * sc2));
           out.getContext('2d').drawImage(v, ex, ey, ew, eh, 0, 0, out.width, out.height);
           _plateCloudTry(out);
+        } else {
+          _plateCloudMissStreak = 0; // no plate in view — camera moved; next plate gets a clean slate
         }
       } catch(e) { console.error('cloud loop', e); }
     }
