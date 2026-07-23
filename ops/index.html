@@ -7297,6 +7297,7 @@ function _plateCloudTry(srcCanvas) {
       const fd = new FormData();
       fd.append('upload', blob, 'plate.jpg');
       fd.append('regions', 'il');
+      fd.append('config', JSON.stringify({ mode: 'fast' }));
       const resp = await fetch('https://api.platerecognizer.com/v1/plate-reader/', {
         method: 'POST', headers: { Authorization: 'Token ' + _plateCloudToken }, body: fd
       });
@@ -7320,7 +7321,59 @@ function _plateCloudTry(srcCanvas) {
     } catch(e) { console.error('plate cloud', e); }
     if (status && status.innerHTML === '☁️ מזהה בענן...') status.innerHTML = 'כוון ללוחית הבאה 📷';
     _plateCloudBusy = false;
-  }, 'image/jpeg', 0.85);
+  }, 'image/jpeg', 0.7);
+}
+
+/* ── Fast cloud loop: independent of the heavy OCR loop. Every 150ms it does a
+   cheap yellow-plate detection on a tiny grab; when a plate is in view it crops
+   JUST the plate rectangle at native resolution (~20KB upload instead of the
+   whole band) and fires the cloud. Also keeps the TLS connection warm. ── */
+let _plateCloudLoopOn = false;
+async function _plateCloudLoop() {
+  const small = document.createElement('canvas');
+  let lastPing = 0;
+  while (_plateCloudLoopOn) {
+    const now = Date.now();
+    if (now - lastPing > 8000) {
+      lastPing = now;
+      try { fetch('https://api.platerecognizer.com/', { mode: 'no-cors' }).catch(() => {}); } catch(e) {}
+    }
+    const v = document.getElementById('plate-video');
+    if (v && v.readyState >= 2 && v.videoWidth && !_plateCloudBusy && _plateCloudToken) {
+      try {
+        const vw = v.videoWidth, vh = v.videoHeight;
+        let bx = vw * 0.05, bw = vw * 0.90, by = vh * 0.33, bh = vh * 0.34;
+        if (_plateSwZoom > 1) { const cx = bx + bw/2, cy = by + bh/2; bw /= _plateSwZoom; bh /= _plateSwZoom; bx = cx - bw/2; by = cy - bh/2; }
+        const sw = 240, sh = Math.max(1, Math.round(sw * bh / bw));
+        small.width = sw; small.height = sh;
+        const sctx = small.getContext('2d', { willReadFrequently: true });
+        sctx.drawImage(v, bx, by, bw, bh, 0, 0, sw, sh);
+        const dd = sctx.getImageData(0, 0, sw, sh).data;
+        let minX = sw, maxX = 0, minY = sh, maxY = 0, cnt = 0;
+        for (let y = 0; y < sh; y++) for (let x = 0; x < sw; x++) {
+          const i = (y * sw + x) * 4, r = dd[i], g = dd[i+1], b = dd[i+2];
+          if (r > 140 && g > 110 && b < 110 && (r - b) > 55 && (g - b) > 40) {
+            cnt++;
+            if (x < minX) minX = x; if (x > maxX) maxX = x;
+            if (y < minY) minY = y; if (y > maxY) maxY = y;
+          }
+        }
+        if (cnt > sw * sh * 0.02 && maxX > minX + 15) {
+          // crop the yellow box (+margin) from the live video at native resolution
+          const px = bx + (minX / sw) * bw, pw = ((maxX - minX) / sw) * bw;
+          const py = by + (minY / sh) * bh, ph = Math.max(1, ((maxY - minY) / sh) * bh);
+          const ex = Math.max(0, px - pw * 0.12), ew = Math.min(vw - ex, pw * 1.24);
+          const ey = Math.max(0, py - ph * 0.25), eh = Math.min(vh - ey, ph * 1.5);
+          const out = document.createElement('canvas');
+          const sc2 = Math.min(2, 480 / ew);
+          out.width = Math.max(60, Math.round(ew * sc2)); out.height = Math.max(20, Math.round(eh * sc2));
+          out.getContext('2d').drawImage(v, ex, ey, ew, eh, 0, 0, out.width, out.height);
+          _plateCloudTry(out);
+        }
+      } catch(e) { console.error('cloud loop', e); }
+    }
+    await new Promise(r => setTimeout(r, 150));
+  }
 }
 
 async function _plateScanLoop() {
@@ -7383,6 +7436,8 @@ async function openPlateScanner() {
     await _plateEnsureWorkers();
     _plateLoopOn = true;
     _plateScanLoop();
+    _plateCloudLoopOn = true;
+    _plateCloudLoop();
   } catch(e) {
     console.error('camera open failed', e);
     // no live camera (permission denied / unsupported) — photo fallback
@@ -7458,6 +7513,7 @@ function _plateAutoZoomTick(gotTokens) {
 
 function closePlateScanner() {
   _plateLoopOn = false;
+  _plateCloudLoopOn = false;
   if (_plateStream) { try { _plateStream.getTracks().forEach(t => t.stop()); } catch(e) {} _plateStream = null; }
   const v = document.getElementById('plate-video');
   if (v) v.srcObject = null;
