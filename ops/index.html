@@ -9575,6 +9575,7 @@ function _pickupCardHtml(c) {
         ${waitLabel ? `<span style="background:#d97706;color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;white-space:nowrap">⏱ ${waitLabel}</span>` : ''}
         ${c.assignedDriver ? `<span style="background:#1e40af;color:#fff;border-radius:999px;padding:4px 10px;font-size:12px;font-weight:700;white-space:nowrap">🚗 ${e(c.assignedDriver)}</span>` : ''}
         <button onclick="event.stopPropagation();openSendPickupToDriver('${e(c.id)}')" style="background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">📲 שלח לנהג</button>
+        ${c.assignedDriver ? `<button onclick="event.stopPropagation();sendPickupCarIntake('${e(c.id)}')" style="background:#7c3aed;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">📥 שלח קליטה</button>` : ''}
         <button onclick="event.stopPropagation();collectPickupCar('${e(c.id)}')" style="background:#059669;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">✅ הרכב נאסף</button>
         <button onclick="event.stopPropagation();deletePickupCar('${e(c.id)}')" style="background:#ef4444;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">🗑️ הסר</button>
       </div>
@@ -10696,6 +10697,57 @@ async function sendPickupToDriver(id, driverName) {
   showToast(`✅ נשלחה התראה ל${driverName}`);
 }
 window.sendPickupToDriver = sendPickupToDriver;
+
+// send an intake ("קליטה") assignment for a pickup car, to the same driver
+// it's assigned to, auto-filling vehicle details from the gov.il registry
+async function sendPickupCarIntake(id) {
+  const car = _pickupAllCars.find(c => c.id === id);
+  if (!car) return;
+  if (!car.assignedDriver) return showToast('נא לשלוח קודם את הרכב לנהג');
+  const plate = String(car.plate || '').replace(/\D/g, '');
+  if (!plate) return showToast('לרכב הזה אין מספר לוחית');
+  showToast('⏳ שולח קליטה...');
+  try {
+    const { getDocs, query, collection, where } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    // avoid duplicating an active intake for the same plate
+    const snap = await getDocs(query(collection(window._db, 'intake_assignments'), where('plate', '==', plate)));
+    const conflict = snap.docs.map(d => d.data()).find(d => ['pending', 'done', 'checked'].includes(d.status));
+    if (conflict) {
+      const stLabel = conflict.status === 'pending' ? 'בתהליך קליטה' : conflict.status === 'done' ? 'בוצעה — ממתינה לבדיקה' : 'נבדקה';
+      return showToast(`⚠️ לרכב ${plate} כבר נעשתה קליטה (${stLabel})`, 5000);
+    }
+    // auto-pull vehicle details from the gov.il registry (same source used elsewhere)
+    let brand = '', model = '', color = car.color || '', year = car.year || '';
+    try {
+      const filters = encodeURIComponent(JSON.stringify({ mispar_rechev: plate }));
+      const res = await fetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3&filters=${filters}&limit=1`);
+      const json = await res.json();
+      const rec = json?.result?.records?.[0];
+      if (rec) {
+        brand = rec.tozeret_nm || '';
+        model = rec.kinuy_mishari || rec.degem_nm || '';
+        color = rec.tzeva_rechev || color;
+        year  = rec.shnat_yitzur || year;
+      }
+    } catch (e) { console.error('gov.il lookup for intake', e); }
+    if (!brand && !model && car.type) { const parts = car.type.split(' '); brand = parts[0] || ''; model = parts.slice(1).join(' '); }
+
+    await _addDoc(_colRef('intake_assignments'), {
+      plate, brand, model, color, year,
+      spot: _pickupCity(car) || car.city || '',
+      assignedTo: car.assignedDriver,
+      createdBy: currentUser.name,
+      status: 'pending',
+      createdAt: _serverTs()
+    });
+    _notifyDriver(car.assignedDriver, `🚗 קליטת רכב חדשה ממתינה לך — ${plate} ${brand} ${model}. כנס לאפליקציה ענק הרכבים.`);
+    showToast(`✅ קליטה נשלחה ל${car.assignedDriver}`);
+  } catch (e) {
+    console.error('sendPickupCarIntake', e);
+    showToast('⚠️ שגיאה בשליחת הקליטה');
+  }
+}
+window.sendPickupCarIntake = sendPickupCarIntake;
 
 let _pendingCollectId = null;
 let _pendingCollectFromHome = false;
