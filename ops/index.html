@@ -1630,6 +1630,12 @@ if ('serviceWorker' in navigator) {
       <div style="position:absolute;left:5%;right:5%;top:35%;height:30%;border:3px solid #facc15;border-radius:10px;box-shadow:0 0 0 2000px rgba(0,0,0,.35);pointer-events:none"></div>
       <!-- floating success note -->
       <div id="plate-scan-result" style="display:none;position:absolute;left:50%;top:10px;transform:translateX(-50%);background:#22c55e;color:#fff;border-radius:12px;padding:10px 18px;font-size:18px;font-weight:900;letter-spacing:2px;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.4)"></div>
+      <!-- camera zoom buttons (shown only when the camera supports zoom) -->
+      <div id="plate-zoom-btns" style="display:none;position:absolute;bottom:10px;left:50%;transform:translateX(-50%);gap:8px">
+        <button onclick="_plateSetZoom(1)" class="plate-zoom-b" data-z="1" style="background:rgba(0,0,0,.55);color:#fff;border:2px solid #facc15;border-radius:999px;padding:8px 16px;font-family:Heebo,sans-serif;font-size:15px;font-weight:900;cursor:pointer">1x</button>
+        <button onclick="_plateSetZoom(2)" class="plate-zoom-b" data-z="2" style="background:rgba(0,0,0,.55);color:#fff;border:2px solid transparent;border-radius:999px;padding:8px 16px;font-family:Heebo,sans-serif;font-size:15px;font-weight:900;cursor:pointer">2x</button>
+        <button onclick="_plateSetZoom(3)" class="plate-zoom-b" data-z="3" style="background:rgba(0,0,0,.55);color:#fff;border:2px solid transparent;border-radius:999px;padding:8px 16px;font-family:Heebo,sans-serif;font-size:15px;font-weight:900;cursor:pointer">3x</button>
+      </div>
     </div>
     <div id="plate-scan-status" style="color:#facc15;font-size:14px;font-weight:700;margin-top:12px;text-align:center;line-height:1.5">כוון את הלוחית למסגרת הצהובה<br><span style="color:#94a3b8;font-size:12px;font-weight:400">הזיהוי אוטומטי — אין צורך ללחוץ</span></div>
     <div id="plate-scan-count" style="color:#86efac;font-size:13px;font-weight:800;margin-top:6px"></div>
@@ -7214,7 +7220,7 @@ function _plateGrabFrame() {
   if (!v || v.readyState < 2 || !v.videoWidth) return null;
   const vw = v.videoWidth, vh = v.videoHeight;
   const bx = vw * 0.05, bw = vw * 0.90, by = vh * 0.33, bh = vh * 0.34;
-  const sc = Math.min(2, 720 / bw); // keep it small — speed over size
+  const sc = Math.min(2, 1280 / bw); // enough resolution to read a plate from a distance
   c.width = Math.round(bw * sc); c.height = Math.round(bh * sc);
   const ctx = c.getContext('2d', { willReadFrequently: true });
   ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
@@ -7275,12 +7281,17 @@ async function openPlateScanner() {
   openModal('modal-plate-scanner');
   try {
     _plateStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+      video: {
+        facingMode: { ideal: 'environment' },
+        width: { ideal: 2560 }, height: { ideal: 1440 },
+        focusMode: 'continuous'
+      },
       audio: false
     });
     const v = document.getElementById('plate-video');
     v.srcObject = _plateStream;
     await v.play();
+    _plateSetupZoom();
     if (!_plateWorker) {
       _plateWorker = await Tesseract.createWorker('eng', 1);
       await _plateWorker.setParameters({ tessedit_char_whitelist: '0123456789' });
@@ -7295,6 +7306,35 @@ async function openPlateScanner() {
     status.innerHTML = 'המצלמה החיה לא זמינה — צלם את הלוחית בכפתור';
   }
 }
+
+// camera zoom — optical/digital zoom keeps the plate readable from a distance
+function _plateSetupZoom() {
+  const btns = document.getElementById('plate-zoom-btns');
+  try {
+    const track = _plateStream.getVideoTracks()[0];
+    const caps = track.getCapabilities ? track.getCapabilities() : {};
+    if (caps.zoom && caps.zoom.max > 1) {
+      btns.style.display = 'flex';
+      // start at 2x (or the max if lower) — best for walking the lot
+      _plateSetZoom(Math.min(2, caps.zoom.max));
+    } else {
+      btns.style.display = 'none';
+    }
+  } catch(e) { btns.style.display = 'none'; }
+}
+async function _plateSetZoom(z) {
+  try {
+    const track = _plateStream.getVideoTracks()[0];
+    const caps = track.getCapabilities ? track.getCapabilities() : {};
+    if (!caps.zoom) return;
+    const zoom = Math.min(Math.max(z, caps.zoom.min || 1), caps.zoom.max);
+    await track.applyConstraints({ advanced: [{ zoom }] });
+    document.querySelectorAll('.plate-zoom-b').forEach(b => {
+      b.style.borderColor = (+b.dataset.z === z) ? '#facc15' : 'transparent';
+    });
+  } catch(e) { console.error('zoom', e); }
+}
+window._plateSetZoom = _plateSetZoom;
 
 function closePlateScanner() {
   _plateLoopOn = false;
