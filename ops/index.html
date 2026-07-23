@@ -7262,6 +7262,61 @@ function _plateGrabFrame() {
   return c;
 }
 
+/* ── Cloud assist (Plate Recognizer): fired ONLY when local OCR sees digits but
+   can't resolve them for ~0.9s — one throttled snapshot per stubborn plate.
+   Quota-safe: never fires on empty frames while walking between cars. ── */
+let _plateCloudToken = null, _plateCloudBusy = false, _plateCloudLastAt = 0, _plateUnresolvedAt = 0;
+async function _plateLoadCloudToken() {
+  if (_plateCloudToken !== null) return;
+  _plateCloudToken = '';
+  try {
+    const { getDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const s = await getDoc(_docRef('config', 'driver_contacts'));
+    if (s.exists()) _plateCloudToken = (s.data()._plateToken && s.data()._plateToken.value) || '';
+  } catch(e) { console.error('cloud token load', e); }
+}
+function _plateCloudTry(srcCanvas) {
+  if (_plateCloudBusy || !_plateCloudToken) return;
+  const now = Date.now();
+  if (now - _plateCloudLastAt < 1800) return;
+  _plateCloudBusy = true; _plateCloudLastAt = now;
+  // snapshot the canvas NOW — the scan loop keeps redrawing it
+  const c = document.createElement('canvas');
+  c.width = srcCanvas.width; c.height = srcCanvas.height;
+  c.getContext('2d').drawImage(srcCanvas, 0, 0);
+  const status = document.getElementById('plate-scan-status');
+  if (status) status.innerHTML = '☁️ מזהה בענן...';
+  c.toBlob(async blob => {
+    try {
+      const fd = new FormData();
+      fd.append('upload', blob, 'plate.jpg');
+      fd.append('regions', 'il');
+      const resp = await fetch('https://api.platerecognizer.com/v1/plate-reader/', {
+        method: 'POST', headers: { Authorization: 'Token ' + _plateCloudToken }, body: fd
+      });
+      const data = await resp.json().catch(() => ({}));
+      const toks = [];
+      for (const r of (data.results || [])) {
+        const d0 = String(r.plate || '').replace(/\D/g, '');
+        if (d0.length === 7 || d0.length === 8) toks.push(d0);
+        for (const cand of (r.candidates || [])) {
+          const cd = String(cand.plate || '').replace(/\D/g, '');
+          if (cd.length === 7 || cd.length === 8) toks.push(cd);
+        }
+      }
+      if (toks.length) {
+        const hit = _plateMatch(toks);
+        if (hit && !_plateScanSeen.has(hit.plate)) { _plateMarkFound(hit); _plateUnresolvedAt = 0; }
+      }
+      if (resp.status === 401 || resp.status === 403) {
+        if (status) status.innerHTML = '⚠️ טוקן הענן שגוי — הזיהוי ממשיך מקומית';
+      }
+    } catch(e) { console.error('plate cloud', e); }
+    if (status && status.innerHTML === '☁️ מזהה בענן...') status.innerHTML = 'כוון ללוחית הבאה 📷';
+    _plateCloudBusy = false;
+  }, 'image/jpeg', 0.85);
+}
+
 async function _plateScanLoop() {
   while (_plateLoopOn) {
     const frame = _plateGrabFrame();
@@ -7274,7 +7329,18 @@ async function _plateScanLoop() {
         _plateAutoZoomTick(tokens.length > 0);
         if (tokens.length) {
           const hit = _plateMatch(tokens);
-          if (hit && !_plateScanSeen.has(hit.plate)) _plateMarkFound(hit); // no pause — keep scanning
+          if (hit && !_plateScanSeen.has(hit.plate)) {
+            _plateMarkFound(hit); // no pause — keep scanning
+            _plateUnresolvedAt = 0;
+          } else if (!hit) {
+            // digits visible but unresolved — after ~0.9s hand the frame to the cloud
+            if (!_plateUnresolvedAt) _plateUnresolvedAt = Date.now();
+            else if (Date.now() - _plateUnresolvedAt > 900) _plateCloudTry(frame);
+          } else {
+            _plateUnresolvedAt = 0; // pointing at an already-marked car
+          }
+        } else {
+          _plateUnresolvedAt = 0;
         }
       } catch(e) { console.error('plate scan frame', e); }
     }
@@ -7294,6 +7360,8 @@ async function openPlateScanner() {
   videoWrap.style.display = 'block';
   status.innerHTML = 'כוון את הלוחית למסגרת הצהובה<br><span style="color:#94a3b8;font-size:12px;font-weight:400">הזיהוי אוטומטי — אין צורך ללחוץ</span>';
   _updatePlateScanCount();
+  _plateUnresolvedAt = 0;
+  _plateLoadCloudToken(); // async — cloud assist arms itself when ready
   openModal('modal-plate-scanner');
   try {
     _plateStream = await navigator.mediaDevices.getUserMedia({
