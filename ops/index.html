@@ -7515,9 +7515,15 @@ function renderYardTable() {
 
   // left spots (1–34): each has entrance + 2 road lanes
   const leftRows = LEFT_SPOTS.map(spot => {
-    const keys = ['L_' + spot + '_כניסה', 'L_' + spot + '_כביש_1', 'L_' + spot + '_כביש_2'];
+    const n = parseInt(spot);
+    if (n >= 30 && n <= 34) {
+      const keys = ['L_' + spot + '_כניסה', 'L_' + spot + '_כביש_1', 'L_' + spot + '_כביש_2'];
+      if (flt && keys.every(isFilled)) return '';
+      return _yardSpotCard(spot, [[keys[0], 'חניה'], [keys[1], 'כביש 1'], [keys[2], 'כביש 2']], isManager);
+    }
+    const keys = ['L_' + spot + '_כניסה', 'L_' + spot + '_כביש_1'];
     if (flt && keys.every(isFilled)) return '';
-    return _yardSpotCard(spot, [[keys[0], 'כניסה'], [keys[1], 'כביש 1'], [keys[2], 'כביש 2']], isManager);
+    return _yardSpotCard(spot, [[keys[0], 'חניה'], [keys[1], 'כביש']], isManager);
   }).join('');
 
   // right spots: each row is a pair — even = בפנים, odd = בחוץ (same row)
@@ -7540,7 +7546,7 @@ function renderYardTable() {
   const insideNums = [], outsideNums = [];
   RIGHT_ROWS.forEach(r => { if (!r) return; r.forEach(n => { (parseInt(n) % 2 === 0 ? insideNums : outsideNums).push(n); }); });
   const allKeys = [
-    ...LEFT_SPOTS.flatMap(s => ['L_' + s + '_כניסה', 'L_' + s + '_כביש_1', 'L_' + s + '_כביש_2']),
+    ...LEFT_SPOTS.flatMap(s => { const b = ['L_' + s + '_כניסה', 'L_' + s + '_כביש_1']; if (+s >= 30 && +s <= 34) b.push('L_' + s + '_כביש_2'); return b; }),
     ...insideNums.map(n => 'R_' + n + '_בפנים'),
     ...outsideNums.map(n => 'R_' + n + '_בחוץ'),
   ];
