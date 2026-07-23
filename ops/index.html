@@ -7222,7 +7222,7 @@ function _plateGrabFrame() {
     bw = bw / _plateSwZoom; bh = bh / _plateSwZoom;
     bx = cx - bw / 2; by = cy - bh / 2;
   }
-  const sc = Math.min(3, 1280 / bw); // enough resolution to read a plate from a distance
+  const sc = Math.min(2, 900 / bw); // small enough to stay fast — the zoom supplies the magnification
   c.width = Math.round(bw * sc); c.height = Math.round(bh * sc);
   const ctx = c.getContext('2d', { willReadFrequently: true });
   ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
@@ -7294,7 +7294,8 @@ async function openPlateScanner() {
     const v = document.getElementById('plate-video');
     v.srcObject = _plateStream;
     await v.play();
-    _plateSetupZoom();
+    _plateEmptyFrames = 0;
+    try { _plateSetupZoom(); } catch(e) { console.error('zoom setup', e); }
     if (!_plateWorker) {
       _plateWorker = await Tesseract.createWorker('eng', 1);
       await _plateWorker.setParameters({ tessedit_char_whitelist: '0123456789' });
@@ -7360,12 +7361,16 @@ function _plateCycleZoom() {
 }
 window._plateCycleZoom = _plateCycleZoom;
 
-// called from the scan loop: no digits for a while → try the next zoom level
+// called from the scan loop: advance zoom only after several token-less FRAMES
+// (frame-based, not clock-based — slow devices must not flail between levels)
+let _plateEmptyFrames = 0;
 function _plateAutoZoomTick(gotTokens) {
-  if (gotTokens) { _plateLastTokensAt = Date.now(); return; }
-  if (Date.now() - _plateLastTokensAt > 2200) {
-    _plateZoomIdx = (_plateZoomIdx + 1) % _plateZoomLevels.length;
+  if (gotTokens) { _plateEmptyFrames = 0; _plateLastTokensAt = Date.now(); return; }
+  _plateEmptyFrames++;
+  if (_plateEmptyFrames >= 4 && Date.now() - _plateLastTokensAt > 1500) {
+    _plateEmptyFrames = 0;
     _plateLastTokensAt = Date.now();
+    _plateZoomIdx = (_plateZoomIdx + 1) % _plateZoomLevels.length;
     _plateApplyZoom();
   }
 }
