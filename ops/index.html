@@ -1598,11 +1598,14 @@ if ('serviceWorker' in navigator) {
 <!-- ====== MODAL: DRIVER INVENTORY CHECK ====== -->
 <div class="modal-overlay" id="modal-driver-inv">
   <div class="modal-box" style="max-height:90vh;display:flex;flex-direction:column;overflow:hidden">
-    <div class="modal-title" style="position:sticky;top:0;z-index:10;background:#fff;flex-shrink:0">סימון מלאי
-      <div style="display:flex;gap:8px;align-items:center">
+    <div class="modal-title" style="position:sticky;top:0;z-index:10;background:#fff;flex-shrink:0;flex-wrap:wrap;row-gap:6px">סימון מלאי
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <button onclick="openPlateScanner()" style="background:#1e40af;color:#fff;border:none;border-radius:10px;padding:7px 13px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer">📷 סרוק לוחית</button>
         <button class="modal-close" onclick="closeModal('modal-driver-inv')">✕</button>
       </div>
+    </div>
+    <div style="padding:0 2px 8px;flex-shrink:0">
+      <button id="dinv-sort-btn" onclick="cycleDinvSort()" style="width:100%;background:var(--surface2);border:1.5px solid var(--border);border-radius:10px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer;color:var(--text)">↕️ סדר הכל</button>
     </div>
     <div style="overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch">
     <input type="hidden" id="dinv-headers-cache" value="[]">
@@ -5825,10 +5828,25 @@ function openDriverInvModal(docId) {
     const saved = localStorage.getItem('_dinvProgress_' + docId);
     const savedStatuses = saved ? JSON.parse(saved) : null;
     _driverInvRows = parsedRows.map((cells, i) => ({ cells, status: savedStatuses?.[i] ?? null }));
+    _dinvSortMode = 0;
+    const sortBtn = document.getElementById('dinv-sort-btn');
+    if (sortBtn) sortBtn.textContent = '↕️ סדר הכל';
     renderDriverInvModal(data.headers || []);
     openModal('modal-driver-inv');
   });
 }
+
+// 0 = original order, 1 = unmarked first, 2 = marked first
+let _dinvSortMode = 0;
+function cycleDinvSort() {
+  _dinvSortMode = (_dinvSortMode + 1) % 3;
+  const btn = document.getElementById('dinv-sort-btn');
+  const labels = ['↕️ סדר הכל', '⬜ לא סומנו קודם', '✅ סומנו קודם'];
+  if (btn) btn.textContent = labels[_dinvSortMode];
+  const headers = JSON.parse(document.getElementById('dinv-headers-cache').value || '[]');
+  renderDriverInvModal(headers);
+}
+window.cycleDinvSort = cycleDinvSort;
 
 function renderDriverInvModal(headers) {
   // Reorder columns: buttons | plate | vehicle-status | rest
@@ -5856,7 +5874,11 @@ function renderDriverInvModal(headers) {
       <div style="text-align:center">סימון</div>${orderedHeaders.map(h => `<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(h)}</div>`).join('')}
     </div>`;
   }
-  html += _driverInvRows.map((item, i) => {
+  let order2 = _driverInvRows.map((_, i) => i);
+  if (_dinvSortMode === 1) order2.sort((a, b) => (_driverInvRows[a].status ? 1 : 0) - (_driverInvRows[b].status ? 1 : 0));
+  else if (_dinvSortMode === 2) order2.sort((a, b) => (_driverInvRows[b].status ? 1 : 0) - (_driverInvRows[a].status ? 1 : 0));
+  html += order2.map(i => {
+    const item = _driverInvRows[i];
     const orderedCells = reorder(item.cells);
     // highlight non-מגרש rows (check original statusIdx cell)
     const vehicleStatus = statusIdx >= 0 ? (item.cells[statusIdx] || '') : '';
