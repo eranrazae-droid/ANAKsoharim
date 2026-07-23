@@ -7558,6 +7558,13 @@ function renderYardTable() {
 function _yardRightRowCard(r, editable) {
   let even = '', odd = '';
   r.forEach(n => { if (parseInt(n) % 2 === 0) even = n; else odd = n; });
+  // single spot → span the whole row
+  if (!even || !odd) {
+    const n = even || odd;
+    const key = even ? 'R_' + even + '_בפנים' : 'R_' + odd + '_בחוץ';
+    const label = even ? 'בפנים' : 'בחוץ';
+    return `<div class="yard-card"><div class="yard-num">${esc(n)}</div><div class="yard-fields"><div class="yard-field" style="flex:1"><span>${label}</span>${_yardCell(key, editable)}</div></div></div>`;
+  }
   const f1 = even ? `<div class="yard-field"><span>${esc(even)}</span>${_yardCell('R_' + even + '_בפנים', editable)}</div>` : `<div class="yard-field"></div>`;
   const f2 = odd ? `<div class="yard-field"><span>${esc(odd)}</span>${_yardCell('R_' + odd + '_בחוץ', editable)}</div>` : `<div class="yard-field"></div>`;
   const badge = [even, odd].filter(Boolean).join('/');
