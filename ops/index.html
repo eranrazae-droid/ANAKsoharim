@@ -7206,16 +7206,17 @@ function _updatePlateScanCount() {
   el.textContent = `סומנו ${done} מתוך ${total}`;
 }
 
-// grayscale + contrast stretch on the guide band, upscaled for OCR
+// grayscale + contrast stretch on the guide band, drawn into the work canvas.
+// Returns the canvas itself (recognize(canvas) skips PNG encode/decode — fast).
 function _plateGrabFrame() {
   const v = document.getElementById('plate-video');
   const c = document.getElementById('plate-canvas');
   if (!v || v.readyState < 2 || !v.videoWidth) return null;
   const vw = v.videoWidth, vh = v.videoHeight;
   const bx = vw * 0.05, bw = vw * 0.90, by = vh * 0.33, bh = vh * 0.34;
-  const sc = Math.min(3, 1000 / bw);
+  const sc = Math.min(2, 720 / bw); // keep it small — speed over size
   c.width = Math.round(bw * sc); c.height = Math.round(bh * sc);
-  const ctx = c.getContext('2d');
+  const ctx = c.getContext('2d', { willReadFrequently: true });
   ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(v, bx, by, bw, bh, 0, 0, c.width, c.height);
   const id = ctx.getImageData(0, 0, c.width, c.height), d = id.data;
@@ -7235,32 +7236,27 @@ function _plateGrabFrame() {
     d[i] = d[i+1] = d[i+2] = val;
   }
   ctx.putImageData(id, 0, 0);
-  return c.toDataURL('image/png');
+  return c;
 }
 
+let _platePsm = '7';
 async function _plateScanLoop() {
   while (_plateLoopOn) {
     const frame = _plateGrabFrame();
     if (frame && _plateWorker) {
       try {
-        let tokens = [];
-        for (const psm of ['7', '6']) {
-          if (!_plateLoopOn) return;
-          await _plateWorker.setParameters({ tessedit_pageseg_mode: psm });
-          const { data: { text } } = await _plateWorker.recognize(frame);
-          tokens = tokens.concat(_plateTokensFrom(text));
-          if (tokens.length) break; // psm 7 found digits — good enough for this frame
-        }
+        // one OCR pass per frame; alternate psm 7/6 across frames (no double pass)
+        await _plateWorker.setParameters({ tessedit_pageseg_mode: _platePsm });
+        const { data: { text } } = await _plateWorker.recognize(frame);
+        const tokens = _plateTokensFrom(text);
+        if (!tokens.length) _platePsm = _platePsm === '7' ? '6' : '7';
         if (tokens.length) {
           const hit = _plateMatch(tokens);
-          if (hit && !_plateScanSeen.has(hit.plate)) {
-            _plateMarkFound(hit);
-            await new Promise(r => setTimeout(r, 1400)); // let the user move to the next plate
-          }
+          if (hit && !_plateScanSeen.has(hit.plate)) _plateMarkFound(hit); // no pause — keep scanning
         }
       } catch(e) { console.error('plate scan frame', e); }
     }
-    await new Promise(r => setTimeout(r, 300));
+    await new Promise(r => setTimeout(r, 40)); // near-continuous
   }
 }
 
