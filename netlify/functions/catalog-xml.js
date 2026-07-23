@@ -55,6 +55,7 @@ exports.handler = async () => {
                  if(c.meta_hide) return; // הוסתר ידנית מקטלוג Meta
                  const dealerPrice = Number(c.autodealerPriceNumber)||0;
       if(dealerPrice <= 1) return;
+      if(!(c.catalog_image && String(c.catalog_image).trim())) return; // ללא תמונת קטלוג — לא נכנס לפיד
       const importerPrice = Number(c.catalogPriceNumber)||0;
       const listPrice = importerPrice > 0 ? importerPrice : dealerPrice; // מחיר רגיל = מחירון יבואן; נופל למחיר אוטודילר אם אין מחירון
                  const id = metaContentId(c);
