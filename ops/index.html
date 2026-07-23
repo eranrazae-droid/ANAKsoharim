@@ -7206,6 +7206,7 @@ function _plateMarkFound(hit) {
   }
   _plateScanSeen.add(hit.plate);
   _plateNearCount = {};
+  _plateLastMarkAt = Date.now();
   resultEl.style.background = already ? '#0ea5e9' : '#22c55e';
   resultEl.textContent = already ? `✓ ${hit.plate} כבר סומנה` : `✅ ${hit.plate} נקלט וסומן`;
   resultEl.style.display = 'block';
@@ -7244,8 +7245,11 @@ function _plateGrabFrame() {
   ctx.drawImage(v, bx, by, bw, bh, 0, 0, c.width, c.height);
   const id = ctx.getImageData(0, 0, c.width, c.height), d = id.data;
   const hist = new Array(256).fill(0);
+  let yellowCount = 0; // Israeli plates are yellow — cheap "plate in view" signal
   for (let i = 0; i < d.length; i += 4) {
-    const g = (0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2]) | 0;
+    const r = d[i], gg = d[i+1], b = d[i+2];
+    if (r > 140 && gg > 110 && b < 110 && (r - b) > 55 && (gg - b) > 40) yellowCount++;
+    const g = (0.299*r + 0.587*gg + 0.114*b) | 0;
     d[i] = d[i+1] = d[i+2] = g; hist[g]++;
   }
   const total = d.length / 4, cut = total * 0.02;
@@ -7259,7 +7263,7 @@ function _plateGrabFrame() {
     d[i] = d[i+1] = d[i+2] = val;
   }
   ctx.putImageData(id, 0, 0);
-  return c;
+  return { c, yellow: yellowCount / total };
 }
 
 /* ── Cloud assist (Plate Recognizer): fired ONLY when local OCR sees digits but
@@ -7275,10 +7279,12 @@ async function _plateLoadCloudToken() {
     if (s.exists()) _plateCloudToken = (s.data()._plateToken && s.data()._plateToken.value) || '';
   } catch(e) { console.error('cloud token load', e); }
 }
+let _plateLastMarkAt = 0;
 function _plateCloudTry(srcCanvas) {
   if (_plateCloudBusy || !_plateCloudToken) return;
   const now = Date.now();
-  if (now - _plateCloudLastAt < 1800) return;
+  if (now - _plateCloudLastAt < 1100) return;
+  if (now - _plateLastMarkAt < 2500) return; // still pointing at the car we just marked
   _plateCloudBusy = true; _plateCloudLastAt = now;
   // snapshot the canvas NOW — the scan loop keeps redrawing it
   const c = document.createElement('canvas');
@@ -7319,28 +7325,24 @@ function _plateCloudTry(srcCanvas) {
 
 async function _plateScanLoop() {
   while (_plateLoopOn) {
-    const frame = _plateGrabFrame();
-    if (frame && _plateWorkers.length) {
+    const grab = _plateGrabFrame();
+    if (grab && _plateWorkers.length) {
+      const frame = grab.c;
       try {
+        // a plate is in view (yellow area) → fire the cloud NOW, in parallel with local OCR
+        if (grab.yellow > 0.035) _plateCloudTry(frame);
         // both page-seg modes run IN PARALLEL on separate workers (separate threads)
         const results = await Promise.all(_plateWorkers.map(w => w.recognize(frame).catch(() => ({ data: { text: '' } }))));
         let tokens = [];
         for (const r of results) tokens = tokens.concat(_plateTokensFrom(r.data.text));
-        _plateAutoZoomTick(tokens.length > 0);
+        _plateAutoZoomTick(tokens.length > 0 || grab.yellow > 0.035);
         if (tokens.length) {
           const hit = _plateMatch(tokens);
           if (hit && !_plateScanSeen.has(hit.plate)) {
             _plateMarkFound(hit); // no pause — keep scanning
-            _plateUnresolvedAt = 0;
           } else if (!hit) {
-            // digits visible but unresolved — after ~0.9s hand the frame to the cloud
-            if (!_plateUnresolvedAt) _plateUnresolvedAt = Date.now();
-            else if (Date.now() - _plateUnresolvedAt > 900) _plateCloudTry(frame);
-          } else {
-            _plateUnresolvedAt = 0; // pointing at an already-marked car
+            _plateCloudTry(frame); // digits seen but unresolved — cloud immediately
           }
-        } else {
-          _plateUnresolvedAt = 0;
         }
       } catch(e) { console.error('plate scan frame', e); }
     }
@@ -7362,6 +7364,7 @@ async function openPlateScanner() {
   _updatePlateScanCount();
   _plateUnresolvedAt = 0;
   _plateLoadCloudToken(); // async — cloud assist arms itself when ready
+  try { fetch('https://api.platerecognizer.com/', { mode: 'no-cors' }).catch(() => {}); } catch(e) {} // warm DNS+TLS so the first cloud call is fast
   openModal('modal-plate-scanner');
   try {
     _plateStream = await navigator.mediaDevices.getUserMedia({
