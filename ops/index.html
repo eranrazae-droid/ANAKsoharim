@@ -342,7 +342,7 @@ if ('serviceWorker' in navigator) {
   <div id="task-notif-stack" style="position:fixed;top:0;left:0;right:0;z-index:9000;display:flex;flex-direction:column;align-items:center;pointer-events:none"></div>
   <div class="app-header">
     <div class="logo">ענק <span>הרכבים</span></div>
-    <button id="btn-whatsapp-settings" onclick="goToScreen('_notify')" style="display:none;background:rgba(255,255,255,0.15);border:none;border-radius:999px;color:#fff;font-size:13px;font-weight:700;padding:6px 14px;cursor:pointer;font-family:Heebo,sans-serif">⚙️ SMS</button>
+    <button id="btn-whatsapp-settings" onclick="goToScreen('_notify')" style="display:none;background:rgba(255,255,255,0.15);border:none;border-radius:999px;color:#fff;font-size:13px;font-weight:700;padding:6px 14px;cursor:pointer;font-family:Heebo,sans-serif">✈️ טלגרם</button>
     <div class="user-badge" id="home-user-badge" onclick="logout()">יציאה</div>
   </div>
   <div class="home-body">
@@ -1766,8 +1766,8 @@ if ('serviceWorker' in navigator) {
 
 <div class="modal-overlay" id="modal-notify-settings">
   <div class="modal-box" style="max-height:85vh;overflow-y:auto">
-    <div class="modal-title">📨 הגדרות הודעות SMS <button class="modal-close" onclick="closeModal('modal-notify-settings')">✕</button></div>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">הגדר את Green API פעם אחת — ואז הודעות ישלחו לנהגים אוטומטית ללא כל פעולה מצידם.</p>
+    <div class="modal-title">✈️ הגדרות הודעות טלגרם <button class="modal-close" onclick="closeModal('modal-notify-settings')">✕</button></div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">הגדר את הבוט פעם אחת — ואז הודעות ישלחו לנהגים אוטומטית ללא כל פעולה מצידם.</p>
     <div id="notify-settings-body"></div>
     <button class="btn-submit" onclick="saveNotifySettings()" style="width:100%;margin-top:4px">💾 שמור הגדרות</button>
   </div>
@@ -8427,44 +8427,22 @@ async function _openNotifySettingsInner() {
       <button onclick="refreshTelegramChats()" style="background:#229ED9;color:#fff;border:none;border-radius:8px;padding:8px;width:100%;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer">🔄 רענן צ׳אטים מהבוט</button>
       <div id="nc-telegram-chats" style="margin-top:8px;font-size:12px"></div>
     </div>`;
-  const apiRow = `
-    <div style="border:2px solid #f22f46;border-radius:12px;padding:12px 14px;margin-bottom:14px;background:#fff5f6">
-      <div style="font-weight:900;font-size:14px;margin-bottom:4px;color:#c81e37">📨 Twilio — פרטי חיבור (SMS, גיבוי בתשלום)</div>
-      <div style="font-size:11px;color:#555;margin-bottom:8px;line-height:1.5">ב-<b>console.twilio.com</b>: Account SID + Auth Token מהדף הראשי, ומספר טלפון SMS שקנית תחת Phone Numbers. משמש רק לנהג שאין לו טלגרם מוגדר.</div>
-      <div style="display:flex;flex-direction:column;gap:6px">
-        <input id="nc-twilio-sid"   value="${twilioSid}"   placeholder="Account SID (ACxxxxxxxx...)" style="border:1.5px solid #f22f46;border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:13px;direction:ltr;text-align:left">
-        <input id="nc-twilio-token" value="${twilioToken}" placeholder="Auth Token" style="border:1.5px solid #f22f46;border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:13px;direction:ltr;text-align:left">
-        <input id="nc-twilio-from"  value="${twilioFrom}"  placeholder="מספר Twilio לשליחה (+15551234567)" style="border:1.5px solid #f22f46;border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:13px;direction:ltr;text-align:left">
-        <input id="nc-manager-phone" value="${managerPhone}" placeholder="טלפון מנהל לקבלת התראות (972501234567)" style="border:1.5px solid #f22f46;border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:13px;direction:ltr;text-align:left">
-      </div>
-    </div>`;
   const rows = drivers.map(name => {
     const c = contacts[name] || {};
     return `<div style="border:1.5px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:10px;background:#fff">
       <div style="font-weight:900;font-size:15px;margin-bottom:8px">👤 ${name}</div>
       <input id="nc-telegram-${name}" value="${c.telegramId||''}" placeholder="מזוהה אוטומטית מהבוט, או הדבק chat id ידנית" style="border:1.5px solid #229ED9;border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:13px;direction:ltr;text-align:left;width:100%;box-sizing:border-box;margin-bottom:6px">
-      <input id="nc-phone-${name}" value="${c.phone||''}" placeholder="מספר טלפון — גיבוי SMS (972501234567)" style="border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:14px;direction:ltr;text-align:left;width:100%;box-sizing:border-box;margin-bottom:6px">
-      <div style="display:flex;gap:6px">
-        <button onclick="testTelegram('${name}')" style="flex:1;background:#229ED9;color:#fff;border:none;border-radius:8px;padding:7px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer">✈️ בדיקת טלגרם</button>
-        <button onclick="testSms('${name}')" style="flex:1;background:#f22f46;color:#fff;border:none;border-radius:8px;padding:7px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer">📨 בדיקת SMS</button>
-      </div>
+      <input id="nc-phone-${name}" type="hidden" value="${c.phone||''}">
+      <button onclick="testTelegram('${name}')" style="width:100%;background:#229ED9;color:#fff;border:none;border-radius:8px;padding:7px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer">✈️ בדיקת טלגרם</button>
     </div>`;
   }).join('');
-  document.getElementById('notify-settings-body').innerHTML = telegramRow + apiRow + rows;
+  document.getElementById('notify-settings-body').innerHTML = telegramRow + rows;
   openModal('modal-notify-settings');
 }
 
 async function saveNotifySettings() {
   const drivers = ['ליאל','עופר','גיל','איתי'];
   const data = {};
-  const twilioSid   = document.getElementById('nc-twilio-sid')?.value.trim();
-  const twilioToken = document.getElementById('nc-twilio-token')?.value.trim();
-  const twilioFrom  = document.getElementById('nc-twilio-from')?.value.trim();
-  if (twilioSid)   data['_twilioSid']   = { value: twilioSid };
-  if (twilioToken) data['_twilioToken'] = { value: twilioToken };
-  if (twilioFrom)  data['_twilioFrom']  = { value: twilioFrom };
-  const managerPhone = document.getElementById('nc-manager-phone')?.value.trim();
-  if (managerPhone) data['_managerPhone'] = { value: managerPhone };
   const telegramToken = document.getElementById('nc-telegram-token')?.value.trim();
   if (telegramToken) data['_telegramToken'] = { value: telegramToken };
   drivers.forEach(name => {
@@ -8473,17 +8451,10 @@ async function saveNotifySettings() {
     if (phone || telegramId) data[name] = { ...(phone ? { phone } : {}), ...(telegramId ? { telegramId } : {}) };
   });
   const { setDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-  await setDoc(doc(window._db, 'config', 'driver_contacts'), data);
+  await setDoc(doc(window._db, 'config', 'driver_contacts'), data, { merge: true });
   _driverContacts = data;
   closeModal('modal-notify-settings');
   showToast('✅ הגדרות נשמרו');
-}
-
-async function testSms(name) {
-  const phone = document.getElementById(`nc-phone-${name}`)?.value.trim();
-  if (!phone) return showToast(`נא להזין מספר טלפון עבור ${name}`);
-  showToast(`📤 שולח בדיקה ל-${name}...`, 3000);
-  await _sendSms(phone, `✅ בדיקה — מערכת ענק הרכבים מחוברת ל-${name}`);
 }
 
 async function testTelegram(name) {
@@ -8569,7 +8540,6 @@ async function sendBroadcast() {
 }
 window.openBroadcast = openBroadcast;
 window.sendBroadcast = sendBroadcast;
-window.testSms = testSms;
 
 // ─── Live Intake View ─────────────────────────────────
 let _liveIntakeUnsub = null;
