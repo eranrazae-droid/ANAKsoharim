@@ -555,7 +555,7 @@ if ('serviceWorker' in navigator) {
 
 <!-- ── lightbox ── -->
 <div id="lightbox" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;cursor:zoom-out;align-items:center;justify-content:center">
-  <img id="lightbox-img" draggable="false" style="max-width:96vw;max-height:96vh;border-radius:10px;object-fit:contain;cursor:grab">
+  <img id="lightbox-img" draggable="false" style="max-width:96vw;max-height:96vh;border-radius:10px;object-fit:contain;cursor:grab;touch-action:none">
 </div>
 
 <!-- ── modal: manager task request approval ── -->
@@ -1707,7 +1707,7 @@ if ('serviceWorker' in navigator) {
 
 <!-- ====== PHOTO ZOOM LIGHTBOX ====== -->
 <div id="photo-zoom-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;flex-direction:column;align-items:center;justify-content:center;gap:16px">
-  <img id="photo-zoom-img" draggable="false" style="max-width:95vw;max-height:80vh;border-radius:12px;object-fit:contain;cursor:grab">
+  <img id="photo-zoom-img" draggable="false" style="max-width:95vw;max-height:80vh;border-radius:12px;object-fit:contain;cursor:grab;touch-action:none">
   <div style="display:flex;gap:12px" onclick="event.stopPropagation()">
     <button id="photo-zoom-dl-btn" onclick="downloadWithWatermark()" style="background:var(--gold);color:#000;border:none;border-radius:12px;padding:12px 24px;font-family:Heebo,sans-serif;font-weight:900;font-size:15px;cursor:pointer">⬇️ הורד תמונה</button>
     <button onclick="closePhotoZoom()" style="background:#fff;color:#000;border:none;border-radius:12px;padding:12px 24px;font-family:Heebo,sans-serif;font-weight:900;font-size:15px;cursor:pointer">✕ סגור</button>
@@ -3691,6 +3691,59 @@ document.addEventListener('mouseup', e => {
   if (e.button !== 0 || !_lbDragging) return;
   _lbDragging = false;
   if (_lbDragImg) _lbDragImg.style.cursor = 'grab';
+});
+
+// ── touch: pinch-to-zoom + one-finger pan/drag + tap backdrop to close ──
+let _lbTouchMode = null;   // 'pinch' | 'pan' | null
+let _lbPinchStartDist = 0, _lbPinchStartZoom = 1;
+let _lbPanStart = null;
+let _lbTapStart = null;    // {x,y,t,target} to distinguish tap-to-close from drag
+function _touchDist(t0, t1) { return Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY); }
+document.addEventListener('touchstart', e => {
+  const t = _zoomImgFor(e.target);
+  if (!t) return;
+  if (e.touches.length === 2) {
+    e.preventDefault();
+    _lbTouchMode = 'pinch';
+    _lbPinchStartDist = _touchDist(e.touches[0], e.touches[1]);
+    _lbPinchStartZoom = _lbZoom;
+    _lbDragImg = t.img;
+  } else if (e.touches.length === 1) {
+    _lbTapStart = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now(), target: e.target, overlay: t.overlay, close: t.close };
+    if (e.target === t.img) {
+      _lbTouchMode = 'pan';
+      _lbDragImg = t.img;
+      _lbPanStart = { x: e.touches[0].clientX - _lbPanX, y: e.touches[0].clientY - _lbPanY };
+    }
+  }
+}, { passive: false });
+document.addEventListener('touchmove', e => {
+  if (_lbTouchMode === 'pinch' && e.touches.length === 2) {
+    e.preventDefault();
+    const dist = _touchDist(e.touches[0], e.touches[1]);
+    _lbZoom = Math.min(6, Math.max(0.5, _lbPinchStartZoom * (dist / _lbPinchStartDist)));
+    if (_lbZoom <= 1) { _lbPanX = 0; _lbPanY = 0; }
+    if (_lbDragImg) _lbDragImg.style.transition = 'none';
+    _applyZoom(_lbDragImg);
+  } else if (_lbTouchMode === 'pan' && e.touches.length === 1) {
+    e.preventDefault();
+    _lbPanX = e.touches[0].clientX - _lbPanStart.x;
+    _lbPanY = e.touches[0].clientY - _lbPanStart.y;
+    if (_lbDragImg) _lbDragImg.style.transition = 'none';
+    _applyZoom(_lbDragImg);
+  }
+}, { passive: false });
+document.addEventListener('touchend', e => {
+  // tap (no real movement, short duration) on the backdrop closes the viewer
+  if (_lbTapStart && e.touches.length === 0) {
+    const lastTouch = e.changedTouches[0];
+    const moved = lastTouch ? Math.hypot(lastTouch.clientX - _lbTapStart.x, lastTouch.clientY - _lbTapStart.y) : 999;
+    if (_lbTapStart.target === _lbTapStart.overlay && moved < 8 && Date.now() - _lbTapStart.t < 400) {
+      _lbTapStart.close();
+    }
+  }
+  _lbTouchMode = null;
+  _lbTapStart = null;
 });
 
 function _showTaskReqApproval(id, req) {
