@@ -8291,6 +8291,53 @@ async function _loadDriverContacts() {
   return _driverContacts;
 }
 
+// Telegram Bot API is free/unlimited and supports CORS, so we can call it
+// directly from the browser — no Cloud Function needed.
+async function _sendTelegram(chatId, message) {
+  if (!chatId) return false;
+  const contacts = await _loadDriverContacts();
+  const token = (contacts['_telegramToken']?.value || '').trim();
+  if (!token) return false;
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text: message })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!data.ok) { console.error('Telegram send error', data); showToast(`⚠️ טלגרם שגיאה: ${data.description || res.status}`, 5000); return false; }
+    return true;
+  } catch(e) {
+    console.error('Telegram fetch error', e);
+    showToast(`⚠️ טלגרם: שגיאת חיבור — ${e.message}`, 6000);
+    return false;
+  }
+}
+
+// fetch recent messages sent TO the bot, to discover each driver's chat id
+async function _telegramGetUpdates() {
+  const contacts = await _loadDriverContacts();
+  const token = (contacts['_telegramToken']?.value || '').trim();
+  if (!token) { showToast('נא להזין קודם טוקן בוט'); return []; }
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/getUpdates?limit=100`);
+    const data = await res.json().catch(() => ({}));
+    if (!data.ok) { showToast(`⚠️ שגיאת טוקן: ${data.description || ''}`, 5000); return []; }
+    const seen = new Map(); // chatId → name (last message wins, most recent)
+    for (const u of (data.result || [])) {
+      const m = u.message || u.edited_message;
+      if (!m || !m.chat) continue;
+      const name = [m.from?.first_name, m.from?.last_name].filter(Boolean).join(' ') || m.chat.username || String(m.chat.id);
+      seen.set(m.chat.id, name);
+    }
+    return [...seen.entries()].map(([id, name]) => ({ id, name }));
+  } catch(e) {
+    console.error('telegram getUpdates', e);
+    showToast('⚠️ שגיאת חיבור לטלגרם', 5000);
+    return [];
+  }
+}
+
 async function _sendSms(phone, message) {
   if (!phone) return;
   const contacts = await _loadDriverContacts();
@@ -8341,8 +8388,10 @@ async function _checkDriverNotifications() {
 async function _notifyDriver(driverName, message) {
   const contacts = await _loadDriverContacts();
   const c = contacts[driverName];
+  // Telegram is free — prefer it whenever a chat id is set
+  if (c?.telegramId) { const ok = await _sendTelegram(c.telegramId, message); if (ok) return; }
   if (c?.phone) { _sendSms(c.phone, message); return; }
-  // fallback: if notifying manager ('ליאל') and no phone set, try _managerPhone
+  // fallback: if notifying manager ('ליאל') and no contact set, try _managerPhone
   if (driverName === 'ליאל') {
     const mp = contacts['_managerPhone']?.value;
     if (mp) _sendSms(mp, message);
@@ -8352,7 +8401,9 @@ async function _notifyDriver(driverName, message) {
 async function _notifyAllDrivers(message) {
   const contacts = await _loadDriverContacts();
   for (const [key, c] of Object.entries(contacts)) {
-    if (!key.startsWith('_') && key !== 'ליאל' && c?.phone) _sendSms(c.phone, message);
+    if (key.startsWith('_') || key === 'ליאל') continue;
+    if (c?.telegramId) { const ok = await _sendTelegram(c.telegramId, message); if (ok) continue; }
+    if (c?.phone) _sendSms(c.phone, message);
   }
 }
 
@@ -8366,11 +8417,20 @@ async function _openNotifySettingsInner() {
   const twilioToken = contacts['_twilioToken']?.value || '';
   const twilioFrom  = contacts['_twilioFrom']?.value  || '';
   const managerPhone = contacts['_managerPhone']?.value || '';
+  const telegramToken = contacts['_telegramToken']?.value || '';
   const drivers = ['ליאל','עופר','גיל','איתי'];
+  const telegramRow = `
+    <div style="border:2px solid #229ED9;border-radius:12px;padding:12px 14px;margin-bottom:14px;background:#eaf7ff">
+      <div style="font-weight:900;font-size:14px;margin-bottom:4px;color:#0d6ab0">✈️ טלגרם — חינמי, מועדף</div>
+      <div style="font-size:11px;color:#333;margin-bottom:8px;line-height:1.6">1. בטלגרם: שלח ל-<b>@BotFather</b> את <b>/newbot</b>, ותקבל טוקן.<br>2. כל נהג פותח שיחה עם הבוט ושולח לו הודעה כלשהי (למשל /start).<br>3. הדבק את הטוקן כאן, שמור, ואז לחץ "רענן צ׳אטים מהבוט" כדי לשייך כל נהג.</div>
+      <input id="nc-telegram-token" value="${telegramToken}" placeholder="טוקן הבוט (123456:ABC-DEF...)" style="border:1.5px solid #229ED9;border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:13px;direction:ltr;text-align:left;width:100%;box-sizing:border-box;margin-bottom:8px">
+      <button onclick="refreshTelegramChats()" style="background:#229ED9;color:#fff;border:none;border-radius:8px;padding:8px;width:100%;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer">🔄 רענן צ׳אטים מהבוט</button>
+      <div id="nc-telegram-chats" style="margin-top:8px;font-size:12px"></div>
+    </div>`;
   const apiRow = `
     <div style="border:2px solid #f22f46;border-radius:12px;padding:12px 14px;margin-bottom:14px;background:#fff5f6">
-      <div style="font-weight:900;font-size:14px;margin-bottom:4px;color:#c81e37">📨 Twilio — פרטי חיבור (SMS)</div>
-      <div style="font-size:11px;color:#555;margin-bottom:8px;line-height:1.5">ב-<b>console.twilio.com</b>: Account SID + Auth Token מהדף הראשי, ומספר טלפון SMS שקנית תחת Phone Numbers</div>
+      <div style="font-weight:900;font-size:14px;margin-bottom:4px;color:#c81e37">📨 Twilio — פרטי חיבור (SMS, גיבוי בתשלום)</div>
+      <div style="font-size:11px;color:#555;margin-bottom:8px;line-height:1.5">ב-<b>console.twilio.com</b>: Account SID + Auth Token מהדף הראשי, ומספר טלפון SMS שקנית תחת Phone Numbers. משמש רק לנהג שאין לו טלגרם מוגדר.</div>
       <div style="display:flex;flex-direction:column;gap:6px">
         <input id="nc-twilio-sid"   value="${twilioSid}"   placeholder="Account SID (ACxxxxxxxx...)" style="border:1.5px solid #f22f46;border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:13px;direction:ltr;text-align:left">
         <input id="nc-twilio-token" value="${twilioToken}" placeholder="Auth Token" style="border:1.5px solid #f22f46;border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:13px;direction:ltr;text-align:left">
@@ -8382,11 +8442,15 @@ async function _openNotifySettingsInner() {
     const c = contacts[name] || {};
     return `<div style="border:1.5px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:10px;background:#fff">
       <div style="font-weight:900;font-size:15px;margin-bottom:8px">👤 ${name}</div>
-      <input id="nc-phone-${name}" value="${c.phone||''}" placeholder="מספר טלפון (972501234567)" style="border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:14px;direction:ltr;text-align:left;width:100%;box-sizing:border-box;margin-bottom:6px">
-      <button onclick="testSms('${name}')" style="background:#f22f46;color:#fff;border:none;border-radius:8px;padding:7px;width:100%;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer">📨 שלח הודעת בדיקה</button>
+      <input id="nc-telegram-${name}" value="${c.telegramId||''}" placeholder="מזוהה אוטומטית מהבוט, או הדבק chat id ידנית" style="border:1.5px solid #229ED9;border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:13px;direction:ltr;text-align:left;width:100%;box-sizing:border-box;margin-bottom:6px">
+      <input id="nc-phone-${name}" value="${c.phone||''}" placeholder="מספר טלפון — גיבוי SMS (972501234567)" style="border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:14px;direction:ltr;text-align:left;width:100%;box-sizing:border-box;margin-bottom:6px">
+      <div style="display:flex;gap:6px">
+        <button onclick="testTelegram('${name}')" style="flex:1;background:#229ED9;color:#fff;border:none;border-radius:8px;padding:7px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer">✈️ בדיקת טלגרם</button>
+        <button onclick="testSms('${name}')" style="flex:1;background:#f22f46;color:#fff;border:none;border-radius:8px;padding:7px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer">📨 בדיקת SMS</button>
+      </div>
     </div>`;
   }).join('');
-  document.getElementById('notify-settings-body').innerHTML = apiRow + rows;
+  document.getElementById('notify-settings-body').innerHTML = telegramRow + apiRow + rows;
   openModal('modal-notify-settings');
 }
 
@@ -8401,9 +8465,12 @@ async function saveNotifySettings() {
   if (twilioFrom)  data['_twilioFrom']  = { value: twilioFrom };
   const managerPhone = document.getElementById('nc-manager-phone')?.value.trim();
   if (managerPhone) data['_managerPhone'] = { value: managerPhone };
+  const telegramToken = document.getElementById('nc-telegram-token')?.value.trim();
+  if (telegramToken) data['_telegramToken'] = { value: telegramToken };
   drivers.forEach(name => {
     const phone = document.getElementById(`nc-phone-${name}`)?.value.trim();
-    if (phone) data[name] = { phone };
+    const telegramId = document.getElementById(`nc-telegram-${name}`)?.value.trim();
+    if (phone || telegramId) data[name] = { ...(phone ? { phone } : {}), ...(telegramId ? { telegramId } : {}) };
   });
   const { setDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
   await setDoc(doc(window._db, 'config', 'driver_contacts'), data);
@@ -8418,6 +8485,51 @@ async function testSms(name) {
   showToast(`📤 שולח בדיקה ל-${name}...`, 3000);
   await _sendSms(phone, `✅ בדיקה — מערכת ענק הרכבים מחוברת ל-${name}`);
 }
+
+async function testTelegram(name) {
+  const chatId = document.getElementById(`nc-telegram-${name}`)?.value.trim();
+  if (!chatId) return showToast(`נא להזין/לשייך chat id עבור ${name}`);
+  // use the token currently in the form, even if not saved yet
+  const token = document.getElementById('nc-telegram-token')?.value.trim();
+  if (!token) return showToast('נא להזין קודם טוקן בוט');
+  _driverContacts = { ..._driverContacts, _telegramToken: { value: token } };
+  showToast(`📤 שולח בדיקה ל-${name}...`, 3000);
+  const ok = await _sendTelegram(chatId, `✅ בדיקה — מערכת ענק הרכבים מחוברת ל-${name}`);
+  if (ok) showToast(`✅ נשלח ל-${name} בטלגרם`);
+}
+
+// pull the bot's recent chats and let the manager assign each one to a driver
+async function refreshTelegramChats() {
+  const token = document.getElementById('nc-telegram-token')?.value.trim();
+  if (!token) return showToast('נא להזין קודם טוקן בוט');
+  _driverContacts = { ..._driverContacts, _telegramToken: { value: token } };
+  const box = document.getElementById('nc-telegram-chats');
+  box.innerHTML = '⏳ טוען...';
+  const chats = await _telegramGetUpdates();
+  if (!chats.length) {
+    box.innerHTML = 'לא נמצאו הודעות עדיין — ודא שכל נהג שלח הודעה לבוט, ונסה שוב.';
+    return;
+  }
+  const drivers = ['ליאל','עופר','גיל','איתי'];
+  box.innerHTML = chats.map(chat => {
+    const opts = ['<option value="">— שייך לנהג —</option>']
+      .concat(drivers.map(d => `<option value="${d}">${d}</option>`)).join('');
+    return `<div style="display:flex;gap:6px;align-items:center;background:#fff;border:1px solid #bcdff5;border-radius:8px;padding:6px 8px;margin-bottom:5px">
+      <span style="flex:1;font-weight:700">${esc(chat.name)}</span>
+      <select onchange="_assignTelegramChat('${chat.id}',this.value)" style="border:1px solid #229ED9;border-radius:6px;padding:4px 6px;font-family:Heebo,sans-serif;font-size:12px">${opts}</select>
+    </div>`;
+  }).join('');
+}
+window.refreshTelegramChats = refreshTelegramChats;
+window.testTelegram = testTelegram;
+
+function _assignTelegramChat(chatId, driverName) {
+  if (!driverName) return;
+  const el = document.getElementById(`nc-telegram-${driverName}`);
+  if (el) el.value = chatId;
+  showToast(`שויך ל-${driverName} — לחץ "שמור הגדרות" לאישור`);
+}
+window._assignTelegramChat = _assignTelegramChat;
 async function resendIntakeNotify(driver, plate, brand, model) {
   await _notifyDriver(driver, `🚗 קליטת רכב ממתינה לך — ${plate} ${brand} ${model}. כנס לאפליקציה ענק הרכבים.`);
   showToast(`📲 התראה נשלחה ל${driver}`);
