@@ -1616,23 +1616,27 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
-<!-- ====== MODAL: PLATE SCANNER ====== -->
-<div class="modal-overlay" id="modal-plate-scanner" style="z-index:1200;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center">
-  <div style="width:100%;max-width:420px;display:flex;flex-direction:column;align-items:center;padding:24px;box-sizing:border-box">
-    <div style="display:flex;justify-content:space-between;align-items:center;width:100%;margin-bottom:20px">
-      <span style="color:#fff;font-size:18px;font-weight:700">📷 סריקת לוחית רישוי</span>
+<!-- ====== MODAL: PLATE SCANNER (live continuous) ====== -->
+<div class="modal-overlay" id="modal-plate-scanner" style="z-index:1200;background:rgba(0,0,0,.92);align-items:center;justify-content:center">
+  <div style="width:100%;max-width:480px;display:flex;flex-direction:column;align-items:center;padding:16px;box-sizing:border-box">
+    <div style="display:flex;justify-content:space-between;align-items:center;width:100%;margin-bottom:10px">
+      <span style="color:#fff;font-size:17px;font-weight:700">📷 סריקת לוחיות רצופה</span>
       <button onclick="closePlateScanner()" style="background:rgba(255,255,255,.15);border:none;color:#fff;font-size:20px;width:36px;height:36px;border-radius:50%;cursor:pointer">✕</button>
     </div>
+    <!-- live camera with aiming guide -->
+    <div id="plate-video-wrap" style="position:relative;width:100%;border-radius:14px;overflow:hidden;background:#000">
+      <video id="plate-video" autoplay playsinline muted style="width:100%;display:block"></video>
+      <!-- guide band -->
+      <div style="position:absolute;left:5%;right:5%;top:35%;height:30%;border:3px solid #facc15;border-radius:10px;box-shadow:0 0 0 2000px rgba(0,0,0,.35);pointer-events:none"></div>
+      <!-- floating success note -->
+      <div id="plate-scan-result" style="display:none;position:absolute;left:50%;top:10px;transform:translateX(-50%);background:#22c55e;color:#fff;border-radius:12px;padding:10px 18px;font-size:18px;font-weight:900;letter-spacing:2px;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.4)"></div>
+    </div>
+    <div id="plate-scan-status" style="color:#facc15;font-size:14px;font-weight:700;margin-top:12px;text-align:center;line-height:1.5">כוון את הלוחית למסגרת הצהובה<br><span style="color:#94a3b8;font-size:12px;font-weight:400">הזיהוי אוטומטי — אין צורך ללחוץ</span></div>
+    <div id="plate-scan-count" style="color:#86efac;font-size:13px;font-weight:800;margin-top:6px"></div>
     <canvas id="plate-canvas" style="display:none"></canvas>
-    <!-- hidden native camera input -->
+    <!-- photo fallback (only if live camera unavailable) -->
     <input type="file" id="plate-file-input" accept="image/*" capture="environment" style="display:none" onchange="onPlatePhoto(this)">
-    <!-- status + result -->
-    <div id="plate-scan-status" style="color:#facc15;font-size:15px;font-weight:700;margin-bottom:20px;text-align:center;line-height:1.5">צלם את הלוחית מקרוב<br><span style="color:#94a3b8;font-size:13px;font-weight:400">הלוחית תזוהה אוטומטית</span></div>
-    <div id="plate-scan-result" style="display:none;background:#22c55e;color:#fff;border-radius:14px;padding:16px 24px;margin-bottom:20px;font-size:24px;font-weight:900;letter-spacing:3px;text-align:center;width:100%"></div>
-    <!-- big camera button -->
-    <button onclick="document.getElementById('plate-file-input').click()" id="plate-capture-btn"
-      style="width:100px;height:100px;border-radius:50%;background:#facc15;border:5px solid #fff;font-size:40px;cursor:pointer;box-shadow:0 6px 24px rgba(0,0,0,.5);margin-bottom:10px">📷</button>
-    <span style="color:#94a3b8;font-size:13px">לחץ לצילום הלוחית</span>
+    <button id="plate-capture-btn" onclick="document.getElementById('plate-file-input').click()" style="display:none;margin-top:14px;background:#facc15;color:#000;border:none;border-radius:12px;padding:12px 22px;font-family:Heebo,sans-serif;font-size:15px;font-weight:900;cursor:pointer">📷 צלם לוחית</button>
   </div>
 </div>
 
@@ -7115,110 +7119,234 @@ window.openDriverChargingScreen = openDriverChargingScreen;
 window.openChargingTaskModal = openChargingTaskModal;
 window.markCarCharged = markCarCharged;
 
-/* ── Plate Scanner ── */
-let _plateScanBusy = false;
+/* ── Plate Scanner — live continuous, local OCR, closed-set matching ──
+   The camera streams inside the modal; frames are OCR'd locally (Tesseract,
+   digits only) and matched ONLY against the plates in the open inventory list.
+   Exact match marks immediately; a 1-digit-off match needs two agreeing frames
+   (prevents wrong-car marks). No button presses between plates. */
+let _plateStream = null, _plateWorker = null, _plateLoopOn = false, _plateScanBusy = false;
+let _plateNearCount = {};
 if (!window._plateScanSeen) window._plateScanSeen = new Set();
 
-function openPlateScanner() {
-  window._plateScanSeen = new Set();
-  document.getElementById('plate-scan-result').style.display = 'none';
-  document.getElementById('plate-scan-status').innerHTML = 'צלם את הלוחית מקרוב<br><span style="color:#94a3b8;font-size:13px;font-weight:400">הלוחית תזוהה אוטומטית</span>';
-  // reset file input so same file can be re-selected
-  const inp = document.getElementById('plate-file-input');
-  if (inp) inp.value = '';
-  openModal('modal-plate-scanner');
-}
-
-function closePlateScanner() {
-  closeModal('modal-plate-scanner');
-}
-
-function _extractPlateCandidates(text) {
-  const runs = text.match(/\d+/g) || [];
+// plates of the rows in the currently-open inventory assignment
+function _invKnownPlates() {
   const out = [];
-  // sliding window on all digits joined
-  const joined = runs.join('');
-  for (const len of [8, 7]) {
-    for (let i = 0; i <= joined.length - len; i++) {
-      const c = joined.slice(i, i + len);
-      if (!out.includes(c)) out.push(c);
+  _driverInvRows.forEach((r, i) => {
+    for (const c of r.cells) {
+      const d = String(c || '').replace(/\D/g, '');
+      if (d.length === 7 || d.length === 8) { out.push({ idx: i, plate: d }); break; }
     }
-  }
-  // also concatenate adjacent runs (handles "295" "38" "902" → "29538902")
-  for (let s = 0; s < runs.length; s++) {
-    let combined = '';
-    for (let e = s; e < runs.length && combined.length < 9; e++) {
-      combined += runs[e];
-      if ((combined.length === 7 || combined.length === 8) && !out.includes(combined))
-        out.push(combined);
-    }
-  }
+  });
   return out;
 }
 
+function _plateTokensFrom(text) {
+  const runs = String(text || '').match(/\d+/g) || [];
+  const out = new Set();
+  for (const r of runs) {
+    if (r.length === 7 || r.length === 8) out.add(r);
+    // windows inside longer runs (plate glued to another digit)
+    if (r.length === 9) { out.add(r.slice(0, 8)); out.add(r.slice(1)); out.add(r.slice(0, 7)); out.add(r.slice(2)); }
+  }
+  // adjacent runs glued (e.g. "295 38 902")
+  for (let s = 0; s < runs.length; s++) {
+    let comb = '';
+    for (let e = s; e < runs.length && comb.length < 9; e++) {
+      comb += runs[e];
+      if (comb.length === 7 || comb.length === 8) out.add(comb);
+    }
+  }
+  return [...out];
+}
+
+// returns {idx, plate} or null. Exact → immediate; lev≤1 → needs 2 sightings.
+function _plateMatch(tokens) {
+  const known = _invKnownPlates();
+  for (const t of tokens) {
+    const hit = known.find(k => k.plate === t);
+    if (hit) return hit;
+  }
+  for (const t of tokens) {
+    for (const k of known) {
+      if (Math.abs(k.plate.length - t.length) <= 1 && _levenshtein(t, k.plate) <= 1) {
+        _plateNearCount[k.plate] = (_plateNearCount[k.plate] || 0) + 1;
+        if (_plateNearCount[k.plate] >= 2) return k;
+      }
+    }
+  }
+  return null;
+}
+
+function _plateMarkFound(hit) {
+  const resultEl = document.getElementById('plate-scan-result');
+  const status = document.getElementById('plate-scan-status');
+  const already = _driverInvRows[hit.idx].status === 'v';
+  if (!already) {
+    const headers = JSON.parse(document.getElementById('dinv-headers-cache').value || '[]');
+    _driverInvRows[hit.idx].status = 'v';
+    _dinvSaveProgress();
+    renderDriverInvModal(headers);
+  }
+  _plateScanSeen.add(hit.plate);
+  _plateNearCount = {};
+  resultEl.style.background = already ? '#0ea5e9' : '#22c55e';
+  resultEl.textContent = already ? `✓ ${hit.plate} כבר סומנה` : `✅ ${hit.plate} נקלט וסומן`;
+  resultEl.style.display = 'block';
+  if (navigator.vibrate) { try { navigator.vibrate(already ? 60 : [80, 40, 80]); } catch(e) {} }
+  _updatePlateScanCount();
+  status.innerHTML = 'כוון ללוחית הבאה 📷';
+  setTimeout(() => { resultEl.style.display = 'none'; }, 2200);
+}
+
+function _updatePlateScanCount() {
+  const el = document.getElementById('plate-scan-count');
+  if (!el) return;
+  const total = _invKnownPlates().length;
+  const done = _driverInvRows.filter(r => r.status === 'v').length;
+  el.textContent = `סומנו ${done} מתוך ${total}`;
+}
+
+// grayscale + contrast stretch on the guide band, upscaled for OCR
+function _plateGrabFrame() {
+  const v = document.getElementById('plate-video');
+  const c = document.getElementById('plate-canvas');
+  if (!v || v.readyState < 2 || !v.videoWidth) return null;
+  const vw = v.videoWidth, vh = v.videoHeight;
+  const bx = vw * 0.05, bw = vw * 0.90, by = vh * 0.33, bh = vh * 0.34;
+  const sc = Math.min(3, 1000 / bw);
+  c.width = Math.round(bw * sc); c.height = Math.round(bh * sc);
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(v, bx, by, bw, bh, 0, 0, c.width, c.height);
+  const id = ctx.getImageData(0, 0, c.width, c.height), d = id.data;
+  const hist = new Array(256).fill(0);
+  for (let i = 0; i < d.length; i += 4) {
+    const g = (0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2]) | 0;
+    d[i] = d[i+1] = d[i+2] = g; hist[g]++;
+  }
+  const total = d.length / 4, cut = total * 0.02;
+  let lo = 0, hi = 255, acc = 0;
+  for (let t = 0; t < 256; t++) { acc += hist[t]; if (acc > cut) { lo = t; break; } }
+  acc = 0;
+  for (let t = 255; t >= 0; t--) { acc += hist[t]; if (acc > cut) { hi = t; break; } }
+  const range = Math.max(1, hi - lo);
+  for (let i = 0; i < d.length; i += 4) {
+    let val = (d[i] - lo) * 255 / range; val = val < 0 ? 0 : val > 255 ? 255 : val;
+    d[i] = d[i+1] = d[i+2] = val;
+  }
+  ctx.putImageData(id, 0, 0);
+  return c.toDataURL('image/png');
+}
+
+async function _plateScanLoop() {
+  while (_plateLoopOn) {
+    const frame = _plateGrabFrame();
+    if (frame && _plateWorker) {
+      try {
+        let tokens = [];
+        for (const psm of ['7', '6']) {
+          if (!_plateLoopOn) return;
+          await _plateWorker.setParameters({ tessedit_pageseg_mode: psm });
+          const { data: { text } } = await _plateWorker.recognize(frame);
+          tokens = tokens.concat(_plateTokensFrom(text));
+          if (tokens.length) break; // psm 7 found digits — good enough for this frame
+        }
+        if (tokens.length) {
+          const hit = _plateMatch(tokens);
+          if (hit && !_plateScanSeen.has(hit.plate)) {
+            _plateMarkFound(hit);
+            await new Promise(r => setTimeout(r, 1400)); // let the user move to the next plate
+          }
+        }
+      } catch(e) { console.error('plate scan frame', e); }
+    }
+    await new Promise(r => setTimeout(r, 300));
+  }
+}
+
+async function openPlateScanner() {
+  window._plateScanSeen = new Set();
+  _plateNearCount = {};
+  const status = document.getElementById('plate-scan-status');
+  const resultEl = document.getElementById('plate-scan-result');
+  const fallbackBtn = document.getElementById('plate-capture-btn');
+  const videoWrap = document.getElementById('plate-video-wrap');
+  resultEl.style.display = 'none';
+  fallbackBtn.style.display = 'none';
+  videoWrap.style.display = 'block';
+  status.innerHTML = 'כוון את הלוחית למסגרת הצהובה<br><span style="color:#94a3b8;font-size:12px;font-weight:400">הזיהוי אוטומטי — אין צורך ללחוץ</span>';
+  _updatePlateScanCount();
+  openModal('modal-plate-scanner');
+  try {
+    _plateStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+      audio: false
+    });
+    const v = document.getElementById('plate-video');
+    v.srcObject = _plateStream;
+    await v.play();
+    if (!_plateWorker) {
+      _plateWorker = await Tesseract.createWorker('eng', 1);
+      await _plateWorker.setParameters({ tessedit_char_whitelist: '0123456789' });
+    }
+    _plateLoopOn = true;
+    _plateScanLoop();
+  } catch(e) {
+    console.error('camera open failed', e);
+    // no live camera (permission denied / unsupported) — photo fallback
+    videoWrap.style.display = 'none';
+    fallbackBtn.style.display = 'inline-block';
+    status.innerHTML = 'המצלמה החיה לא זמינה — צלם את הלוחית בכפתור';
+  }
+}
+
+function closePlateScanner() {
+  _plateLoopOn = false;
+  if (_plateStream) { try { _plateStream.getTracks().forEach(t => t.stop()); } catch(e) {} _plateStream = null; }
+  const v = document.getElementById('plate-video');
+  if (v) v.srcObject = null;
+  if (_plateWorker) { try { _plateWorker.terminate(); } catch(e) {} _plateWorker = null; }
+  closeModal('modal-plate-scanner');
+}
+
+// photo fallback — same local pipeline on a captured photo
 async function onPlatePhoto(input) {
   const file = input.files[0];
   if (!file || _plateScanBusy) return;
   _plateScanBusy = true;
   const status = document.getElementById('plate-scan-status');
-  const btn    = document.getElementById('plate-capture-btn');
-  const resultEl = document.getElementById('plate-scan-result');
-  if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
   status.innerHTML = '🔍 מזהה לוחית...';
-  resultEl.style.display = 'none';
-
   try {
-    const fd = new FormData();
-    fd.append('file', file, 'plate.jpg');
-    fd.append('language', 'eng');
-    fd.append('isOverlayRequired', 'false');
-    fd.append('detectOrientation', 'true');
-    fd.append('scale', 'true');
-    fd.append('OCREngine', '2');
-    const resp = await fetch('https://api.ocr.space/parse/image', {
-      method: 'POST',
-      headers: { apikey: 'helloworld' },
-      body: fd
-    });
-    const data = await resp.json();
-    const text = (data.ParsedResults || []).map(r => r.ParsedText).join(' ');
-    const candidates = _extractPlateCandidates(text);
-
-    let found = false;
-    for (const plate of candidates) {
-      if (_plateScanSeen.has(plate)) { found = true; break; }
-      const idx = _driverInvRows.findIndex(r =>
-        r.cells.some(c => c.replace(/[^0-9]/g, '') === plate)
-      );
-      if (idx !== -1) {
-        _plateScanSeen.add(plate);
-        const headers = JSON.parse(document.getElementById('dinv-headers-cache').value || '[]');
-        _driverInvRows[idx].status = 'v';
-        _dinvSaveProgress();
-        renderDriverInvModal(headers);
-        resultEl.style.background = '#22c55e';
-        resultEl.textContent = `✅ ${plate} סומנה!`;
-        resultEl.style.display = 'block';
-        status.innerHTML = 'צלם את הלוחית הבאה 📷';
-        found = true;
-        break;
-      }
+    const url = await new Promise((res, rej) => { const r = new FileReader(); r.onload = e => res(e.target.result); r.onerror = rej; r.readAsDataURL(file); });
+    const prepped = await _prepRegion(url, { y0: 0.2, y1: 0.8 }, 2);
+    const w = _plateWorker || await Tesseract.createWorker('eng', 1);
+    if (!_plateWorker) { _plateWorker = w; await w.setParameters({ tessedit_char_whitelist: '0123456789' }); }
+    let tokens = [];
+    for (const psm of ['7', '6', '11']) {
+      await w.setParameters({ tessedit_pageseg_mode: psm });
+      tokens = tokens.concat(_plateTokensFrom((await w.recognize(prepped)).data.text));
     }
-    if (!found) {
-      status.innerHTML = '❌ לא זוהתה — נסה לצלם מקרוב יותר';
-    }
+    // in photo mode accept lev≤1 in a single shot
+    _plateNearCount = {};
+    let hit = _plateMatch(tokens);
+    if (!hit) hit = _plateMatch(tokens); // second pass lets near-counts reach 2
+    if (hit) _plateMarkFound(hit);
+    else status.innerHTML = '❌ לא זוהתה — נסה לצלם קרוב יותר וישר מול הלוחית';
   } catch(e) {
-    status.innerHTML = '⚠️ שגיאה — בדוק חיבור אינטרנט';
+    console.error('plate photo', e);
+    status.innerHTML = '⚠️ שגיאה בזיהוי — נסה שוב';
   }
-  // reset for next photo
   input.value = '';
   _plateScanBusy = false;
-  if (btn) { btn.disabled = false; btn.textContent = '📷'; }
 }
 
 window.openPlateScanner = openPlateScanner;
 window.closePlateScanner = closePlateScanner;
 window.onPlatePhoto = onPlatePhoto;
+// closing via backdrop tap must also stop the camera + OCR worker
+document.getElementById('modal-plate-scanner')?.addEventListener('click', e => {
+  if (e.target && e.target.id === 'modal-plate-scanner') closePlateScanner();
+});
 
 window.pickDriver = pickDriver;
 window.selectCarType = selectCarType;
