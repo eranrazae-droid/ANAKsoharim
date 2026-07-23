@@ -1133,7 +1133,15 @@
       meta_hide:(document.getElementById('f-metashow').value==='0')
     });
     ensureMetaId(cars[0]);
-    saveCars(); saveCarToDB(cars[0]); clearForm();toast('✅ הרכב נוסף למלאי!');showTab('inventory');
+    saveCars(); saveCarToDB(cars[0]);
+    createCarTask(brand, model); // משימה אוטומטית להילה: להשלים תמונה + מפרט טכני
+    clearForm();toast('✅ הרכב נוסף למלאי!');showTab('inventory');
+  }
+
+  // פותח משימה אוטומטית להשלמת תמונה + מפרט טכני לרכב חדש
+  async function createCarTask(brand, model){
+    const title = ((brand||'')+' '+(model||'')).trim() + ' — להשלים תמונה + מפרט טכני';
+    try{ const c=sbClient(); if(c){ await c.from('tasks').insert({title:title, done:false, created_at:new Date().toISOString()}); } }catch(e){ console.warn('createCarTask', e); }
   }
 
   function clearForm(){
