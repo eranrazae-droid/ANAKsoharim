@@ -7254,10 +7254,11 @@ function _plateGrabFrame() {
   const vw = v.videoWidth, vh = v.videoHeight;
   let bx = vw * 0.05, bw = vw * 0.90, by = vh * 0.33, bh = vh * 0.34;
   // software zoom: crop the center of the band (used when hw zoom is unavailable)
-  if (_plateSwZoom > 1) {
+  if (_plateSwZoom !== 1) {
     const cx = bx + bw / 2, cy = by + bh / 2;
-    bw = bw / _plateSwZoom; bh = bh / _plateSwZoom;
-    bx = cx - bw / 2; by = cy - bh / 2;
+    bw = Math.min(vw, bw / _plateSwZoom); bh = Math.min(vh, bh / _plateSwZoom);
+    bx = Math.max(0, Math.min(vw - bw, cx - bw / 2));
+    by = Math.max(0, Math.min(vh - bh, cy - bh / 2));
   }
   const sc = Math.min(2, 900 / bw); // small enough to stay fast — the zoom supplies the magnification
   c.width = Math.round(bw * sc); c.height = Math.round(bh * sc);
@@ -7415,7 +7416,7 @@ async function _plateCloudLoop() {
       try {
         const vw = v.videoWidth, vh = v.videoHeight;
         let bx = vw * 0.05, bw = vw * 0.90, by = vh * 0.33, bh = vh * 0.34;
-        if (_plateSwZoom > 1) { const cx = bx + bw/2, cy = by + bh/2; bw /= _plateSwZoom; bh /= _plateSwZoom; bx = cx - bw/2; by = cy - bh/2; }
+        if (_plateSwZoom !== 1) { const cx = bx + bw/2, cy = by + bh/2; bw = Math.min(vw, bw/_plateSwZoom); bh = Math.min(vh, bh/_plateSwZoom); bx = Math.max(0, Math.min(vw - bw, cx - bw/2)); by = Math.max(0, Math.min(vh - bh, cy - bh/2)); }
         const sw = 240, sh = Math.max(1, Math.round(sw * bh / bw));
         small.width = sw; small.height = sh;
         const sctx = small.getContext('2d', { willReadFrequently: true });
@@ -7537,15 +7538,15 @@ async function openPlateScanner() {
    otherwise. Starts at 2x; if no digits are read for ~2.2s, cycles to the
    next level automatically until the plate locks. Tap the indicator to
    advance manually. ── */
-const _plateZoomLevels = [1, 1.5, 2, 2.5, 3];
-let _plateZoomIdx = 2;      // start at 2x
+const _plateZoomLevels = [0.5, 1, 1.5, 2, 2.5, 3];
+let _plateZoomIdx = 3;      // start at 2x
 let _plateSwZoom = 1;       // software crop-zoom factor (used when no hw zoom)
 let _plateHwZoom = false;
 let _plateLastTokensAt = 0;
 
 function _plateSetupZoom() {
   const ind = document.getElementById('plate-zoom-ind');
-  _plateZoomIdx = 2;
+  _plateZoomIdx = 3;
   _plateLastTokensAt = Date.now();
   try {
     const track = _plateStream.getVideoTracks()[0];
@@ -7564,7 +7565,8 @@ async function _plateApplyZoom() {
       const caps = track.getCapabilities();
       const zoom = Math.min(Math.max(z, caps.zoom.min || 1), caps.zoom.max);
       await track.applyConstraints({ advanced: [{ zoom }] });
-      _plateSwZoom = 1;
+      // hw zoom can't go below its min (usually 1) — cover the rest in software
+      _plateSwZoom = z < zoom ? z / zoom : 1;
     } catch(e) { _plateSwZoom = z; } // hw apply failed → fall back to software
   } else {
     _plateSwZoom = z;
@@ -7573,7 +7575,7 @@ async function _plateApplyZoom() {
   if (ind) ind.textContent = `🔍 זום אוטומטי ${z}x`;
   // software zoom → mirror it visually so aiming matches what is scanned
   const v = document.getElementById('plate-video');
-  if (v) { v.style.transformOrigin = 'center center'; v.style.transform = _plateSwZoom > 1 ? `scale(${_plateSwZoom})` : 'none'; }
+  if (v) { v.style.transformOrigin = 'center center'; v.style.transform = _plateSwZoom !== 1 ? `scale(${_plateSwZoom})` : 'none'; }
 }
 
 function _plateCycleZoom() {
