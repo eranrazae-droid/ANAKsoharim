@@ -7170,7 +7170,6 @@ async function _plateEnsureWorkers() {
   };
   _plateWorkers = await Promise.all([mk('7'), mk('6')]);
 }
-let _plateNearCount = {};
 if (!window._plateScanSeen) window._plateScanSeen = new Set();
 
 // plates of the rows in the currently-open inventory assignment
@@ -7204,25 +7203,15 @@ function _plateTokensFrom(text) {
   return [...out];
 }
 
-// returns {idx, plate} or null. Exact → immediate. lev≤1 → immediate when it
-// points to exactly ONE known plate (unambiguous); otherwise needs 2 sightings.
+// returns {idx, plate} or null. EXACT digit-for-digit match only — a near-miss
+// (even one digit off) must never mark a car, wrong inventory marks are worse
+// than a slower scan.
 function _plateMatch(tokens) {
   const known = _invKnownPlates();
   for (const t of tokens) {
     const hit = known.find(k => k.plate === t);
     if (hit) return hit;
   }
-  const nearPlates = new Map(); // plate → k
-  for (const t of tokens) {
-    for (const k of known) {
-      if (Math.abs(k.plate.length - t.length) <= 1 && _levenshtein(t, k.plate) <= 1) {
-        nearPlates.set(k.plate, k);
-        _plateNearCount[k.plate] = (_plateNearCount[k.plate] || 0) + 1;
-      }
-    }
-  }
-  if (nearPlates.size === 1) return nearPlates.values().next().value; // unambiguous — take it now
-  for (const [plate, k] of nearPlates) if (_plateNearCount[plate] >= 2) return k;
   return null;
 }
 
@@ -7237,7 +7226,6 @@ function _plateMarkFound(hit) {
     renderDriverInvModal(headers);
   }
   _plateScanSeen.add(hit.plate);
-  _plateNearCount = {};
   _plateCloudMissStreak = 0;
   _plateLastMarkAt = Date.now();
   resultEl.style.background = already ? '#0ea5e9' : '#22c55e';
@@ -7504,7 +7492,6 @@ async function _plateScanLoop() {
 
 async function openPlateScanner() {
   window._plateScanSeen = new Set();
-  _plateNearCount = {};
   const status = document.getElementById('plate-scan-status');
   const resultEl = document.getElementById('plate-scan-result');
   const fallbackBtn = document.getElementById('plate-capture-btn');
@@ -7639,10 +7626,7 @@ async function onPlatePhoto(input) {
       await w.setParameters({ tessedit_pageseg_mode: psm });
       tokens = tokens.concat(_plateTokensFrom((await w.recognize(prepped)).data.text));
     }
-    // in photo mode accept lev≤1 in a single shot
-    _plateNearCount = {};
-    let hit = _plateMatch(tokens);
-    if (!hit) hit = _plateMatch(tokens); // second pass lets near-counts reach 2
+    const hit = _plateMatch(tokens);
     if (hit) _plateMarkFound(hit);
     else status.innerHTML = '❌ לא זוהתה — נסה לצלם קרוב יותר וישר מול הלוחית';
   } catch(e) {
