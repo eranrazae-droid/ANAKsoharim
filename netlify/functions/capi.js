@@ -2,7 +2,7 @@
 // האסימון נשמר אך ורק במשתנה סביבה: META_CAPI_ACCESS_TOKEN  (לעולם לא בקוד/ריפו).
 const https = require('https');
 
-const PIXEL_ID = process.env.META_PIXEL_ID || '1833181211393222';
+const PIXEL_ID = process.env.META_PIXEL_ID || '1715402413047260';
 const GRAPH_VERSION = 'v19.0';
 
 function post(url, bodyObj){

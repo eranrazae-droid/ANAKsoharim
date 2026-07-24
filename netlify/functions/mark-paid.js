@@ -6,7 +6,7 @@ const https = require('https');
 
 const SB_URL = 'https://vwfmfjjdusirabgbkhvw.supabase.co';
 const SB_KEY = 'sb_publishable_E6Dd48mtyJyw5_6vgP2lzw_Gaj-QcAx';
-const PIXEL_ID = process.env.META_PIXEL_ID || '1833181211393222';
+const PIXEL_ID = process.env.META_PIXEL_ID || '1715402413047260';
 const GRAPH_VERSION = 'v19.0';
 
 function req(method, url, headers, bodyObj){
