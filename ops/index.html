@@ -7342,6 +7342,23 @@ async function _plateCloudBumpUsage() {
 }
 
 let _plateLastMarkAt = 0;
+
+// the cloud read the plate clearly but it isn't in the inventory list —
+// tell the driver so they know it's a foreign car, not a bad read
+let _plateNotInInvLastAt = 0;
+function _plateShowNotInInventory(plate) {
+  const now = Date.now();
+  if (now - _plateNotInInvLastAt < 4000) return; // don't flash repeatedly on the same car
+  _plateNotInInvLastAt = now;
+  const resultEl = document.getElementById('plate-scan-result');
+  if (!resultEl) return;
+  resultEl.style.background = '#f59e0b';
+  resultEl.textContent = `⚠️ ${plate} לא נמצאת ברשימת המלאי`;
+  resultEl.style.display = 'block';
+  if (navigator.vibrate) { try { navigator.vibrate([50, 50, 50, 50, 50]); } catch(e) {} }
+  setTimeout(() => { if (resultEl.textContent.includes(plate)) resultEl.style.display = 'none'; }, 3000);
+}
+
 function _plateCloudTry(srcCanvas) {
   if (_plateCloudBusy || !_plateCloudToken || _plateCloudBlocked) return;
   const now = Date.now();
@@ -7380,7 +7397,7 @@ function _plateCloudTry(srcCanvas) {
       if (toks.length) {
         const hit = _plateMatch(toks);
         if (hit && !_plateScanSeen.has(hit.plate)) { _plateMarkFound(hit); _plateUnresolvedAt = 0; _plateCloudMissStreak = 0; }
-        else _plateCloudMissStreak++;
+        else { if (!hit) _plateShowNotInInventory(toks[0]); _plateCloudMissStreak++; }
       } else {
         _plateCloudMissStreak++;
       }
