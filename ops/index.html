@@ -5830,6 +5830,7 @@ function openDriverInvModal(docId) {
     const savedStatuses = saved ? JSON.parse(saved) : null;
     _driverInvRows = parsedRows.map((cells, i) => ({ cells, status: savedStatuses?.[i] ?? null }));
     _dinvSortMode = 0;
+    _dinvOrder = null;
     const sortBtn = document.getElementById('dinv-sort-btn');
     if (sortBtn) sortBtn.textContent = '↕️ סדר הכל';
     renderDriverInvModal(data.headers || []);
@@ -5839,11 +5840,19 @@ function openDriverInvModal(docId) {
 
 // 0 = original order, 1 = unmarked first, 2 = marked first
 let _dinvSortMode = 0;
+let _dinvOrder = null; // frozen row order — recomputed only when the sort button is pressed, so marking a row mid-list doesn't jump it around
+function _dinvComputeOrder() {
+  let order2 = _driverInvRows.map((_, i) => i);
+  if (_dinvSortMode === 1) order2.sort((a, b) => (_driverInvRows[a].status ? 1 : 0) - (_driverInvRows[b].status ? 1 : 0));
+  else if (_dinvSortMode === 2) order2.sort((a, b) => (_driverInvRows[b].status ? 1 : 0) - (_driverInvRows[a].status ? 1 : 0));
+  _dinvOrder = order2;
+}
 function cycleDinvSort() {
   _dinvSortMode = (_dinvSortMode + 1) % 3;
   const btn = document.getElementById('dinv-sort-btn');
   const labels = ['↕️ סדר הכל', '⬜ לא סומנו קודם', '✅ סומנו קודם'];
   if (btn) btn.textContent = labels[_dinvSortMode];
+  _dinvComputeOrder();
   const headers = JSON.parse(document.getElementById('dinv-headers-cache').value || '[]');
   renderDriverInvModal(headers);
 }
@@ -5875,9 +5884,8 @@ function renderDriverInvModal(headers) {
       <div style="text-align:center">סימון</div>${orderedHeaders.map(h => `<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(h)}</div>`).join('')}
     </div>`;
   }
-  let order2 = _driverInvRows.map((_, i) => i);
-  if (_dinvSortMode === 1) order2.sort((a, b) => (_driverInvRows[a].status ? 1 : 0) - (_driverInvRows[b].status ? 1 : 0));
-  else if (_dinvSortMode === 2) order2.sort((a, b) => (_driverInvRows[b].status ? 1 : 0) - (_driverInvRows[a].status ? 1 : 0));
+  if (!_dinvOrder || _dinvOrder.length !== _driverInvRows.length) _dinvComputeOrder();
+  const order2 = _dinvOrder;
   html += order2.map(i => {
     const item = _driverInvRows[i];
     const orderedCells = reorder(item.cells);
