@@ -816,6 +816,7 @@ display:none !important;
               </select>
               <select id="filterSort" onchange="filterCatalog()">
                 <option value="">מיון: ברירת מחדל</option>
+                <option value="name-asc">שם — א׳ עד ת׳</option>
                 <option value="monthly-asc">החזר חודשי — מהזול ליקר</option>
                 <option value="price-asc">מחיר הרכב — מהזול ליקר</option>
               </select>
@@ -2381,8 +2382,11 @@ display:none !important;
         el.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:50px 20px;color:#6b7280"><div style="font-size:40px;margin-bottom:10px">🔍</div><div style="font-size:18px;font-weight:700">לא נמצאו רכבים בסינון הזה</div><div style="margin-top:6px">נסו לשנות את הסינון</div></div>';
       } else {
         let list = (anyFilter ? filtered : enriched).slice();
-        if(sort==='monthly-asc') list.sort((a,b)=>balloon50(a.autodealerPriceNumber)-balloon50(b.autodealerPriceNumber));
+        const byName = (a,b)=>(((a.brand||'')+' '+(a.model||'')).trim()).localeCompare((((b.brand||'')+' '+(b.model||'')).trim()),'he');
+        if(sort==='name-asc') list.sort(byName);
+        else if(sort==='monthly-asc') list.sort((a,b)=>balloon50(a.autodealerPriceNumber)-balloon50(b.autodealerPriceNumber));
         else if(sort==='price-asc') list.sort((a,b)=>a.autodealerPriceNumber-b.autodealerPriceNumber);
+        else if(anyFilter) list.sort(byName); // בסינון/קטגוריה — ברירת מחדל לפי שם א׳-ב׳
         el.innerHTML = list.map(cardHtml).join('');
       }
       updateCompareTray();
