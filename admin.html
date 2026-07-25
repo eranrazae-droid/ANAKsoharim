@@ -486,6 +486,13 @@
         <label>תיאור קצר</label>
         <textarea id="e-summary"></textarea>
         <label style="margin-top:12px;font-weight:900;font-size:16px">📋 מפרט טכני מלא</label>
+        <div style="margin-top:10px;background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:12px">
+          <div style="font-weight:800;font-size:14px;margin-bottom:6px">📥 הדבקת מפרט מ-ICAR</div>
+          <div style="font-size:12.5px;color:#92400e;margin-bottom:8px">העתק מדף הרכב ב-ICAR את כל אזור המפרט והדבק כאן — המערכת תמלא אוטומטית את כל השדות התואמים.</div>
+          <textarea id="icarPaste" rows="4" placeholder="הדבק כאן את המפרט מ-ICAR..." style="width:100%;font-size:12px"></textarea>
+          <button type="button" class="btn btn-black" style="margin-top:8px" onclick="parseIcarSpec()">⚡ מלא שדות מהטקסט</button>
+          <span id="icarPasteMsg" style="margin-right:10px;font-size:13px;font-weight:800"></span>
+        </div>
         <div style="margin-top:16px;border-top:2px solid #D4A017;padding-top:12px"><div style="font-weight:900;font-size:16px;margin-bottom:10px">פרטי הרכב ואחריות</div><div style="display:grid;gap:8px">
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">שנת דגם</label><input id="sp_שנת_דגם" type="text" style="padding:6px 8px;font-size:13px"></div>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center"><label style="font-size:13px;color:#555">מספר דלתות</label><input id="sp_מספר_דלתות" type="text" style="padding:6px 8px;font-size:13px"></div>
@@ -1008,6 +1015,31 @@
     if(s.indexOf('filled')>=0) return '#2563eb';
     if(s.indexOf('already-correct')>=0) return '#16a34a';
     return '#64748b';
+  }
+
+  // פענוח מפרט מ-ICAR: מתאים כל תווית לטקסט ה-<label> שליד השדה וממלא אוטומטית
+  function parseIcarSpec(){
+    const raw=(document.getElementById('icarPaste')||{}).value||'';
+    const lines=raw.split(/\r?\n/).map(s=>s.trim()).filter(s=>s.length);
+    const norm=s=>(s||'').replace(/[\s"'“”‘’׳״:()]/g,'');
+    const map={};
+    document.querySelectorAll('input[id^="sp_"]').forEach(inp=>{
+      const lbl=inp.parentElement && inp.parentElement.querySelector('label');
+      if(lbl){ const k=norm(lbl.textContent); if(k) map[k]=inp; }
+    });
+    let filled=0;
+    for(let i=0;i<lines.length;i++){
+      const key=norm(lines[i]);
+      if(map[key]){
+        let val=(i+1<lines.length)?lines[i+1]:'';
+        if(val && map[norm(val)]) val='';                 // השורה הבאה היא תווית אחרת → אין ערך
+        if(val && val.indexOf('כוכב')>=0){ const c=(val.match(/כוכב/g)||[]).length; if(c) val=c+' כוכבים'; }
+        if(val){ map[key].value=val; filled++; i++; }
+      }
+    }
+    const msg=document.getElementById('icarPasteMsg');
+    if(msg){ msg.textContent = filled?('✅ מולאו '+filled+' שדות — בדוק ולחץ שמור'):'לא זוהו שדות — ודא שהעתקת את אזור המפרט'; msg.style.color = filled?'#16a34a':'#dc2626'; }
+    if(filled) toast('✅ מולאו '+filled+' שדות מ-ICAR');
   }
 
   // דשבורד רכבים שחסרה להם תמונת קטלוג ל-XML (catalog_image)
