@@ -485,6 +485,7 @@
       <div class="form-group" style="grid-column:span 3">
         <label>תיאור קצר</label>
         <textarea id="e-summary"></textarea>
+        <button type="button" class="btn btn-line btn-sm" style="margin-top:6px" onclick="generateDesc()">✨ צור תיאור אוטומטי מהמפרט</button>
         <label style="margin-top:12px;font-weight:900;font-size:16px">📋 מפרט טכני מלא</label>
         <div style="margin-top:10px;background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:12px">
           <div style="font-weight:800;font-size:14px;margin-bottom:6px">📥 הדבקת מפרט מ-ICAR</div>
@@ -1015,6 +1016,39 @@
     if(s.indexOf('filled')>=0) return '#2563eb';
     if(s.indexOf('already-correct')>=0) return '#16a34a';
     return '#64748b';
+  }
+
+  // יצירת תיאור קצר אוטומטי מתוך שדות המפרט שמולאו
+  function generateDesc(){
+    const norm=s=>(s||'').replace(/[\s"'“”‘’׳״:()]/g,'');
+    const m={};
+    document.querySelectorAll('input[id^="sp_"]').forEach(inp=>{ const l=inp.parentElement&&inp.parentElement.querySelector('label'); if(l) m[norm(l.textContent)]=(inp.value||'').trim(); });
+    const g=lbl=>{ const v=m[norm(lbl)]||''; return (v==='--'||v==='-')?'':v; };
+    const brand=(document.getElementById('e-brand').value||'').trim();
+    const model=(document.getElementById('e-model').value||'').trim();
+    const year=(document.getElementById('e-year').value||'').trim();
+    const engine=(document.getElementById('e-engine').value||'').trim();
+    const power=g('הספק מרבי (כ"ס)'), accel=g('תאוצה 0-100'), erange=g('טווח נסיעה חשמלי (ק"מ)');
+    const stars=g('מבחן ריסוק'), airbags=g('כריות אוויר'), warranty=g('אחריות'), screen=g('גודל מסך (אינץ\')');
+    const parts=[];
+    let head=(brand+' '+model+(year?(' '+year):'')).trim();
+    if(engine) head+=' — '+engine;
+    if(head) parts.push(head+'.');
+    const perf=[];
+    if(power) perf.push(power+' כ"ס');
+    if(accel) perf.push('האצה 0–100 ב-'+accel+' שנ׳');
+    if(erange) perf.push(erange+' ק"מ טווח חשמלי');
+    if(perf.length) parts.push(perf.join(', ')+'.');
+    const safe=[];
+    const starNum=(stars.match(/\d+/)||[])[0];
+    if(starNum) safe.push(starNum+' כוכבי בטיחות');
+    if(airbags) safe.push(airbags+' כריות אוויר');
+    if(safe.length) parts.push(safe.join(' ו-')+'.');
+    if(screen) parts.push('מסך מולטימדיה '+screen+'".');
+    parts.push('רכב חדש 0 ק"מ מיבואן רשמי'+(warranty?(', אחריות '+warranty):'')+'.');
+    const txt=parts.join(' ');
+    const el=document.getElementById('e-summary'); if(el){ el.value=txt; }
+    toast('✨ נוצר תיאור קצר — ערוך אם צריך ולחץ שמור');
   }
 
   // פענוח מפרט מ-ICAR מטקסט מודבק. מתאים כל תווית לטקסט ה-<label> שליד השדה וממלא אוטומטית.
