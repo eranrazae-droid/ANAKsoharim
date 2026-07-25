@@ -1469,8 +1469,18 @@
     const modal=document.createElement('div');
     modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px';
     modal.onclick=function(e){ if(e.target===modal) modal.remove(); };
+    // רכבים שחסרה להם תמונת קטלוג (לפי כללי הפיד) — משימת הילה
+    const noCatImg = cars.filter(c=>c && !c.hidden && !HIDDEN_IDS.includes(c.id) && !c.meta_hide && (Number(c.autodealerPriceNumber)||0)>1 && !(c.catalog_image && String(c.catalog_image).trim()));
+    const catImgSection = noCatImg.length ? (
+      '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:14px;padding:12px;margin-top:10px;text-align:right">'+
+        '<div style="font-weight:900;color:#b91c1c;font-size:15px;margin-bottom:8px">🖼️ '+noCatImg.length+' רכבים ללא תמונת קטלוג (לא נכנסים לפיד Meta)</div>'+
+        '<div style="max-height:180px;overflow-y:auto;display:grid;gap:6px">'+
+          noCatImg.map(c=>'<div style="display:flex;align-items:center;gap:8px;justify-content:space-between;background:#fff;border-radius:10px;padding:7px 10px"><span style="font-weight:700;font-size:13px">'+_esc(c.brand+' '+c.model)+'</span><button onclick="this.closest(\'div[style*=fixed]\').remove();editCar('+c.id+')" style="border:none;background:#0d0d0d;color:#fff;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap">✏️ עריכה</button></div>').join('')+
+        '</div>'+
+      '</div>'
+    ) : '';
     const box=document.createElement('div');
-    box.style.cssText='background:#fff;border-radius:24px;padding:34px 28px;max-width:390px;width:100%;text-align:center;direction:rtl;box-shadow:0 20px 60px rgba(0,0,0,.3)';
+    box.style.cssText='background:#fff;border-radius:24px;padding:34px 28px;max-width:440px;width:100%;text-align:center;direction:rtl;box-shadow:0 20px 60px rgba(0,0,0,.3);max-height:90vh;overflow-y:auto';
     box.innerHTML=
       '<div style="font-size:30px;letter-spacing:6px">❤️❤️❤️</div>'+
       '<h2 style="font-size:26px;font-weight:900;margin-top:14px">היי הילה 💛</h2>'+
@@ -1478,6 +1488,7 @@
         '<div style="background:#fef9e7;border-radius:14px;padding:12px;font-size:16px;color:#374151">📋 יש לך <b style="color:#a16207;font-size:20px">'+openCount+'</b> '+(openCount===1?'משימה פתוחה':'משימות פתוחות')+'</div>'+
         '<div style="background:#ecfdf5;border-radius:14px;padding:12px;font-size:16px;color:#374151">👥 <b style="color:#15803d;font-size:20px">'+newLeads+'</b> '+(newLeads===1?'ליד חדש ממתין':'לידים חדשים ממתינים')+'</div>'+
       '</div>'+
+      catImgSection+
       '<div style="font-size:30px;letter-spacing:6px;margin-top:16px">❤️❤️❤️</div>'+
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:22px">'+
         '<button onclick="this.closest(\'div[style*=fixed]\').remove();showTab(\'tasks\')" style="background:#0d0d0d;color:#fff;border:none;border-radius:14px;padding:13px;font-weight:900;font-size:14px;cursor:pointer">📋 משימות</button>'+
@@ -2070,7 +2081,6 @@
       const miss=[];
       if(isBadUrl(c.image)) miss.push('תמונה ראשית');
       if(!((c.gallery||[]).filter(g=>g&&!isBadUrl(g)).length)) miss.push('תמונות פנים');
-      if(!(c.catalog_image && String(c.catalog_image).trim())) miss.push('תמונת קטלוג');
       if(!(c.summary && String(c.summary).trim())) miss.push('תיאור קצר');
       if(!(c.category && String(c.category).trim())) miss.push('קטגוריה');
       if(!((Number(c.autodealerPriceNumber)||0)>1)) miss.push('מחיר');
