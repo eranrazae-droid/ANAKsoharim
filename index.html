@@ -960,7 +960,7 @@ display:none !important;
                 <div id="calcIndexed" style="display:none"></div>
                 <div id="calcPrime" style="display:none"></div>
                 <div class="cta-row" style="margin-top:16px">
-                  <a id="waDealBtn" class="gold-btn" target="_blank" rel="noreferrer">שלחו לי את העסקה בוואטסאפ</a>
+                  <a id="waDealBtn" class="gold-btn" target="_blank" rel="noreferrer" onclick="saveDealInterest()">שלחו לי את העסקה בוואטסאפ</a>
                   <button class="primary-btn" style="background:#25D366" onclick="window.open('https://wa.me/972508396030?text='+encodeURIComponent('היי, אני רוצה לבדוק התאמת מימון לרכב'),'_blank')">💬 התייעצו איתנו</button>
                 </div>
                 <div class="center muted" style="font-size:12px;margin-top:12px">החישוב להמחשה בלבד, כפוף לאישור מימון.</div>
@@ -2706,6 +2706,7 @@ display:none !important;
       const carLink = 'https://autodealer.co.il/?car=' + encodeURIComponent(selectedCar.id);
       const msg = `היי, ראיתי את ${selectedCar.brand} ${selectedCar.model}${selectedCar.year ? ' ' + selectedCar.year : ''}
 מחיר אוטודילר: ${fmt(totalWithLic)}
+מחיר לאחר קיזוז קופון (₪300): ${fmt(Math.max(0, totalWithLic - 300))}
 מקדמה: ${fmt(down)}
 יתרה למימון: ${fmt(effective)}
 החזר חודשי (בלון 50%): ${b}${desired ? `
@@ -2844,6 +2845,22 @@ display:none !important;
       modal.addEventListener('click', function(ev){ if(ev.target===modal) modal.remove(); });
     }
 
+    // רישום עניין בלחיצה על "שלחו לי את העסקה בוואטסאפ" — גם אם הלקוח לא ישלים את השליחה
+    function saveDealInterest(){
+      try{
+        const c = sbClient(); if(!c || !selectedCar) return;
+        const down = Number((document.getElementById('downPaymentRange')||{}).value||0);
+        const totalWithLic = Number(selectedCar.autodealerPriceNumber||0) + (Number(selectedCar.licenseFee)||0);
+        const effective = Math.max(0, totalWithLic - down);
+        const monthly = fmt(financeLowest(effective));
+        const summary = 'מחיר '+fmt(totalWithLic)+' · מקדמה '+fmt(down)+' · יתרה '+fmt(effective)+' · חודשי '+monthly;
+        const vrow = { name:'', phone:'', car:(selectedCar.brand+' '+selectedCar.model).trim(), action:'לחץ שלחו עסקה בוואטסאפ', summary:summary, created_at:new Date().toISOString() };
+        const utm = JSON.stringify(window._adUtm||{});
+        c.from('leads').insert(Object.assign({},vrow,{source:SITE_SOURCE,utm:utm})).then(function(r){
+          if(r&&r.error){ c.from('leads').insert(Object.assign({},vrow,{source:SITE_SOURCE})).then(function(r2){ if(r2&&r2.error) c.from('leads').insert(vrow); }); }
+        });
+      }catch(e){ console.warn('saveDealInterest', e); }
+    }
     // שמירת ליד ל-Supabase (טבלת leads)
     async function saveLead(action){
       try{
