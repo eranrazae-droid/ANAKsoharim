@@ -488,8 +488,8 @@
         <label style="margin-top:12px;font-weight:900;font-size:16px">📋 מפרט טכני מלא</label>
         <div style="margin-top:10px;background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:12px">
           <div style="font-weight:800;font-size:14px;margin-bottom:6px">📥 הדבקת מפרט מ-ICAR</div>
-          <div style="font-size:12.5px;color:#92400e;margin-bottom:8px">הדבק <b>קישור</b> לדף הרכב ב-ICAR (מנסה למשוך אוטומטית), או העתק והדבק את <b>טקסט המפרט</b> עצמו — המערכת תמלא את כל השדות התואמים. אם משיכת הקישור נחסמת, הדבק את הטקסט.</div>
-          <textarea id="icarPaste" rows="4" placeholder="הדבק קישור ICAR או את טקסט המפרט..." style="width:100%;font-size:12px"></textarea>
+          <div style="font-size:12.5px;color:#92400e;margin-bottom:8px">בדף הרכב ב-ICAR סמן את <b>אזור המפרט</b> (הטבלאות: מנוע, מידות, בטיחות, אבזור...), העתק (Ctrl+C) והדבק כאן את <b>הטקסט</b> — המערכת תמלא את כל השדות התואמים. (הדבקת קישור בלבד לא תעבוד — צריך את הטקסט.)</div>
+          <textarea id="icarPaste" rows="4" placeholder="הדבק כאן את טקסט המפרט מ-ICAR..." style="width:100%;font-size:12px"></textarea>
           <button type="button" class="btn btn-black" style="margin-top:8px" onclick="parseIcarSpec()">⚡ מלא שדות מהטקסט</button>
           <span id="icarPasteMsg" style="margin-right:10px;font-size:13px;font-weight:800"></span>
         </div>
@@ -1017,26 +1017,14 @@
     return '#64748b';
   }
 
-  function _htmlToText(html){
-    return (html||'')
-      .replace(/<script[\s\S]*?<\/script>/gi,' ')
-      .replace(/<style[\s\S]*?<\/style>/gi,' ')
-      .replace(/<[^>]+>/g,'\n')
-      .replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/&quot;/g,'"')
-      .replace(/&#39;/g,"'").replace(/&gt;/g,'>').replace(/&lt;/g,'<');
-  }
-  // פענוח מפרט מ-ICAR: מקבל טקסט מודבק או קישור. מתאים כל תווית לטקסט ה-<label> שליד השדה וממלא אוטומטית
-  async function parseIcarSpec(){
-    let raw=(document.getElementById('icarPaste')||{}).value||'';
+  // פענוח מפרט מ-ICAR מטקסט מודבק. מתאים כל תווית לטקסט ה-<label> שליד השדה וממלא אוטומטית.
+  function parseIcarSpec(){
+    const raw=(document.getElementById('icarPaste')||{}).value||'';
     const msg=document.getElementById('icarPasteMsg');
-    if(/^https?:\/\//i.test(raw.trim())){
-      if(msg){ msg.textContent='⏳ מושך מ-ICAR...'; msg.style.color='#92400e'; }
-      try{
-        const r=await fetch('/admin-api/icar?url='+encodeURIComponent(raw.trim()));
-        const body=await r.text();
-        if(!r.ok){ if(msg){ msg.textContent='❌ ICAR חוסם משיכה אוטומטית — העתק והדבק את טקסט המפרט במקום הקישור'; msg.style.color='#dc2626'; } return; }
-        raw=_htmlToText(body);
-      }catch(e){ if(msg){ msg.textContent='❌ שגיאת רשת — הדבק את טקסט המפרט במקום הקישור'; msg.style.color='#dc2626'; } return; }
+    // קישור לבדו אינו מספק — משיכת HTML מייצרת ערכים שגויים. מבקשים להדביק את הטקסט.
+    if(/^https?:\/\/\S+$/i.test(raw.trim())){
+      if(msg){ msg.textContent='⚠️ הדבק את טקסט המפרט, לא את הקישור — סמן בדף ICAR את אזור המפרט, העתק (Ctrl+C) והדבק כאן'; msg.style.color='#dc2626'; }
+      return;
     }
     const lines=raw.split(/\r?\n/).map(s=>s.trim()).filter(s=>s.length);
     const norm=s=>(s||'').replace(/[\s"'“”‘’׳״:()]/g,'');
