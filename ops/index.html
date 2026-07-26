@@ -8350,15 +8350,14 @@ async function _telegramGetUpdates() {
 }
 
 async function _sendSms(phone, message) {
+  // SMS (Twilio) is retired — Telegram is the only active channel now.
+  // Kept as a silent no-op fallback so old callers don't error; no popups.
   if (!phone) return;
   const contacts = await _loadDriverContacts();
   const accountSid = (contacts['_twilioSid']?.value   || '').trim();
   const authToken  = (contacts['_twilioToken']?.value || '').trim();
   const from       = (contacts['_twilioFrom']?.value  || '').trim();
-  if (!accountSid || !authToken || !from) {
-    showToast('⚠️ SMS: חסרים פרטי Twilio בהגדרות הודעות', 5000);
-    return;
-  }
+  if (!accountSid || !authToken || !from) { console.warn('SMS skipped — no Twilio creds'); return; }
   try {
     const res = await fetch(_SMS_FUNC_URL, {
       method: 'POST',
@@ -8366,13 +8365,9 @@ async function _sendSms(phone, message) {
       body: JSON.stringify({ accountSid, authToken, from, to: phone, message })
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      console.error('Twilio SMS error', res.status, data);
-      showToast(`⚠️ SMS שגיאה ${res.status}: ${JSON.stringify(data).slice(0,80)}`, 6000);
-    }
+    if (!res.ok) console.error('Twilio SMS error', res.status, data);
   } catch(e) {
     console.error('SMS fetch error', e);
-    showToast(`⚠️ SMS: שגיאת חיבור — ${e.message}`, 6000);
   }
 }
 
