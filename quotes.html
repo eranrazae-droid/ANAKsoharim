@@ -723,7 +723,33 @@ function openArchivedDeal(i) {
   document.getElementById('arch-modal').style.display = 'flex';
 }
 
+function autoArchiveOld() {
+  var LIMIT = 72 * 60 * 60 * 1000; // 72 שעות במילישניות
+  var now = Date.now();
+  var deals = getDeals();
+  var toKeep = [];
+  var archD = JSON.parse(localStorage.getItem('anak-archive') || '[]');
+  var changed = false;
+  deals.forEach(function(d) {
+    var age = now - (d.createdAt || now);
+    if (age >= LIMIT) {
+      d.archivedAt = new Date().toLocaleString('he-IL');
+      d.autoArchived = true;
+      archD.unshift(d);
+      changed = true;
+    } else {
+      toKeep.push(d);
+    }
+  });
+  if (changed) {
+    localStorage.setItem('anak-archive', JSON.stringify(archD));
+    fbSet('/archive', archD);
+    saveDeals(toKeep);
+  }
+}
+
 (function initPage() {
+  autoArchiveOld();
   var params = new URLSearchParams(location.search);
   var dealParam = params.get('deal');
   if (dealParam !== null) {
