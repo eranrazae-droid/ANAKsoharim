@@ -7362,7 +7362,7 @@ function _plateShowNotInInventory(plate) {
 function _plateCloudTry(srcCanvas) {
   if (_plateCloudBusy || !_plateCloudToken || _plateCloudBlocked) return;
   const now = Date.now();
-  if (now - _plateCloudLastAt < 1600) return;
+  if (now - _plateCloudLastAt < 1100) return;
   if (now - _plateLastMarkAt < 2500) return; // still pointing at the car we just marked
   // camera has been aimed at an unresolved plate for a while without a match —
   // stop hammering the cloud on it; resolve locally or move the camera to reset
@@ -7453,7 +7453,7 @@ async function _plateCloudLoop() {
           // give local OCR a real chance first — only escalate to cloud once
           // the SAME plate has sat unresolved in view for a while (genuinely
           // stubborn), not the instant any plate enters the frame
-          if (now - _plateYellowSinceAt > 900) {
+          if (now - _plateYellowSinceAt > 500) {
             // crop the yellow box (+margin) from the live video at native resolution
             const px = bx + (minX / sw) * bw, pw = ((maxX - minX) / sw) * bw;
             const py = by + (minY / sh) * bh, ph = Math.max(1, ((maxY - minY) / sh) * bh);
@@ -7495,7 +7495,7 @@ async function _plateScanLoop() {
             // local read digits but couldn't match — only escalate to cloud once
             // this has persisted a moment, not on the very first misread frame
             if (!_plateUnresolvedAt) _plateUnresolvedAt = Date.now();
-            else if (Date.now() - _plateUnresolvedAt > 700) _plateCloudTry(frame);
+            else if (Date.now() - _plateUnresolvedAt > 450) _plateCloudTry(frame);
           }
         } else {
           _plateUnresolvedAt = 0;
@@ -7563,12 +7563,23 @@ let _plateLastTokensAt = 0;
 
 function _plateSetupZoom() {
   const ind = document.getElementById('plate-zoom-ind');
-  _plateZoomIdx = 3;
+  _plateZoomIdx = 1; // start at 1x — the driver stands close to the plate
   _plateLastTokensAt = Date.now();
   try {
     const track = _plateStream.getVideoTracks()[0];
     const caps = track.getCapabilities ? track.getCapabilities() : {};
     _plateHwZoom = !!(caps.zoom && caps.zoom.max > 1);
+    // continuous autofocus tuned for close range — plates are read from ~0.5-2m
+    const adv = [];
+    if (caps.focusMode && caps.focusMode.includes('continuous')) adv.push({ focusMode: 'continuous' });
+    if (caps.focusDistance && typeof caps.focusDistance.min === 'number') {
+      // bias focus toward near objects (value is meters on most devices)
+      const near = Math.max(caps.focusDistance.min, 0.5);
+      adv.push({ focusMode: 'manual', focusDistance: near });
+      // manual-near can fight moving scans — prefer continuous when both exist
+      if (caps.focusMode && caps.focusMode.includes('continuous')) adv.pop();
+    }
+    if (adv.length) track.applyConstraints({ advanced: adv }).catch(() => {});
   } catch(e) { _plateHwZoom = false; }
   ind.style.display = 'inline-block';
   _plateApplyZoom();
@@ -7608,7 +7619,7 @@ let _plateEmptyFrames = 0;
 function _plateAutoZoomTick(gotTokens) {
   if (gotTokens) { _plateEmptyFrames = 0; _plateLastTokensAt = Date.now(); return; }
   _plateEmptyFrames++;
-  if (_plateEmptyFrames >= 4 && Date.now() - _plateLastTokensAt > 1500) {
+  if (_plateEmptyFrames >= 3 && Date.now() - _plateLastTokensAt > 800) {
     _plateEmptyFrames = 0;
     _plateLastTokensAt = Date.now();
     _plateZoomIdx = (_plateZoomIdx + 1) % _plateZoomLevels.length;
