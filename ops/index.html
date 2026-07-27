@@ -6127,6 +6127,22 @@ window.markChecked = markChecked;
    Stage 2 (importer recall lookup) plugs into the last column. */
 let _recallRows = []; // {plate, tozeret, degem, shnat, misgeret, state: 'wait'|'ok'|'miss'|'err'}
 
+// gov.il's tozeret_nm often appends the country of manufacture (e.g. "יונדאי צכיה",
+// "טויוטה-יפן") — the recall lookup only needs the brand, so strip a trailing
+// country name/prefix.
+const _MFR_COUNTRIES = ['יפן','קוריאה','גרמניה','ארהב',"ארה\"ב",'צכיה','צ\'כיה','ספרד','איטליה','סין',
+  'הודו','טורקיה','שוודיה','בריטניה','פורטוגל','סלובקיה','רומניה','פולין','בלגיה','צרפת','פרנסה',
+  'מקסיקו','ברזיל','רוסיה','תאילנד','מלזיה','הונגריה','אוסטריה','הולנד','סלובניה','ארגנטינה','דרום אפריקה'];
+function _stripMfrCountry(name) {
+  let n = String(name || '').trim();
+  if (!n) return '';
+  for (const c of _MFR_COUNTRIES) {
+    const re = new RegExp(`[\\s-]+${c.replace(/'/g, "'?")}$`, 'i');
+    n = n.replace(re, '');
+  }
+  return n.trim();
+}
+
 function openRecallScreen() {
   document.getElementById('recall-user-badge').textContent = currentUser.name;
   showScreen('recall');
@@ -6208,7 +6224,7 @@ async function _recallEnrichAll() {
         const json = await res.json();
         const rec = json?.result?.records?.[0];
         if (rec) {
-          row.tozeret  = rec.tozeret_nm || '';
+          row.tozeret  = _stripMfrCountry(rec.tozeret_nm || '');
           row.degem    = rec.kinuy_mishari || rec.degem_nm || '';
           row.shnat    = rec.shnat_yitzur || '';
           row.misgeret = rec.misgeret || '';
