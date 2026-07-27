@@ -6254,22 +6254,49 @@ async function _recallEnrichAll() {
 // parameter, which bypasses CORS without needing any server of our own.
 const _RECALL_RESOURCE = '36bf1404-0be4-49d2-82dc-2f1ead4a8b93';
 const _sleep = ms => new Promise(r => setTimeout(r, ms));
-// One CKAN query per BATCH of plates (filters accept arrays) — 156 cars become
-// ~4 requests instead of 156, which is what was tripping gov.il's rate limit
-// (the 409s + missing-CORS-on-error responses seen earlier).
+// CKAN answers 409 for filter validation errors (e.g. a field name that
+// doesn't exist in this resource) — so first LEARN the plate field's real
+// name from a sample record, and if filtered queries still fail, fall back
+// to free-text search (q=) which is what was verified to work.
+let _recallPlateField = null;
+async function _recallLearnField() {
+  if (_recallPlateField) return _recallPlateField;
+  const res = await fetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=${_RECALL_RESOURCE}&limit=1`);
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const json = await res.json();
+  const rec = json?.result?.records?.[0] || {};
+  // prefer a field whose name mentions rechev/mispar and whose value looks like a plate
+  const keys = Object.keys(rec).filter(k => !k.startsWith('_'));
+  let best = keys.find(k => /rechev|rishuy|mispar/i.test(k) && /^\d{6,9}$/.test(String(rec[k]).replace(/\D/g,'')));
+  if (!best) best = keys.find(k => /^\d{6,9}$/.test(String(rec[k]).replace(/\D/g,'')));
+  _recallPlateField = best || 'mispar_rechev';
+  console.log('recall plate field =', _recallPlateField, 'sample record keys:', keys);
+  return _recallPlateField;
+}
 async function _recallQueryBatch(plates, attempt = 0) {
-  const filters = encodeURIComponent(JSON.stringify({ mispar_rechev: plates.map(Number) }));
+  const field = await _recallLearnField();
+  const filters = encodeURIComponent(JSON.stringify({ [field]: plates.map(Number) }));
   const url = `https://data.gov.il/api/3/action/datastore_search?resource_id=${_RECALL_RESOURCE}&filters=${filters}&limit=${plates.length * 5}`;
-  try {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const json = await res.json();
-    if (!json?.success) throw new Error('CKAN error');
-    return json.result?.records || [];
-  } catch(e) {
-    if (attempt < 3) { await _sleep(1000 * Math.pow(2, attempt)); return _recallQueryBatch(plates, attempt + 1); }
-    throw e;
+  const res = await fetch(url);
+  if (res.status === 409) throw new Error('VALIDATION'); // wrong field/filter — don't retry, switch strategy
+  if (!res.ok) {
+    if (attempt < 2) { await _sleep(1000 * Math.pow(2, attempt)); return _recallQueryBatch(plates, attempt + 1); }
+    throw new Error('HTTP ' + res.status);
   }
+  const json = await res.json();
+  if (!json?.success) throw new Error('CKAN error');
+  return json.result?.records || [];
+}
+// free-text fallback — verified to work against this resource (q=<plate>)
+async function _recallQueryQ(plate) {
+  const res = await fetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=${_RECALL_RESOURCE}&q=${plate}&limit=5`);
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const json = await res.json();
+  if (!json?.success) throw new Error('CKAN error');
+  // free-text search can match other fields too — keep only records where some
+  // field's digits equal the plate exactly
+  return (json.result?.records || []).filter(rec =>
+    Object.entries(rec).some(([k, v]) => !k.startsWith('_') && String(v).replace(/\D/g, '') === plate));
 }
 async function _recallCheckAll() {
   const banner = document.getElementById('recall-status-banner');
@@ -6279,30 +6306,45 @@ async function _recallCheckAll() {
   renderRecallTable();
   const BATCH = 40;
   let done = 0;
+  let useQ = false; // once filtered queries prove invalid, stay on free-text mode
   for (let i = 0; i < targets.length; i += BATCH) {
     const chunk = targets.slice(i, i + BATCH);
-    try {
-      const recs = await _recallQueryBatch(chunk.map(r => r.plate));
-      const byPlate = {};
-      for (const rec of recs) {
-        const p = String(rec.mispar_rechev ?? '').replace(/\D/g, '');
-        (byPlate[p] = byPlate[p] || []).push(rec);
+    let batchOk = false;
+    if (!useQ) {
+      try {
+        const recs = await _recallQueryBatch(chunk.map(r => r.plate));
+        const byPlate = {};
+        for (const rec of recs) {
+          for (const [k, v] of Object.entries(rec)) {
+            if (k.startsWith('_')) continue;
+            const d = String(v).replace(/\D/g, '');
+            if (d.length >= 6 && d.length <= 9) (byPlate[d] = byPlate[d] || []).push(rec);
+          }
+        }
+        for (const row of chunk) {
+          if (byPlate[row.plate]?.length) { row.recallState = 'open'; row.recallDetails = [...new Set(byPlate[row.plate])]; }
+          else { row.recallState = 'none'; }
+        }
+        batchOk = true;
+      } catch(e) {
+        console.error('recall batch query failed — switching to free-text mode', e);
+        useQ = true;
       }
-      for (const row of chunk) {
-        if (byPlate[row.plate]?.length) { row.recallState = 'open'; row.recallDetails = byPlate[row.plate]; }
-        else { row.recallState = 'none'; }
-      }
-    } catch(e) {
-      // batch failed even after retries — check this chunk one by one, slowly
-      console.error('recall batch failed, falling back per-plate', e);
+    }
+    if (!batchOk) {
+      // free-text search per plate — slower but verified to work
       for (const row of chunk) {
         try {
-          const recs = await _recallQueryBatch([row.plate]);
+          const recs = await _recallQueryQ(row.plate);
           if (recs.length) { row.recallState = 'open'; row.recallDetails = recs; }
           else { row.recallState = 'none'; }
         } catch(e2) { row.recallState = 'err'; }
-        await _sleep(350);
+        done++;
+        if (banner) banner.innerHTML = `⏳ בודק ריקולים פתוחים... ${Math.min(done, targets.length)}/${targets.length}`;
+        await _sleep(250);
       }
+      renderRecallTable();
+      continue;
     }
     done += chunk.length;
     if (banner) banner.innerHTML = `⏳ בודק ריקולים פתוחים... ${Math.min(done, targets.length)}/${targets.length}`;
