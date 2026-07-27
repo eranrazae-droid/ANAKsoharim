@@ -171,3 +171,49 @@ exports.recallDailyReminder = onSchedule(
     }
   }
 );
+
+// Sun/Tue/Thu at 11:00 — nudge drivers about cars still waiting to be
+// charged, as long as any active charging_tasks batch has unfinished cars.
+exports.chargingReminder = onSchedule(
+  { schedule: "0 11 * * 0,2,4", region: "europe-west1", timeZone: "Asia/Jerusalem" },
+  async () => {
+    const snap = await db.collection("charging_tasks").where("status", "==", "active").get();
+    if (snap.empty) return;
+
+    const pendingPlates = [];
+    for (const docSnap of snap.docs) {
+      const data = docSnap.data();
+      const headers = data.headers || [];
+      const plateIdx = headers.findIndex((h) => /מספר רישוי|מספר רכב|לוחית/.test(h));
+      const cars = data.carsJson ? JSON.parse(data.carsJson) : [];
+      for (const car of cars) {
+        if (car.charged) continue;
+        const cells = car.cells || [];
+        const plate = plateIdx >= 0 ? cells[plateIdx] : cells.find((c) => /^\d{7,8}$/.test(String(c).replace(/\D/g, "")));
+        pendingPlates.push(plate || "רכב ללא מספר מזוהה");
+      }
+    }
+    if (!pendingPlates.length) return;
+
+    const contactsSnap = await db.collection("config").doc("driver_contacts").get();
+    const contacts = contactsSnap.exists ? contactsSnap.data() : {};
+    const token = contacts["_telegramToken"]?.value || "";
+    if (!token) return;
+
+    const text = `🔋 תזכורת — יש ${pendingPlates.length} רכבים שממתינים לטעינה:\n\n${pendingPlates.map((p) => "🚗 " + p).join("\n")}\n\nיש להשלים את הטעינה.`;
+
+    for (const name of ["עופר", "גיל", "איתי"]) {
+      const chatId = contacts[name]?.telegramId;
+      if (!chatId) continue;
+      try {
+        await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: chatId, text }),
+        });
+      } catch (err) {
+        console.error("charging reminder send failed for", name, err);
+      }
+    }
+  }
+);
