@@ -6278,19 +6278,9 @@ async function _recallCheckAll() {
   };
   await Promise.all(Array.from({ length: CONC }, worker));
   localStorage.setItem('_recallData', JSON.stringify(_recallRows));
-  const openCount = _recallRows.filter(r => r.recallState === 'open').length;
-  if (banner) {
-    if (openCount) { banner.style.background = '#fff5f6'; banner.style.border = '2px solid #ef4444'; banner.style.color = '#991b1b'; banner.innerHTML = `⚠️ נמצאו ${openCount} רכבים עם ריקול פתוח`; }
-    else { banner.style.background = '#f0fff4'; banner.style.border = '2px solid #22c55e'; banner.style.color = '#166534'; banner.innerHTML = `✅ נבדקו כל הרכבים — אין ריקולים פתוחים`; }
-  }
+  if (banner) banner.style.display = 'none'; // the list itself now shows the final result
+  renderRecallTable();
 }
-
-function showRecallDetails(plate) {
-  const row = _recallRows.find(r => r.plate === plate);
-  if (!row || !row.recallDetails?.length) return;
-  alert(`רכב ${plate} — ריקול פתוח:\n\n` + row.recallDetails.map(rec => Object.entries(rec).filter(([k])=>!k.startsWith('_')).map(([k,v])=>`${k}: ${v}`).join('\n')).join('\n\n'));
-}
-window.showRecallDetails = showRecallDetails;
 
 function renderRecallTable() {
   const c = document.getElementById('recall-list');
@@ -6299,32 +6289,27 @@ function renderRecallTable() {
     c.innerHTML = '<div class="empty-state" style="padding:40px 20px;text-align:center;color:var(--muted)">העלה קובץ עם מספרי רכב כדי להתחיל</div>';
     return;
   }
-  const stateBadge = r =>
-    r.state === 'wait' ? '<span style="color:#94a3b8">⏳</span>' :
-    r.state === 'ok'   ? '<span style="color:#22c55e">✓</span>' :
-    r.state === 'miss' ? '<span style="color:#f59e0b" title="לא נמצא במאגר">לא נמצא</span>' :
-                         '<span style="color:#ef4444">שגיאה</span>';
-  const recallBadge = r =>
-    r.recallState === 'open'     ? `<span onclick="showRecallDetails('${r.plate}')" style="color:#ef4444;font-weight:900;cursor:pointer;text-decoration:underline">⚠️ פתוח</span>` :
-    r.recallState === 'none'     ? '<span style="color:#22c55e">✓ אין</span>' :
-    r.recallState === 'checking' ? '<span style="color:#94a3b8">⏳</span>' :
-    r.recallState === 'err'      ? '<span style="color:#ef4444">שגיאה</span>' :
-                                    '<span style="color:#94a3b8">—</span>';
-  const cols = 'minmax(80px,1fr) minmax(90px,1.2fr) minmax(90px,1.2fr) 52px minmax(130px,1.6fr) 60px 80px';
-  let html = `<div style="display:grid;grid-template-columns:${cols};gap:4px;background:var(--dark);color:#fff;border-radius:10px 10px 0 0;padding:8px 10px;font-size:11px;font-weight:700;direction:rtl;min-width:640px">
-    <div>מס׳ רכב</div><div>יצרן</div><div>דגם</div><div>שנה</div><div>מספר שלדה</div><div>מצב</div><div>ריקול</div>
-  </div>`;
-  html += _recallRows.map(r => `
-    <div style="display:grid;grid-template-columns:${cols};gap:4px;align-items:center;background:${r.recallState==='open'?'#fff5f6':'#fff'};border:1.5px solid ${r.recallState==='open'?'#ef4444':'var(--border)'};border-radius:8px;padding:6px 10px;margin-bottom:3px;direction:rtl;min-width:640px;font-size:12px;font-weight:600">
-      <div style="font-weight:800">${esc(r.plate)}</div>
-      <div>${esc(r.tozeret) || '—'}</div>
-      <div>${esc(r.degem) || '—'}</div>
-      <div>${esc(String(r.shnat || '')) || '—'}</div>
-      <div style="direction:ltr;text-align:right;font-family:monospace;font-size:11px;overflow:hidden;text-overflow:ellipsis">${esc(r.misgeret) || '—'}</div>
-      <div>${stateBadge(r)}</div>
-      <div>${recallBadge(r)}</div>
-    </div>`).join('');
-  c.innerHTML = html;
+  const stillChecking = _recallRows.some(r => r.state === 'wait' || r.recallState === 'wait' || r.recallState === 'checking');
+  if (stillChecking) {
+    c.innerHTML = '<div class="empty-state" style="padding:40px 20px;text-align:center;color:var(--muted)"><div class="spinner" style="margin:0 auto 10px"></div>בודק את כל הרכבים...</div>';
+    return;
+  }
+  const open = _recallRows.filter(r => r.recallState === 'open');
+  if (!open.length) {
+    c.innerHTML = `<div class="empty-state" style="padding:40px 20px;text-align:center;color:#166534">✅ נבדקו ${_recallRows.length} רכבים — לאף אחד אין ריקול פתוח</div>`;
+    return;
+  }
+  c.innerHTML = `<div style="font-weight:800;font-size:14px;color:#991b1b;margin-bottom:10px">⚠️ נמצאו ${open.length} רכבים עם ריקול פתוח מתוך ${_recallRows.length}</div>` +
+    open.map(r => {
+      const details = (r.recallDetails || []).map(rec =>
+        Object.entries(rec).filter(([k]) => !k.startsWith('_')).map(([k,v]) => `<div style="display:flex;gap:6px;font-size:12px;padding:2px 0"><div style="font-weight:700;color:var(--muted);min-width:100px">${esc(k)}</div><div>${esc(String(v))}</div></div>`).join('')
+      ).join('<div style="height:6px"></div>');
+      return `<div style="border:2px solid #ef4444;background:#fff5f6;border-radius:14px;padding:14px 16px;margin-bottom:12px">
+        <div style="font-weight:900;font-size:16px;color:#991b1b;margin-bottom:6px">🚗 ${esc(r.plate)} · ${esc(r.tozeret)||'—'} ${esc(r.degem)||''} ${r.shnat?`(${esc(String(r.shnat))})`:''}</div>
+        ${r.misgeret ? `<div style="font-size:12px;color:var(--muted);margin-bottom:8px;font-family:monospace">שלדה: ${esc(r.misgeret)}</div>` : ''}
+        <div style="border-top:1px solid #fecaca;padding-top:8px">${details}</div>
+      </div>`;
+    }).join('');
 }
 window.openRecallScreen = openRecallScreen;
 window.handleRecallFile = handleRecallFile;
