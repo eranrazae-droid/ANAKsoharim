@@ -6248,21 +6248,24 @@ async function _recallEnrichAll() {
 }
 
 // Ministry of Transport's "vehicles pending recall repair" registry — a plate
-// found here has an OPEN recall that hasn't been fixed yet.
+// found here has an OPEN recall that hasn't been fixed yet. This resource
+// (unlike the main vehicle registry) doesn't send CORS headers to browsers,
+// so it's relayed through our own Cloud Function.
 const _RECALL_RESOURCE = '36bf1404-0be4-49d2-82dc-2f1ead4a8b93';
+const _GOVIL_PROXY_URL = 'https://govilproxy-343573102369.europe-west1.run.app';
 async function _recallCheckAll() {
   const banner = document.getElementById('recall-status-banner');
   let done = 0;
   const targets = _recallRows.filter(r => r.recallState !== 'open' && r.recallState !== 'none');
   targets.forEach(r => r.recallState = 'checking');
-  const CONC = 4;
+  const CONC = 2; // gov.il's datastore rejects too many concurrent connections (409)
   const queue = [...targets];
   const worker = async () => {
     while (queue.length) {
       const row = queue.shift();
       try {
         const filters = encodeURIComponent(JSON.stringify({ mispar_rechev: Number(row.plate) }));
-        const res = await fetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=${_RECALL_RESOURCE}&filters=${filters}&limit=5`);
+        const res = await fetch(`${_GOVIL_PROXY_URL}?resource_id=${_RECALL_RESOURCE}&filters=${filters}&limit=5`);
         const json = await res.json();
         const recs = json?.result?.records || [];
         if (recs.length) { row.recallState = 'open'; row.recallDetails = recs; }

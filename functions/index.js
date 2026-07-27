@@ -115,3 +115,24 @@ exports.checkReminders = onSchedule(
     }
   }
 );
+
+// data.gov.il's recall dataset (unlike the main vehicle registry dataset)
+// doesn't send CORS headers, so the browser can't call it directly — this
+// relays the request server-side, where CORS doesn't apply.
+exports.govilProxy = onRequest({ cors: true, region: "europe-west1" }, async (req, res) => {
+  const resourceId = req.query.resource_id;
+  if (!resourceId || typeof resourceId !== "string") {
+    return res.status(400).json({ error: "Missing resource_id" });
+  }
+  const params = new URLSearchParams({ resource_id: resourceId });
+  if (req.query.filters) params.set("filters", req.query.filters);
+  if (req.query.q) params.set("q", req.query.q);
+  params.set("limit", req.query.limit || "5");
+  try {
+    const govRes = await fetch(`https://data.gov.il/api/3/action/datastore_search?${params.toString()}`);
+    const data = await govRes.json();
+    res.status(govRes.ok ? 200 : govRes.status).json(data);
+  } catch (err) {
+    res.status(502).json({ error: "upstream fetch failed", message: err.message });
+  }
+});
