@@ -6154,13 +6154,32 @@ function handleRecallFile(input) {
     try {
       const wb = XLSX.read(e.target.result, { type: 'array' });
       const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
+        .map(r => r.map(c => String(c).trim()))
+        .filter(r => r.some(c => c !== ''));
+      if (!rows.length) { showToast('הקובץ ריק'); return; }
+      // find the plate/registration column by header name; fall back to the
+      // column with the most 7-8 digit values if no header matches
+      const header = rows[0];
+      let plateIdx = header.findIndex(h => /מספר רישוי|מספר רכב|לוחית/.test(h));
+      let dataRows = plateIdx >= 0 ? rows.slice(1) : rows;
+      if (plateIdx < 0) {
+        const colCount = Math.max(...rows.map(r => r.length));
+        let bestIdx = -1, bestCount = 0;
+        for (let i = 0; i < colCount; i++) {
+          const count = rows.filter(r => /^\d{7,8}$/.test((r[i] || '').replace(/\D/g, ''))).length;
+          if (count > bestCount) { bestCount = count; bestIdx = i; }
+        }
+        plateIdx = bestIdx;
+        dataRows = rows;
+      }
+      if (plateIdx < 0) { showToast('לא נמצאה עמודת מספר רישוי בקובץ'); return; }
       const plates = new Set();
-      for (const r of rows) for (const cell of r) {
-        const d = String(cell).replace(/\D/g, '');
+      for (const r of dataRows) {
+        const d = String(r[plateIdx] || '').replace(/\D/g, '');
         if (d.length === 7 || d.length === 8) plates.add(d);
       }
-      if (!plates.size) { showToast('לא נמצאו מספרי רכב בקובץ'); return; }
+      if (!plates.size) { showToast('לא נמצאו מספרי רכב בעמודת מספר הרישוי'); return; }
       _recallRows = [...plates].map(p => ({ plate: p, tozeret: '', degem: '', shnat: '', misgeret: '', state: 'wait' }));
       renderRecallTable();
       _recallEnrichAll();
