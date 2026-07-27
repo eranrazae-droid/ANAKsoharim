@@ -1301,6 +1301,28 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
+<!-- ====== SCREEN: RECALL CHECK (MANAGER) ====== -->
+<div id="screen-recall" class="screen">
+  <div class="app-header">
+    <button class="back-btn" onclick="goHome()">→</button>
+    <div class="logo">⚠️ בדיקת ריקול</div>
+    <div class="user-badge" id="recall-user-badge" onclick="logout()"></div>
+  </div>
+  <div style="padding:16px 16px 100px">
+    <div id="recall-status-banner" style="display:none;border-radius:14px;padding:14px 16px;margin-bottom:14px;font-size:14px;font-weight:700"></div>
+    <div style="display:flex;gap:10px;align-items:stretch;margin-bottom:16px">
+      <div id="recall-upload-zone" style="flex:1;border:2px dashed var(--gold);border-radius:16px;padding:28px 20px;text-align:center;background:#f8f9ff;cursor:pointer" onclick="document.getElementById('recall-file-input').click()">
+        <div style="font-size:36px;margin-bottom:8px">📄</div>
+        <div style="font-weight:700;font-size:16px;color:var(--dark)">לחץ לצרף קובץ עם מספרי רכב</div>
+        <div style="font-size:13px;color:var(--muted);margin-top:4px">קובץ .xlsx / .csv — הלוחיות מזוהות אוטומטית</div>
+        <input type="file" id="recall-file-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleRecallFile(this)">
+      </div>
+      <button onclick="clearRecallTable()" style="flex-shrink:0;width:56px;background:#fff0f0;border:2px solid #ef4444;border-radius:16px;font-size:22px;cursor:pointer;color:#ef4444" title="נקה טבלה">🗑️</button>
+    </div>
+    <div id="recall-list" style="overflow-x:auto"></div>
+  </div>
+</div>
+
 <!-- ====== SCREEN: BATTERY CHECK (MANAGER) ====== -->
 <!-- ====== SCREEN: CHARGING CHECK (MANAGER) ====== -->
 <div id="screen-battery" class="screen">
@@ -2008,7 +2030,7 @@ function enterApp() {
   renderHome();
   const savedScreen = sessionStorage.getItem('anak_screen');
   if (savedScreen && savedScreen !== 'home' && savedScreen !== 'login') {
-    const screenFns = { vehicles: openVehiclesScreen, tasks: openTasksScreen, parts: openPartsScreen, inventory: openInventoryScreen, pits: openPitsScreen, yard: openYardScreen, 'driver-inventory': openDriverInventoryScreen, battery: openBatteryScreen, 'driver-battery': openDriverBatteryScreen, 'driver-charging': openDriverChargingScreen, refresh: openVehiclesScreen };
+    const screenFns = { vehicles: openVehiclesScreen, tasks: openTasksScreen, parts: openPartsScreen, inventory: openInventoryScreen, pits: openPitsScreen, yard: openYardScreen, 'driver-inventory': openDriverInventoryScreen, battery: openBatteryScreen, 'driver-battery': openDriverBatteryScreen, 'driver-charging': openDriverChargingScreen, refresh: openVehiclesScreen, recall: openRecallScreen };
     if (screenFns[savedScreen]) { screenFns[savedScreen](); }
     else { showScreen('home'); }
   } else {
@@ -2137,6 +2159,7 @@ function renderHome() {
         { icon: '🕳️', title: 'בורות', sub: 'ניהול בדיקות בבורות', screen: 'pits' },
         { icon: '🅿️', title: 'סידור מגרש', sub: 'טבלת חניות', screen: 'yard' },
         { icon: '🚙', title: 'מכוניות לאיסוף', sub: 'ניהול רכבים לאיסוף', screen: 'pickup' },
+        { icon: '⚠️', title: 'בדיקת ריקול', sub: 'קריאות תיקון לרכבי המלאי', screen: 'recall' },
       ]
     : [
         { icon: '📋', title: 'המשימות שלי', sub: 'משימות שהוקצו לך', screen: 'tasks' },
@@ -2542,6 +2565,7 @@ function goToScreen(name) {
   else if (name === '_refresh') openRefreshScreen();
   else if (name === 'pickup') { if (currentUser.role === 'pickup_driver') openMyPickupScreen(); else openPickupScreen(); }
   else if (name === 'test-drive') openTestDriveScreen();
+  else if (name === 'recall') openRecallScreen();
   else if (name === 'driver-battery-unified') {
     const card = document.getElementById('menu-card-driver-battery');
     if (card && card.dataset.unifiedMode === 'charging') openDriverChargingScreen();
@@ -6097,6 +6121,127 @@ window.openDriverIntake = openDriverIntake;
 window.submitDriverIntake = submitDriverIntake;
 window.ciClick = ciClick;
 window.markChecked = markChecked;
+/* ─── RECALL CHECK (manager) ───────────────────────────
+   Stage 1: upload a plates file → auto-enrich each plate with manufacturer,
+   model, year and VIN from the transport-ministry registry (gov.il).
+   Stage 2 (importer recall lookup) plugs into the last column. */
+let _recallRows = []; // {plate, tozeret, degem, shnat, misgeret, state: 'wait'|'ok'|'miss'|'err'}
+
+function openRecallScreen() {
+  document.getElementById('recall-user-badge').textContent = currentUser.name;
+  showScreen('recall');
+  if (!_recallRows.length) {
+    try { _recallRows = JSON.parse(localStorage.getItem('_recallData') || '[]'); } catch(e) { _recallRows = []; }
+  }
+  renderRecallTable();
+}
+
+function clearRecallTable() {
+  _recallRows = [];
+  localStorage.removeItem('_recallData');
+  document.getElementById('recall-file-input').value = '';
+  renderRecallTable();
+  const b = document.getElementById('recall-status-banner');
+  if (b) b.style.display = 'none';
+}
+
+function handleRecallFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (typeof XLSX === 'undefined') { showToast('⏳ טוען ספריית Excel, נסה שוב...'); input.value = ''; return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+      const plates = new Set();
+      for (const r of rows) for (const cell of r) {
+        const d = String(cell).replace(/\D/g, '');
+        if (d.length === 7 || d.length === 8) plates.add(d);
+      }
+      if (!plates.size) { showToast('לא נמצאו מספרי רכב בקובץ'); return; }
+      _recallRows = [...plates].map(p => ({ plate: p, tozeret: '', degem: '', shnat: '', misgeret: '', state: 'wait' }));
+      renderRecallTable();
+      _recallEnrichAll();
+    } catch(err) {
+      console.error('handleRecallFile', err);
+      showToast('שגיאה בקריאת הקובץ: ' + (err.message || err));
+    }
+  };
+  reader.onerror = () => showToast('שגיאה בפתיחת הקובץ');
+  reader.readAsArrayBuffer(file);
+}
+
+async function _recallEnrichAll() {
+  const banner = document.getElementById('recall-status-banner');
+  banner.style.display = 'block';
+  banner.style.background = '#f0f2ff'; banner.style.border = '2px solid #6366f1'; banner.style.color = '#3730a3';
+  let done = 0;
+  const CONC = 4; // polite parallelism against gov.il
+  const queue = _recallRows.filter(r => r.state === 'wait');
+  const worker = async () => {
+    while (queue.length) {
+      const row = queue.shift();
+      try {
+        const filters = encodeURIComponent(JSON.stringify({ mispar_rechev: Number(row.plate) }));
+        const res = await fetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3&filters=${filters}&limit=1`);
+        const json = await res.json();
+        const rec = json?.result?.records?.[0];
+        if (rec) {
+          row.tozeret  = rec.tozeret_nm || '';
+          row.degem    = rec.kinuy_mishari || rec.degem_nm || '';
+          row.shnat    = rec.shnat_yitzur || '';
+          row.misgeret = rec.misgeret || '';
+          row.state = 'ok';
+        } else {
+          row.state = 'miss';
+        }
+      } catch(e) { row.state = 'err'; }
+      done++;
+      banner.innerHTML = `⏳ מושך נתונים ממשרד התחבורה... ${done}/${_recallRows.length}`;
+      renderRecallTable();
+    }
+  };
+  await Promise.all(Array.from({ length: CONC }, worker));
+  localStorage.setItem('_recallData', JSON.stringify(_recallRows));
+  const ok = _recallRows.filter(r => r.state === 'ok').length;
+  const miss = _recallRows.length - ok;
+  banner.style.background = '#f0fff4'; banner.style.border = '2px solid #22c55e'; banner.style.color = '#166534';
+  banner.innerHTML = `✅ נמשכו נתונים ל-${ok} רכבים${miss ? ` · ${miss} לא נמצאו במאגר` : ''}`;
+}
+
+function renderRecallTable() {
+  const c = document.getElementById('recall-list');
+  if (!c) return;
+  if (!_recallRows.length) {
+    c.innerHTML = '<div class="empty-state" style="padding:40px 20px;text-align:center;color:var(--muted)">העלה קובץ עם מספרי רכב כדי להתחיל</div>';
+    return;
+  }
+  const stateBadge = r =>
+    r.state === 'wait' ? '<span style="color:#94a3b8">⏳</span>' :
+    r.state === 'ok'   ? '<span style="color:#22c55e">✓</span>' :
+    r.state === 'miss' ? '<span style="color:#f59e0b" title="לא נמצא במאגר">לא נמצא</span>' :
+                         '<span style="color:#ef4444">שגיאה</span>';
+  const cols = 'minmax(80px,1fr) minmax(90px,1.2fr) minmax(90px,1.2fr) 52px minmax(130px,1.6fr) 70px';
+  let html = `<div style="display:grid;grid-template-columns:${cols};gap:4px;background:var(--dark);color:#fff;border-radius:10px 10px 0 0;padding:8px 10px;font-size:11px;font-weight:700;direction:rtl;min-width:560px">
+    <div>מס׳ רכב</div><div>יצרן</div><div>דגם</div><div>שנה</div><div>מספר שלדה</div><div>מצב</div>
+  </div>`;
+  html += _recallRows.map(r => `
+    <div style="display:grid;grid-template-columns:${cols};gap:4px;align-items:center;background:#fff;border:1.5px solid var(--border);border-radius:8px;padding:6px 10px;margin-bottom:3px;direction:rtl;min-width:560px;font-size:12px;font-weight:600">
+      <div style="font-weight:800">${esc(r.plate)}</div>
+      <div>${esc(r.tozeret) || '—'}</div>
+      <div>${esc(r.degem) || '—'}</div>
+      <div>${esc(String(r.shnat || '')) || '—'}</div>
+      <div style="direction:ltr;text-align:right;font-family:monospace;font-size:11px;overflow:hidden;text-overflow:ellipsis">${esc(r.misgeret) || '—'}</div>
+      <div>${stateBadge(r)}</div>
+    </div>`).join('');
+  c.innerHTML = html;
+}
+window.openRecallScreen = openRecallScreen;
+window.handleRecallFile = handleRecallFile;
+window.clearRecallTable = clearRecallTable;
+
 window.openInventoryScreen = openInventoryScreen;
 window.handleInventoryFile = handleInventoryFile;
 window.submitInventory = submitInventory;
