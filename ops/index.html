@@ -6250,9 +6250,22 @@ async function _recallEnrichAll() {
 // Ministry of Transport's "vehicles pending recall repair" registry — a plate
 // found here has an OPEN recall that hasn't been fixed yet. This resource
 // (unlike the main vehicle registry) doesn't send CORS headers to browsers,
-// so it's relayed through our own Cloud Function.
+// so it's fetched via JSONP — CKAN's datastore_search supports a `callback`
+// parameter, which bypasses CORS without needing any server of our own.
 const _RECALL_RESOURCE = '36bf1404-0be4-49d2-82dc-2f1ead4a8b93';
-const _GOVIL_PROXY_URL = 'https://govilproxy-343573102369.europe-west1.run.app';
+let _govilJsonpSeq = 0;
+function _govilJsonp(params, timeoutMs = 12000) {
+  return new Promise((resolve, reject) => {
+    const cbName = '_govilCb' + (++_govilJsonpSeq);
+    const s = document.createElement('script');
+    const timer = setTimeout(() => { cleanup(); reject(new Error('timeout')); }, timeoutMs);
+    function cleanup() { clearTimeout(timer); delete window[cbName]; s.remove(); }
+    window[cbName] = data => { cleanup(); resolve(data); };
+    s.onerror = () => { cleanup(); reject(new Error('script load failed')); };
+    s.src = `https://data.gov.il/api/3/action/datastore_search?${params}&callback=${cbName}`;
+    document.head.appendChild(s);
+  });
+}
 async function _recallCheckAll() {
   const banner = document.getElementById('recall-status-banner');
   let done = 0;
@@ -6265,8 +6278,7 @@ async function _recallCheckAll() {
       const row = queue.shift();
       try {
         const filters = encodeURIComponent(JSON.stringify({ mispar_rechev: Number(row.plate) }));
-        const res = await fetch(`${_GOVIL_PROXY_URL}?resource_id=${_RECALL_RESOURCE}&filters=${filters}&limit=5`);
-        const json = await res.json();
+        const json = await _govilJsonp(`resource_id=${_RECALL_RESOURCE}&filters=${filters}&limit=5`);
         const recs = json?.result?.records || [];
         if (recs.length) { row.recallState = 'open'; row.recallDetails = recs; }
         else { row.recallState = 'none'; }
@@ -6295,11 +6307,13 @@ function renderRecallTable() {
     return;
   }
   const open = _recallRows.filter(r => r.recallState === 'open');
+  const errs = _recallRows.filter(r => r.recallState === 'err');
+  const errNote = errs.length ? `<div style="background:#fffbeb;border:2px solid #f59e0b;border-radius:12px;padding:10px 14px;margin-bottom:10px;font-size:13px;font-weight:700;color:#92400e">⚠️ ${errs.length} רכבים לא נבדקו בגלל שגיאת תקשורת — <span onclick="_recallCheckAll()" style="text-decoration:underline;cursor:pointer">לחץ לניסיון חוזר</span></div>` : '';
   if (!open.length) {
-    c.innerHTML = `<div class="empty-state" style="padding:40px 20px;text-align:center;color:#166534">✅ נבדקו ${_recallRows.length} רכבים — לאף אחד אין ריקול פתוח</div>`;
+    c.innerHTML = errNote + `<div class="empty-state" style="padding:40px 20px;text-align:center;color:#166534">✅ נבדקו ${_recallRows.length - errs.length} רכבים — לאף אחד אין ריקול פתוח</div>`;
     return;
   }
-  c.innerHTML = `<div style="font-weight:800;font-size:14px;color:#991b1b;margin-bottom:10px">⚠️ נמצאו ${open.length} רכבים עם ריקול פתוח מתוך ${_recallRows.length}</div>` +
+  c.innerHTML = errNote + `<div style="font-weight:800;font-size:14px;color:#991b1b;margin-bottom:10px">⚠️ נמצאו ${open.length} רכבים עם ריקול פתוח מתוך ${_recallRows.length}</div>` +
     open.map(r => {
       const details = (r.recallDetails || []).map(rec =>
         Object.entries(rec).filter(([k]) => !k.startsWith('_')).map(([k,v]) => `<div style="display:flex;gap:6px;font-size:12px;padding:2px 0"><div style="font-weight:700;color:var(--muted);min-width:100px">${esc(k)}</div><div>${esc(String(v))}</div></div>`).join('')
@@ -6314,6 +6328,7 @@ function renderRecallTable() {
 window.openRecallScreen = openRecallScreen;
 window.handleRecallFile = handleRecallFile;
 window.clearRecallTable = clearRecallTable;
+window._recallCheckAll = _recallCheckAll;
 
 window.openInventoryScreen = openInventoryScreen;
 window.handleInventoryFile = handleInventoryFile;
