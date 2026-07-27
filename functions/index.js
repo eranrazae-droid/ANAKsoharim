@@ -172,6 +172,24 @@ exports.recallDailyReminder = onSchedule(
   }
 );
 
+// manual one-off trigger so the manager can see a sample of the battery
+// reminder message (with its buttons) without waiting for the scheduled run —
+// open this URL once in a browser; sends to ליאל's own Telegram chat.
+exports.sendSampleBatteryReminder = onRequest({ cors: true, region: "europe-west1" }, async (req, res) => {
+  const contactsSnap = await db.collection("config").doc("driver_contacts").get();
+  const contacts = contactsSnap.exists ? contactsSnap.data() : {};
+  const token = contacts["_telegramToken"]?.value || "";
+  const chatId = contacts["ליאל"]?.telegramId || "";
+  if (!token) return res.status(400).send("אין טוקן טלגרם מוגדר בהגדרות ההודעות");
+  if (!chatId) return res.status(400).send("לליאל אין chat id מוגדר בהגדרות ההודעות");
+  try {
+    await _sendBatteryReminderMsg(token, chatId, "ליאל", 3);
+    res.status(200).send("✅ נשלחה הודעת דוגמה לטלגרם שלך");
+  } catch (err) {
+    res.status(500).send("שגיאה: " + err.message);
+  }
+});
+
 // sends the battery-check nudge with two reply buttons: "busy, remind me
 // tomorrow" and "handling it now" — the driver's choice is relayed to ליאל.
 async function _sendBatteryReminderMsg(token, chatId, driverName, count) {
