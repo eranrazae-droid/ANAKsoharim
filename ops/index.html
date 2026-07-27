@@ -6192,11 +6192,12 @@ async function recallOpenTask(plate) {
   const desc = [row.tozeret, row.degem, row.shnat ? `שנת ${row.shnat}` : ''].filter(Boolean).join(' ');
   const title = `⚠️ ריקול פתוח — ${row.plate}${desc ? ' · ' + desc : ''} — יש לקבוע תור לתיקון`;
   try {
-    await _addDoc(_colRef('tasks'), {
+    const ref = await _addDoc(_colRef('tasks'), {
       title, label: 'משימות בעדיפות עליונה', color: 'red', status: 'open',
       createdBy: currentUser.name, createdAt: _serverTs()
     });
     row.taskCreated = true;
+    row.taskId = ref.id;
     localStorage.setItem('_recallData', JSON.stringify(_recallRows));
     renderRecallTable();
     showToast('✅ נוצרה משימה בלוח המשימות');
@@ -6204,10 +6205,18 @@ async function recallOpenTask(plate) {
 }
 window.recallOpenTask = recallOpenTask;
 
-function recallMarkResolved(plate) {
+async function recallMarkResolved(plate) {
   const row = _recallRows.find(r => r.plate === plate);
   if (!row) return;
   row.resolved = true;
+  if (row.taskId) {
+    try {
+      const { deleteDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+      await deleteDoc(doc(window._db, 'tasks', row.taskId));
+    } catch(e) { console.error('recall task delete failed', e); }
+    row.taskCreated = false;
+    row.taskId = null;
+  }
   localStorage.setItem('_recallData', JSON.stringify(_recallRows));
   renderRecallTable();
   _recallSyncFirestore();
