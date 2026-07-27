@@ -2856,6 +2856,10 @@ function loadManagerBadges() {
     _onSnap(_query(_colRef('inventory_assignments'), _where('status','==','done')), snap => {
       _setCardBadge('inventory', snap.size);
     });
+    _onSnap(_docRef('recall_status', 'current'), snap => {
+      const cars = snap.exists() ? (snap.data().cars || []) : [];
+      _setCardBadge('recall', cars.filter(c => !c.resolved).length, '#ef4444');
+    });
     let _batteryAssignmentsDone = 0;
     const _mcTasks = {};
     function _renderMgrChargingCard() {
@@ -6150,6 +6154,7 @@ function openRecallScreen() {
     try { _recallRows = JSON.parse(localStorage.getItem('_recallData') || '[]'); } catch(e) { _recallRows = []; }
   }
   renderRecallTable();
+  _recallUpdateHomeBadge();
 }
 
 function clearRecallTable() {
@@ -6159,7 +6164,55 @@ function clearRecallTable() {
   renderRecallTable();
   const b = document.getElementById('recall-status-banner');
   if (b) b.style.display = 'none';
+  _recallSyncFirestore();
 }
+
+// persists the open-recall list to Firestore so: (1) the home-screen badge
+// shows red on any device/session without needing this screen open, and
+// (2) the daily 8:30 reminder Cloud Function has something to read.
+async function _recallSyncFirestore() {
+  try {
+    const { setDoc, doc, serverTimestamp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const cars = _recallRows.filter(r => r.recallState === 'open').map(r => ({
+      plate: r.plate, tozeret: r.tozeret, degem: r.degem, shnat: r.shnat, misgeret: r.misgeret, resolved: !!r.resolved
+    }));
+    await setDoc(doc(window._db, 'recall_status', 'current'), { cars, updatedAt: serverTimestamp() });
+  } catch(e) { console.error('_recallSyncFirestore', e); }
+  _recallUpdateHomeBadge();
+}
+
+function _recallUpdateHomeBadge() {
+  const openCount = _recallRows.filter(r => r.recallState === 'open' && !r.resolved).length;
+  _setCardBadge('recall', openCount, '#ef4444');
+}
+
+async function recallOpenTask(plate) {
+  const row = _recallRows.find(r => r.plate === plate);
+  if (!row || row.taskCreated) return;
+  const desc = [row.tozeret, row.degem, row.shnat ? `שנת ${row.shnat}` : ''].filter(Boolean).join(' ');
+  const title = `⚠️ ריקול פתוח — ${row.plate}${desc ? ' · ' + desc : ''} — יש לקבוע תור לתיקון`;
+  try {
+    await _addDoc(_colRef('tasks'), {
+      title, label: 'משימות בעדיפות עליונה', color: 'red', status: 'open',
+      createdBy: currentUser.name, createdAt: _serverTs()
+    });
+    row.taskCreated = true;
+    localStorage.setItem('_recallData', JSON.stringify(_recallRows));
+    renderRecallTable();
+    showToast('✅ נוצרה משימה בלוח המשימות');
+  } catch(e) { showToast('שגיאה ביצירת משימה: ' + (e.message || e)); }
+}
+window.recallOpenTask = recallOpenTask;
+
+function recallMarkResolved(plate) {
+  const row = _recallRows.find(r => r.plate === plate);
+  if (!row) return;
+  row.resolved = true;
+  localStorage.setItem('_recallData', JSON.stringify(_recallRows));
+  renderRecallTable();
+  _recallSyncFirestore();
+}
+window.recallMarkResolved = recallMarkResolved;
 
 function handleRecallFile(input) {
   const file = input.files[0];
@@ -6196,7 +6249,7 @@ function handleRecallFile(input) {
         if (d.length === 7 || d.length === 8) plates.add(d);
       }
       if (!plates.size) { showToast('לא נמצאו מספרי רכב בעמודת מספר הרישוי'); return; }
-      _recallRows = [...plates].map(p => ({ plate: p, tozeret: '', degem: '', shnat: '', misgeret: '', state: 'wait', recallState: 'wait', recallDetails: null }));
+      _recallRows = [...plates].map(p => ({ plate: p, tozeret: '', degem: '', shnat: '', misgeret: '', state: 'wait', recallState: 'wait', recallDetails: null, resolved: false, taskCreated: false }));
       renderRecallTable();
       _recallEnrichAll();
     } catch(err) {
@@ -6354,6 +6407,7 @@ async function _recallCheckAll() {
   localStorage.setItem('_recallData', JSON.stringify(_recallRows));
   if (banner) banner.style.display = 'none'; // the list itself now shows the final result
   renderRecallTable();
+  _recallSyncFirestore();
 }
 
 function renderRecallTable() {
@@ -6368,24 +6422,34 @@ function renderRecallTable() {
     c.innerHTML = '<div class="empty-state" style="padding:40px 20px;text-align:center;color:var(--muted)"><div class="spinner" style="margin:0 auto 10px"></div>בודק את כל הרכבים...</div>';
     return;
   }
-  const open = _recallRows.filter(r => r.recallState === 'open');
+  const open = _recallRows.filter(r => r.recallState === 'open' && !r.resolved);
+  const resolved = _recallRows.filter(r => r.recallState === 'open' && r.resolved);
   const errs = _recallRows.filter(r => r.recallState === 'err');
   const errNote = errs.length ? `<div style="background:#fffbeb;border:2px solid #f59e0b;border-radius:12px;padding:10px 14px;margin-bottom:10px;font-size:13px;font-weight:700;color:#92400e">⚠️ ${errs.length} רכבים לא נבדקו בגלל שגיאת תקשורת — <span onclick="_recallCheckAll()" style="text-decoration:underline;cursor:pointer">לחץ לניסיון חוזר</span></div>` : '';
-  if (!open.length) {
+  if (!open.length && !resolved.length) {
     c.innerHTML = errNote + `<div class="empty-state" style="padding:40px 20px;text-align:center;color:#166534">✅ נבדקו ${_recallRows.length - errs.length} רכבים — לאף אחד אין ריקול פתוח</div>`;
     return;
   }
-  c.innerHTML = errNote + `<div style="font-weight:800;font-size:14px;color:#991b1b;margin-bottom:10px">⚠️ נמצאו ${open.length} רכבים עם ריקול פתוח מתוך ${_recallRows.length}</div>` +
-    open.map(r => {
-      const details = (r.recallDetails || []).map(rec =>
-        Object.entries(rec).filter(([k]) => !k.startsWith('_')).map(([k,v]) => `<div style="display:flex;gap:6px;font-size:12px;padding:2px 0"><div style="font-weight:700;color:var(--muted);min-width:100px">${esc(k)}</div><div>${esc(String(v))}</div></div>`).join('')
-      ).join('<div style="height:6px"></div>');
-      return `<div style="border:2px solid #ef4444;background:#fff5f6;border-radius:14px;padding:14px 16px;margin-bottom:12px">
-        <div style="font-weight:900;font-size:16px;color:#991b1b;margin-bottom:6px">🚗 ${esc(r.plate)} · ${esc(r.tozeret)||'—'} ${esc(r.degem)||''} ${r.shnat?`(${esc(String(r.shnat))})`:''}</div>
-        ${r.misgeret ? `<div style="font-size:12px;color:var(--muted);margin-bottom:8px;font-family:monospace">שלדה: ${esc(r.misgeret)}</div>` : ''}
-        <div style="border-top:1px solid #fecaca;padding-top:8px">${details}</div>
-      </div>`;
-    }).join('');
+  const cardHtml = (r, isResolved) => {
+    const details = (r.recallDetails || []).map(rec =>
+      Object.entries(rec).filter(([k]) => !k.startsWith('_')).map(([k,v]) => `<div style="display:flex;gap:6px;font-size:12px;padding:2px 0"><div style="font-weight:700;color:var(--muted);min-width:100px">${esc(k)}</div><div>${esc(String(v))}</div></div>`).join('')
+    ).join('<div style="height:6px"></div>');
+    const border = isResolved ? '#22c55e' : '#ef4444', bg = isResolved ? '#f0fff4' : '#fff5f6', titleColor = isResolved ? '#166534' : '#991b1b';
+    return `<div style="border:2px solid ${border};background:${bg};border-radius:14px;padding:14px 16px;margin-bottom:12px">
+      <div style="font-weight:900;font-size:16px;color:${titleColor};margin-bottom:6px">🚗 ${esc(r.plate)} · ${esc(r.tozeret)||'—'} ${esc(r.degem)||''} ${r.shnat?`(${esc(String(r.shnat))})`:''}</div>
+      ${r.misgeret ? `<div style="font-size:12px;color:var(--muted);margin-bottom:8px;font-family:monospace">שלדה: ${esc(r.misgeret)}</div>` : ''}
+      <div style="border-top:1px solid ${isResolved?'#bbf7d0':'#fecaca'};padding-top:8px">${details}</div>
+      ${isResolved
+        ? `<div style="margin-top:10px;font-weight:700;color:#166534;font-size:13px">🔧 הריקול בוצע — ממתין להסרה ע״י משרד התחבורה</div>`
+        : `<div style="display:flex;gap:8px;margin-top:12px">
+             <button onclick="recallOpenTask('${r.plate}')" ${r.taskCreated?'disabled':''} style="flex:1;background:${r.taskCreated?'#e5e7eb':'#7c3aed'};color:${r.taskCreated?'#6b7280':'#fff'};border:none;border-radius:10px;padding:9px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:${r.taskCreated?'default':'pointer'}">${r.taskCreated?'✓ נוצרה משימה':'🔧 פתח משימה'}</button>
+             <button onclick="recallMarkResolved('${r.plate}')" style="flex:1;background:#22c55e;color:#fff;border:none;border-radius:10px;padding:9px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">✅ הריקול בוצע</button>
+           </div>`}
+    </div>`;
+  };
+  c.innerHTML = errNote +
+    (open.length ? `<div style="font-weight:800;font-size:14px;color:#991b1b;margin-bottom:10px">⚠️ נמצאו ${open.length} רכבים עם ריקול פתוח מתוך ${_recallRows.length}</div>` + open.map(r => cardHtml(r, false)).join('') : '') +
+    (resolved.length ? resolved.map(r => cardHtml(r, true)).join('') : '');
 }
 window.openRecallScreen = openRecallScreen;
 window.handleRecallFile = handleRecallFile;

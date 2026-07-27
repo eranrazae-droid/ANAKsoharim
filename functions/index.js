@@ -136,3 +136,38 @@ exports.govilProxy = onRequest({ cors: true, region: "europe-west1" }, async (re
     res.status(502).json({ error: "upstream fetch failed", message: err.message });
   }
 });
+
+// daily reminder for open, unresolved recalls — as long as recall_status/current
+// still lists an unresolved car, ליאל gets a Telegram message every morning with
+// the vehicle details and a nudge to book an appointment.
+exports.recallDailyReminder = onSchedule(
+  { schedule: "30 8 * * *", region: "europe-west1", timeZone: "Asia/Jerusalem" },
+  async () => {
+    const statusSnap = await db.collection("recall_status").doc("current").get();
+    const cars = (statusSnap.exists ? statusSnap.data().cars : []) || [];
+    const open = cars.filter((c) => !c.resolved);
+    if (!open.length) return;
+
+    const contactsSnap = await db.collection("config").doc("driver_contacts").get();
+    const contacts = contactsSnap.exists ? contactsSnap.data() : {};
+    const token = contacts["_telegramToken"]?.value || "";
+    const chatId = contacts["ליאל"]?.telegramId || "";
+    if (!token || !chatId) return;
+
+    const lines = open.map((c) => {
+      const desc = [c.tozeret, c.degem, c.shnat ? `שנת ${c.shnat}` : ""].filter(Boolean).join(" ");
+      return `🚗 ${c.plate}${desc ? " — " + desc : ""}`;
+    });
+    const text = `⚠️ תזכורת יומית — ${open.length} רכבים עם ריקול פתוח שממתין לטיפול:\n\n${lines.join("\n")}\n\nיש לקבוע תור לתיקון.`;
+
+    try {
+      await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: chatId, text }),
+      });
+    } catch (err) {
+      console.error("recall reminder send failed", err);
+    }
+  }
+);
