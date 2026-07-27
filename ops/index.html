@@ -6253,50 +6253,62 @@ async function _recallEnrichAll() {
 // so it's fetched via JSONP — CKAN's datastore_search supports a `callback`
 // parameter, which bypasses CORS without needing any server of our own.
 const _RECALL_RESOURCE = '36bf1404-0be4-49d2-82dc-2f1ead4a8b93';
-// the proxy function may be reachable at either URL style depending on how it
-// was deployed — probe them once and remember the one that answers
-const _GOVIL_PROXY_URLS = [
-  'https://europe-west1-anak-soharim.cloudfunctions.net/govilProxy',
-  'https://govilproxy-343573102369.europe-west1.run.app',
-];
-let _govilProxyUrl = null;
-async function _govilFetch(params) {
-  const urls = _govilProxyUrl ? [_govilProxyUrl] : _GOVIL_PROXY_URLS;
-  let lastErr = null;
-  for (const base of urls) {
-    try {
-      const res = await fetch(`${base}?${params}`);
-      if (!res.ok) { lastErr = new Error('HTTP ' + res.status); continue; }
-      const json = await res.json();
-      _govilProxyUrl = base;
-      return json;
-    } catch(e) { lastErr = e; }
+const _sleep = ms => new Promise(r => setTimeout(r, ms));
+// One CKAN query per BATCH of plates (filters accept arrays) — 156 cars become
+// ~4 requests instead of 156, which is what was tripping gov.il's rate limit
+// (the 409s + missing-CORS-on-error responses seen earlier).
+async function _recallQueryBatch(plates, attempt = 0) {
+  const filters = encodeURIComponent(JSON.stringify({ mispar_rechev: plates.map(Number) }));
+  const url = `https://data.gov.il/api/3/action/datastore_search?resource_id=${_RECALL_RESOURCE}&filters=${filters}&limit=${plates.length * 5}`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const json = await res.json();
+    if (!json?.success) throw new Error('CKAN error');
+    return json.result?.records || [];
+  } catch(e) {
+    if (attempt < 3) { await _sleep(1000 * Math.pow(2, attempt)); return _recallQueryBatch(plates, attempt + 1); }
+    throw e;
   }
-  throw lastErr || new Error('proxy unreachable');
 }
 async function _recallCheckAll() {
   const banner = document.getElementById('recall-status-banner');
-  let done = 0;
   const targets = _recallRows.filter(r => r.recallState !== 'open' && r.recallState !== 'none');
+  if (!targets.length) { renderRecallTable(); return; }
   targets.forEach(r => r.recallState = 'checking');
-  const CONC = 2; // gov.il's datastore rejects too many concurrent connections (409)
-  const queue = [...targets];
-  const worker = async () => {
-    while (queue.length) {
-      const row = queue.shift();
-      try {
-        const filters = encodeURIComponent(JSON.stringify({ mispar_rechev: Number(row.plate) }));
-        const json = await _govilFetch(`resource_id=${_RECALL_RESOURCE}&filters=${filters}&limit=5`);
-        const recs = json?.result?.records || [];
-        if (recs.length) { row.recallState = 'open'; row.recallDetails = recs; }
+  renderRecallTable();
+  const BATCH = 40;
+  let done = 0;
+  for (let i = 0; i < targets.length; i += BATCH) {
+    const chunk = targets.slice(i, i + BATCH);
+    try {
+      const recs = await _recallQueryBatch(chunk.map(r => r.plate));
+      const byPlate = {};
+      for (const rec of recs) {
+        const p = String(rec.mispar_rechev ?? '').replace(/\D/g, '');
+        (byPlate[p] = byPlate[p] || []).push(rec);
+      }
+      for (const row of chunk) {
+        if (byPlate[row.plate]?.length) { row.recallState = 'open'; row.recallDetails = byPlate[row.plate]; }
         else { row.recallState = 'none'; }
-      } catch(e) { row.recallState = 'err'; }
-      done++;
-      if (banner) banner.innerHTML = `⏳ בודק ריקולים פתוחים... ${done}/${targets.length}`;
-      renderRecallTable();
+      }
+    } catch(e) {
+      // batch failed even after retries — check this chunk one by one, slowly
+      console.error('recall batch failed, falling back per-plate', e);
+      for (const row of chunk) {
+        try {
+          const recs = await _recallQueryBatch([row.plate]);
+          if (recs.length) { row.recallState = 'open'; row.recallDetails = recs; }
+          else { row.recallState = 'none'; }
+        } catch(e2) { row.recallState = 'err'; }
+        await _sleep(350);
+      }
     }
-  };
-  await Promise.all(Array.from({ length: CONC }, worker));
+    done += chunk.length;
+    if (banner) banner.innerHTML = `⏳ בודק ריקולים פתוחים... ${Math.min(done, targets.length)}/${targets.length}`;
+    renderRecallTable();
+    if (i + BATCH < targets.length) await _sleep(400); // stay under the rate limit
+  }
   localStorage.setItem('_recallData', JSON.stringify(_recallRows));
   if (banner) banner.style.display = 'none'; // the list itself now shows the final result
   renderRecallTable();
