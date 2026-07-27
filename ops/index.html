@@ -6253,18 +6253,26 @@ async function _recallEnrichAll() {
 // so it's fetched via JSONP — CKAN's datastore_search supports a `callback`
 // parameter, which bypasses CORS without needing any server of our own.
 const _RECALL_RESOURCE = '36bf1404-0be4-49d2-82dc-2f1ead4a8b93';
-let _govilJsonpSeq = 0;
-function _govilJsonp(params, timeoutMs = 12000) {
-  return new Promise((resolve, reject) => {
-    const cbName = '_govilCb' + (++_govilJsonpSeq);
-    const s = document.createElement('script');
-    const timer = setTimeout(() => { cleanup(); reject(new Error('timeout')); }, timeoutMs);
-    function cleanup() { clearTimeout(timer); delete window[cbName]; s.remove(); }
-    window[cbName] = data => { cleanup(); resolve(data); };
-    s.onerror = () => { cleanup(); reject(new Error('script load failed')); };
-    s.src = `https://data.gov.il/api/3/action/datastore_search?${params}&callback=${cbName}`;
-    document.head.appendChild(s);
-  });
+// the proxy function may be reachable at either URL style depending on how it
+// was deployed — probe them once and remember the one that answers
+const _GOVIL_PROXY_URLS = [
+  'https://europe-west1-anak-soharim.cloudfunctions.net/govilProxy',
+  'https://govilproxy-343573102369.europe-west1.run.app',
+];
+let _govilProxyUrl = null;
+async function _govilFetch(params) {
+  const urls = _govilProxyUrl ? [_govilProxyUrl] : _GOVIL_PROXY_URLS;
+  let lastErr = null;
+  for (const base of urls) {
+    try {
+      const res = await fetch(`${base}?${params}`);
+      if (!res.ok) { lastErr = new Error('HTTP ' + res.status); continue; }
+      const json = await res.json();
+      _govilProxyUrl = base;
+      return json;
+    } catch(e) { lastErr = e; }
+  }
+  throw lastErr || new Error('proxy unreachable');
 }
 async function _recallCheckAll() {
   const banner = document.getElementById('recall-status-banner');
@@ -6278,7 +6286,7 @@ async function _recallCheckAll() {
       const row = queue.shift();
       try {
         const filters = encodeURIComponent(JSON.stringify({ mispar_rechev: Number(row.plate) }));
-        const json = await _govilJsonp(`resource_id=${_RECALL_RESOURCE}&filters=${filters}&limit=5`);
+        const json = await _govilFetch(`resource_id=${_RECALL_RESOURCE}&filters=${filters}&limit=5`);
         const recs = json?.result?.records || [];
         if (recs.length) { row.recallState = 'open'; row.recallDetails = recs; }
         else { row.recallState = 'none'; }
