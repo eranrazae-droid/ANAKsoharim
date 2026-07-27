@@ -176,7 +176,7 @@ exports.recallDailyReminder = onSchedule(
 // it never repeats even though the schedule itself runs daily), so ליאל can
 // see exactly what the real reminder + buttons look like.
 exports.sendSampleBatteryReminderOnce = onSchedule(
-  { schedule: "10 0 * * *", region: "europe-west1", timeZone: "Asia/Jerusalem" },
+  { schedule: "every 1 minutes", region: "europe-west1", timeZone: "Asia/Jerusalem" },
   async () => {
     const flagRef = db.collection("config").doc("sample_reminder_once");
     const flagSnap = await flagRef.get();
