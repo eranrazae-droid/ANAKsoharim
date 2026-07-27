@@ -172,6 +172,34 @@ exports.recallDailyReminder = onSchedule(
   }
 );
 
+// sends the battery-check nudge with two reply buttons: "busy, remind me
+// tomorrow" and "handling it now" — the driver's choice is relayed to ליאל.
+async function _sendBatteryReminderMsg(token, chatId, driverName, count) {
+  const text = `🔋 תזכורת — יש לך ${count} רכבים שממתינים לבדיקת סוללה. כנס לאפליקציה להשלים.`;
+  const reply_markup = {
+    inline_keyboard: [
+      [{ text: "⏰ עסוק עכשיו, תזכיר לי מחר", callback_data: `battery_snooze:${driverName}` }],
+      [{ text: "✅ מטפל בזה עכשיו", callback_data: `battery_now:${driverName}` }],
+    ],
+  };
+  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId, text, reply_markup }),
+  });
+}
+
+async function _countPendingBatteryChecks(driverName) {
+  const snap = await db.collection("battery_assignments")
+    .where("status", "==", "pending").where("assignedTo", "==", driverName).get();
+  let count = 0;
+  snap.forEach((d) => {
+    const rows = d.data().rowsJson ? JSON.parse(d.data().rowsJson) : [];
+    count += rows.length;
+  });
+  return count;
+}
+
 // Sun/Tue/Thu at 11:00 — nudge each driver individually about how many
 // battery checks (battery_assignments, status 'pending') are personally
 // assigned to them.
@@ -199,16 +227,106 @@ exports.batteryCheckReminder = onSchedule(
     for (const [name, count] of Object.entries(countByDriver)) {
       const chatId = contacts[name]?.telegramId;
       if (!chatId) continue;
-      const text = `🔋 תזכורת — יש לך ${count} רכבים שממתינים לבדיקת סוללה. כנס לאפליקציה להשלים.`;
       try {
-        await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ chat_id: chatId, text }),
-        });
+        await _sendBatteryReminderMsg(token, chatId, name, count);
       } catch (err) {
         console.error("battery check reminder send failed for", name, err);
       }
+    }
+  }
+);
+
+// polls Telegram every 2 minutes for button presses on the reminder message
+// (no public webhook needed — avoids depending on this project's flaky
+// Cloud Run URL provisioning) and relays the driver's choice to ליאל.
+exports.telegramPoll = onSchedule(
+  { schedule: "every 2 minutes", region: "europe-west1" },
+  async () => {
+    const contactsSnap = await db.collection("config").doc("driver_contacts").get();
+    const contacts = contactsSnap.exists ? contactsSnap.data() : {};
+    const token = contacts["_telegramToken"]?.value || "";
+    if (!token) return;
+
+    const offsetDoc = await db.collection("config").doc("telegram_poll").get();
+    const offset = offsetDoc.exists ? offsetDoc.data().offset || 0 : 0;
+
+    const res = await fetch(`https://api.telegram.org/bot${token}/getUpdates?offset=${offset}&timeout=0`);
+    const data = await res.json();
+    if (!data.ok || !data.result?.length) return;
+
+    const managerChatId = contacts["ליאל"]?.telegramId;
+    let maxUpdateId = offset - 1;
+
+    for (const update of data.result) {
+      maxUpdateId = Math.max(maxUpdateId, update.update_id);
+      const cq = update.callback_query;
+      if (!cq || !cq.data) continue;
+
+      fetch(`https://api.telegram.org/bot${token}/answerCallbackQuery`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ callback_query_id: cq.id }),
+      }).catch(() => {});
+
+      const [action, driverName] = cq.data.split(":");
+      if (action === "battery_snooze") {
+        await db.collection("pending_reminders").add({
+          type: "battery_snooze",
+          driver: driverName,
+          chatId: cq.message?.chat?.id,
+          dueAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+          sent: false,
+          createdAt: new Date(),
+        });
+        if (managerChatId) {
+          await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: managerChatId, text: `⏰ ${driverName} ביקש תזכורת מחר לגבי בדיקת הסוללה.` }),
+          });
+        }
+      } else if (action === "battery_now") {
+        if (managerChatId) {
+          await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: managerChatId, text: `✅ ${driverName} מטפל עכשיו בבדיקת הסוללה.` }),
+          });
+        }
+      }
+    }
+    await db.collection("config").doc("telegram_poll").set({ offset: maxUpdateId + 1 });
+  }
+);
+
+// every 15 min — fires any snoozed "remind me tomorrow" reminders whose time
+// has come, re-checking the driver's current pending count first.
+exports.sendDueReminders = onSchedule(
+  { schedule: "every 15 minutes", region: "europe-west1" },
+  async () => {
+    const snap = await db.collection("pending_reminders").where("sent", "==", false).get();
+    if (snap.empty) return;
+    const now = new Date();
+    const due = snap.docs.filter((d) => {
+      const r = d.data();
+      const dueAt = r.dueAt?.toDate ? r.dueAt.toDate() : new Date(r.dueAt);
+      return dueAt <= now;
+    });
+    if (!due.length) return;
+
+    const contactsSnap = await db.collection("config").doc("driver_contacts").get();
+    const contacts = contactsSnap.exists ? contactsSnap.data() : {};
+    const token = contacts["_telegramToken"]?.value || "";
+    if (!token) { for (const d of due) await d.ref.update({ sent: true }); return; }
+
+    for (const docSnap of due) {
+      const r = docSnap.data();
+      try {
+        if (r.type === "battery_snooze") {
+          const count = await _countPendingBatteryChecks(r.driver);
+          if (count > 0 && r.chatId) await _sendBatteryReminderMsg(token, r.chatId, r.driver, count);
+        }
+      } catch (err) {
+        console.error("sendDueReminders failed for", r.driver, err);
+      }
+      await docSnap.ref.update({ sent: true });
     }
   }
 );
