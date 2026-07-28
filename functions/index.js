@@ -137,6 +137,111 @@ exports.govilProxy = onRequest({ cors: true, region: "europe-west1" }, async (re
   }
 });
 
+// ── daily inventory pull + recall check (Sun–Fri 7:00) ──────────────────
+const _RECALL_RESOURCE = "36bf1404-0be4-49d2-82dc-2f1ead4a8b93";
+const _INVENTORY_URL = "https://phpstack-1347359-5276985.cloudwaysapps.com/comigo-anakarehevim/index.php/api/GetActiveVehicles";
+const _sleep2 = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function _recallLearnField() {
+  const res = await fetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=${_RECALL_RESOURCE}&limit=1`);
+  const json = await res.json();
+  const rec = json?.result?.records?.[0] || {};
+  const keys = Object.keys(rec).filter((k) => !k.startsWith("_"));
+  let best = keys.find((k) => /rechev|rishuy|mispar/i.test(k) && /^\d{6,9}$/.test(String(rec[k]).replace(/\D/g, "")));
+  if (!best) best = keys.find((k) => /^\d{6,9}$/.test(String(rec[k]).replace(/\D/g, "")));
+  return best || "mispar_rechev";
+}
+async function _recallQueryBatch(field, plates) {
+  const filters = encodeURIComponent(JSON.stringify({ [field]: plates.map(Number) }));
+  const url = `https://data.gov.il/api/3/action/datastore_search?resource_id=${_RECALL_RESOURCE}&filters=${filters}&limit=${plates.length * 5}`;
+  const res = await fetch(url);
+  if (res.status === 409) throw new Error("VALIDATION"); // wrong field — switch strategy, don't retry
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  const json = await res.json();
+  if (!json.success) throw new Error("CKAN error");
+  return json.result?.records || [];
+}
+async function _recallQueryQ(plate) {
+  const res = await fetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=${_RECALL_RESOURCE}&q=${plate}&limit=5`);
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  const json = await res.json();
+  if (!json.success) throw new Error("CKAN error");
+  return (json.result?.records || []).filter((rec) =>
+    Object.entries(rec).some(([k, v]) => !k.startsWith("_") && String(v).replace(/\D/g, "") === plate));
+}
+
+exports.dailyRecallPull = onSchedule(
+  { schedule: "0 7 * * 0-5", region: "europe-west1", timeZone: "Asia/Jerusalem" },
+  async () => {
+    let vehicles;
+    try {
+      const res = await fetch(_INVENTORY_URL);
+      vehicles = await res.json();
+    } catch (err) {
+      console.error("dailyRecallPull: inventory fetch failed", err);
+      return;
+    }
+    if (!Array.isArray(vehicles) || !vehicles.length) return;
+
+    const cars = vehicles.map((v) => ({
+      plate: String(v.ank_s_car_number || "").replace(/\D/g, ""),
+      tozeret: v.ank_id_manufacturer || "",
+      degem: [v.ank_id_model, v.ank_id_sub_model].filter(Boolean).join(" "),
+      shnat: v.ank_id_year_of_manufacture || "",
+    })).filter((c) => c.plate.length === 7 || c.plate.length === 8);
+    if (!cars.length) return;
+
+    // keep "resolved" flags for cars still open from a previous run
+    const statusRef = db.collection("recall_status").doc("current");
+    const existingSnap = await statusRef.get();
+    const resolvedByPlate = {};
+    if (existingSnap.exists) {
+      for (const c of existingSnap.data().cars || []) if (c.resolved) resolvedByPlate[c.plate] = true;
+    }
+
+    const field = await _recallLearnField().catch(() => "mispar_rechev");
+    const BATCH = 40;
+    const openCars = [];
+    let useQ = false;
+    for (let i = 0; i < cars.length; i += BATCH) {
+      const chunk = cars.slice(i, i + BATCH);
+      let batchOk = false;
+      if (!useQ) {
+        try {
+          const recs = await _recallQueryBatch(field, chunk.map((c) => c.plate));
+          const foundPlates = new Set();
+          for (const rec of recs) {
+            for (const [k, v] of Object.entries(rec)) {
+              if (k.startsWith("_")) continue;
+              const d = String(v).replace(/\D/g, "");
+              if (d.length >= 6 && d.length <= 9) foundPlates.add(d);
+            }
+          }
+          for (const c of chunk) if (foundPlates.has(c.plate)) openCars.push(c);
+          batchOk = true;
+        } catch (err) {
+          console.error("dailyRecallPull: batch query failed, switching to free-text", err);
+          useQ = true;
+        }
+      }
+      if (!batchOk) {
+        for (const c of chunk) {
+          try {
+            const recs = await _recallQueryQ(c.plate);
+            if (recs.length) openCars.push(c);
+          } catch (err) { /* skip — next run retries */ }
+          await _sleep2(250);
+        }
+      } else if (i + BATCH < cars.length) {
+        await _sleep2(400);
+      }
+    }
+
+    const finalCars = openCars.map((c) => ({ ...c, resolved: !!resolvedByPlate[c.plate] }));
+    await statusRef.set({ cars: finalCars, updatedAt: new Date() });
+  }
+);
+
 // daily reminder for open, unresolved recalls — as long as recall_status/current
 // still lists an unresolved car, ליאל gets a Telegram message every morning with
 // the vehicle details and a nudge to book an appointment.
