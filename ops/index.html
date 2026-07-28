@@ -12026,12 +12026,27 @@ async function _tdConvertToIntake(tdId, data) {
       await updateDoc(doc(window._db, 'intake_assignments', existingSnap.docs[0].id), { draft: intakeDraft });
     } else {
       console.log('[TD→INTAKE] creating new intake');
+      // pull authoritative manufacturer/model/color/year from the transport-
+      // ministry registry — the test-drive form only ever fetched maker/year/
+      // color (never model), so relying on the driver's saved data left the
+      // model blank every time.
+      let brand = data.maker || '', model = '', color = data.color || '', year = data.year || '';
+      if (data.plate) {
+        try {
+          const govRes = await fetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3&q=${data.plate}&limit=5`);
+          const govJson = await govRes.json();
+          const rec = govJson?.result?.records?.find(r => String(r['mispar_rechev']) === data.plate) || govJson?.result?.records?.[0];
+          if (rec) {
+            brand = _cleanMaker(rec['tozeret_nm'] || '') || brand;
+            model = rec['kinuy_mishari'] || rec['degem_nm'] || '';
+            color = rec['tzeva_rechev'] || color;
+            year  = rec['shnat_yitzur'] || year;
+          }
+        } catch(e) { console.error('[TD→INTAKE] govil lookup failed', e); }
+      }
       await addDoc(collection(window._db, 'intake_assignments'), {
         plate: data.plate || '',
-        brand: data.maker || '',
-        model: '',
-        color: data.color || '',
-        year: data.year || '',
+        brand, model, color, year,
         spot: '',
         km: data.km || data.draft?.km || '',
         assignedTo: data.assignedTo || currentUser.name,
