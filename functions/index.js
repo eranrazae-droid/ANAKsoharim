@@ -172,31 +172,6 @@ exports.recallDailyReminder = onSchedule(
   }
 );
 
-// one-time sample send at 00:10 — fires once (guarded by a Firestore flag so
-// it never repeats even though the schedule itself runs daily), so ליאל can
-// see exactly what the real reminder + buttons look like.
-exports.sendSampleBatteryReminderOnce = onSchedule(
-  { schedule: "every 1 minutes", region: "europe-west1", timeZone: "Asia/Jerusalem" },
-  async () => {
-    const flagRef = db.collection("config").doc("sample_reminder_once");
-    const flagSnap = await flagRef.get();
-    if (flagSnap.exists && flagSnap.data().sent) return;
-
-    const contactsSnap = await db.collection("config").doc("driver_contacts").get();
-    const contacts = contactsSnap.exists ? contactsSnap.data() : {};
-    const token = contacts["_telegramToken"]?.value || "";
-    const chatId = contacts["ליאל"]?.telegramId || "";
-    if (token && chatId) {
-      try {
-        await _sendBatteryReminderMsg(token, chatId, "ליאל", 3);
-      } catch (err) {
-        console.error("sendSampleBatteryReminderOnce failed", err);
-      }
-    }
-    await flagRef.set({ sent: true });
-  }
-);
-
 // sends the battery-check nudge with two reply buttons: "busy, remind me
 // tomorrow" and "handling it now" — the driver's choice is relayed to ליאל.
 async function _sendBatteryReminderMsg(token, chatId, driverName, count) {
