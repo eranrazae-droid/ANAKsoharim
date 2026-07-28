@@ -11736,7 +11736,10 @@ const _TD_CHECK_LABELS = {
   'td-drive':'בדיקת הרכב בנסיעה',
 };
 
+let _tdResultModalId = null, _tdResultModalData = null;
 function _showTdResultModal(id, data) {
+  _tdResultModalId = id;
+  _tdResultModalData = data;
   const checks = data.checks || {};
   const notes = data.notes || {};
   const plate = data.plate || '';
@@ -11760,6 +11763,7 @@ function _showTdResultModal(id, data) {
     if (data.dashOtherText) html += `<div style="font-size:12px;color:var(--muted)">${esc(data.dashOtherText)}</div>`;
   }
   if (data.extraIssues) html += `<div style="margin-top:10px;background:#fef2f2;border-radius:8px;padding:10px;font-size:13px;font-weight:700;color:#dc2626">⚠️ ליקויים נוספים:<br><span style="font-weight:400;color:var(--text)">${esc(data.extraIssues)}</span></div>`;
+  html += `<button onclick="tdResultConvertToIntake()" style="width:100%;margin-top:14px;background:#16a34a;color:#fff;border:none;border-radius:12px;padding:13px;font-family:Heebo,sans-serif;font-weight:800;font-size:15px;cursor:pointer">🚗 העבר לקליטת רכב</button>`;
   document.getElementById('td-result-content').innerHTML = html;
   openModal('modal-td-result');
 }
@@ -11982,13 +11986,14 @@ async function _tdLiveCiClick(key, val, btn) {
 }
 window._tdLiveCiClick = _tdLiveCiClick;
 
-async function completeTdLivePanel() {
-  if (!_tdLivePanelId) return;
-  const data = _tdLivePanelData || {};
-  console.log('[TD→INTAKE] _tdLivePanelData:', JSON.stringify(data).slice(0,500));
+// shared by the live-panel "סיים" button AND the results-popup button (used
+// when the manager wasn't watching that specific test drive live)
+async function _tdConvertToIntake(tdId, data) {
+  data = data || {};
+  console.log('[TD→INTAKE] data:', JSON.stringify(data).slice(0,500));
   if (!data.checks && !data.draft?.checks) {
     showToast('⚠️ אין נתוני נסיעה — המתן שהנהג ישלח את הטופס');
-    return;
+    return false;
   }
   try {
     const { addDoc, collection, updateDoc, doc, getDocs, query, where } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
@@ -12009,10 +12014,10 @@ async function completeTdLivePanel() {
     console.log('[TD→INTAKE] intakeDraft:', JSON.stringify(intakeDraft));
     if (!Object.keys(intakeChecks).length && !intakeDraft.km) {
       showToast('⚠️ לא נמצאו נתוני תשובות — בדוק שהנהג שלח את הטופס');
-      return;
+      return false;
     }
 
-    const existingSnap = await getDocs(query(collection(window._db, 'intake_assignments'), where('fromTestDrive', '==', _tdLivePanelId)));
+    const existingSnap = await getDocs(query(collection(window._db, 'intake_assignments'), where('fromTestDrive', '==', tdId)));
     if (!existingSnap.empty) {
       console.log('[TD→INTAKE] updating existing intake', existingSnap.docs[0].id);
       await updateDoc(doc(window._db, 'intake_assignments', existingSnap.docs[0].id), { draft: intakeDraft });
@@ -12030,13 +12035,31 @@ async function completeTdLivePanel() {
         createdBy: currentUser.name,
         status: 'pending',
         createdAt: _serverTs(),
-        fromTestDrive: _tdLivePanelId,
+        fromTestDrive: tdId,
         draft: intakeDraft,
       });
     }
-    await updateDoc(doc(window._db, 'test_drives', _tdLivePanelId), { status: 'transferred' });
+    await updateDoc(doc(window._db, 'test_drives', tdId), { status: 'transferred' });
     console.log('[TD→INTAKE] done ✅');
-  } catch(e) { console.error('[TD→INTAKE] ERROR:', e); }
+    return true;
+  } catch(e) { console.error('[TD→INTAKE] ERROR:', e); return false; }
+}
+
+async function tdResultConvertToIntake() {
+  if (!_tdResultModalId) return;
+  const ok = await _tdConvertToIntake(_tdResultModalId, _tdResultModalData);
+  if (ok) {
+    showToast('✅ נפתחה קליטת רכב עם התוצאות');
+    closeModal('modal-td-result');
+    _tdResultModalId = null;
+    _tdResultModalData = null;
+  }
+}
+window.tdResultConvertToIntake = tdResultConvertToIntake;
+
+async function completeTdLivePanel() {
+  if (!_tdLivePanelId) return;
+  await _tdConvertToIntake(_tdLivePanelId, _tdLivePanelData);
   if (_tdLivePanelUnsub) { _tdLivePanelUnsub(); _tdLivePanelUnsub = null; }
   _tdLivePanelId = null;
   _tdLivePanelData = null;
