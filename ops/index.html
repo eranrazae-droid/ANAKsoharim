@@ -4560,6 +4560,11 @@ async function submitDriverIntake() {
     await _updateDoc(_docRef('intake_assignments', _currentIntakeId), {
       checklist,
       dashChecks,
+      // the EV answers were validated on submit but never persisted — without
+      // these the manager's view had no way to show them
+      isElectric: !!evVActive,
+      evCharge: evVActive ? (document.getElementById('di-ev-charge')?.value || '') : '',
+      evRange:  evVActive ? (document.getElementById('di-ev-range')?.value  || '') : '',
       notes,
       km,
       code,
@@ -4779,6 +4784,15 @@ function _renderViewIntakeModal(v) {
         noteText = noteText ? noteText + ` · חודש מצבר: ${formatted}` : `חודש מצבר: ${formatted}`;
       }
     }
+    // dashboard ✕ — spell out exactly which warning lights were ticked
+    if (key === 'c-dashboard' && val === 'x') {
+      const dashLabels = {
+        'dash-check-engine':'מנורת צ׳ק אנג׳ין','dash-tire-pressure':'לחץ אוויר','dash-service':'טיפול',
+        'dash-collision':'מנורת התגשות','dash-fuel':'מנורת דלק','dash-istop':'iStop','dash-other':'אחר'
+      };
+      const lit = Object.entries(v.dashChecks || {}).filter(([,on]) => on).map(([k]) => dashLabels[k] || k);
+      if (lit.length && !noteText) noteText = lit.join(' · ');
+    }
     const note = noteText ? `<div style="font-size:12px;color:#555;margin-top:4px">📝 ${esc(noteText)}</div>` : '';
     // match photos by exact key or any key that starts with the same prefix
     const keyPhotos = key === 'c-battery-original'
@@ -4799,6 +4813,10 @@ function _renderViewIntakeModal(v) {
   const km = v.km ? `<span style="margin-left:16px;background:#fef08a;padding:2px 8px;border-radius:6px;font-weight:700"><strong>ק"מ:</strong> ${esc(v.km)}</span>` : '';
   const code = v.code ? `<span style="background:#fef08a;padding:2px 8px;border-radius:6px;font-weight:700"><strong>קוד:</strong> ${esc(v.code)}</span>` : '';
   const notes = v.notes ? `<div style="background:#f8f8ff;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:14px">📝 <strong>הערות:</strong> ${esc(v.notes)}</div>` : '';
+  const evRow = v.isElectric === undefined ? ''
+    : v.isElectric
+      ? `<div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:14px;font-weight:700;color:#15803d">⚡ רכב חשמלי${v.evCharge !== '' && v.evCharge != null ? ` · אחוז טעינה: ${esc(String(v.evCharge))}%` : ''}${v.evRange ? ` · טווח נסיעה: ${esc(String(v.evRange))} ק״מ` : ''}</div>`
+      : `<div style="background:var(--surface2);border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:14px;font-weight:700;color:var(--muted)">⚡ רכב חשמלי: לא</div>`;
 
   document.getElementById('view-intake-content').innerHTML = `
     <div style="background:#f0f2ff;border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:13px;line-height:2">
@@ -4806,6 +4824,7 @@ function _renderViewIntakeModal(v) {
       צבע: ${esc(v.color||'')} · חניה: ${esc(v.spot||'')}${km ? '<br>' + km + code : ''}<br>
       נהג קולט: <strong>${esc(v.completedBy||v.assignedTo||'')}</strong> · ${ts}${v.intakeDateTime ? '<br>תאריך קליטה: <strong>' + esc(v.intakeDateTime) + '</strong>' : ''}
     </div>
+    ${evRow}
     ${notes}
     <div style="font-weight:900;font-size:13px;color:var(--muted);margin-bottom:8px">🔍 ממצאי בדיקה</div>
     ${rows || '<div style="color:var(--muted);text-align:center;padding:20px">אין נתוני צ׳קליסט</div>'}
