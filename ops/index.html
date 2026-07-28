@@ -4841,7 +4841,9 @@ function _renderViewIntakeModal(v) {
     const keyPhotos = key === 'c-battery-original'
       ? [...Object.values(v.batteryPhotoUrls || {}).flat(), ...(photos['c-battery-original'] || [])]
       : (photos[key]||[]).length ? photos[key]
-        : Object.entries(photos).filter(([k]) => k.startsWith(key) || key.startsWith(k)).flatMap(([,v]) => v);
+        // legacy fallback for numbered keys like "c-oil-1" only — a loose
+        // prefix match would leak photos between sections (e.g. c-ac → c-ac-noise)
+        : Object.entries(photos).filter(([k]) => k === key || /^-?\d+$/.test(k.slice(key.length))).flatMap(([,v]) => v);
     const plate = esc(v.plate || '');
     const imgs = keyPhotos.length
       ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${keyPhotos.map(url =>
@@ -6720,9 +6722,14 @@ function _applyBatterySnapshot(snap, wrap) {
     _batteryDocId = mine[mine.length - 1].id;
     _battMgr = {};
     for (const a of mine) {
-      const src = a.resultsJson ? JSON.parse(a.resultsJson)
-        : a.progressJson ? JSON.parse(a.progressJson)
-        : (a.rowsJson ? JSON.parse(a.rowsJson) : []).map(r => ({ cells: Array.isArray(r) ? r : (r.cells || []), battery: '', range: '', status: (r && r.status) || '' }));
+      // resultsJson is the FINAL submitted snapshot; progressJson is what the
+      // driver is typing right now. Only trust resultsJson once the check is
+      // actually done — otherwise a stale resultsJson from a previous
+      // submission hides every live entry the driver makes.
+      const _live = a.progressJson ? JSON.parse(a.progressJson) : null;
+      const _final = a.resultsJson ? JSON.parse(a.resultsJson) : null;
+      const src = (a.status === 'done' ? (_final || _live) : (_live || _final))
+        || (a.rowsJson ? JSON.parse(a.rowsJson) : []).map(r => ({ cells: Array.isArray(r) ? r : (r.cells || []), battery: '', range: '', status: (r && r.status) || '' }));
       _battMgr[a.id] = {
         headers: a.headers || [],
         assignedTo: a.assignedTo || '',
@@ -7372,12 +7379,11 @@ async function convertToChargingTask(batteryDocId) {
     const snap = await getDoc(_docRef('battery_assignments', batteryDocId));
     if (!snap.exists()) { showToast('⚠️ לא נמצאה הבדיקה'); return; }
     const data = snap.data();
-    // prefer resultsJson (driver submitted), then progressJson (live edits), else empty
-    const results = data.resultsJson
-      ? JSON.parse(data.resultsJson)
-      : data.progressJson
-        ? JSON.parse(data.progressJson)
-        : [];
+    // same rule as the manager's table: only a completed check may use the
+    // final snapshot, otherwise the driver's live entries win
+    const _lv = data.progressJson ? JSON.parse(data.progressJson) : null;
+    const _fn = data.resultsJson ? JSON.parse(data.resultsJson) : null;
+    const results = (data.status === 'done' ? (_fn || _lv) : (_lv || _fn)) || [];
     const headers = data.headers || [];
     // validate results exist and all rows have battery + range filled
     if (!results.length) { showToast('לא ניתן להמיר למשימת טעינה עד שכל הרכבים הושלמו.'); return; }
