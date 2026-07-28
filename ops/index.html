@@ -11514,9 +11514,10 @@ function openTestDriveScreen() {
       .sort((a,b) => (b.createdAt?.seconds||0) - (a.createdAt?.seconds||0));
     if (!_tdAllForms.length) { list.innerHTML = '<div style="text-align:center;padding:60px 20px;color:var(--muted);font-size:15px">אין טפסים</div>'; return; }
     list.innerHTML = _tdAllForms.map(f => {
-      const statusColor = f.status === 'done' ? '#16a34a' : '#f59e0b';
-      const statusLabel = f.status === 'done' ? '✅ הושלם' : '⏳ ממתין למילוי';
-      const onClick = f.status === 'done'
+      const isDoneLike = f.status === 'done' || f.status === 'transferred';
+      const statusColor = isDoneLike ? '#16a34a' : '#f59e0b';
+      const statusLabel = f.status === 'transferred' ? '✅ הושלמה והועברה לקליטה' : f.status === 'done' ? '✅ הושלם' : '⏳ ממתין למילוי';
+      const onClick = isDoneLike
         ? (isManager ? `_showTdResultModal('${f.id}', _tdAllForms.find(x=>x.id==='${f.id}'))` : '')
         : (!isManager ? `openFillTestDriveModal('${f.id}')` : '');
       return `<div class="vehicle-card" style="margin-bottom:10px;${onClick?'cursor:pointer;':''}border-right:5px solid ${statusColor}" onclick="${onClick}">
