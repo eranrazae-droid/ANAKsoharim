@@ -6766,13 +6766,79 @@ function _renderBattMgrBlock(asgId) {
   const filledCount = m.rows.filter(r => r.battery !== '' && r.range !== '').length;
   const statusLabel = isDone ? '✅ הושלמה' : `🔄 מולאו ${filledCount}/${m.rows.length}`;
   const bg = isDone ? '#f0fff4' : '#eff6ff', bd = isDone ? '#22c55e' : '#3b82f6', cl = isDone ? '#166534' : '#1e40af';
-  let html = `<div style="margin-bottom:16px">
-    <div style="border-radius:10px;padding:8px 12px;margin-bottom:6px;font-size:12px;font-weight:700;background:${bg};border:2px solid ${bd};color:${cl}">🧑‍🔧 נהג: <b>${esc(m.assignedTo)}</b> · ${statusLabel} · ${m.ts}</div>`;
+  let html = `<div style="margin-bottom:16px" data-batt-block="${asgId}"
+      ondragover="_battDragOver(event,'${asgId}')" ondragleave="_battDragLeave(event)" ondrop="_battDrop(event,'${asgId}')">
+    <div style="border-radius:10px;padding:8px 12px;margin-bottom:6px;font-size:12px;font-weight:700;background:${bg};border:2px solid ${bd};color:${cl}">🧑‍🔧 נהג: <b>${esc(m.assignedTo)}</b> · ${statusLabel} · ${m.ts} <span style="font-weight:500;opacity:.7">· ניתן לגרור רכב לנהג אחר</span></div>`;
   html += remaining.length ? _battMgrTableHTML(asgId, m.headers, m.rows, m.convertedIdx)
     : '<div style="text-align:center;color:var(--muted);font-size:13px;padding:14px">כל הרכבים הומרו למשימה ✓</div>';
   html += `</div>`;
   return html;
 }
+
+/* ── drag a car from one driver's battery check to another ───────────── */
+let _battDrag = null;
+function _battDragStart(ev, asgId, idx) {
+  _battDrag = { asgId, idx };
+  _battMgrLastEdit = Date.now(); // keep the live listener from re-rendering mid-drag
+  try { ev.dataTransfer.effectAllowed = 'move'; ev.dataTransfer.setData('text/plain', asgId + ':' + idx); } catch(e) {}
+  ev.currentTarget.style.opacity = '0.4';
+}
+function _battDragEnd(ev) { ev.currentTarget.style.opacity = ''; _battDrag = null; }
+function _battDragOver(ev, asgId) {
+  if (!_battDrag || _battDrag.asgId === asgId) return; // same driver — nothing to do
+  ev.preventDefault();
+  try { ev.dataTransfer.dropEffect = 'move'; } catch(e) {}
+  const b = ev.currentTarget;
+  b.style.outline = '3px dashed #3b82f6';
+  b.style.outlineOffset = '2px';
+}
+function _battDragLeave(ev) { ev.currentTarget.style.outline = ''; }
+
+async function _battDrop(ev, dstAsg) {
+  ev.preventDefault();
+  ev.currentTarget.style.outline = '';
+  const drag = _battDrag;
+  _battDrag = null;
+  if (!drag || drag.asgId === dstAsg) return;
+  const src = _battMgr[drag.asgId], dst = _battMgr[dstAsg];
+  if (!src || !dst || !src.rows[drag.idx]) return;
+
+  const car = src.rows[drag.idx];
+  const plate = (car.cells || [])[0] || 'הרכב';
+  if (!confirm(`להעביר את ${plate} מ-${src.assignedTo} ל-${dst.assignedTo}?`)) return;
+
+  // removing a row shifts every later index — remap convertedIdx accordingly
+  src.rows = src.rows.filter((_, i) => i !== drag.idx);
+  src.convertedIdx = (src.convertedIdx || [])
+    .filter(ci => ci !== drag.idx)
+    .map(ci => ci > drag.idx ? ci - 1 : ci);
+  dst.rows = [...dst.rows, car];
+
+  _battSelected.clear(); // indices moved — stale selections would point at the wrong cars
+  _rerenderBattMgrRight();
+
+  try {
+    const { updateDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const pack = m => JSON.stringify(m.rows.map(r => ({ cells: r.cells, battery: r.battery, range: r.range, status: r.status || '' })));
+    // write to whichever field that doc is actually read from, so the move sticks
+    const payloadFor = (id, m) => {
+      const p = { progressJson: pack(m), convertedIdx: m.convertedIdx || [] };
+      if (m.status === 'done') p.resultsJson = pack(m);
+      return p;
+    };
+    await updateDoc(_docRef('battery_assignments', drag.asgId), payloadFor(drag.asgId, src));
+    await updateDoc(_docRef('battery_assignments', dstAsg),   payloadFor(dstAsg, dst));
+    showToast(`✅ ${plate} הועבר ל${dst.assignedTo}`);
+  } catch(e) {
+    console.error('battery drag move failed', e);
+    showToast('שגיאה בהעברה: ' + (e.code || e.message));
+  }
+}
+window._battDragStart = _battDragStart;
+window._battDragEnd = _battDragEnd;
+window._battDragOver = _battDragOver;
+window._battDragLeave = _battDragLeave;
+window._battDrop = _battDrop;
 
 function _battMgrTableHTML(asgId, headers, rows, convertedIdx) {
   const conv = new Set(convertedIdx || []);
@@ -6788,7 +6854,7 @@ function _battMgrTableHTML(asgId, headers, rows, convertedIdx) {
   rows.forEach((row, idx) => {
     if (conv.has(idx)) return;
     const filled = row.battery !== '' && row.range !== '';
-    html += `<div id="bm-${asgId}-${idx}" style="display:grid;grid-template-columns:${colW};gap:3px;align-items:center;background:${filled ? '#f0fff4' : '#fff'};border:1.5px solid ${filled ? '#22c55e' : 'var(--border)'};border-top:none;padding:4px 6px;direction:rtl;min-width:max-content">
+    html += `<div id="bm-${asgId}-${idx}" draggable="true" ondragstart="_battDragStart(event,'${asgId}',${idx})" ondragend="_battDragEnd(event)" style="display:grid;grid-template-columns:${colW};gap:3px;align-items:center;background:${filled ? '#f0fff4' : '#fff'};border:1.5px solid ${filled ? '#22c55e' : 'var(--border)'};border-top:none;padding:4px 6px;direction:rtl;min-width:max-content;cursor:grab">
       ${row.cells.map(c => `<div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c)}</div>`).join('')}
       <div><input type="number" min="0" max="100" value="${esc(row.battery)}" placeholder="%" onfocus="_battMgrLastEdit=Date.now()" oninput="_clampBatteryInput(this);_battMgrEdit('${asgId}',${idx},'battery',this.value)" style="width:100%;border:1.5px solid #22c55e;border-radius:6px;padding:4px 2px;font-family:Heebo,sans-serif;font-size:12px;font-weight:700;text-align:center;box-sizing:border-box;background:#f0fff4"></div>
       <div><input type="text" value="${esc(row.range)}" placeholder="קמ" onfocus="_battMgrLastEdit=Date.now()" oninput="_battMgrEdit('${asgId}',${idx},'range',this.value)" style="width:100%;border:1.5px solid #22c55e;border-radius:6px;padding:4px 2px;font-family:Heebo,sans-serif;font-size:12px;font-weight:700;text-align:center;box-sizing:border-box;background:#f0fff4"></div>
