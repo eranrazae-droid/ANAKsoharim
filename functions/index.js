@@ -307,65 +307,70 @@ exports.batteryCheckReminder = onSchedule(
   }
 );
 
-// polls Telegram every 2 minutes for button presses on the reminder message
-// (no public webhook needed — avoids depending on this project's flaky
-// Cloud Run URL provisioning) and relays the driver's choice to ליאל.
-exports.telegramPoll = onSchedule(
-  { schedule: "every 2 minutes", region: "europe-west1" },
-  async () => {
+// instant webhook — Telegram calls this the moment a driver taps a button,
+// instead of waiting for a 2-minute poll.
+exports.telegramWebhook = onRequest({ region: "europe-west1" }, async (req, res) => {
+  res.status(200).send("ok"); // ack Telegram immediately, process after
+  try {
+    const cq = req.body?.callback_query;
+    if (!cq || !cq.data) return;
+
     const contactsSnap = await db.collection("config").doc("driver_contacts").get();
     const contacts = contactsSnap.exists ? contactsSnap.data() : {};
     const token = contacts["_telegramToken"]?.value || "";
     if (!token) return;
-
-    const offsetDoc = await db.collection("config").doc("telegram_poll").get();
-    const offset = offsetDoc.exists ? offsetDoc.data().offset || 0 : 0;
-
-    const res = await fetch(`https://api.telegram.org/bot${token}/getUpdates?offset=${offset}&timeout=0`);
-    const data = await res.json();
-    if (!data.ok || !data.result?.length) return;
-
     const managerChatId = contacts["ליאל"]?.telegramId;
-    let maxUpdateId = offset - 1;
 
-    for (const update of data.result) {
-      maxUpdateId = Math.max(maxUpdateId, update.update_id);
-      const cq = update.callback_query;
-      if (!cq || !cq.data) continue;
+    fetch(`https://api.telegram.org/bot${token}/answerCallbackQuery`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ callback_query_id: cq.id }),
+    }).catch(() => {});
 
-      fetch(`https://api.telegram.org/bot${token}/answerCallbackQuery`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ callback_query_id: cq.id }),
-      }).catch(() => {});
-
-      const [action, driverName] = cq.data.split(":");
-      if (action === "battery_snooze") {
-        await db.collection("pending_reminders").add({
-          type: "battery_snooze",
-          driver: driverName,
-          chatId: cq.message?.chat?.id,
-          dueAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-          sent: false,
-          createdAt: new Date(),
+    const [action, driverName] = cq.data.split(":");
+    if (action === "battery_snooze") {
+      await db.collection("pending_reminders").add({
+        type: "battery_snooze",
+        driver: driverName,
+        chatId: cq.message?.chat?.id,
+        dueAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        sent: false,
+        createdAt: new Date(),
+      });
+      if (managerChatId) {
+        await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: managerChatId, text: `⏰ ${driverName} ביקש תזכורת מחר לגבי בדיקת הסוללה.` }),
         });
-        if (managerChatId) {
-          await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ chat_id: managerChatId, text: `⏰ ${driverName} ביקש תזכורת מחר לגבי בדיקת הסוללה.` }),
-          });
-        }
-      } else if (action === "battery_now") {
-        if (managerChatId) {
-          await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ chat_id: managerChatId, text: `✅ ${driverName} מטפל עכשיו בבדיקת הסוללה.` }),
-          });
-        }
+      }
+    } else if (action === "battery_now") {
+      if (managerChatId) {
+        await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: managerChatId, text: `✅ ${driverName} מטפל עכשיו בבדיקת הסוללה.` }),
+        });
       }
     }
-    await db.collection("config").doc("telegram_poll").set({ offset: maxUpdateId + 1 });
+  } catch (err) {
+    console.error("telegramWebhook failed", err);
   }
-);
+});
+
+// one-time setup — open this URL once in a browser to point the bot at the
+// webhook above (instead of the 2-minute poll it used before).
+exports.registerTelegramWebhook = onRequest({ region: "europe-west1" }, async (req, res) => {
+  const contactsSnap = await db.collection("config").doc("driver_contacts").get();
+  const contacts = contactsSnap.exists ? contactsSnap.data() : {};
+  const token = contacts["_telegramToken"]?.value || "";
+  if (!token) return res.status(400).send("אין טוקן טלגרם מוגדר");
+  const webhookUrl = "https://europe-west1-anak-soharim.cloudfunctions.net/telegramWebhook";
+  try {
+    const tgRes = await fetch(`https://api.telegram.org/bot${token}/setWebhook?url=${encodeURIComponent(webhookUrl)}`);
+    const tgData = await tgRes.json();
+    res.status(200).send(tgData.ok ? "✅ הבוט מחובר עכשיו לתגובה מיידית" : "שגיאה: " + JSON.stringify(tgData));
+  } catch (err) {
+    res.status(500).send("שגיאה: " + err.message);
+  }
+});
 
 // every 15 min — fires any snoozed "remind me tomorrow" reminders whose time
 // has come, re-checking the driver's current pending count first.
