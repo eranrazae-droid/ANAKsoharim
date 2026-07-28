@@ -4294,7 +4294,24 @@ function openEditIntake(id) {
       document.getElementById('ei-year').value   = v.year        || '';
       document.getElementById('ei-spot').value   = v.spot        || '';
       document.getElementById('ei-driver').value = v.assignedTo  || 'עופר';
-      document.getElementById('ei-intake-form').style.display = 'none';
+      // the intake-results section (checklist / ק"מ / קוד / הערה) was built but
+      // never wired up — populate and show it once the driver has submitted
+      const cl = v.checklist || {};
+      const hasResults = Object.keys(cl).length > 0;
+      const eiForm = document.getElementById('ei-intake-form');
+      eiForm.style.display = hasResults ? 'block' : 'none';
+      if (hasResults) {
+        const checks = {}, notes = {};
+        Object.entries(cl).forEach(([k, val]) => {
+          if (k.endsWith('_note')) notes[k.slice(0, -5)] = val;
+          else checks[k] = val;
+        });
+        document.getElementById('ei-km').value      = v.km    || '';
+        document.getElementById('ei-code').value    = v.code  || '';
+        document.getElementById('ei-general').value = v.notes || '';
+        _renderEiChecklist({ checks, notes, dashChecks: v.dashChecks || {},
+                             batteryMonth: v.batteryMonth || '', batteryNoDate: !!v.batteryNoDate });
+      }
       openModal('modal-edit-intake');
     });
   });
@@ -4319,7 +4336,7 @@ async function saveEditIntake() {
   const id = document.getElementById('ei-id').value;
   if (!id) return;
   try {
-    await _updateDoc(_docRef('intake_assignments', id), {
+    const payload = {
       plate:      document.getElementById('ei-plate').value.trim(),
       brand:      document.getElementById('ei-brand').value.trim(),
       model:      document.getElementById('ei-model').value.trim(),
@@ -4327,7 +4344,33 @@ async function saveEditIntake() {
       year:       document.getElementById('ei-year').value,
       spot:       document.getElementById('ei-spot').value.trim(),
       assignedTo: document.getElementById('ei-driver').value,
-    });
+    };
+    // results section is only present once the driver submitted — otherwise
+    // saving would wipe the checklist with empty values
+    if (document.getElementById('ei-intake-form')?.style.display !== 'none') {
+      const checklist = {};
+      document.querySelectorAll('#ei-checklist button[data-key]').forEach(b => {
+        if (b.dataset.state) checklist[b.dataset.key] = b.dataset.state;
+      });
+      document.querySelectorAll('#ei-checklist input[data-note-key]').forEach(inp => {
+        const t = inp.value.trim();
+        if (t) checklist[inp.dataset.noteKey + '_note'] = t;
+      });
+      const dashChecks = {};
+      document.querySelectorAll('#ei-checklist input[data-dash]').forEach(cb => {
+        dashChecks[cb.dataset.dash] = cb.checked;
+      });
+      payload.checklist  = checklist;
+      payload.dashChecks = dashChecks;
+      payload.km         = document.getElementById('ei-km').value.trim();
+      payload.code       = document.getElementById('ei-code').value.trim();
+      payload.notes      = document.getElementById('ei-general').value.trim();
+      const bMonth  = document.getElementById('ei-bmonth');
+      const bNoDate = document.getElementById('ei-bnodate');
+      if (bMonth)  payload.batteryMonth  = bMonth.value;
+      if (bNoDate) payload.batteryNoDate = bNoDate.checked;
+    }
+    await _updateDoc(_docRef('intake_assignments', id), payload);
     if (_eiUnsub) { _eiUnsub(); _eiUnsub = null; }
     closeModal('modal-edit-intake');
     showToast('✅ הקליטה עודכנה!');
@@ -12279,8 +12322,8 @@ function _restoreTdLivePanelIfNeeded() {
       <div id="rfnote-rf-battery" class="ci-note-row" style="display:none">
         <textarea class="form-textarea" id="rfcn-rf-battery" placeholder="הערה..." rows="2"></textarea>
         <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
-          <button type="button" onclick="document.getElementById('file-rf-battery').click()" style="background:#6366f1;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-family:Heebo,sans-serif;font-size:12px;font-weight:700;cursor:pointer">📷 הוסף תמונה</button>
-          <input type="file" accept="image/*" capture="environment" id="file-rf-battery" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" multiple onchange="addRfGenericPhoto('rf-battery',this)">
+          <button type="button" onclick="document.getElementById('file-rf-battery-note').click()" style="background:#6366f1;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-family:Heebo,sans-serif;font-size:12px;font-weight:700;cursor:pointer">📷 הוסף תמונה</button>
+          <input type="file" accept="image/*" capture="environment" id="file-rf-battery-note" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" multiple onchange="addRfGenericPhoto('rf-battery',this)">
         </div>
         <div id="rf-photos-rf-battery" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px"></div>
       </div>
@@ -12483,8 +12526,8 @@ function _restoreTdLivePanelIfNeeded() {
       <div id="rfnote-rf-upholstery" class="ci-note-row" style="display:none">
         <textarea class="form-textarea" id="rfcn-rf-upholstery" placeholder="הערה..." rows="2"></textarea>
         <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
-          <button type="button" onclick="document.getElementById('file-rf-upholstery').click()" style="background:#6366f1;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-family:Heebo,sans-serif;font-size:12px;font-weight:700;cursor:pointer">📷 הוסף תמונה</button>
-          <input type="file" accept="image/*" capture="environment" id="file-rf-upholstery" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" multiple onchange="addRfGenericPhoto('rf-upholstery',this)">
+          <button type="button" onclick="document.getElementById('file-rf-upholstery-note').click()" style="background:#6366f1;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-family:Heebo,sans-serif;font-size:12px;font-weight:700;cursor:pointer">📷 הוסף תמונה</button>
+          <input type="file" accept="image/*" capture="environment" id="file-rf-upholstery-note" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" multiple onchange="addRfGenericPhoto('rf-upholstery',this)">
         </div>
         <div id="rf-photos-rf-upholstery" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px"></div>
       </div>
