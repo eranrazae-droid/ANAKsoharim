@@ -191,12 +191,12 @@ exports.dailyRecallPull = onSchedule(
     })).filter((c) => c.plate.length === 7 || c.plate.length === 8);
     if (!cars.length) return;
 
-    // keep "resolved" flags for cars still open from a previous run
+    // keep "resolved" + linked-task info for cars still open from a previous run
     const statusRef = db.collection("recall_status").doc("current");
     const existingSnap = await statusRef.get();
-    const resolvedByPlate = {};
+    const prevByPlate = {};
     if (existingSnap.exists) {
-      for (const c of existingSnap.data().cars || []) if (c.resolved) resolvedByPlate[c.plate] = true;
+      for (const c of existingSnap.data().cars || []) prevByPlate[c.plate] = c;
     }
 
     const field = await _recallLearnField().catch(() => "mispar_rechev");
@@ -237,7 +237,10 @@ exports.dailyRecallPull = onSchedule(
       }
     }
 
-    const finalCars = openCars.map((c) => ({ ...c, resolved: !!resolvedByPlate[c.plate] }));
+    const finalCars = openCars.map((c) => {
+      const prev = prevByPlate[c.plate];
+      return { ...c, resolved: !!prev?.resolved, taskId: prev?.taskId || null };
+    });
     await statusRef.set({ cars: finalCars, updatedAt: new Date() });
   }
 );

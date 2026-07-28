@@ -6147,19 +6147,34 @@ function _stripMfrCountry(name) {
   return n.trim();
 }
 
+// Firestore (recall_status/current) is the single source of truth — it's
+// updated by the daily automatic scan AND by this screen. Opening the screen
+// must never push stale local/localStorage data over it (that would erase
+// this morning's automatic results) — it only LISTENS.
+let _recallStatusUnsub = null;
 function openRecallScreen() {
   document.getElementById('recall-user-badge').textContent = currentUser.name;
   showScreen('recall');
-  if (!_recallRows.length) {
-    try { _recallRows = JSON.parse(localStorage.getItem('_recallData') || '[]'); } catch(e) { _recallRows = []; }
-  }
-  renderRecallTable();
-  _recallSyncFirestore(); // makes sure the home badge reflects data restored from localStorage too
+  if (_recallStatusUnsub) _recallStatusUnsub();
+  _recallStatusUnsub = _onSnap(_docRef('recall_status', 'current'), snap => {
+    const cars = snap.exists() ? (snap.data().cars || []) : [];
+    // preserve any not-yet-synced local rows still mid-check (state 'wait'/'checking')
+    const inFlight = _recallRows.filter(r => r.state === 'wait' || r.recallState === 'wait' || r.recallState === 'checking' || r.recallState === 'err');
+    _recallRows = [
+      ...cars.map(c => ({
+        plate: c.plate, tozeret: c.tozeret, degem: c.degem, shnat: c.shnat, misgeret: c.misgeret || '',
+        state: 'ok', recallState: 'open', recallDetails: c.recallDetails || null,
+        resolved: !!c.resolved, taskCreated: !!c.taskId, taskId: c.taskId || null
+      })),
+      ...inFlight
+    ];
+    renderRecallTable();
+    _recallUpdateHomeBadge();
+  });
 }
 
 function clearRecallTable() {
   _recallRows = [];
-  localStorage.removeItem('_recallData');
   document.getElementById('recall-file-input').value = '';
   renderRecallTable();
   const b = document.getElementById('recall-status-banner');
@@ -6167,14 +6182,14 @@ function clearRecallTable() {
   _recallSyncFirestore();
 }
 
-// persists the open-recall list to Firestore so: (1) the home-screen badge
-// shows red on any device/session without needing this screen open, and
-// (2) the daily 8:30 reminder Cloud Function has something to read.
+// persists the open-recall list to Firestore — this is what the daily
+// automatic scan, the home-screen badge, and the 8:30 reminder all read.
 async function _recallSyncFirestore() {
   try {
     const { setDoc, doc, serverTimestamp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
     const cars = _recallRows.filter(r => r.recallState === 'open').map(r => ({
-      plate: r.plate, tozeret: r.tozeret, degem: r.degem, shnat: r.shnat, misgeret: r.misgeret, resolved: !!r.resolved
+      plate: r.plate, tozeret: r.tozeret, degem: r.degem, shnat: r.shnat, misgeret: r.misgeret,
+      resolved: !!r.resolved, taskId: r.taskId || null
     }));
     await setDoc(doc(window._db, 'recall_status', 'current'), { cars, updatedAt: serverTimestamp() });
   } catch(e) { console.error('_recallSyncFirestore', e); }
