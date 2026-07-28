@@ -4,7 +4,10 @@ const { initializeApp } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
 
 initializeApp();
-const db = getFirestore();
+// the app uses a named database called "default" (not the reserved "(default)"
+// database) — without this second argument, every read/write here silently
+// hits an empty, disconnected database instead of the real one.
+const db = getFirestore("default");
 
 // current Israel wall-clock time as a UTC-pretend Date, so naive
 // (timezone-free) comparison against stored date/time strings works
