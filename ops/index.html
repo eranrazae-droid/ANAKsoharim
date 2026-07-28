@@ -11516,7 +11516,10 @@ function openTestDriveScreen() {
     list.innerHTML = _tdAllForms.map(f => {
       const statusColor = f.status === 'done' ? '#16a34a' : '#f59e0b';
       const statusLabel = f.status === 'done' ? '✅ הושלם' : '⏳ ממתין למילוי';
-      return `<div class="vehicle-card" style="margin-bottom:10px;cursor:pointer;border-right:5px solid ${statusColor}" onclick="${f.status!=='done' && (currentUser.role==='driver'||!isManager) ? `openFillTestDriveModal('${f.id}')` : ''}">
+      const onClick = f.status === 'done'
+        ? (isManager ? `_showTdResultModal('${f.id}', _tdAllForms.find(x=>x.id==='${f.id}'))` : '')
+        : (!isManager ? `openFillTestDriveModal('${f.id}')` : '');
+      return `<div class="vehicle-card" style="margin-bottom:10px;${onClick?'cursor:pointer;':''}border-right:5px solid ${statusColor}" onclick="${onClick}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
           <div>
             <div class="vehicle-plate">${f.plate||''}</div>
