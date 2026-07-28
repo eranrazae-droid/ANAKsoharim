@@ -6685,8 +6685,26 @@ function _loadBatteryAssignments() {
   wrap.innerHTML = '<div class="loading"><div class="spinner"></div> טוען...</div>';
   _batteryUnsub = _onSnap(_colRef('battery_assignments'), snap => {
     if (_batteryMode === 'preview') return;
-    // don't blow away the manager's inputs mid-typing
-    if (Date.now() - _battMgrLastEdit < 2500) return;
+    // don't blow away the manager's inputs mid-typing — but never DROP the
+    // update either: hold it and re-apply once typing settles, otherwise a
+    // driver's entry that lands in that window is lost until something else
+    // changes on the server.
+    if (Date.now() - _battMgrLastEdit < 2500) {
+      clearTimeout(_battMgrPendingTimer);
+      _battMgrPendingSnap = snap;
+      _battMgrPendingTimer = setTimeout(() => {
+        const s = _battMgrPendingSnap;
+        _battMgrPendingSnap = null;
+        if (s) _applyBatterySnapshot(s, wrap);
+      }, 2600 - (Date.now() - _battMgrLastEdit));
+      return;
+    }
+    _applyBatterySnapshot(snap, wrap);
+  });
+}
+let _battMgrPendingSnap = null, _battMgrPendingTimer = null;
+
+function _applyBatterySnapshot(snap, wrap) {
     const mine = snap.docs
       .map(d => ({ id: d.id, ...d.data() }))
       .filter(d => d.sentBy === currentUser.name && !d.converted)
@@ -6723,7 +6741,6 @@ function _loadBatteryAssignments() {
     wrap.innerHTML = _battMgrOrder.map(id => _renderBattMgrBlock(id)).join('');
     document.getElementById('battery-submit-wrap').style.display = 'none';
     _updateConvertBar();
-  });
 }
 
 function _rerenderBattMgrRight() {
@@ -6766,7 +6783,7 @@ function _battMgrTableHTML(asgId, headers, rows, convertedIdx) {
     const filled = row.battery !== '' && row.range !== '';
     html += `<div id="bm-${asgId}-${idx}" style="display:grid;grid-template-columns:${colW};gap:3px;align-items:center;background:${filled ? '#f0fff4' : '#fff'};border:1.5px solid ${filled ? '#22c55e' : 'var(--border)'};border-top:none;padding:4px 6px;direction:rtl;min-width:max-content">
       ${row.cells.map(c => `<div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c)}</div>`).join('')}
-      <div><input type="number" min="1" max="100" value="${esc(row.battery)}" placeholder="%" onfocus="_battMgrLastEdit=Date.now()" oninput="_clampBatteryInput(this);_battMgrEdit('${asgId}',${idx},'battery',this.value)" style="width:100%;border:1.5px solid #22c55e;border-radius:6px;padding:4px 2px;font-family:Heebo,sans-serif;font-size:12px;font-weight:700;text-align:center;box-sizing:border-box;background:#f0fff4"></div>
+      <div><input type="number" min="0" max="100" value="${esc(row.battery)}" placeholder="%" onfocus="_battMgrLastEdit=Date.now()" oninput="_clampBatteryInput(this);_battMgrEdit('${asgId}',${idx},'battery',this.value)" style="width:100%;border:1.5px solid #22c55e;border-radius:6px;padding:4px 2px;font-family:Heebo,sans-serif;font-size:12px;font-weight:700;text-align:center;box-sizing:border-box;background:#f0fff4"></div>
       <div><input type="text" value="${esc(row.range)}" placeholder="קמ" onfocus="_battMgrLastEdit=Date.now()" oninput="_battMgrEdit('${asgId}',${idx},'range',this.value)" style="width:100%;border:1.5px solid #22c55e;border-radius:6px;padding:4px 2px;font-family:Heebo,sans-serif;font-size:12px;font-weight:700;text-align:center;box-sizing:border-box;background:#f0fff4"></div>
     </div>`;
   });
@@ -7007,7 +7024,7 @@ function _batteryTableHTML(headers, rows, editable, showBatteryCols = true, inde
     const filled = row.battery !== '' || row.range !== '';
     const bg = filled ? '#f0fff4' : '#fff';
     const batteryCell = editable
-      ? `<div><input type="number" min="1" max="100" value="${esc(row.battery)}" placeholder="%" oninput="_clampBatteryInput(this);batteryInputChange(${ri},'battery',this.value)" style="width:100%;border:1.5px solid #22c55e;border-radius:7px;padding:5px 4px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;background:#f0fff4"></div>`
+      ? `<div><input type="number" min="0" max="100" value="${esc(row.battery)}" placeholder="%" oninput="_clampBatteryInput(this);batteryInputChange(${ri},'battery',this.value)" style="width:100%;border:1.5px solid #22c55e;border-radius:7px;padding:5px 4px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;background:#f0fff4"></div>`
       : `<div style="font-size:13px;font-weight:800;text-align:center;color:${row.battery ? '#166534' : '#aaa'}">${row.battery ? row.battery + '%' : '—'}</div>`;
     const rangeCell = editable
       ? `<div><input type="text" value="${esc(row.range)}" placeholder="קמ" oninput="batteryInputChange(${ri},'range',this.value)" style="width:100%;border:1.5px solid #22c55e;border-radius:7px;padding:5px 4px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;background:#f0fff4"></div>`
@@ -7252,7 +7269,7 @@ function renderDriverBatteryModal() {
     const bg = filled ? '#f0fff4' : '#fff';
     return `<div id="dbatt-row-${i}" style="display:grid;grid-template-columns:${colW};gap:3px;align-items:center;background:${bg};border:1.5px solid ${filled?'#22c55e':'var(--border)'};border-top:none;padding:4px 6px;direction:rtl;min-width:max-content">
       ${row.cells.map(c => `<div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:2px 0">${esc(c)}</div>`).join('')}
-      <div><input type="number" inputmode="numeric" pattern="[0-9]*" min="1" max="100" value="${esc(row.battery)}" placeholder="%" oninput="_clampBatteryInput(this);dbattInput(${i},'battery',this.value)" onblur="_dbattFlush()" style="width:100%;border:1.5px solid #22c55e;border-radius:7px;padding:6px 4px;font-family:Heebo,sans-serif;font-size:14px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;background:#f0fff4"></div>
+      <div><input type="number" inputmode="numeric" pattern="[0-9]*" min="0" max="100" value="${esc(row.battery)}" placeholder="%" oninput="_clampBatteryInput(this);dbattInput(${i},'battery',this.value)" onblur="_dbattFlush()" style="width:100%;border:1.5px solid #22c55e;border-radius:7px;padding:6px 4px;font-family:Heebo,sans-serif;font-size:14px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;background:#f0fff4"></div>
       <div><input type="number" inputmode="numeric" pattern="[0-9]*" min="0" value="${esc(row.range)}" placeholder="קמ" oninput="dbattInput(${i},'range',this.value)" onblur="_dbattFlush()" style="width:100%;border:1.5px solid #22c55e;border-radius:7px;padding:6px 4px;font-family:Heebo,sans-serif;font-size:14px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;background:#f0fff4"></div>
     </div>`;
   }).join('');
@@ -7266,7 +7283,7 @@ function _clampBatteryInput(el) {
   if (v.length > 3) { el.value = '100'; return; }
   if (v.length === 3 && v !== '100') { el.value = v.slice(0, 2); return; }
   const n = parseInt(v);
-  if (!isNaN(n)) el.value = Math.min(100, Math.max(1, n));
+  if (!isNaN(n)) el.value = Math.min(100, Math.max(0, n)); // 0% is a valid reading (empty battery)
 }
 let _dbattSaveTimer = null;
 function dbattInput(idx, field, val) {
@@ -7290,7 +7307,7 @@ function dbattInput(idx, field, val) {
         progressJson: JSON.stringify(_dbattRows.map(r => ({ cells: r.cells, battery: r.battery, range: r.range, status: r.status || '' }))),
       });
     } catch(e) {}
-  }, 1500);
+  }, 600); // keep the manager's live view close to real-time
 }
 
 // save immediately (on blur / leaving the field) so nothing is lost on exit
