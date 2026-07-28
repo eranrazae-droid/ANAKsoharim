@@ -1333,6 +1333,7 @@ if ('serviceWorker' in navigator) {
   </div>
   <div style="padding:16px 16px 120px">
     <div id="battery-status-banner" style="display:none;border-radius:14px;padding:14px 16px;margin-bottom:14px;font-size:14px;font-weight:700"></div>
+    <button onclick="sendBatteryReminders()" id="batt-remind-btn" style="width:100%;background:#0d6ab0;color:#fff;border:none;border-radius:14px;padding:12px;font-family:Heebo,sans-serif;font-weight:800;font-size:14px;cursor:pointer;margin-bottom:12px">📤 שלח תזכורת לנהגים על בדיקות טעינה פתוחות</button>
     <!-- File upload area -->
     <div style="display:flex;gap:10px;align-items:stretch;margin-bottom:12px">
       <div style="flex:1;display:flex;flex-direction:column;gap:8px">
@@ -8718,6 +8719,53 @@ async function _sendTelegram(chatId, message) {
     return false;
   }
 }
+
+// manual "remind now" button (battery-check screen) — same message + reply
+// buttons as the scheduled 11:00 reminder, sent on demand instead of waiting.
+async function sendBatteryReminders() {
+  const btn = document.getElementById('batt-remind-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ שולח...'; }
+  try {
+    const { getDocs, query, collection, where } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const snap = await getDocs(query(collection(window._db, 'battery_assignments'), where('status', '==', 'pending')));
+    const countByDriver = {};
+    snap.forEach(d => {
+      const data = d.data();
+      const rows = data.rowsJson ? JSON.parse(data.rowsJson) : [];
+      if (!data.assignedTo) return;
+      countByDriver[data.assignedTo] = (countByDriver[data.assignedTo] || 0) + rows.length;
+    });
+    if (!Object.keys(countByDriver).length) { showToast('אין בדיקות טעינה ממתינות לאף נהג'); return; }
+
+    const contacts = await _loadDriverContacts();
+    const token = (contacts['_telegramToken']?.value || '').trim();
+    if (!token) { showToast('⚠️ טוקן טלגרם לא מוגדר בהגדרות הודעות'); return; }
+
+    let sent = 0, missing = [];
+    for (const [name, count] of Object.entries(countByDriver)) {
+      const chatId = contacts[name]?.telegramId;
+      if (!chatId) { missing.push(name); continue; }
+      const text = `🔋 תזכורת — יש לך ${count} רכבים שממתינים לבדיקת סוללה. כנס לאפליקציה להשלים.`;
+      const reply_markup = { inline_keyboard: [
+        [{ text: '⏰ עסוק עכשיו, תזכיר לי מחר', callback_data: `battery_snooze:${name}` }],
+        [{ text: '✅ מטפל בזה עכשיו', callback_data: `battery_now:${name}` }],
+      ]};
+      try {
+        await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: chatId, text, reply_markup })
+        });
+        sent++;
+      } catch(e) { console.error('sendBatteryReminders', name, e); }
+    }
+    showToast(`✅ נשלחה תזכורת ל-${sent} נהגים${missing.length ? ` · אין טלגרם ל: ${missing.join(', ')}` : ''}`, 5000);
+  } catch(e) {
+    showToast('שגיאה בשליחת תזכורות: ' + (e.message || e));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '📤 שלח תזכורת לנהגים על בדיקות טעינה פתוחות'; }
+  }
+}
+window.sendBatteryReminders = sendBatteryReminders;
 
 // fetch recent messages sent TO the bot, to discover each driver's chat id
 async function _telegramGetUpdates() {
