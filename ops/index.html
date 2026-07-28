@@ -7317,37 +7317,41 @@ function openDriverBatteryModal(docId) {
 
 function renderDriverBatteryModal() {
   const headers = _dbattHeaders;
-  const colCount = headers.length || (_dbattRows[0]?.cells.length || 1);
-  const colWidths = headers.length
-    ? [...headers.map(h => {
-        if (h.includes('דגם') || h.includes('צבע') || h.includes('יצרן')) return 'minmax(80px,1.4fr)';
-        if (h.includes('מספר') || h.includes('לוחית')) return 'minmax(75px,1.2fr)';
-        return 'minmax(60px,1fr)';
-      }), '72px', '80px']
-    : [...Array(colCount).fill('minmax(60px,1fr)'), '72px', '80px'];
-  const colW = colWidths.join(' ');
-
-  let html = `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch">`;
-  if (headers.length) {
-    html += `<div style="display:grid;grid-template-columns:${colW};gap:3px;background:var(--dark);color:#fff;border-radius:10px 10px 0 0;padding:6px 8px;font-size:11px;font-weight:700;direction:rtl;min-width:max-content">
-      ${headers.map(h => `<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(h)}</div>`).join('')}
-      <div style="text-align:center;color:#86efac">אחוזי<br>סוללה</div>
-      <div style="text-align:center;color:#86efac">טווח<br>נסיעה</div>
-    </div>`;
-  }
+  // card layout, 2 per row (the charging screen uses 1 per row — this form has
+  // fewer fields per car so two fit comfortably on a phone).
+  // NOTE: the live-sync code finds inputs via #dbatt-row-<i> and expects the
+  // battery input first, range second — keep that order.
   const _convSet = new Set(_dbattConvertedIdx || []);
-  html += _dbattRows.map((row, i) => {
+  const inp = (val, i, field, ph, extra) =>
+    `<input type="number" inputmode="numeric" pattern="[0-9]*" min="0" ${extra} value="${esc(val)}" placeholder="${ph}"
+      oninput="${field === 'battery' ? '_clampBatteryInput(this);' : ''}dbattInput(${i},'${field}',this.value)" onblur="_dbattFlush()"
+      style="width:100%;border:1.5px solid #22c55e;border-radius:8px;padding:8px 4px;font-family:Heebo,sans-serif;font-size:16px;font-weight:800;text-align:center;outline:none;box-sizing:border-box;background:#f0fff4">`;
+
+  const cards = _dbattRows.map((row, i) => {
     if (_convSet.has(i)) return '';
     const filled = row.battery !== '' || row.range !== '';
-    const bg = filled ? '#f0fff4' : '#fff';
-    return `<div id="dbatt-row-${i}" style="display:grid;grid-template-columns:${colW};gap:3px;align-items:center;background:${bg};border:1.5px solid ${filled?'#22c55e':'var(--border)'};border-top:none;padding:4px 6px;direction:rtl;min-width:max-content">
-      ${row.cells.map(c => `<div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:2px 0">${esc(c)}</div>`).join('')}
-      <div><input type="number" inputmode="numeric" pattern="[0-9]*" min="0" max="100" value="${esc(row.battery)}" placeholder="%" oninput="_clampBatteryInput(this);dbattInput(${i},'battery',this.value)" onblur="_dbattFlush()" style="width:100%;border:1.5px solid #22c55e;border-radius:7px;padding:6px 4px;font-family:Heebo,sans-serif;font-size:14px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;background:#f0fff4"></div>
-      <div><input type="number" inputmode="numeric" pattern="[0-9]*" min="0" value="${esc(row.range)}" placeholder="קמ" oninput="dbattInput(${i},'range',this.value)" onblur="_dbattFlush()" style="width:100%;border:1.5px solid #22c55e;border-radius:7px;padding:6px 4px;font-family:Heebo,sans-serif;font-size:14px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;background:#f0fff4"></div>
+    const fields = headers.length
+      ? headers.map((h, ci) => row.cells[ci]
+          ? `<div style="display:flex;gap:4px;font-size:11px;line-height:1.5"><span style="color:var(--muted);font-weight:600">${esc(h)}:</span><span style="font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(row.cells[ci])}</span></div>`
+          : '').join('')
+      : row.cells.map(c => `<div style="font-size:12px;font-weight:800">${esc(c)}</div>`).join('');
+    return `<div id="dbatt-row-${i}" style="background:${filled ? '#f0fff4' : '#fff'};border:2px solid ${filled?'#22c55e':'var(--border)'};border-radius:14px;padding:10px 12px;direction:rtl">
+      <div style="display:flex;flex-direction:column;gap:2px;margin-bottom:10px;min-height:52px">${fields}</div>
+      <div style="display:flex;gap:6px">
+        <div style="flex:1">
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-align:center;margin-bottom:3px">אחוז סוללה</div>
+          ${inp(row.battery, i, 'battery', '%', 'max="100"')}
+        </div>
+        <div style="flex:1">
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-align:center;margin-bottom:3px">טווח נסיעה</div>
+          ${inp(row.range, i, 'range', 'קמ', '')}
+        </div>
+      </div>
     </div>`;
   }).join('');
-  html += '</div>';
-  document.getElementById('dbattery-rows-container').innerHTML = html;
+
+  document.getElementById('dbattery-rows-container').innerHTML =
+    `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${cards}</div>`;
 }
 
 function _clampBatteryInput(el) {
@@ -7512,12 +7516,14 @@ function _renderChargingSnapshot(snap, container) {
       const lowestToChargeBattery = toCharge.length
         ? Math.min(...toCharge.map(x => x.car.battery !== '' && x.car.battery != null ? parseInt(x.car.battery) : Infinity))
         : Infinity;
-      const charged  = cars.map((car,idx)=>({car,idx})).filter(x=> x.car.charged);
       const ts = data.createdAt?.toDate ? data.createdAt.toDate().toLocaleDateString('he-IL') : '';
 
-      // driver view = cards (easier on a phone). The "full battery" list is
-      // deliberately NOT shown to drivers — only cars to charge and ones they
-      // already charged. The manager keeps the table view on desktop.
+      // nothing left to charge in this task — don't leave an empty header
+      if (!toCharge.length) return;
+
+      // driver view = cards (easier on a phone). Cars with a full battery and
+      // cars already charged are deliberately NOT shown to the driver — only
+      // what's still left to do. The manager keeps the table view on desktop.
       const fieldPairs = (cells) => headers.length
         ? headers.map((h, i) => cells[i] ? `<div style="display:flex;gap:4px;font-size:12px"><span style="color:var(--muted);font-weight:600">${esc(h)}:</span><span style="font-weight:800">${esc(cells[i])}</span></div>` : '').join('')
         : cells.map(c => `<div style="font-size:12px;font-weight:800">${esc(c)}</div>`).join('');
@@ -7547,21 +7553,8 @@ function _renderChargingSnapshot(snap, container) {
         html += `</div>`;
       }
 
-      if (charged.length) {
-        html += `<div style="font-size:12px;font-weight:800;color:#166534;margin-bottom:6px">✅ הוטענו — ${charged.length} רכבים</div>`;
-        html += `<div style="display:flex;flex-direction:column;gap:8px">`;
-        charged.forEach(({car}) => {
-          html += `<div style="background:#dcfce7;border:2px solid #22c55e;border-radius:14px;padding:12px 14px;direction:rtl">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-              <div style="font-size:18px;font-weight:900;color:#166534">${car.battery !== '' && car.battery != null ? esc(String(car.battery))+'%' : '100%'}</div>
-              <div style="font-size:12px;font-weight:800;color:#166534">${car.range ? 'טווח: '+esc(String(car.range))+' ק״מ' : ''}</div>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:3px">${fieldPairs(car.cells)}</div>
-          </div>`;
-        });
-        html += `</div>`;
-      }
-
+      // cars already charged are intentionally hidden from the driver — he only
+      // needs the list of what's still left to do
       html += `</div>`;
     });
     container.innerHTML = html || '<div class="empty-state" style="padding:40px 20px;text-align:center;color:var(--muted)">אין רכבים לטעינה 🔌</div>';
