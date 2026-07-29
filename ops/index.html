@@ -3515,12 +3515,33 @@ function openRequestTaskModal() {
 
 let _reqVehicleInfo = null;
 
+// gov.il's tozeret_nm appends the country of manufacture ("יונדאי צכיה",
+// "טויוטה-יפן"). Single place that strips it — used everywhere a manufacturer
+// is pulled, so the app never shows the country.
+const _MAKER_COUNTRIES = ['ישראל','גרמניה','יפן','קוריאה','דרום קוריאה','צרפת','פרנסה','איטליה','שבדיה','שוודיה',
+  'אנגליה','בריטניה','רומניה','הונגריה','סלובקיה','סלובניה','צ׳כיה','צכיה',"צ'כיה",'טורקיה','סין','הודו','ספרד',
+  'אמריקה','ארה"ב','ארהב','ארצות הברית','מקסיקו','ברזיל','רוסיה','תאילנד','מלזיה','אוסטריה','הולנד','בלגיה',
+  'פולין','פורטוגל','ארגנטינה','דרום אפריקה','קנדה','אינדונזיה','ויאטנם','אוקראינה'];
 function _cleanMaker(raw) {
-  // strip known country suffixes from end of maker name
-  const countries = ['ישראל','גרמניה','יפן','קוריאה','צרפת','איטליה','שבדיה','אנגליה','רומניה','הונגריה','סלובקיה','צ׳כיה','טורקיה','סין','הודו','ספרד','אמריקה','ארה"ב'];
-  let s = (raw || '').trim();
-  for (const c of countries) { if (s.endsWith(' ' + c)) { s = s.slice(0, -c.length - 1).trim(); break; } }
-  return s;
+  let s = String(raw || '').trim();
+  if (!s) return '';
+  // a name can carry more than one trailing country token — keep stripping
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const c of _MAKER_COUNTRIES) {
+      for (const sep of [' ', '-', '־', ' - ']) {
+        const suffix = sep + c;
+        if (s.length > suffix.length && s.endsWith(suffix)) {
+          s = s.slice(0, -suffix.length).trim();
+          changed = true;
+          break;
+        }
+      }
+      if (changed) break;
+    }
+  }
+  return s.trim();
 }
 
 async function lookupPlate() {
@@ -5355,7 +5376,7 @@ async function fetchVehicleData() {
     const json = await res.json();
     const rec = json?.result?.records?.[0];
     if (!rec) { status.style.color='var(--danger)'; status.textContent = '❌ לא נמצא רכב עם מספר זה'; return; }
-    document.getElementById('v-brand').value = rec.tozeret_nm    || '';
+    document.getElementById('v-brand').value = _cleanMaker(rec.tozeret_nm || '');
     document.getElementById('v-model').value = rec.kinuy_mishari || rec.degem_nm || '';
     document.getElementById('v-color').value = rec.tzeva_rechev  || '';
     document.getElementById('v-year').value  = rec.shnat_yitzur  || '';
@@ -6197,15 +6218,7 @@ let _recallRows = []; // {plate, tozeret, degem, shnat, misgeret, state: 'wait'|
 const _MFR_COUNTRIES = ['יפן','קוריאה','גרמניה','ארהב',"ארה\"ב",'צכיה','צ\'כיה','ספרד','איטליה','סין',
   'הודו','טורקיה','שוודיה','בריטניה','פורטוגל','סלובקיה','רומניה','פולין','בלגיה','צרפת','פרנסה',
   'מקסיקו','ברזיל','רוסיה','תאילנד','מלזיה','הונגריה','אוסטריה','הולנד','סלובניה','ארגנטינה','דרום אפריקה'];
-function _stripMfrCountry(name) {
-  let n = String(name || '').trim();
-  if (!n) return '';
-  for (const c of _MFR_COUNTRIES) {
-    const re = new RegExp(`[\\s-]+${c.replace(/'/g, "'?")}$`, 'i');
-    n = n.replace(re, '');
-  }
-  return n.trim();
-}
+function _stripMfrCountry(name) { return _cleanMaker(name); }
 
 // Firestore (recall_status/current) is the single source of truth — it's
 // updated by the daily automatic scan AND by this screen. Opening the screen
@@ -8318,10 +8331,10 @@ async function fetchPitVehicle() {
     const json = await res.json();
     const rec = json?.result?.records?.[0];
     if (!rec) { status.style.color='var(--danger)'; status.textContent='❌ לא נמצא רכב עם מספר זה'; return; }
-    window._pitVehicleData = { brand: rec.tozeret_nm||'', model: rec.kinuy_mishari||rec.degem_nm||'', color: rec.tzeva_rechev||'', year: rec.shnat_yitzur||'' };
+    window._pitVehicleData = { brand: _cleanMaker(rec.tozeret_nm||''), model: rec.kinuy_mishari||rec.degem_nm||'', color: rec.tzeva_rechev||'', year: rec.shnat_yitzur||'' };
     status.style.color='var(--success)'; status.textContent='✅ פרטים נטענו';
     info.style.display='block';
-    info.textContent = [rec.tozeret_nm, rec.kinuy_mishari||rec.degem_nm, rec.tzeva_rechev, rec.shnat_yitzur].filter(Boolean).join(' · ');
+    info.textContent = [_cleanMaker(rec.tozeret_nm||''), rec.kinuy_mishari||rec.degem_nm, rec.tzeva_rechev, rec.shnat_yitzur].filter(Boolean).join(' · ');
   } catch(e) {
     status.style.color='var(--danger)'; status.textContent='❌ שגיאה בחיבור לשרת';
   } finally { btn.disabled=false; }
@@ -9463,7 +9476,7 @@ async function rfFetchVehicle() {
     const json = await res.json();
     const rec = json?.result?.records?.[0];
     if (!rec) { status.style.color='var(--danger)'; status.textContent='❌ לא נמצא רכב עם מספר זה'; return; }
-    const brand = rec.tozeret_nm || '';
+    const brand = _cleanMaker(rec.tozeret_nm || '');
     const model = rec.kinuy_mishari || rec.degem_nm || '';
     document.getElementById('ra-type').value = [brand, model].filter(Boolean).join(' ');
     document.getElementById('ra-year').value  = rec.shnat_yitzur  || '';
@@ -11330,7 +11343,7 @@ async function sendPickupCarIntake(id) {
       const json = await res.json();
       const rec = json?.result?.records?.[0];
       if (rec) {
-        brand = rec.tozeret_nm || '';
+        brand = _cleanMaker(rec.tozeret_nm || '');
         model = rec.kinuy_mishari || rec.degem_nm || '';
         color = rec.tzeva_rechev || color;
         year  = rec.shnat_yitzur || year;
@@ -11599,6 +11612,7 @@ window.openPickupDetail = openPickupDetail;
 
 const _TD_DRIVERS = ['עופר','גיל','איתי'];
 let _tdSelectedDriver = null;
+let _tdLookedUpModel = ''; // model pulled from gov.il alongside maker/year/color
 let _tdVehicleData = {};
 let _tdAllForms = [];
 
@@ -11656,7 +11670,7 @@ function openTestDriveScreen() {
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
           <div style="flex:1;min-width:0">
             <div class="vehicle-plate">${f.plate||''}</div>
-            <div class="vehicle-info">${[f.maker,f.year].filter(Boolean).join(' · ')}</div>
+            <div class="vehicle-info">${[f.maker,f.model,f.year].filter(Boolean).join(' · ')}</div>
             <div class="vehicle-meta">
               ${f.color?`<span class="tag assignee">🎨 ${f.color}</span>`:''}
               <span class="tag assignee">👤 ${f.assignedTo||''}</span>
@@ -11696,6 +11710,7 @@ window.tdMarkNoIntake = tdMarkNoIntake;
 function openNewTestDriveModal() {
   _tdSelectedDriver = null;
   _tdVehicleData = {};
+  _tdLookedUpModel = '';
   document.getElementById('td-plate').value = '';
   document.getElementById('td-maker').value = '';
   document.getElementById('td-year').value = '';
@@ -11730,6 +11745,7 @@ async function lookupTdPlate() {
     document.getElementById('td-maker').value = _cleanMaker(rawMaker);
     document.getElementById('td-year').value = rec['shnat_yitzur'] || '';
     document.getElementById('td-color').value = rec['tzeva_rechev'] || '';
+    _tdLookedUpModel = rec['kinuy_mishari'] || rec['degem_nm'] || '';
     st.textContent = '✅ פרטים נטענו';
   } catch(e) { st.textContent = '❌ שגיאה בחיפוש'; }
 }
@@ -11742,6 +11758,7 @@ async function submitNewTestDrive() {
   const data = {
     plate,
     maker: document.getElementById('td-maker').value.trim(),
+    model: _tdLookedUpModel || '',
     year: document.getElementById('td-year').value.trim(),
     color: document.getElementById('td-color').value.trim(),
     assignedTo: _tdSelectedDriver,
@@ -11762,7 +11779,7 @@ function openFillTestDriveModal(id) {
   if (!f) return;
   document.getElementById('tdf-id').value = id;
   document.getElementById('td-form-vehicle-info').innerHTML =
-    `<span style="font-size:16px;font-weight:900">${f.plate}</span> &nbsp; ${[f.maker,f.year,f.color].filter(Boolean).join(' · ')}`;
+    `<span style="font-size:16px;font-weight:900">${f.plate}</span> &nbsp; ${[f.maker,f.model,f.year,f.color].filter(Boolean).join(' · ')}`;
   document.getElementById('tdf-km').value = '';
   document.getElementById('tdf-code').value = '';
   document.getElementById('td-extra-yes').style.display='none';
@@ -11903,7 +11920,7 @@ function _showTdResultModal(id, data) {
   const notes = data.notes || {};
   const plate = data.plate || '';
   const driver = data.completedBy || data.assignedTo || '';
-  let html = `<div style="background:var(--surface2);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:14px;font-weight:700">🚗 ${esc(plate)} &nbsp; ${esc([data.maker,data.year,data.color].filter(Boolean).join(' · '))}</div>`;
+  let html = `<div style="background:var(--surface2);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:14px;font-weight:700">🚗 ${esc(plate)} &nbsp; ${esc([data.maker,data.model,data.year,data.color].filter(Boolean).join(' · '))}</div>`;
   html += `<div style="margin-bottom:8px;font-size:13px;color:var(--muted)">הוגש על ידי <strong>${esc(driver)}</strong>`;
   if (data.km) html += ` &nbsp;|&nbsp; קמ: <strong>${esc(data.km)}</strong>`;
   if (data.code) html += ` &nbsp;|&nbsp; קוד: <strong>${esc(data.code)}</strong>`;
@@ -12044,7 +12061,7 @@ function _renderTdLivePanel(data) {
   if (vi) {
     const km = src.km || data.km || '';
     const code = src.code || data.code || '';
-    vi.innerHTML = `<div style="font-size:15px;font-weight:900">${esc(data.plate||'')} &nbsp; <span style="font-weight:600;font-size:13px">${esc([data.maker,data.year,data.color].filter(Boolean).join(' · '))}</span></div>`
+    vi.innerHTML = `<div style="font-size:15px;font-weight:900">${esc(data.plate||'')} &nbsp; <span style="font-weight:600;font-size:13px">${esc([data.maker,data.model,data.year,data.color].filter(Boolean).join(' · '))}</span></div>`
       + (km ? `<div style="font-size:12px;color:var(--muted);margin-top:3px">קמ: <b>${esc(km)}</b>${code ? ` &nbsp;|&nbsp; קוד: <b>${esc(code)}</b>` : ''} &nbsp;|&nbsp; נהג: <b>${esc(data.assignedTo||'')}</b></div>` : `<div style="font-size:12px;color:var(--muted);margin-top:3px">נהג: <b>${esc(data.assignedTo||'')}</b></div>`);
   }
 
