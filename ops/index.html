@@ -1310,7 +1310,8 @@ if ('serviceWorker' in navigator) {
   </div>
   <div style="padding:16px 16px 100px">
     <div id="recall-status-banner" style="display:none;border-radius:14px;padding:14px 16px;margin-bottom:14px;font-size:14px;font-weight:700"></div>
-    <div id="recall-scan-info" style="border:2px solid var(--border);border-radius:16px;padding:14px 16px;margin-bottom:16px;background:var(--surface2);font-size:14px;line-height:1.9"></div>
+    <div id="recall-scan-info" style="border:2px solid var(--border);border-radius:16px;padding:14px 16px;margin-bottom:10px;background:var(--surface2);font-size:14px;line-height:1.9"></div>
+    <button id="recall-scan-btn" onclick="runRecallScanNow()" style="width:100%;background:#0d6ab0;color:#fff;border:none;border-radius:14px;padding:12px;font-family:Heebo,sans-serif;font-weight:800;font-size:14px;cursor:pointer;margin-bottom:16px">🔄 הרץ סריקה עכשיו</button>
     <div id="recall-list" style="overflow-x:auto"></div>
   </div>
 </div>
@@ -6226,6 +6227,28 @@ function openRecallScreen() {
     _recallUpdateHomeBadge();
   });
 }
+
+// run the same server-side scan on demand instead of waiting for 07:00
+async function runRecallScanNow() {
+  const btn = document.getElementById('recall-scan-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ סורק את כל המלאי... (עד כמה דקות)'; }
+  try {
+    const res = await fetch('https://europe-west1-anak-soharim.cloudfunctions.net/runRecallScanNow');
+    const r = await res.json().catch(() => ({}));
+    if (r.ok) {
+      showToast(`✅ נסרקו ${r.checked} רכבים · ${r.withRecall} עם ריקול פתוח`, 6000);
+    } else if (r.reason === 'unreliable') {
+      showToast('⚠️ הסריקה לא הושלמה — משרד התחבורה לא הגיב. הרשימה הקודמת נשמרה.', 7000);
+    } else {
+      showToast('⚠️ הסריקה נכשלה: ' + (r.reason || r.error || res.status), 7000);
+    }
+  } catch(e) {
+    showToast('⚠️ שגיאת חיבור לשרת: ' + e.message, 7000);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🔄 הרץ סריקה עכשיו'; }
+  }
+}
+window.runRecallScanNow = runRecallScanNow;
 
 // report of the last automatic scan: when it ran and what it found
 function _renderRecallScanInfo(data) {

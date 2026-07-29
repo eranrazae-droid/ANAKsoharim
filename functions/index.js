@@ -168,16 +168,32 @@ exports.dailyRecallPull = onSchedule(
   // the per-plate fallback path can take minutes for a full lot — the default
   // 60s timeout would kill the run halfway through
   { schedule: "0 7 * * 0-5", region: "europe-west1", timeZone: "Asia/Jerusalem", timeoutSeconds: 540, memory: "512MiB" },
-  async () => {
+  async () => { await _runRecallScan(); }
+);
+
+// same scan, on demand — lets the manager verify without waiting for 07:00
+exports.runRecallScanNow = onRequest(
+  { cors: true, region: "europe-west1", timeoutSeconds: 540, memory: "512MiB" },
+  async (req, res) => {
+    try {
+      const r = await _runRecallScan();
+      res.status(200).json(r);
+    } catch (err) {
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  }
+);
+
+async function _runRecallScan() {
     let vehicles;
     try {
       const res = await fetch(_INVENTORY_URL);
       vehicles = await res.json();
     } catch (err) {
       console.error("dailyRecallPull: inventory fetch failed", err);
-      return;
+      return { ok: false, reason: "inventory-fetch-failed" };
     }
-    if (!Array.isArray(vehicles) || !vehicles.length) return;
+    if (!Array.isArray(vehicles) || !vehicles.length) return { ok: false, reason: "empty-inventory" };
 
     const cars = vehicles.map((v) => ({
       plate: String(v.ank_s_car_number || "").replace(/\D/g, ""),
@@ -185,7 +201,7 @@ exports.dailyRecallPull = onSchedule(
       degem: [v.ank_id_model, v.ank_id_sub_model].filter(Boolean).join(" "),
       shnat: v.ank_id_year_of_manufacture || "",
     })).filter((c) => c.plate.length === 7 || c.plate.length === 8);
-    if (!cars.length) return;
+    if (!cars.length) return { ok: false, reason: "no-valid-plates" };
 
     // keep "resolved" + linked-task info for cars still open from a previous run
     const statusRef = db.collection("recall_status").doc("current");
@@ -253,7 +269,7 @@ exports.dailyRecallPull = onSchedule(
             });
           }
         } catch (err) { console.error("recall failure alert failed", err); }
-        return; // keep the existing list rather than wiping it
+        return { ok: false, reason: "unreliable", probeOk, failedPlates, checked: cars.length };
       }
     }
 
@@ -262,8 +278,8 @@ exports.dailyRecallPull = onSchedule(
       return { ...c, resolved: !!prev?.resolved, taskId: prev?.taskId || null };
     });
     await statusRef.set({ cars: finalCars, updatedAt: new Date(), checkedCount: cars.length });
-  }
-);
+    return { ok: true, checked: cars.length, withRecall: finalCars.length, usedFreeText: useQ };
+}
 
 // daily reminder for open, unresolved recalls — as long as recall_status/current
 // still lists an unresolved car, ליאל gets a Telegram message every morning with
