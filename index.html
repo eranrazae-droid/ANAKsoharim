@@ -1890,6 +1890,14 @@ display:none !important;
     // תרגום שמות יצרנים לעברית (דגם ותת-דגם נשארים באנגלית - שמות רשמיים)
     const BRAND_HE={'BYD':'בי.ווי.די','MG':"אם.ג'י",'AVATR':'אווטאר','XPENG':'אקספנג','LEAPMOTOR':'ליפמוטור','GEELY':'גילי','JAECOO':"ג'אקו",'CHERY':"צ'רי",'OMODA':'אומודה'};
     function heBrand(b){ return BRAND_HE[(b||'').trim().toUpperCase()]||b; }
+    // אופטימיזציית Cloudinary: מזריק f_auto,q_auto והגבלת רוחב לכתובת — חוסך 60-80% תעבורה
+    function cldOpt(url, w){
+      if(!url || typeof url!=='string') return url;
+      if(url.indexOf('res.cloudinary.com')<0 || url.indexOf('/upload/')<0) return url;
+      if(/\/upload\/(f_auto|q_auto|w_|c_)/.test(url)) return url; // כבר מותאם
+      var t='f_auto,q_auto'+(w?(',w_'+w+',c_limit,dpr_auto'):'');
+      return url.replace('/upload/','/upload/'+t+'/');
+    }
     function cleanCars(arr){ return hideRemoved(arr).map(c=>{ var o={...c,_rawBrand:c.brand,brand:heBrand(c.brand),image:(c.image&&c.image.includes('supabase.co'))?'':c.image,gallery:(c.gallery||[]).filter(g=>g&&!g.includes('supabase.co'))}; o.metaContentId=metaContentId(o); return o; }); }
     async function initCars(){
       // Try cloud first, then localStorage, then seed data
@@ -1981,7 +1989,7 @@ display:none !important;
       return `
       <div class="card">
         <div class="relative">
-          ${(car.image && !car.image.startsWith("data:image/svg")) ? `<img src="${car.image}" alt="${car.brand} ${car.model}" referrerpolicy="no-referrer">` : ""}
+          ${(car.image && !car.image.startsWith("data:image/svg")) ? `<img src="${cldOpt(car.image,600)}" alt="${car.brand} ${car.model}" loading="lazy" referrerpolicy="no-referrer">` : ""}
           <label class="cmp-check" style="position:absolute;top:12px;left:12px;background:rgba(255,255,255,.95);border-radius:10px;padding:6px 10px;display:flex;align-items:center;gap:6px;font-size:13px;font-weight:800;cursor:pointer;z-index:3;box-shadow:0 2px 6px rgba(0,0,0,.12)">
             <input type="checkbox" style="width:16px;height:16px;accent-color:#D4A017" ${compareIds.includes(car.id)?'checked':''} onchange="toggleCompare(${car.id}, this)"> השוואה
           </label>
@@ -2479,7 +2487,7 @@ display:none !important;
       const hasRealImage = selectedCar.image && !selectedCar.image.startsWith('data:image/svg');
       const carImageWrap = document.getElementById('carImage').parentElement;
       if(hasRealImage){
-        document.getElementById('carImage').src = selectedCar.image;
+        document.getElementById('carImage').src = cldOpt(selectedCar.image, 900);
         document.getElementById('carImage').alt = `${selectedCar.brand} ${selectedCar.model}`;
         carImageWrap.style.display = '';
       } else {
@@ -2487,7 +2495,7 @@ display:none !important;
       }
 
       // Gallery
-      const allImgs = hasRealImage ? [selectedCar.image, ...(selectedCar.gallery||[]).filter(g => g && !g.startsWith('data:image/svg'))] : (selectedCar.gallery||[]).filter(g => g && !g.startsWith('data:image/svg'));
+      const allImgs = (hasRealImage ? [selectedCar.image, ...(selectedCar.gallery||[]).filter(g => g && !g.startsWith('data:image/svg'))] : (selectedCar.gallery||[]).filter(g => g && !g.startsWith('data:image/svg'))).map(function(u){ return cldOpt(u, 900); });
       window._galleryImgs = allImgs;
       window._galleryIdx = 0;
       const thumbs = document.getElementById('galleryThumbs');
@@ -2499,6 +2507,7 @@ display:none !important;
       allImgs.forEach((img,i)=>{
         const t = document.createElement('img');
         t.src = img;
+        t.loading = 'lazy';
         t.style.cssText = 'width:100px;height:70px;object-fit:cover;border-radius:10px;cursor:pointer;flex-shrink:0;transition:.15s;border:3px solid '+(i===0?'#D4A017':'transparent')+';opacity:'+(i===0?'1':'0.65');
         t.onclick = ()=>selectGalleryImg(i);
         thumbs.appendChild(t);
@@ -2646,7 +2655,7 @@ display:none !important;
       if(!scored.length){ wrap.style.display='none'; return; }
       grid.innerHTML = scored.map(({c})=>`
         <div onclick="openCar(${c.id})" style="cursor:pointer;border:1px solid var(--line);border-radius:18px;overflow:hidden;background:#fff;transition:.15s;box-shadow:0 2px 10px rgba(0,0,0,.05)" onmouseover="this.style.transform='translateY(-3px)';this.style.boxShadow='0 8px 22px rgba(0,0,0,.12)'" onmouseout="this.style.transform='';this.style.boxShadow='0 2px 10px rgba(0,0,0,.05)'">
-          <img src="${c.image}" alt="${c.brand} ${c.model}" referrerpolicy="no-referrer" style="width:100%;height:150px;object-fit:contain;background:#f8f8f8;display:block">
+          <img src="${cldOpt(c.image,500)}" alt="${c.brand} ${c.model}" loading="lazy" referrerpolicy="no-referrer" style="width:100%;height:150px;object-fit:contain;background:#f8f8f8;display:block">
           <div style="padding:14px">
             <div style="font-size:12px;color:#6b7280;font-weight:600">${c.brand}</div>
             <div style="font-size:16px;font-weight:900;line-height:1.3;min-height:42px">${c.model}</div>
@@ -2944,7 +2953,7 @@ display:none !important;
             <h2 style="margin-top:18px">שריינו את הרכב שלכם עכשיו</h2>
             <div class="muted" style="font-size:19px;line-height:1.8;margin-top:12px">מסך אחד, פעולה אחת. הרכב, המחיר והתנאים נשמרים לכם - והסכום מתקזז ממחיר הרכב.</div>
             <div class="card" style="margin-top:22px">
-              <img src="${selectedCar.image}" alt="${selectedCar.brand} ${selectedCar.model}" style="height:260px">
+              <img src="${cldOpt(selectedCar.image,600)}" alt="${selectedCar.brand} ${selectedCar.model}" loading="lazy" style="height:260px">
               <div class="card-body">
                 <div class="small muted">${selectedCar.brand}</div>
                 <div style="font-size:34px;font-weight:900">${selectedCar.model}</div>
