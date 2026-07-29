@@ -11639,10 +11639,10 @@ function openTestDriveScreen() {
     list.innerHTML = _tdAllForms.map(f => {
       const isDoneLike = f.status === 'done' || f.status === 'transferred' || f.status === 'no_intake';
       const statusColor = f.status === 'transferred' ? '#16a34a'
-        : f.status === 'no_intake' ? '#64748b'
+        : f.status === 'no_intake' ? '#ef4444'
         : f.status === 'done' ? '#eab308' : '#f59e0b';
       const statusLabel = f.status === 'transferred' ? '✅ הושלמה והועברה לקליטה'
-        : f.status === 'no_intake' ? '🚫 לא נכנס למלאי'
+        : f.status === 'no_intake' ? '🚫 רכב לא נכנס למלאי'
         : f.status === 'done' ? '⏳ ממתין' : '⏳ ממתין למילוי';
       const onClick = isDoneLike
         ? (isManager ? `_showTdResultModal('${f.id}', _tdAllForms.find(x=>x.id==='${f.id}'))` : '')
@@ -11650,13 +11650,11 @@ function openTestDriveScreen() {
         : (isManager ? `openTdLivePanel('${f.id}', _tdAllForms.find(x=>x.id==='${f.id}'))` : `openFillTestDriveModal('${f.id}')`);
       // filled in and awaiting the manager's decision — offer both outcomes
       const actions = (isManager && f.status === 'done')
-        ? `<div style="display:flex;gap:8px;margin-top:10px" onclick="event.stopPropagation()">
-             <button onclick="tdSendToIntake('${f.id}')" style="flex:1;background:#16a34a;color:#fff;border:none;border-radius:10px;padding:9px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">🚗 העבר קליטה לרכב</button>
-             <button onclick="tdMarkNoIntake('${f.id}')" style="flex:1;background:#64748b;color:#fff;border:none;border-radius:10px;padding:9px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">🚫 לא נכנס למלאי</button>
-           </div>` : '';
+        ? `<button onclick="event.stopPropagation();tdSendToIntake('${f.id}')" style="background:#16a34a;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">🚗 העבר קליטה</button>
+           <button onclick="event.stopPropagation();tdMarkNoIntake('${f.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">🚫 לא נכנס למלאי</button>` : '';
       return `<div class="vehicle-card" style="margin-bottom:10px;${onClick?'cursor:pointer;':''}border-right:5px solid ${statusColor}" onclick="${onClick}">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start">
-          <div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+          <div style="flex:1;min-width:0">
             <div class="vehicle-plate">${f.plate||''}</div>
             <div class="vehicle-info">${[f.maker,f.year].filter(Boolean).join(' · ')}</div>
             <div class="vehicle-meta">
@@ -11664,9 +11662,11 @@ function openTestDriveScreen() {
               <span class="tag assignee">👤 ${f.assignedTo||''}</span>
             </div>
           </div>
-          <span style="background:${statusColor};color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;white-space:nowrap">${statusLabel}</span>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">
+            <span style="background:${statusColor};color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;white-space:nowrap">${statusLabel}</span>
+            ${actions}
+          </div>
         </div>
-        ${actions}
       </div>`;
     }).join('');
   }, err => { list.innerHTML = `<div style="color:#ef4444;padding:20px">שגיאה: ${err?.code||err?.message}</div>`; });
