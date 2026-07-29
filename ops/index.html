@@ -7797,7 +7797,7 @@ function _curDayKey() { const d = new Date(); return `${d.getFullYear()}-${Strin
 // spreads the free 2,400 monthly calls across the month so the quota can never
 // run out mid-month and leave the scanner slow for a week (the manager will
 // not pay for the upgrade plan) — resets every midnight
-const _PLATE_CLOUD_DAILY_LIMIT = 90;
+const _PLATE_CLOUD_DAILY_LIMIT = 92; // 6 scan days a week ≈ 26/month → 2400/26
 let _plateCloudDayKey = '', _plateCloudDayUsed = 0;
 
 async function _plateLoadCloudToken() {
@@ -7998,9 +7998,7 @@ async function _plateCloudLoop() {
             if (y < minY) minY = y; if (y > maxY) maxY = y;
           }
         }
-        // require a reasonably large plate before spending a cloud call — a
-        // tiny/partial plate usually fails and would cost a second request
-        if (cnt > sw * sh * 0.02 && maxX > minX + 30) {
+        if (cnt > sw * sh * 0.02 && maxX > minX + 15) {
           // Fire the cloud the INSTANT a plate is in view — no warm-up delay.
           // Repeats are prevented by a coarse signature of where the plate sits
           // in frame: a different car (or the same car re-approached) produces a
@@ -8056,11 +8054,13 @@ async function _plateScanLoop() {
     // the same CPU the detection loop needs. When the cloud is available it
     // resolves plates far faster, so local OCR only runs as a fallback — this
     // is what keeps recognition under a second.
-    // Only stand down while the cloud is actually doing the work. If the cloud
-    // is unavailable OR is struggling with the current plate, local OCR takes
-    // over — the scanner must never be left with no engine running.
-    const cloudUsable = _plateCloudToken && !_plateCloudBlocked && _plateCloudMissStreak < 2;
-    if (cloudUsable) {
+    // Stand down ONLY while the cloud is actively working (request in flight or
+    // fired within the last second). If the cloud is idle — token missing,
+    // quota out, or the yellow-detector simply not seeing this plate — local
+    // OCR keeps scanning. The scanner must never have zero engines running.
+    const cloudActive = _plateCloudToken && !_plateCloudBlocked &&
+      (_plateCloudInflight > 0 || Date.now() - _plateCloudLastAt < 1000);
+    if (cloudActive) {
       const grab = _plateGrabFrame();
       _plateAutoZoomTick(grab ? grab.yellow > 0.035 : false);
       await new Promise(r => setTimeout(r, 220));
