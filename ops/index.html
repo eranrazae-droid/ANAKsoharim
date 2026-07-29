@@ -7789,7 +7789,7 @@ function _plateGrabFrame() {
    Firestore), and stops automatically — with ONE clear message, not spam —
    before wasting calls that would fail anyway. ── */
 const _PLATE_CLOUD_MONTHLY_LIMIT = 2400; // stop a little short of the 2,500 free quota
-let _plateCloudToken = null, _plateCloudBusy = false, _plateCloudLastAt = 0, _plateUnresolvedAt = 0;
+let _plateCloudToken = null, _plateCloudInflight = 0, _plateCloudLastAt = 0, _plateUnresolvedAt = 0;
 let _plateCloudMonthKey = '', _plateCloudUsed = 0, _plateCloudBlocked = false, _plateCloudMissStreak = 0;
 
 function _curMonthKey() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
@@ -7858,28 +7858,26 @@ function _plateCloudTry(srcCanvas) {
   // Watchdog: whatever the cause (aborted request, callback that never fired,
   // browser throttling a backgrounded tab), never let the busy flag wedge the
   // scanner. If it's been set unreasonably long, clear it and carry on.
-  if (_plateCloudBusy && nowW - _plateCloudLastAt > 6000) {
+  if (_plateCloudInflight > 0 && nowW - _plateCloudLastAt > 3500) {
     console.warn('plate cloud watchdog — releasing stuck request');
-    _plateCloudBusy = false;
+    _plateCloudInflight = 0;
   }
-  if (_plateCloudBusy || !_plateCloudToken || _plateCloudBlocked) return;
+  if (!_plateCloudToken || _plateCloudBlocked) return;
+  // One request for a plate that reads first time. The moment an attempt FAILS
+  // a second parallel attempt is allowed, doubling the retry rate on hard
+  // plates without costing extra calls on easy ones.
+  const maxInflight = _plateCloudMissStreak >= 1 ? 2 : 1;
+  if (_plateCloudInflight >= maxInflight) return;
+  // ~6 shots (≈2.5s) at one hopeless plate is enough — stop spending quota on
+  // it. Resets automatically when the plate leaves the frame or moves.
+  if (_plateCloudMissStreak >= 6) return;
   const now = Date.now();
-  // The miss counter describes the CURRENT plate only. Position alone can't
-  // tell cars apart — a driver aims at every plate the same way, so each car
-  // lands in the same spot in frame. Without this decay the counter carried
-  // over from car to car and killed the scanner around the 4th plate.
-  if (now - _plateCloudLastAt > 2000) _plateCloudMissStreak = 0;
-  // once gated, stay quiet only briefly, then allow a fresh attempt
-  if (_plateCloudMissStreak >= 4 && now - _plateCloudLastAt > 3000) _plateCloudMissStreak = 0;
-  // Speed is the whole point: the only real guard is "don't send two requests
-  // for the same plate". Re-sending is gated by the plate REGION changing
-  // (handled in the cloud loop), so this throttle just prevents a burst while
-  // one car is centred.
-  if (now - _plateCloudLastAt < 350) return;
-  // same plate refused to resolve several times — stop burning quota on it
-  // until the camera moves (the loop resets this when the plate leaves view)
-  if (_plateCloudMissStreak >= 4) return;
-  _plateCloudBusy = true; _plateCloudLastAt = now;
+  // NO waiting gates. The scanner retries continuously until the plate reads —
+  // a hard plate gets hit again the moment the previous answer returns. The
+  // only limits: one request in flight at a time, a minimal spacing so we don't
+  // burst-duplicate the same frame, and the monthly quota block.
+  if (now - _plateCloudLastAt < 250) return;
+  _plateCloudInflight++; _plateCloudLastAt = now;
   // snapshot the canvas NOW — the scan loop keeps redrawing it
   const c = _plateSnapCanvas;
   c.width = srcCanvas.width; c.height = srcCanvas.height;
@@ -7893,10 +7891,10 @@ function _plateCloudTry(srcCanvas) {
       fd.append('regions', 'il');
       fd.append('config', JSON.stringify({ mode: 'fast' }));
       // Hard timeout: on patchy reception a hanging request would keep
-      // _plateCloudBusy set and freeze the scanner for as long as the browser
+      // the in-flight counter held and freeze the scanner for as long as the browser
       // waits (can be minutes). Better to give up fast and try the next frame.
       const ctl = new AbortController();
-      const killer = setTimeout(() => ctl.abort(), 4000);
+      const killer = setTimeout(() => ctl.abort(), 2500);
       let resp;
       try {
         resp = await fetch('https://api.platerecognizer.com/v1/plate-reader/', {
@@ -7938,8 +7936,8 @@ function _plateCloudTry(srcCanvas) {
       }
     } catch(e) { console.error('plate cloud', e); }
     if (status && status.innerHTML === '☁️ מזהה בענן...') status.innerHTML = 'כוון ללוחית הבאה 📷';
-    _plateCloudBusy = false;
-  }, 'image/jpeg', 0.7);
+    _plateCloudInflight = Math.max(0, _plateCloudInflight - 1);
+  }, 'image/jpeg', _plateCloudMissStreak >= 1 ? 0.85 : 0.7);
 }
 
 /* ── Fast cloud loop: independent of the heavy OCR loop. Every 150ms it does a
@@ -7966,7 +7964,7 @@ async function _plateCloudLoop() {
       try { fetch('https://api.platerecognizer.com/', { mode: 'no-cors' }).catch(() => {}); } catch(e) {}
     }
     const v = document.getElementById('plate-video');
-    if (v && v.readyState >= 2 && v.videoWidth && !_plateCloudBusy && _plateCloudToken) {
+    if (v && v.readyState >= 2 && v.videoWidth && _plateCloudInflight < 2 && _plateCloudToken) {
       try {
         const vw = v.videoWidth, vh = v.videoHeight;
         let bx = vw * 0.05, bw = vw * 0.90, by = vh * 0.33, bh = vh * 0.34;
@@ -8001,10 +7999,13 @@ async function _plateCloudLoop() {
           const stillOnResolvedCar = _plateResolvedHold && near(_plateMarkedBox);
           const sameFraming = near(_plateLastSentBox);
           // a materially different framing means a DIFFERENT car — the previous
-          // car's failures must not count against it (otherwise the miss streak
-          // accumulates across cars and permanently disables the scanner)
+          // car's failures must not count against it (the counter only feeds
+          // the auto-zoom/local-fallback heuristics; it never blocks the cloud)
           if (!sameFraming) _plateCloudMissStreak = 0;
-          if (!stillOnResolvedCar && (!sameFraming || now - _plateCloudLastAt > 1200)) {
+          // retry the SAME plate as soon as the previous answer is back —
+          // a hard plate keeps getting hit until it reads. Only a resolved
+          // plate silences the cloud until it leaves the frame.
+          if (!stillOnResolvedCar) {
             _plateLastSentBox = { cx, cy, cw };
             _platePendingBox = { cx, cy, cw };
             // crop the yellow box (+margin) from the live video at native resolution
@@ -8013,7 +8014,9 @@ async function _plateCloudLoop() {
             const ex = Math.max(0, px - pw * 0.12), ew = Math.min(vw - ex, pw * 1.24);
             const ey = Math.max(0, py - ph * 0.25), eh = Math.min(vh - ey, ph * 1.5);
             const out = _plateCropCanvas;
-            const sc2 = Math.min(2, 480 / ew);
+            // first try = small+fast; on a retry send a sharper crop so the
+            // second attempt almost always reads (that keeps hard plates ~1s)
+            const sc2 = _plateCloudMissStreak >= 1 ? Math.min(3, 900 / ew) : Math.min(2, 480 / ew);
             out.width = Math.max(60, Math.round(ew * sc2)); out.height = Math.max(20, Math.round(eh * sc2));
             out.getContext('2d').drawImage(v, ex, ey, ew, eh, 0, 0, out.width, out.height);
             _plateCloudTry(out);
