@@ -7854,6 +7854,14 @@ function _plateShowNotInInventory(plate) {
 }
 
 function _plateCloudTry(srcCanvas) {
+  const nowW = Date.now();
+  // Watchdog: whatever the cause (aborted request, callback that never fired,
+  // browser throttling a backgrounded tab), never let the busy flag wedge the
+  // scanner. If it's been set unreasonably long, clear it and carry on.
+  if (_plateCloudBusy && nowW - _plateCloudLastAt > 6000) {
+    console.warn('plate cloud watchdog — releasing stuck request');
+    _plateCloudBusy = false;
+  }
   if (_plateCloudBusy || !_plateCloudToken || _plateCloudBlocked) return;
   const now = Date.now();
   // Speed is the whole point: the only real guard is "don't send two requests
@@ -7877,9 +7885,17 @@ function _plateCloudTry(srcCanvas) {
       fd.append('upload', blob, 'plate.jpg');
       fd.append('regions', 'il');
       fd.append('config', JSON.stringify({ mode: 'fast' }));
-      const resp = await fetch('https://api.platerecognizer.com/v1/plate-reader/', {
-        method: 'POST', headers: { Authorization: 'Token ' + _plateCloudToken }, body: fd
-      });
+      // Hard timeout: on patchy reception a hanging request would keep
+      // _plateCloudBusy set and freeze the scanner for as long as the browser
+      // waits (can be minutes). Better to give up fast and try the next frame.
+      const ctl = new AbortController();
+      const killer = setTimeout(() => ctl.abort(), 4000);
+      let resp;
+      try {
+        resp = await fetch('https://api.platerecognizer.com/v1/plate-reader/', {
+          method: 'POST', headers: { Authorization: 'Token ' + _plateCloudToken }, body: fd, signal: ctl.signal
+        });
+      } finally { clearTimeout(killer); }
       const data = await resp.json().catch(() => ({}));
       _plateCloudBumpUsage(); // count every real call against the shared quota
       const toks = [];
@@ -8164,10 +8180,16 @@ window._plateCycleZoom = _plateCycleZoom;
 // called from the scan loop: advance zoom only after several token-less FRAMES
 // (frame-based, not clock-based — slow devices must not flail between levels)
 let _plateEmptyFrames = 0;
-function _plateAutoZoomTick(gotTokens) {
-  if (gotTokens) { _plateEmptyFrames = 0; _plateLastTokensAt = Date.now(); return; }
+// Only hunt for a better zoom when a plate is actually in view and refuses to
+// resolve. Cycling zoom while the driver simply walks between cars forces the
+// camera to re-focus each time, so it arrives at the next plate blurred — that
+// made acquisition slower, not faster.
+function _plateAutoZoomTick(yellowPresent) {
+  if (!yellowPresent) { _plateEmptyFrames = 0; _plateLastTokensAt = Date.now(); return; }
+  // plate in view — is it resolving? if the cloud is getting it, leave zoom alone
+  if (_plateCloudMissStreak < 1) { _plateEmptyFrames = 0; _plateLastTokensAt = Date.now(); return; }
   _plateEmptyFrames++;
-  if (_plateEmptyFrames >= 3 && Date.now() - _plateLastTokensAt > 800) {
+  if (_plateEmptyFrames >= 4 && Date.now() - _plateLastTokensAt > 2000) {
     _plateEmptyFrames = 0;
     _plateLastTokensAt = Date.now();
     _plateZoomIdx = (_plateZoomIdx + 1) % _plateZoomLevels.length;
