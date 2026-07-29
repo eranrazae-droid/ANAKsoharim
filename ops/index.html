@@ -10154,7 +10154,10 @@ function _pickupCardHtml(c) {
   const waitLabel = days === null ? '' : `${days} ימי המתנה`;
   const waitColor = days === null ? '#6b7280' : days > 14 ? '#dc2626' : days > 7 ? '#f59e0b' : '#16a34a';
   const checked = _pickupSelected.has(c.id);
-  return `<div class="vehicle-card" style="border-right:5px solid ${waitColor};margin-bottom:8px;cursor:pointer;${checked?'background:#dcfce7;border:2px solid #059669':''}" onclick="openEditPickupModal('${e(c.id)}')">
+  // sent to a driver but not collected yet → highlight the whole card in yellow
+  // (an explicit selection still wins, so the manager can see what he picked)
+  const sentStyle = (!checked && c.assignedDriver) ? 'background:#fef9c3;border:2px solid #eab308;' : '';
+  return `<div class="vehicle-card" style="border-right:5px solid ${waitColor};margin-bottom:8px;cursor:pointer;${sentStyle}${checked?'background:#dcfce7;border:2px solid #059669':''}" onclick="openEditPickupModal('${e(c.id)}')">
    <div style="display:flex;align-items:center;gap:10px">
     <div onclick="event.stopPropagation();togglePickupSelect('${e(c.id)}')" title="סימון" style="flex-shrink:0;cursor:pointer;width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:900;${checked?'background:#16a34a;color:#fff;border:2px solid #16a34a':'background:#fff;color:transparent;border:2px solid #cbd5e1'}">✓</div>
     <div style="flex:1;min-width:0;display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
