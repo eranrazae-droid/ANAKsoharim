@@ -136,8 +136,38 @@ async function _recallQueryQ(plate) {
     Object.entries(rec).some(([k, v]) => !k.startsWith("_") && String(v).replace(/\D/g, "") === plate));
 }
 
+// CKAN filters are type-sensitive: if the resource stores the plate as text, a
+// numeric filter matches NOTHING and still reports success — which looks
+// exactly like "no recalls". Try numbers, then strings, and keep whichever
+// actually returns rows.
+async function _recallQueryBatchSmart(field, plates) {
+  const asNum = await _recallQueryBatch(field, plates);
+  if (asNum.length) return asNum;
+  const filters = encodeURIComponent(JSON.stringify({ [field]: plates.map(String) }));
+  const url = `https://data.gov.il/api/3/action/datastore_search?resource_id=${_RECALL_RESOURCE}&filters=${filters}&limit=${plates.length * 5}`;
+  const res = await fetch(url);
+  if (res.status === 409) return asNum;
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  const json = await res.json();
+  if (!json.success) throw new Error("CKAN error");
+  return json.result?.records || [];
+}
+
+// proves the lookup pipeline actually works before we trust a "0 recalls"
+// result — an all-failed run must never silently wipe the open-recall list.
+async function _recallProbeWorks() {
+  try {
+    const res = await fetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=${_RECALL_RESOURCE}&limit=1`);
+    if (!res.ok) return false;
+    const json = await res.json();
+    return !!json.success && (json.result?.records || []).length > 0;
+  } catch (err) { return false; }
+}
+
 exports.dailyRecallPull = onSchedule(
-  { schedule: "0 7 * * 0-5", region: "europe-west1", timeZone: "Asia/Jerusalem" },
+  // the per-plate fallback path can take minutes for a full lot — the default
+  // 60s timeout would kill the run halfway through
+  { schedule: "0 7 * * 0-5", region: "europe-west1", timeZone: "Asia/Jerusalem", timeoutSeconds: 540, memory: "512MiB" },
   async () => {
     let vehicles;
     try {
@@ -169,12 +199,13 @@ exports.dailyRecallPull = onSchedule(
     const BATCH = 40;
     const openCars = [];
     let useQ = false;
+    let failedPlates = 0;
     for (let i = 0; i < cars.length; i += BATCH) {
       const chunk = cars.slice(i, i + BATCH);
       let batchOk = false;
       if (!useQ) {
         try {
-          const recs = await _recallQueryBatch(field, chunk.map((c) => c.plate));
+          const recs = await _recallQueryBatchSmart(field, chunk.map((c) => c.plate));
           const foundPlates = new Set();
           for (const rec of recs) {
             for (const [k, v] of Object.entries(rec)) {
@@ -195,7 +226,7 @@ exports.dailyRecallPull = onSchedule(
           try {
             const recs = await _recallQueryQ(c.plate);
             if (recs.length) openCars.push(c);
-          } catch (err) { /* skip — next run retries */ }
+          } catch (err) { failedPlates++; }
           await _sleep2(250);
         }
       } else if (i + BATCH < cars.length) {
@@ -203,11 +234,34 @@ exports.dailyRecallPull = onSchedule(
       }
     }
 
+    // Never let a broken run masquerade as "no recalls": if we found nothing,
+    // only trust it when the lookup pipeline is provably alive and no plate
+    // errored. Otherwise keep yesterday's list and tell the manager.
+    if (!openCars.length) {
+      const probeOk = await _recallProbeWorks();
+      if (!probeOk || failedPlates) {
+        console.error(`dailyRecallPull: unreliable run (probeOk=${probeOk}, failedPlates=${failedPlates}) — keeping previous list`);
+        try {
+          const cs = await db.collection("config").doc("driver_contacts").get();
+          const contacts = cs.exists ? cs.data() : {};
+          const token = contacts["_telegramToken"]?.value || "";
+          const chatId = contacts["ליאל"]?.telegramId || "";
+          if (token && chatId) {
+            await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ chat_id: chatId, text: "⚠️ בדיקת הריקול הבוקר לא הושלמה (בעיית תקשורת מול משרד התחבורה). הרשימה הקודמת נשמרה — הבדיקה תרוץ שוב מחר." }),
+            });
+          }
+        } catch (err) { console.error("recall failure alert failed", err); }
+        return; // keep the existing list rather than wiping it
+      }
+    }
+
     const finalCars = openCars.map((c) => {
       const prev = prevByPlate[c.plate];
       return { ...c, resolved: !!prev?.resolved, taskId: prev?.taskId || null };
     });
-    await statusRef.set({ cars: finalCars, updatedAt: new Date() });
+    await statusRef.set({ cars: finalCars, updatedAt: new Date(), checkedCount: cars.length });
   }
 );
 
