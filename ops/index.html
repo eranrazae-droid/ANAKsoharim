@@ -7856,11 +7856,14 @@ function _plateShowNotInInventory(plate) {
 function _plateCloudTry(srcCanvas) {
   if (_plateCloudBusy || !_plateCloudToken || _plateCloudBlocked) return;
   const now = Date.now();
-  if (now - _plateCloudLastAt < 1100) return;
-  if (now - _plateLastMarkAt < 2500) return; // still pointing at the car we just marked
-  // camera has been aimed at an unresolved plate for a while without a match —
-  // stop hammering the cloud on it; resolve locally or move the camera to reset
-  if (_plateCloudMissStreak >= 2) return;
+  // Speed is the whole point: the only real guard is "don't send two requests
+  // for the same plate". Re-sending is gated by the plate REGION changing
+  // (handled in the cloud loop), so this throttle just prevents a burst while
+  // one car is centred.
+  if (now - _plateCloudLastAt < 350) return;
+  // same plate refused to resolve several times — stop burning quota on it
+  // until the camera moves (the loop resets this when the plate leaves view)
+  if (_plateCloudMissStreak >= 4) return;
   _plateCloudBusy = true; _plateCloudLastAt = now;
   // snapshot the canvas NOW — the scan loop keeps redrawing it
   const c = document.createElement('canvas');
@@ -7890,8 +7893,17 @@ function _plateCloudTry(srcCanvas) {
       }
       if (toks.length) {
         const hit = _plateMatch(toks);
-        if (hit && !_plateScanSeen.has(hit.plate)) { _plateMarkFound(hit); _plateUnresolvedAt = 0; _plateCloudMissStreak = 0; }
-        else { if (!hit) _plateShowNotInInventory(toks[0]); _plateCloudMissStreak++; }
+        if (hit) {
+          // hold off on any further calls until this plate leaves the frame
+          _plateMarkedBox = _platePendingBox;
+          _plateResolvedHold = true;
+          _plateCloudMissStreak = 0;
+          _plateUnresolvedAt = 0;
+          if (!_plateScanSeen.has(hit.plate)) _plateMarkFound(hit);
+        } else {
+          _plateShowNotInInventory(toks[0]);
+          _plateCloudMissStreak++;
+        }
       } else {
         _plateCloudMissStreak++;
       }
@@ -7913,6 +7925,10 @@ function _plateCloudTry(srcCanvas) {
    whole band) and fires the cloud. Also keeps the TLS connection warm. ── */
 let _plateCloudLoopOn = false;
 let _plateYellowSinceAt = 0; // when the current plate-in-view streak started
+// coarse "where the plate sits in frame" signatures — used to send exactly one
+// cloud request per car instead of re-sending while it stays centred
+let _plateLastSentBox = null, _plateMarkedBox = null, _platePendingBox = null;
+let _plateResolvedHold = false; // set after a hit; cleared when the plate leaves view
 async function _plateCloudLoop() {
   const small = document.createElement('canvas');
   let lastPing = 0;
@@ -7942,12 +7958,24 @@ async function _plateCloudLoop() {
             if (y < minY) minY = y; if (y > maxY) maxY = y;
           }
         }
-        if (cnt > sw * sh * 0.02 && maxX > minX + 15) {
-          if (!_plateYellowSinceAt) _plateYellowSinceAt = now;
-          // give local OCR a real chance first — only escalate to cloud once
-          // the SAME plate has sat unresolved in view for a while (genuinely
-          // stubborn), not the instant any plate enters the frame
-          if (now - _plateYellowSinceAt > 500) {
+        // require a reasonably large plate before spending a cloud call — a
+        // tiny/partial plate usually fails and would cost a second request
+        if (cnt > sw * sh * 0.02 && maxX > minX + 30) {
+          // Fire the cloud the INSTANT a plate is in view — no warm-up delay.
+          // Repeats are prevented by a coarse signature of where the plate sits
+          // in frame: a different car (or the same car re-approached) produces a
+          // different signature, the identical framing does not.
+          // Position of the plate in frame, compared with a tolerance so that
+          // hand-shake does NOT read as a different car (an exact-match
+          // signature would fire several cloud calls for one vehicle).
+          const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2, cw = maxX - minX;
+          const near = (a) => a && Math.abs(a.cx - cx) < 22 && Math.abs(a.cy - cy) < 22 && Math.abs(a.cw - cw) < 22;
+          // once a car is resolved, stay quiet until the plate leaves the frame
+          const stillOnResolvedCar = _plateResolvedHold && near(_plateMarkedBox);
+          const sameFraming = near(_plateLastSentBox);
+          if (!stillOnResolvedCar && (!sameFraming || now - _plateCloudLastAt > 1200)) {
+            _plateLastSentBox = { cx, cy, cw };
+            _platePendingBox = { cx, cy, cw };
             // crop the yellow box (+margin) from the live video at native resolution
             const px = bx + (minX / sw) * bw, pw = ((maxX - minX) / sw) * bw;
             const py = by + (minY / sh) * bh, ph = Math.max(1, ((maxY - minY) / sh) * bh);
@@ -7960,17 +7988,32 @@ async function _plateCloudLoop() {
             _plateCloudTry(out);
           }
         } else {
+          // plate left the frame — everything resets so the next car is instant
           _plateYellowSinceAt = 0;
-          _plateCloudMissStreak = 0; // no plate in view — camera moved; next plate gets a clean slate
+          _plateCloudMissStreak = 0;
+          _plateLastSentBox = null;
+          _plateMarkedBox = null;
+          _plateResolvedHold = false;
         }
       } catch(e) { console.error('cloud loop', e); }
     }
-    await new Promise(r => setTimeout(r, 150));
+    await new Promise(r => setTimeout(r, 70)); // tight loop — detection must not add latency
   }
 }
 
 async function _plateScanLoop() {
   while (_plateLoopOn) {
+    // Tesseract is the SLOW path (hundreds of ms per frame) and it competes for
+    // the same CPU the detection loop needs. When the cloud is available it
+    // resolves plates far faster, so local OCR only runs as a fallback — this
+    // is what keeps recognition under a second.
+    const cloudUsable = _plateCloudToken && !_plateCloudBlocked;
+    if (cloudUsable) {
+      const grab = _plateGrabFrame();
+      _plateAutoZoomTick(grab ? grab.yellow > 0.035 : false);
+      await new Promise(r => setTimeout(r, 220));
+      continue;
+    }
     const grab = _plateGrabFrame();
     if (grab && _plateWorkers.length) {
       const frame = grab.c;
