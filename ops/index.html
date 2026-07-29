@@ -7866,7 +7866,7 @@ function _plateCloudTry(srcCanvas) {
   if (_plateCloudMissStreak >= 4) return;
   _plateCloudBusy = true; _plateCloudLastAt = now;
   // snapshot the canvas NOW — the scan loop keeps redrawing it
-  const c = document.createElement('canvas');
+  const c = _plateSnapCanvas;
   c.width = srcCanvas.width; c.height = srcCanvas.height;
   c.getContext('2d').drawImage(srcCanvas, 0, 0);
   const status = document.getElementById('plate-scan-status');
@@ -7928,6 +7928,10 @@ let _plateYellowSinceAt = 0; // when the current plate-in-view streak started
 // coarse "where the plate sits in frame" signatures — used to send exactly one
 // cloud request per car instead of re-sending while it stays centred
 let _plateLastSentBox = null, _plateMarkedBox = null, _platePendingBox = null;
+// reused every frame — allocating canvases ~14x/sec builds GC pressure and the
+// scanner visibly slows down the longer it stays open
+const _plateCropCanvas = document.createElement('canvas');
+const _plateSnapCanvas = document.createElement('canvas');
 let _plateResolvedHold = false; // set after a hit; cleared when the plate leaves view
 async function _plateCloudLoop() {
   const small = document.createElement('canvas');
@@ -7973,6 +7977,10 @@ async function _plateCloudLoop() {
           // once a car is resolved, stay quiet until the plate leaves the frame
           const stillOnResolvedCar = _plateResolvedHold && near(_plateMarkedBox);
           const sameFraming = near(_plateLastSentBox);
+          // a materially different framing means a DIFFERENT car — the previous
+          // car's failures must not count against it (otherwise the miss streak
+          // accumulates across cars and permanently disables the scanner)
+          if (!sameFraming) _plateCloudMissStreak = 0;
           if (!stillOnResolvedCar && (!sameFraming || now - _plateCloudLastAt > 1200)) {
             _plateLastSentBox = { cx, cy, cw };
             _platePendingBox = { cx, cy, cw };
@@ -7981,7 +7989,7 @@ async function _plateCloudLoop() {
             const py = by + (minY / sh) * bh, ph = Math.max(1, ((maxY - minY) / sh) * bh);
             const ex = Math.max(0, px - pw * 0.12), ew = Math.min(vw - ex, pw * 1.24);
             const ey = Math.max(0, py - ph * 0.25), eh = Math.min(vh - ey, ph * 1.5);
-            const out = document.createElement('canvas');
+            const out = _plateCropCanvas;
             const sc2 = Math.min(2, 480 / ew);
             out.width = Math.max(60, Math.round(ew * sc2)); out.height = Math.max(20, Math.round(eh * sc2));
             out.getContext('2d').drawImage(v, ex, ey, ew, eh, 0, 0, out.width, out.height);
@@ -8007,7 +8015,10 @@ async function _plateScanLoop() {
     // the same CPU the detection loop needs. When the cloud is available it
     // resolves plates far faster, so local OCR only runs as a fallback — this
     // is what keeps recognition under a second.
-    const cloudUsable = _plateCloudToken && !_plateCloudBlocked;
+    // Only stand down while the cloud is actually doing the work. If the cloud
+    // is unavailable OR is struggling with the current plate, local OCR takes
+    // over — the scanner must never be left with no engine running.
+    const cloudUsable = _plateCloudToken && !_plateCloudBlocked && _plateCloudMissStreak < 2;
     if (cloudUsable) {
       const grab = _plateGrabFrame();
       _plateAutoZoomTick(grab ? grab.yellow > 0.035 : false);
