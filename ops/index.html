@@ -7797,7 +7797,22 @@ function _curDayKey() { const d = new Date(); return `${d.getFullYear()}-${Strin
 // spreads the free 2,400 monthly calls across the month so the quota can never
 // run out mid-month and leave the scanner slow for a week (the manager will
 // not pay for the upgrade plan) — resets every midnight
-const _PLATE_CLOUD_DAILY_LIMIT = 92; // 6 scan days a week ≈ 26/month → 2400/26
+// Adaptive daily budget: whatever is left this month, spread over the scan days
+// (Sun–Fri) still remaining. A light day banks credit for a heavy one, and the
+// monthly free quota can never be overrun.
+function _plateScanDaysLeftInMonth() {
+  const d = new Date(), y = d.getFullYear(), m = d.getMonth();
+  const last = new Date(y, m + 1, 0).getDate();
+  let n = 0;
+  for (let day = d.getDate(); day <= last; day++) {
+    if (new Date(y, m, day).getDay() !== 6) n++; // skip Saturday
+  }
+  return Math.max(1, n);
+}
+function _plateDailyBudget() {
+  const left = Math.max(0, _PLATE_CLOUD_MONTHLY_LIMIT - _plateCloudUsed);
+  return Math.max(20, Math.floor(left / _plateScanDaysLeftInMonth()));
+}
 let _plateCloudDayKey = '', _plateCloudDayUsed = 0;
 
 async function _plateLoadCloudToken() {
@@ -7813,7 +7828,7 @@ async function _plateLoadCloudToken() {
     _plateCloudUsed = (usage && usage.month === _plateCloudMonthKey) ? (usage.count || 0) : 0;
     _plateCloudDayKey = _curDayKey();
     _plateCloudDayUsed = (usage && usage.day === _plateCloudDayKey) ? (usage.dayCount || 0) : 0;
-    _plateCloudBlocked = _plateCloudUsed >= _PLATE_CLOUD_MONTHLY_LIMIT || _plateCloudDayUsed >= _PLATE_CLOUD_DAILY_LIMIT;
+    _plateCloudBlocked = _plateCloudUsed >= _PLATE_CLOUD_MONTHLY_LIMIT || _plateCloudDayUsed >= _plateDailyBudget();
   } catch(e) { console.error('cloud token load', e); }
   _plateUpdateCloudUsageDisplay();
 }
@@ -7823,7 +7838,7 @@ function _plateUpdateCloudUsageDisplay() {
   if (!el) return;
   if (!_plateCloudToken) { el.style.display = 'none'; return; }
   el.style.display = 'block';
-  el.textContent = `☁️ היום: ${_plateCloudDayUsed}/${_PLATE_CLOUD_DAILY_LIMIT} · החודש: ${_plateCloudUsed}/${_PLATE_CLOUD_MONTHLY_LIMIT}`;
+  el.textContent = `☁️ ענן היום: ${_plateCloudDayUsed}/${_plateDailyBudget()} · חודש: ${_plateCloudUsed}/${_PLATE_CLOUD_MONTHLY_LIMIT} · 🆓 מקומי: ${_plateLocalHits}`;
 }
 
 // fire-and-forget increment of the shared usage counter (best-effort; a lost
@@ -7844,7 +7859,7 @@ async function _plateCloudBumpUsage() {
   if (_plateCloudUsed >= _PLATE_CLOUD_MONTHLY_LIMIT && !_plateCloudBlocked) {
     _plateCloudBlocked = true;
     if (status) status.innerHTML = '📵 המכסה החינמית החודשית נוצלה — הזיהוי ממשיך מקומית בלבד';
-  } else if (_plateCloudDayUsed >= _PLATE_CLOUD_DAILY_LIMIT && !_plateCloudBlocked) {
+  } else if (_plateCloudDayUsed >= _plateDailyBudget() && !_plateCloudBlocked) {
     _plateCloudBlocked = true;
     if (status) status.innerHTML = '📵 התקציב היומי של הענן נוצל — ממשיך בזיהוי מקומי (מתאפס בחצות)';
   }
@@ -7866,6 +7881,49 @@ function _plateShowNotInInventory(plate) {
   resultEl.style.display = 'block';
   if (navigator.vibrate) { try { navigator.vibrate([50, 50, 50, 50, 50]); } catch(e) {} }
   setTimeout(() => { if (resultEl.textContent.includes(plate)) resultEl.style.display = 'none'; }, 3000);
+}
+
+/* ── FREE local read of the tight plate crop ──────────────────────────────
+   The cloud costs quota; this costs nothing. Run on the small, high-contrast
+   plate rectangle (not the wide band) Tesseract is both fast and accurate, so
+   most plates never need a cloud call at all — which is what makes 110 cars a
+   day fit inside the free tier. ── */
+const _plateLocalCanvas = document.createElement('canvas');
+let _plateLocalBusy = false;
+let _plateLocalHits = 0; // free reads, shown so the manager sees the savings
+function _plateSharpenForOcr(src) {
+  const c = _plateLocalCanvas;
+  const scale = Math.min(3, Math.max(1, 420 / src.width));
+  c.width = Math.round(src.width * scale); c.height = Math.round(src.height * scale);
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(src, 0, 0, c.width, c.height);
+  const id = ctx.getImageData(0, 0, c.width, c.height), d = id.data;
+  // grayscale + contrast stretch → black digits on white
+  let lo = 255, hi = 0;
+  const g = new Uint8Array(d.length / 4);
+  for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+    const v = (0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2]) | 0;
+    g[p] = v; if (v < lo) lo = v; if (v > hi) hi = v;
+  }
+  const span = Math.max(1, hi - lo);
+  for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+    let v = ((g[p] - lo) / span) * 255;
+    v = v < 128 ? Math.max(0, v * 0.6) : Math.min(255, 255 - (255 - v) * 0.6);
+    d[i] = d[i+1] = d[i+2] = v; d[i+3] = 255;
+  }
+  ctx.putImageData(id, 0, 0);
+  return c;
+}
+async function _plateLocalTry(srcCanvas) {
+  if (_plateLocalBusy || !_plateWorkers.length) return null;
+  _plateLocalBusy = true;
+  try {
+    const prepped = _plateSharpenForOcr(srcCanvas);
+    const r = await _plateWorkers[0].recognize(prepped);
+    return _plateTokensFrom(r.data.text);
+  } catch(e) { return null; }
+  finally { _plateLocalBusy = false; }
 }
 
 function _plateCloudTry(srcCanvas) {
@@ -8032,7 +8090,25 @@ async function _plateCloudLoop() {
             const sc2 = _plateCloudMissStreak >= 1 ? Math.min(3, 900 / ew) : Math.min(2, 480 / ew);
             out.width = Math.max(60, Math.round(ew * sc2)); out.height = Math.max(20, Math.round(eh * sc2));
             out.getContext('2d').drawImage(v, ex, ey, ew, eh, 0, 0, out.width, out.height);
-            _plateCloudTry(out);
+            // FREE first: read the crop locally. Only if that fails do we spend
+            // a cloud call — this is what keeps 110 cars/day inside the free tier.
+            let solvedLocally = false;
+            if (!_plateLocalBusy && _plateCloudInflight === 0) {
+              const toks = await _plateLocalTry(out);
+              if (toks && toks.length) {
+                const hit = _plateMatch(toks);
+                if (hit) {
+                  _plateMarkedBox = { cx, cy, cw };
+                  _plateResolvedHold = true;
+                  _plateCloudMissStreak = 0;
+                  solvedLocally = true;
+                  _plateLocalHits++;
+                  _plateUpdateCloudUsageDisplay();
+                  if (!_plateScanSeen.has(hit.plate)) _plateMarkFound(hit);
+                }
+              }
+            }
+            if (!solvedLocally) _plateCloudTry(out);
           }
         } else {
           // plate left the frame — everything resets so the next car is instant
@@ -8054,13 +8130,13 @@ async function _plateScanLoop() {
     // the same CPU the detection loop needs. When the cloud is available it
     // resolves plates far faster, so local OCR only runs as a fallback — this
     // is what keeps recognition under a second.
-    // Stand down ONLY while the cloud is actively working (request in flight or
-    // fired within the last second). If the cloud is idle — token missing,
-    // quota out, or the yellow-detector simply not seeing this plate — local
-    // OCR keeps scanning. The scanner must never have zero engines running.
-    const cloudActive = _plateCloudToken && !_plateCloudBlocked &&
-      (_plateCloudInflight > 0 || Date.now() - _plateCloudLastAt < 1000);
-    if (cloudActive) {
+    // The detection loop now reads the tight plate crop locally (free) before
+    // ever touching the cloud, so this wide-band pass is only a safety net for
+    // plates the yellow detector never sees. Skip it whenever either engine is
+    // already working, so it never competes for CPU.
+    const someEngineWorking = _plateLocalBusy || _plateCloudInflight > 0 ||
+      (_plateCloudToken && !_plateCloudBlocked && Date.now() - _plateCloudLastAt < 1000);
+    if (someEngineWorking) {
       const grab = _plateGrabFrame();
       _plateAutoZoomTick(grab ? grab.yellow > 0.035 : false);
       await new Promise(r => setTimeout(r, 220));
