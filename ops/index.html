@@ -11637,13 +11637,23 @@ function openTestDriveScreen() {
       .sort((a,b) => (b.createdAt?.seconds||0) - (a.createdAt?.seconds||0));
     if (!_tdAllForms.length) { list.innerHTML = '<div style="text-align:center;padding:60px 20px;color:var(--muted);font-size:15px">אין טפסים</div>'; return; }
     list.innerHTML = _tdAllForms.map(f => {
-      const isDoneLike = f.status === 'done' || f.status === 'transferred';
-      const statusColor = isDoneLike ? '#16a34a' : '#f59e0b';
-      const statusLabel = f.status === 'transferred' ? '✅ הושלמה והועברה לקליטה' : f.status === 'done' ? '✅ הושלם' : '⏳ ממתין למילוי';
+      const isDoneLike = f.status === 'done' || f.status === 'transferred' || f.status === 'no_intake';
+      const statusColor = f.status === 'transferred' ? '#16a34a'
+        : f.status === 'no_intake' ? '#64748b'
+        : f.status === 'done' ? '#eab308' : '#f59e0b';
+      const statusLabel = f.status === 'transferred' ? '✅ הושלמה והועברה לקליטה'
+        : f.status === 'no_intake' ? '🚫 לא נכנס למלאי'
+        : f.status === 'done' ? '⏳ ממתין' : '⏳ ממתין למילוי';
       const onClick = isDoneLike
         ? (isManager ? `_showTdResultModal('${f.id}', _tdAllForms.find(x=>x.id==='${f.id}'))` : '')
         // a manager reopens the live panel (e.g. after parking it); a driver fills the form
         : (isManager ? `openTdLivePanel('${f.id}', _tdAllForms.find(x=>x.id==='${f.id}'))` : `openFillTestDriveModal('${f.id}')`);
+      // filled in and awaiting the manager's decision — offer both outcomes
+      const actions = (isManager && f.status === 'done')
+        ? `<div style="display:flex;gap:8px;margin-top:10px" onclick="event.stopPropagation()">
+             <button onclick="tdSendToIntake('${f.id}')" style="flex:1;background:#16a34a;color:#fff;border:none;border-radius:10px;padding:9px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">🚗 העבר קליטה לרכב</button>
+             <button onclick="tdMarkNoIntake('${f.id}')" style="flex:1;background:#64748b;color:#fff;border:none;border-radius:10px;padding:9px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">🚫 לא נכנס למלאי</button>
+           </div>` : '';
       return `<div class="vehicle-card" style="margin-bottom:10px;${onClick?'cursor:pointer;':''}border-right:5px solid ${statusColor}" onclick="${onClick}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
           <div>
@@ -11656,11 +11666,32 @@ function openTestDriveScreen() {
           </div>
           <span style="background:${statusColor};color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;white-space:nowrap">${statusLabel}</span>
         </div>
+        ${actions}
       </div>`;
     }).join('');
   }, err => { list.innerHTML = `<div style="color:#ef4444;padding:20px">שגיאה: ${err?.code||err?.message}</div>`; });
 }
 window.openTestDriveScreen = openTestDriveScreen;
+
+// from the test-drive list: hand the filled form over to a vehicle intake
+async function tdSendToIntake(id) {
+  const f = _tdAllForms.find(x => x.id === id);
+  if (!f) return;
+  const ok = await _tdConvertToIntake(id, f);
+  if (ok) showToast('✅ נפתחה קליטת רכב עם התוצאות');
+}
+window.tdSendToIntake = tdSendToIntake;
+
+// the car isn't joining the lot — close the test drive without an intake
+async function tdMarkNoIntake(id) {
+  const f = _tdAllForms.find(x => x.id === id);
+  if (!confirm(`לסמן שהרכב ${f?.plate || ''} לא נכנס למלאי? הנסיעה תישמר לתיעוד.`)) return;
+  try {
+    await _updateDoc(_docRef('test_drives', id), { status: 'no_intake' });
+    showToast('🚫 סומן — הרכב לא נכנס למלאי');
+  } catch(e) { showToast('שגיאה: ' + (e.code || e.message)); }
+}
+window.tdMarkNoIntake = tdMarkNoIntake;
 
 function openNewTestDriveModal() {
   _tdSelectedDriver = null;
