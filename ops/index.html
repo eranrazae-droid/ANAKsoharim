@@ -492,6 +492,7 @@ if ('serviceWorker' in navigator) {
   <div style="background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
     <span style="font-weight:800;font-size:15px">🏎️ נסיעת מבחן — שידור חי</span>
     <div style="display:flex;align-items:center;gap:8px">
+      <button onclick="parkTdLivePanel()" title="סוגר את הפאנל — הנסיעה נשמרת ואפשר לחזור אליה" style="background:rgba(255,255,255,.22);color:#fff;border:none;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer">⏸ העבר למצב המתנה</button>
       <button id="td-delete-btn" onclick="deleteTdLivePanel()" style="display:none;background:#dc2626;color:#fff;border:none;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer">🗑 מחק נסיעה</button>
       <span id="td-live-status-badge" style="font-size:12px;font-weight:700;background:rgba(255,255,255,.2);border-radius:8px;padding:3px 10px">⏳ ממתין</span>
     </div>
@@ -11642,7 +11643,8 @@ function openTestDriveScreen() {
       const statusLabel = f.status === 'transferred' ? '✅ הושלמה והועברה לקליטה' : f.status === 'done' ? '✅ הושלם' : '⏳ ממתין למילוי';
       const onClick = isDoneLike
         ? (isManager ? `_showTdResultModal('${f.id}', _tdAllForms.find(x=>x.id==='${f.id}'))` : '')
-        : (!isManager ? `openFillTestDriveModal('${f.id}')` : '');
+        // a manager reopens the live panel (e.g. after parking it); a driver fills the form
+        : (isManager ? `openTdLivePanel('${f.id}', _tdAllForms.find(x=>x.id==='${f.id}'))` : `openFillTestDriveModal('${f.id}')`);
       return `<div class="vehicle-card" style="margin-bottom:10px;${onClick?'cursor:pointer;':''}border-right:5px solid ${statusColor}" onclick="${onClick}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
           <div>
@@ -12229,6 +12231,19 @@ async function deleteTdLivePanel() {
   showToast('נסיעת המבחן בוטלה');
 }
 window.deleteTdLivePanel = deleteTdLivePanel;
+
+// close the live panel WITHOUT touching the test drive itself — it stays in
+// the test-drive list exactly as it is, and can be reopened from there.
+function parkTdLivePanel() {
+  if (_tdLivePanelUnsub) { _tdLivePanelUnsub(); _tdLivePanelUnsub = null; }
+  _tdLivePanelId = null;
+  _tdLivePanelData = null;
+  localStorage.removeItem('anak_td_mgr_panel'); // don't auto-reopen on next load
+  document.getElementById('td-live-panel').style.display = 'none';
+  document.body.classList.remove('td-panel-open');
+  showToast('⏸ הנסיעה במצב המתנה — שמורה במסך נסיעות מבחן');
+}
+window.parkTdLivePanel = parkTdLivePanel;
 
 // restore live panel on manager home load
 function _restoreTdLivePanelIfNeeded() {
