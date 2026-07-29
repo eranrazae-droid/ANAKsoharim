@@ -1310,15 +1310,7 @@ if ('serviceWorker' in navigator) {
   </div>
   <div style="padding:16px 16px 100px">
     <div id="recall-status-banner" style="display:none;border-radius:14px;padding:14px 16px;margin-bottom:14px;font-size:14px;font-weight:700"></div>
-    <div style="display:flex;gap:10px;align-items:stretch;margin-bottom:16px">
-      <div id="recall-upload-zone" style="flex:1;border:2px dashed var(--gold);border-radius:16px;padding:28px 20px;text-align:center;background:#f8f9ff;cursor:pointer" onclick="document.getElementById('recall-file-input').click()">
-        <div style="font-size:36px;margin-bottom:8px">📄</div>
-        <div style="font-weight:700;font-size:16px;color:var(--dark)">לחץ לצרף קובץ עם מספרי רכב</div>
-        <div style="font-size:13px;color:var(--muted);margin-top:4px">קובץ .xlsx / .csv — הלוחיות מזוהות אוטומטית</div>
-        <input type="file" id="recall-file-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleRecallFile(this)">
-      </div>
-      <button onclick="clearRecallTable()" style="flex-shrink:0;width:56px;background:#fff0f0;border:2px solid #ef4444;border-radius:16px;font-size:22px;cursor:pointer;color:#ef4444" title="נקה טבלה">🗑️</button>
-    </div>
+    <div id="recall-scan-info" style="border:2px solid var(--border);border-radius:16px;padding:14px 16px;margin-bottom:16px;background:var(--surface2);font-size:14px;line-height:1.9"></div>
     <div id="recall-list" style="overflow-x:auto"></div>
   </div>
 </div>
@@ -6222,29 +6214,41 @@ function openRecallScreen() {
   showScreen('recall');
   if (_recallStatusUnsub) _recallStatusUnsub();
   _recallStatusUnsub = _onSnap(_docRef('recall_status', 'current'), snap => {
-    const cars = snap.exists() ? (snap.data().cars || []) : [];
-    // preserve any not-yet-synced local rows still mid-check (state 'wait'/'checking')
-    const inFlight = _recallRows.filter(r => r.state === 'wait' || r.recallState === 'wait' || r.recallState === 'checking' || r.recallState === 'err');
-    _recallRows = [
-      ...cars.map(c => ({
-        plate: c.plate, tozeret: c.tozeret, degem: c.degem, shnat: c.shnat, misgeret: c.misgeret || '',
-        state: 'ok', recallState: 'open', recallDetails: c.recallDetails || null,
-        resolved: !!c.resolved, taskCreated: !!c.taskId, taskId: c.taskId || null
-      })),
-      ...inFlight
-    ];
+    const data = snap.exists() ? snap.data() : {};
+    const cars = data.cars || [];
+    _recallRows = cars.map(c => ({
+      plate: c.plate, tozeret: c.tozeret, degem: c.degem, shnat: c.shnat, misgeret: c.misgeret || '',
+      state: 'ok', recallState: 'open', recallDetails: c.recallDetails || null,
+      resolved: !!c.resolved, taskCreated: !!c.taskId, taskId: c.taskId || null
+    }));
+    _renderRecallScanInfo(data);
     renderRecallTable();
     _recallUpdateHomeBadge();
   });
 }
 
-function clearRecallTable() {
-  _recallRows = [];
-  document.getElementById('recall-file-input').value = '';
-  renderRecallTable();
-  const b = document.getElementById('recall-status-banner');
-  if (b) b.style.display = 'none';
-  _recallSyncFirestore();
+// report of the last automatic scan: when it ran and what it found
+function _renderRecallScanInfo(data) {
+  const box = document.getElementById('recall-scan-info');
+  if (!box) return;
+  const ts = data.updatedAt?.toDate ? data.updatedAt.toDate() : (data.updatedAt ? new Date(data.updatedAt) : null);
+  if (!ts) {
+    box.innerHTML = '<div style="color:var(--muted)">⏳ טרם בוצעה סריקה אוטומטית. הסריקה רצה כל בוקר בשעה 07:00 (ראשון–שישי).</div>';
+    return;
+  }
+  const cars = data.cars || [];
+  const withRecall = cars.filter(c => !c.resolved).length;
+  const resolved = cars.filter(c => c.resolved).length;
+  const total = data.checkedCount || 0;
+  const clean = total ? Math.max(0, total - cars.length) : null;
+  const date = ts.toLocaleDateString('he-IL', { day:'numeric', month:'numeric', year:'numeric' });
+  const time = ts.toLocaleTimeString('he-IL', { hour:'2-digit', minute:'2-digit' });
+  box.innerHTML =
+    `<div style="font-weight:900;margin-bottom:4px">🔄 בוצעה סריקה · ${date} בשעה ${time}</div>` +
+    (total ? `<div>נסרקו <b>${total}</b> רכבים</div>` : '') +
+    (clean !== null ? `<div style="color:#166534">✅ <b>${clean}</b> רכבים ללא ריקול</div>` : '') +
+    `<div style="color:${withRecall ? '#991b1b' : '#166534'}">${withRecall ? '⚠️' : '✅'} <b>${withRecall}</b> רכבים עם ריקול פתוח</div>` +
+    (resolved ? `<div style="color:#166534">🔧 <b>${resolved}</b> טופלו — ממתינים להסרה ע״י משרד התחבורה</div>` : '');
 }
 
 // persists the open-recall list to Firestore — this is what the daily
@@ -6303,91 +6307,7 @@ async function recallMarkResolved(plate) {
 }
 window.recallMarkResolved = recallMarkResolved;
 
-function handleRecallFile(input) {
-  const file = input.files[0];
-  if (!file) return;
-  if (typeof XLSX === 'undefined') { showToast('⏳ טוען ספריית Excel, נסה שוב...'); input.value = ''; return; }
-  const reader = new FileReader();
-  reader.onload = e => {
-    try {
-      const wb = XLSX.read(e.target.result, { type: 'array' });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
-        .map(r => r.map(c => String(c).trim()))
-        .filter(r => r.some(c => c !== ''));
-      if (!rows.length) { showToast('הקובץ ריק'); return; }
-      // find the plate/registration column by header name; fall back to the
-      // column with the most 7-8 digit values if no header matches
-      const header = rows[0];
-      let plateIdx = header.findIndex(h => /מספר רישוי|מספר רכב|לוחית/.test(h));
-      let dataRows = plateIdx >= 0 ? rows.slice(1) : rows;
-      if (plateIdx < 0) {
-        const colCount = Math.max(...rows.map(r => r.length));
-        let bestIdx = -1, bestCount = 0;
-        for (let i = 0; i < colCount; i++) {
-          const count = rows.filter(r => /^\d{7,8}$/.test((r[i] || '').replace(/\D/g, ''))).length;
-          if (count > bestCount) { bestCount = count; bestIdx = i; }
-        }
-        plateIdx = bestIdx;
-        dataRows = rows;
-      }
-      if (plateIdx < 0) { showToast('לא נמצאה עמודת מספר רישוי בקובץ'); return; }
-      const plates = new Set();
-      for (const r of dataRows) {
-        const d = String(r[plateIdx] || '').replace(/\D/g, '');
-        if (d.length === 7 || d.length === 8) plates.add(d);
-      }
-      if (!plates.size) { showToast('לא נמצאו מספרי רכב בעמודת מספר הרישוי'); return; }
-      _recallRows = [...plates].map(p => ({ plate: p, tozeret: '', degem: '', shnat: '', misgeret: '', state: 'wait', recallState: 'wait', recallDetails: null, resolved: false, taskCreated: false }));
-      renderRecallTable();
-      _recallEnrichAll();
-    } catch(err) {
-      console.error('handleRecallFile', err);
-      showToast('שגיאה בקריאת הקובץ: ' + (err.message || err));
-    }
-  };
-  reader.onerror = () => showToast('שגיאה בפתיחת הקובץ');
-  reader.readAsArrayBuffer(file);
-}
 
-async function _recallEnrichAll() {
-  const banner = document.getElementById('recall-status-banner');
-  banner.style.display = 'block';
-  banner.style.background = '#f0f2ff'; banner.style.border = '2px solid #6366f1'; banner.style.color = '#3730a3';
-  let done = 0;
-  const CONC = 4; // polite parallelism against gov.il
-  const queue = _recallRows.filter(r => r.state === 'wait');
-  const worker = async () => {
-    while (queue.length) {
-      const row = queue.shift();
-      try {
-        const filters = encodeURIComponent(JSON.stringify({ mispar_rechev: Number(row.plate) }));
-        const res = await fetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3&filters=${filters}&limit=1`);
-        const json = await res.json();
-        const rec = json?.result?.records?.[0];
-        if (rec) {
-          row.tozeret  = _stripMfrCountry(rec.tozeret_nm || '');
-          row.degem    = rec.kinuy_mishari || rec.degem_nm || '';
-          row.shnat    = rec.shnat_yitzur || '';
-          row.misgeret = rec.misgeret || '';
-          row.state = 'ok';
-        } else {
-          row.state = 'miss';
-        }
-      } catch(e) { row.state = 'err'; }
-      done++;
-      banner.innerHTML = `⏳ מושך נתונים ממשרד התחבורה... ${done}/${_recallRows.length}`;
-      renderRecallTable();
-    }
-  };
-  await Promise.all(Array.from({ length: CONC }, worker));
-  localStorage.setItem('_recallData', JSON.stringify(_recallRows));
-  const ok = _recallRows.filter(r => r.state === 'ok').length;
-  const miss = _recallRows.length - ok;
-  banner.style.background = '#f0fff4'; banner.style.border = '2px solid #22c55e'; banner.style.color = '#166534';
-  banner.innerHTML = `✅ נמשכו נתונים ל-${ok} רכבים${miss ? ` · ${miss} לא נמצאו במאגר` : ''}`;
-  _recallCheckAll();
-}
 
 // Ministry of Transport's "vehicles pending recall repair" registry — a plate
 // found here has an OPEN recall that hasn't been fixed yet. This resource
@@ -6502,21 +6422,11 @@ async function _recallCheckAll() {
 function renderRecallTable() {
   const c = document.getElementById('recall-list');
   if (!c) return;
-  if (!_recallRows.length) {
-    c.innerHTML = '<div class="empty-state" style="padding:40px 20px;text-align:center;color:var(--muted)">העלה קובץ עם מספרי רכב כדי להתחיל</div>';
-    return;
-  }
-  const stillChecking = _recallRows.some(r => r.state === 'wait' || r.recallState === 'wait' || r.recallState === 'checking');
-  if (stillChecking) {
-    c.innerHTML = '<div class="empty-state" style="padding:40px 20px;text-align:center;color:var(--muted)"><div class="spinner" style="margin:0 auto 10px"></div>בודק את כל הרכבים...</div>';
-    return;
-  }
   const open = _recallRows.filter(r => r.recallState === 'open' && !r.resolved);
   const resolved = _recallRows.filter(r => r.recallState === 'open' && r.resolved);
-  const errs = _recallRows.filter(r => r.recallState === 'err');
-  const errNote = errs.length ? `<div style="background:#fffbeb;border:2px solid #f59e0b;border-radius:12px;padding:10px 14px;margin-bottom:10px;font-size:13px;font-weight:700;color:#92400e">⚠️ ${errs.length} רכבים לא נבדקו בגלל שגיאת תקשורת — <span onclick="_recallCheckAll()" style="text-decoration:underline;cursor:pointer">לחץ לניסיון חוזר</span></div>` : '';
+  const errNote = '';
   if (!open.length && !resolved.length) {
-    c.innerHTML = errNote + `<div class="empty-state" style="padding:40px 20px;text-align:center;color:#166534">✅ נבדקו ${_recallRows.length - errs.length} רכבים — לאף אחד אין ריקול פתוח</div>`;
+    c.innerHTML = `<div class="empty-state" style="padding:40px 20px;text-align:center;color:#166534">✅ אין רכבים עם ריקול פתוח</div>`;
     return;
   }
   const cardHtml = (r, isResolved) => {
@@ -6541,8 +6451,6 @@ function renderRecallTable() {
     (resolved.length ? resolved.map(r => cardHtml(r, true)).join('') : '');
 }
 window.openRecallScreen = openRecallScreen;
-window.handleRecallFile = handleRecallFile;
-window.clearRecallTable = clearRecallTable;
 window._recallCheckAll = _recallCheckAll;
 
 window.openInventoryScreen = openInventoryScreen;
