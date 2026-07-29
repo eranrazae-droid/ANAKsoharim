@@ -7864,6 +7864,13 @@ function _plateCloudTry(srcCanvas) {
   }
   if (_plateCloudBusy || !_plateCloudToken || _plateCloudBlocked) return;
   const now = Date.now();
+  // The miss counter describes the CURRENT plate only. Position alone can't
+  // tell cars apart — a driver aims at every plate the same way, so each car
+  // lands in the same spot in frame. Without this decay the counter carried
+  // over from car to car and killed the scanner around the 4th plate.
+  if (now - _plateCloudLastAt > 2000) _plateCloudMissStreak = 0;
+  // once gated, stay quiet only briefly, then allow a fresh attempt
+  if (_plateCloudMissStreak >= 4 && now - _plateCloudLastAt > 3000) _plateCloudMissStreak = 0;
   // Speed is the whole point: the only real guard is "don't send two requests
   // for the same plate". Re-sending is gated by the plate REGION changing
   // (handled in the cloud loop), so this throttle just prevents a burst while
