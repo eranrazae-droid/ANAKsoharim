@@ -7793,6 +7793,12 @@ let _plateCloudToken = null, _plateCloudInflight = 0, _plateCloudLastAt = 0, _pl
 let _plateCloudMonthKey = '', _plateCloudUsed = 0, _plateCloudBlocked = false, _plateCloudMissStreak = 0;
 
 function _curMonthKey() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
+function _curDayKey() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+// spreads the free 2,400 monthly calls across the month so the quota can never
+// run out mid-month and leave the scanner slow for a week (the manager will
+// not pay for the upgrade plan) — resets every midnight
+const _PLATE_CLOUD_DAILY_LIMIT = 90;
+let _plateCloudDayKey = '', _plateCloudDayUsed = 0;
 
 async function _plateLoadCloudToken() {
   if (_plateCloudToken !== null) return;
@@ -7805,7 +7811,9 @@ async function _plateLoadCloudToken() {
     _plateCloudMonthKey = _curMonthKey();
     const usage = s.exists() ? s.data()._plateCloudUsage : null;
     _plateCloudUsed = (usage && usage.month === _plateCloudMonthKey) ? (usage.count || 0) : 0;
-    _plateCloudBlocked = _plateCloudUsed >= _PLATE_CLOUD_MONTHLY_LIMIT;
+    _plateCloudDayKey = _curDayKey();
+    _plateCloudDayUsed = (usage && usage.day === _plateCloudDayKey) ? (usage.dayCount || 0) : 0;
+    _plateCloudBlocked = _plateCloudUsed >= _PLATE_CLOUD_MONTHLY_LIMIT || _plateCloudDayUsed >= _PLATE_CLOUD_DAILY_LIMIT;
   } catch(e) { console.error('cloud token load', e); }
   _plateUpdateCloudUsageDisplay();
 }
@@ -7815,7 +7823,7 @@ function _plateUpdateCloudUsageDisplay() {
   if (!el) return;
   if (!_plateCloudToken) { el.style.display = 'none'; return; }
   el.style.display = 'block';
-  el.textContent = `☁️ קריאות ענן החודש: ${_plateCloudUsed} מתוך ${_PLATE_CLOUD_MONTHLY_LIMIT}`;
+  el.textContent = `☁️ היום: ${_plateCloudDayUsed}/${_PLATE_CLOUD_DAILY_LIMIT} · החודש: ${_plateCloudUsed}/${_PLATE_CLOUD_MONTHLY_LIMIT}`;
 }
 
 // fire-and-forget increment of the shared usage counter (best-effort; a lost
@@ -7823,15 +7831,22 @@ function _plateUpdateCloudUsageDisplay() {
 // early — so it never blocks scanning prematurely)
 async function _plateCloudBumpUsage() {
   _plateCloudUsed++;
+  // midnight rollover mid-session: fresh day, fresh budget
+  const dk = _curDayKey();
+  if (dk !== _plateCloudDayKey) { _plateCloudDayKey = dk; _plateCloudDayUsed = 0; if (_plateCloudUsed < _PLATE_CLOUD_MONTHLY_LIMIT) _plateCloudBlocked = false; }
+  _plateCloudDayUsed++;
   _plateUpdateCloudUsageDisplay();
   try {
     const { updateDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-    await updateDoc(_docRef('config', 'driver_contacts'), { _plateCloudUsage: { month: _plateCloudMonthKey, count: _plateCloudUsed } });
+    await updateDoc(_docRef('config', 'driver_contacts'), { _plateCloudUsage: { month: _plateCloudMonthKey, count: _plateCloudUsed, day: _plateCloudDayKey, dayCount: _plateCloudDayUsed } });
   } catch(e) {}
+  const status = document.getElementById('plate-scan-status');
   if (_plateCloudUsed >= _PLATE_CLOUD_MONTHLY_LIMIT && !_plateCloudBlocked) {
     _plateCloudBlocked = true;
-    const status = document.getElementById('plate-scan-status');
-    if (status) status.innerHTML = '📵 המכסה החינמית החודשית של הענן נוצלה — הזיהוי ממשיך מקומית בלבד';
+    if (status) status.innerHTML = '📵 המכסה החינמית החודשית נוצלה — הזיהוי ממשיך מקומית בלבד';
+  } else if (_plateCloudDayUsed >= _PLATE_CLOUD_DAILY_LIMIT && !_plateCloudBlocked) {
+    _plateCloudBlocked = true;
+    if (status) status.innerHTML = '📵 התקציב היומי של הענן נוצל — ממשיך בזיהוי מקומי (מתאפס בחצות)';
   }
 }
 
