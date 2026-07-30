@@ -212,6 +212,36 @@ async function _runRecallScan() {
     }
 
     const field = await _recallLearnField().catch(() => "mispar_rechev");
+
+    // diagnostic snapshot → Firestore, so a "0 recalls" result can be audited:
+    // what the dataset looks like, which field was chosen, and what a direct
+    // probe for one known plate returns in both filter modes and free-text.
+    try {
+      const sampleRes = await fetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=${_RECALL_RESOURCE}&limit=2`);
+      const sampleJson = await sampleRes.json().catch(() => ({}));
+      const sampleRecs = sampleJson?.result?.records || [];
+      const probePlate = cars[0]?.plate || "";
+      const probe = {};
+      for (const [mode, filters] of [["num", { [field]: [Number(probePlate)] }], ["str", { [field]: [String(probePlate)] }]]) {
+        try {
+          const r = await fetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=${_RECALL_RESOURCE}&filters=${encodeURIComponent(JSON.stringify(filters))}&limit=3`);
+          probe[mode] = { status: r.status, count: (await r.json().catch(() => ({})))?.result?.records?.length ?? -1 };
+        } catch (e) { probe[mode] = { error: e.message }; }
+      }
+      try {
+        const r = await fetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=${_RECALL_RESOURCE}&q=${probePlate}&limit=3`);
+        const j = await r.json().catch(() => ({}));
+        probe.q = { status: r.status, count: j?.result?.records?.length ?? -1, sample: (j?.result?.records || [])[0] || null };
+      } catch (e) { probe.q = { error: e.message }; }
+      await db.collection("recall_status").doc("debug").set({
+        at: new Date(), chosenField: field, probePlate,
+        sampleKeys: sampleRecs[0] ? Object.keys(sampleRecs[0]) : [],
+        sampleRecord: sampleRecs[0] ? JSON.stringify(sampleRecs[0]).slice(0, 1500) : null,
+        probe: JSON.stringify(probe),
+        totalInDataset: sampleJson?.result?.total ?? null,
+      });
+    } catch (e) { console.error("recall debug snapshot failed", e); }
+
     const BATCH = 40;
     const openCars = [];
     let useQ = false;
