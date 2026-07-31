@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Heebo } from "next/font/google";
 import "./globals.css";
 import "./detail.css";
 import "./brand.css";
@@ -9,6 +9,7 @@ import "./finance.css";
 import "./monochrome.css";
 import "./car-modern.css";
 import "./car-listing.css";
+import "./night-gold.css"; // אחרון — שכבת הליטוש של כיוון "לילה וזהב"
 import { BUSINESS, IS_LIVE, SITE_NAME, SITE_URL } from "./site-config";
 
 const geistSans = Geist({
@@ -21,8 +22,14 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// הגופן של האתר הוא Arial, כמו באתר הישן — מוגדר ב-app/globals.css.
-// אין לטעון כאן גופן נוסף: הוא ידרוס את Arial בכל האתר.
+// הגופן של האתר. נטען כמשתנה CSS ומופעל ב-globals.css דרך --font-hebrew,
+// כדי שההגדרה תישאר במקום אחד ולא תדרוס את שאר העיצוב.
+const heebo = Heebo({
+  variable: "--font-hebrew",
+  subsets: ["hebrew", "latin"],
+  weight: ["400", "500", "700", "800"],
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -101,7 +108,7 @@ export default function RootLayout({
   return (
     <html lang="he" dir="rtl">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${heebo.variable} antialiased`}
       >
         {children}
         <script

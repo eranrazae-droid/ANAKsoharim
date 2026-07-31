@@ -44,17 +44,21 @@ export function useLead(form: string) {
   return { status, error, submit };
 }
 
-/** שדה מלכודת לבוטים. מוסתר מהמשתמש ומדולג בניווט מקלדת. */
+/**
+ * שדה מלכודת לבוטים. מוסתר מהמשתמש ומדולג בניווט מקלדת.
+ *
+ * ההסתרה חייבת להיות בתוך מיכל עם overflow:hidden ובגודל אפס.
+ * מיקום שלילי רחוק (left:-9999px) מותח את רוחב העמוד ויוצר
+ * גלילה אופקית במובייל.
+ */
 export function Honeypot() {
   return (
-    <input
-      type="text"
-      name="company"
-      tabIndex={-1}
-      autoComplete="off"
+    <span
       aria-hidden="true"
-      style={{ position: "absolute", left: "-9999px", width: 1, height: 1, opacity: 0 }}
-    />
+      style={{ position: "absolute", width: 0, height: 0, overflow: "hidden" }}
+    >
+      <input type="text" name="company" tabIndex={-1} autoComplete="off" />
+    </span>
   );
 }
 
