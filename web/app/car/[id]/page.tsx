@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getActiveVehicles, type DisplayCar } from "../../vehicle-api";
 import VehicleGallery from "../../vehicle-gallery";
 import VehicleFinanceCalculator from "../../vehicle-finance-calculator";
+import { CarLeadForm } from "../../lead-forms";
 import { getMaxPaymentsByYear } from "../../finance-rules";
 import { SITE_NAME, SITE_URL } from "../../site-config";
 
@@ -123,7 +124,7 @@ export default async function CarPage({ params }: { params: Promise<{ id: string
     <main dir="rtl" className="carPage modernCarPage">
       <header className="topbar">
         <div className="shell headerInner">
-          <a className="logo" href="/"><img src="/assets/logo1.png" alt="ענק הרכבים" /></a>
+          <a className="logo" href="/"><img src="/assets/logo1.png" alt="ענק הרכבים" fetchPriority="high" decoding="async" /></a>
           <div className="headerActions">
             <a className="location" href="https://waze.com/ul?ll=31.9888,34.77084&navigate=yes">⌖ דוד רזיאל 4, ראשון לציון</a>
             <a className="phone" href="tel:*2369"><small>חייגו עכשיו</small><strong>*2369</strong><span>☎</span></a>
@@ -133,13 +134,13 @@ export default async function CarPage({ params }: { params: Promise<{ id: string
 
       <nav className="nav">
         <div className="shell navLinks">
-          <a href="/">דף הבית</a><a href="/#inventory">רכבים משומשים</a><a href="/finance">תנאי מימון</a>
-          <a href="/trade">טרייד אין</a><a href="/sell">מכירת רכב</a><a href="/contact">צור קשר</a>
+          <a href="/">דף הבית</a><a href="/cars">רכבים משומשים</a><a href="/finance">תנאי מימון</a>
+          <a href="/trade">טרייד אין</a><a href="/sell">מכירת רכב</a><a href="/reviews">לקוחות ממליצים</a><a href="/articles">מדריכים</a><a href="/contact">צור קשר</a>
         </div>
       </nav>
 
       <div className="modernBreadcrumb">
-        <div className="shell"><a href="/">דף הבית</a><span>←</span><a href="/#inventory">הרכבים שלנו</a><span>←</span><b>{car.make} {car.model}</b></div>
+        <div className="shell"><a href="/">דף הבית</a><span>←</span><a href="/cars">הרכבים שלנו</a><span>←</span><b>{car.make} {car.model}</b></div>
       </div>
 
       <section className="modernVehicleHero">
@@ -183,12 +184,7 @@ export default async function CarPage({ params }: { params: Promise<{ id: string
       <section className="modernLeadSection">
         <div className="shell modernLeadBox">
           <div><span>רוצים לשמוע עוד?</span><h2>השאירו פרטים ונחזור אליכם</h2><p>נציג מקצועי יחזור אליכם עם כל המידע על הרכב ואפשרויות המימון.</p></div>
-          <form className="modernLeadForm">
-            <input name="name" required placeholder="שם מלא" aria-label="שם מלא" />
-            <input name="phone" required placeholder="טלפון" aria-label="טלפון" />
-            <input name="vehicle" defaultValue={`${car.make} ${car.model} ${car.year}`} aria-label="רכב" />
-            <button type="submit">שלחו פרטים</button>
-          </form>
+          <CarLeadForm vehicle={`${car.make} ${car.model} ${car.year}`} />
         </div>
       </section>
 
@@ -199,7 +195,7 @@ export default async function CarPage({ params }: { params: Promise<{ id: string
             {relatedCars.map((item) => (
               <a className="modernRelatedCard" href={`/car/${item.id}`} key={item.id}>
                 <div className={item.image ? "" : "missing"}>
-                  {item.image ? <img src={imageSrc(item.image)} alt={`${item.make} ${item.model}`} /> : <><img src="/assets/logo1.png" alt="" /><span>תמונה תעלה בקרוב</span></>}
+                  {item.image ? <img src={imageSrc(item.image)} alt={`${item.make} ${item.model}`} loading="lazy" decoding="async" /> : <><img src="/assets/logo1.png" alt="" loading="lazy" decoding="async" /><span>תמונה תעלה בקרוב</span></>}
                 </div>
                 <section><small>{item.category}</small><h3>{item.make} {item.model}</h3><p>{item.year} · {item.gear || "אוטומטי"} · {Number(item.mileage.replace(/,/g, "") || 0).toLocaleString("he-IL")} ק״מ</p><strong>{item.price > 0 ? `${item.price.toLocaleString("he-IL")} ₪` : `החל מ־${item.monthly.toLocaleString("he-IL")} ₪ בחודש`}</strong></section>
               </a>
@@ -210,8 +206,8 @@ export default async function CarPage({ params }: { params: Promise<{ id: string
 
       <footer>
         <div className="shell footerGrid">
-          <div className="footerBrand"><img src="/assets/logo1.png" alt="ענק הרכבים" /><p>ענק הרכבים — קנייה, מכירה, מימון וטרייד אין במקום אחד.</p></div>
-          <div><h3>ניווט מהיר</h3><a href="/">דף הבית</a><a href="/#inventory">רכבים במלאי</a><a href="/finance">תנאי מימון</a></div>
+          <div className="footerBrand"><img src="/assets/logo1.png" alt="ענק הרכבים" loading="lazy" decoding="async" /><p>ענק הרכבים — קנייה, מכירה, מימון וטרייד אין במקום אחד.</p></div>
+          <div><h3>ניווט מהיר</h3><a href="/">דף הבית</a><a href="/cars">רכבים במלאי</a><a href="/finance">תנאי מימון</a></div>
           <div><h3>צרו קשר</h3><a href="tel:*2369">*2369</a><a href="tel:0503707010">050-3707010</a><span>דוד רזיאל 4, ראשון לציון</span></div>
         </div>
       </footer>

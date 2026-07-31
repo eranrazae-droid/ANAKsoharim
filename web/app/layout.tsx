@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Heebo } from "next/font/google";
 import "./globals.css";
 import "./detail.css";
 import "./brand.css";
@@ -19,6 +19,14 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+// גופן עברי. בלעדיו כל הטקסט העברי באתר נופל לגופן ברירת המחדל של המערכת
+// ונראה שונה בין מכשירים.
+const heebo = Heebo({
+  variable: "--font-hebrew",
+  subsets: ["hebrew", "latin"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -98,7 +106,7 @@ export default function RootLayout({
   return (
     <html lang="he" dir="rtl">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${heebo.variable} ${heebo.className} antialiased`}
       >
         {children}
         <script

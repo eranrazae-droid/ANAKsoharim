@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { SITE_URL } from "./site-config";
 import { getActiveVehicles } from "./vehicle-api";
+import { articles } from "./articles-data";
 
 // מתרענן פעם בשעה כדי שרכבים חדשים ייכנסו למפת האתר בלי בנייה מחדש.
 export const revalidate = 3600;
@@ -12,6 +13,7 @@ const STATIC_PAGES: { path: string; priority: number; changeFrequency: MetadataR
   { path: "/trade", priority: 0.8, changeFrequency: "monthly" },
   { path: "/sell", priority: 0.8, changeFrequency: "monthly" },
   { path: "/reviews", priority: 0.6, changeFrequency: "monthly" },
+  { path: "/articles", priority: 0.6, changeFrequency: "monthly" },
   { path: "/contact", priority: 0.6, changeFrequency: "yearly" },
 ];
 
@@ -24,6 +26,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     changeFrequency: page.changeFrequency,
     priority: page.priority,
   }));
+
+  for (const article of articles) {
+    pages.push({
+      url: `${SITE_URL}/articles/${article.slug}`,
+      lastModified: new Date(article.updated),
+      changeFrequency: "yearly",
+      priority: 0.5,
+    });
+  }
 
   // אם המלאי לא זמין רגעית, עדיף מפת אתר עם העמודים הקבועים מאשר כישלון בנייה.
   try {

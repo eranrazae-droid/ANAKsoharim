@@ -62,8 +62,8 @@ export default async function CarsPage() {
               <article className="carCard" key={car.id}>
                 <a className={`carImage ${car.image ? "" : "noVehicleImage"}`} href={`/car/${car.id}`}>
                   {car.image
-                    ? <img src={car.image} alt={`${car.make} ${car.model} שנת ${car.year}`} />
-                    : <div><img src="/assets/logo1.png" alt={SITE_NAME} /><span>תמונה תעלה בקרוב</span></div>}
+                    ? <img src={car.image} alt={`${car.make} ${car.model} שנת ${car.year}`} loading="lazy" decoding="async" />
+                    : <div><img src="/assets/logo1.png" alt={SITE_NAME} loading="lazy" decoding="async" /><span>תמונה תעלה בקרוב</span></div>}
                   <b>במלאי</b>
                 </a>
                 <div className="carInfo">
