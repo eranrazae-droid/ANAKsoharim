@@ -58,6 +58,15 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
   const [tradeVehicle, setTradeVehicle] = useState<TradeVehicle | null>(null);
   const [tradeLookup, setTradeLookup] = useState<"idle" | "loading" | "error">("idle");
   const [tradeError, setTradeError] = useState("");
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  // מדרגות מחיר לבחירה מהירה, נגזרות מהמלאי בפועל
+  const priceSteps = useMemo(() => {
+    const top = Math.ceil(inventoryMaxPrice / 10000) * 10000;
+    const step = top > 300000 ? 25000 : 10000;
+    const list: number[] = [];
+    for (let value = step; value <= top; value += step) list.push(value);
+    return list;
+  }, [inventoryMaxPrice]);
   const railRight = useMemo(() => [...cars].sort((a, b) => b.price - a.price).slice(0, 6), [cars]);
   const railLeft = useMemo(() => [...cars].sort((a, b) => b.year - a.year).slice(6, 12), [cars]);
   const heroLead = useLead("hero");
@@ -140,18 +149,31 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
             <label>קטגוריה<select value={category} onChange={(e) => setCategory(e.target.value)}>{categoryOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
             <label>יצרן<select value={make} onChange={(e) => { setMake(e.target.value); setModel("הכל"); }}><option value="הכל">כל היצרנים</option>{[...new Set(cars.map(c => c.make))].sort((a, b) => a.localeCompare(b, "he")).map((item) => <option key={item}>{item}</option>)}</select></label>
             <label>דגם<select value={model} onChange={(e) => setModel(e.target.value)}><option value="הכל">כל הדגמים</option>{availableModels.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-            <label>משנה<select value={fromYear} onChange={(e) => setFromYear(e.target.value)}><option value="הכל">כל השנים</option>{availableYears.map((item) => <option key={item}>{item}</option>)}</select></label>
-            <label>עד שנה<select value={toYear} onChange={(e) => setToYear(e.target.value)}><option value="הכל">כל השנים</option>{availableYears.map((item) => <option key={item}>{item}</option>)}</select></label>
-            <label>סוג מנוע<select value={engineType} onChange={(e) => setEngineType(e.target.value)}><option value="הכל">הכל</option>{availableEngines.map((item) => <option key={item}>{item}</option>)}</select></label>
-            <label>תיבת הילוכים<select value={gearbox} onChange={(e) => setGearbox(e.target.value)}><option value="הכל">הכל</option>{availableGears.map((item) => <option key={item}>{item}</option>)}</select></label>
-            <label>טכנולוגיית הנעה<select value={propulsionTech} onChange={(e) => setPropulsionTech(e.target.value)}><option value="הכל">הכול</option><option value="היברידי">היברידי</option><option value="חשמלי">חשמלי</option><option value="פלאג־אין">פלאג־אין</option><option value="הנעה רגילה">הנעה רגילה</option></select></label>
-            <label>מערכת הנעה<select value={driveTech} onChange={(e) => setDriveTech(e.target.value)}><option value="הכל">הכול</option>{availableDriveTech.map((item) => <option key={item} value={item}>{item.replace(/x/gi, "×")}</option>)}</select></label>
-            <label>גג נפתח<select value={roofFilter} onChange={(e) => setRoofFilter(e.target.value)}><option value="הכל">הכול</option><option value="כן">כן</option><option value="לא">לא</option></select></label>
+            <label>סוג מנוע<select value={engineType} onChange={(e) => setEngineType(e.target.value)}><option value="הכל">כל סוגי המנוע</option>{availableEngines.map((item) => <option key={item}>{item}</option>)}</select></label>
+            <label>ממחיר<select value={String(minPrice)} onChange={(e) => setMinPrice(Math.min(Number(e.target.value), maxPrice))}><option value="0">ללא הגבלה</option>{priceSteps.map((item) => <option key={item} value={item}>{item.toLocaleString("he-IL")} ₪</option>)}</select></label>
+            <label>עד מחיר<select value={String(maxPrice)} onChange={(e) => setMaxPrice(Math.max(Number(e.target.value), minPrice))}><option value={inventoryMaxPrice}>ללא הגבלה</option>{priceSteps.map((item) => <option key={item} value={item}>{item.toLocaleString("he-IL")} ₪</option>)}</select></label>
           </div>
-          <div className="filterRanges">
-            <div className="rangeFilter"><div><strong>מחיר הרכב</strong><span>{minPrice.toLocaleString("he-IL")} ₪ – {maxPrice.toLocaleString("he-IL")} ₪</span></div><div className="dualRange"><input aria-label="מחיר מינימום" type="range" min="0" max={inventoryMaxPrice} step="1" value={minPrice} onChange={(e) => setMinPrice(Math.min(Number(e.target.value), maxPrice - 1))} /><input aria-label="מחיר מקסימום" type="range" min="0" max={inventoryMaxPrice} step="1" value={maxPrice} onChange={(e) => setMaxPrice(Math.max(Number(e.target.value), minPrice + 1))} /></div></div>
-            <div className="rangeFilter"><div><strong>החזר חודשי</strong><span>{minMonthly.toLocaleString("he-IL")} ₪ – {maxMonthly.toLocaleString("he-IL")} ₪</span></div><div className="dualRange"><input aria-label="החזר חודשי מינימום" type="range" min="0" max={inventoryMaxMonthly} step="1" value={minMonthly} onChange={(e) => setMinMonthly(Math.min(Number(e.target.value), maxMonthly - 1))} /><input aria-label="החזר חודשי מקסימום" type="range" min="0" max={inventoryMaxMonthly} step="1" value={maxMonthly} onChange={(e) => setMaxMonthly(Math.max(Number(e.target.value), minMonthly + 1))} /></div></div>
-          </div>
+
+          <button type="button" className="advancedToggle" aria-expanded={advancedOpen} onClick={() => setAdvancedOpen(!advancedOpen)}>
+            <span>סינון מורחב</span>
+            <i aria-hidden="true">{advancedOpen ? "−" : "+"}</i>
+          </button>
+
+          {advancedOpen && (
+            <div className="finderAdvanced">
+              <div className="finderFields">
+                <label>משנת ייצור<select value={fromYear} onChange={(e) => setFromYear(e.target.value)}><option value="הכל">כל השנים</option>{availableYears.map((item) => <option key={item}>{item}</option>)}</select></label>
+                <label>עד שנת ייצור<select value={toYear} onChange={(e) => setToYear(e.target.value)}><option value="הכל">כל השנים</option>{availableYears.map((item) => <option key={item}>{item}</option>)}</select></label>
+                <label>גג נפתח<select value={roofFilter} onChange={(e) => setRoofFilter(e.target.value)}><option value="הכל">הכול</option><option value="כן">כן</option><option value="לא">לא</option></select></label>
+                <label>מערכת הנעה<select value={driveTech} onChange={(e) => setDriveTech(e.target.value)}><option value="הכל">הכול</option>{availableDriveTech.map((item) => <option key={item} value={item}>{item.replace(/x/gi, "×")}</option>)}</select></label>
+                <label>תיבת הילוכים<select value={gearbox} onChange={(e) => setGearbox(e.target.value)}><option value="הכל">הכול</option>{availableGears.map((item) => <option key={item}>{item}</option>)}</select></label>
+                <label>טכנולוגיית הנעה<select value={propulsionTech} onChange={(e) => setPropulsionTech(e.target.value)}><option value="הכל">הכול</option><option value="היברידי">היברידי</option><option value="חשמלי">חשמלי</option><option value="פלאג־אין">פלאג־אין</option><option value="הנעה רגילה">הנעה רגילה</option></select></label>
+              </div>
+              <div className="rangeFilter"><div><strong>החזר חודשי</strong><span>{minMonthly.toLocaleString("he-IL")} ₪ – {maxMonthly.toLocaleString("he-IL")} ₪</span></div><div className="dualRange"><input aria-label="החזר חודשי מינימום" type="range" min="0" max={inventoryMaxMonthly} step="1" value={minMonthly} onChange={(e) => setMinMonthly(Math.min(Number(e.target.value), maxMonthly - 1))} /><input aria-label="החזר חודשי מקסימום" type="range" min="0" max={inventoryMaxMonthly} step="1" value={maxMonthly} onChange={(e) => setMaxMonthly(Math.max(Number(e.target.value), minMonthly + 1))} /></div></div>
+              <button type="button" className="clearFilters" onClick={resetAllCalculators}>ניקוי כל הסינונים</button>
+            </div>
+          )}
+
           <strong className="finderNote">ניתן לבצע אצלנו מימון עד 100%, עד 100 תשלומים וטרייד אין על כל סוגי הרכבים!</strong>
         </div>
       </div></section>
