@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { DisplayCar } from "./vehicle-api";
-import VehicleCard from "./vehicle-card";
+import VehicleCard, { PromoRail } from "./vehicle-card";
 import { Honeypot, LeadStatusMessage, useLead } from "./use-lead";
 import "./results-table.css";
 
@@ -58,6 +58,8 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
   const [tradeVehicle, setTradeVehicle] = useState<TradeVehicle | null>(null);
   const [tradeLookup, setTradeLookup] = useState<"idle" | "loading" | "error">("idle");
   const [tradeError, setTradeError] = useState("");
+  const railRight = useMemo(() => [...cars].sort((a, b) => b.price - a.price).slice(0, 6), [cars]);
+  const railLeft = useMemo(() => [...cars].sort((a, b) => b.year - a.year).slice(6, 12), [cars]);
   const heroLead = useLead("hero");
   const tradeLead = useLead("trade");
   const sellLead = useLead("sell");
@@ -155,6 +157,8 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
       </div></section>
 
       <section id="inventory" className="inventory section"><div className="shell"><div className="inventoryControls"><label className="inventorySortBlock"><span>מיון</span><select className="inventorySort" aria-label="מיון רכבים" value={sortBy} onChange={(e) => setSortBy(e.target.value)}><option value="alphabetical">לפי א׳–ב׳</option><option value="price-asc">מחיר מזול ליקר</option><option value="price-desc">מחיר מיקר לזול</option><option value="year-desc">מחדש לישן</option><option value="year-asc">מישן לחדש</option></select></label><div className="categoryTabs">{categoryOptions.map((item) => <button key={item.value} className={category === item.value ? "active" : ""} onClick={() => setCategory(item.value)}>{item.label}</button>)}</div></div>
+      <div className="listLayout">
+      <PromoRail title="מומלצים במגרש" cars={railRight} />
       {tableView ? <div className="resultsTableWrap"><table className="resultsTable"><thead><tr><th>#</th><th>{sortableHeader("יצרן", "make")}</th><th>{sortableHeader("דגם", "model")}</th><th>{sortableHeader("תת דגם", "subModel")}</th><th>{sortableHeader("שנת ייצור", "year")}</th><th>{sortableHeader("נפח מנוע", "engineCapacity")}</th><th>{sortableHeader("יד", "hand")}</th><th>{sortableHeader("ק״מ", "mileage")}</th><th>{sortableHeader("תיבת הילוכים", "gear")}</th><th>{sortableHeader("סוג מנוע", "engine")}</th><th>{sortableHeader("גג נפתח", "openRoof")}</th><th>{sortableHeader("מקדמה", "advance")}</th><th>{sortableHeader("תשלום חודשי", "monthly")}</th><th>{sortableHeader("מחיר מבוקש", "price")}</th><th>תמונה</th></tr></thead><tbody>{tableCars.map((car, index) => [
         <tr key={`${car.id}-main`} onClick={() => { window.location.href = `/car/${car.id}`; }} tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter") window.location.href = `/car/${car.id}`; }}>
           <td><button className="expandRowButton" type="button" aria-expanded={expandedCarId === car.id} onClick={(event) => { event.stopPropagation(); setExpandedCarId(expandedCarId === car.id ? null : car.id); }}>{index + 1}<span>{expandedCarId === car.id ? "−" : "+"}</span></button></td>
@@ -162,6 +166,8 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
         </tr>,
         expandedCarId === car.id && <tr className="expandedVehicleRow" key={`${car.id}-details`}><td colSpan={15}><div className="expandedVehicleDetails"><span><b>קטגוריה:</b> {car.categories?.join(", ") || car.category}</span><span><b>צבע:</b> {car.color || "—"}</span><span><b>בעלות:</b> {car.ownership || "—"}</span><span><b>מרכב:</b> {car.body || "—"}</span><span><b>מספר דלתות:</b> {car.doors || "—"}</span><span><b>מספר מושבים:</b> {car.seats || "—"}</span><span><b>כוח סוס:</b> {car.horsePower || "—"}</span><span><b>תוקף טסט:</b> {car.test || "—"}</span><span><b>טכנולוגיית הנעה:</b> {car.drivetrain || "—"}</span><span className="expandedExtras"><b>תוספות:</b> {car.extras || "לא צוינו תוספות"}</span><a href={`/car/${car.id}`}>לכרטיס הרכב המלא</a></div></td></tr>
       ])}</tbody></table></div> : <div className="listGrid">{shownCars.map((car) => <VehicleCard car={car} key={car.id} />)}</div>}
+      <PromoRail title="נכנסו למלאי" cars={railLeft} />
+      </div>
       {shownCars.length === 0 && <p className="empty">לא נמצאו רכבים בסינון שבחרתם.</p>}</div></section>
 
       <section id="trade" className="tradeSection section"><div className="shell tradeLayout"><div className="tradeIntro"><span className="eyebrow">טרייד אין בענק הרכבים</span><h2>קבלו הצעה לרכב שלכם</h2><p>הזינו מספר רכב ונמלא אוטומטית את פרטי הרכב ממאגר משרד התחבורה. לאחר מכן השאירו פרטים ונציג יחזור אליכם עם הצעת טרייד אין.</p><ul><li>בדיקת פרטי הרכב ללא התחייבות</li><li>הצעה מהירה ושקופה</li><li>אפשרות להתקדם לרכב חדש מהמלאי</li></ul></div><div className="tradeCard"><div className="plateLookup"><label>מספר רכב<input value={tradePlate} onChange={(e) => { setTradePlate(e.target.value.replace(/\D/g, "").slice(0, 8)); setTradeVehicle(null); }} inputMode="numeric" placeholder="לדוגמה: 12345678" /></label><button type="button" onClick={lookupTradeVehicle} disabled={tradeLookup === "loading"}>{tradeLookup === "loading" ? "בודק..." : "הצג פרטי רכב"}</button></div>{tradeError && <p className="tradeError">{tradeError}</p>}{tradeVehicle && <div className="tradeVehicleDetails"><strong>{tradeVehicle.manufacturer} {tradeVehicle.model}</strong><div><span>מספר רכב: {tradeVehicle.plate}</span><span>שנת ייצור: {tradeVehicle.year || "לא צוין"}</span><span>צבע: {tradeVehicle.color || "לא צוין"}</span><span>בעלות: {tradeVehicle.ownership || "לא צוין"}</span><span>סוג דגם: {tradeVehicle.modelType || "לא צוין"}</span><span>עלייה לכביש: {tradeVehicle.firstOnRoad || "לא צוין"}</span></div></div>}<form className="tradeLeadForm" onSubmit={(event) => tradeLead.submit(event, { plate: tradePlate, vehicle: tradeVehicle ? `${tradeVehicle.manufacturer} ${tradeVehicle.model} ${tradeVehicle.year}` : "" })}><Honeypot /><input required name="name" aria-label="שם מלא" placeholder="שם מלא" /><input required name="phone" aria-label="טלפון" inputMode="tel" placeholder="טלפון" /><input name="mileage" aria-label="קילומטראז׳" inputMode="numeric" placeholder="קילומטראז׳" /><textarea name="notes" aria-label="הערות" placeholder="הערות נוספות" /><button type="submit" disabled={tradeLead.status === "sending"}>{tradeLead.status === "sending" ? "שולח..." : "שלחו לקבלת הצעת טרייד אין"}</button><LeadStatusMessage status={tradeLead.status} error={tradeLead.error} /></form><small className="govNotice">פרטי הרכב נמשכים ממאגר כלי הרכב הפתוח של משרד התחבורה ב־data.gov.il.</small></div></div></section>

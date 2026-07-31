@@ -10,7 +10,7 @@ import "./monochrome.css";
 import "./car-modern.css";
 import "./car-listing.css";
 import "./vehicle-list.css";
-import "./night-gold.css"; // אחרון — שכבת הליטוש של כיוון "לילה וזהב"
+import "./theme-light.css"; // אחרון — ערכת העיצוב הבהירה
 import { BUSINESS, IS_LIVE, SITE_NAME, SITE_URL } from "./site-config";
 
 const geistSans = Geist({

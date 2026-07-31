@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { SiteFooter, SiteHeader } from "../site-chrome";
 import { getActiveVehicles, type DisplayCar } from "../vehicle-api";
-import VehicleCard from "../vehicle-card";
+import VehicleCard, { PromoRail } from "../vehicle-card";
 import { SITE_NAME, SITE_URL } from "../site-config";
 
 // מחליף את עמודי המלאי הוותיקים של האתר הישן:
@@ -17,6 +17,11 @@ export const metadata: Metadata = {
 
 export default async function CarsPage() {
   const cars = await getActiveVehicles().catch(() => [] as DisplayCar[]);
+
+  // עמודות הצד — רכבים נוספים מהמלאי, יקרים בצד אחד וחדשים בשני
+  const byPrice = [...cars].sort((a, b) => b.price - a.price);
+  const promoRight = byPrice.slice(0, 6);
+  const promoLeft = [...cars].sort((a, b) => b.year - a.year).filter((c) => !promoRight.includes(c)).slice(0, 6);
 
   const listSchema = {
     "@context": "https://schema.org",
@@ -54,8 +59,12 @@ export default async function CarsPage() {
               : "המלאי מתעדכן כעת. נסו שוב בעוד מספר דקות או התקשרו אלינו ל-*2369."}
           </p>
 
-          <div className="listGrid">
-            {cars.map((car) => <VehicleCard car={car} key={car.id} />)}
+          <div className="listLayout">
+            <PromoRail title="מומלצים במגרש" cars={promoRight} />
+            <div className="listGrid">
+              {cars.map((car) => <VehicleCard car={car} key={car.id} />)}
+            </div>
+            <PromoRail title="נכנסו למלאי" cars={promoLeft} />
           </div>
         </div>
       </section>

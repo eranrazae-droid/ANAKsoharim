@@ -54,10 +54,6 @@ export default function VehicleCard({ car }: { car: DisplayCar }) {
         </div>
 
         <div className="listBody">
-          {car.price > 0
-            ? <p className="listPrice">{car.price.toLocaleString("he-IL")} <span>₪</span></p>
-            : <p className="listPrice listPriceCall">לפרטים חייגו</p>}
-
           <h3 className="listTitle">{name}</h3>
           {subtitle(car) && <p className="listSub">{subtitle(car)}</p>}
 
@@ -69,17 +65,47 @@ export default function VehicleCard({ car }: { car: DisplayCar }) {
             <span>{mileage(car)} ק״מ</span>
           </p>
 
-          {car.monthly > 0 && (
-            <p className="listMonthly">{car.monthly.toLocaleString("he-IL")} ₪ לחודש</p>
+          {chips.length > 0 && (
+            <ul className="listChips">
+              {chips.map((chip) => <li key={chip}>{chip}</li>)}
+            </ul>
           )}
+
+          <div className="listFoot">
+            {car.price > 0
+              ? <p className="listPrice">{car.price.toLocaleString("he-IL")} <span>₪</span></p>
+              : <p className="listPrice listPriceCall">לפרטים חייגו</p>}
+            <span className="listGo" aria-hidden="true">←</span>
+            {car.monthly > 0 && (
+              <p className="listMonthly">{car.monthly.toLocaleString("he-IL")} ₪ לחודש</p>
+            )}
+          </div>
         </div>
       </a>
-
-      {chips.length > 0 && (
-        <ul className="listChips">
-          {chips.map((chip) => <li key={chip}>{chip}</li>)}
-        </ul>
-      )}
     </article>
+  );
+}
+
+/** עמודת צד — רכבים נוספים מהמלאי. */
+export function PromoRail({ cars, title }: { cars: DisplayCar[]; title: string }) {
+  if (!cars.length) return null;
+  return (
+    <aside className="rail">
+      <p className="railHead">{title}</p>
+      {cars.map((car) => (
+        <a className="railCard" href={`/car/${car.id}`} key={car.id}>
+          <div className={`railMedia ${car.image ? "" : "railNoImage"}`}>
+            {car.image
+              ? <img src={car.image} alt={`${car.make} ${car.baseModel || car.model}`} loading="lazy" decoding="async" />
+              : <span>תמונה<br />בקרוב</span>}
+          </div>
+          <div className="railInfo">
+            <b>{car.make} {car.baseModel || car.model}</b>
+            <small>{car.year} · יד {car.hand || "—"}</small>
+            <i>{car.price > 0 ? `${car.price.toLocaleString("he-IL")} ₪` : "לפרטים חייגו"}</i>
+          </div>
+        </a>
+      ))}
+    </aside>
   );
 }
