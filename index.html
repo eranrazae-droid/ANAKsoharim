@@ -2428,7 +2428,7 @@ display:none !important;
       const homeExtra = document.getElementById('homeExtra');
       if(homeExtra) homeExtra.style.display = (id === 'homePage') ? 'block' : 'none';
       const titles = {homePage:'אוטודילר',catalogPage:'רכבים | אוטודילר',carPage:'רכב | אוטודילר',checkoutPage:'שריון | אוטודילר'};
-      history.pushState({page:id}, titles[id]||'אוטודילר', '#'+id);
+      history.pushState({page:id}, titles[id]||'אוטודילר', location.pathname + '#'+id); // pathname מנקה ?car= מהכתובת ביציאה מרכב
       if(id !== 'carPage') resetSEO(); // יציאה מעמוד רכב — החזרת כותרת/תיאור ברירת מחדל
       _toggleBack(id);
       try{ if(typeof fbq==='function') fbq('track','PageView'); }catch(e){}
@@ -2493,8 +2493,9 @@ display:none !important;
     // Handle browser back/forward
     window.addEventListener('popstate', function(e){
       const hash = window.location.hash;
-      if(hash && hash.startsWith('#car-')){
-        const carId = parseInt(hash.replace('#car-',''));
+      const qm = (location.search||'').match(/[?&]car=([^&]+)/);
+      const carId = qm ? parseInt(qm[1]) : (hash && hash.startsWith('#car-') ? parseInt(hash.replace('#car-','')) : NaN);
+      if(carId){
         const car = cars.find(c=>c.id===carId);
         if(car){ openCar(carId); return; }
       }
@@ -2703,7 +2704,7 @@ display:none !important;
       window.scrollTo({top:0, behavior:'smooth'});
       const homeExtra = document.getElementById('homeExtra');
       if(homeExtra) homeExtra.style.display = 'none';
-      history.pushState({page:'carPage', carId: selectedCar.id}, selectedCar.brand+' '+selectedCar.model+' | אוטודילר', '#car-'+selectedCar.id);
+      history.pushState({page:'carPage', carId: selectedCar.id}, selectedCar.brand+' '+selectedCar.model+' | אוטודילר', '?car='+selectedCar.id);
     }
 
     function renderSimilar(current){
