@@ -1,0 +1,174 @@
+"use client";
+
+import { FormEvent, useMemo, useState } from "react";
+import type { DisplayCar } from "./vehicle-api";
+import "./results-table.css";
+
+type TradeVehicle = { plate: string; manufacturer: string; model: string; year: string; color: string; ownership: string; modelType: string; firstOnRoad: string; testValidity: string };
+type TableSortKey = "make" | "model" | "subModel" | "year" | "engineCapacity" | "hand" | "mileage" | "gear" | "engine" | "openRoof" | "advance" | "monthly" | "price";
+
+const categoryOptions = [
+  { value: "כל הרכבים", label: "כל הרכבים" },
+  { value: "פנאי/שטח 7 מקומות", label: "פנאי שטח 7 מקומות" },
+  { value: "פנאי/שטח", label: "פנאי שטח" },
+  { value: "מנהלים", label: "מנהלים" },
+  { value: "ספורטיביים", label: "ספורטיביות" },
+  { value: "משפחתיים", label: "משפחתיות" },
+  { value: "קומפקטיים", label: "קומפקטיות" },
+  { value: "מסחריות", label: "מסחריות" },
+];
+
+function propulsionTechnology(engine: string) {
+  const value = String(engine || "").toLowerCase();
+  if (value.includes("פלאג") || value.includes("נטען") || value.includes("phev")) return "פלאג־אין";
+  if (value.includes("חשמל") || value.includes("electric")) return "חשמלי";
+  if (value.includes("היבריד") || value.includes("hybrid")) return "היברידי";
+  return "הנעה רגילה";
+}
+
+export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] }) {
+  // המלאי מגיע מהשרת ומרונדר ל-HTML — כך גוגל רואה את כל הרכבים.
+  const cars = initialCars;
+  const inventoryMaxPrice = useMemo(() => Math.max(0, ...cars.map((car) => Number(car.price || 0))), [cars]);
+  const inventoryMaxMonthly = useMemo(() => Math.max(0, ...cars.map((car) => Number(car.monthly || 0))), [cars]);
+
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [category, setCategory] = useState("כל הרכבים");
+  const [make, setMake] = useState("הכל");
+  const [model, setModel] = useState("הכל");
+  const [sortBy, setSortBy] = useState("alphabetical");
+  const [driveTech, setDriveTech] = useState("הכל");
+  const [propulsionTech, setPropulsionTech] = useState("הכל");
+  const [roofFilter, setRoofFilter] = useState("הכל");
+  const [fromYear, setFromYear] = useState("הכל");
+  const [toYear, setToYear] = useState("הכל");
+  const [engineType, setEngineType] = useState("הכל");
+  const [gearbox, setGearbox] = useState("הכל");
+  const [minPrice, setMinPrice] = useState(0);
+  const [maxPrice, setMaxPrice] = useState(inventoryMaxPrice || 650000);
+  const [minMonthly, setMinMonthly] = useState(0);
+  const [maxMonthly, setMaxMonthly] = useState(inventoryMaxMonthly || 8000);
+  const [tableView, setTableView] = useState(true);
+  const [expandedCarId, setExpandedCarId] = useState<string | null>(null);
+  const [tableSortKey, setTableSortKey] = useState<TableSortKey>("make");
+  const [tableSortDirection, setTableSortDirection] = useState<"asc" | "desc">("asc");
+  const [tradePlate, setTradePlate] = useState("");
+  const [tradeVehicle, setTradeVehicle] = useState<TradeVehicle | null>(null);
+  const [tradeLookup, setTradeLookup] = useState<"idle" | "loading" | "error">("idle");
+  const [tradeError, setTradeError] = useState("");
+  const [sent, setSent] = useState(false);
+  const availableModels = useMemo(() => Array.from(new Set(cars
+    .filter((car) => make === "הכל" || car.make === make)
+    .map((car) => car.baseModel || car.model)
+    .filter(Boolean))).sort((a, b) => a.localeCompare(b, "he")), [cars, make]);
+  const availableDriveTech = useMemo(() => Array.from(new Set(cars.map((car) => car.drivetrain).filter(Boolean) as string[])).sort((a, b) => a.localeCompare(b, "he")), [cars]);
+  const availableEngines = useMemo(() => Array.from(new Set(cars.map((car) => car.engine).filter(Boolean))).sort((a, b) => a.localeCompare(b, "he")), [cars]);
+  const availableGears = useMemo(() => Array.from(new Set(cars.map((car) => car.gear).filter(Boolean) as string[])).sort((a, b) => a.localeCompare(b, "he")), [cars]);
+  const availableYears = useMemo(() => Array.from(new Set(cars.map((car) => car.year).filter(Boolean))).sort((a, b) => a - b), [cars]);
+  const shownCars = useMemo(() => cars
+    .filter((car) => (category === "כל הרכבים" || (car.categories?.length ? car.categories : [car.category]).includes(category)) && (make === "הכל" || car.make === make) && (model === "הכל" || (car.baseModel || car.model) === model) && (driveTech === "הכל" || car.drivetrain === driveTech) && (propulsionTech === "הכל" || propulsionTechnology(car.engine) === propulsionTech) && (roofFilter === "הכל" || (roofFilter === "כן" ? car.openRoof : !car.openRoof)) && (fromYear === "הכל" || car.year >= Number(fromYear)) && (toYear === "הכל" || car.year <= Number(toYear)) && (engineType === "הכל" || car.engine === engineType) && (gearbox === "הכל" || car.gear === gearbox) && car.price >= minPrice && car.price <= maxPrice && car.monthly >= minMonthly && car.monthly <= maxMonthly)
+    .sort((a, b) => {
+      if (sortBy === "price-asc") return a.price - b.price;
+      if (sortBy === "price-desc") return b.price - a.price;
+      if (sortBy === "year-desc") return b.year - a.year;
+      if (sortBy === "year-asc") return a.year - b.year;
+      return a.make.localeCompare(b.make, "he") || a.model.localeCompare(b.model, "he") || b.year - a.year;
+    }), [cars, category, make, model, driveTech, propulsionTech, roofFilter, fromYear, toYear, engineType, gearbox, sortBy, minPrice, maxPrice, minMonthly, maxMonthly]);
+  const tableCars = useMemo(() => [...shownCars].sort((a, b) => {
+    const direction = tableSortDirection === "asc" ? 1 : -1;
+    if (tableSortKey === "make") {
+      const hierarchy = a.make.localeCompare(b.make, "he", { numeric: true })
+        || (a.baseModel || a.model).localeCompare(b.baseModel || b.model, "he", { numeric: true })
+        || String(a.subModel || "").localeCompare(String(b.subModel || ""), "he", { numeric: true })
+        || a.year - b.year;
+      return direction * hierarchy;
+    }
+    const numericKeys: TableSortKey[] = ["year", "engineCapacity", "hand", "mileage", "advance", "monthly", "price"];
+    const aValue = tableSortKey === "model" ? (a.baseModel || a.model) : tableSortKey === "openRoof" ? Number(Boolean(a.openRoof)) : (a[tableSortKey] ?? "");
+    const bValue = tableSortKey === "model" ? (b.baseModel || b.model) : tableSortKey === "openRoof" ? Number(Boolean(b.openRoof)) : (b[tableSortKey] ?? "");
+    const comparison = numericKeys.includes(tableSortKey)
+      ? Number(aValue || 0) - Number(bValue || 0)
+      : String(aValue).localeCompare(String(bValue), "he", { numeric: true });
+    return direction * comparison;
+  }), [shownCars, tableSortKey, tableSortDirection]);
+  function changeTableSort(key: TableSortKey) {
+    if (tableSortKey === key) setTableSortDirection((direction) => direction === "asc" ? "desc" : "asc");
+    else { setTableSortKey(key); setTableSortDirection("asc"); }
+  }
+  function sortableHeader(label: string, key: TableSortKey) {
+    const active = tableSortKey === key;
+    return <button type="button" className={active ? "tableSortButton active" : "tableSortButton"} onClick={() => changeTableSort(key)}>{label}<span>{active && tableSortDirection === "desc" ? "▼" : "▲"}</span></button>;
+  }
+  function resetAllCalculators() {
+    setCategory("כל הרכבים"); setMake("הכל"); setModel("הכל"); setSortBy("alphabetical");
+    setDriveTech("הכל"); setPropulsionTech("הכל"); setRoofFilter("הכל"); setFromYear("הכל"); setToYear("הכל"); setEngineType("הכל"); setGearbox("הכל");
+    setMinPrice(0); setMaxPrice(inventoryMaxPrice); setMinMonthly(0); setMaxMonthly(inventoryMaxMonthly); setTableView(true); setTableSortKey("make"); setTableSortDirection("asc");
+    setTradePlate(""); setTradeVehicle(null); setTradeLookup("idle"); setTradeError(""); setSent(false); setMobileOpen(false);
+  }
+  function submitLead(event: FormEvent<HTMLFormElement>) { event.preventDefault(); setSent(true); }
+  async function lookupTradeVehicle() {
+    const plate = tradePlate.replace(/\D/g, "");
+    if (plate.length < 7) { setTradeError("יש להזין מספר רכב תקין"); setTradeLookup("error"); return; }
+    setTradeLookup("loading"); setTradeError(""); setTradeVehicle(null);
+    try { const response = await fetch(`/api/vehicle-lookup?plate=${plate}`); const data = await response.json(); if (!response.ok) throw new Error(data.error || "הרכב לא נמצא"); setTradeVehicle(data); setTradeLookup("idle"); }
+    catch (error) { setTradeError(error instanceof Error ? error.message : "הרכב לא נמצא"); setTradeLookup("error"); }
+  }
+
+  return (
+    <main dir="rtl">
+      <header className="topbar"><div className="shell headerInner">
+        <a className="logo" href="#top" onClick={resetAllCalculators} aria-label="ענק הרכבים - דף הבית"><img src="/assets/logo1.png" alt="ענק הרכבים" /></a>
+        <div className="headerActions"><a className="social" href="https://www.facebook.com/AnakHarechevim" target="_blank" rel="noreferrer">f</a><a className="social instagram" href="https://www.instagram.com/anak.arehavim" target="_blank" rel="noreferrer">◎</a><a className="location" href="https://waze.com/ul?ll=31.9888,34.77084&navigate=yes" target="_blank" rel="noreferrer">⌖ <span>דוד רזיאל 4, ראשון לציון</span></a><a className="phone" href="tel:*2369"><small>חייגו עכשיו</small><strong>*2369</strong><span>☎</span></a></div>
+        <button className="menuButton" onClick={() => setMobileOpen(!mobileOpen)} aria-label="פתיחת תפריט">☰</button>
+      </div></header>
+      <nav className={`nav ${mobileOpen ? "open" : ""}`}><div className="shell navLinks"><a href="#top" onClick={resetAllCalculators}>דף הבית</a><a href="#inventory">רכבים משומשים</a><a href="/finance">תנאי מימון</a><a href="/trade">טרייד אין</a><a href="/sell">מעוניינים למכור לנו את הרכב?</a><a href="/contact">צור קשר</a></div></nav>
+
+      <section id="top" className="hero heroFinder"><img src="/assets/slide1.jpg" alt="מבחר רכבים בענק הרכבים" /><div className="heroShade" /><div className="shell finderContent">
+        <form className="quickLead quickLeadAbove" onSubmit={submitLead}><strong>לייעוץ מקצועי מלאו פרטים</strong><input required placeholder="שם.." aria-label="שם" /><input required placeholder="טלפון.." aria-label="טלפון" /><input placeholder="הערות.." aria-label="הערות" /><button>שלח</button></form>
+        <h1>כל סוגי הרכבים במקום אחד!</h1>
+        <div className="viewToggle" role="group" aria-label="בחירת תצוגת רכבים">
+          <button type="button" className={tableView ? "active" : ""} aria-pressed={tableView} onClick={() => setTableView(true)}>☷ תצוגת טבלה</button>
+          <button type="button" className={!tableView ? "active" : ""} aria-pressed={!tableView} onClick={() => setTableView(false)}>▦ תצוגת גלריה</button>
+        </div>
+        <div className="finderBox" aria-label="חיפוש רכב">
+          <div className="finderFields">
+            <label>קטגוריה<select value={category} onChange={(e) => setCategory(e.target.value)}>{categoryOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+            <label>יצרן<select value={make} onChange={(e) => { setMake(e.target.value); setModel("הכל"); }}><option value="הכל">כל היצרנים</option>{[...new Set(cars.map(c => c.make))].sort((a, b) => a.localeCompare(b, "he")).map((item) => <option key={item}>{item}</option>)}</select></label>
+            <label>דגם<select value={model} onChange={(e) => setModel(e.target.value)}><option value="הכל">כל הדגמים</option>{availableModels.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+            <label>משנה<select value={fromYear} onChange={(e) => setFromYear(e.target.value)}><option value="הכל">כל השנים</option>{availableYears.map((item) => <option key={item}>{item}</option>)}</select></label>
+            <label>עד שנה<select value={toYear} onChange={(e) => setToYear(e.target.value)}><option value="הכל">כל השנים</option>{availableYears.map((item) => <option key={item}>{item}</option>)}</select></label>
+            <label>סוג מנוע<select value={engineType} onChange={(e) => setEngineType(e.target.value)}><option value="הכל">הכל</option>{availableEngines.map((item) => <option key={item}>{item}</option>)}</select></label>
+            <label>תיבת הילוכים<select value={gearbox} onChange={(e) => setGearbox(e.target.value)}><option value="הכל">הכל</option>{availableGears.map((item) => <option key={item}>{item}</option>)}</select></label>
+            <label>טכנולוגיית הנעה<select value={propulsionTech} onChange={(e) => setPropulsionTech(e.target.value)}><option value="הכל">הכול</option><option value="היברידי">היברידי</option><option value="חשמלי">חשמלי</option><option value="פלאג־אין">פלאג־אין</option><option value="הנעה רגילה">הנעה רגילה</option></select></label>
+            <label>מערכת הנעה<select value={driveTech} onChange={(e) => setDriveTech(e.target.value)}><option value="הכל">הכול</option>{availableDriveTech.map((item) => <option key={item} value={item}>{item.replace(/x/gi, "×")}</option>)}</select></label>
+            <label>גג נפתח<select value={roofFilter} onChange={(e) => setRoofFilter(e.target.value)}><option value="הכל">הכול</option><option value="כן">כן</option><option value="לא">לא</option></select></label>
+          </div>
+          <div className="filterRanges">
+            <div className="rangeFilter"><div><strong>מחיר הרכב</strong><span>{minPrice.toLocaleString("he-IL")} ₪ – {maxPrice.toLocaleString("he-IL")} ₪</span></div><div className="dualRange"><input aria-label="מחיר מינימום" type="range" min="0" max={inventoryMaxPrice} step="1" value={minPrice} onChange={(e) => setMinPrice(Math.min(Number(e.target.value), maxPrice - 1))} /><input aria-label="מחיר מקסימום" type="range" min="0" max={inventoryMaxPrice} step="1" value={maxPrice} onChange={(e) => setMaxPrice(Math.max(Number(e.target.value), minPrice + 1))} /></div></div>
+            <div className="rangeFilter"><div><strong>החזר חודשי</strong><span>{minMonthly.toLocaleString("he-IL")} ₪ – {maxMonthly.toLocaleString("he-IL")} ₪</span></div><div className="dualRange"><input aria-label="החזר חודשי מינימום" type="range" min="0" max={inventoryMaxMonthly} step="1" value={minMonthly} onChange={(e) => setMinMonthly(Math.min(Number(e.target.value), maxMonthly - 1))} /><input aria-label="החזר חודשי מקסימום" type="range" min="0" max={inventoryMaxMonthly} step="1" value={maxMonthly} onChange={(e) => setMaxMonthly(Math.max(Number(e.target.value), minMonthly + 1))} /></div></div>
+          </div>
+          <strong className="finderNote">ניתן לבצע אצלנו מימון עד 100%, עד 100 תשלומים וטרייד אין על כל סוגי הרכבים!</strong>
+        </div>
+      </div></section>
+
+      <section id="inventory" className="inventory section"><div className="shell"><div className="inventoryControls"><label className="inventorySortBlock"><span>מיון</span><select className="inventorySort" aria-label="מיון רכבים" value={sortBy} onChange={(e) => setSortBy(e.target.value)}><option value="alphabetical">לפי א׳–ב׳</option><option value="price-asc">מחיר מזול ליקר</option><option value="price-desc">מחיר מיקר לזול</option><option value="year-desc">מחדש לישן</option><option value="year-asc">מישן לחדש</option></select></label><div className="categoryTabs">{categoryOptions.map((item) => <button key={item.value} className={category === item.value ? "active" : ""} onClick={() => setCategory(item.value)}>{item.label}</button>)}</div></div>
+      {tableView ? <div className="resultsTableWrap"><table className="resultsTable"><thead><tr><th>#</th><th>{sortableHeader("יצרן", "make")}</th><th>{sortableHeader("דגם", "model")}</th><th>{sortableHeader("תת דגם", "subModel")}</th><th>{sortableHeader("שנת ייצור", "year")}</th><th>{sortableHeader("נפח מנוע", "engineCapacity")}</th><th>{sortableHeader("יד", "hand")}</th><th>{sortableHeader("ק״מ", "mileage")}</th><th>{sortableHeader("תיבת הילוכים", "gear")}</th><th>{sortableHeader("סוג מנוע", "engine")}</th><th>{sortableHeader("גג נפתח", "openRoof")}</th><th>{sortableHeader("מקדמה", "advance")}</th><th>{sortableHeader("תשלום חודשי", "monthly")}</th><th>{sortableHeader("מחיר מבוקש", "price")}</th><th>תמונה</th></tr></thead><tbody>{tableCars.map((car, index) => [
+        <tr key={`${car.id}-main`} onClick={() => { window.location.href = `/car/${car.id}`; }} tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter") window.location.href = `/car/${car.id}`; }}>
+          <td><button className="expandRowButton" type="button" aria-expanded={expandedCarId === car.id} onClick={(event) => { event.stopPropagation(); setExpandedCarId(expandedCarId === car.id ? null : car.id); }}>{index + 1}<span>{expandedCarId === car.id ? "−" : "+"}</span></button></td>
+          <td>{car.make}</td><td>{car.baseModel || car.model}</td><td>{car.subModel || "—"}</td><td>{car.year}</td><td>{car.engineCapacity || "—"}</td><td>{car.hand || "—"}</td><td>{Number(car.mileage || 0).toLocaleString("he-IL")}</td><td>{car.gear || "—"}</td><td>{car.engine || "—"}</td><td>{car.openRoof ? "כן" : "לא"}</td><td>{(car.advance || 0).toLocaleString("he-IL")} ₪</td><td>{car.monthly.toLocaleString("he-IL")} ₪</td><td className="askingPriceCell">{car.price.toLocaleString("he-IL")} ₪</td><td><span className="tableCarImage">{car.image ? <img src={car.image} alt={`${car.make} ${car.model}`} /> : <><img src="/assets/logo1.png" alt="ענק הרכבים" /><em>תמונות יעלו בקרוב</em></>}</span></td>
+        </tr>,
+        expandedCarId === car.id && <tr className="expandedVehicleRow" key={`${car.id}-details`}><td colSpan={15}><div className="expandedVehicleDetails"><span><b>קטגוריה:</b> {car.categories?.join(", ") || car.category}</span><span><b>צבע:</b> {car.color || "—"}</span><span><b>בעלות:</b> {car.ownership || "—"}</span><span><b>מרכב:</b> {car.body || "—"}</span><span><b>מספר דלתות:</b> {car.doors || "—"}</span><span><b>מספר מושבים:</b> {car.seats || "—"}</span><span><b>כוח סוס:</b> {car.horsePower || "—"}</span><span><b>תוקף טסט:</b> {car.test || "—"}</span><span><b>טכנולוגיית הנעה:</b> {car.drivetrain || "—"}</span><span className="expandedExtras"><b>תוספות:</b> {car.extras || "לא צוינו תוספות"}</span><a href={`/car/${car.id}`}>לכרטיס הרכב המלא</a></div></td></tr>
+      ])}</tbody></table></div> : <div className="carGrid">{shownCars.map((car) => <article className="carCard" key={car.id}><a className={`carImage ${car.image ? "" : "noVehicleImage"}`} href={`/car/${car.id}`}>{car.image ? <img src={car.image} alt={`${car.make} ${car.model}`} /> : <div><img src="/assets/logo1.png" alt="ענק הרכבים" /><span>תמונה תעלה בקרוב</span></div>}<b>במלאי</b></a><div className="carInfo"><small>{car.category}</small><h3>{car.make} {car.model}</h3><p>שנת {car.year} | {car.gear || "אוטומטי"} | {Number(car.mileage || 0).toLocaleString("he-IL")} ק״מ</p><div><strong>{car.price.toLocaleString("he-IL")} ₪</strong><span>מחיר מבוקש</span></div>{car.monthly > 0 && <div className="cardMonthly"><strong>החל מ-{car.monthly.toLocaleString("he-IL")} ₪</strong><span>בחודש</span></div>}<a className="cardButton" href={`/car/${car.id}`}>לפרטים נוספים</a></div></article>)}</div>}
+      {shownCars.length === 0 && <p className="empty">לא נמצאו רכבים בסינון שבחרתם.</p>}</div></section>
+
+      <section id="trade" className="tradeSection section"><div className="shell tradeLayout"><div className="tradeIntro"><span className="eyebrow">טרייד אין בענק הרכבים</span><h2>קבלו הצעה לרכב שלכם</h2><p>הזינו מספר רכב ונמלא אוטומטית את פרטי הרכב ממאגר משרד התחבורה. לאחר מכן השאירו פרטים ונציג יחזור אליכם עם הצעת טרייד אין.</p><ul><li>בדיקת פרטי הרכב ללא התחייבות</li><li>הצעה מהירה ושקופה</li><li>אפשרות להתקדם לרכב חדש מהמלאי</li></ul></div><div className="tradeCard"><div className="plateLookup"><label>מספר רכב<input value={tradePlate} onChange={(e) => { setTradePlate(e.target.value.replace(/\D/g, "").slice(0, 8)); setTradeVehicle(null); }} inputMode="numeric" placeholder="לדוגמה: 12345678" /></label><button type="button" onClick={lookupTradeVehicle} disabled={tradeLookup === "loading"}>{tradeLookup === "loading" ? "בודק..." : "הצג פרטי רכב"}</button></div>{tradeError && <p className="tradeError">{tradeError}</p>}{tradeVehicle && <div className="tradeVehicleDetails"><strong>{tradeVehicle.manufacturer} {tradeVehicle.model}</strong><div><span>מספר רכב: {tradeVehicle.plate}</span><span>שנת ייצור: {tradeVehicle.year || "לא צוין"}</span><span>צבע: {tradeVehicle.color || "לא צוין"}</span><span>בעלות: {tradeVehicle.ownership || "לא צוין"}</span><span>סוג דגם: {tradeVehicle.modelType || "לא צוין"}</span><span>עלייה לכביש: {tradeVehicle.firstOnRoad || "לא צוין"}</span></div></div>}<form className="tradeLeadForm" onSubmit={submitLead}><input required aria-label="שם מלא" placeholder="שם מלא" /><input required aria-label="טלפון" inputMode="tel" placeholder="טלפון" /><input aria-label="קילומטראז׳" inputMode="numeric" placeholder="קילומטראז׳" /><textarea aria-label="הערות" placeholder="הערות נוספות" /><button type="submit">שלחו לקבלת הצעת טרייד אין</button>{sent && <p className="success">תודה, הפרטים התקבלו. נציג יחזור אליכם בהקדם.</p>}</form><small className="govNotice">פרטי הרכב נמשכים ממאגר כלי הרכב הפתוח של משרד התחבורה ב־data.gov.il.</small></div></div></section>
+
+      <section id="finance" className="benefits section"><div className="shell"><h2>רכב קונים רק <span>בענק הרכבים!</span></h2><p className="intro">אנחנו מלווים אתכם משלב בחירת הרכב ועד למסירה, בשקיפות מלאה ועם פתרונות שמתאימים בדיוק לכם.</p><div className="benefitGrid"><article><i>✓</i><h3>בדיקות קפדניות</h3><p>בדיקה מקצועית ושקיפות מלאה על היסטוריית הרכב.</p></article><article><i>🚘</i><h3>מגוון ענק</h3><p>עשרות רכבים מכל הסוגים ובכל רמות המחיר.</p></article><article><i>★</i><h3>שירות ואמינות</h3><p>ייעוץ אישי וליווי מקצועי גם אחרי הקנייה.</p></article><article><i>₪</i><h3>עד 100% מימון</h3><p>אפשרויות מימון נוחות ללא מקדמה, בכפוף לאישור.</p></article></div></div></section>
+
+      <section id="sell" className="sellSection section"><div className="shell sellGrid"><div><span className="eyebrow">מוכרים רכב?</span><h2>אנחנו נקנה את הרכב שלכם</h2><p>השאירו פרטים וקבלו הצעה מהירה. אנחנו חוזרים רק לגבי רכבים שמעניינים אותנו לרכישה.</p><ul><li>תהליך מהיר ופשוט</li><li>העברת בעלות ותשלום במקום</li><li>ללא התחייבות מצדכם</li></ul></div><form onSubmit={submitLead}><div className="formGrid"><label>שם מלא<input required name="name" /></label><label>עיר<input required name="city" /></label><label>טלפון<input required name="phone" inputMode="tel" /></label><label>מספר רישוי<input required name="license" inputMode="numeric" /></label><label>קילומטראז׳<input required name="mileage" inputMode="numeric" /></label><label>מחיר מבוקש<input required name="price" inputMode="numeric" /></label></div><button type="submit">שליחת פרטים</button>{sent && <p className="success">תודה, הפרטים התקבלו בהצלחה.</p>}</form></div></section>
+
+      <footer id="contact"><div className="shell footerGrid"><div><img src="/assets/logo1.png" alt="ענק הרכבים" /><p>מכירה, קנייה וטרייד אין לרכבים מאז 1998.</p></div><div><h3>צרו קשר</h3><p>רחוב דוד רזיאל 4, ראשון לציון</p><a href="tel:*2369">*2369</a><p>א׳-ה׳ 08:30-18:00 | ו׳ 08:30-13:00</p></div><div><h3>קישורים</h3><a href="#inventory">רכבים במלאי</a><a href="/sell">מכירת רכב</a><a href="/finance">מימון וטרייד אין</a></div></div><div className="copyright">© {new Date().getFullYear()} ענק הרכבים. כל הזכויות שמורות.</div></footer>
+      <a className="whatsapp" href="https://wa.me/972503707010" target="_blank" rel="noreferrer" aria-label="וואטסאפ">✆</a>
+    </main>
+  );
+}

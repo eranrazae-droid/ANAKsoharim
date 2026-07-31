@@ -1,0 +1,7 @@
+export function SiteHeader() {
+  return <><header className="topbar"><div className="shell headerInner"><a className="logo" href="/"><img src="/assets/logo1.png" alt="ענק הרכבים" /></a><div className="headerActions"><a className="location" href="https://waze.com/ul?ll=31.9888,34.77084&navigate=yes">⌖ דוד רזיאל 4, ראשון לציון</a><a className="phone" href="tel:*2369"><small>חייגו עכשיו</small><strong>*2369</strong><span>☎</span></a></div></div></header><nav className="nav"><div className="shell navLinks"><a href="/">דף הבית</a><a href="/cars">רכבים משומשים</a><a href="/finance">תנאי מימון</a><a href="/trade">טרייד אין</a><a href="/sell">מעוניינים למכור לנו את הרכב?</a><a href="/reviews">לקוחות ממליצים</a><a href="/contact">צור קשר</a></div></nav></>;
+}
+
+export function SiteFooter() {
+  return <footer><div className="shell footerGrid"><div><img src="/assets/logo1.png" alt="ענק הרכבים" /><p>מכירה, קנייה וטרייד אין לרכבים מאז 1998.</p></div><div><h3>צרו קשר</h3><p>רחוב דוד רזיאל 4, ראשון לציון</p><a href="tel:*2369">*2369</a><p>א׳-ה׳ 08:30-18:00 | ו׳ 08:30-13:00</p></div><div><h3>קישורים</h3><a href="/cars">רכבים במלאי</a><a href="/sell">מכירת רכב</a><a href="/finance">מימון</a><a href="/trade">טרייד אין</a><a href="/reviews">לקוחות ממליצים</a><a href="/contact">צור קשר</a></div></div><div className="copyright">© {new Date().getFullYear()} ענק הרכבים. כל הזכויות שמורות.</div></footer>;
+}
