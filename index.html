@@ -2429,6 +2429,7 @@ display:none !important;
       if(homeExtra) homeExtra.style.display = (id === 'homePage') ? 'block' : 'none';
       const titles = {homePage:'אוטודילר',catalogPage:'רכבים | אוטודילר',carPage:'רכב | אוטודילר',checkoutPage:'שריון | אוטודילר'};
       history.pushState({page:id}, titles[id]||'אוטודילר', '#'+id);
+      if(id !== 'carPage') resetSEO(); // יציאה מעמוד רכב — החזרת כותרת/תיאור ברירת מחדל
       _toggleBack(id);
       try{ if(typeof fbq==='function') fbq('track','PageView'); }catch(e){}
     }
@@ -2509,9 +2510,48 @@ display:none !important;
     function toggleAdmin(){ document.getElementById('adminPanel').classList.toggle('hidden'); window.scrollTo({top:0, behavior:'smooth'}); }
     function toggleDashboard(){ document.getElementById('dashboardPanel').classList.toggle('hidden'); window.scrollTo({top:0, behavior:'smooth'}); }
 
+    // עדכון כותרת/תיאור/OG ייחודיים לכל עמוד רכב (SEO)
+    var _defaultSEO = null;
+    function _setMeta(sel, attr, val){ var el=document.querySelector(sel); if(el) el.setAttribute(attr, val); }
+    function setCarSEO(car){
+      if(!car) return;
+      if(!_defaultSEO){ _defaultSEO = {
+        title: document.title,
+        desc: (document.querySelector('meta[name="description"]')||{}).content || '',
+        ogt: (document.querySelector('meta[property="og:title"]')||{}).content || '',
+        ogd: (document.querySelector('meta[property="og:description"]')||{}).content || '',
+        ogu: (document.querySelector('meta[property="og:url"]')||{}).content || '',
+        ogi: (document.querySelector('meta[property="og:image"]')||{}).content || ''
+      }; }
+      var name = ((car._rawBrand||car.brand||'')+' '+(car.model||'')+(car.year?(' '+car.year):'')).trim();
+      var price = Number(car.autodealerPriceNumber)||0;
+      var priceTxt = price>1 ? ('במחיר '+price.toLocaleString('he-IL')+' ₪') : 'במחיר דיל';
+      var title = name + ' — רכב חדש 0 ק"מ ' + priceTxt + ' | אוטודילר';
+      var desc = name + ' חדש 0 ק"מ מיבואן רשמי, ' + priceTxt + '. ' + (car.summary && car.summary.trim() ? car.summary.trim().slice(0,110) : 'מימון אישי ללא מקדמה, טרייד-אין וליווי עד סגירת העסקה.');
+      var url = 'https://autodealer.co.il/?car=' + encodeURIComponent(car.id);
+      var img = (car.image && !car.image.startsWith('data:')) ? car.image : (_defaultSEO.ogi || 'https://autodealer.co.il/og-image.png');
+      document.title = title;
+      _setMeta('meta[name="description"]','content',desc);
+      _setMeta('meta[property="og:title"]','content',title);
+      _setMeta('meta[property="og:description"]','content',desc);
+      _setMeta('meta[property="og:url"]','content',url);
+      _setMeta('meta[property="og:image"]','content',img);
+      _setMeta('link[rel="canonical"]','href',url);
+    }
+    function resetSEO(){
+      if(!_defaultSEO) return;
+      document.title = _defaultSEO.title;
+      _setMeta('meta[name="description"]','content',_defaultSEO.desc);
+      _setMeta('meta[property="og:title"]','content',_defaultSEO.ogt);
+      _setMeta('meta[property="og:description"]','content',_defaultSEO.ogd);
+      _setMeta('meta[property="og:url"]','content',_defaultSEO.ogu);
+      _setMeta('meta[property="og:image"]','content',_defaultSEO.ogi);
+      _setMeta('link[rel="canonical"]','href','https://autodealer.co.il/');
+    }
     function openCar(id){
       selectedCar = enrich(cars.find(c => c.id === id));
       selectedTrack = "";
+      setCarSEO(selectedCar);
       fbEvent('ViewContent', adCarParams(adCarPrice()));
       document.getElementById('carBreadcrumb').textContent = `${selectedCar.brand} ${selectedCar.model}`;
       const hasRealImage = selectedCar.image && !selectedCar.image.startsWith('data:image/svg');
