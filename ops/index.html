@@ -1003,8 +1003,13 @@ if ('serviceWorker' in navigator) {
         <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer"><input type="checkbox" id="dash-collision" style="width:18px;height:18px;accent-color:#16a34a"> מנורת התגשות</label>
         <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer"><input type="checkbox" id="dash-fuel" style="width:18px;height:18px;accent-color:#16a34a"> מנורת דלק</label>
         <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer"><input type="checkbox" id="dash-istop" style="width:18px;height:18px;accent-color:#16a34a"> iStop</label>
-        <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer"><input type="checkbox" id="dash-other" style="width:18px;height:18px;accent-color:#16a34a" onchange="document.getElementById('cn-c-dashboard').style.display=this.checked?'block':'none';if(!this.checked)document.getElementById('cn-c-dashboard').value=''"> אחר</label>
-        <textarea class="form-textarea" id="cn-c-dashboard" placeholder="פרט..." rows="2" style="display:none"></textarea>
+        <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer"><input type="checkbox" id="dash-other" style="width:18px;height:18px;accent-color:#16a34a" onchange="document.getElementById('dash-other-req').style.display=this.checked?'block':'none';if(!this.checked)document.getElementById('cn-c-dashboard').value=''"> אחר</label>
+        <div id="dash-other-req" style="display:none">
+          <div style="font-size:12px;color:#dc2626;font-weight:700;margin-bottom:4px">חובה לצרף תמונה או לכתוב פירוט <span style="color:#ef4444">*</span></div>
+          <textarea class="form-textarea" id="cn-c-dashboard" placeholder="פרט..." rows="2"></textarea>
+          <div class="ci-photos" id="photos-c-dashboard"></div>
+          <input type="file" accept="image/*" capture="environment" id="file-c-dashboard" style="display:none" onchange="addPhotos('c-dashboard',this)">
+        </div>
       </div>
     </div>
 
@@ -4433,7 +4438,7 @@ function openDriverIntake(id) {
   });
   document.querySelectorAll('#modal-driver-intake textarea, #modal-driver-intake input[type=number], #di-code').forEach(t => t.value = '');
   ['di-ev-v','di-ev-x'].forEach(id=>{const b=document.getElementById(id);if(b){b.classList.remove('v-active','x-active');b.style.color='transparent';}});const _evF=document.getElementById('di-ev-fields');if(_evF)_evF.style.display='none';
-  ['c-battery-original','c-oil','c-coolant','c-safety','c-lights-break','c-glass-break','c-bulbs','c-tires','c-glove','c-windows','c-mirrors','c-ac','c-ac-noise','c-sunroof','c-upholstery','c-mats','c-steering'].forEach(k => {
+  ['c-battery-original','c-oil','c-coolant','c-safety','c-lights-break','c-glass-break','c-bulbs','c-tires','c-glove','c-windows','c-mirrors','c-ac','c-ac-noise','c-dashboard','c-sunroof','c-upholstery','c-mats','c-steering'].forEach(k => {
     ciPhotoFiles[k] = [];
     renderPhotoGrid(k);
   });
@@ -4466,7 +4471,7 @@ function openDriverIntake(id) {
         if (!fd || !Object.keys(fd.checks || {}).length) return;
         _applyIntakeDraftObj(fd);
         if (fd.dashChecks?.['dash-other']) {
-          const ta = document.getElementById('cn-c-dashboard'); if (ta) ta.style.display = 'block';
+          const req = document.getElementById('dash-other-req'); if (req) req.style.display = 'block';
         }
         try { localStorage.setItem('intake_draft_' + id, JSON.stringify(fd)); } catch {}
       }).catch(()=>{});
@@ -4487,7 +4492,7 @@ const _ciLabels = {
   'c-ac':'מזגן','c-ac-noise':'רעשי מזגן','c-dashboard':'מנורות לוח שעונים',
   'c-sunroof':'גג נפתח','c-upholstery':'ריפודים','c-mats':'סט שטיחים מלא ותקין','c-steering':'הגה – קילופים'
 };
-const _photoKeys = ['c-battery-original','c-oil','c-coolant','c-safety','c-lights-break','c-glass-break','c-bulbs','c-tires','c-glove','c-windows','c-mirrors','c-ac','c-ac-noise','c-sunroof','c-upholstery','c-mats','c-steering'];
+const _photoKeys = ['c-battery-original','c-oil','c-coolant','c-safety','c-lights-break','c-glass-break','c-bulbs','c-tires','c-glove','c-windows','c-mirrors','c-ac','c-ac-noise','c-dashboard','c-sunroof','c-upholstery','c-mats','c-steering'];
 
 async function submitDriverIntake() {
   if (!_currentIntakeId) { showToast('שגיאה: אין קליטה פתוחה'); return; }
@@ -4554,6 +4559,15 @@ async function submitDriverIntake() {
   ['dash-check-engine','dash-tire-pressure','dash-service','dash-collision','dash-fuel','dash-istop','dash-other'].forEach(id => {
     const el = document.getElementById(id); if (el) dashChecks[id] = el.checked;
   });
+  if (checklist['c-dashboard'] === 'x' && dashChecks['dash-other']) {
+    const _otherTxt = document.getElementById('cn-c-dashboard')?.value.trim() || '';
+    const _otherPhotos = (ciPhotoFiles['c-dashboard'] || []).length;
+    if (!_otherTxt && !_otherPhotos) {
+      document.getElementById('dash-other-req')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      showToast('⚠️ סומן "אחר" במנורות לוח שעונים — חובה לצלם תמונה או לכתוב פירוט');
+      return;
+    }
+  }
   if (checklist['c-dashboard'] === 'x') {
     const dashOtherText = document.getElementById('cn-c-dashboard')?.value.trim() || '';
     const parts = Object.keys(_dashLabels).filter(id => dashChecks[id]).map(id => _dashLabels[id]);
@@ -5143,7 +5157,8 @@ function ciClick(btn) {
     if (val === 'v') {
       const ta = noteRow.querySelector('textarea'); if (ta) ta.value = '';
       noteRow.querySelectorAll('input[type=checkbox]').forEach(cb => cb.checked = false);
-      const otherTa = document.getElementById('cn-c-dashboard'); if (otherTa) { otherTa.style.display = 'none'; otherTa.value = ''; }
+      const otherTa = document.getElementById('cn-c-dashboard'); if (otherTa) otherTa.value = '';
+      const otherReq = document.getElementById('dash-other-req'); if (otherReq) otherReq.style.display = 'none';
     }
   }
   saveIntakeDraft();
@@ -5235,7 +5250,7 @@ function _applyIntakeDraftObj(draft) {
     const el = document.getElementById(id); if (el) { el.checked = checked; }
   });
   if (draft.dashChecks?.['dash-other']) {
-    const ta = document.getElementById('cn-c-dashboard'); if (ta) ta.style.display = 'block';
+    const req = document.getElementById('dash-other-req'); if (req) req.style.display = 'block';
   }
 }
 
