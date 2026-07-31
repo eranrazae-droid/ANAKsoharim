@@ -1,6 +1,23 @@
-export const VEHICLES_API = "https://phpstack-1347359-5276985.cloudwaysapps.com/comigo-anakarehevim/index.php/api/GetActiveVehicles";
-export const VEHICLE_IMAGES_XML = "https://03-5189189.netstyle.co.il/xml/yad2/";
 import inventorySnapshot from "./inventory-snapshot.json";
+
+/**
+ * מקורות המלאי.
+ *
+ * ברירת המחדל היא המערכת הקיימת. כדי להעביר את המלאי למערכת אחרת
+ * (למשל ה-CRM) מגדירים ב-Vercel את משתני הסביבה — בלי לגעת בקוד:
+ *
+ *   VEHICLES_API_URL         נתיב שמחזיר את הרכבים הפעילים כ-JSON
+ *   VEHICLE_IMAGES_XML_URL   נתיב ה-XML של תמונות הרכבים
+ *   VEHICLES_API_TOKEN       אסימון גישה, אם המקור החדש דורש אימות
+ *
+ * מבנה השדות הנדרש מוגדר ב-normalizeVehicle למטה.
+ */
+export const VEHICLES_API =
+  process.env.VEHICLES_API_URL ||
+  "https://phpstack-1347359-5276985.cloudwaysapps.com/comigo-anakarehevim/index.php/api/GetActiveVehicles";
+
+export const VEHICLE_IMAGES_XML =
+  process.env.VEHICLE_IMAGES_XML_URL || "https://03-5189189.netstyle.co.il/xml/yad2/";
 
 export type DisplayCar = {
   id: string; image?: string | null; images?: string[]; make: string; model: string; year: number; monthly: number; category: string; categories?: string[];
@@ -68,7 +85,9 @@ export async function getActiveVehicles(): Promise<DisplayCar[]> {
   let cars: DisplayCar[];
   try {
     // רענון כל 10 דקות במקום בכל טעינת עמוד — מוריד עומס מה-API ומאיץ את האתר.
-    const response = await fetch(VEHICLES_API, { headers: { Accept: "application/json" }, next: { revalidate: 600 } });
+    const headers: Record<string, string> = { Accept: "application/json" };
+    if (process.env.VEHICLES_API_TOKEN) headers.Authorization = `Bearer ${process.env.VEHICLES_API_TOKEN}`;
+    const response = await fetch(VEHICLES_API, { headers, next: { revalidate: 600 } });
     if (!response.ok) throw new Error(`Inventory API returned ${response.status}`);
     const data = await response.json() as Record<string, unknown>[];
     cars = data.map(normalizeVehicle).filter((car) => car.id && car.make && car.model);
