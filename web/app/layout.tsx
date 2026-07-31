@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Heebo } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import "./detail.css";
 import "./brand.css";
@@ -21,13 +21,8 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// גופן עברי. בלעדיו כל הטקסט העברי באתר נופל לגופן ברירת המחדל של המערכת
-// ונראה שונה בין מכשירים.
-const heebo = Heebo({
-  variable: "--font-hebrew",
-  subsets: ["hebrew", "latin"],
-  display: "swap",
-});
+// הגופן של האתר הוא Arial, כמו באתר הישן — מוגדר ב-app/globals.css.
+// אין לטעון כאן גופן נוסף: הוא ידרוס את Arial בכל האתר.
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -106,7 +101,7 @@ export default function RootLayout({
   return (
     <html lang="he" dir="rtl">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${heebo.variable} ${heebo.className} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         {children}
         <script
