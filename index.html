@@ -979,6 +979,14 @@ display:none !important;
                   <a id="waDealBtn" class="gold-btn" target="_blank" rel="noreferrer">שלחו לי את העסקה בוואטסאפ</a>
                   <button class="primary-btn" style="background:#25D366" onclick="window.open('https://wa.me/972508396030?text='+encodeURIComponent('היי, אני רוצה לבדוק התאמת מימון לרכב'),'_blank')">💬 התייעצו איתנו</button>
                 </div>
+                <div style="margin-top:16px;padding-top:14px;border-top:1px solid #eee">
+                  <div class="center muted" style="font-size:13px;font-weight:700;margin-bottom:8px">שתפו את הרכב 📤</div>
+                  <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+                    <button onclick="shareCar('whatsapp')" title="שתף בוואטסאפ" style="display:flex;align-items:center;gap:6px;background:#25D366;color:#fff;border:none;border-radius:12px;padding:9px 14px;font-weight:800;font-size:13px;cursor:pointer">🟢 וואטסאפ</button>
+                    <button onclick="shareCar('facebook')" title="שתף בפייסבוק" style="display:flex;align-items:center;gap:6px;background:#1877F2;color:#fff;border:none;border-radius:12px;padding:9px 14px;font-weight:800;font-size:13px;cursor:pointer">f פייסבוק</button>
+                    <button onclick="shareCar('copy')" title="העתק קישור" style="display:flex;align-items:center;gap:6px;background:#0d0d0d;color:#fff;border:none;border-radius:12px;padding:9px 14px;font-weight:800;font-size:13px;cursor:pointer">🔗 העתק קישור</button>
+                  </div>
+                </div>
                 <div class="center muted" style="font-size:12px;margin-top:12px">החישוב להמחשה בלבד, כפוף לאישור מימון.</div>
               </div>
 
@@ -2714,6 +2722,21 @@ display:none !important;
       document.getElementById('waDealBtn').href = `https://wa.me/972508396030?text=${encodeURIComponent(msg)}`;
     }
 
+    // שיתוף הרכב — וואטסאפ / פייסבוק / העתקת קישור
+    function shareCar(kind){
+      if(!selectedCar) return;
+      var url = 'https://autodealer.co.il/?car=' + encodeURIComponent(selectedCar.id);
+      var title = (selectedCar.brand + ' ' + selectedCar.model + (selectedCar.year?(' '+selectedCar.year):'')).trim();
+      var txt = 'ראיתי את ' + title + ' באוטודילר — רכב חדש 0 ק"מ במחיר דיל: ' + url;
+      try{ if(typeof fbEvent==='function') fbEvent('Contact', {content_name:title, method:kind}); }catch(e){}
+      if(kind==='whatsapp'){ window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank'); return; }
+      if(kind==='facebook'){ window.open('https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(url), '_blank'); return; }
+      if(kind==='copy'){
+        var done=function(){ alert('הקישור הועתק! 📋\n' + url); };
+        if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(url).then(done, function(){ prompt('העתק את הקישור:', url); }); }
+        else { prompt('העתק את הקישור:', url); }
+      }
+    }
     function toggleTrack(track, btn){
       if(selectedTrack === track){
         selectedTrack = "";
