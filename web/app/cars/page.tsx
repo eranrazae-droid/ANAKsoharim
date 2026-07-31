@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { SiteFooter, SiteHeader } from "../site-chrome";
 import { getActiveVehicles, type DisplayCar } from "../vehicle-api";
+import VehicleCard from "../vehicle-card";
 import { SITE_NAME, SITE_URL } from "../site-config";
 
 // מחליף את עמודי המלאי הוותיקים של האתר הישן:
@@ -13,10 +14,6 @@ export const metadata: Metadata = {
     "מלאי הרכבים המשומשים של ענק הרכבים בראשון לציון. עשרות רכבים מכל הסוגים והשנתונים, מחירים מלאים, מימון עד 100% ועד 100 תשלומים וטרייד אין על כל רכב.",
   alternates: { canonical: "/cars" },
 };
-
-function mileageText(car: DisplayCar) {
-  return Number(String(car.mileage).replace(/,/g, "") || 0).toLocaleString("he-IL");
-}
 
 export default async function CarsPage() {
   const cars = await getActiveVehicles().catch(() => [] as DisplayCar[]);
@@ -57,33 +54,8 @@ export default async function CarsPage() {
               : "המלאי מתעדכן כעת. נסו שוב בעוד מספר דקות או התקשרו אלינו ל-*2369."}
           </p>
 
-          <div className="carGrid">
-            {cars.map((car) => (
-              <article className="carCard" key={car.id}>
-                <a className={`carImage ${car.image ? "" : "noVehicleImage"}`} href={`/car/${car.id}`}>
-                  {car.image
-                    ? <img src={car.image} alt={`${car.make} ${car.model} שנת ${car.year}`} loading="lazy" decoding="async" />
-                    : <div><img src="/assets/logo1.png" alt={SITE_NAME} loading="lazy" decoding="async" /><span>תמונה תעלה בקרוב</span></div>}
-                  <b>במלאי</b>
-                </a>
-                <div className="carInfo">
-                  <small>{car.category}</small>
-                  <h2>{car.make} {car.model}</h2>
-                  <p>שנת {car.year} | {car.gear || "אוטומטי"} | {mileageText(car)} ק״מ</p>
-                  <div>
-                    <strong>{car.price.toLocaleString("he-IL")} ₪</strong>
-                    <span>מחיר מבוקש</span>
-                  </div>
-                  {car.monthly > 0 && (
-                    <div className="cardMonthly">
-                      <strong>החל מ-{car.monthly.toLocaleString("he-IL")} ₪</strong>
-                      <span>בחודש</span>
-                    </div>
-                  )}
-                  <a className="cardButton" href={`/car/${car.id}`}>לפרטים נוספים</a>
-                </div>
-              </article>
-            ))}
+          <div className="listGrid">
+            {cars.map((car) => <VehicleCard car={car} key={car.id} />)}
           </div>
         </div>
       </section>

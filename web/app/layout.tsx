@@ -9,6 +9,7 @@ import "./finance.css";
 import "./monochrome.css";
 import "./car-modern.css";
 import "./car-listing.css";
+import "./vehicle-list.css";
 import "./night-gold.css"; // אחרון — שכבת הליטוש של כיוון "לילה וזהב"
 import { BUSINESS, IS_LIVE, SITE_NAME, SITE_URL } from "./site-config";
 
