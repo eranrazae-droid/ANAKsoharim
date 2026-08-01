@@ -1,4 +1,6 @@
 import { reviews } from "./reviews-data";
+import { CARD_SIZES } from "./lib/images";
+import { Picture } from "./site-image";
 
 /**
  * רצועת לקוחות — תמונות ריבועיות של לקוחות שקנו רכב,
@@ -26,7 +28,7 @@ export default function CustomerStrip() {
                 <article className="customerCard" role="listitem" key={`${review.author}-${index}`}>
                   <div className="customerPhoto">
                     {review.photo
-                      ? <img src={review.photo} alt={`${review.author} עם הרכב שרכש`} loading="lazy" decoding="async" />
+                      ? <Picture src={review.photo} alt={`${review.author} עם הרכב שרכש`} sizes={CARD_SIZES} />
                       : <span>{review.author.slice(0, 1)}</span>}
                   </div>
                   <blockquote className="customerQuote">{review.body}</blockquote>

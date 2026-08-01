@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { GALLERY_SIZES, fallbackSrc, srcSet } from "./lib/images";
+import { GALLERY_SIZES, THUMB_SIZES } from "./lib/images";
+import { Logo, Picture } from "./site-image";
 
 /**
  * גלריית הרכב.
@@ -12,24 +13,6 @@ import { GALLERY_SIZES, fallbackSrc, srcSet } from "./lib/images";
  *
  * הממוזערות משתמשות בגרסת 240 בלבד, שמשקלה כמה קילובייטים.
  */
-
-function Picture({ src, alt, sizes, eager }: { src: string; alt: string; sizes: string; eager?: boolean }) {
-  const webp = srcSet(src, "webp");
-  const jpeg = srcSet(src, "jpeg");
-  return (
-    <picture>
-      {webp && <source type="image/webp" srcSet={webp} sizes={sizes} />}
-      {jpeg && <source type="image/jpeg" srcSet={jpeg} sizes={sizes} />}
-      <img
-        src={fallbackSrc(src, eager ? 1200 : 600)}
-        alt={alt}
-        loading={eager ? "eager" : "lazy"}
-        fetchPriority={eager ? "high" : "auto"}
-        decoding={eager ? "sync" : "async"}
-      />
-    </picture>
-  );
-}
 
 export default function VehicleGallery({ images, vehicleName }: { images: string[]; vehicleName: string }) {
   const [selected, setSelected] = useState(0);
@@ -55,7 +38,7 @@ export default function VehicleGallery({ images, vehicleName }: { images: string
           />
         ) : (
           <figcaption>
-            <img src="/assets/logo1.png" alt="ענק הרכבים" />
+            <Logo />
             <strong>תמונות הרכב יעלו בקרוב</strong>
             <span>הרכב קיים במלאי למסירה מיידית</span>
           </figcaption>
@@ -75,7 +58,7 @@ export default function VehicleGallery({ images, vehicleName }: { images: string
               onClick={() => show(index)}
             >
               {loaded.has(index) ? (
-                <Picture src={src} alt="" sizes="80px" />
+                <Picture src={src} alt="" sizes={THUMB_SIZES} />
               ) : (
                 <span className="carThumbHold" aria-hidden="true">{index + 1}</span>
               )}

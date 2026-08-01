@@ -7,6 +7,7 @@ import VehicleCard from "./vehicle-card";
 import CustomerStrip from "./customer-strip";
 import FloatingActions from "./floating-actions";
 import SocialLinks from "./social-links";
+import { Logo, Picture } from "./site-image";
 import SimilarCars, { referencePrice } from "./similar-cars";
 import { Honeypot, LeadStatusMessage, useLead } from "./use-lead";
 
@@ -152,7 +153,7 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
   return (
     <main dir="rtl">
       <header className="topbar"><div className="shell headerInner">
-        <a className="logo" href="#top" onClick={resetAllCalculators} aria-label="ענק הרכבים - דף הבית"><img src="/assets/logo1.png" alt="ענק הרכבים" loading="lazy" decoding="async" /></a>
+        <a className="logo" href="#top" onClick={resetAllCalculators} aria-label="ענק הרכבים - דף הבית"><Logo eager /></a>
         <SocialLinks /><div className="headerActions"><a className="location" href="https://waze.com/ul?ll=31.9888,34.77084&navigate=yes" target="_blank" rel="noreferrer">⌖ <span>דוד רזיאל 4, ראשון לציון</span></a><a className="phone" href="tel:*2369"><small>חייגו עכשיו</small><strong>*2369</strong><span>☎</span></a></div>
         <button className="menuButton" onClick={() => setMobileOpen(!mobileOpen)} aria-label="פתיחת תפריט">☰</button>
       </div></header>
@@ -160,9 +161,22 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
 
       {/* שתי תמונות שונות: במסך צר תצלום אחר, לא חיתוך של תמונת המחשב */}
       <section id="top" className="hero heroFinder"><picture>
+          {/* הסדר קובע: הדפדפן לוקח את המקור הראשון שהוא מבין ושתואם
+              למסך. WebP לפני JPEG, ותצלום הנייד לפני זה של המחשב. */}
+          <source
+            type="image/webp"
+            media="(max-width: 900px)"
+            srcSet="/assets/showroom-mobile-sm.webp 800w, /assets/showroom-mobile.webp 1400w"
+            sizes="100vw"
+          />
           <source
             media="(max-width: 900px)"
             srcSet="/assets/showroom-mobile-sm.jpg 800w, /assets/showroom-mobile.jpg 1400w"
+            sizes="100vw"
+          />
+          <source
+            type="image/webp"
+            srcSet="/assets/showroom-sm.webp 1000w, /assets/showroom.webp 2000w"
             sizes="100vw"
           />
           <img
@@ -213,7 +227,7 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
       {tableView ? <div className="resultsTableWrap"><table className="resultsTable"><thead><tr><th>#</th><th>{sortableHeader("יצרן", "make")}</th><th>{sortableHeader("דגם", "model")}</th><th>{sortableHeader("תת דגם", "subModel")}</th><th>{sortableHeader("שנת ייצור", "year")}</th><th>{sortableHeader("נפח מנוע", "engineCapacity")}</th><th>{sortableHeader("ק״מ", "mileage")}</th><th>{sortableHeader("תיבת הילוכים", "gear")}</th><th>{sortableHeader("סוג מנוע", "engine")}</th><th>{sortableHeader("גג נפתח", "openRoof")}</th><th>{sortableHeader("מקדמה", "advance")}</th><th>{sortableHeader("תשלום חודשי", "monthly")}</th><th>{sortableHeader("מחיר מבוקש", "price")}</th><th>תמונה</th></tr></thead><tbody>{tableCars.map((car, index) => [
         <tr key={`${car.id}-main`} onClick={() => { window.location.href = `/car/${car.id}`; }} tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter") window.location.href = `/car/${car.id}`; }}>
           <td><button className="expandRowButton" type="button" aria-expanded={expandedCarId === car.id} onClick={(event) => { event.stopPropagation(); setExpandedCarId(expandedCarId === car.id ? null : car.id); }}>{index + 1}<span>{expandedCarId === car.id ? "−" : "+"}</span></button></td>
-          <td>{car.make}</td><td>{car.baseModel || car.model}</td><td>{car.subModel || "—"}</td><td>{car.year}</td><td>{car.engineCapacity || "—"}</td><td>{Number(car.mileage || 0).toLocaleString("he-IL")}</td><td>{car.gear || "—"}</td><td>{car.engine || "—"}</td><td>{car.openRoof ? "כן" : "לא"}</td><td>{car.advance ? `${car.advance.toLocaleString("he-IL")} ₪` : <b className="noAdvance">ללא מקדמה</b>}</td><td>{car.monthly.toLocaleString("he-IL")} ₪</td><td className="askingPriceCell">{car.price.toLocaleString("he-IL")} ₪</td><td><span className="tableCarImage">{car.image ? <img src={car.image} alt={`${car.make} ${car.model}`} loading="lazy" decoding="async" /> : <><img src="/assets/logo1.png" alt="ענק הרכבים" loading="lazy" decoding="async" /><em>תמונות יעלו בקרוב</em></>}</span></td>
+          <td>{car.make}</td><td>{car.baseModel || car.model}</td><td>{car.subModel || "—"}</td><td>{car.year}</td><td>{car.engineCapacity || "—"}</td><td>{Number(car.mileage || 0).toLocaleString("he-IL")}</td><td>{car.gear || "—"}</td><td>{car.engine || "—"}</td><td>{car.openRoof ? "כן" : "לא"}</td><td>{car.advance ? `${car.advance.toLocaleString("he-IL")} ₪` : <b className="noAdvance">ללא מקדמה</b>}</td><td>{car.monthly.toLocaleString("he-IL")} ₪</td><td className="askingPriceCell">{car.price.toLocaleString("he-IL")} ₪</td><td><span className="tableCarImage">{car.image ? <Picture src={car.image} alt={`${car.make} ${car.model}`} sizes="68px" /> : <><Logo /><em>תמונות יעלו בקרוב</em></>}</span></td>
         </tr>,
         expandedCarId === car.id && <tr className="expandedVehicleRow" key={`${car.id}-details`}><td colSpan={14}><div className="expandedVehicleDetails"><span><b>קטגוריה:</b> {car.categories?.join(", ") || car.category}</span><span><b>צבע:</b> {car.color || "—"}</span><span><b>מרכב:</b> {car.body || "—"}</span><span><b>מספר דלתות:</b> {car.doors || "—"}</span><span><b>מספר מושבים:</b> {car.seats || "—"}</span><span><b>כוח סוס:</b> {car.horsePower || "—"}</span><span><b>תוקף טסט:</b> {car.test || "—"}</span><span><b>טכנולוגיית הנעה:</b> {car.drivetrain || "—"}</span><span className="expandedExtras"><b>תוספות:</b> {car.extras || "לא צוינו תוספות"}</span><a href={`/car/${car.id}`}>לכרטיס הרכב המלא</a></div></td></tr>
       ])}</tbody></table></div> : <div className="listGrid">{shownCars.map((car) => <VehicleCard car={car} key={car.id} />)}</div>}
@@ -238,7 +252,7 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
       <section id="finance" className="benefits section"><div className="shell"><h2>רכב קונים רק <span>בענק הרכבים!</span></h2><p className="intro">אנחנו מלווים אתכם משלב בחירת הרכב ועד למסירה, בשקיפות מלאה ועם פתרונות שמתאימים בדיוק לכם.</p><div className="benefitGrid"><article><i>✓</i><h3>בדיקות קפדניות</h3><p>בדיקה מקצועית ושקיפות מלאה על היסטוריית הרכב.</p></article><article><i>🚘</i><h3>מגוון ענק</h3><p>עשרות רכבים מכל הסוגים ובכל רמות המחיר.</p></article><article><i>★</i><h3>שירות ואמינות</h3><p>ייעוץ אישי וליווי מקצועי גם אחרי הקנייה.</p></article><article><i>₪</i><h3>עד 100% מימון</h3><p>אפשרויות מימון נוחות ללא מקדמה, בכפוף לאישור.</p></article></div></div></section>
 
 
-      <footer id="contact"><div className="shell footerGrid"><div><img src="/assets/logo1.png" alt="ענק הרכבים" loading="lazy" decoding="async" /><p>מכירה, קנייה וטרייד אין לרכבים מאז 1998.</p></div><div><h3>צרו קשר</h3><p>רחוב דוד רזיאל 4, ראשון לציון</p><a href="tel:*2369">*2369</a><p>א׳-ה׳ 08:30-18:00 | ו׳ 08:30-13:00</p></div><div><h3>קישורים</h3><a href="#inventory">רכבים במלאי</a><a href="/sell">מכירת רכב</a><a href="/finance">מימון וטרייד אין</a></div></div><div className="copyright">© {new Date().getFullYear()} ענק הרכבים. כל הזכויות שמורות.</div></footer>
+      <footer id="contact"><div className="shell footerGrid"><div><Logo /><p>מכירה, קנייה וטרייד אין לרכבים מאז 1998.</p></div><div><h3>צרו קשר</h3><p>רחוב דוד רזיאל 4, ראשון לציון</p><a href="tel:*2369">*2369</a><p>א׳-ה׳ 08:30-18:00 | ו׳ 08:30-13:00</p></div><div><h3>קישורים</h3><a href="#inventory">רכבים במלאי</a><a href="/sell">מכירת רכב</a><a href="/finance">מימון וטרייד אין</a></div></div><div className="copyright">© {new Date().getFullYear()} ענק הרכבים. כל הזכויות שמורות.</div></footer>
       <FloatingActions />
     </main>
   );

@@ -1,6 +1,7 @@
 import { propulsionTechnology, type DisplayCar } from "./vehicle-api";
 import { BUSINESS, DEMO_IMAGE } from "./site-config";
-import { CARD_SIZES, fallbackSrc, srcSet } from "./lib/images";
+import { CARD_SIZES } from "./lib/images";
+import { Picture } from "./site-image";
 import CardGallery from "./card-gallery";
 
 /**
@@ -174,10 +175,10 @@ export function PromoRail({ cars, title }: { cars: DisplayCar[]; title: string }
       {cars.map((car) => (
         <a className="railCard" href={`/car/${car.id}`} key={car.id}>
           <div className="railMedia">
-            <img
+            <Picture
               src={car.image || DEMO_IMAGE}
               alt={car.image ? `${car.make} ${car.baseModel || car.model}` : ""}
-              loading="lazy" decoding="async"
+              sizes={CARD_SIZES}
             />
           </div>
           <div className="railInfo">

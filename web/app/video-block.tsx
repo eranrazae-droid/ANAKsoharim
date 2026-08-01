@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { GALLERY_SIZES } from "./lib/images";
+import { Picture } from "./site-image";
 
 /**
  * סרטון הרכב — אחד בלבד, ונטען רק בלחיצה.
@@ -48,7 +50,7 @@ export default function VideoBlock({
               onClick={() => setPlaying(true)}
               aria-label={`הפעלת הסרטון: ${title}`}
             >
-              <img src={poster} alt="" loading="lazy" decoding="async" />
+              <Picture src={poster} alt="" sizes={GALLERY_SIZES} />
               <span className="videoPlay" aria-hidden="true">▶</span>
             </button>
           ) : youtube ? (

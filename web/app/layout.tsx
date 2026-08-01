@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Heebo } from "next/font/google";
+import "./reset.css"; // איפוס ברירות המחדל — חייב להיות ראשון
 import "./globals.css";
 import "./detail.css";
 import "./brand.css";
@@ -18,13 +19,23 @@ import "./video.css";
 import "./theme-light.css"; // אחרון — ערכת העיצוב הבהירה
 import { BUSINESS, IS_LIVE, SITE_NAME, SITE_URL } from "./site-config";
 
-// הגופן של האתר. נטען כמשתנה CSS ומופעל ב-globals.css דרך --font-hebrew,
-// כדי שההגדרה תישאר במקום אחד ולא תדרוס את שאר העיצוב.
+/**
+ * גופן הגיבוי של האתר.
+ *
+ * סדר הגופנים ב-globals.css הוא Arial ואחריו Heebo. כלומר בכל מכשיר
+ * שיש בו Arial — אייפון, מק, ווינדוס — הטקסט נראה ב-Arial ו-Heebo לא
+ * משמש כלל. Heebo נחוץ רק במכשירים שאין בהם Arial, בעיקר אנדרואיד.
+ *
+ * לכן preload כבוי: עם preload הדפדפן היה מוריד 56KB של גופן בכל
+ * כניסה, גם כשהוא לא מציג ממנו אף אות. בלי preload הוא מוריד אותו
+ * רק אם הוא באמת צריך אותו. המראה לא משתנה באף מכשיר.
+ */
 const heebo = Heebo({
   variable: "--font-hebrew",
   subsets: ["hebrew", "latin"],
   weight: ["400", "700", "800"],
   display: "swap",
+  preload: false,
 });
 
 export const metadata: Metadata = {

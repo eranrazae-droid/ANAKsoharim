@@ -60,6 +60,18 @@ export function fallbackSrc(url: string, size: ImageSize = 600) {
 }
 
 /**
+ * גרסת WebP של תמונה שיושבת באתר עצמו.
+ *
+ * לכל תמונה בתיקיית public יש קובץ webp צמוד באותו שם — זה כלל
+ * קבוע של הפרויקט, ראה IMAGES.md. לכן מותר להפנות אליו בלי לבדוק.
+ * לתמונות מבחוץ (Firebase) מחזירים ריק, שם ההמרה נעשית בתוסף.
+ */
+export function localWebp(url: string) {
+  if (!url.startsWith("/") || !/\.(jpe?g|png)$/i.test(url)) return undefined;
+  return url.replace(/\.(jpe?g|png)$/i, ".webp");
+}
+
+/**
  * ההנחיה לדפדפן כמה רוחב התמונה תופסת בפועל.
  * בלעדיה הדפדפן מניח רוחב מסך מלא ומוריד גרסה גדולה מהנדרש.
  */

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { propulsionTechnology, type DisplayCar } from "../vehicle-types";
 import { DEMO_IMAGE } from "../site-config";
+import { Picture } from "../site-image";
 
 /**
  * השוואת רכבים.
@@ -117,7 +118,7 @@ export default function CompareClient({ cars }: { cars: DisplayCar[] }) {
                 <th />
                 {active.map((car) => (
                   <th key={car.id}>
-                    <img src={car.image || DEMO_IMAGE} alt="" loading="lazy" decoding="async" />
+                    <Picture src={car.image || DEMO_IMAGE} alt="" sizes="120px" />
                     <b>{car.make} {car.baseModel || car.model}</b>
                     <small>{car.subModel || " "}</small>
                   </th>

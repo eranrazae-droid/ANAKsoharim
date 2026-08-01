@@ -8,6 +8,8 @@ import { getMaxPaymentsByYear } from "../../finance-rules";
 import { BUSINESS, DEMO_IMAGE, SITE_NAME, SITE_URL } from "../../site-config";
 import { similarByPrice, PRICE_FLOOR_SHARE } from "../../similar-by-price";
 import VideoBlock from "../../video-block";
+import { CARD_SIZES } from "../../lib/images";
+import { Picture } from "../../site-image";
 
 export const revalidate = 600;
 
@@ -217,10 +219,10 @@ export default async function CarPage({ params }: { params: Promise<{ id: string
               {related.map((item) => (
                 <a className="matchCard" role="listitem" href={`/car/${item.id}`} key={item.id}>
                   <div className={`matchMedia ${item.image ? "" : "matchMediaDemo"}`}>
-                    <img
+                    <Picture
                       src={item.image || DEMO_IMAGE}
                       alt={item.image ? `${item.make} ${item.baseModel || item.model}` : ""}
-                      loading="lazy" decoding="async"
+                      sizes={CARD_SIZES}
                     />
                   </div>
                   <div className="matchInfo">

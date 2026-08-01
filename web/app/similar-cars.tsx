@@ -1,5 +1,7 @@
 import type { DisplayCar } from "./vehicle-api";
 import { DEMO_IMAGE } from "./site-config";
+import { CARD_SIZES } from "./lib/images";
+import { Picture } from "./site-image";
 
 /**
  * גלריית רכבים שעשויים להתאים לצופה.
@@ -90,10 +92,10 @@ export default function SimilarCars({ cars, profile }: { cars: DisplayCar[]; pro
           {picks.map((car) => (
             <a className="matchCard" role="listitem" href={`/car/${car.id}`} key={car.id}>
               <div className={`matchMedia ${car.image ? "" : "matchMediaDemo"}`}>
-                <img
+                <Picture
                   src={car.image || DEMO_IMAGE}
                   alt={car.image ? `${car.make} ${car.baseModel || car.model} שנת ${car.year}` : ""}
-                  loading="lazy" decoding="async"
+                  sizes={CARD_SIZES}
                 />
               </div>
               <div className="matchInfo">
