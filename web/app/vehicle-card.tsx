@@ -125,7 +125,7 @@ export default function VehicleCard({ car }: { car: DisplayCar }) {
           {car.monthly > 0 && !car.advance && <b className="noAdvance">ללא מקדמה</b>}
           {/* הקישור היחיד בכרטיס: לעמוד התמונות והסרטון של הרכב */}
           <a className="listAllMedia" href={`/car/${car.id}`}>
-            כל התמונות והסרטון
+            תמונות <bdi>360°</bdi> וסרטון
           </a>
         </div>
 

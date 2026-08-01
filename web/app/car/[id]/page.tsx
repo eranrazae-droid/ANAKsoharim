@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { getActiveVehicles, type DisplayCar } from "../../vehicle-api";
 import { SiteFooter, SiteHeader } from "../../site-chrome";
 import VehicleGallery from "../../vehicle-gallery";
-import { CarLeadForm } from "../../lead-forms";
+import { CarContactStrip, CarFacts } from "../../car-details";
 import { getMaxPaymentsByYear } from "../../finance-rules";
 import { BUSINESS, DEMO_IMAGE, SITE_NAME, SITE_URL } from "../../site-config";
 import { similarByPrice, PRICE_FLOOR_SHARE } from "../../similar-by-price";
@@ -170,43 +170,16 @@ export default async function CarPage({ params }: { params: Promise<{ id: string
       {/* ── הטקסט מתחת לתמונות: זה מה שגוגל קורא ── */}
       <section className="carText">
         <div className="shell">
-          <h2>{car.make} {car.model} שנת {car.year} — כל הפרטים</h2>
+          {/* אותם נתונים ואותה רצועת פנייה שבכרטיס שנפתח בטבלה */}
+          <CarFacts car={car} />
 
-          <dl className="carSpecTable">
-            <div><dt>מחיר מבוקש:</dt><dd>{price.toLocaleString("he-IL")} ₪</dd></div>
-            {car.monthly > 0 && (
-              <div><dt>החזר חודשי:</dt><dd>{car.monthly.toLocaleString("he-IL")} ₪</dd></div>
-            )}
-            {car.monthly > 0 && (
-              <div><dt>מקדמה:</dt><dd>
-                {car.advance
-                  ? `${car.advance.toLocaleString("he-IL")} ₪`
-                  : <b className="noAdvance">ללא מקדמה</b>}
-              </dd></div>
-            )}
-            <div><dt>עד:</dt><dd>{maxPayments} תשלומים</dd></div>
-            {specs(car).map(([label, value]) => (
-              <div key={label}><dt>{label}:</dt><dd>{value}</dd></div>
-            ))}
-          </dl>
-
-          {car.extras && <p className="carNote"><b>תוספות:</b> {car.extras}</p>}
           <p className="carNote">
             <b>פרטים נוספים:</b>{" "}
             {car.remarks || `הרכב קיים במלאי למסירה מיידית. אפשרות מימון עד 100% ללא מקדמה ועד ${maxPayments} תשלומים בהחזר חודשי משתלם במיוחד. אנו מבצעים טרייד אין לכל סוגי הרכבים — מחכים לך ב${SITE_NAME}, ${BUSINESS.street}, ${BUSINESS.city}.`}
           </p>
           <p className="carRef"><b>קוד פנייה:</b> {"{"}67-{car.id}-00{"}"}</p>
 
-          <div className="carLeadBox">
-            <p><b>מתעניינים ברכב?</b> השאירו פרטים ונחזור אליכם.</p>
-            <CarLeadForm vehicle={`${name} ${car.year}`} />
-          </div>
-
-          <div className="carContactBar">
-            <a href={`tel:${BUSINESS.dial}`}>{BUSINESS.phone}</a>
-            <a href={whatsapp} target="_blank" rel="noreferrer">וואטסאפ</a>
-            <span>{BUSINESS.street}, {BUSINESS.city}</span>
-          </div>
+          <CarContactStrip car={car} />
         </div>
       </section>
 
