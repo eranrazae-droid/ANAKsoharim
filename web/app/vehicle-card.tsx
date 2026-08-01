@@ -123,6 +123,10 @@ export default function VehicleCard({ car }: { car: DisplayCar }) {
           <CardGallery images={slides} alt={`${name} שנת ${car.year}`} />
           {!real.length && <span>להמחשה</span>}
           {car.monthly > 0 && !car.advance && <b className="noAdvance">ללא מקדמה</b>}
+          {/* הקישור היחיד בכרטיס: לעמוד התמונות והסרטון של הרכב */}
+          <a className="listAllMedia" href={`/car/${car.id}`}>
+            כל התמונות והסרטון
+          </a>
         </div>
 
         <div className="listBody">

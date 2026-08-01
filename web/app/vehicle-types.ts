@@ -9,7 +9,7 @@
 export type DisplayCar = {
   id: string; image?: string | null; images?: string[]; make: string; model: string; year: number; monthly: number; category: string; categories?: string[];
   price: number; mileage: string; hand: string; ownership: string; engine: string; color: string; doors: string; seats: string;
-  video?: string | null; baseModel?: string; subModel?: string; advance?: number; openRoof?: boolean; engineCapacity?: string; horsePower?: string; gear?: string; drivetrain?: string; test?: string; body?: string; extras?: string; remarks?: string;
+  video?: string | null; spin360?: string[]; baseModel?: string; subModel?: string; advance?: number; openRoof?: boolean; engineCapacity?: string; horsePower?: string; gear?: string; drivetrain?: string; test?: string; body?: string; extras?: string; remarks?: string;
 };
 
 /**

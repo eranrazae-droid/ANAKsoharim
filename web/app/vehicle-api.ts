@@ -69,6 +69,9 @@ export function normalizeVehicle(raw: Record<string, unknown>): DisplayCar {
     id: String(raw.ank_s_car_number ?? raw.MOT_CODE ?? ""), image: null,
     // סרטון אחד לכל רכב, אם המערכת מספקת. יותר מאחד לא מוצג.
     video: String(raw.ank_s_video ?? raw.video ?? "") || null,
+    // סבב 360 מעלות: רשימת פריימים מסודרת, מופרדת בפסיקים.
+    // אין פריימים — המקטע פשוט לא מוצג. ראה IMAGES.md.
+    spin360: String(raw.ank_s_360 ?? raw.spin360 ?? "").split(",").map((x) => x.trim()).filter(Boolean),
     make: String(raw.ank_id_manufacturer ?? "").trim(), model: `${baseModel} ${subModel}`.trim(),
     baseModel, subModel, advance: Number(raw.ank_m_advance_payment ?? 0), openRoof: Boolean(raw.ank_b_open_roof),
     year: Number(raw.ank_id_year_of_manufacture ?? 0), monthly: Number(raw.ank_m_monthly_payment ?? 0),

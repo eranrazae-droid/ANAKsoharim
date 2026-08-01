@@ -48,7 +48,9 @@ export default function TableCarPanel({ car }: { car: DisplayCar }) {
           <CardGallery images={slides} alt={`${name} שנת ${car.year}`} />
           {!real.length && <span className="panelDemoTag">להמחשה</span>}
         </div>
-        <p className="panelSwipeHint">גוללים בין התמונות מצד לצד</p>
+        <a className="panelAllMedia" href={`/car/${car.id}`}>
+          לצפייה בכל התמונות והסרטון
+        </a>
       </div>
 
       <div className="panelBody">
@@ -91,12 +93,14 @@ export default function TableCarPanel({ car }: { car: DisplayCar }) {
       </div>
 
       <aside className="panelContact">
-        <h4>צור קשר לגבי הרכב הזה</h4>
-        <p>נחזור אליכם עם כל הפרטים: מחיר סופי, מימון וטרייד אין.</p>
+        <div className="panelContactHead">
+          <h4>צור קשר לגבי הרכב הזה</h4>
+          <p>נחזור אליכם עם כל הפרטים: מחיר סופי, מימון וטרייד אין.</p>
+          <p className="panelCall">
+            או חייגו עכשיו <a href={`tel:${BUSINESS.dial}`}>{BUSINESS.phone}</a>
+          </p>
+        </div>
         <CarLeadForm vehicle={`${name} שנת ${car.year}`} />
-        <p className="panelCall">
-          או חייגו עכשיו <a href={`tel:${BUSINESS.dial}`}>{BUSINESS.phone}</a>
-        </p>
       </aside>
     </div>
   );

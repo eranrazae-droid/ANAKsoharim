@@ -8,6 +8,7 @@ import { getMaxPaymentsByYear } from "../../finance-rules";
 import { BUSINESS, DEMO_IMAGE, SITE_NAME, SITE_URL } from "../../site-config";
 import { similarByPrice, PRICE_FLOOR_SHARE } from "../../similar-by-price";
 import VideoBlock from "../../video-block";
+import Spin360 from "../../spin-360";
 import { CARD_SIZES } from "../../lib/images";
 import { Picture } from "../../site-image";
 
@@ -137,70 +138,77 @@ export default async function CarPage({ params }: { params: Promise<{ id: string
         </div>
       </nav>
 
-      <section className="carBoard">
-        <div className="shell carBoardGrid">
-
-          {/* ── תמונות ── */}
-          <div className="carMedia">
-            <VehicleGallery images={gallery} vehicleName={name} />
-            {isDemo && <p className="carDemoNote">תמונות להמחשה — יוחלפו בתמונות הרכב מהמערכת</p>}
-
-            {/* פרטי צור קשר בשורה אחת צרה */}
-            <div className="carContactBar">
-              <a href={`tel:${BUSINESS.dial}`}>{BUSINESS.phone}</a>
-              <a href={`tel:${BUSINESS.mobile.replace(/-/g, "")}`}>{BUSINESS.mobile}</a>
-              <a href={whatsapp} target="_blank" rel="noreferrer">וואטסאפ</a>
-              <span>{BUSINESS.street}, {BUSINESS.city}</span>
-            </div>
-          </div>
-          {/* ── טקסט ── */}
-          <div className="carFacts">
-            <div className="carFactsHead">
-              <span>למכירה!</span>
-              <h1>{car.make} {car.model} שנת {car.year}</h1>
-            </div>
-
-            <dl className="carSpecTable">
-              <div><dt>מחיר מבוקש:</dt><dd>{price.toLocaleString("he-IL")} ₪</dd></div>
-              {car.monthly > 0 && (
-                <div><dt>החזר חודשי:</dt><dd>{car.monthly.toLocaleString("he-IL")} ₪</dd></div>
-              )}
-              {car.monthly > 0 && (
-                <div><dt>מקדמה:</dt><dd>
-                  {car.advance
-                    ? `${car.advance.toLocaleString("he-IL")} ₪`
-                    : <b className="noAdvance">ללא מקדמה</b>}
-                </dd></div>
-              )}
-              <div><dt>עד:</dt><dd>{maxPayments} תשלומים</dd></div>
-              {specs(car).map(([label, value]) => (
-                <div key={label}><dt>{label}:</dt><dd>{value}</dd></div>
-              ))}
-            </dl>
-
-            {car.extras && (
-              <p className="carNote"><b>תוספות:</b> {car.extras}</p>
-            )}
-            <p className="carNote">
-              <b>פרטים נוספים:</b>{" "}
-              {car.remarks || `הרכב קיים במלאי למסירה מיידית. אפשרות מימון עד 100% ללא מקדמה ועד ${maxPayments} תשלומים בהחזר חודשי משתלם במיוחד. אנו מבצעים טרייד אין לכל סוגי הרכבים — מחכים לך ב${SITE_NAME}, ${BUSINESS.street}, ${BUSINESS.city}.`}
+      {/* ── תמונות, סבב 360 וסרטון — זה מה שהעמוד הזה נועד לו ── */}
+      <section className="carStage">
+        <div className="shell">
+          <div className="carStageHead">
+            <span className="eyebrow">למכירה!</span>
+            <h1>{car.make} {car.model} שנת {car.year}</h1>
+            <p className="carStagePrice">
+              {price > 0 ? `${price.toLocaleString("he-IL")} ש״ח` : "לפרטים חייגו"}
+              {car.monthly > 0 && <em>· {car.monthly.toLocaleString("he-IL")} ש״ח לחודש</em>}
+              {car.monthly > 0 && !car.advance && <b className="noAdvance">ללא מקדמה</b>}
             </p>
-
-            <p className="carRef"><b>קוד פנייה:</b> {"{"}67-{car.id}-00{"}"}</p>
-
-            <div className="carLeadBox">
-              <p><b>מתעניינים ברכב?</b> השאירו פרטים ונחזור אליכם.</p>
-              <CarLeadForm vehicle={`${name} ${car.year}`} />
-            </div>
           </div>
 
+          <VehicleGallery images={gallery} vehicleName={name} />
+          {isDemo && <p className="carDemoNote">תמונות להמחשה — יוחלפו בתמונות הרכב מהמערכת</p>}
+
+          {car.spin360 && car.spin360.length > 1 && (
+            <div className="carSpin">
+              <h2>סבב 360 מעלות</h2>
+              <Spin360 frames={car.spin360} alt={`${name} שנת ${car.year}`} />
+            </div>
+          )}
         </div>
       </section>
 
-      {/* ── סרטון הרכב — אחד בלבד, נטען רק בלחיצה ── */}
       {car.video && (
         <VideoBlock source={car.video} poster={gallery[0]} title={`${name} שנת ${car.year}`} />
       )}
+
+      {/* ── הטקסט מתחת לתמונות: זה מה שגוגל קורא ── */}
+      <section className="carText">
+        <div className="shell">
+          <h2>{car.make} {car.model} שנת {car.year} — כל הפרטים</h2>
+
+          <dl className="carSpecTable">
+            <div><dt>מחיר מבוקש:</dt><dd>{price.toLocaleString("he-IL")} ₪</dd></div>
+            {car.monthly > 0 && (
+              <div><dt>החזר חודשי:</dt><dd>{car.monthly.toLocaleString("he-IL")} ₪</dd></div>
+            )}
+            {car.monthly > 0 && (
+              <div><dt>מקדמה:</dt><dd>
+                {car.advance
+                  ? `${car.advance.toLocaleString("he-IL")} ₪`
+                  : <b className="noAdvance">ללא מקדמה</b>}
+              </dd></div>
+            )}
+            <div><dt>עד:</dt><dd>{maxPayments} תשלומים</dd></div>
+            {specs(car).map(([label, value]) => (
+              <div key={label}><dt>{label}:</dt><dd>{value}</dd></div>
+            ))}
+          </dl>
+
+          {car.extras && <p className="carNote"><b>תוספות:</b> {car.extras}</p>}
+          <p className="carNote">
+            <b>פרטים נוספים:</b>{" "}
+            {car.remarks || `הרכב קיים במלאי למסירה מיידית. אפשרות מימון עד 100% ללא מקדמה ועד ${maxPayments} תשלומים בהחזר חודשי משתלם במיוחד. אנו מבצעים טרייד אין לכל סוגי הרכבים — מחכים לך ב${SITE_NAME}, ${BUSINESS.street}, ${BUSINESS.city}.`}
+          </p>
+          <p className="carRef"><b>קוד פנייה:</b> {"{"}67-{car.id}-00{"}"}</p>
+
+          <div className="carLeadBox">
+            <p><b>מתעניינים ברכב?</b> השאירו פרטים ונחזור אליכם.</p>
+            <CarLeadForm vehicle={`${name} ${car.year}`} />
+          </div>
+
+          <div className="carContactBar">
+            <a href={`tel:${BUSINESS.dial}`}>{BUSINESS.phone}</a>
+            <a href={whatsapp} target="_blank" rel="noreferrer">וואטסאפ</a>
+            <span>{BUSINESS.street}, {BUSINESS.city}</span>
+          </div>
+        </div>
+      </section>
 
       {/* ── רכבים נוספים ── */}
       {related.length > 0 && (
