@@ -25,12 +25,20 @@ export default function CustomerStrip() {
         <div className="customerRow" role="list" tabIndex={0} aria-label="ביקורות לקוחות, ניתן לגלול לצדדים">
           {hasReviews
             ? reviews.map((review, index) => (
-                <article className="customerCard" role="listitem" key={`${review.author}-${index}`}>
-                  <div className="customerPhoto">
-                    {review.photo
-                      ? <Picture src={review.photo} alt={`${review.author} עם הרכב שרכש`} sizes={CARD_SIZES} />
-                      : <span>{review.author.slice(0, 1)}</span>}
-                  </div>
+                /* ביקורת בלי תמונת לקוח מקבלת כרטיס טקסט עם עיגול
+                   קטן. ריבוע אפור ריק בגודל מלא נראה כמו תקלה. */
+                <article
+                  className={`customerCard ${review.photo ? "" : "customerCardText"}`}
+                  role="listitem"
+                  key={`${review.author}-${index}`}
+                >
+                  {review.photo ? (
+                    <div className="customerPhoto">
+                      <Picture src={review.photo} alt={`${review.author} עם הרכב שרכש`} sizes={CARD_SIZES} />
+                    </div>
+                  ) : (
+                    <span className="customerAvatar" aria-hidden="true">{review.author.slice(0, 1)}</span>
+                  )}
                   <blockquote className="customerQuote">{review.body}</blockquote>
                   <p className="customerName">
                     {review.author}

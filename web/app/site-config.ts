@@ -52,6 +52,17 @@ export const BUSINESS = {
  */
 export const DEMO_IMAGE = "/placeholders/demo-car.jpg";
 
+/**
+ * הביקורות בגוגל.
+ *
+ * זו כתובת חיפוש של העסק במפות — היא עובדת תמיד ומגיעה לכרטיס
+ * העסק עם כל הביקורות. אם יש קישור ישיר לפרופיל (מתוך "שתף"
+ * בכרטיס העסק בגוגל) — כדאי להחליף אותו כאן, הוא נפתח מהר יותר.
+ */
+export const GOOGLE_REVIEWS =
+  "https://www.google.com/maps/search/?api=1&query=" +
+  encodeURIComponent("ענק הרכבים דוד רזיאל 4 ראשון לציון");
+
 /** הרשתות החברתיות. רשת עם כתובת ריקה פשוט לא מוצגת. */
 export const SOCIAL = {
   facebook: "https://www.facebook.com/AnakHarechevim",
