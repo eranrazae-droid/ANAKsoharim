@@ -4,6 +4,7 @@ import CardGallery from "./card-gallery";
 
 /**
  * כרטיס רכב ברשימה.
+ * כל פרטי הרכב מופיעים בכרטיס עצמו, ולכן הוא אינו קישור.
  * בטלפון: תמונה רחבה למעלה, ומתחתיה הטקסט — מיקום, שם הרכב,
  * שתי שורות נתונים, ואזור המחיר וההחזר החודשי.
  * מתחת להם שורת נתוני הרכב ושורת התגיות, שתיהן נגללות לצדדים.
@@ -106,7 +107,6 @@ function DataLine({ className, parts }: { className: string; parts: string[] }) 
 }
 
 export default function VehicleCard({ car }: { car: DisplayCar }) {
-  const href = `/car/${car.id}`;
   const name = [car.make, car.baseModel || car.model, car.subModel].filter(Boolean).join(" ");
   const specs = specPills(car);
   const chips = extraChips(car.extras).filter((chip) => !specs.includes(chip));
@@ -116,7 +116,7 @@ export default function VehicleCard({ car }: { car: DisplayCar }) {
 
   return (
     <article className="listCard">
-      <a className="listCardMain" href={href}>
+      <div className="listCardMain">
         <div className={`listMedia ${real.length ? "" : "listMediaDemo"}`}>
           <CardGallery images={slides} alt={`${name} שנת ${car.year}`} />
           {!real.length && <span>להמחשה</span>}
@@ -159,7 +159,7 @@ export default function VehicleCard({ car }: { car: DisplayCar }) {
             </ul>
           )}
         </div>
-      </a>
+      </div>
     </article>
   );
 }
