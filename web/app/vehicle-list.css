@@ -1,5 +1,6 @@
 /* ═══ רשימת רכבים — כרטיס בסגנון לוח ═══
-   תמונה בצד, כותרת ומפרט, תגיות אבזור ומחיר.
+   תמונה בצד, שם הרכב, נתוני בסיס, מחיר והחזר חודשי,
+   שורת נתונים נוספים ושורת תגיות.
    כל שטח הכרטיס הוא קישור אחד לעמוד הרכב. */
 
 .listGrid { display: grid; grid-template-columns: 1fr; gap: 14px; }
@@ -45,34 +46,16 @@
 
 .listTitle { margin: 0; font-size: 21px; font-weight: 700; color: var(--ink); line-height: 1.25; }
 
-.listSub {
-  margin: 5px 0 0; font-size: 14.5px; color: var(--ink2); line-height: 1.45;
-  display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden;
+/* שתי שורות הנתונים: שנת ייצור וסוג מנוע, יד וקילומטראז׳ */
+.listLines { display: flex; gap: 6px 20px; flex-wrap: wrap; margin: 6px 0 0; }
+.listLine {
+  margin: 0; font-size: 14.5px; color: var(--ink2); line-height: 1.45;
+  display: flex; align-items: center; gap: 7px; min-width: 0;
 }
+.listLine i { color: var(--line2); font-style: normal; }
 
-.listMeta {
-  margin: 8px 0 0; font-size: 14px; color: var(--ink2);
-  display: flex; flex-wrap: wrap; align-items: center; gap: 7px;
-}
-.listMeta i { color: var(--line2); font-style: normal; }
-
-/* תגיות אבזור */
-.listChips {
-  list-style: none; margin: 14px 0 0; padding: 0;
-  display: flex; flex-wrap: wrap; gap: 8px;
-}
-.listChips li {
-  font-size: 13px; color: var(--ink2);
-  background: var(--panel); border-radius: 6px;
-  padding: 6px 12px; white-space: nowrap;
-  max-width: 100%; overflow: hidden; text-overflow: ellipsis;
-}
-
-/* שורת המחיר */
-.listFoot {
-  display: flex; align-items: center; gap: 14px;
-  margin-top: 16px;
-}
+/* מחיר והחזר חודשי */
+.listMoney { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-top: 14px; }
 .listPrice {
   margin: 0; font-size: 27px; font-weight: 800;
   color: var(--ink); letter-spacing: -.02em; line-height: 1;
@@ -81,52 +64,60 @@
 .listPriceCall { font-size: 19px; color: var(--gold); }
 .listMonthly { margin: 0; font-size: 14px; font-weight: 700; color: var(--gold); }
 
+/* שתי שורות נגללות: נתוני הרכב, ואחריהם התוספות */
+.listSpecs, .listChips {
+  list-style: none; padding: 0;
+  display: flex; gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none; -ms-overflow-style: none;
+}
+.listSpecs::-webkit-scrollbar, .listChips::-webkit-scrollbar { display: none; }
+.listSpecs li, .listChips li {
+  flex: none;
+  font-size: 13px; white-space: nowrap;
+  border-radius: 6px; padding: 5px 11px;
+}
+.listSpecs { margin: 14px 0 0; }
+.listSpecs li { color: var(--ink); border: 1px solid var(--line2); }
+.listChips { margin: 8px 0 0; }
+.listChips li { color: var(--ink2); background: var(--panel); }
+
 /* ——— מובייל ———
-   התגיות יורדות לשורה אחת לכל רוחב הכרטיס, גם מתחת לתמונה,
-   והמחיר וההחזר החודשי יושבים אחד מעל השני.
-   display:contents מוציא את ילדי .listBody אל רשת הכרטיס,
-   כך שאפשר למקם כל אחד מהם בנפרד בלי לגעת בתצוגת המחשב. */
+   התמונה למעלה משמאל, ומולה שם הרכב, שתי שורות הנתונים והמחיר.
+   ההחזר החודשי, שורת הנתונים ושורת התגיות נמשכים על כל רוחב
+   הכרטיס — גם מתחת לתמונה.
+   display:contents מוציא את ילדי .listBody ו-.listMoney אל רשת
+   הכרטיס, כך שאפשר למקם כל אחד מהם בנפרד בלי לגעת בתצוגת המחשב. */
 @media (max-width: 700px) {
-  /* התמונה היא תצוגה מקדימה בלבד — את שאר התמונות רואים רק בעמוד
-     הרכב. לכן היא תופסת רק את שלוש שורות הכותרת, והמחיר והתגיות
-     נמשכים על כל רוחב הכרטיס, גם מתחת לתמונה. */
   .listCardMain {
     padding: 12px;
     grid-template-columns: minmax(0, 1fr) 116px;
     grid-template-areas:
-      "title  media"
-      "sub    media"
-      "meta   media"
-      "price  price"
-      "chips  chips";
+      "title    media"
+      "lines    media"
+      "price    media"
+      "monthly  monthly"
+      "specs    specs"
+      "chips    chips";
     column-gap: 12px;
     row-gap: 0;            /* המרווחים מגיעים מהשוליים של כל שורה */
   }
-  .listBody { display: contents; }
+  .listBody, .listMoney { display: contents; }
+
+  /* התמונה נמתחת בדיוק לגובה שלוש השורות שלצידה — בלי שטח מת */
   .listMedia {
     grid-area: media;
-    aspect-ratio: 3 / 2;   /* פרופורציה של תצלום רכב, בלי שטח מת מתחת */
+    aspect-ratio: auto;
+    align-self: stretch;
   }
-  .listTitle { grid-area: title; font-size: 17px; }
-  .listSub   { grid-area: sub; font-size: 13px; }
-  .listMeta  { grid-area: meta; }
-  .listFoot  { grid-area: price; }
-  .listChips { grid-area: chips; }
 
-  /* שורת תגיות אחת, נגללת לצדדים אם יש יותר מדי */
-  .listChips {
-    margin-top: 12px; gap: 6px;
-    flex-wrap: nowrap; overflow-x: auto;
-    scrollbar-width: none; -ms-overflow-style: none;
-  }
-  .listChips::-webkit-scrollbar { display: none; }
-  .listChips li { flex: none; font-size: 13px; padding: 5px 9px; }
+  .listTitle   { grid-area: title; font-size: 17px; }
+  .listLines   { grid-area: lines; flex-direction: column; gap: 3px; margin-top: 5px; }
+  .listLine    { font-size: 13.5px; }
+  .listPrice   { grid-area: price; font-size: 21px; margin-top: 10px; }
+  .listMonthly { grid-area: monthly; margin-top: 10px; }
+  .listSpecs   { grid-area: specs; margin-top: 10px; }
+  .listChips   { grid-area: chips; margin-top: 7px; }
 
-  /* מחיר מעל ההחזר החודשי */
-  .listFoot {
-    display: flex; flex-direction: column; align-items: flex-start;
-    gap: 3px;
-    margin-top: 12px;
-  }
-  .listPrice { font-size: 21px; }
+  .listSpecs li, .listChips li { font-size: 13px; padding: 5px 9px; }
 }
