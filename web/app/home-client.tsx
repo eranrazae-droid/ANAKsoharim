@@ -138,6 +138,12 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
       : String(aValue).localeCompare(String(bValue), "he", { numeric: true });
     return direction * comparison;
   }), [shownCars, tableSortKey, tableSortDirection]);
+  /* לחיצה על כל מקום בשורה פותחת וסוגרת את כרטיס הרכב, בדיוק
+     כמו הפלוס שליד המספר. קודם היא הובילה לעמוד הרכב, והגולש
+     היה מאבד את מקומו ברשימה. */
+  function toggleRow(id: string) {
+    setExpandedCarId(expandedCarId === id ? null : id);
+  }
   function changeTableSort(key: TableSortKey) {
     if (tableSortKey === key) setTableSortDirection((direction) => direction === "asc" ? "desc" : "asc");
     else { setTableSortKey(key); setTableSortDirection("asc"); }
@@ -235,8 +241,8 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
       <section id="inventory" className="inventory section"><div className="shell"><h1 className="inventoryTitle">כל סוגי הרכבים במקום אחד!</h1><div className="viewToggle" role="group" aria-label="בחירת תצוגת רכבים"><button type="button" className={tableView ? "active" : ""} aria-pressed={tableView} onClick={() => setTableView(true)}><TableIcon size={15} /> תצוגת טבלה</button><button type="button" className={!tableView ? "active" : ""} aria-pressed={!tableView} onClick={() => setTableView(false)}><GridIcon size={15} /> תצוגת גלריה</button></div><div className="inventoryControls"><div className="categoryTabs">{categoryOptions.map((item) => <button key={item.value} className={category === item.value ? "active" : ""} onClick={() => setCategory(item.value)}>{item.label}</button>)}</div><label className="inventorySortBlock"><span>מיון</span><select className="inventorySort" aria-label="מיון רכבים" value={sortBy} onChange={(e) => setSortBy(e.target.value)}><option value="price-asc">מחיר — מהזול ליקר</option><option value="price-desc">מחיר — מהיקר לזול</option><option value="monthly-asc">החזר חודשי — מהזול ליקר</option><option value="alphabetical">לפי שם א׳–ב׳</option></select></label></div>
       <div className={`inventoryReveal${revealAll ? " open" : ""}`}>
       {tableView ? <div className="resultsTableWrap"><table className="resultsTable"><thead><tr><th>#</th><th>{sortableHeader("יצרן", "make")}</th><th>{sortableHeader("דגם", "model")}</th><th>{sortableHeader("תת דגם", "subModel")}</th><th>{sortableHeader("שנת ייצור", "year")}</th><th>{sortableHeader("ק״מ", "mileage")}</th><th>{sortableHeader("נפח מנוע", "engineCapacity")}</th><th>{sortableHeader("סוג מנוע", "engine")}</th><th>{sortableHeader("טכנולוגיית הנעה", "propulsion")}</th><th>{sortableHeader("גג נפתח", "openRoof")}</th><th>{sortableHeader("מחיר מבוקש", "price")}</th><th>{sortableHeader("מקדמה", "advance")}</th><th>{sortableHeader("תשלום חודשי", "monthly")}</th><th>תמונה</th></tr></thead><tbody>{tableCars.map((car, index) => [
-        <tr key={`${car.id}-main`} onClick={() => { window.location.href = `/car/${car.id}`; }} tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter") window.location.href = `/car/${car.id}`; }}>
-          <td><button className="expandRowButton" type="button" aria-expanded={expandedCarId === car.id} onClick={(event) => { event.stopPropagation(); setExpandedCarId(expandedCarId === car.id ? null : car.id); }}>{index + 1}<span><PlusMinusIcon open={expandedCarId === car.id} /></span></button></td>
+        <tr key={`${car.id}-main`} aria-expanded={expandedCarId === car.id} onClick={() => toggleRow(car.id)} tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter") toggleRow(car.id); }}>
+          <td><button className="expandRowButton" type="button" aria-expanded={expandedCarId === car.id} onClick={(event) => { event.stopPropagation(); toggleRow(car.id); }}>{index + 1}<span><PlusMinusIcon open={expandedCarId === car.id} /></span></button></td>
           <td>{car.make}</td><td>{car.baseModel || car.model}</td><td>{car.subModel || "—"}</td><td>{car.year}</td><td>{Number(car.mileage || 0).toLocaleString("he-IL")}</td><td>{car.engineCapacity || "—"}</td><td>{car.engine || "—"}</td><td>{propulsionTechnology(car.engine)}</td><td>{car.openRoof ? "כן" : "לא"}</td><td className="askingPriceCell">{car.price.toLocaleString("he-IL")} ₪</td><td>{car.advance ? `${car.advance.toLocaleString("he-IL")} ₪` : <b className="noAdvance">ללא מקדמה</b>}</td><td>{car.monthly.toLocaleString("he-IL")} ₪</td><td><span className="tableCarImage">{car.image ? <Picture src={car.image} alt={`${car.make} ${car.model}`} sizes="68px" /> : <><Logo /><em>תמונות יעלו בקרוב</em></>}</span></td>
         </tr>,
         expandedCarId === car.id && <tr className="expandedVehicleRow" key={`${car.id}-details`}><td colSpan={14}><TableCarPanel car={car} /></td></tr>
