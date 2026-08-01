@@ -1,4 +1,5 @@
 import type { DisplayCar } from "./vehicle-api";
+import { DEMO_IMAGE } from "./site-config";
 
 /**
  * גלריית רכבים שעשויים להתאים לצופה.
@@ -88,10 +89,12 @@ export default function SimilarCars({ cars, profile }: { cars: DisplayCar[]; pro
         <div className="matchGrid" role="list" tabIndex={0} aria-label="רכבים דומים, ניתן לגלול לצדדים">
           {picks.map((car) => (
             <a className="matchCard" role="listitem" href={`/car/${car.id}`} key={car.id}>
-              <div className={`matchMedia ${car.image ? "" : "matchMediaEmpty"}`}>
-                {car.image
-                  ? <img src={car.image} alt={`${car.make} ${car.baseModel || car.model} שנת ${car.year}`} loading="lazy" decoding="async" />
-                  : <span>תמונה<br />בקרוב</span>}
+              <div className={`matchMedia ${car.image ? "" : "matchMediaDemo"}`}>
+                <img
+                  src={car.image || DEMO_IMAGE}
+                  alt={car.image ? `${car.make} ${car.baseModel || car.model} שנת ${car.year}` : ""}
+                  loading="lazy" decoding="async"
+                />
               </div>
               <div className="matchInfo">
                 <b>{car.make} {car.baseModel || car.model}</b>

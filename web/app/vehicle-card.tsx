@@ -1,4 +1,5 @@
 import type { DisplayCar } from "./vehicle-api";
+import { DEMO_IMAGE } from "./site-config";
 
 /**
  * כרטיס רכב ברשימה — תמונה בצד, מחיר בראש ותגיות אבזור.
@@ -47,10 +48,10 @@ export default function VehicleCard({ car }: { car: DisplayCar }) {
   return (
     <article className="listCard">
       <a className="listCardMain" href={href}>
-        <div className={`listMedia ${car.image ? "" : "listMediaEmpty"}`}>
+        <div className={`listMedia ${car.image ? "" : "listMediaDemo"}`}>
           {car.image
             ? <img src={car.image} alt={`${name} שנת ${car.year}`} loading="lazy" decoding="async" />
-            : <span>תמונה<br />בקרוב</span>}
+            : <><img src={DEMO_IMAGE} alt="" loading="lazy" decoding="async" /><span>להמחשה</span></>}
         </div>
 
         <div className="listBody">
@@ -94,10 +95,12 @@ export function PromoRail({ cars, title }: { cars: DisplayCar[]; title: string }
       <p className="railHead">{title}</p>
       {cars.map((car) => (
         <a className="railCard" href={`/car/${car.id}`} key={car.id}>
-          <div className={`railMedia ${car.image ? "" : "railNoImage"}`}>
-            {car.image
-              ? <img src={car.image} alt={`${car.make} ${car.baseModel || car.model}`} loading="lazy" decoding="async" />
-              : <span>תמונה<br />בקרוב</span>}
+          <div className="railMedia">
+            <img
+              src={car.image || DEMO_IMAGE}
+              alt={car.image ? `${car.make} ${car.baseModel || car.model}` : ""}
+              loading="lazy" decoding="async"
+            />
           </div>
           <div className="railInfo">
             <b>{car.make} {car.baseModel || car.model}</b>

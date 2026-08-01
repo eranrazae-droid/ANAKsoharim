@@ -5,7 +5,7 @@ import { SiteFooter, SiteHeader } from "../../site-chrome";
 import VehicleGallery from "../../vehicle-gallery";
 import { CarLeadForm } from "../../lead-forms";
 import { getMaxPaymentsByYear } from "../../finance-rules";
-import { BUSINESS, SITE_NAME, SITE_URL } from "../../site-config";
+import { BUSINESS, DEMO_IMAGE, SITE_NAME, SITE_URL } from "../../site-config";
 
 export const revalidate = 600;
 
@@ -14,7 +14,10 @@ export const revalidate = 600;
  * מוצגות רק כשלרכב אין תמונות מהמערכת, כדי לראות את הפריסה.
  * למחיקה: להסיר את הקבוע ואת השימוש בו למטה, ואת public/placeholders.
  */
-const PLACEHOLDERS = Array.from({ length: 10 }, (_, i) => `/placeholders/car-${i + 1}.svg`);
+const PLACEHOLDERS = [
+  DEMO_IMAGE,
+  ...Array.from({ length: 9 }, (_, i) => `/placeholders/car-${i + 2}.svg`),
+];
 
 async function findCar(id: string) {
   const cars = await getActiveVehicles().catch(() => [] as DisplayCar[]);
@@ -192,10 +195,12 @@ export default async function CarPage({ params }: { params: Promise<{ id: string
             <div className="matchGrid" role="list" tabIndex={0} aria-label="רכבים נוספים, ניתן לגלול לצדדים">
               {related.map((item) => (
                 <a className="matchCard" role="listitem" href={`/car/${item.id}`} key={item.id}>
-                  <div className={`matchMedia ${item.image ? "" : "matchMediaEmpty"}`}>
-                    {item.image
-                      ? <img src={item.image} alt={`${item.make} ${item.baseModel || item.model}`} loading="lazy" decoding="async" />
-                      : <img src="/placeholders/car-1.svg" alt="" loading="lazy" decoding="async" />}
+                  <div className={`matchMedia ${item.image ? "" : "matchMediaDemo"}`}>
+                    <img
+                      src={item.image || DEMO_IMAGE}
+                      alt={item.image ? `${item.make} ${item.baseModel || item.model}` : ""}
+                      loading="lazy" decoding="async"
+                    />
                   </div>
                   <div className="matchInfo">
                     <b>{item.make} {item.baseModel || item.model}</b>
