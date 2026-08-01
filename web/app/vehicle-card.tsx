@@ -3,14 +3,30 @@ import { DEMO_IMAGE } from "./site-config";
 
 /**
  * כרטיס רכב ברשימה.
- * מול התמונה: שם הרכב, שנת הייצור, ושורת המנוע והקילומטראז׳.
- * מתחת לתמונה, לכל רוחב הכרטיס: המחיר, ההחזר החודשי ושורת נתוני
- * הרכב שנגללת לצדדים.
+ * מול התמונה: יצרן ודגם, תת דגם ושנת ייצור, קילומטראז׳ וגיר, ושורת המנוע.
+ * מתחת לתמונה, לכל רוחב הכרטיס: מחיר והחזר חודשי באותה שורה,
+ * שורת נתוני הרכב ושורת התגיות — שתיהן נגללות לצדדים.
  * משמש גם בדף הבית וגם בעמוד המלאי, כדי שיהיה מקור אמת אחד.
  */
 
 /** תוספת שמופיעה ליד המחיר בכל הרכבים */
 const PRICE_NOTE = "גמיש לרציניים";
+
+const MAX_CHIPS = 6;
+
+/** מפרק את שדה התוספות לתגיות קצרות וקריאות. */
+export function extraChips(extras?: string, limit = MAX_CHIPS) {
+  if (!extras) return [];
+  return Array.from(
+    new Set(
+      String(extras)
+        .replace(/;/g, ",")
+        .split(",")
+        .map((item) => item.replace(/\.$/, "").trim())
+        .filter((item) => item.length > 2 && item.length <= 28),
+    ),
+  ).slice(0, limit);
+}
 
 function mileage(car: DisplayCar) {
   return Number(String(car.mileage).replace(/,/g, "") || 0).toLocaleString("he-IL");
@@ -24,31 +40,39 @@ function engineSize(value?: string) {
 }
 
 /**
- * שורת המנוע: נפח, סוג מנוע, וטכנולוגיית ההנעה רק כשהיא חשמלית,
- * פלאג־אין או היברידית. בהנעה רגילה אין מה לציין.
- * הקילומטראז׳ מופיע תמיד, בכל מקרה.
+ * שורת המנוע: נפח וסוג מנוע, ואחריהם טכנולוגיית ההנעה — אבל רק
+ * כשהיא חשמלית, פלאג־אין או היברידית. בהנעה רגילה אין מה לציין,
+ * ובמקומה נרשם כוח הסוס.
  */
 function engineLine(car: DisplayCar) {
   const technology = propulsionTechnology(car.engine);
   // ברכב חשמלי סוג המנוע והטכנולוגיה הם אותו דבר — אין טעם לרשום פעמיים
   const engine = String(car.engine || "");
   const repeats = engine.includes(technology) || technology.includes(engine);
+  const special = technology !== "הנעה רגילה" && !repeats;
   return [
     engineSize(car.engineCapacity),
     car.engine,
-    technology === "הנעה רגילה" || repeats ? "" : technology,
-    `${mileage(car)} ק״מ`,
+    special ? technology : car.horsePower && `${car.horsePower} כ״ס`,
   ]
     .map((item) => String(item ?? "").trim())
     .filter(Boolean);
+}
+
+/** האם כוח הסוס כבר מופיע בשורת המנוע */
+function showsHorsePower(car: DisplayCar) {
+  const technology = propulsionTechnology(car.engine);
+  const engine = String(car.engine || "");
+  const repeats = engine.includes(technology) || technology.includes(engine);
+  return technology === "הנעה רגילה" || repeats;
 }
 
 /** נתוני הרכב שאינם מופיעים בשורות הראשיות — שורה נגללת מתחת לתמונה. */
 function specPills(car: DisplayCar) {
   return [
     car.hand && `יד ${car.hand}`,
-    car.gear,
-    car.horsePower && `${car.horsePower} כ״ס`,
+    // כוח סוס מופיע כאן רק אם שורת המנוע הציגה במקומו את טכנולוגיית ההנעה
+    showsHorsePower(car) ? "" : car.horsePower && `${car.horsePower} כ״ס`,
     car.color,
     car.doors && `${car.doors} דלתות`,
     car.seats && `${car.seats} מקומות`,
@@ -67,6 +91,8 @@ export default function VehicleCard({ car }: { car: DisplayCar }) {
   const name = [car.make, car.baseModel || car.model, car.subModel].filter(Boolean).join(" ");
   const specs = specPills(car);
   const engine = engineLine(car);
+  const chips = extraChips(car.extras).filter((chip) => !specs.includes(chip));
+  const subtitle = [car.subModel, `שנת ייצור ${car.year}`].filter(Boolean).join(" · ");
 
   return (
     <article className="listCard">
@@ -78,10 +104,14 @@ export default function VehicleCard({ car }: { car: DisplayCar }) {
         </div>
 
         <div className="listBody">
-          <h3 className="listTitle">{name}</h3>
+          <h3 className="listTitle">{car.make} {car.baseModel || car.model}</h3>
 
           <div className="listLines">
-            <p className="listLine listYear">שנת ייצור {car.year}</p>
+            <p className="listLine listSubline">{subtitle}</p>
+            <p className="listLine listOdo">
+              <span>{mileage(car)} ק״מ</span>
+              {car.gear && <><i aria-hidden="true">·</i><span>{car.gear}</span></>}
+            </p>
             <p className="listLine listEngine">
               {engine.map((part, index) => (
                 <span key={part}>
@@ -110,6 +140,12 @@ export default function VehicleCard({ car }: { car: DisplayCar }) {
           {specs.length > 0 && (
             <ul className="listSpecs">
               {specs.map((item) => <li key={item}>{item}</li>)}
+            </ul>
+          )}
+
+          {chips.length > 0 && (
+            <ul className="listChips">
+              {chips.map((chip) => <li key={chip}>{chip}</li>)}
             </ul>
           )}
         </div>
