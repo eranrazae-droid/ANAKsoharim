@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { DisplayCar } from "./vehicle-api";
 import VehicleCard from "./vehicle-card";
 import CustomerStrip from "./customer-strip";
+import SimilarCars, { referencePrice } from "./similar-cars";
 import { Honeypot, LeadStatusMessage, useLead } from "./use-lead";
 
 type TradeVehicle = { plate: string; manufacturer: string; model: string; year: string; color: string; ownership: string; modelType: string; firstOnRoad: string; testValidity: string };
@@ -67,6 +68,11 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
     for (let value = step; value <= top; value += step) list.push(value);
     return list;
   }, [inventoryMaxPrice]);
+  const matchRef = useMemo(() => ({
+    category,
+    make,
+    price: referencePrice(cars, minPrice, maxPrice, inventoryMaxPrice),
+  }), [category, make, cars, minPrice, maxPrice, inventoryMaxPrice]);
   const heroLead = useLead("hero");
   const tradeLead = useLead("trade");
   const sellLead = useLead("sell");
@@ -183,6 +189,8 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
         expandedCarId === car.id && <tr className="expandedVehicleRow" key={`${car.id}-details`}><td colSpan={15}><div className="expandedVehicleDetails"><span><b>קטגוריה:</b> {car.categories?.join(", ") || car.category}</span><span><b>צבע:</b> {car.color || "—"}</span><span><b>בעלות:</b> {car.ownership || "—"}</span><span><b>מרכב:</b> {car.body || "—"}</span><span><b>מספר דלתות:</b> {car.doors || "—"}</span><span><b>מספר מושבים:</b> {car.seats || "—"}</span><span><b>כוח סוס:</b> {car.horsePower || "—"}</span><span><b>תוקף טסט:</b> {car.test || "—"}</span><span><b>טכנולוגיית הנעה:</b> {car.drivetrain || "—"}</span><span className="expandedExtras"><b>תוספות:</b> {car.extras || "לא צוינו תוספות"}</span><a href={`/car/${car.id}`}>לכרטיס הרכב המלא</a></div></td></tr>
       ])}</tbody></table></div> : <div className="listGrid">{shownCars.map((car) => <VehicleCard car={car} key={car.id} />)}</div>}
       {shownCars.length === 0 && <p className="empty">לא נמצאו רכבים בסינון שבחרתם.</p>}</div></section>
+
+      <SimilarCars cars={cars} profile={matchRef} />
 
       <CustomerStrip />
 
