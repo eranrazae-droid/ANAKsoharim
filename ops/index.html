@@ -1338,6 +1338,15 @@ if ('serviceWorker' in navigator) {
     <button class="btn-submit" id="pc-search-btn" onclick="lookupPartsPlate()">🔍 חפש רכב</button>
     <div id="pc-status" style="margin-top:12px;font-size:13px;font-weight:700;text-align:center;color:var(--muted)"></div>
     <div id="pc-result" style="margin-top:16px"></div>
+
+    <div style="margin-top:22px;border-top:2px solid var(--border);padding-top:18px">
+      <div class="section-title" style="margin-top:0">מדריך חיפוש בקטלוג</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:10px;line-height:1.6">כתוב את שם החלק בעברית ותקבל באיזה מדור לחפש ומה להקליד באנגלית.</div>
+      <div class="form-group" style="margin-bottom:10px">
+        <input class="form-input" id="pc-term" autocomplete="off" placeholder="לדוגמה: כיסוי וו גרירה בטמבון אחורי" oninput="pcGuideSearch()">
+      </div>
+      <div id="pc-guide"></div>
+    </div>
   </div>
 </div>
 
@@ -6567,6 +6576,8 @@ function openPartsCatalogScreen() {
   document.getElementById('pc-plate').value = '';
   document.getElementById('pc-status').textContent = '';
   document.getElementById('pc-result').innerHTML = '';
+  document.getElementById('pc-term').value = '';
+  document.getElementById('pc-guide').innerHTML = '';
   showScreen('parts-catalog');
 }
 
@@ -6806,6 +6817,131 @@ window.openPartsCatalogScreen = openPartsCatalogScreen;
 window.lookupPartsPlate = lookupPartsPlate;
 window.pcCopyVin = pcCopyVin;
 window.pcOpenCatalog = pcOpenCatalog;
+
+/* ─── catalogue search guide ───────────────────────────
+   Manufacturer catalogues are in English and name parts their own way — a
+   tow-hook cover is filed as "CAP-REAR HOOK", not "cover". This maps the Hebrew
+   name to the catalogue section and to the words worth typing there. */
+const _PC_TERMS = [
+  { he:'כיסוי וו גרירה אחורי', alt:['וו גרירה אחורי','כיסוי גרירה אחורי','פקק גרירה אחורי'],
+    en:['CAP-REAR HOOK','COVER-TOWING HOOK','CAP REAR BUMPER'], sec:'Body → Rear Bumper',
+    tip:'החלק מופיע בשרטוט הטמבון האחורי כעיגול/מכסה קטן בפינה. אצל חלק מהיצרנים הוא נקרא CAP ולא COVER — חפש את שניהם.' },
+  { he:'כיסוי וו גרירה קדמי', alt:['וו גרירה קדמי','פקק גרירה קדמי'],
+    en:['CAP-FRONT HOOK','COVER-TOW HOOK','CAP FRONT BUMPER'], sec:'Body → Front Bumper',
+    tip:'אותו היגיון כמו מאחור, בשרטוט הטמבון הקדמי.' },
+  { he:'משענת יד', alt:['משענת יד מרכזית','קונסולה משענת'],
+    en:['ARMREST','ARM REST','CONSOLE ARMREST'], sec:'Interior Trim → Armrest & Visor / Console',
+    tip:'משענת שבין המושבים נמצאת תחת Console; משענת בדלת נמצאת תחת Door Trim.' },
+  { he:'סך שמש', alt:['סוכך שמש','מגן שמש'],
+    en:['SUN VISOR','SUNVISOR'], sec:'Interior Trim → Armrest & Visor',
+    tip:'שים לב אם הדגם עם מראה ותאורה — יש מק"ט שונה לגרסה עם מראה מוארת.' },
+  { he:'כיסוי פנס ערפל', alt:['מכסה ערפל','אטם ערפל','כיסוי חור ערפל'],
+    en:['COVER-FOG LAMP','CAP-FOG LAMP HOLE','COVER FRONT BUMPER FOG'], sec:'Body → Front Bumper',
+    tip:'ברכב בלי ערפילים זה אטם עיוור — חפש BLANKING או COVER.' },
+  { he:'פנס ערפל', alt:['ערפילית'], en:['FOG LAMP','FRONT FOG LAMP'], sec:'Electrical → Lamps', tip:'' },
+  { he:'מראה חיצונית', alt:['מראת צד','מראה צד'],
+    en:['OUTSIDE MIRROR','MIRROR ASSY-OUTSIDE REAR VIEW'], sec:'Body → Mirror',
+    tip:'ודא צד — LH שמאל, RH ימין.' },
+  { he:'כיסוי מראה', alt:['מכסה מראה','קונכייה מראה'],
+    en:['COVER-OUTSIDE MIRROR','SCALP-OUTSIDE MIRROR','HOUSING MIRROR'], sec:'Body → Mirror',
+    tip:'המונח SCALP נפוץ אצל היצרנים הקוריאניים.' },
+  { he:'זכוכית מראה', alt:['ראי מראה'], en:['GLASS-OUTSIDE MIRROR','MIRROR GLASS'], sec:'Body → Mirror', tip:'' },
+  { he:'ניקל', alt:['פס כרום','פס קישוט','ניקלים','גרניש'],
+    en:['MOLDING','GARNISH','TRIM STRIP'], sec:'Body → Moulding / Garnish',
+    tip:'GARNISH הוא המונח הנפוץ לפס קישוט חיצוני; MOLDING לפס לאורך הדלת או החלון.' },
+  { he:'גריל', alt:['רשת קדמית','מסכה'], en:['RADIATOR GRILLE','FRONT GRILLE'], sec:'Body → Radiator Grille', tip:'' },
+  { he:'ידית דלת חיצונית', alt:['ידית חיצונית','ידית פתיחה חיצונית'],
+    en:['HANDLE-DOOR OUTSIDE','OUTSIDE HANDLE'], sec:'Body → Front Door / Rear Door',
+    tip:'ודא צד, ואם הידית עם חיישן כניסה חכמה — יש מק"ט נפרד.' },
+  { he:'ידית דלת פנימית', alt:['ידית פנימית'], en:['HANDLE-DOOR INSIDE','INSIDE HANDLE'], sec:'Interior Trim → Door Trim', tip:'' },
+  { he:'ציפוי דלת', alt:['בטנה דלת','ריפוד דלת','פנל דלת'], en:['TRIM-DOOR','DOOR TRIM PANEL'], sec:'Interior Trim → Door Trim', tip:'' },
+  { he:'טמבון קדמי', alt:['פגוש קדמי'], en:['BUMPER COVER FRONT','FRONT BUMPER'], sec:'Body → Front Bumper', tip:'' },
+  { he:'טמבון אחורי', alt:['פגוש אחורי'], en:['BUMPER COVER REAR','REAR BUMPER'], sec:'Body → Rear Bumper', tip:'' },
+  { he:'כיסוי מגב', alt:['מכסה זרוע מגב','פקק מגב'], en:['CAP-WIPER ARM','COVER WIPER'], sec:'Body → Windshield Wiper', tip:'' },
+  { he:'מגב', alt:['להב מגב','זרוע מגב'], en:['WIPER BLADE','WIPER ARM'], sec:'Body → Windshield Wiper', tip:'' },
+  { he:'פנס ראשי', alt:['פנס קדמי'], en:['HEAD LAMP','HEADLAMP ASSY'], sec:'Electrical → Lamps', tip:'ודא סוג תאורה — הלוגן או LED, המק"טים שונים.' },
+  { he:'פנס אחורי', alt:['פנס אחורי ראשי'], en:['REAR COMBINATION LAMP','TAIL LAMP'], sec:'Electrical → Lamps', tip:'יש גרסה בדופן וגרסה בדלת התא — שתיהן בשרטוט.' },
+  { he:'מכסה מנוע', alt:['קפוט'], en:['HOOD','BONNET'], sec:'Body → Hood', tip:'' },
+  { he:'כנף', alt:['כנף קדמית','כנף אחורית'], en:['FENDER','QUARTER PANEL'], sec:'Body → Fender', tip:'' },
+  { he:'מגן בוץ', alt:['מגן בוץ גלגל','בטנה גלגל'], en:['MUD GUARD','SPLASH SHIELD','FENDER LINER'], sec:'Body → Fender', tip:'' },
+  { he:'צלחת גלגל', alt:['כיסוי גלגל','טאסה'], en:['WHEEL CAP','WHEEL COVER','CAP-WHEEL HUB'], sec:'Wheel & Tire', tip:'' },
+  { he:'סמל', alt:['לוגו','אמבלם'], en:['EMBLEM','SYMBOL MARK'], sec:'Body → Emblem', tip:'' },
+  { he:'ריפוד תא מטען', alt:['שטיח תא מטען','בטנה תא מטען'], en:['TRIM-LUGGAGE','COVER-LUGGAGE','TRUNK TRIM'], sec:'Interior Trim → Luggage Compartment', tip:'' },
+  { he:'תפס', alt:['קליפס','מחזיק','פין'], en:['CLIP','RETAINER','FASTENER','GROMMET'], sec:'לפי המדור של החלק שהתפס מחזיק',
+    tip:'תפסים לא מופיעים במדור נפרד — מצא את החלק עצמו בשרטוט, והתפס יופיע לידו עם מספר משלו.' },
+  { he:'כיסוי בורג', alt:['פקק בורג','מכסה בורג'], en:['CAP-BOLT','COVER-SCREW','PLUG'], sec:'לפי מיקום החלק', tip:'' },
+  { he:'מסילת גג', alt:['רכיב גג','ריל גג'], en:['ROOF RACK','ROOF RAIL'], sec:'Body → Roof', tip:'' },
+  { he:'ספוילר', alt:['כנפון'], en:['SPOILER','REAR SPOILER'], sec:'Body → Roof / Rear', tip:'' },
+  { he:'חיישן חניה', alt:['סנסור חניה','חיישן רוורס'], en:['SENSOR-ULTRASONIC','PARKING ASSIST SENSOR'], sec:'Electrical → Parking Assist',
+    tip:'החיישן והטבעת שמסביבו הם שני מק"טים נפרדים.' },
+  { he:'תושבת לוחית רישוי', alt:['מסגרת לוחית','בסיס לוחית רישוי'], en:['BRACKET-LICENSE PLATE','PLATE MOUNTING'], sec:'Body → Front Bumper / Rear Bumper', tip:'' },
+  { he:'סף דלת', alt:['משקוף דלת','ספי דלתות'], en:['SIDE SILL','STEP TRIM','SCUFF PLATE'], sec:'Body → Side Sill', tip:'' },
+  { he:'ידית הילוכים', alt:['כפתור הילוכים','ראש הילוכים'], en:['KNOB-GEAR SHIFT','SHIFT KNOB'], sec:'Interior Trim → Console', tip:'' },
+  { he:'כיסוי מושב', alt:['ריפוד מושב'], en:['COVER-SEAT','SEAT COVER'], sec:'Seat', tip:'' },
+];
+
+function _pcNormHe(s) { return String(s || '').replace(/["'`׳״]/g, '').replace(/\s+/g, ' ').trim(); }
+
+function _pcMatchTerms(qRaw) {
+  const q = _pcNormHe(qRaw);
+  if (q.length < 2) return [];
+  const words = q.split(' ').filter(w => w.length >= 2);
+  const scored = [];
+  for (const t of _PC_TERMS) {
+    const names = [t.he, ...(t.alt || [])].map(_pcNormHe);
+    let score = 0;
+    for (const n of names) {
+      if (q === n) score = Math.max(score, 100);
+      else if (q.includes(n) || n.includes(q)) score = Math.max(score, 60);
+      else {
+        // Partial match. A longer overlap must outrank a short exact phrase that
+        // happens to sit inside the query — "כיסוי וו גרירה בטמבון אחורי" is the
+        // hook cover, not the bumper. Short words count only as whole words, so
+        // "יד" doesn't match "ידית".
+        const nWords = n.split(' ');
+        const hits = words.filter(w => nWords.includes(w) || (w.length >= 3 && n.includes(w))).length;
+        if (hits) score = Math.max(score, hits * 20);
+      }
+    }
+    if (score) scored.push({ t, score });
+  }
+  return scored.sort((a, b) => b.score - a.score).slice(0, 3).map(x => x.t);
+}
+
+function pcGuideSearch() {
+  const q = document.getElementById('pc-term').value;
+  const box = document.getElementById('pc-guide');
+  if (_pcNormHe(q).length < 2) { box.innerHTML = ''; return; }
+
+  const hits = _pcMatchTerms(q);
+  if (!hits.length) {
+    box.innerHTML = `<div style="border:2px solid var(--border);border-radius:14px;padding:14px;background:var(--bg);font-size:13px;line-height:1.8;color:var(--text)">
+      <div style="font-weight:800;margin-bottom:6px">לא מצאתי את החלק ברשימה</div>
+      אתר את החלק בשרטוט לפי מיקומו ברכב במקום לחפש בשם: פתח את המדור המתאים (Body לחיצוני, Interior Trim לפנימי, Electrical לחשמל), ובחר את השרטוט של האזור — טמבון, דלת, מראה. כל חלק בשרטוט ממוספר, והמק"ט מופיע לצידו.
+      <div style="margin-top:8px;color:var(--muted)">אם תגיד לי איזה חלק חיפשת, אוסיף אותו לרשימה.</div>
+    </div>`;
+    return;
+  }
+
+  box.innerHTML = hits.map((t, i) => `
+    <div style="border:2px solid ${i===0?'var(--gold)':'var(--border)'};border-radius:14px;padding:14px;background:${i===0?'#fffaf0':'var(--card)'};margin-bottom:10px">
+      <div style="font-weight:900;font-size:15px;margin-bottom:10px">${esc(t.he)}</div>
+      <div style="font-size:12px;font-weight:700;color:var(--muted)">איפה בקטלוג</div>
+      <div style="font-size:14px;font-weight:700;margin-bottom:10px">${esc(t.sec)}</div>
+      <div style="font-size:12px;font-weight:700;color:var(--muted)">מה להקליד בחיפוש</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:5px">
+        ${t.en.map(w => `<button onclick="pcCopyTerm('${esc(w)}')" style="background:var(--bg);border:2px solid var(--border);border-radius:999px;padding:5px 11px;font-family:'Heebo',sans-serif;font-size:13px;font-weight:700;cursor:pointer;direction:ltr">${esc(w)} 📋</button>`).join('')}
+      </div>
+      ${t.tip ? `<div style="margin-top:10px;font-size:12px;color:var(--muted);line-height:1.7">💡 ${esc(t.tip)}</div>` : ''}
+    </div>`).join('');
+}
+
+function pcCopyTerm(term) {
+  _pcCopyFallback(term, () => showToast('📋 "' + term + '" הועתק — הדבק בחיפוש בקטלוג', 3000));
+}
+
+window.pcGuideSearch = pcGuideSearch;
+window.pcCopyTerm = pcCopyTerm;
 
 window.openInventoryScreen = openInventoryScreen;
 window.handleInventoryFile = handleInventoryFile;
