@@ -134,7 +134,7 @@ export default async function CarPage({ params }: { params: Promise<{ id: string
 
       <nav className="nav">
         <div className="shell navLinks">
-          <a href="/">דף הבית</a><a href="/cars">רכבים משומשים</a><a href="/finance">תנאי מימון</a>
+          <a href="/">דף הבית</a><a href="/cars">מלאי עדכני</a><a href="/finance">תנאי מימון</a>
           <a href="/trade">טרייד אין</a><a href="/sell">מכירת רכב</a><a href="/reviews">לקוחות ממליצים</a><a href="/articles">מדריכים</a><a href="/contact">צור קשר</a>
         </div>
       </nav>
