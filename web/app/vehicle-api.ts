@@ -82,6 +82,14 @@ export function normalizeVehicle(raw: Record<string, unknown>): DisplayCar {
     engineCapacity: String(raw.ank_s_engine_capacity ?? ""), horsePower: String(raw.ank_s_horse_power ?? ""),
     gear: String(raw.ank_gpl_gear ?? ""), drivetrain: String(raw.ank_gpl_propulsion_system ?? ""),
     test: String(raw.ank_dt_test ?? ""), body: String(raw.ank_s_merkav ?? ""), extras: String(raw.ank_s_extras ?? ""), remarks: String(raw.ank_s_remarks ?? ""),
+    // מחיר מחירון מגיע כבר היום מהמערכת.
+    listPrice: Number(raw.ank_m_price_list ?? 0),
+    // צפי הגעה וסטטוס הרכב יגיעו מה-CRM. כל עוד השדה לא נשלח
+    // הערך ריק והשורה פשוט לא מוצגת בכרטיס — בלי שגיאה ובלי
+    // מידע שגוי. מקבלים כאן כמה שמות אפשריים כדי שהחיבור
+    // יעבוד בלי שינוי קוד. ראה README.
+    arrival: String(raw.ank_dt_arrival ?? raw.ank_dt_expected_arrival ?? raw.arrival ?? ""),
+    status: String(raw.ank_s_status ?? raw.ank_gpl_status ?? raw.status ?? ""),
   };
 }
 

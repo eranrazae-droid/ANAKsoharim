@@ -80,6 +80,9 @@ export function CarFacts({ car, inTable = false }: { car: DisplayCar; inTable?: 
         <Fact label="מרכב" value={car.body} />
         <Fact label="מספר דלתות" value={car.doors} />
         <Fact label="מספר מושבים" value={car.seats} />
+        <Fact label="מחיר מחירון" value={car.listPrice && car.listPrice > 0 ? `${car.listPrice.toLocaleString("he-IL")} ש״ח` : null} />
+        <Fact label="צפי הגעה" value={car.arrival} />
+        <Fact label="סטטוס הרכב" value={car.status} />
         {!inTable && <Fact label="גג נפתח" value={car.openRoof ? "כן" : null} />}
         <Fact label="תוקף טסט" value={car.test} />
         <Fact label="קטגוריה" value={car.categories?.join(", ") || car.category} />
