@@ -37,56 +37,69 @@ export function carName(car: DisplayCar) {
   return [car.make, car.baseModel || car.model, car.subModel].filter(Boolean).join(" ");
 }
 
+/* סדר השדות בעמוד הרכב. שינוי סדר נעשה כאן בלבד. */
+const CAR_PAGE_ORDER = [
+  "קילומטראז׳", "נפח מנוע", "סוג מנוע", "טכנולוגיית הנעה", "כוח סוס",
+  "מערכת הנעה", "תיבת הילוכים", "צבע", "מרכב", "מספר דלתות", "מספר מושבים",
+  "גג נפתח", "תוקף טסט", "קטגוריה",
+  "מחיר מבוקש", "החזר חודשי", "מקדמה", "מחיר מחירון", "מספר רישוי",
+  "סטטוס הרכב", "מיקום הרכב",
+];
+
+/* סדר השדות בכרטיס שנפתח בטבלה. חסרים כאן השדות שכבר יש להם
+   עמודה בשורה שמעליו — לחזור עליהם זה כפל שמאריך את הכרטיס
+   בלי להוסיף מידע. */
+const IN_TABLE_ORDER = [
+  "תיבת הילוכים", "כוח סוס", "מערכת הנעה", "צבע", "מרכב",
+  "מספר דלתות", "מספר מושבים", "מחיר מחירון", "מספר רישוי",
+  "תוקף טסט", "קטגוריה", "סטטוס הרכב", "מיקום הרכב",
+];
+
 /**
- * inTable — הכרטיס נפתח בתוך שורת הטבלה.
- *
- * במקרה הזה השורה שמעליו כבר מציגה מחיר, החזר חודשי, מקדמה,
- * ק״מ, נפח מנוע, סוג מנוע, טכנולוגיית הנעה וגג נפתח — לכל
- * אחד מהם יש עמודה משלו. לחזור עליהם בכרטיס זה כפל שמאריך
- * אותו בלי להוסיף מידע, ולכן הם מדולגים. בעמוד הרכב, שבו
- * אין טבלה, כולם מוצגים כרגיל.
+ * inTable — הכרטיס נפתח בתוך שורת הטבלה, ואז הסדר שונה ומדולגים
+ * בו השדות שכבר מופיעים כעמודות בשורה שמעליו.
  */
 export function CarFacts({ car, inTable = false }: { car: DisplayCar; inTable?: boolean }) {
   const propulsion = propulsionTechnology(car.engine);
   const kilometres = Number(String(car.mileage || "").replace(/\D/g, "")) || 0;
+  const shekel = (value: number) => `${value.toLocaleString("he-IL")} ש״ח`;
+
+  /* כל השדות במקום אחד. הסדר נקבע ברשימות שלמעלה, וערך ריק
+     פשוט לא מוצג. */
+  const fields: Record<string, React.ReactNode> = {
+    "מחיר מבוקש": car.price > 0 ? shekel(car.price) : "לפרטים חייגו",
+    "החזר חודשי": car.monthly > 0 ? shekel(car.monthly) : null,
+    "מקדמה": car.monthly > 0
+      ? (car.advance ? shekel(car.advance) : <b className="noAdvance">ללא מקדמה</b>)
+      : null,
+    "קילומטראז׳": kilometres ? `${kilometres.toLocaleString("he-IL")} ק״מ` : null,
+    "נפח מנוע": car.engineCapacity,
+    "סוג מנוע": car.engine,
+    "טכנולוגיית הנעה": propulsion === "הנעה רגילה" ? null : propulsion,
+    "כוח סוס": car.horsePower,
+    "מערכת הנעה": car.drivetrain,
+    "תיבת הילוכים": car.gear,
+    "צבע": car.color,
+    "מרכב": car.body,
+    "מספר דלתות": car.doors,
+    "מספר מושבים": car.seats,
+    "גג נפתח": car.openRoof ? "כן" : null,
+    "תוקף טסט": car.test,
+    "קטגוריה": car.categories?.join(", ") || car.category,
+    "מחיר מחירון": car.listPrice && car.listPrice > 0 ? shekel(car.listPrice) : null,
+    "מספר רישוי": car.plate,
+    "סטטוס הרכב": car.status,
+    "מיקום הרכב": car.location || `${BUSINESS.street}, ${BUSINESS.city}`,
+  };
 
   return (
     <>
       <h3 className="panelTitle">{carName(car)} <em>שנת {car.year}</em></h3>
 
       <dl className="panelFacts">
-        {!inTable && (
-          <>
-            <Fact label="מחיר מבוקש" value={car.price > 0 ? `${car.price.toLocaleString("he-IL")} ש״ח` : "לפרטים חייגו"} />
-            <Fact label="החזר חודשי" value={car.monthly > 0 ? `${car.monthly.toLocaleString("he-IL")} ש״ח` : null} />
-            <Fact
-              label="מקדמה"
-              value={car.monthly > 0
-                ? (car.advance
-                    ? `${car.advance.toLocaleString("he-IL")} ש״ח`
-                    : <b className="noAdvance">ללא מקדמה</b>)
-                : null}
-            />
-            <Fact label="קילומטראז׳" value={kilometres ? `${kilometres.toLocaleString("he-IL")} ק״מ` : null} />
-            <Fact label="נפח מנוע" value={car.engineCapacity} />
-            <Fact label="סוג מנוע" value={car.engine} />
-          </>
-        )}
-        <Fact label="תיבת הילוכים" value={car.gear} />
-        <Fact label="כוח סוס" value={car.horsePower} />
-        {!inTable && <Fact label="טכנולוגיית הנעה" value={propulsion === "הנעה רגילה" ? null : propulsion} />}
-        <Fact label="מערכת הנעה" value={car.drivetrain} />
-        <Fact label="צבע" value={car.color} />
-        <Fact label="מרכב" value={car.body} />
-        <Fact label="מספר דלתות" value={car.doors} />
-        <Fact label="מספר מושבים" value={car.seats} />
-        <Fact label="מחיר מחירון" value={car.listPrice && car.listPrice > 0 ? `${car.listPrice.toLocaleString("he-IL")} ש״ח` : null} />
-        <Fact label="מספר רישוי" value={car.plate} />
-        <Fact label="סטטוס הרכב" value={car.status} />
-        {!inTable && <Fact label="גג נפתח" value={car.openRoof ? "כן" : null} />}
-        <Fact label="תוקף טסט" value={car.test} />
-        <Fact label="קטגוריה" value={car.categories?.join(", ") || car.category} />
-        <Fact label="מיקום הרכב" value={car.location || `${BUSINESS.street}, ${BUSINESS.city}`} />
+        {(inTable ? IN_TABLE_ORDER : CAR_PAGE_ORDER).map((label) => (
+          <Fact key={label} label={label} value={fields[label]} />
+        ))}
       </dl>
 
       {car.extras && <p className="panelExtras"><b>תוספות:</b> {car.extras}</p>}
