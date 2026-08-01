@@ -1323,6 +1323,24 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
+<!-- ====== SCREEN: PARTS CATALOG (MANAGER) ====== -->
+<div id="screen-parts-catalog" class="screen">
+  <div class="app-header">
+    <button class="back-btn" onclick="goHome()">→</button>
+    <div class="logo">🔧 קטלוג חלפים</div>
+    <div class="user-badge" id="pc-user-badge" onclick="logout()"></div>
+  </div>
+  <div style="padding:16px 16px 100px">
+    <div class="form-group">
+      <label>מספר רישוי</label>
+      <input class="form-input" id="pc-plate" inputmode="numeric" autocomplete="off" placeholder="לדוגמה 12345678" onkeydown="if(event.key==='Enter')lookupPartsPlate()">
+    </div>
+    <button class="btn-submit" id="pc-search-btn" onclick="lookupPartsPlate()">🔍 חפש רכב</button>
+    <div id="pc-status" style="margin-top:12px;font-size:13px;font-weight:700;text-align:center;color:var(--muted)"></div>
+    <div id="pc-result" style="margin-top:16px"></div>
+  </div>
+</div>
+
 <!-- ====== SCREEN: BATTERY CHECK (MANAGER) ====== -->
 <!-- ====== SCREEN: CHARGING CHECK (MANAGER) ====== -->
 <div id="screen-battery" class="screen">
@@ -2161,6 +2179,7 @@ function renderHome() {
         { icon: '🅿️', title: 'סידור מגרש', sub: 'טבלת חניות', screen: 'yard' },
         { icon: '🚙', title: 'מכוניות לאיסוף', sub: 'ניהול רכבים לאיסוף', screen: 'pickup' },
         { icon: '⚠️', title: 'בדיקת ריקול', sub: 'קריאות תיקון לרכבי המלאי', screen: 'recall' },
+        { icon: '🔧', title: 'קטלוג חלפים', sub: 'חיפוש מק"ט לפי רכב', screen: 'parts-catalog' },
       ]
     : [
         { icon: '📋', title: 'המשימות שלי', sub: 'משימות שהוקצו לך', screen: 'tasks' },
@@ -2567,6 +2586,7 @@ function goToScreen(name) {
   else if (name === 'pickup') { if (currentUser.role === 'pickup_driver') openMyPickupScreen(); else openPickupScreen(); }
   else if (name === 'test-drive') openTestDriveScreen();
   else if (name === 'recall') openRecallScreen();
+  else if (name === 'parts-catalog') { if (currentUser.role !== 'manager') return; openPartsCatalogScreen(); }
   else if (name === 'driver-battery-unified') {
     const card = document.getElementById('menu-card-driver-battery');
     if (card && card.dataset.unifiedMode === 'charging') openDriverChargingScreen();
@@ -6530,6 +6550,167 @@ function renderRecallTable() {
 }
 window.openRecallScreen = openRecallScreen;
 window._recallCheckAll = _recallCheckAll;
+
+/* ─── PARTS CATALOG (manager) ──────────────────────────
+   Stage 1: plate → vehicle details + VIN (misgeret) from the transport-ministry
+   registry, cached per plate so a repeat lookup is instant. The VIN is what the
+   user needs today in order to search importer/parts sites by hand.
+   Stage 2 (parts supplier lookup) plugs into this same screen. */
+const _PC_REGISTRY = '053cea08-09bc-40ec-8f7a-156f0677aff3';
+let _pcCurrent = null; // last looked-up vehicle
+
+function openPartsCatalogScreen() {
+  document.getElementById('pc-user-badge').textContent = currentUser.name;
+  // opening the screen must never show the previous vehicle's details
+  _pcCurrent = null;
+  document.getElementById('pc-plate').value = '';
+  document.getElementById('pc-status').textContent = '';
+  document.getElementById('pc-result').innerHTML = '';
+  showScreen('parts-catalog');
+}
+
+// the registry stores plates as digits only
+function _pcNormalizePlate(raw) { return String(raw || '').replace(/\D/g, ''); }
+
+// cached vehicles almost never change — read the cache before going out to gov.il
+async function _pcReadCache(plate) {
+  if (!window._docRef) return null;
+  try {
+    const { getDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const snap = await getDoc(_docRef('parts_catalog_vehicles', plate));
+    return snap.exists() ? snap.data() : null;
+  } catch (e) { console.warn('parts cache read failed', e); return null; }
+}
+
+async function _pcWriteCache(plate, data) {
+  if (!window._docRef) return;
+  try {
+    const { setDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    await setDoc(_docRef('parts_catalog_vehicles', plate), data, { merge: true });
+  } catch (e) { console.warn('parts cache write failed', e); }
+}
+
+async function lookupPartsPlate() {
+  const plate = _pcNormalizePlate(document.getElementById('pc-plate').value);
+  const st = document.getElementById('pc-status');
+  const out = document.getElementById('pc-result');
+  const btn = document.getElementById('pc-search-btn');
+  if (!plate) { st.style.color = '#dc2626'; st.textContent = 'נא להזין מספר רישוי'; return; }
+
+  _pcCurrent = null;
+  out.innerHTML = '';
+  st.style.color = 'var(--muted)';
+  st.textContent = '⏳ מחפש...';
+  btn.disabled = true;
+
+  try {
+    const cached = await _pcReadCache(plate);
+    if (cached && cached.misgeret) {
+      _pcCurrent = cached;
+      st.textContent = '';
+      _pcRenderVehicle(cached, true);
+      return;
+    }
+
+    const filters = encodeURIComponent(JSON.stringify({ mispar_rechev: Number(plate) }));
+    const res = await fetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=${_PC_REGISTRY}&filters=${filters}&limit=1`);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const json = await res.json();
+    let rec = json?.result?.records?.[0];
+
+    // exact-filter search misses some records — fall back to free-text, then verify
+    if (!rec) {
+      const res2 = await fetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=${_PC_REGISTRY}&q=${plate}&limit=5`);
+      const json2 = await res2.json();
+      rec = json2?.result?.records?.find(r => _pcNormalizePlate(r['mispar_rechev']) === plate) || null;
+    }
+
+    if (!rec) {
+      st.style.color = '#dc2626';
+      st.textContent = '❌ הרכב לא נמצא במאגר משרד התחבורה';
+      return;
+    }
+
+    const veh = {
+      plate,
+      misgeret:  rec['misgeret'] || '',
+      tozeret:   _cleanMaker(rec['tozeret_nm'] || ''),
+      degem:     rec['kinuy_mishari'] || rec['degem_nm'] || '',
+      shnat:     rec['shnat_yitzur'] || '',
+      degemManoa: rec['degem_manoa'] || '',
+      tzeva:     rec['tzeva_rechev'] || '',
+      fetchedAt: new Date().toISOString()
+    };
+
+    _pcCurrent = veh;
+    st.textContent = '';
+    _pcRenderVehicle(veh, false);
+    if (veh.misgeret) _pcWriteCache(plate, veh);
+
+  } catch (e) {
+    console.error('parts plate lookup failed', e);
+    st.style.color = '#dc2626';
+    st.textContent = '❌ שגיאה בחיפוש — בדוק חיבור לאינטרנט ונסה שוב';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function _pcRenderVehicle(v, fromCache) {
+  const out = document.getElementById('pc-result');
+  const row = (label, val) => val
+    ? `<div style="display:flex;gap:8px;font-size:14px;padding:4px 0"><div style="font-weight:700;color:var(--muted);min-width:90px">${esc(label)}</div><div>${esc(String(val))}</div></div>`
+    : '';
+  out.innerHTML = `
+    <div style="border:2px solid var(--border);border-radius:16px;padding:16px;background:var(--card)">
+      <div style="font-weight:900;font-size:17px;margin-bottom:10px">🚗 ${esc(v.plate)}</div>
+      ${row('יצרן', v.tozeret)}
+      ${row('דגם', v.degem)}
+      ${row('שנה', v.shnat)}
+      ${row('צבע', v.tzeva)}
+      ${row('דגם מנוע', v.degemManoa)}
+      <div style="margin-top:14px;border-top:2px solid var(--border);padding-top:12px">
+        <div style="font-size:13px;font-weight:700;color:var(--muted);margin-bottom:6px">מספר שילדה</div>
+        ${v.misgeret
+          ? `<div style="display:flex;gap:8px;align-items:center">
+               <div style="flex:1;font-family:monospace;font-size:17px;font-weight:700;letter-spacing:.04em;word-break:break-all">${esc(v.misgeret)}</div>
+               <button onclick="pcCopyVin()" style="background:var(--gold);color:#000;border:none;border-radius:10px;padding:9px 14px;font-family:'Heebo',sans-serif;font-weight:700;font-size:13px;cursor:pointer;flex-shrink:0">📋 העתק</button>
+             </div>`
+          : `<div style="color:#dc2626;font-size:14px;font-weight:700">לא קיים מספר שילדה לרכב זה במאגר</div>`}
+      </div>
+      ${fromCache ? `<div style="margin-top:10px;font-size:12px;color:var(--muted)">⚡ נטען מהזיכרון</div>` : ''}
+    </div>`;
+}
+
+function pcCopyVin() {
+  const vin = _pcCurrent && _pcCurrent.misgeret;
+  if (!vin) return;
+  const done = () => showToast('✅ מספר השילדה הועתק');
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(vin).then(done).catch(() => _pcCopyFallback(vin, done));
+  } else {
+    _pcCopyFallback(vin, done);
+  }
+}
+
+// older in-app browsers have no clipboard API
+function _pcCopyFallback(text, done) {
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    done();
+  } catch (e) { showToast('לא ניתן להעתיק — סמן ידנית'); }
+}
+
+window.openPartsCatalogScreen = openPartsCatalogScreen;
+window.lookupPartsPlate = lookupPartsPlate;
+window.pcCopyVin = pcCopyVin;
 
 window.openInventoryScreen = openInventoryScreen;
 window.handleInventoryFile = handleInventoryFile;
