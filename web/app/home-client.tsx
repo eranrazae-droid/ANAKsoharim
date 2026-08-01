@@ -150,7 +150,6 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
             <span>סינון מורחב</span>
             <i aria-hidden="true">{advancedOpen ? "−" : "+"}</i>
           </button>
-          <strong className="finderNote">מימון עד 100% · עד 100 תשלומים · טרייד אין על כל סוגי הרכבים</strong>
 
           {advancedOpen && (
             <div className="finderAdvanced">
@@ -168,7 +167,6 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
           )}
 
         </div>
-        <form className="quickLead" onSubmit={heroLead.submit}><strong>לייעוץ מקצועי מלאו פרטים</strong><Honeypot /><input required name="name" placeholder="שם.." aria-label="שם" /><input required name="phone" inputMode="tel" placeholder="טלפון.." aria-label="טלפון" /><input name="notes" placeholder="הערות.." aria-label="הערות" /><button disabled={heroLead.status === "sending"}>{heroLead.status === "sending" ? "שולח..." : "שלח"}</button><LeadStatusMessage status={heroLead.status} error={heroLead.error} /></form>
       </div></section>
 
       <section id="inventory" className="inventory section"><div className="shell"><div className="inventoryControls"><div className="viewToggle" role="group" aria-label="בחירת תצוגת רכבים">
@@ -183,6 +181,10 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
         expandedCarId === car.id && <tr className="expandedVehicleRow" key={`${car.id}-details`}><td colSpan={15}><div className="expandedVehicleDetails"><span><b>קטגוריה:</b> {car.categories?.join(", ") || car.category}</span><span><b>צבע:</b> {car.color || "—"}</span><span><b>בעלות:</b> {car.ownership || "—"}</span><span><b>מרכב:</b> {car.body || "—"}</span><span><b>מספר דלתות:</b> {car.doors || "—"}</span><span><b>מספר מושבים:</b> {car.seats || "—"}</span><span><b>כוח סוס:</b> {car.horsePower || "—"}</span><span><b>תוקף טסט:</b> {car.test || "—"}</span><span><b>טכנולוגיית הנעה:</b> {car.drivetrain || "—"}</span><span className="expandedExtras"><b>תוספות:</b> {car.extras || "לא צוינו תוספות"}</span><a href={`/car/${car.id}`}>לכרטיס הרכב המלא</a></div></td></tr>
       ])}</tbody></table></div> : <div className="listGrid">{shownCars.map((car) => <VehicleCard car={car} key={car.id} />)}</div>}
       {shownCars.length === 0 && <p className="empty">לא נמצאו רכבים בסינון שבחרתם.</p>}</div></section>
+
+      <section className="consultSection"><div className="shell">
+        <form className="quickLead" onSubmit={heroLead.submit}><strong>לייעוץ מקצועי מלאו פרטים</strong><Honeypot /><input required name="name" placeholder="שם.." aria-label="שם" /><input required name="phone" inputMode="tel" placeholder="טלפון.." aria-label="טלפון" /><input name="notes" placeholder="הערות.." aria-label="הערות" /><button disabled={heroLead.status === "sending"}>{heroLead.status === "sending" ? "שולח..." : "שלח"}</button><LeadStatusMessage status={heroLead.status} error={heroLead.error} /></form>
+      </div></section>
 
       <section id="trade" className="tradeSection section"><div className="shell tradeLayout"><div className="tradeIntro"><span className="eyebrow">טרייד אין בענק הרכבים</span><h2>קבלו הצעה לרכב שלכם</h2><p>הזינו מספר רכב ונמלא אוטומטית את פרטי הרכב ממאגר משרד התחבורה. לאחר מכן השאירו פרטים ונציג יחזור אליכם עם הצעת טרייד אין.</p><ul><li>בדיקת פרטי הרכב ללא התחייבות</li><li>הצעה מהירה ושקופה</li><li>אפשרות להתקדם לרכב חדש מהמלאי</li></ul></div><div className="tradeCard"><div className="plateLookup"><label>מספר רכב<input value={tradePlate} onChange={(e) => { setTradePlate(e.target.value.replace(/\D/g, "").slice(0, 8)); setTradeVehicle(null); }} inputMode="numeric" placeholder="לדוגמה: 12345678" /></label><button type="button" onClick={lookupTradeVehicle} disabled={tradeLookup === "loading"}>{tradeLookup === "loading" ? "בודק..." : "הצג פרטי רכב"}</button></div>{tradeError && <p className="tradeError">{tradeError}</p>}{tradeVehicle && <div className="tradeVehicleDetails"><strong>{tradeVehicle.manufacturer} {tradeVehicle.model}</strong><div><span>מספר רכב: {tradeVehicle.plate}</span><span>שנת ייצור: {tradeVehicle.year || "לא צוין"}</span><span>צבע: {tradeVehicle.color || "לא צוין"}</span><span>בעלות: {tradeVehicle.ownership || "לא צוין"}</span><span>סוג דגם: {tradeVehicle.modelType || "לא צוין"}</span><span>עלייה לכביש: {tradeVehicle.firstOnRoad || "לא צוין"}</span></div></div>}<form className="tradeLeadForm" onSubmit={(event) => tradeLead.submit(event, { plate: tradePlate, vehicle: tradeVehicle ? `${tradeVehicle.manufacturer} ${tradeVehicle.model} ${tradeVehicle.year}` : "" })}><Honeypot /><input required name="name" aria-label="שם מלא" placeholder="שם מלא" /><input required name="phone" aria-label="טלפון" inputMode="tel" placeholder="טלפון" /><input name="mileage" aria-label="קילומטראז׳" inputMode="numeric" placeholder="קילומטראז׳" /><textarea name="notes" aria-label="הערות" placeholder="הערות נוספות" /><button type="submit" disabled={tradeLead.status === "sending"}>{tradeLead.status === "sending" ? "שולח..." : "שלחו לקבלת הצעת טרייד אין"}</button><LeadStatusMessage status={tradeLead.status} error={tradeLead.error} /></form><small className="govNotice">פרטי הרכב נמשכים ממאגר כלי הרכב הפתוח של משרד התחבורה ב־data.gov.il.</small></div></div></section>
 
