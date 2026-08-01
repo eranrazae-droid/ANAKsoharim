@@ -32,10 +32,10 @@ export function carName(car: DisplayCar) {
  * inTable — הכרטיס נפתח בתוך שורת הטבלה.
  *
  * במקרה הזה השורה שמעליו כבר מציגה מחיר, החזר חודשי, מקדמה,
- * ק״מ, תיבת הילוכים, סוג מנוע, נפח מנוע וגג נפתח — לכל אחד
- * מהם יש עמודה משלו. לחזור עליהם בכרטיס זה כפל שמאריך אותו
- * בלי להוסיף מידע, ולכן הם מדולגים. בעמוד הרכב, שבו אין
- * טבלה, כולם מוצגים כרגיל.
+ * ק״מ, נפח מנוע, סוג מנוע, טכנולוגיית הנעה וגג נפתח — לכל
+ * אחד מהם יש עמודה משלו. לחזור עליהם בכרטיס זה כפל שמאריך
+ * אותו בלי להוסיף מידע, ולכן הם מדולגים. בעמוד הרכב, שבו
+ * אין טבלה, כולם מוצגים כרגיל.
  */
 export function CarFacts({ car, inTable = false }: { car: DisplayCar; inTable?: boolean }) {
   const propulsion = propulsionTechnology(car.engine);
@@ -59,13 +59,13 @@ export function CarFacts({ car, inTable = false }: { car: DisplayCar; inTable?: 
                 : null}
             />
             <Fact label="קילומטראז׳" value={kilometres ? `${kilometres.toLocaleString("he-IL")} ק״מ` : null} />
-            <Fact label="תיבת הילוכים" value={car.gear} />
-            <Fact label="סוג מנוע" value={car.engine} />
             <Fact label="נפח מנוע" value={car.engineCapacity} />
+            <Fact label="סוג מנוע" value={car.engine} />
           </>
         )}
+        <Fact label="תיבת הילוכים" value={car.gear} />
         <Fact label="כוח סוס" value={car.horsePower} />
-        <Fact label="טכנולוגיית הנעה" value={propulsion === "הנעה רגילה" ? null : propulsion} />
+        {!inTable && <Fact label="טכנולוגיית הנעה" value={propulsion === "הנעה רגילה" ? null : propulsion} />}
         <Fact label="מערכת הנעה" value={car.drivetrain} />
         <Fact label="צבע" value={car.color} />
         <Fact label="מרכב" value={car.body} />
