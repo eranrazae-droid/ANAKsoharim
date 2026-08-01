@@ -124,14 +124,17 @@ export default function VehicleCard({ car }: { car: DisplayCar }) {
           <CardGallery images={slides} alt={`${name} שנת ${car.year}`} />
           {!real.length && <span>להמחשה</span>}
           {car.monthly > 0 && !car.advance && <b className="noAdvance">ללא מקדמה</b>}
-          {/* הקישור היחיד בכרטיס: לעמוד התמונות והסרטון של הרכב */}
-          <a className="listAllMedia" href={`/car/${car.id}`}>
-            תמונות <bdi>360°</bdi> וסרטון
-          </a>
         </div>
 
         <div className="listBody">
-          <p className="listPlace"><PinIcon size={12} />{BUSINESS.city}</p>
+          {/* שורה אחת מתחת לתצלום: המיקום מימין, והקישור לעמוד
+              התמונות והסרטון משמאל. זה הקישור היחיד בכרטיס. */}
+          <div className="listTop">
+            <p className="listPlace"><PinIcon size={12} />{BUSINESS.city}</p>
+            <a className="listAllMedia" href={`/car/${car.id}`}>
+              תמונות <bdi>360°</bdi> וסרטון
+            </a>
+          </div>
           <h3 className={`listTitle${name.length > TITLE_CHARS ? " listTitleLong" : ""}`}>{name}</h3>
 
           <DataLine className="listOdo" parts={basics} />
