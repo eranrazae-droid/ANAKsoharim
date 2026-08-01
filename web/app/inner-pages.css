@@ -145,13 +145,24 @@
 .revGoogle:hover { background: var(--gold-lite); }
 
 /* ——— כרטיסי הביקורות ——— */
-/* auto-fit עם רוחב מרבי: ביקורת אחת יושבת במרכז ולא נמתחת על
-   כל העמוד, ושתיים ומעלה מסתדרות זו לצד זו. */
+/* רצועה נגללת לצדדים במקום רשימה אנכית: אפשר להעלות עשרות
+   ביקורות בלי שהעמוד יימשך בלי סוף.
+   safe center: ממורכז כשיש מעט ביקורות, ונצמד להתחלה ברגע
+   שהרצועה מתמלאת — כך אף כרטיס לא נחתך מחוץ לגלילה. */
 .revGrid {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 470px));
-  gap: 14px; justify-content: center;
+  display: flex; gap: 14px;
+  justify-content: safe center;
+  overflow-x: auto; overflow-y: hidden;
+  padding-bottom: 10px;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin; scrollbar-color: var(--line2) transparent;
 }
+.revGrid::-webkit-scrollbar { height: 8px; }
+.revGrid::-webkit-scrollbar-track { background: var(--panel); border-radius: 99px; }
+.revGrid::-webkit-scrollbar-thumb { background: var(--line2); border-radius: 99px; }
+.revGrid:focus-visible { outline: 2px solid var(--gold); outline-offset: 4px; border-radius: 8px; }
 .revCard {
+  flex: 0 0 370px; scroll-snap-align: start;
   padding: 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--card);
 }
 /* מבנה הכרטיס כמו בכרטיס ביקורת של גוגל: עיגול עם האות
@@ -207,7 +218,10 @@
 @media (max-width: 760px) {
   .revFacts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .revFacts b { font-size: 25px; }
-  .revGrid, .revPromise ul { grid-template-columns: minmax(0, 1fr); }
+  .revPromise ul { grid-template-columns: minmax(0, 1fr); }
+  /* בטלפון הכרטיס תופס כמעט את כל הרוחב, והבא אחריו מציץ
+     מהצד כדי שיהיה ברור שאפשר לגלול. */
+  .revCard { flex-basis: 84%; }
   .revEmpty, .revAsk { padding: 20px 18px; }
   .revGoogle { width: 100%; justify-content: center; }
 }

@@ -88,9 +88,11 @@ export default async function ReviewsPage() {
           {/* ——— הביקורות ——— */}
           {reviews.length > 0 ? (
             <>
-            <div className="revGrid">
+            {/* רצועה נגללת לצדדים — כך אפשר להעלות עשרות ביקורות
+                בלי שהעמוד יימשך בלי סוף. */}
+            <div className="revGrid" role="list" tabIndex={0} aria-label="ביקורות לקוחות, ניתן לגלול לצדדים">
               {reviews.map((item, index) => (
-                <article className="revCard" key={`${item.author}-${index}`}>
+                <article className="revCard" role="listitem" key={`${item.author}-${index}`}>
                   <header>
                     <span className="revAvatar" aria-hidden="true">{item.author.slice(0, 1)}</span>
                     <div>
