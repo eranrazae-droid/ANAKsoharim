@@ -3,31 +3,82 @@
 import { useState } from "react";
 import { GALLERY_SIZES, THUMB_SIZES } from "./lib/images";
 import { Logo, Picture } from "./site-image";
+import { PlayIcon } from "./icons";
 
 /**
  * גלריית הרכב.
  *
- * בפתיחת הדף נטענת רק התמונה הראשונה. השאר נטענות בלחיצה בלבד.
- * כשמסתכלים על תמונה מסוימת, רק הבאה בתור מוכנה ברקע — כדי
- * שהמעבר אליה יהיה מיידי בלי להוריד את כל הגלריה.
+ * הפריסה במחשב היא בצורת האות ר הפוכה: עמודת תמונות יורדת לצד
+ * התמונה הגדולה, ומתחת לשתיהן שורה לרוחב כל המסך. בשורה
+ * התחתונה שמורים גם שני מקומות קבועים — סבב 360 מעלות וסרטון.
+ * בטלפון הכל נערם: התמונה למעלה ושורה נגללת מתחתיה.
  *
- * הממוזערות משתמשות בגרסת 240 בלבד, שמשקלה כמה קילובייטים.
+ * הממוזערות נטענות בגרסת 240 בלבד — כמה קילובייטים כל אחת —
+ * ולכן הן מוצגות מיד. קודם הן היו ריבועים אפורים עם מספר עד
+ * שלוחצים, וזה נראה כאילו הגלריה לא נטענה.
+ *
+ * התמונה הגדולה מתחלפת בלחיצה, בגודל המלא.
  */
 
-export default function VehicleGallery({ images, vehicleName }: { images: string[]; vehicleName: string }) {
-  const [selected, setSelected] = useState(0);
-  // התמונה שנבחרה, והבאה אחריה בלבד. לא יותר.
-  const [loaded, setLoaded] = useState<Set<number>>(() => new Set([0]));
+/** כמה תמונות יורדות בעמודה שלצד התמונה הגדולה */
+const SIDE = 4;
 
-  function show(index: number) {
-    setSelected(index);
-    setLoaded((current) => new Set([...current, index, (index + 1) % images.length]));
-  }
+export default function VehicleGallery({
+  images,
+  vehicleName,
+  hasSpin = false,
+  hasVideo = false,
+}: {
+  images: string[];
+  vehicleName: string;
+  hasSpin?: boolean;
+  hasVideo?: boolean;
+}) {
+  const [selected, setSelected] = useState(0);
 
   const main = images[selected] ?? images[0] ?? null;
 
+  function Thumb({ index }: { index: number }) {
+    return (
+      <button
+        type="button"
+        className={index === selected ? "active" : ""}
+        aria-label={`תמונה ${index + 1}`}
+        aria-pressed={index === selected}
+        onClick={() => setSelected(index)}
+      >
+        <Picture src={images[index]} alt="" sizes={THUMB_SIZES} />
+      </button>
+    );
+  }
+
+  /* ארבע הראשונות יורדות בעמודה שלצד התמונה הגדולה, וכל השאר
+     עוברות לשורה שמתחת. */
+  const side = images.map((_, index) => index).slice(0, SIDE);
+  const row = images.map((_, index) => index).slice(SIDE);
+
+  /** מקום שמור לסבב או לסרטון. אין תוכן — מוצג כמקום שמחכה. */
+  function Extra({ label, ready, href }: { label: string; ready: boolean; href: string }) {
+    const inner = (
+      <>
+        <PlayIcon size={18} />
+        <b>{label}</b>
+        {!ready && <small>בקרוב</small>}
+      </>
+    );
+    return ready
+      ? <a className="carGalleryExtra" href={href}>{inner}</a>
+      : <span className="carGalleryExtra carGalleryExtraSoon">{inner}</span>;
+  }
+
   return (
     <div className="carGallery">
+      {images.length > 1 && (
+        <div className="carGalleryStrip" role="group" aria-label="תמונות נוספות של הרכב">
+          {side.map((index) => <Thumb index={index} key={index} />)}
+        </div>
+      )}
+
       <figure className={`carGalleryMain ${main ? "" : "carGalleryEmpty"}`}>
         {main ? (
           <Picture
@@ -46,26 +97,11 @@ export default function VehicleGallery({ images, vehicleName }: { images: string
         <span className="carGalleryBadge">במלאי</span>
       </figure>
 
-      {images.length > 1 && (
-        <div className="carGalleryThumbs" role="group" aria-label="תמונות נוספות של הרכב">
-          {images.map((src, index) => (
-            <button
-              type="button"
-              key={src}
-              className={index === selected ? "active" : ""}
-              aria-label={`תמונה ${index + 1}`}
-              aria-pressed={index === selected}
-              onClick={() => show(index)}
-            >
-              {loaded.has(index) ? (
-                <Picture src={src} alt="" sizes={THUMB_SIZES} />
-              ) : (
-                <span className="carThumbHold" aria-hidden="true">{index + 1}</span>
-              )}
-            </button>
-          ))}
-        </div>
-      )}
+      <div className="carGalleryRow">
+        {row.map((index) => <Thumb index={index} key={index} />)}
+        <Extra label="360°" ready={hasSpin} href="#carSpin" />
+        <Extra label="סרטון" ready={hasVideo} href="#carVideo" />
+      </div>
     </div>
   );
 }

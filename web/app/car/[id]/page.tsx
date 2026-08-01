@@ -153,11 +153,16 @@ export default async function CarPage({ params }: { params: Promise<{ id: string
             </p>
           </div>
 
-          <VehicleGallery images={gallery} vehicleName={name} />
+          <VehicleGallery
+            images={gallery}
+            vehicleName={name}
+            hasSpin={Boolean(car.spin360 && car.spin360.length > 1)}
+            hasVideo={Boolean(car.video)}
+          />
           {isDemo && <p className="carDemoNote">תמונות להמחשה — יוחלפו בתמונות הרכב מהמערכת</p>}
 
           {car.spin360 && car.spin360.length > 1 && (
-            <div className="carSpin">
+            <div className="carSpin" id="carSpin">
               <h2>סבב 360 מעלות</h2>
               <Spin360 frames={car.spin360} alt={`${name} שנת ${car.year}`} />
             </div>
@@ -166,7 +171,9 @@ export default async function CarPage({ params }: { params: Promise<{ id: string
       </section>
 
       {car.video && (
-        <VideoBlock source={car.video} poster={gallery[0]} title={`${name} שנת ${car.year}`} />
+        <div id="carVideo">
+          <VideoBlock source={car.video} poster={gallery[0]} title={`${name} שנת ${car.year}`} />
+        </div>
       )}
 
       {/* ── הטקסט מתחת לתמונות: זה מה שגוגל קורא ── */}

@@ -113,11 +113,61 @@
 
 /* ══ צד התמונות ══ */
 .carMedia { display: flex; flex-direction: column; gap: 10px; }
-.carGallery { display: flex; flex-direction: column; gap: 8px; }
+/* פריסת ר הפוכה: עמודת תמונות יורדת לצד התמונה הגדולה,
+   ומתחת לשתיהן שורה לרוחב כל המסך. */
+.carGallery {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+.carGalleryStrip { display: grid; grid-auto-rows: 1fr; gap: 8px; height: 100%; }
+.carGalleryMain { grid-column: 2; }
+/* auto-fill: הפריטים מסתדרים לבד לפי כמה יש, בלי שורה שנשברת
+   עם פריט בודד בסופה. */
+.carGalleryRow {
+  grid-column: 1 / -1;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px;
+}
+/* רק תמונה אחת — אין עמודה, והתמונה הגדולה תופסת הכל */
+.carGallery:not(:has(.carGalleryStrip)) { grid-template-columns: minmax(0, 1fr); }
+.carGallery:not(:has(.carGalleryStrip)) .carGalleryMain { grid-column: 1; }
+
+/* הכפתורים בעמודה ובשורה — אותו עיצוב */
+.carGalleryStrip button, .carGalleryRow button {
+  padding: 0; border: 2px solid transparent; border-radius: 8px;
+  overflow: hidden; background: var(--panel); cursor: pointer;
+  opacity: .65; transition: border-color .16s, opacity .16s;
+}
+.carGalleryRow button { aspect-ratio: 4 / 3; }
+.carGalleryStrip button img, .carGalleryRow button img,
+.carGalleryStrip picture, .carGalleryRow picture {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+}
+.carGalleryStrip button:hover, .carGalleryRow button:hover { opacity: 1; }
+.carGalleryStrip button.active, .carGalleryRow button.active { border-color: #000; opacity: 1; }
+.carGalleryStrip button:focus-visible, .carGalleryRow button:focus-visible {
+  outline: 2px solid var(--gold); outline-offset: 2px;
+}
+
+/* שני המקומות השמורים — סבב 360 וסרטון */
+.carGalleryExtra {
+  aspect-ratio: 4 / 3;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  border-radius: 8px; background: var(--black); color: var(--gold);
+  font-size: 13px; font-weight: 800; text-align: center;
+}
+.carGalleryExtra b { font-size: 13px; font-weight: 800; }
+.carGalleryExtra small { font-size: 10.5px; font-weight: 600; color: #8a8a94; }
+.carGalleryExtraSoon {
+  background: var(--paper); color: var(--muted);
+  border: 1px dashed var(--line2);
+}
+a.carGalleryExtra:hover { background: var(--gold); color: #101014; }
 
 .carGalleryMain {
   position: relative; margin: 0;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 16 / 11;
   border-radius: 12px; overflow: hidden;
   background: var(--panel);
   border: 1px solid var(--line);
@@ -289,7 +339,7 @@
 /* התצלום הראשי לא צריך את מלוא רוחב המסך — ברוחב כזה הוא
    מאבד חדות ודורש גלילה ארוכה עד לתמונות הבאות. */
 .carStage > .shell { max-width: 1000px !important; }
-.carStage .carGalleryMain { aspect-ratio: 4 / 3; }
+.carStage .carGalleryMain { aspect-ratio: 16 / 11; }
 .carStage .carGalleryMain img { width: 100%; height: 100%; object-fit: cover; }
 
 /* הנתונים ורצועת הפנייה בעמוד הרכב — אותה תצוגה בדיוק כמו
@@ -350,4 +400,23 @@
   .carPay { padding: 16px 14px; }
   .carPayResult { grid-template-columns: 1fr; }
   .carPayResult p { flex-direction: row; align-items: baseline; justify-content: space-between; text-align: start; }
+}
+
+/* ═══ הגלריה בטלפון ═══
+   אין מקום לעמודה בצד. התמונה הגדולה למעלה, ומתחתיה שתי שורות
+   נגללות: הממוזערות, ואחריהן המקומות של הסבב והסרטון. */
+@media (max-width: 800px) {
+  .carGallery { display: flex; flex-direction: column; gap: 7px; }
+  .carGalleryMain { order: 0; grid-column: auto; }
+  .carGalleryStrip { order: 1; }
+  .carGalleryRow { order: 2; }
+  .carGalleryStrip, .carGalleryRow {
+    display: flex; gap: 7px; height: auto;
+    /* width מפורש: בלעדיו הרצועה מקבלת את רוחב התוכן שלה
+       ודוחפת את כל העמוד לצדדים במקום להיגלל בעצמה. */
+    width: 100%; min-width: 0;
+    overflow-x: auto; scrollbar-width: none; padding-bottom: 2px;
+  }
+  .carGalleryStrip::-webkit-scrollbar, .carGalleryRow::-webkit-scrollbar { display: none; }
+  .carGalleryStrip > *, .carGalleryRow > * { flex: 0 0 96px; aspect-ratio: 4 / 3; }
 }
