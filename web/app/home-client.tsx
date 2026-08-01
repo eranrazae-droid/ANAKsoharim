@@ -2,10 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { propulsionTechnology, type DisplayCar } from "./vehicle-api";
+import { IS_LIVE } from "./site-config";
 import VehicleCard from "./vehicle-card";
 import CustomerStrip from "./customer-strip";
 import FloatingActions from "./floating-actions";
 import SocialLinks from "./social-links";
+import VideoBlock from "./video-block";
 import SimilarCars, { referencePrice } from "./similar-cars";
 import { Honeypot, LeadStatusMessage, useLead } from "./use-lead";
 
@@ -223,6 +225,8 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
         </button>
       )}
       {shownCars.length === 0 && <p className="empty">לא נמצאו רכבים בסינון שבחרתם.</p>}</div></section>
+
+      <VideoBlock preview={!IS_LIVE} />
 
       <SimilarCars cars={cars} profile={matchRef} />
 

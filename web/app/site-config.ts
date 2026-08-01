@@ -47,3 +47,24 @@ export const SOCIAL = {
   instagram: "https://www.instagram.com/anak.arehavim",
   tiktok: "https://www.tiktok.com/@anak.arehavim",
 } as const;
+
+/**
+ * סרטון האתר.
+ *
+ * שתי דרכים להוסיף — בוחרים אחת:
+ * 1. יוטיוב: מעתיקים את מזהה הסרטון מהכתובת (החלק אחרי watch?v=)
+ *    ומדביקים ב-youtubeId. מומלץ — לא עולה תעבורה ונמצא גם ביוטיוב.
+ * 2. קובץ: מעלים mp4 לתיקייה public/video ורושמים כאן את הנתיב,
+ *    למשל "/video/anak.mp4".
+ *
+ * poster היא תמונת השער שמוצגת לפני הלחיצה. אם לא מוגדרת, מוצג
+ * תצלום אולם התצוגה.
+ *
+ * הסרטון נטען רק בלחיצה — עד אז אין אף בקשת רשת אליו.
+ */
+export const VIDEO = {
+  youtubeId: "",
+  file: "",
+  poster: "",
+  title: "ענק הרכבים — מגרש הרכבים שלנו",
+} as const;

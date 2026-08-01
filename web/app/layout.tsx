@@ -14,6 +14,7 @@ import "./vehicle-list.css";
 import "./car-page.css";
 import "./account.css";
 import "./compare.css";
+import "./video.css";
 import "./theme-light.css"; // אחרון — ערכת העיצוב הבהירה
 import { BUSINESS, IS_LIVE, SITE_NAME, SITE_URL } from "./site-config";
 
