@@ -3,7 +3,7 @@ import SocialLinks from "./social-links";
 import { Logo } from "./site-image";
 
 export function SiteHeader() {
-  return <><header className="topbar"><div className="shell headerInner"><a className="logo" href="/"><Logo eager /></a><SocialLinks /><div className="headerActions"><a className="location" href="https://waze.com/ul?ll=31.9888,34.77084&navigate=yes">⌖ דוד רזיאל 4, ראשון לציון</a><a className="phone" href="tel:*2369"><small>חייגו עכשיו</small><strong>*2369</strong><span>☎</span></a></div></div></header><nav className="nav"><div className="shell navLinks"><a href="/">דף הבית</a><a href="/cars">מלאי עדכני</a><a href="/finance">תנאי מימון</a><a href="/trade">טרייד אין</a><a href="/sell">מעוניינים למכור לנו את הרכב?</a><a href="/reviews">לקוחות ממליצים</a><a href="/articles">מדריכים</a><a href="/contact">צור קשר</a><a href="/compare">השוואת רכבים</a><a href="/account">האזור האישי</a></div></nav></>;
+  return <><header className="topbar"><div className="shell headerInner"><a className="logo" href="/"><Logo eager /></a><SocialLinks /><div className="headerActions"><a className="location" href="https://waze.com/ul?ll=31.9888,34.77084&navigate=yes">⌖ דוד רזיאל 4, ראשון לציון</a><a className="phone" href="tel:*2369"><small>חייגו עכשיו</small><strong>*2369</strong><span>☎</span></a></div></div></header><nav className="nav"><div className="shell navLinks"><a href="/">דף הבית</a><a href="/cars">מלאי עדכני</a><a href="/finance">מחשבון מימון</a><a href="/trade">טרייד אין</a><a href="/sell">מעוניינים למכור לנו את הרכב?</a><a href="/reviews">לקוחות ממליצים</a><a href="/articles">מדריכים</a><a href="/contact">צור קשר</a><a href="/compare">השוואת רכבים</a><a href="/account">האזור האישי</a></div></nav></>;
 }
 
 export function SiteFooter() {

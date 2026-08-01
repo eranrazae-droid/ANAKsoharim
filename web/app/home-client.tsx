@@ -157,7 +157,7 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
         <SocialLinks /><div className="headerActions"><a className="location" href="https://waze.com/ul?ll=31.9888,34.77084&navigate=yes" target="_blank" rel="noreferrer">⌖ <span>דוד רזיאל 4, ראשון לציון</span></a><a className="phone" href="tel:*2369"><small>חייגו עכשיו</small><strong>*2369</strong><span>☎</span></a></div>
         <button className="menuButton" onClick={() => setMobileOpen(!mobileOpen)} aria-label="פתיחת תפריט">☰</button>
       </div></header>
-      <nav className={`nav ${mobileOpen ? "open" : ""}`}><div className="shell navLinks"><a href="#top" onClick={resetAllCalculators}>דף הבית</a><a href="#inventory">מלאי עדכני</a><a href="/finance">תנאי מימון</a><a href="/trade">טרייד אין</a><a href="/sell">מעוניינים למכור לנו את הרכב?</a><a href="/contact">צור קשר</a><a href="/compare">השוואת רכבים</a><a href="/account">האזור האישי</a></div></nav>
+      <nav className={`nav ${mobileOpen ? "open" : ""}`}><div className="shell navLinks"><a href="#top" onClick={resetAllCalculators}>דף הבית</a><a href="#inventory">מלאי עדכני</a><a href="/finance">מחשבון מימון</a><a href="/trade">טרייד אין</a><a href="/sell">מעוניינים למכור לנו את הרכב?</a><a href="/contact">צור קשר</a><a href="/compare">השוואת רכבים</a><a href="/account">האזור האישי</a></div></nav>
 
       {/* שתי תמונות שונות: במסך צר תצלום אחר, לא חיתוך של תמונת המחשב */}
       <section id="top" className="hero heroFinder"><picture>
