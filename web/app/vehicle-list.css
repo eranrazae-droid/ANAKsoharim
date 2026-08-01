@@ -1,6 +1,6 @@
-/* ═══ רשימת רכבים — כרטיס בסגנון לוח ═══
-   תמונה בצד, שם הרכב ושלוש שורות נתונים, מחיר והחזר חודשי,
-   ושתי שורות נגללות: נתוני הרכב והתגיות.
+/* ═══ רשימת רכבים — כרטיס רכב ═══
+   במחשב: תמונה בצד ותוכן לצידה.
+   בטלפון: תמונה רחבה למעלה וכל הטקסט מתחתיה.
    כל שטח הכרטיס הוא קישור אחד לעמוד הרכב. */
 
 .listGrid { display: grid; grid-template-columns: 1fr; gap: 14px; }
@@ -9,6 +9,7 @@
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 12px;
+  overflow: hidden;
   transition: border-color .18s, box-shadow .18s;
 }
 .listCard:hover, .listCard:focus-within { border-color: var(--line2); box-shadow: var(--shadow); }
@@ -34,110 +35,100 @@
   background: var(--panel);
   order: 2;
 }
+.listMedia { position: relative; }
 .listMedia img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.listMediaEmpty {
-  display: grid; place-items: center;
-  border: 1px dashed var(--line2);
-  color: var(--muted); font-size: 12px; text-align: center; line-height: 1.5;
-}
+/* תווית "ללא מקדמה" בפינת התמונה */
+.listMedia .noAdvance { position: absolute; inset-inline-start: 10px; top: 10px; }
 
 /* ——— תוכן ——— */
 .listBody { grid-column: 1; display: flex; flex-direction: column; min-width: 0; }
 
-.listTitle { margin: 0; font-size: 21px; font-weight: 700; color: var(--ink); line-height: 1.25; }
+.listPlace {
+  margin: 0; display: flex; align-items: center; gap: 5px;
+  font-size: 13px; color: var(--muted);
+}
+.listPlace span { font-size: 14px; line-height: 1; }
 
-/* שלוש שורות הנתונים: תת דגם ושנה, קילומטראז׳ וגיר, ומנוע */
-.listLines { display: flex; gap: 6px 20px; flex-wrap: wrap; margin: 6px 0 0; }
+.listTitle { margin: 4px 0 0; font-size: 21px; font-weight: 700; color: var(--ink); line-height: 1.25; }
+
+/* שורות הנתונים — כל שדה יחידה שלמה שלא נשברת באמצע */
 .listLine {
-  margin: 0; font-size: 14.5px; color: var(--ink2); line-height: 1.45;
+  margin: 6px 0 0; font-size: 14px; color: var(--ink2); line-height: 1.45;
   display: flex; align-items: center; flex-wrap: wrap; gap: 0 7px; min-width: 0;
 }
-/* כל שדה הוא יחידה אחת שלא נשברת באמצע. השורה יכולה לרדת
-   בין שדה לשדה, אבל לעולם לא בתוך שדה. */
 .listLine > span { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
 .listLine i { color: var(--line2); font-style: normal; }
 
-/* גוש הכסף — שורת המחיר, ומתחתיה שורת ההערות */
-.listMoney { display: flex; flex-direction: column; gap: 4px; margin-top: 14px; }
+/* ——— אזור הכסף ——— */
+.listMoney {
+  margin-top: 14px; padding-top: 13px;
+  border-top: 1px solid var(--line);
+  display: flex; align-items: stretch; justify-content: space-between; gap: 14px;
+}
+.listPriceBox, .listMonthlyBox { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.listPriceBox small, .listMonthlyBox small {
+  font-size: 12.5px; font-weight: 500; color: var(--muted); line-height: 1;
+}
 .listPrice {
-  margin: 0; font-size: 24px; font-weight: 800;
-  color: var(--ink); letter-spacing: -.02em; line-height: 1.2;
-  display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 8px;
+  margin: 0; font-size: 23px; font-weight: 800;
+  color: var(--ink); letter-spacing: -.02em; line-height: 1.15; white-space: nowrap;
 }
-.listPrice > span { white-space: nowrap; }
-.listPriceCall { color: var(--gold); }
-.listMonthly { color: var(--gold); display: inline-flex; align-items: baseline; gap: 8px; }
-.listMonthly i { font-style: normal; font-weight: 500; color: var(--ink2); }
+.listPriceNote { font-size: 12.5px; font-weight: 500; font-style: normal; color: var(--muted); }
 
-/* גמיש לרציניים מימין, ללא מקדמה משמאל — באותו גודל */
-.listMoneyNotes {
-  margin: 0; display: flex; align-items: center; justify-content: space-between;
-  gap: 10px; min-height: 23px;
+/* ההחזר החודשי יושב במסגרת עדינה, כמו בלוחות הרכב */
+.listMonthlyBox {
+  align-items: flex-start; justify-content: center;
+  padding: 8px 13px;
+  border: 1px solid var(--line2); border-radius: 9px;
+  background: var(--paper);
 }
-.listMoneyNotes:empty { display: none; }
-/* שתי ההערות באותו גודל כתב */
-.listPriceNote, .listMoneyNotes .noAdvance { font-size: 13.5px; }
-.listPriceNote { font-weight: 500; font-style: normal; color: var(--muted); letter-spacing: 0; }
+.listMonthly {
+  margin: 0; font-size: 17px; font-weight: 800;
+  color: var(--gold); line-height: 1.15; white-space: nowrap;
+}
 
-/* שתי שורות נגללות: נתוני הרכב, ואחריהם התגיות */
+/* ——— שתי שורות נגללות: נתוני הרכב, ואחריהם התגיות ——— */
 .listSpecs, .listChips {
   list-style: none; padding: 0;
-  display: flex; gap: 8px;
+  display: flex; gap: 7px;
   overflow-x: auto;
   scrollbar-width: none; -ms-overflow-style: none;
 }
 .listSpecs::-webkit-scrollbar, .listChips::-webkit-scrollbar { display: none; }
 .listSpecs li, .listChips li {
   flex: none;
-  font-size: 13px; white-space: nowrap;
-  border-radius: 6px; padding: 5px 11px;
+  font-size: 12.5px; white-space: nowrap;
+  border-radius: 6px; padding: 5px 10px;
 }
-.listSpecs { margin: 14px 0 0; }
+.listSpecs { margin: 13px 0 0; }
 .listSpecs li { color: var(--ink); border: 1px solid var(--line2); }
-.listChips { margin: 8px 0 0; }
+.listChips { margin: 7px 0 0; }
 .listChips li { color: var(--ink2); background: var(--panel); }
 
-/* ——— מובייל ———
-   התמונה למעלה משמאל, ומולה שם הרכב ושלוש שורות הנתונים.
-   שורת המחיר, שורת הנתונים ושורת התגיות נמשכות על כל רוחב
-   הכרטיס — גם מתחת לתמונה.
-   display:contents מוציא את ילדי .listBody ו-.listLines אל רשת
-   הכרטיס, כך שאפשר למקם כל אחד בנפרד בלי לגעת בתצוגת המחשב. */
+/* ═══════════════════════════════════════════
+   טלפון — תמונה רחבה למעלה, הטקסט מתחתיה
+   ═══════════════════════════════════════════ */
 @media (max-width: 700px) {
-  .listCardMain {
-    padding: 12px;
-    grid-template-columns: minmax(0, 1fr) 104px;
-    grid-template-areas:
-      "title    media"
-      "sub      media"
-      "odo      media"
-      "engine   media"
-      "money    money"
-      "specs    specs"
-      "chips    chips";
-    column-gap: 12px;
-    row-gap: 0;            /* המרווחים מגיעים מהשוליים של כל שורה */
-  }
-  .listBody, .listLines { display: contents; }
+  .listGrid { gap: 12px; }
+  .listCardMain { display: block; padding: 0; }
 
-  /* התמונה נמתחת בדיוק לגובה שלוש השורות שלצידה — בלי שטח מת */
   .listMedia {
-    grid-area: media;
-    aspect-ratio: auto;
-    align-self: stretch;
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    border-radius: 0;
   }
 
-  .listLine    { font-size: 13.5px; }
-  /* שתי השורות הראשונות באותו גודל כתב */
-  .listTitle   { grid-area: title; font-size: 17px; }
-  .listSubline { grid-area: sub; margin-top: 4px; font-size: 17px; color: var(--ink); }
-  .listOdo     { grid-area: odo; margin-top: 6px; }
-  .listEngine  { grid-area: engine; margin-top: 3px; }
-  .listMoney { grid-area: money; margin-top: 12px; }
-  .listPrice { font-size: 19px; }
-  /* שם ארוך במיוחד — שתי השורות הראשונות מוקטנות יחד, כדי שיישארו זהות */
-  .listCardLong .listTitle, .listCardLong .listSubline { font-size: 15px; }
-  .listSpecs   { grid-area: specs; margin-top: 10px; }
-  .listChips   { grid-area: chips; margin-top: 7px; }
-  .listSpecs li, .listChips li { font-size: 13px; padding: 5px 9px; }
+  .listBody { display: block; padding: 12px 14px 14px; }
+
+  .listPlace { font-size: 12.5px; }
+  .listTitle { margin-top: 3px; font-size: 19px; }
+  /* שם ארוך מוקטן מעט כדי להישאר בשורה אחת */
+  .listTitleLong { font-size: 16.5px; line-height: 1.45; }
+  .listLine { margin-top: 5px; font-size: 13.5px; }
+
+  .listMoney { margin-top: 12px; padding-top: 11px; }
+  .listPrice { font-size: 21px; }
+  .listMonthlyBox { padding: 7px 11px; }
+  .listMonthly { font-size: 15.5px; }
+
 }

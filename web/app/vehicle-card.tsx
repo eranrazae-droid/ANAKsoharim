@@ -1,42 +1,21 @@
 import { propulsionTechnology, type DisplayCar } from "./vehicle-api";
-import { DEMO_IMAGE } from "./site-config";
+import { BUSINESS, DEMO_IMAGE } from "./site-config";
 
 /**
  * כרטיס רכב ברשימה.
- * מול התמונה: יצרן ודגם, תת דגם ושנת ייצור, קילומטראז׳ וגיר, ושורת המנוע.
- * מתחת לתמונה, לכל רוחב הכרטיס: מחיר והחזר חודשי באותה שורה,
- * שורת נתוני הרכב ושורת התגיות — שתיהן נגללות לצדדים.
+ * בטלפון: תמונה רחבה למעלה, ומתחתיה הטקסט — מיקום, שם הרכב,
+ * שתי שורות נתונים, ואזור המחיר וההחזר החודשי.
+ * מתחת להם שורת נתוני הרכב ושורת התגיות, שתיהן נגללות לצדדים.
  * משמש גם בדף הבית וגם בעמוד המלאי, כדי שיהיה מקור אמת אחד.
  */
 
 /** תוספת שמופיעה ליד המחיר בכל הרכבים */
 const PRICE_NOTE = "גמיש לרציניים";
 
-/** כמה תווים נכנסים בשורה אחת ברוחב הטלפון, לפי מדידה */
-const TITLE_CHARS = 19;
-const LINE_CHARS = 22;
-
-/**
- * שתי השורות הראשונות.
- * ברירת המחדל היא יצרן, דגם ותת דגם בשורה אחת. כשהשם ארוך מדי
- * ויישבר, תת הדגם יורד לשורה השנייה — כך אף שדה לא נחתך באמצע
- * והשורות נשארות מלאות.
- */
-function nameLines(car: DisplayCar) {
-  const base = `${car.make} ${car.baseModel || car.model}`.trim();
-  const sub = String(car.subModel || "").trim();
-  const full = sub ? `${base} ${sub}` : base;
-  if (!sub || full.length <= TITLE_CHARS) {
-    return { title: full, subtitle: [`שנת ייצור ${car.year}`] };
-  }
-  const withLabel = `${sub} · שנת ייצור ${car.year}`;
-  return {
-    title: base,
-    subtitle: withLabel.length <= LINE_CHARS ? [sub, `שנת ייצור ${car.year}`] : [sub, String(car.year)],
-  };
-}
-
 const MAX_CHIPS = 6;
+
+/** מעל אורך זה שם הרכב לא נכנס לשורה אחת בטלפון, ומוקטן מעט */
+const TITLE_CHARS = 26;
 
 /** מפרק את שדה התוספות לתגיות קצרות וקריאות. */
 export function extraChips(extras?: string, limit = MAX_CHIPS) {
@@ -63,27 +42,7 @@ function engineSize(value?: string) {
   return `${(cc / 1000).toFixed(1)} ליטר`;
 }
 
-/**
- * שורת המנוע: נפח וסוג מנוע, ואחריהם טכנולוגיית ההנעה — אבל רק
- * כשהיא חשמלית, פלאג־אין או היברידית. בהנעה רגילה אין מה לציין,
- * ובמקומה נרשם כוח הסוס.
- */
-function engineLine(car: DisplayCar) {
-  const technology = propulsionTechnology(car.engine);
-  // ברכב חשמלי סוג המנוע והטכנולוגיה הם אותו דבר — אין טעם לרשום פעמיים
-  const engine = String(car.engine || "");
-  const repeats = engine.includes(technology) || technology.includes(engine);
-  const special = technology !== "הנעה רגילה" && !repeats;
-  return [
-    engineSize(car.engineCapacity),
-    car.engine,
-    special ? technology : car.horsePower && `${car.horsePower} כ״ס`,
-  ]
-    .map((item) => String(item ?? "").trim())
-    .filter(Boolean);
-}
-
-/** האם כוח הסוס כבר מופיע בשורת המנוע */
+/** האם כוח הסוס מופיע בשורת המנוע במקום טכנולוגיית ההנעה */
 function showsHorsePower(car: DisplayCar) {
   const technology = propulsionTechnology(car.engine);
   const engine = String(car.engine || "");
@@ -91,10 +50,24 @@ function showsHorsePower(car: DisplayCar) {
   return technology === "הנעה רגילה" || repeats;
 }
 
-/** נתוני הרכב שאינם מופיעים בשורות הראשיות — שורה נגללת מתחת לתמונה. */
+/**
+ * שורת המנוע: נפח וסוג מנוע, ואחריהם טכנולוגיית ההנעה — אבל רק
+ * כשהיא חשמלית, פלאג־אין או היברידית. בהנעה רגילה אין מה לציין,
+ * ובמקומה נרשם כוח הסוס.
+ */
+function engineLine(car: DisplayCar) {
+  return [
+    engineSize(car.engineCapacity),
+    car.engine,
+    showsHorsePower(car) ? car.horsePower && `${car.horsePower} כ״ס` : propulsionTechnology(car.engine),
+  ]
+    .map((item) => String(item ?? "").trim())
+    .filter(Boolean);
+}
+
+/** נתוני הרכב שאינם מופיעים בשורות הראשיות — שורה נגללת */
 function specPills(car: DisplayCar) {
   return [
-    // כוח סוס מופיע כאן רק אם שורת המנוע הציגה במקומו את טכנולוגיית ההנעה
     showsHorsePower(car) ? "" : car.horsePower && `${car.horsePower} כ״ס`,
     car.color,
     car.doors && `${car.doors} דלתות`,
@@ -108,67 +81,59 @@ function specPills(car: DisplayCar) {
     .filter((item) => item && item !== "לא צוין");
 }
 
+/** שורת נתונים אחת — כל שדה יחידה שלמה שאינה נשברת באמצע */
+function DataLine({ className, parts }: { className: string; parts: string[] }) {
+  return (
+    <p className={`listLine ${className}`}>
+      {parts.map((part, index) => (
+        <span key={part}>
+          {index > 0 && <i aria-hidden="true">·</i>}
+          {part}
+        </span>
+      ))}
+    </p>
+  );
+}
+
 export default function VehicleCard({ car }: { car: DisplayCar }) {
   const href = `/car/${car.id}`;
   const name = [car.make, car.baseModel || car.model, car.subModel].filter(Boolean).join(" ");
   const specs = specPills(car);
-  const engine = engineLine(car);
   const chips = extraChips(car.extras).filter((chip) => !specs.includes(chip));
-  const { title, subtitle } = nameLines(car);
+  const basics = [String(car.year), `${mileage(car)} ק״מ`, car.gear].filter(Boolean) as string[];
 
   return (
     <article className="listCard">
-      <a className={`listCardMain${title.length > TITLE_CHARS ? " listCardLong" : ""}`} href={href}>
+      <a className="listCardMain" href={href}>
         <div className={`listMedia ${car.image ? "" : "listMediaDemo"}`}>
           {car.image
             ? <img src={car.image} alt={`${name} שנת ${car.year}`} loading="lazy" decoding="async" />
             : <><img src={DEMO_IMAGE} alt="" loading="lazy" decoding="async" /><span>להמחשה</span></>}
+          {car.monthly > 0 && !car.advance && <b className="noAdvance">ללא מקדמה</b>}
         </div>
 
         <div className="listBody">
-          <h3 className="listTitle">{title}</h3>
+          <p className="listPlace"><span aria-hidden="true">⌖</span>{BUSINESS.city}</p>
+          <h3 className={`listTitle${name.length > TITLE_CHARS ? " listTitleLong" : ""}`}>{name}</h3>
 
-          <div className="listLines">
-            <p className="listLine listSubline">
-              {subtitle.map((part, index) => (
-                <span key={part}>
-                  {index > 0 && <i aria-hidden="true">·</i>}
-                  {part}
-                </span>
-              ))}
-            </p>
-            <p className="listLine listOdo">
-              {[`${mileage(car)} ק״מ`, car.gear].filter(Boolean).map((part, index) => (
-                <span key={String(part)}>
-                  {index > 0 && <i aria-hidden="true">·</i>}
-                  {part}
-                </span>
-              ))}
-            </p>
-            <p className="listLine listEngine">
-              {engine.map((part, index) => (
-                <span key={part}>
-                  {index > 0 && <i aria-hidden="true">·</i>}
-                  {part}
-                </span>
-              ))}
-            </p>
-          </div>
+          <DataLine className="listOdo" parts={basics} />
+          <DataLine className="listEngine" parts={engineLine(car)} />
 
           <div className="listMoney">
-            <p className={`listPrice${car.price > 0 ? "" : " listPriceCall"}`}>
-              <span>{car.price > 0 ? `${car.price.toLocaleString("he-IL")} ש״ח` : "לפרטים חייגו"}</span>
-              {car.monthly > 0 && (
-                <span className="listMonthly">
-                  <i aria-hidden="true">או</i>
-                  {car.monthly.toLocaleString("he-IL")} ש״ח בחודש
-                </span>
-              )}
-            </p>
-            <p className="listMoneyNotes">
+            <div className="listPriceBox">
+              <small>מחיר</small>
+              <p className="listPrice">
+                {car.price > 0 ? `${car.price.toLocaleString("he-IL")} ש״ח` : "לפרטים חייגו"}
+              </p>
               {car.price > 0 && <em className="listPriceNote">{PRICE_NOTE}</em>}
-              {car.monthly > 0 && !car.advance && <b className="noAdvance">ללא מקדמה</b>}
-            </p>
+            </div>
+
+            {car.monthly > 0 && (
+              <div className="listMonthlyBox">
+                <small>החזר חודשי מ־</small>
+                <p className="listMonthly">{car.monthly.toLocaleString("he-IL")} ש״ח לחודש</p>
+              </div>
+            )}
           </div>
 
           {specs.length > 0 && (
