@@ -35,7 +35,6 @@ export default function LoanCalculator() {
           onChange={(event) => setLoan(Number(event.target.value) || 0)}
           aria-label="סכום ההלוואה בשקלים"
         />
-        <b>ש״ח</b>
       </label>
 
       <input

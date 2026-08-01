@@ -176,12 +176,12 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
           />
           <source
             type="image/webp"
-            srcSet="/assets/showroom-sm.webp 1000w, /assets/showroom.webp 2000w"
+            srcSet="/assets/showroom-sm.webp 1000w, /assets/showroom.webp 1456w"
             sizes="100vw"
           />
           <img
             src="/assets/showroom.jpg"
-            srcSet="/assets/showroom-sm.jpg 1000w, /assets/showroom.jpg 2000w"
+            srcSet="/assets/showroom-sm.jpg 1000w, /assets/showroom.jpg 1456w"
             sizes="100vw"
             alt="אולם התצוגה של ענק הרכבים"
             fetchPriority="high"
