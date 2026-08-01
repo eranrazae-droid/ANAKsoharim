@@ -2,42 +2,45 @@
 
 import { useState } from "react";
 
+/**
+ * גלריית הרכב — תמונה ראשית גדולה ורצועת תמונות תחתיה.
+ * מוצגות רק תמונות שקיימות בפועל, בלי מסגרות ריקות.
+ */
 export default function VehicleGallery({ images, vehicleName }: { images: string[]; vehicleName: string }) {
   const [selected, setSelected] = useState(0);
-  const slots = Array.from({ length: 10 }, (_, index) => images[index] ?? null);
-  const mainImage = images[selected] ?? images[0] ?? null;
+  const main = images[selected] ?? images[0] ?? null;
 
   return (
-    <aside className="sideGallery">
-      <div className={`modernMainImage ${mainImage ? "" : "modernImageMissing"}`}>
-        <span className="stockBadge">במלאי</span>
-        {mainImage ? (
-          <img src={mainImage} alt={`${vehicleName} - תמונה ${selected + 1}`} />
+    <div className="carGallery">
+      <figure className={`carGalleryMain ${main ? "" : "carGalleryEmpty"}`}>
+        {main ? (
+          <img src={main} alt={`${vehicleName} — תמונה ${selected + 1} מתוך ${images.length}`} />
         ) : (
-          <div className="modernPlaceholder">
+          <figcaption>
             <img src="/assets/logo1.png" alt="ענק הרכבים" />
             <strong>תמונות הרכב יעלו בקרוב</strong>
             <span>הרכב קיים במלאי למסירה מיידית</span>
-          </div>
+          </figcaption>
         )}
-      </div>
-      <div className="modernThumbs interactiveThumbs">
-        {slots.map((src, index) => (
-          src ? (
+        <span className="carGalleryBadge">במלאי</span>
+      </figure>
+
+      {images.length > 1 && (
+        <div className="carGalleryThumbs" role="group" aria-label="תמונות נוספות של הרכב">
+          {images.map((src, index) => (
             <button
               type="button"
-              className={index === selected ? "active" : ""}
               key={src}
+              className={index === selected ? "active" : ""}
+              aria-label={`תמונה ${index + 1}`}
+              aria-pressed={index === selected}
               onClick={() => setSelected(index)}
-              aria-label={`הצגת תמונה ${index + 1} של ${vehicleName}`}
             >
-              <img src={src} alt="" />
+              <img src={src} alt="" loading="lazy" decoding="async" />
             </button>
-          ) : (
-            <div className="empty" key={`empty-${index}`}><span>תמונה</span></div>
-          )
-        ))}
-      </div>
-    </aside>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

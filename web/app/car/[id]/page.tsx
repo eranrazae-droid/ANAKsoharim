@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getActiveVehicles, type DisplayCar } from "../../vehicle-api";
+import { SiteFooter, SiteHeader } from "../../site-chrome";
 import VehicleGallery from "../../vehicle-gallery";
 import VehicleFinanceCalculator from "../../vehicle-finance-calculator";
 import { CarLeadForm } from "../../lead-forms";
+import { extraChips } from "../../vehicle-card";
 import { getMaxPaymentsByYear } from "../../finance-rules";
-import { SITE_NAME, SITE_URL } from "../../site-config";
+import { BUSINESS, SITE_NAME, SITE_URL } from "../../site-config";
 
 export const revalidate = 600;
 
@@ -18,6 +20,8 @@ function askingPrice(car: DisplayCar) {
   return car.price || Math.round(car.monthly * 83 / 1000) * 1000;
 }
 
+const km = (value: string) => Number(String(value).replace(/,/g, "") || 0).toLocaleString("he-IL");
+
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
   const { car } = await findCar(id);
@@ -25,8 +29,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
   const name = `${car.make} ${car.model} שנת ${car.year}`;
   const price = askingPrice(car);
-  const mileage = Number(String(car.mileage).replace(/,/g, "") || 0).toLocaleString("he-IL");
-  const description = `${name} למכירה ב${SITE_NAME} — ${mileage} ק״מ, יד ${car.hand || "—"}, ${car.gear || "אוטומטי"}${price ? `, מחיר ${price.toLocaleString("he-IL")} ₪` : ""}. מימון עד 100% וטרייד אין. דוד רזיאל 4, ראשון לציון.`;
+  const description = `${name} למכירה ב${SITE_NAME} — ${km(car.mileage)} ק״מ, יד ${car.hand || "—"}, ${car.gear || "אוטומטי"}${price ? `, מחיר ${price.toLocaleString("he-IL")} ₪` : ""}. מימון עד 100% וטרייד אין. דוד רזיאל 4, ראשון לציון.`;
 
   return {
     title: `${name} למכירה`,
@@ -43,23 +46,27 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   };
 }
 
-const specItems = (car: DisplayCar, price: number) => [
-  ["✋", "יד", car.hand || "לא צוין"],
-  ["⌂", "מקוריות", car.ownership],
-  ["◉", "קילומטראז׳", `${Number(car.mileage.replace(/,/g, "") || 0).toLocaleString("he-IL")} ק״מ`],
-  ["⚙", "תיבת הילוכים", car.gear || "אוטומטי"],
-  ["⌘", "מערכת הנעה", car.drivetrain || "לא צוין"],
-  ["▥", "מספר דלתות", car.doors || "לא צוין"],
-  ["▰", "מרכב", car.body || car.category],
-  ["▤", "נפח מנוע", car.engineCapacity ? `${car.engineCapacity} סמ״ק` : "לא צוין"],
-  ["◈", "סוג מנוע", car.engine],
-  ["ϟ", "כוח סוס", car.horsePower || "לא צוין"],
-  ["●", "צבע", car.color],
-  ["♙", "מספר מקומות", car.seats || "לא צוין"],
-  ["◒", "גג נפתח", car.openRoof ? "כן" : "לא"],
-  ["✓", "תוקף טסט", car.test || "לא צוין"],
-  ["◆", "קטגוריה", car.category],
-];
+/** המפרט מוצג כרשימת מפתח-ערך נקייה, בלי אייקונים */
+function specs(car: DisplayCar): [string, string][] {
+  return ([
+    ["שנת ייצור", String(car.year)],
+    ["קילומטראז׳", `${km(car.mileage)} ק״מ`],
+    ["יד", car.hand || "—"],
+    ["תיבת הילוכים", car.gear || "אוטומטי"],
+    ["סוג מנוע", car.engine],
+    ["נפח מנוע", car.engineCapacity ? `${car.engineCapacity} סמ״ק` : ""],
+    ["כוח סוס", car.horsePower || ""],
+    ["מערכת הנעה", car.drivetrain || ""],
+    ["מרכב", car.body || car.category],
+    ["צבע", car.color],
+    ["מספר דלתות", car.doors || ""],
+    ["מספר מקומות", car.seats || ""],
+    ["גג נפתח", car.openRoof ? "כן" : "לא"],
+    ["מקוריות", car.ownership],
+    ["תוקף טסט", car.test || ""],
+    ["קטגוריה", car.categories?.join(", ") || car.category],
+  ] as [string, string][]).filter(([, value]) => value && value !== "לא צוין");
+}
 
 export default async function CarPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -68,37 +75,31 @@ export default async function CarPage({ params }: { params: Promise<{ id: string
   // רכב שנמכר או קוד שגוי מחזיר 404 אמיתי — לא רכב אקראי.
   if (!car) notFound();
 
-  const vehicleYear = Number(car.year) || 2020;
-  const maxPayments = getMaxPaymentsByYear(vehicleYear);
+  const year = Number(car.year) || 2020;
+  const maxPayments = getMaxPaymentsByYear(year);
   const price = askingPrice(car);
-  const relatedCars = cars.filter((item) => item.id !== car.id).slice(0, 4);
-  const message = encodeURIComponent(`שלום, אני מתעניין ב-${car.make} ${car.model} שנת ${car.year}`);
-  const whatsapp = `https://wa.me/972503707010?text=${message}`;
-  const imageSrc = (value?: string | null) => value?.startsWith("http") ? value : value ? `/assets/${value}` : "";
-  const galleryImages = car.images?.length ? car.images.slice(0, 10) : car.image ? [imageSrc(car.image)] : [];
+  const name = `${car.make} ${car.model}`;
+  const chips = extraChips(car.extras, 12);
+  const related = cars.filter((item) => item.id !== car.id).slice(0, 10);
+  const whatsapp = `https://wa.me/${BUSINESS.whatsapp}?text=${encodeURIComponent(`שלום, אני מתעניין ב-${name} שנת ${car.year}`)}`;
+  const gallery = car.images?.length ? car.images.slice(0, 10) : car.image ? [car.image] : [];
 
-  // נתונים מובנים — מאפשרים לגוגל להציג מחיר, שנתון וקילומטראז' ישירות בתוצאות החיפוש.
   const vehicleSchema = {
     "@context": "https://schema.org",
     "@type": "Car",
-    name: `${car.make} ${car.model} ${car.year}`,
+    name: `${name} ${car.year}`,
     brand: { "@type": "Brand", name: car.make },
     model: car.baseModel || car.model,
     vehicleModelDate: String(car.year),
-    productionDate: String(car.year),
     url: `${SITE_URL}/car/${car.id}`,
-    image: galleryImages.length ? galleryImages : undefined,
+    image: gallery.length ? gallery : undefined,
     sku: car.id,
     color: car.color,
     numberOfDoors: Number(car.doors) || undefined,
     vehicleSeatingCapacity: Number(car.seats) || undefined,
     fuelType: car.engine,
     vehicleTransmission: car.gear || undefined,
-    mileageFromOdometer: {
-      "@type": "QuantitativeValue",
-      value: Number(String(car.mileage).replace(/,/g, "")) || 0,
-      unitCode: "KMT",
-    },
+    mileageFromOdometer: { "@type": "QuantitativeValue", value: Number(String(car.mileage).replace(/,/g, "")) || 0, unitCode: "KMT" },
     offers: {
       "@type": "Offer",
       priceCurrency: "ILS",
@@ -115,104 +116,141 @@ export default async function CarPage({ params }: { params: Promise<{ id: string
     "@type": "BreadcrumbList",
     itemListElement: [
       { "@type": "ListItem", position: 1, name: "דף הבית", item: SITE_URL },
-      { "@type": "ListItem", position: 2, name: "רכבים במלאי", item: `${SITE_URL}/cars` },
-      { "@type": "ListItem", position: 3, name: `${car.make} ${car.model}`, item: `${SITE_URL}/car/${car.id}` },
+      { "@type": "ListItem", position: 2, name: "מלאי עדכני", item: `${SITE_URL}/cars` },
+      { "@type": "ListItem", position: 3, name, item: `${SITE_URL}/car/${car.id}` },
     ],
   };
 
   return (
-    <main dir="rtl" className="carPage modernCarPage">
-      <header className="topbar">
-        <div className="shell headerInner">
-          <a className="logo" href="/"><img src="/assets/logo1.png" alt="ענק הרכבים" fetchPriority="high" decoding="async" /></a>
-          <div className="headerActions">
-            <a className="location" href="https://waze.com/ul?ll=31.9888,34.77084&navigate=yes">⌖ דוד רזיאל 4, ראשון לציון</a>
-            <a className="phone" href="tel:*2369"><small>חייגו עכשיו</small><strong>*2369</strong><span>☎</span></a>
-          </div>
-        </div>
-      </header>
+    <main dir="rtl" className="carPage">
+      <SiteHeader />
 
-      <nav className="nav">
-        <div className="shell navLinks">
-          <a href="/">דף הבית</a><a href="/cars">מלאי עדכני</a><a href="/finance">תנאי מימון</a>
-          <a href="/trade">טרייד אין</a><a href="/sell">מכירת רכב</a><a href="/reviews">לקוחות ממליצים</a><a href="/articles">מדריכים</a><a href="/contact">צור קשר</a>
+      <nav className="carCrumb" aria-label="מיקום בעמוד">
+        <div className="shell">
+          <a href="/">דף הבית</a><span aria-hidden="true">←</span>
+          <a href="/cars">מלאי עדכני</a><span aria-hidden="true">←</span>
+          <b>{name}</b>
         </div>
       </nav>
 
-      <div className="modernBreadcrumb">
-        <div className="shell"><a href="/">דף הבית</a><span>←</span><a href="/cars">הרכבים שלנו</a><span>←</span><b>{car.make} {car.model}</b></div>
-      </div>
+      {/* ═══ הרכב והעסקה ═══ */}
+      <section className="carTop">
+        <div className="shell carTopGrid">
+          <div className="carTopMedia">
+            <VehicleGallery images={gallery} vehicleName={name} />
+          </div>
 
-      <section className="modernVehicleHero">
-        <div className="shell listingLayout">
-          <div className="modernSummary listingContent">
-            <div className="modernEyebrow vehicleTitleLine"><h1>{car.make} {car.model} שנת {car.year}</h1></div>
+          <aside className="carDeal">
+            <div className="carDealCard">
+              <h1>{car.make} <span>{car.model}</span></h1>
+              <p className="carDealMeta">
+                <span>{car.year}</span><i aria-hidden="true">·</i>
+                <span>יד {car.hand || "—"}</span><i aria-hidden="true">·</i>
+                <span>{km(car.mileage)} ק״מ</span>
+              </p>
 
-            <div className="modernHighlights">
-              <div><small>שנת ייצור</small><strong>{car.year}</strong></div>
-              <div><small>קילומטראז׳</small><strong>{Number(car.mileage.replace(/,/g, "") || 0).toLocaleString("he-IL")}</strong></div>
-              <div><small>יד</small><strong>{car.hand || "—"}</strong></div>
-              <div><small>תוקף טסט</small><strong>{car.test || "לא צוין"}</strong></div>
+              <div className="carDealPrice">
+                <small>מחיר מבוקש</small>
+                <strong>{price.toLocaleString("he-IL")} <span>₪</span></strong>
+              </div>
+
+              {(car.monthly > 0 || (car.advance ?? 0) > 0) && (
+                <dl className="carDealTerms">
+                  {car.monthly > 0 && <div><dt>החזר חודשי</dt><dd>{car.monthly.toLocaleString("he-IL")} ₪</dd></div>}
+                  {(car.advance ?? 0) > 0 && <div><dt>מקדמה</dt><dd>{(car.advance ?? 0).toLocaleString("he-IL")} ₪</dd></div>}
+                  <div><dt>עד</dt><dd>{maxPayments} תשלומים</dd></div>
+                </dl>
+              )}
+
+              <div className="carDealActions">
+                <a className="carCall" href={`tel:${BUSINESS.phone}`}>חייגו {BUSINESS.phone}</a>
+                <a className="carWa" href={whatsapp} target="_blank" rel="noreferrer">וואטסאפ</a>
+              </div>
+
+              <p className="carDealCode">קוד רכב {car.id}</p>
             </div>
-            <div className="modernSpecs heroSpecs">
-              {specItems(car, price).map(([icon, label, value]) => (
-                <div key={String(label)}>
-                  <span className="specIcon" aria-hidden="true">{icon}</span>
-                  <section><small>{label}</small><strong>{value}</strong></section>
-                </div>
+          </aside>
+        </div>
+      </section>
+
+      {/* ═══ מפרט ═══ */}
+      <section className="carSection">
+        <div className="shell">
+          <h2>מפרט הרכב</h2>
+          <dl className="carSpecs">
+            {specs(car).map(([label, value]) => (
+              <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
+            ))}
+          </dl>
+
+          {chips.length > 0 && (
+            <>
+              <h3 className="carSubhead">אבזור ותוספות</h3>
+              <ul className="carChips">{chips.map((chip) => <li key={chip}>{chip}</li>)}</ul>
+            </>
+          )}
+
+          {car.remarks && (
+            <>
+              <h3 className="carSubhead">פרטים נוספים</h3>
+              <p className="carRemarks">{car.remarks}</p>
+            </>
+          )}
+        </div>
+      </section>
+
+      {/* ═══ מימון ═══ */}
+      <section className="carSection carFinance">
+        <div className="shell">
+          <h2>כמה זה יעלה בחודש</h2>
+          <p className="carSectionLead">הזיזו את המקדמה ואת מספר התשלומים כדי לראות את ההחזר.</p>
+          <VehicleFinanceCalculator price={price} year={year} />
+        </div>
+      </section>
+
+      {/* ═══ השארת פרטים ═══ */}
+      <section className="carSection carLead">
+        <div className="shell carLeadGrid">
+          <div>
+            <h2>רוצים לשמוע עוד על הרכב?</h2>
+            <p>נציג יחזור אליכם עם כל המידע ואפשרויות המימון.</p>
+          </div>
+          <CarLeadForm vehicle={`${name} ${car.year}`} />
+        </div>
+      </section>
+
+      {/* ═══ רכבים נוספים ═══ */}
+      {related.length > 0 && (
+        <section className="carSection carRelated">
+          <div className="shell">
+            <h2>רכבים נוספים במלאי</h2>
+            <div className="matchGrid" role="list" tabIndex={0} aria-label="רכבים נוספים, ניתן לגלול לצדדים">
+              {related.map((item) => (
+                <a className="matchCard" role="listitem" href={`/car/${item.id}`} key={item.id}>
+                  <div className={`matchMedia ${item.image ? "" : "matchMediaEmpty"}`}>
+                    {item.image
+                      ? <img src={item.image} alt={`${item.make} ${item.baseModel || item.model}`} loading="lazy" decoding="async" />
+                      : <span>תמונה<br />בקרוב</span>}
+                  </div>
+                  <div className="matchInfo">
+                    <b>{item.make} {item.baseModel || item.model}</b>
+                    <small>{item.year} · יד {item.hand || "—"}</small>
+                    <i>{item.price > 0 ? `${item.price.toLocaleString("he-IL")} ₪` : "לפרטים חייגו"}</i>
+                  </div>
+                </a>
               ))}
             </div>
-            <div className="heroCopy">
-              <p><b>תוספות:</b> {car.extras || "פרטי אבזור נוספים יימסרו על ידי נציג המכירות."}</p>
-              <p><b>פרטים נוספים:</b> {car.remarks || "הרכב קיים במלאי למסירה מיידית. אפשרות מימון עד 100% ללא מקדמה ועד 100 תשלומים."}</p>
-              <small className="vehicleCodes"><span><b>קוד פנייה:</b> (67-{car.id}-00)</span><span><b>קוד רכב:</b> {car.id}</span></small>
-            </div>
-            <div className="heroPricing">
-              <p><b>מחיר מבוקש:</b> {price.toLocaleString("he-IL")} ₪</p>
-              <p><b>החזר חודשי:</b> {car.monthly > 0 ? `${car.monthly.toLocaleString("he-IL")} ₪` : "יש לפנות לנציג"}</p>
-              <p><b>סכום מקדמה:</b> {(car.advance ?? 0).toLocaleString("he-IL")} ₪</p>
-            </div>
-            <VehicleFinanceCalculator price={price} year={vehicleYear} />
-            <div className="modernTrust">
-              <span>✓ עד {maxPayments} תשלומים</span><span>✓ טרייד אין</span><span>✓ ליווי אישי</span>
-            </div>
           </div>
-          <VehicleGallery images={galleryImages} vehicleName={`${car.make} ${car.model}`} />
-        </div>
-      </section>
+        </section>
+      )}
 
-      <section className="modernLeadSection">
-        <div className="shell modernLeadBox">
-          <div><span>רוצים לשמוע עוד?</span><h2>השאירו פרטים ונחזור אליכם</h2><p>נציג מקצועי יחזור אליכם עם כל המידע על הרכב ואפשרויות המימון.</p></div>
-          <CarLeadForm vehicle={`${car.make} ${car.model} ${car.year}`} />
-        </div>
-      </section>
+      <SiteFooter />
 
-      <section className="modernRelated">
-        <div className="shell">
-          <header className="modernSectionHeading"><span>אולי יעניין אתכם</span><h2>רכבים נוספים במלאי</h2></header>
-          <div className="modernRelatedGrid">
-            {relatedCars.map((item) => (
-              <a className="modernRelatedCard" href={`/car/${item.id}`} key={item.id}>
-                <div className={item.image ? "" : "missing"}>
-                  {item.image ? <img src={imageSrc(item.image)} alt={`${item.make} ${item.model}`} loading="lazy" decoding="async" /> : <><img src="/assets/logo1.png" alt="" loading="lazy" decoding="async" /><span>תמונה תעלה בקרוב</span></>}
-                </div>
-                <section><small>{item.category}</small><h3>{item.make} {item.model}</h3><p>{item.year} · {item.gear || "אוטומטי"} · {Number(item.mileage.replace(/,/g, "") || 0).toLocaleString("he-IL")} ק״מ</p><strong>{item.price > 0 ? `${item.price.toLocaleString("he-IL")} ₪` : `החל מ־${item.monthly.toLocaleString("he-IL")} ₪ בחודש`}</strong></section>
-              </a>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <footer>
-        <div className="shell footerGrid">
-          <div className="footerBrand"><img src="/assets/logo1.png" alt="ענק הרכבים" loading="lazy" decoding="async" /><p>ענק הרכבים — קנייה, מכירה, מימון וטרייד אין במקום אחד.</p></div>
-          <div><h3>ניווט מהיר</h3><a href="/">דף הבית</a><a href="/cars">רכבים במלאי</a><a href="/finance">תנאי מימון</a></div>
-          <div><h3>צרו קשר</h3><a href="tel:*2369">*2369</a><a href="tel:0503707010">050-3707010</a><span>דוד רזיאל 4, ראשון לציון</span></div>
-        </div>
-      </footer>
-
-      <div className="modernMobileBar"><a href="tel:*2369">חייגו *2369</a><a href={whatsapp}>וואטסאפ</a></div>
+      {/* פס פעולה קבוע במובייל */}
+      <div className="carMobileBar">
+        <a href={`tel:${BUSINESS.phone}`}>חייגו {BUSINESS.phone}</a>
+        <a href={whatsapp} target="_blank" rel="noreferrer">וואטסאפ</a>
+      </div>
 
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(vehicleSchema) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />

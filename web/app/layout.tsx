@@ -11,6 +11,7 @@ import "./car-modern.css";
 import "./car-listing.css";
 import "./results-table.css"; // חייב להיטען לפני שכבת העיצוב, לא בתוך רכיב לקוח
 import "./vehicle-list.css";
+import "./car-page.css";
 import "./theme-light.css"; // אחרון — ערכת העיצוב הבהירה
 import { BUSINESS, IS_LIVE, SITE_NAME, SITE_URL } from "./site-config";
 
