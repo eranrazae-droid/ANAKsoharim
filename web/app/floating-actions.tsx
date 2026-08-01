@@ -1,4 +1,5 @@
 import { BUSINESS } from "./site-config";
+import { PencilIcon, PhoneIcon } from "./icons";
 
 const WHATSAPP = `https://wa.me/${BUSINESS.whatsapp}?text=${encodeURIComponent("שלום, אני מתעניין ברכב")}`;
 
@@ -15,13 +16,13 @@ export default function FloatingActions() {
   return (
     <div className="floatBar">
       <a className="floatCall" href={`tel:${BUSINESS.dial}`}>
-        <span aria-hidden="true">☎</span> חייג עכשיו
+        <PhoneIcon size={17} /> חייג עכשיו
       </a>
       <a className="floatWhats" href={WHATSAPP} target="_blank" rel="noreferrer">
         שלח ווטסאפ
       </a>
       <a className="floatLead" href="/lead">
-        <span aria-hidden="true">✎</span> השאר פרטים
+        <PencilIcon size={17} /> השאר פרטים
       </a>
     </div>
   );

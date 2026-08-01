@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { GALLERY_SIZES } from "./lib/images";
 import { Picture } from "./site-image";
+import { PlayIcon } from "./icons";
 
 /**
  * סרטון הרכב — אחד בלבד, ונטען רק בלחיצה.
@@ -51,7 +52,7 @@ export default function VideoBlock({
               aria-label={`הפעלת הסרטון: ${title}`}
             >
               <Picture src={poster} alt="" sizes={GALLERY_SIZES} />
-              <span className="videoPlay" aria-hidden="true">▶</span>
+              <span className="videoPlay" aria-hidden="true"><PlayIcon /></span>
             </button>
           ) : youtube ? (
             <iframe

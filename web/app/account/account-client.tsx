@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { CloseIcon } from "../icons";
 
 type Alert = {
   id: string; make: string; model: string; category: string;
@@ -146,7 +147,7 @@ export default function AccountClient({ options }: { options: Options }) {
                     ].filter(Boolean).join(" · ") || "כל הרכבים במלאי"}
                   </small>
                 </div>
-                <button type="button" onClick={() => removeAlert(alert.id)} aria-label="מחיקת התראה">✕</button>
+                <button type="button" onClick={() => removeAlert(alert.id)} aria-label="מחיקת התראה"><CloseIcon size={14} /></button>
               </li>
             ))}
           </ul>

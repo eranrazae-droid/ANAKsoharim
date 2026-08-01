@@ -2,6 +2,7 @@ import { propulsionTechnology, type DisplayCar } from "./vehicle-api";
 import { BUSINESS, DEMO_IMAGE } from "./site-config";
 import { CARD_SIZES } from "./lib/images";
 import { Picture } from "./site-image";
+import { PinIcon } from "./icons";
 import CardGallery from "./card-gallery";
 
 /**
@@ -130,7 +131,7 @@ export default function VehicleCard({ car }: { car: DisplayCar }) {
         </div>
 
         <div className="listBody">
-          <p className="listPlace"><span aria-hidden="true">⌖</span>{BUSINESS.city}</p>
+          <p className="listPlace"><PinIcon size={12} />{BUSINESS.city}</p>
           <h3 className={`listTitle${name.length > TITLE_CHARS ? " listTitleLong" : ""}`}>{name}</h3>
 
           <DataLine className="listOdo" parts={basics} />

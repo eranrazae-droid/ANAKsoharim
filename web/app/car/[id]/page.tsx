@@ -4,6 +4,7 @@ import { getActiveVehicles, type DisplayCar } from "../../vehicle-api";
 import { SiteFooter, SiteHeader } from "../../site-chrome";
 import VehicleGallery from "../../vehicle-gallery";
 import { CarContactStrip, CarFacts } from "../../car-details";
+import { BackIcon } from "../../icons";
 import { getMaxPaymentsByYear } from "../../finance-rules";
 import { BUSINESS, DEMO_IMAGE, SITE_NAME, SITE_URL } from "../../site-config";
 import { similarByPrice, PRICE_FLOOR_SHARE } from "../../similar-by-price";
@@ -132,8 +133,8 @@ export default async function CarPage({ params }: { params: Promise<{ id: string
 
       <nav className="carCrumb" aria-label="מיקום בעמוד">
         <div className="shell">
-          <a href="/">דף הבית</a><span aria-hidden="true">←</span>
-          <a href="/cars">מלאי עדכני</a><span aria-hidden="true">←</span>
+          <a href="/">דף הבית</a><BackIcon size={13} />
+          <a href="/cars">מלאי עדכני</a><BackIcon size={13} />
           <b>{name}</b>
         </div>
       </nav>

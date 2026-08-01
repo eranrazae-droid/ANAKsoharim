@@ -4,6 +4,7 @@ import { Breadcrumbs } from "../page-schema";
 import { getActiveVehicles, type DisplayCar } from "../vehicle-api";
 import VehicleCard from "../vehicle-card";
 import MobileReveal from "../mobile-reveal";
+import { BackIcon, NextIcon } from "../icons";
 import { SITE_NAME, SITE_URL } from "../site-config";
 
 // מחליף את עמודי המלאי הוותיקים של האתר הישן:
@@ -85,9 +86,9 @@ export default async function CarsPage({ searchParams }: Search) {
 
           {pages > 1 && (
             <nav className="pager" aria-label="עמודי המלאי">
-              {page > 1 && <a className="pagerStep" href={href(page - 1)} rel="prev">← הקודם</a>}
+              {page > 1 && <a className="pagerStep" href={href(page - 1)} rel="prev"><BackIcon size={13} /> הקודם</a>}
               <span className="pagerNow">עמוד {page} מתוך {pages}</span>
-              {page < pages && <a className="pagerStep" href={href(page + 1)} rel="next">הבא →</a>}
+              {page < pages && <a className="pagerStep" href={href(page + 1)} rel="next">הבא <NextIcon size={13} /></a>}
               <span className="pagerAll">
                 {Array.from({ length: pages }, (_, index) => index + 1).map((target) => (
                   <a key={target} href={href(target)} className={target === page ? "on" : ""} aria-current={target === page ? "page" : undefined}>

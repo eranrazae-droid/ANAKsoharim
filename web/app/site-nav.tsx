@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { CloseIcon, MenuIcon } from "./icons";
 
 /**
  * הכותרת וסרגל הניווט של העמודים הפנימיים.
@@ -42,7 +43,7 @@ export default function SiteNav({
             aria-expanded={open}
             aria-label={open ? "סגירת התפריט" : "פתיחת התפריט"}
           >
-            <span aria-hidden="true">{open ? "✕" : "☰"}</span>
+            {open ? <CloseIcon size={22} /> : <MenuIcon size={22} />}
           </button>
         </div>
       </header>

@@ -8,6 +8,7 @@ import CustomerStrip from "./customer-strip";
 import FloatingActions from "./floating-actions";
 import SocialLinks from "./social-links";
 import { Logo, Picture } from "./site-image";
+import { CarIcon, CheckIcon, GridIcon, MenuIcon, PhoneIcon, PinIcon, PlusMinusIcon, SortIcon, StarIcon, TableIcon } from "./icons";
 import SimilarCars, { referencePrice } from "./similar-cars";
 import TableCarPanel from "./table-car-panel";
 import { Honeypot, LeadStatusMessage, useLead } from "./use-lead";
@@ -135,7 +136,7 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
   }
   function sortableHeader(label: string, key: TableSortKey) {
     const active = tableSortKey === key;
-    return <button type="button" className={active ? "tableSortButton active" : "tableSortButton"} onClick={() => changeTableSort(key)}>{label}<span>{active && tableSortDirection === "desc" ? "▼" : "▲"}</span></button>;
+    return <button type="button" className={active ? "tableSortButton active" : "tableSortButton"} onClick={() => changeTableSort(key)}>{label}<span><SortIcon up={!(active && tableSortDirection === "desc")} /></span></button>;
   }
   function resetAllCalculators() {
     setCategory("כל הרכבים"); setMake("הכל"); setModel("הכל"); setSortBy("alphabetical");
@@ -155,8 +156,8 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
     <main dir="rtl">
       <header className="topbar"><div className="shell headerInner">
         <a className="logo" href="#top" onClick={resetAllCalculators} aria-label="ענק הרכבים - דף הבית"><Logo eager /></a>
-        <SocialLinks /><div className="headerActions"><a className="location" href="https://waze.com/ul?ll=31.9888,34.77084&navigate=yes" target="_blank" rel="noreferrer">⌖ <span>דוד רזיאל 4, ראשון לציון</span></a><a className="phone" href={`tel:${BUSINESS.dial}`}><small>חייגו עכשיו</small><strong>*2369</strong><span>☎</span></a></div>
-        <nav className={`nav ${mobileOpen ? "open" : ""}`}><div className="navLinks" onClick={() => setMobileOpen(false)}><a href="#top" onClick={resetAllCalculators}>דף הבית</a><a href="#inventory">מלאי עדכני</a><a href="/finance">מחשבון מימון</a><a href="/trade">טרייד אין</a><a href="/sell">מכירת רכב</a><a href="/contact">צור קשר</a><a href="/compare">השוואת רכבים</a><a href="/account">האזור האישי</a></div></nav><button className="menuButton" onClick={() => setMobileOpen(!mobileOpen)} aria-label="פתיחת תפריט">☰</button>
+        <SocialLinks /><div className="headerActions"><a className="location" href="https://waze.com/ul?ll=31.9888,34.77084&navigate=yes" target="_blank" rel="noreferrer"><PinIcon /> <span>דוד רזיאל 4, ראשון לציון</span></a><a className="phone" href={`tel:${BUSINESS.dial}`}><small>חייגו עכשיו</small><strong>*2369</strong><span><PhoneIcon size={18} /></span></a></div>
+        <nav className={`nav ${mobileOpen ? "open" : ""}`}><div className="navLinks" onClick={() => setMobileOpen(false)}><a href="#top" onClick={resetAllCalculators}>דף הבית</a><a href="#inventory">מלאי עדכני</a><a href="/finance">מחשבון מימון</a><a href="/trade">טרייד אין</a><a href="/sell">קונים את הרכב שלך</a><a href="/contact">צור קשר</a><a href="/compare">השוואת רכבים</a><a href="/account">האזור האישי</a></div></nav><button className="menuButton" onClick={() => setMobileOpen(!mobileOpen)} aria-label="פתיחת תפריט"><MenuIcon size={22} /></button>
       </div></header>
       
 
@@ -202,7 +203,7 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
 
           <button type="button" className="advancedToggle" aria-expanded={advancedOpen} onClick={() => setAdvancedOpen(!advancedOpen)}>
             <span>סינון מורחב</span>
-            <i aria-hidden="true">{advancedOpen ? "−" : "+"}</i>
+            <i aria-hidden="true"><PlusMinusIcon open={advancedOpen} /></i>
           </button>
 
           {advancedOpen && (
@@ -223,11 +224,11 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
         </div>
       </div></section>
 
-      <section id="inventory" className="inventory section"><div className="shell"><h1 className="inventoryTitle">כל סוגי הרכבים במקום אחד!</h1><div className="viewToggle" role="group" aria-label="בחירת תצוגת רכבים"><button type="button" className={tableView ? "active" : ""} aria-pressed={tableView} onClick={() => setTableView(true)}>☷ תצוגת טבלה</button><button type="button" className={!tableView ? "active" : ""} aria-pressed={!tableView} onClick={() => setTableView(false)}>▦ תצוגת גלריה</button></div><div className="inventoryControls"><div className="categoryTabs">{categoryOptions.map((item) => <button key={item.value} className={category === item.value ? "active" : ""} onClick={() => setCategory(item.value)}>{item.label}</button>)}</div><label className="inventorySortBlock"><span>מיון</span><select className="inventorySort" aria-label="מיון רכבים" value={sortBy} onChange={(e) => setSortBy(e.target.value)}><option value="price-asc">מחיר — מהזול ליקר</option><option value="price-desc">מחיר — מהיקר לזול</option><option value="monthly-asc">החזר חודשי — מהזול ליקר</option><option value="alphabetical">לפי שם א׳–ב׳</option></select></label></div>
+      <section id="inventory" className="inventory section"><div className="shell"><h1 className="inventoryTitle">כל סוגי הרכבים במקום אחד!</h1><div className="viewToggle" role="group" aria-label="בחירת תצוגת רכבים"><button type="button" className={tableView ? "active" : ""} aria-pressed={tableView} onClick={() => setTableView(true)}><TableIcon size={15} /> תצוגת טבלה</button><button type="button" className={!tableView ? "active" : ""} aria-pressed={!tableView} onClick={() => setTableView(false)}><GridIcon size={15} /> תצוגת גלריה</button></div><div className="inventoryControls"><div className="categoryTabs">{categoryOptions.map((item) => <button key={item.value} className={category === item.value ? "active" : ""} onClick={() => setCategory(item.value)}>{item.label}</button>)}</div><label className="inventorySortBlock"><span>מיון</span><select className="inventorySort" aria-label="מיון רכבים" value={sortBy} onChange={(e) => setSortBy(e.target.value)}><option value="price-asc">מחיר — מהזול ליקר</option><option value="price-desc">מחיר — מהיקר לזול</option><option value="monthly-asc">החזר חודשי — מהזול ליקר</option><option value="alphabetical">לפי שם א׳–ב׳</option></select></label></div>
       <div className={`inventoryReveal${revealAll ? " open" : ""}`}>
       {tableView ? <div className="resultsTableWrap"><table className="resultsTable"><thead><tr><th>#</th><th>{sortableHeader("יצרן", "make")}</th><th>{sortableHeader("דגם", "model")}</th><th>{sortableHeader("תת דגם", "subModel")}</th><th>{sortableHeader("שנת ייצור", "year")}</th><th>{sortableHeader("נפח מנוע", "engineCapacity")}</th><th>{sortableHeader("ק״מ", "mileage")}</th><th>{sortableHeader("תיבת הילוכים", "gear")}</th><th>{sortableHeader("סוג מנוע", "engine")}</th><th>{sortableHeader("גג נפתח", "openRoof")}</th><th>{sortableHeader("מקדמה", "advance")}</th><th>{sortableHeader("תשלום חודשי", "monthly")}</th><th>{sortableHeader("מחיר מבוקש", "price")}</th><th>תמונה</th></tr></thead><tbody>{tableCars.map((car, index) => [
         <tr key={`${car.id}-main`} onClick={() => { window.location.href = `/car/${car.id}`; }} tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter") window.location.href = `/car/${car.id}`; }}>
-          <td><button className="expandRowButton" type="button" aria-expanded={expandedCarId === car.id} onClick={(event) => { event.stopPropagation(); setExpandedCarId(expandedCarId === car.id ? null : car.id); }}>{index + 1}<span>{expandedCarId === car.id ? "−" : "+"}</span></button></td>
+          <td><button className="expandRowButton" type="button" aria-expanded={expandedCarId === car.id} onClick={(event) => { event.stopPropagation(); setExpandedCarId(expandedCarId === car.id ? null : car.id); }}>{index + 1}<span><PlusMinusIcon open={expandedCarId === car.id} /></span></button></td>
           <td>{car.make}</td><td>{car.baseModel || car.model}</td><td>{car.subModel || "—"}</td><td>{car.year}</td><td>{car.engineCapacity || "—"}</td><td>{Number(car.mileage || 0).toLocaleString("he-IL")}</td><td>{car.gear || "—"}</td><td>{car.engine || "—"}</td><td>{car.openRoof ? "כן" : "לא"}</td><td>{car.advance ? `${car.advance.toLocaleString("he-IL")} ₪` : <b className="noAdvance">ללא מקדמה</b>}</td><td>{car.monthly.toLocaleString("he-IL")} ₪</td><td className="askingPriceCell">{car.price.toLocaleString("he-IL")} ₪</td><td><span className="tableCarImage">{car.image ? <Picture src={car.image} alt={`${car.make} ${car.model}`} sizes="68px" /> : <><Logo /><em>תמונות יעלו בקרוב</em></>}</span></td>
         </tr>,
         expandedCarId === car.id && <tr className="expandedVehicleRow" key={`${car.id}-details`}><td colSpan={14}><TableCarPanel car={car} /></td></tr>
@@ -250,10 +251,10 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
 
 
 
-      <section id="finance" className="benefits section"><div className="shell"><h2>רכב קונים רק <span>בענק הרכבים!</span></h2><p className="intro">אנחנו מלווים אתכם משלב בחירת הרכב ועד למסירה, בשקיפות מלאה ועם פתרונות שמתאימים בדיוק לכם.</p><div className="benefitGrid"><article><i>✓</i><h3>בדיקות קפדניות</h3><p>בדיקה מקצועית ושקיפות מלאה על היסטוריית הרכב.</p></article><article><i>🚘</i><h3>מגוון ענק</h3><p>עשרות רכבים מכל הסוגים ובכל רמות המחיר.</p></article><article><i>★</i><h3>שירות ואמינות</h3><p>ייעוץ אישי וליווי מקצועי גם אחרי הקנייה.</p></article><article><i>₪</i><h3>עד 100% מימון</h3><p>אפשרויות מימון נוחות ללא מקדמה, בכפוף לאישור.</p></article></div></div></section>
+      <section id="finance" className="benefits section"><div className="shell"><h2>רכב קונים רק <span>בענק הרכבים!</span></h2><p className="intro">אנחנו מלווים אתכם משלב בחירת הרכב ועד למסירה, בשקיפות מלאה ועם פתרונות שמתאימים בדיוק לכם.</p><div className="benefitGrid"><article><i><CheckIcon size={26} /></i><h3>בדיקות קפדניות</h3><p>בדיקה מקצועית ושקיפות מלאה על היסטוריית הרכב.</p></article><article><i><CarIcon /></i><h3>מגוון ענק</h3><p>עשרות רכבים מכל הסוגים ובכל רמות המחיר.</p></article><article><i><StarIcon /></i><h3>שירות ואמינות</h3><p>ייעוץ אישי וליווי מקצועי גם אחרי הקנייה.</p></article><article><i>₪</i><h3>עד 100% מימון</h3><p>אפשרויות מימון נוחות ללא מקדמה, בכפוף לאישור.</p></article></div></div></section>
 
 
-      <footer id="contact"><div className="shell footerGrid"><div><Logo /><p>מכירה, קנייה וטרייד אין לרכבים מאז 1998.</p></div><div><h3>צרו קשר</h3><p>רחוב דוד רזיאל 4, ראשון לציון</p><a href={`tel:${BUSINESS.dial}`}>*2369</a><p>א׳-ה׳ 08:30-18:00 | ו׳ 08:30-13:00</p></div><div><h3>קישורים</h3><a href="#inventory">רכבים במלאי</a><a href="/sell">מכירת רכב</a><a href="/finance">מימון וטרייד אין</a></div></div><div className="copyright">© {new Date().getFullYear()} ענק הרכבים. כל הזכויות שמורות.</div></footer>
+      <footer id="contact"><div className="shell footerGrid"><div><Logo /><p>מכירה, קנייה וטרייד אין לרכבים מאז 1998.</p></div><div><h3>צרו קשר</h3><p>רחוב דוד רזיאל 4, ראשון לציון</p><a href={`tel:${BUSINESS.dial}`}>*2369</a><p>א׳-ה׳ 08:30-18:00 | ו׳ 08:30-13:00</p></div><div><h3>קישורים</h3><a href="#inventory">רכבים במלאי</a><a href="/sell">קונים את הרכב שלך</a><a href="/finance">מימון וטרייד אין</a></div></div><div className="copyright">© {new Date().getFullYear()} ענק הרכבים. כל הזכויות שמורות.</div></footer>
       <FloatingActions />
     </main>
   );
