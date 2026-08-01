@@ -131,8 +131,6 @@ export default async function CarPage({ params }: { params: Promise<{ id: string
         </div>
       </nav>
 
-      <h1 className="carTitle">{car.make} {car.model} שנת ייצור {car.year}</h1>
-
       <section className="carBoard">
         <div className="shell carBoardGrid">
 
@@ -151,7 +149,10 @@ export default async function CarPage({ params }: { params: Promise<{ id: string
           </div>
           {/* ── טקסט ── */}
           <div className="carFacts">
-            <p className="carFactsHead"><span>למכירה!</span><b>{name}</b></p>
+            <div className="carFactsHead">
+              <span>למכירה!</span>
+              <h1>{car.make} {car.model} שנת {car.year}</h1>
+            </div>
 
             <dl className="carSpecTable">
               <div className="carCellWide"><dt>מחיר מבוקש:</dt><dd>{price.toLocaleString("he-IL")} ₪</dd></div>
