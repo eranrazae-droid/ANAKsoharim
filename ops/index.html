@@ -6743,8 +6743,10 @@ const _PC_CATALOGS = {
 };
 
 // Japanese makes get the Japanese catalogue only; everything else gets the rest.
-const _PC_JAPANESE = ['טויוטה','לקסוס','מאזדה','ניסאן','אינפיניטי','מיצובישי','סובארו',
-  'סוזוקי','הונדה','אקורה','דייהטסו','איסוזו'];
+// the registry is not consistent about spelling — "ניסאן" and "ניסן" both appear
+const _PC_JAPANESE = ['טויוטה','טויטה','לקסוס','מאזדה','מזדה','ניסאן','ניסן','אינפיניטי',
+  'מיצובישי','מיצובושי','מיצובישי','סובארו','סוברו','סוזוקי','הונדה','אקורה',
+  'דייהטסו','דיהטסו','דייהצו','איסוזו','איסוזה'];
 function _pcIsJapanese(maker) {
   const m = String(maker || '').trim();
   return !!m && _PC_JAPANESE.some(j => m.includes(j));
@@ -6759,7 +6761,9 @@ function _pcCatalogsHtml(vin, maker) {
   const jpMake = _pcIsJapanese(maker);
 
   let list, note = '';
-  if (jpMake && builtInJapan) {
+  // A chassis number starting with J means the car was built in Japan, whatever
+  // the registry called the make — that alone justifies the Japanese catalogue.
+  if (builtInJapan) {
     list = [_PC_CATALOGS.amayama, _PC_CATALOGS.partsouq];
   } else if (jpMake) {
     list = [_PC_CATALOGS.partsouq, _PC_CATALOGS.amayama];
