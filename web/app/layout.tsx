@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Heebo } from "next/font/google";
+import { Heebo } from "next/font/google";
 import "./globals.css";
 import "./detail.css";
 import "./brand.css";
@@ -18,22 +18,12 @@ import "./video.css";
 import "./theme-light.css"; // אחרון — ערכת העיצוב הבהירה
 import { BUSINESS, IS_LIVE, SITE_NAME, SITE_URL } from "./site-config";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
 // הגופן של האתר. נטען כמשתנה CSS ומופעל ב-globals.css דרך --font-hebrew,
 // כדי שההגדרה תישאר במקום אחד ולא תדרוס את שאר העיצוב.
 const heebo = Heebo({
   variable: "--font-hebrew",
   subsets: ["hebrew", "latin"],
-  weight: ["400", "500", "700", "800"],
+  weight: ["400", "700", "800"],
   display: "swap",
 });
 
@@ -150,7 +140,7 @@ export default function RootLayout({
   return (
     <html lang="he" dir="rtl">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${heebo.variable} antialiased`}
+        className={`${heebo.variable} antialiased`}
       >
         {children}
         <script

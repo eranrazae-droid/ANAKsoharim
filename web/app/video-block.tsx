@@ -1,64 +1,70 @@
 "use client";
 
 import { useState } from "react";
-import { VIDEO } from "./site-config";
 
 /**
- * סרטון שנטען רק בלחיצה.
+ * סרטון הרכב — אחד בלבד, ונטען רק בלחיצה.
  *
- * עד הלחיצה מוצגת תמונת שער בלבד — אין iframe, אין קובץ וידאו,
- * ואין אף בקשת רשת לנגן. כך הסרטון לא משפיע על מהירות הטעינה
- * של האתר ולא נספר במדדי המהירות של גוגל.
- * תומך גם ביוטיוב וגם בקובץ שהועלה לאתר.
+ * עד הלחיצה מוצגת תמונת שער בלבד: אין iframe, אין קובץ וידאו,
+ * ואין אף בקשת רשת לנגן. הקובץ יורד רק כשהגולש מבקש לראות אותו.
+ * כך הסרטון לא משפיע על מהירות הדף ולא נספר במדדי גוגל.
+ *
+ * מוצג רק בעמוד הרכב. לא בדף הבית ולא ברשימת המלאי — שם סרטון
+ * היה מכפיל את משקל העמוד בלי להוסיף ללקוח.
  */
-export default function VideoBlock({ preview = false }: { preview?: boolean }) {
-  const [playing, setPlaying] = useState(false);
-  const ready = Boolean(VIDEO.youtubeId || VIDEO.file);
-  if (!ready && !preview) return null;
 
-  const poster = VIDEO.poster || "/assets/showroom-sm.jpg";
+/** מזהה יוטיוב מתוך כתובת מלאה, או מזהה שכבר נקי */
+function youtubeId(source: string) {
+  const match = source.match(/(?:youtu\.be\/|v=|embed\/|shorts\/)([A-Za-z0-9_-]{11})/);
+  if (match) return match[1];
+  return /^[A-Za-z0-9_-]{11}$/.test(source) ? source : "";
+}
+
+export default function VideoBlock({
+  source,
+  poster,
+  title,
+}: {
+  /** כתובת יוטיוב, מזהה יוטיוב, או נתיב לקובץ mp4 */
+  source: string;
+  poster: string;
+  title: string;
+}) {
+  const [playing, setPlaying] = useState(false);
+  if (!source) return null;
+
+  const youtube = youtubeId(source);
 
   return (
-    <section className="videoSection section">
+    <section className="videoSection">
       <div className="shell">
-        <header className="videoHead">
-          <span className="eyebrow">קצת מאיתנו</span>
-          <h2>{VIDEO.title}</h2>
-        </header>
+        <h2>סרטון הרכב</h2>
 
         <div className="videoFrame">
-          {!playing && (
+          {!playing ? (
             <button
               type="button"
               className="videoPoster"
-              onClick={() => ready && setPlaying(true)}
-              aria-label={ready ? `הפעלת הסרטון: ${VIDEO.title}` : "הסרטון יתווסף כאן"}
-              disabled={!ready}
+              onClick={() => setPlaying(true)}
+              aria-label={`הפעלת הסרטון: ${title}`}
             >
               <img src={poster} alt="" loading="lazy" decoding="async" />
               <span className="videoPlay" aria-hidden="true">▶</span>
-              {!ready && <span className="videoSoon">כאן ייכנס הסרטון</span>}
             </button>
-          )}
-
-          {playing && VIDEO.youtubeId && (
+          ) : youtube ? (
             <iframe
-              src={`https://www.youtube-nocookie.com/embed/${VIDEO.youtubeId}?autoplay=1&rel=0`}
-              title={VIDEO.title}
+              src={`https://www.youtube-nocookie.com/embed/${youtube}?autoplay=1&rel=0`}
+              title={title}
               allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
               loading="lazy"
             />
-          )}
-
-          {playing && !VIDEO.youtubeId && VIDEO.file && (
-            <video src={VIDEO.file} poster={poster} controls autoPlay playsInline preload="none" />
+          ) : (
+            <video src={source} poster={poster} controls autoPlay playsInline preload="none" />
           )}
         </div>
 
-        <p className="videoNote">
-          הסרטון נטען רק בלחיצה, כדי שהאתר יישאר מהיר.
-        </p>
+        <p className="videoNote">הסרטון נטען רק בלחיצה, כדי שהדף יישאר מהיר בסלולר.</p>
       </div>
     </section>
   );

@@ -55,9 +55,25 @@ const LEGACY_REDIRECTS = [
   { source: "/:path*.htm", destination: "/", statusCode: 301 },
 ];
 
+/**
+ * הוראת מטמון לשנה על תמונות ונכסים קבועים.
+ * immutable אומר לדפדפן לא לבדוק שוב עד שהכתובת עצמה תשתנה.
+ * תמונות שמגיעות מ-Firebase Storage מקבלות את ההוראה שלהן שם,
+ * בהגדרות התוסף — ראה IMAGES.md.
+ */
+const CACHE_YEAR = "public, max-age=31536000, immutable";
+
 const nextConfig: NextConfig = {
   async redirects() {
     return LEGACY_REDIRECTS;
+  },
+  async headers() {
+    return [
+      { source: "/assets/:path*", headers: [{ key: "Cache-Control", value: CACHE_YEAR }] },
+      { source: "/placeholders/:path*", headers: [{ key: "Cache-Control", value: CACHE_YEAR }] },
+      { source: "/video/:path*", headers: [{ key: "Cache-Control", value: CACHE_YEAR }] },
+      { source: "/og.jpg", headers: [{ key: "Cache-Control", value: CACHE_YEAR }] },
+    ];
   },
 };
 

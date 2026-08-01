@@ -1,4 +1,8 @@
 import inventorySnapshot from "./inventory-snapshot.json";
+import type { DisplayCar } from "./vehicle-types";
+
+export type { DisplayCar } from "./vehicle-types";
+export { propulsionTechnology } from "./vehicle-types";
 
 /**
  * מקורות המלאי.
@@ -19,11 +23,6 @@ export const VEHICLES_API =
 export const VEHICLE_IMAGES_XML =
   process.env.VEHICLE_IMAGES_XML_URL || "https://03-5189189.netstyle.co.il/xml/yad2/";
 
-export type DisplayCar = {
-  id: string; image?: string | null; images?: string[]; make: string; model: string; year: number; monthly: number; category: string; categories?: string[];
-  price: number; mileage: string; hand: string; ownership: string; engine: string; color: string; doors: string; seats: string;
-  baseModel?: string; subModel?: string; advance?: number; openRoof?: boolean; engineCapacity?: string; horsePower?: string; gear?: string; drivetrain?: string; test?: string; body?: string; extras?: string; remarks?: string;
-};
 
 function cleanCategories(value: unknown) {
   return Array.from(new Set(
@@ -68,6 +67,8 @@ export function normalizeVehicle(raw: Record<string, unknown>): DisplayCar {
   const categories = cleanCategories(raw.ank_s_category);
   return {
     id: String(raw.ank_s_car_number ?? raw.MOT_CODE ?? ""), image: null,
+    // סרטון אחד לכל רכב, אם המערכת מספקת. יותר מאחד לא מוצג.
+    video: String(raw.ank_s_video ?? raw.video ?? "") || null,
     make: String(raw.ank_id_manufacturer ?? "").trim(), model: `${baseModel} ${subModel}`.trim(),
     baseModel, subModel, advance: Number(raw.ank_m_advance_payment ?? 0), openRoof: Boolean(raw.ank_b_open_roof),
     year: Number(raw.ank_id_year_of_manufacture ?? 0), monthly: Number(raw.ank_m_monthly_payment ?? 0),
@@ -101,19 +102,3 @@ export async function getActiveVehicles(): Promise<DisplayCar[]> {
   }));
 }
 
-/**
- * טכנולוגיית ההנעה, נגזרת מסוג המנוע.
- * משמשת גם לסינון בדף הבית וגם לתצוגה בכרטיס הרכב.
- * "הנעה רגילה" הוא המקרה הרגיל ואינו מוצג ללקוח.
- */
-export function propulsionTechnology(engine: string) {
-  const value = String(engine || "").toLowerCase();
-  const electric = value.includes("חשמל") || value.includes("electric");
-  const fuel = value.includes("בנזין") || value.includes("דיזל") || value.includes("petrol") || value.includes("diesel");
-  if (value.includes("פלאג") || value.includes("נטען") || value.includes("phev")) return "פלאג־אין";
-  // "חשמל/בנזין" הוא רכב היברידי, לא חשמלי. רק מנוע חשמלי בלבד הוא חשמלי.
-  if (electric && fuel) return "היברידי";
-  if (electric) return "חשמלי";
-  if (value.includes("היבריד") || value.includes("hybrid")) return "היברידי";
-  return "הנעה רגילה";
-}

@@ -40,6 +40,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // אם המלאי לא זמין רגעית, עדיף מפת אתר עם העמודים הקבועים מאשר כישלון בנייה.
   try {
     const cars = await getActiveVehicles();
+
+    // עמודי המלאי מעבר לראשון — כדי שגוגל יגיע לכל הרכבים
+    const CARS_PER_PAGE = 30;
+    const carPages = Math.ceil(cars.length / CARS_PER_PAGE);
+    for (let page = 2; page <= carPages; page += 1) {
+      pages.push({
+        url: `${SITE_URL}/cars?page=${page}`,
+        lastModified: now,
+        changeFrequency: "daily",
+        priority: 0.6,
+      });
+    }
+
     for (const car of cars) {
       pages.push({
         url: `${SITE_URL}/car/${car.id}`,

@@ -1,8 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { DisplayCar } from "../vehicle-api";
-import { propulsionTechnology } from "../vehicle-api";
+import { propulsionTechnology, type DisplayCar } from "../vehicle-types";
 import { DEMO_IMAGE } from "../site-config";
 
 /**

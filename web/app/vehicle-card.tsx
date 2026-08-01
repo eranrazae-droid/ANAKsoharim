@@ -1,5 +1,6 @@
 import { propulsionTechnology, type DisplayCar } from "./vehicle-api";
 import { BUSINESS, DEMO_IMAGE } from "./site-config";
+import { CARD_SIZES, fallbackSrc, srcSet } from "./lib/images";
 import CardGallery from "./card-gallery";
 
 /**

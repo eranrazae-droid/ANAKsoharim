@@ -7,6 +7,7 @@ import { CarLeadForm } from "../../lead-forms";
 import { getMaxPaymentsByYear } from "../../finance-rules";
 import { BUSINESS, DEMO_IMAGE, SITE_NAME, SITE_URL } from "../../site-config";
 import { similarByPrice, PRICE_FLOOR_SHARE } from "../../similar-by-price";
+import VideoBlock from "../../video-block";
 
 export const revalidate = 600;
 
@@ -193,6 +194,11 @@ export default async function CarPage({ params }: { params: Promise<{ id: string
 
         </div>
       </section>
+
+      {/* ── סרטון הרכב — אחד בלבד, נטען רק בלחיצה ── */}
+      {car.video && (
+        <VideoBlock source={car.video} poster={gallery[0]} title={`${name} שנת ${car.year}`} />
+      )}
 
       {/* ── רכבים נוספים ── */}
       {related.length > 0 && (

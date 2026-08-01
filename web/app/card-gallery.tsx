@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { CARD_SIZES, fallbackSrc, srcSet } from "./lib/images";
 
 /**
  * גלריית התמונות שבראש כרטיס הרכב.
@@ -23,16 +24,27 @@ export default function CardGallery({ images, alt }: { images: string[]; alt: st
   return (
     <>
       <div className="listSlides" ref={strip} onScroll={trackPosition}>
-        {images.map((src, position) => (
-          <img
-            key={src}
-            src={src}
-            alt={position === 0 ? alt : ""}
-            loading="lazy"
-            decoding="async"
-            draggable={false}
-          />
-        ))}
+        {images.map((src, position) => {
+          // רק התמונה הנוכחית והבאה אחריה מוכנות. השאר ממתינות.
+          const ready = position <= index + 1;
+          const webp = srcSet(src, "webp");
+          const jpeg = srcSet(src, "jpeg");
+          return ready ? (
+            <picture key={src}>
+              {webp && <source type="image/webp" srcSet={webp} sizes={CARD_SIZES} />}
+              {jpeg && <source type="image/jpeg" srcSet={jpeg} sizes={CARD_SIZES} />}
+              <img
+                src={fallbackSrc(src)}
+                alt={position === 0 ? alt : ""}
+                loading={position === 0 ? "eager" : "lazy"}
+                decoding="async"
+                draggable={false}
+              />
+            </picture>
+          ) : (
+            <span className="listSlideHold" key={src} aria-hidden="true" />
+          );
+        })}
       </div>
 
       {images.length > 1 && (
