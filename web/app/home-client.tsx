@@ -29,6 +29,18 @@ function propulsionTechnology(engine: string) {
   return "הנעה רגילה";
 }
 
+/**
+ * השוואת מחיר או החזר חודשי.
+ * רכב בלי מחיר ("לפרטים חייגו") יורד תמיד לסוף הרשימה, בשני הכיוונים,
+ * כדי שהמיון "מהזול ליקר" יתחיל באמת ברכב הזול ביותר.
+ */
+function byValue(a: number, b: number, direction: 1 | -1) {
+  if (!a && !b) return 0;
+  if (!a) return 1;
+  if (!b) return -1;
+  return (a - b) * direction;
+}
+
 export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] }) {
   // המלאי מגיע מהשרת ומרונדר ל-HTML — כך גוגל רואה את כל הרכבים.
   const cars = initialCars;
@@ -98,10 +110,9 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
   const shownCars = useMemo(() => cars
     .filter((car) => (category === "כל הרכבים" || (car.categories?.length ? car.categories : [car.category]).includes(category)) && (make === "הכל" || car.make === make) && (model === "הכל" || (car.baseModel || car.model) === model) && (driveTech === "הכל" || car.drivetrain === driveTech) && (propulsionTech === "הכל" || propulsionTechnology(car.engine) === propulsionTech) && (roofFilter === "הכל" || (roofFilter === "כן" ? car.openRoof : !car.openRoof)) && (fromYear === "הכל" || car.year >= Number(fromYear)) && (toYear === "הכל" || car.year <= Number(toYear)) && (engineType === "הכל" || car.engine === engineType) && (gearbox === "הכל" || car.gear === gearbox) && car.price >= minPrice && car.price <= maxPrice && car.monthly >= minMonthly && car.monthly <= maxMonthly)
     .sort((a, b) => {
-      if (sortBy === "price-asc") return a.price - b.price;
-      if (sortBy === "price-desc") return b.price - a.price;
-      if (sortBy === "year-desc") return b.year - a.year;
-      if (sortBy === "year-asc") return a.year - b.year;
+      if (sortBy === "price-asc") return byValue(a.price, b.price, 1);
+      if (sortBy === "price-desc") return byValue(a.price, b.price, -1);
+      if (sortBy === "monthly-asc") return byValue(a.monthly, b.monthly, 1);
       return a.make.localeCompare(b.make, "he") || a.model.localeCompare(b.model, "he") || b.year - a.year;
     }), [cars, category, make, model, driveTech, propulsionTech, roofFilter, fromYear, toYear, engineType, gearbox, sortBy, minPrice, maxPrice, minMonthly, maxMonthly]);
   const tableCars = useMemo(() => [...shownCars].sort((a, b) => {
@@ -202,7 +213,7 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
         </div>
       </div></section>
 
-      <section id="inventory" className="inventory section"><div className="shell"><h1 className="inventoryTitle">כל סוגי הרכבים במקום אחד!</h1><div className="viewToggle" role="group" aria-label="בחירת תצוגת רכבים"><button type="button" className={tableView ? "active" : ""} aria-pressed={tableView} onClick={() => setTableView(true)}>☷ תצוגת טבלה</button><button type="button" className={!tableView ? "active" : ""} aria-pressed={!tableView} onClick={() => setTableView(false)}>▦ תצוגת גלריה</button></div><div className="inventoryControls"><div className="categoryTabs">{categoryOptions.map((item) => <button key={item.value} className={category === item.value ? "active" : ""} onClick={() => setCategory(item.value)}>{item.label}</button>)}</div><label className="inventorySortBlock"><span>מיון</span><select className="inventorySort" aria-label="מיון רכבים" value={sortBy} onChange={(e) => setSortBy(e.target.value)}><option value="alphabetical">לפי א׳–ב׳</option><option value="price-asc">מחיר מזול ליקר</option><option value="price-desc">מחיר מיקר לזול</option><option value="year-desc">מחדש לישן</option><option value="year-asc">מישן לחדש</option></select></label></div>
+      <section id="inventory" className="inventory section"><div className="shell"><h1 className="inventoryTitle">כל סוגי הרכבים במקום אחד!</h1><div className="viewToggle" role="group" aria-label="בחירת תצוגת רכבים"><button type="button" className={tableView ? "active" : ""} aria-pressed={tableView} onClick={() => setTableView(true)}>☷ תצוגת טבלה</button><button type="button" className={!tableView ? "active" : ""} aria-pressed={!tableView} onClick={() => setTableView(false)}>▦ תצוגת גלריה</button></div><div className="inventoryControls"><div className="categoryTabs">{categoryOptions.map((item) => <button key={item.value} className={category === item.value ? "active" : ""} onClick={() => setCategory(item.value)}>{item.label}</button>)}</div><label className="inventorySortBlock"><span>מיון</span><select className="inventorySort" aria-label="מיון רכבים" value={sortBy} onChange={(e) => setSortBy(e.target.value)}><option value="price-asc">מחיר — מהזול ליקר</option><option value="price-desc">מחיר — מהיקר לזול</option><option value="monthly-asc">החזר חודשי — מהזול ליקר</option><option value="alphabetical">לפי שם א׳–ב׳</option></select></label></div>
       <div className={`inventoryReveal${revealAll ? " open" : ""}`}>
       {tableView ? <div className="resultsTableWrap"><table className="resultsTable"><thead><tr><th>#</th><th>{sortableHeader("יצרן", "make")}</th><th>{sortableHeader("דגם", "model")}</th><th>{sortableHeader("תת דגם", "subModel")}</th><th>{sortableHeader("שנת ייצור", "year")}</th><th>{sortableHeader("נפח מנוע", "engineCapacity")}</th><th>{sortableHeader("יד", "hand")}</th><th>{sortableHeader("ק״מ", "mileage")}</th><th>{sortableHeader("תיבת הילוכים", "gear")}</th><th>{sortableHeader("סוג מנוע", "engine")}</th><th>{sortableHeader("גג נפתח", "openRoof")}</th><th>{sortableHeader("מקדמה", "advance")}</th><th>{sortableHeader("תשלום חודשי", "monthly")}</th><th>{sortableHeader("מחיר מבוקש", "price")}</th><th>תמונה</th></tr></thead><tbody>{tableCars.map((car, index) => [
         <tr key={`${car.id}-main`} onClick={() => { window.location.href = `/car/${car.id}`; }} tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter") window.location.href = `/car/${car.id}`; }}>
