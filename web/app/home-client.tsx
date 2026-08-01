@@ -192,11 +192,12 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
 
       <SimilarCars cars={cars} profile={matchRef} />
 
-      <CustomerStrip />
-
       <section className="consultSection"><div className="shell">
         <form className="quickLead" onSubmit={heroLead.submit}><strong>לייעוץ מקצועי מלאו פרטים</strong><Honeypot /><input required name="name" placeholder="שם.." aria-label="שם" /><input required name="phone" inputMode="tel" placeholder="טלפון.." aria-label="טלפון" /><input name="notes" placeholder="הערות.." aria-label="הערות" /><button disabled={heroLead.status === "sending"}>{heroLead.status === "sending" ? "שולח..." : "שלח"}</button><LeadStatusMessage status={heroLead.status} error={heroLead.error} /></form>
       </div></section>
+
+      <CustomerStrip />
+
 
 
       <section id="finance" className="benefits section"><div className="shell"><h2>רכב קונים רק <span>בענק הרכבים!</span></h2><p className="intro">אנחנו מלווים אתכם משלב בחירת הרכב ועד למסירה, בשקיפות מלאה ועם פתרונות שמתאימים בדיוק לכם.</p><div className="benefitGrid"><article><i>✓</i><h3>בדיקות קפדניות</h3><p>בדיקה מקצועית ושקיפות מלאה על היסטוריית הרכב.</p></article><article><i>🚘</i><h3>מגוון ענק</h3><p>עשרות רכבים מכל הסוגים ובכל רמות המחיר.</p></article><article><i>★</i><h3>שירות ואמינות</h3><p>ייעוץ אישי וליווי מקצועי גם אחרי הקנייה.</p></article><article><i>₪</i><h3>עד 100% מימון</h3><p>אפשרויות מימון נוחות ללא מקדמה, בכפוף לאישור.</p></article></div></div></section>

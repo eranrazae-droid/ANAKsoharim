@@ -85,9 +85,9 @@ export default function SimilarCars({ cars, profile }: { cars: DisplayCar[]; pro
           <p>{subtitle}</p>
         </header>
 
-        <div className="matchGrid">
+        <div className="matchGrid" role="list" tabIndex={0} aria-label="רכבים דומים, ניתן לגלול לצדדים">
           {picks.map((car) => (
-            <a className="matchCard" href={`/car/${car.id}`} key={car.id}>
+            <a className="matchCard" role="listitem" href={`/car/${car.id}`} key={car.id}>
               <div className={`matchMedia ${car.image ? "" : "matchMediaEmpty"}`}>
                 {car.image
                   ? <img src={car.image} alt={`${car.make} ${car.baseModel || car.model} שנת ${car.year}`} loading="lazy" decoding="async" />
