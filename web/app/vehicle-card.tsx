@@ -10,7 +10,7 @@ import { DEMO_IMAGE } from "./site-config";
  */
 
 /** תוספת שמופיעה ליד המחיר בכל הרכבים */
-const PRICE_NOTE = "גמיש לקצינים";
+const PRICE_NOTE = "גמיש לרציניים";
 
 function mileage(car: DisplayCar) {
   return Number(String(car.mileage).replace(/,/g, "") || 0).toLocaleString("he-IL");
