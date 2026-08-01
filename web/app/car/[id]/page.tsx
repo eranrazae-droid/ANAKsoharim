@@ -223,11 +223,6 @@ export default async function CarPage({ params }: { params: Promise<{ id: string
 
       <SiteFooter />
 
-      <div className="carMobileBar">
-        <a href={`tel:${BUSINESS.phone}`}>חייגו {BUSINESS.phone}</a>
-        <a href={whatsapp} target="_blank" rel="noreferrer">וואטסאפ</a>
-      </div>
-
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(vehicleSchema) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
     </main>

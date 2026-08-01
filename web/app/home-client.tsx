@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { DisplayCar } from "./vehicle-api";
 import VehicleCard from "./vehicle-card";
 import CustomerStrip from "./customer-strip";
+import FloatingActions from "./floating-actions";
 import SimilarCars, { referencePrice } from "./similar-cars";
 import { Honeypot, LeadStatusMessage, useLead } from "./use-lead";
 
@@ -244,7 +245,7 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
 
 
       <footer id="contact"><div className="shell footerGrid"><div><img src="/assets/logo1.png" alt="ענק הרכבים" loading="lazy" decoding="async" /><p>מכירה, קנייה וטרייד אין לרכבים מאז 1998.</p></div><div><h3>צרו קשר</h3><p>רחוב דוד רזיאל 4, ראשון לציון</p><a href="tel:*2369">*2369</a><p>א׳-ה׳ 08:30-18:00 | ו׳ 08:30-13:00</p></div><div><h3>קישורים</h3><a href="#inventory">רכבים במלאי</a><a href="/sell">מכירת רכב</a><a href="/finance">מימון וטרייד אין</a></div></div><div className="copyright">© {new Date().getFullYear()} ענק הרכבים. כל הזכויות שמורות.</div></footer>
-      <a className="whatsapp" href="https://wa.me/972503707010" target="_blank" rel="noreferrer" aria-label="וואטסאפ">✆</a>
+      <FloatingActions />
     </main>
   );
 }
