@@ -40,7 +40,7 @@ export default function TableCarPanel({ car }: { car: DisplayCar }) {
       </div>
 
       <div className="panelBody">
-        <CarFacts car={car} />
+        <CarFacts car={car} inTable />
       </div>
 
       <CarContactStrip car={car} />

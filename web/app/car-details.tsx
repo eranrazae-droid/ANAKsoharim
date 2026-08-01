@@ -28,7 +28,16 @@ export function carName(car: DisplayCar) {
   return [car.make, car.baseModel || car.model, car.subModel].filter(Boolean).join(" ");
 }
 
-export function CarFacts({ car }: { car: DisplayCar }) {
+/**
+ * inTable — הכרטיס נפתח בתוך שורת הטבלה.
+ *
+ * במקרה הזה השורה שמעליו כבר מציגה מחיר, החזר חודשי, מקדמה,
+ * ק״מ, תיבת הילוכים, סוג מנוע, נפח מנוע וגג נפתח — לכל אחד
+ * מהם יש עמודה משלו. לחזור עליהם בכרטיס זה כפל שמאריך אותו
+ * בלי להוסיף מידע, ולכן הם מדולגים. בעמוד הרכב, שבו אין
+ * טבלה, כולם מוצגים כרגיל.
+ */
+export function CarFacts({ car, inTable = false }: { car: DisplayCar; inTable?: boolean }) {
   const propulsion = propulsionTechnology(car.engine);
   const kilometres = Number(String(car.mileage || "").replace(/\D/g, "")) || 0;
 
@@ -37,20 +46,24 @@ export function CarFacts({ car }: { car: DisplayCar }) {
       <h3 className="panelTitle">{carName(car)} <em>שנת {car.year}</em></h3>
 
       <dl className="panelFacts">
-        <Fact label="מחיר מבוקש" value={car.price > 0 ? `${car.price.toLocaleString("he-IL")} ש״ח` : "לפרטים חייגו"} />
-        <Fact label="החזר חודשי" value={car.monthly > 0 ? `${car.monthly.toLocaleString("he-IL")} ש״ח` : null} />
-        <Fact
-          label="מקדמה"
-          value={car.monthly > 0
-            ? (car.advance
-                ? `${car.advance.toLocaleString("he-IL")} ש״ח`
-                : <b className="noAdvance">ללא מקדמה</b>)
-            : null}
-        />
-        <Fact label="קילומטראז׳" value={kilometres ? `${kilometres.toLocaleString("he-IL")} ק״מ` : null} />
-        <Fact label="תיבת הילוכים" value={car.gear} />
-        <Fact label="סוג מנוע" value={car.engine} />
-        <Fact label="נפח מנוע" value={car.engineCapacity} />
+        {!inTable && (
+          <>
+            <Fact label="מחיר מבוקש" value={car.price > 0 ? `${car.price.toLocaleString("he-IL")} ש״ח` : "לפרטים חייגו"} />
+            <Fact label="החזר חודשי" value={car.monthly > 0 ? `${car.monthly.toLocaleString("he-IL")} ש״ח` : null} />
+            <Fact
+              label="מקדמה"
+              value={car.monthly > 0
+                ? (car.advance
+                    ? `${car.advance.toLocaleString("he-IL")} ש״ח`
+                    : <b className="noAdvance">ללא מקדמה</b>)
+                : null}
+            />
+            <Fact label="קילומטראז׳" value={kilometres ? `${kilometres.toLocaleString("he-IL")} ק״מ` : null} />
+            <Fact label="תיבת הילוכים" value={car.gear} />
+            <Fact label="סוג מנוע" value={car.engine} />
+            <Fact label="נפח מנוע" value={car.engineCapacity} />
+          </>
+        )}
         <Fact label="כוח סוס" value={car.horsePower} />
         <Fact label="טכנולוגיית הנעה" value={propulsion === "הנעה רגילה" ? null : propulsion} />
         <Fact label="מערכת הנעה" value={car.drivetrain} />
@@ -59,7 +72,7 @@ export function CarFacts({ car }: { car: DisplayCar }) {
         <Fact label="קטגוריה" value={car.categories?.join(", ") || car.category} />
         <Fact label="מספר דלתות" value={car.doors} />
         <Fact label="מספר מושבים" value={car.seats} />
-        <Fact label="גג נפתח" value={car.openRoof ? "כן" : null} />
+        {!inTable && <Fact label="גג נפתח" value={car.openRoof ? "כן" : null} />}
         <Fact label="תוקף טסט" value={car.test} />
       </dl>
 
