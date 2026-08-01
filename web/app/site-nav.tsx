@@ -26,6 +26,15 @@ export default function SiteNav({
       <header className="topbar">
         <div className="shell headerInner">
           {children}
+
+          {/* התפריט יושב בתוך שורת הכותרת: במחשב באמצע, בין
+              הסמלים לטלפון. בטלפון הוא נפתח מתחתיה בכפתור. */}
+          <nav className={`nav ${open ? "open" : ""}`}>
+            <div className="navLinks" onClick={() => setOpen(false)}>
+              {links}
+            </div>
+          </nav>
+
           <button
             className="menuButton"
             type="button"
@@ -37,12 +46,6 @@ export default function SiteNav({
           </button>
         </div>
       </header>
-
-      <nav className={`nav ${open ? "open" : ""}`}>
-        <div className="shell navLinks" onClick={() => setOpen(false)}>
-          {links}
-        </div>
-      </nav>
     </>
   );
 }

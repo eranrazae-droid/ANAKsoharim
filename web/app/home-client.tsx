@@ -156,9 +156,9 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
       <header className="topbar"><div className="shell headerInner">
         <a className="logo" href="#top" onClick={resetAllCalculators} aria-label="ענק הרכבים - דף הבית"><Logo eager /></a>
         <SocialLinks /><div className="headerActions"><a className="location" href="https://waze.com/ul?ll=31.9888,34.77084&navigate=yes" target="_blank" rel="noreferrer">⌖ <span>דוד רזיאל 4, ראשון לציון</span></a><a className="phone" href={`tel:${BUSINESS.dial}`}><small>חייגו עכשיו</small><strong>*2369</strong><span>☎</span></a></div>
-        <button className="menuButton" onClick={() => setMobileOpen(!mobileOpen)} aria-label="פתיחת תפריט">☰</button>
+        <nav className={`nav ${mobileOpen ? "open" : ""}`}><div className="navLinks" onClick={() => setMobileOpen(false)}><a href="#top" onClick={resetAllCalculators}>דף הבית</a><a href="#inventory">מלאי עדכני</a><a href="/finance">מחשבון מימון</a><a href="/trade">טרייד אין</a><a href="/sell">מכירת רכב</a><a href="/contact">צור קשר</a><a href="/compare">השוואת רכבים</a><a href="/account">האזור האישי</a></div></nav><button className="menuButton" onClick={() => setMobileOpen(!mobileOpen)} aria-label="פתיחת תפריט">☰</button>
       </div></header>
-      <nav className={`nav ${mobileOpen ? "open" : ""}`}><div className="shell navLinks"><a href="#top" onClick={resetAllCalculators}>דף הבית</a><a href="#inventory">מלאי עדכני</a><a href="/finance">מחשבון מימון</a><a href="/trade">טרייד אין</a><a href="/sell">מעוניינים למכור לנו את הרכב?</a><a href="/contact">צור קשר</a><a href="/compare">השוואת רכבים</a><a href="/account">האזור האישי</a></div></nav>
+      
 
       {/* שתי תמונות שונות: במסך צר תצלום אחר, לא חיתוך של תמונת המחשב */}
       <section id="top" className="hero heroFinder"><picture>
@@ -177,12 +177,12 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
           />
           <source
             type="image/webp"
-            srcSet="/assets/showroom-sm.webp 1000w, /assets/showroom.webp 1536w"
+            srcSet="/assets/showroom-sm.webp 1000w, /assets/showroom.webp 1599w"
             sizes="100vw"
           />
           <img
             src="/assets/showroom.jpg"
-            srcSet="/assets/showroom-sm.jpg 1000w, /assets/showroom.jpg 1536w"
+            srcSet="/assets/showroom-sm.jpg 1000w, /assets/showroom.jpg 1599w"
             sizes="100vw"
             alt="אולם התצוגה של ענק הרכבים"
             fetchPriority="high"

@@ -1249,22 +1249,29 @@ section.hero.heroFinder > picture > img {
   .topbar .logo { display: none !important; }
   .topbar .location { display: none !important; }
 
+  /* שורה אחת: הסמלים בימין, התפריט באמצע, הטלפון בשמאל */
   .headerInner {
     height: auto !important;
-    flex-direction: column;
-    justify-content: center !important;
-    gap: 10px !important;
-    padding-block: 14px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between !important;
+    gap: 18px !important;
+    padding-block: 8px;
   }
-  /* הטלפון למעלה, והסמלים בשורה שמתחתיו */
-  .headerActions { flex-direction: column; gap: 10px; }
-  .headerInner .headerSocial { margin-inline-start: 0 !important; order: 2; }
-  .phone { padding: 10px 22px !important; }
+  .headerInner .headerSocial { order: 1; margin-inline-start: 0 !important; flex: none; }
+  .headerInner .nav { order: 2; flex: 1 1 auto; min-width: 0; }
+  .headerInner .headerActions { order: 3; flex: none; }
+  .phone { border: 0 !important; padding: 8px 4px !important; }
 
-  /* התפריט — ממורכז, בלי קווים מפרידים, בכיתוב גדול.
-     הריווח והגודל נגזרים מרוחב המסך כדי שעשרת הקישורים ייכנסו
-     בשורה אחת, ואם בכל זאת אין מקום הם יורדים לשורה שנייה. */
+  /* התפריט בתוך שורת הכותרת — בלי רקע ובלי קו תחתון משלו */
+  .headerInner .nav {
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    position: static !important;
+  }
   .navLinks {
+    min-height: 0 !important;
     justify-content: center !important;
     flex-wrap: wrap;
     gap: 0 2px;
@@ -1272,11 +1279,13 @@ section.hero.heroFinder > picture > img {
   .nav .navLinks a {
     flex: none !important;
     border: 0 !important;
-    padding: 17px clamp(7px, 1.05vw, 20px) !important;
-    font-size: clamp(15px, 1.12vw, 18px) !important;
+    padding: 10px clamp(5px, 0.62vw, 14px) !important;
+    font-size: clamp(13.5px, 0.92vw, 17px) !important;
     font-weight: 700 !important;
     white-space: nowrap;
   }
+  /* הקו הזהוב עובר לתחתית הכותרת כולה */
+  .topbar { border-bottom: 2px solid var(--gold) !important; }
 }
 
 /* ═══════════════════════════════════════════════
@@ -1286,15 +1295,15 @@ section.hero.heroFinder > picture > img {
    התצלום. ככל שהמסך רחב יותר כך נחתך ממנו יותר לגובה, ולכן
    הגובה גדל יחד עם הרוחב — אחרת השלט היה נעלם במסכים רחבים. */
 @media (min-width: 901px) {
-  section.hero.heroFinder { min-height: clamp(600px, 43vw, 1050px) !important; }
-  section.hero.heroFinder > img { object-position: center 24% !important; }
+  section.hero.heroFinder { min-height: clamp(540px, 38vw, 950px) !important; }
+  section.hero.heroFinder > img { object-position: center top !important; }
 
   /* קוביית החיפוש באמצע גובה התצלום */
   .finderContent {
     display: flex !important;
     flex-direction: column !important;
     justify-content: center !important;
-    min-height: clamp(600px, 43vw, 1050px);
+    min-height: clamp(540px, 38vw, 950px);
     padding: 30px 0 !important;
   }
 }
@@ -1310,4 +1319,14 @@ section.hero.heroFinder > picture > img {
 @media (min-width: 901px) {
   main:has(.contactSection) .innerHero { padding: 30px 0 !important; }
   main:has(.contactSection) .innerHero h1 { font-size: 38px; margin: 4px 0 6px; }
+}
+
+/* בטלפון התפריט יושב בתוך הכותרת אבל נפתח מתחתיה */
+@media (max-width: 900px) {
+  .topbar { position: relative; }
+  .headerInner .nav {
+    position: absolute; inset-inline: 0; top: 100%;
+    z-index: 60;
+  }
+  .headerInner .nav .navLinks { width: min(100%, 1640px); margin-inline: auto; padding-inline: 24px; }
 }
