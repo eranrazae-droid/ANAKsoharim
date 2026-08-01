@@ -37,3 +37,13 @@ export const BUSINESS = {
  * למחיקה בחיבור שרת התמונות: להסיר את הקבוע ואת השימושים בו.
  */
 export const DEMO_IMAGE = "/placeholders/demo-car.jpg";
+
+/**
+ * הרשתות החברתיות. רשת עם כתובת ריקה פשוט לא מוצגת.
+ * כתובת הטיקטוק היא השערה לפי שם המשתמש באינסטגרם — לאימות.
+ */
+export const SOCIAL = {
+  facebook: "https://www.facebook.com/AnakHarechevim",
+  instagram: "https://www.instagram.com/anak.arehavim",
+  tiktok: "https://www.tiktok.com/@anak.arehavim",
+} as const;

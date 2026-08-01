@@ -5,6 +5,7 @@ import { propulsionTechnology, type DisplayCar } from "./vehicle-api";
 import VehicleCard from "./vehicle-card";
 import CustomerStrip from "./customer-strip";
 import FloatingActions from "./floating-actions";
+import SocialLinks from "./social-links";
 import SimilarCars, { referencePrice } from "./similar-cars";
 import { Honeypot, LeadStatusMessage, useLead } from "./use-lead";
 
@@ -151,7 +152,7 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
     <main dir="rtl">
       <header className="topbar"><div className="shell headerInner">
         <a className="logo" href="#top" onClick={resetAllCalculators} aria-label="ענק הרכבים - דף הבית"><img src="/assets/logo1.png" alt="ענק הרכבים" loading="lazy" decoding="async" /></a>
-        <div className="headerActions"><a className="social" href="https://www.facebook.com/AnakHarechevim" target="_blank" rel="noreferrer">f</a><a className="social instagram" href="https://www.instagram.com/anak.arehavim" target="_blank" rel="noreferrer">◎</a><a className="location" href="https://waze.com/ul?ll=31.9888,34.77084&navigate=yes" target="_blank" rel="noreferrer">⌖ <span>דוד רזיאל 4, ראשון לציון</span></a><a className="phone" href="tel:*2369"><small>חייגו עכשיו</small><strong>*2369</strong><span>☎</span></a></div>
+        <SocialLinks /><div className="headerActions"><a className="location" href="https://waze.com/ul?ll=31.9888,34.77084&navigate=yes" target="_blank" rel="noreferrer">⌖ <span>דוד רזיאל 4, ראשון לציון</span></a><a className="phone" href="tel:*2369"><small>חייגו עכשיו</small><strong>*2369</strong><span>☎</span></a></div>
         <button className="menuButton" onClick={() => setMobileOpen(!mobileOpen)} aria-label="פתיחת תפריט">☰</button>
       </div></header>
       <nav className={`nav ${mobileOpen ? "open" : ""}`}><div className="shell navLinks"><a href="#top" onClick={resetAllCalculators}>דף הבית</a><a href="#inventory">מלאי עדכני</a><a href="/finance">תנאי מימון</a><a href="/trade">טרייד אין</a><a href="/sell">מעוניינים למכור לנו את הרכב?</a><a href="/contact">צור קשר</a></div></nav>
