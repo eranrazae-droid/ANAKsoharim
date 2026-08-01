@@ -154,6 +154,11 @@ export default async function CarPage({ params }: { params: Promise<{ id: string
             <p className="carFactsHead"><span>למכירה!</span><b>{name}</b></p>
 
             <dl className="carSpecTable">
+              <div className="carCellWide"><dt>מחיר מבוקש:</dt><dd>{price.toLocaleString("he-IL")} ₪</dd></div>
+              {car.monthly > 0 && (
+                <div><dt>החזר חודשי:</dt><dd>{car.monthly.toLocaleString("he-IL")} ₪</dd></div>
+              )}
+              <div><dt>עד:</dt><dd>{maxPayments} תשלומים</dd></div>
               {specs(car).map(([label, value]) => (
                 <div key={label}><dt>{label}:</dt><dd>{value}</dd></div>
               ))}
@@ -168,20 +173,6 @@ export default async function CarPage({ params }: { params: Promise<{ id: string
             </p>
 
             <p className="carRef"><b>קוד פנייה:</b> {"{"}67-{car.id}-00{"}"}</p>
-
-            <div className="carPrice">
-              <div className="carPriceMain">
-                <small>מחיר מבוקש</small>
-                <strong>{price.toLocaleString("he-IL")}<span>₪</span></strong>
-              </div>
-              {car.monthly > 0 && (
-                <div className="carPriceMonthly">
-                  <small>החזר חודשי</small>
-                  <b>{car.monthly.toLocaleString("he-IL")} ₪</b>
-                  <em>עד {maxPayments} תשלומים</em>
-                </div>
-              )}
-            </div>
 
             <div className="carLeadBox">
               <p><b>מתעניינים ברכב?</b> השאירו פרטים ונחזור אליכם.</p>
