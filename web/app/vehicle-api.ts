@@ -96,6 +96,7 @@ export function normalizeVehicle(raw: Record<string, unknown>): DisplayCar {
     // מיקום הרכב. כשהמערכת לא שולחת — מוצגת כתובת המגרש,
     // שם נמצאים כל הרכבים שבמלאי.
     location: String(raw.ank_s_location ?? raw.ank_gpl_location ?? raw.location ?? ""),
+    arrival: String(raw.ank_dt_arrival ?? raw.ank_dt_expected_arrival ?? raw.arrival ?? ""),
   };
 }
 

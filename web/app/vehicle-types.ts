@@ -12,7 +12,7 @@ export type DisplayCar = {
   video?: string | null; spin360?: string[]; baseModel?: string; subModel?: string; advance?: number; openRoof?: boolean; engineCapacity?: string; horsePower?: string; gear?: string; drivetrain?: string; test?: string; body?: string; extras?: string; remarks?: string;
   /* מחיר מחירון ומספר רישוי מגיעים כבר היום. הסטטוס יגיע
      כשה-CRM יחובר — עד אז הוא ריק והשדה פשוט לא מוצג. */
-  listPrice?: number; plate?: string; status?: string; location?: string;
+  listPrice?: number; plate?: string; status?: string; location?: string; arrival?: string;
   /** כמה ימים הרכב נמצא במגרש. משמש לתגית "חדש במלאי" ולמיון */
   daysInStock?: number;
 };

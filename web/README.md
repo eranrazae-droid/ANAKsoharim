@@ -50,6 +50,7 @@ npm run build    # בדיקת בנייה מלאה
 |---|---|
 | סטטוס הרכב | `ank_s_status` (או `ank_gpl_status`) |
 | מיקום הרכב | `ank_s_location` (או `ank_gpl_location`) |
+| צפי הגעה | `ank_dt_arrival` (או `ank_dt_expected_arrival`) |
 
 שדה המיקום הוא היחיד שיש לו ברירת מחדל: כל עוד המערכת לא
 שולחת אותו מוצגת כתובת המגרש, שם נמצאים כל הרכבים שבמלאי.
