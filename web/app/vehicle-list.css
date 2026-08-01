@@ -86,13 +86,51 @@
 .listCard:hover .listGo { background: var(--black); border-color: var(--black); color: var(--gold); }
 .listMonthly { margin: 0; font-size: 14px; font-weight: 700; color: var(--gold); }
 
-/* ——— מובייל (ליטוש מלא בשלב הבא) ——— */
+/* ——— מובייל ———
+   התגיות יורדות לשורה אחת לכל רוחב הכרטיס, גם מתחת לתמונה,
+   והמחיר וההחזר החודשי יושבים אחד מעל השני.
+   display:contents מוציא את ילדי .listBody אל רשת הכרטיס,
+   כך שאפשר למקם כל אחד מהם בנפרד בלי לגעת בתצוגת המחשב. */
 @media (max-width: 700px) {
-  .listCardMain { grid-template-columns: 1fr 116px; gap: 12px; }
   .listCard { padding: 12px; }
-  .listTitle { font-size: 17px; }
-  .listSub { font-size: 13px; }
-  .listPrice { font-size: 21px; }
-  .listChips { margin-top: 10px; gap: 6px; }
-  .listChips li { font-size: 12px; padding: 5px 9px; }
+  .listCardMain {
+    grid-template-columns: 1fr 116px;
+    grid-template-areas:
+      "title  media"
+      "sub    media"
+      "meta   media"
+      "price  media"
+      "chips  chips";
+    column-gap: 12px;
+    row-gap: 0;            /* המרווחים מגיעים מהשוליים של כל שורה */
+  }
+  .listBody { display: contents; }
+  .listMedia { grid-area: media; }
+  .listTitle { grid-area: title; font-size: 17px; }
+  .listSub   { grid-area: sub; font-size: 13px; }
+  .listMeta  { grid-area: meta; }
+  .listFoot  { grid-area: price; }
+  .listChips { grid-area: chips; }
+
+  /* שורת תגיות אחת, נגללת לצדדים אם יש יותר מדי */
+  .listChips {
+    margin-top: 12px; gap: 6px;
+    flex-wrap: nowrap; overflow-x: auto;
+    scrollbar-width: none; -ms-overflow-style: none;
+  }
+  .listChips::-webkit-scrollbar { display: none; }
+  .listChips li { flex: none; font-size: 13px; padding: 5px 9px; }
+
+  /* מחיר מעל ההחזר החודשי, החץ בצד */
+  .listFoot {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas: "price go" "monthly go";
+    align-items: center;
+    gap: 2px 10px;
+    margin-top: 12px;
+  }
+  .listPrice   { grid-area: price; font-size: 21px; }
+  .listGo      { grid-area: go; }
+  .listMonthly { grid-area: monthly; }
 }

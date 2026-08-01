@@ -152,14 +152,22 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
       </div></header>
       <nav className={`nav ${mobileOpen ? "open" : ""}`}><div className="shell navLinks"><a href="#top" onClick={resetAllCalculators}>דף הבית</a><a href="#inventory">מלאי עדכני</a><a href="/finance">תנאי מימון</a><a href="/trade">טרייד אין</a><a href="/sell">מעוניינים למכור לנו את הרכב?</a><a href="/contact">צור קשר</a></div></nav>
 
-      <section id="top" className="hero heroFinder"><img
-          src="/assets/showroom.jpg"
-          srcSet="/assets/showroom-sm.jpg 1000w, /assets/showroom.jpg 2000w"
-          sizes="100vw"
-          alt="אולם התצוגה של ענק הרכבים"
-          fetchPriority="high"
-          decoding="async"
-        /><div className="heroShade" /><div className="shell finderContent">
+      {/* שתי תמונות שונות: במסך צר תצלום אחר, לא חיתוך של תמונת המחשב */}
+      <section id="top" className="hero heroFinder"><picture>
+          <source
+            media="(max-width: 900px)"
+            srcSet="/assets/showroom-mobile-sm.jpg 800w, /assets/showroom-mobile.jpg 1400w"
+            sizes="100vw"
+          />
+          <img
+            src="/assets/showroom.jpg"
+            srcSet="/assets/showroom-sm.jpg 1000w, /assets/showroom.jpg 2000w"
+            sizes="100vw"
+            alt="אולם התצוגה של ענק הרכבים"
+            fetchPriority="high"
+            decoding="async"
+          />
+        </picture><div className="heroShade" /><div className="shell finderContent">
         <div className="finderBox" aria-label="חיפוש רכב">
           <p className="finderBoxTitle">חיפוש רכב במלאי</p>
           <div className="finderFields">
