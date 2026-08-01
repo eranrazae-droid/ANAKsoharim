@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { propulsionTechnology, type DisplayCar } from "../vehicle-types";
 import { BUSINESS, DEMO_IMAGE } from "../site-config";
 import { Picture } from "../site-image";
@@ -57,6 +57,11 @@ const WHATSAPP = `https://wa.me/${BUSINESS.whatsapp}?text=${encodeURIComponent("
 
 export default function CompareClient({ cars }: { cars: DisplayCar[] }) {
   const [picked, setPicked] = useState<string[]>(["", "", ""]);
+  /* ההשוואה נפתחת בלחיצה על הכפתור ולא מעצמה. בטלפון הטבלה
+     נמצאת מתחת לקיפול, ובלי הכפתור נראה כאילו הבחירה לא עשתה
+     כלום. הכפתור גם גולל אליה. */
+  const [started, setStarted] = useState(false);
+  const tableRef = useRef<HTMLDivElement>(null);
 
   // הרכבים מקובצים לפי יצרן, כדי שהבחירה בטלפון תהיה נוחה
   const grouped = useMemo(() => {
@@ -72,9 +77,18 @@ export default function CompareClient({ cars }: { cars: DisplayCar[] }) {
   const chosen = picked.map((id) => cars.find((car) => car.id === id) ?? null);
   const active = chosen.filter(Boolean) as DisplayCar[];
 
+  const ready = active.length >= 2;
+  const showTable = started && ready;
+
   function pick(slot: number, id: string) {
     setPicked(picked.map((current, index) => (index === slot ? id : current)));
   }
+
+  /* אחרי שהטבלה נפתחת גוללים אליה, כדי שבטלפון יהיה ברור
+     שמשהו קרה ולא צריך לחפש אותה. */
+  useEffect(() => {
+    if (showTable) tableRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [showTable]);
 
   /** מזהי הרכבים המובילים בשורה. שוויון — אף אחד לא מסומן */
   function winners(row: Row) {
@@ -110,7 +124,16 @@ export default function CompareClient({ cars }: { cars: DisplayCar[] }) {
         ))}
       </div>
 
-      {active.length < 2 ? (
+      <button
+        type="button"
+        className="compareGo"
+        disabled={!ready}
+        onClick={() => setStarted(true)}
+      >
+        {ready ? "השוו בין הרכבים" : "בחרו לפחות שני רכבים"}
+      </button>
+
+      {!showTable ? (
         /* עד שנבחרים שני רכבים אין מה להשוות. במקום שורת טקסט
            בודדת מוסבר כאן מה עומד לקרות, ומי שעוד לא יודע מה
            הוא מחפש מקבל קישור למלאי. */
@@ -124,7 +147,7 @@ export default function CompareClient({ cars }: { cars: DisplayCar[] }) {
           <a href="/cars">לעיון בכל המלאי <NextIcon size={15} /></a>
         </div>
       ) : (
-        <div className="compareTableWrap" style={{ ["--cols" as string]: active.length }}>
+        <div className="compareTableWrap" ref={tableRef} style={{ ["--cols" as string]: active.length }}>
           <table className="compareTable">
             <thead>
               <tr>
@@ -160,7 +183,7 @@ export default function CompareClient({ cars }: { cars: DisplayCar[] }) {
         </div>
       )}
 
-      {active.length >= 2 && (
+      {showTable && (
         <>
           <p className="compareNote">
             הערך המסומן בזהב הוא המשתלם יותר באותה שורה. השוואה אינה תחליף
@@ -180,7 +203,7 @@ export default function CompareClient({ cars }: { cars: DisplayCar[] }) {
             </div>
           </aside>
 
-          <button type="button" className="compareClear" onClick={() => setPicked(["", "", ""])}>
+          <button type="button" className="compareClear" onClick={() => { setPicked(["", "", ""]); setStarted(false); }}>
             <CloseIcon size={14} /> ניקוי הבחירה
           </button>
         </>
