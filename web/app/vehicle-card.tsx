@@ -12,6 +12,30 @@ import { DEMO_IMAGE } from "./site-config";
 /** תוספת שמופיעה ליד המחיר בכל הרכבים */
 const PRICE_NOTE = "גמיש לרציניים";
 
+/** כמה תווים נכנסים בשורה אחת ברוחב הטלפון, לפי מדידה */
+const TITLE_CHARS = 19;
+const LINE_CHARS = 26;
+
+/**
+ * שתי השורות הראשונות.
+ * ברירת המחדל היא יצרן, דגם ותת דגם בשורה אחת. כשהשם ארוך מדי
+ * ויישבר, תת הדגם יורד לשורה השנייה — כך אף שדה לא נחתך באמצע
+ * והשורות נשארות מלאות.
+ */
+function nameLines(car: DisplayCar) {
+  const base = `${car.make} ${car.baseModel || car.model}`.trim();
+  const sub = String(car.subModel || "").trim();
+  const full = sub ? `${base} ${sub}` : base;
+  if (!sub || full.length <= TITLE_CHARS) {
+    return { title: full, subtitle: [`שנת ייצור ${car.year}`] };
+  }
+  const withLabel = `${sub} · שנת ייצור ${car.year}`;
+  return {
+    title: base,
+    subtitle: withLabel.length <= LINE_CHARS ? [sub, `שנת ייצור ${car.year}`] : [sub, String(car.year)],
+  };
+}
+
 const MAX_CHIPS = 6;
 
 /** מפרק את שדה התוספות לתגיות קצרות וקריאות. */
@@ -90,7 +114,7 @@ export default function VehicleCard({ car }: { car: DisplayCar }) {
   const specs = specPills(car);
   const engine = engineLine(car);
   const chips = extraChips(car.extras).filter((chip) => !specs.includes(chip));
-  const subtitle = [car.subModel, `שנת ייצור ${car.year}`].filter(Boolean).join(" · ");
+  const { title, subtitle } = nameLines(car);
 
   return (
     <article className="listCard">
@@ -102,13 +126,24 @@ export default function VehicleCard({ car }: { car: DisplayCar }) {
         </div>
 
         <div className="listBody">
-          <h3 className="listTitle">{car.make} {car.baseModel || car.model}</h3>
+          <h3 className={`listTitle${title.length > TITLE_CHARS ? " listTitleLong" : ""}`}>{title}</h3>
 
           <div className="listLines">
-            <p className="listLine listSubline">{subtitle}</p>
+            <p className="listLine listSubline">
+              {subtitle.map((part, index) => (
+                <span key={part}>
+                  {index > 0 && <i aria-hidden="true">·</i>}
+                  {part}
+                </span>
+              ))}
+            </p>
             <p className="listLine listOdo">
-              <span>{mileage(car)} ק״מ</span>
-              {car.gear && <><i aria-hidden="true">·</i><span>{car.gear}</span></>}
+              {[`${mileage(car)} ק״מ`, car.gear].filter(Boolean).map((part, index) => (
+                <span key={String(part)}>
+                  {index > 0 && <i aria-hidden="true">·</i>}
+                  {part}
+                </span>
+              ))}
             </p>
             <p className="listLine listEngine">
               {engine.map((part, index) => (
