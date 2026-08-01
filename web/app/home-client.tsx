@@ -60,9 +60,14 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
   const [tradeLookup, setTradeLookup] = useState<"idle" | "loading" | "error">("idle");
   const [tradeError, setTradeError] = useState("");
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  // טבלה של חמש עשרה עמודות אינה קריאה בטלפון. במסך צר פותחים בתצוגת כרטיסים.
+  // טבלה של חמש עשרה עמודות אינה קריאה בטלפון. במסך צר יש רק תצוגת כרטיסים,
+  // וכפתורי המעבר מוסתרים. גם שינוי רוחב החלון מחזיר לכרטיסים.
   useEffect(() => {
-    if (window.matchMedia("(max-width: 900px)").matches) setTableView(false);
+    const narrow = window.matchMedia("(max-width: 900px)");
+    const apply = () => { if (narrow.matches) setTableView(false); };
+    apply();
+    narrow.addEventListener("change", apply);
+    return () => narrow.removeEventListener("change", apply);
   }, []);
   // כל הרכבים נשארים ב-HTML בשביל גוגל. בטלפון הרשימה מקופלת עד לחיצה.
   const [revealAll, setRevealAll] = useState(false);
