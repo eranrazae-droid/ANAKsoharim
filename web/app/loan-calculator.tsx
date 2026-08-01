@@ -6,10 +6,9 @@ import { Honeypot, LeadStatusMessage, useLead } from "./use-lead";
 
 const shekel = (value: number) => `${Math.round(value).toLocaleString("he-IL")} ש״ח`;
 
-/** שנתוני הרכב שחברות המימון מאשרות */
+/** טווח שנתוני הרכב שחברות המימון מאשרות */
 const FIRST_YEAR = 2011;
 const LAST_YEAR = 2026;
-const YEARS = Array.from({ length: LAST_YEAR - FIRST_YEAR + 1 }, (_, i) => LAST_YEAR - i);
 
 /**
  * מחשבון המימון.
@@ -50,21 +49,28 @@ export default function LoanCalculator() {
         aria-label="בחירת סכום ההלוואה"
       />
 
-      <label className="loanField loanYear">
+      <div className="loanField loanYear">
         <span>שנת ייצור</span>
-        <select value={year} onChange={(event) => setYear(Number(event.target.value))} aria-label="שנת ייצור הרכב">
-          {YEARS.map((option) => <option key={option} value={option}>{option}</option>)}
-        </select>
-      </label>
+        <b>{year}</b>
+      </div>
+
+      <input
+        className="loanSlider"
+        type="range"
+        min={FIRST_YEAR}
+        max={LAST_YEAR}
+        step={1}
+        value={year}
+        onChange={(event) => setYear(Number(event.target.value))}
+        aria-label="שנת ייצור הרכב"
+      />
 
       {best ? (
         <>
-          <p className="loanYearNote">רכב {year} ניתן עד {best.payments} תשלומים</p>
-
           <div className="loanResult">
             <small>ההחזר החודשי הנמוך ביותר</small>
             <strong>{shekel(best.monthly)}</strong>
-            <span>לחודש · {best.payments} תשלומים</span>
+            <span>לחודש</span>
           </div>
 
           {best.balloon > 0 && (
