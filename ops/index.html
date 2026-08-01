@@ -6590,6 +6590,16 @@ async function _pcWriteCache(plate, data) {
   } catch (e) { console.warn('parts cache write failed', e); }
 }
 
+// one filtered registry query; returns the record only if the plate matches exactly
+async function _pcFilterLookup(plate, value) {
+  const filters = encodeURIComponent(JSON.stringify({ mispar_rechev: value }));
+  const res = await fetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=${_PC_REGISTRY}&filters=${filters}&limit=1`);
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const json = await res.json();
+  const rec = json?.result?.records?.[0];
+  return (rec && _pcNormalizePlate(rec['mispar_rechev']) === plate) ? rec : null;
+}
+
 async function lookupPartsPlate() {
   const plate = _pcNormalizePlate(document.getElementById('pc-plate').value);
   const st = document.getElementById('pc-status');
@@ -6612,15 +6622,16 @@ async function lookupPartsPlate() {
       return;
     }
 
-    const filters = encodeURIComponent(JSON.stringify({ mispar_rechev: Number(plate) }));
-    const res = await fetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=${_PC_REGISTRY}&filters=${filters}&limit=1`);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const json = await res.json();
-    let rec = json?.result?.records?.[0];
+    // the registry stores the plate as text — every working lookup in this app
+    // sends it as a string, so that is the fast path and it hits on the first try
+    let rec = await _pcFilterLookup(plate, plate);
+    // some records are stored numerically — try that before the slow free-text path
+    if (!rec) rec = await _pcFilterLookup(plate, Number(plate));
 
-    // exact-filter search misses some records — fall back to free-text, then verify
+    // last resort: free-text. It must return enough rows for the requested plate
+    // to actually be among them, and the match is verified exactly.
     if (!rec) {
-      const res2 = await fetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=${_PC_REGISTRY}&q=${plate}&limit=5`);
+      const res2 = await fetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=${_PC_REGISTRY}&q=${plate}&limit=100`);
       const json2 = await res2.json();
       rec = json2?.result?.records?.find(r => _pcNormalizePlate(r['mispar_rechev']) === plate) || null;
     }
