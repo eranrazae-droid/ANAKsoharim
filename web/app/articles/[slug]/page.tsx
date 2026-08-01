@@ -83,7 +83,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
           )}
 
           <p className="intro">
-            רוצים לדבר עם נציג? <a href={`tel:${BUSINESS.dial}`}>*2369</a> או{" "}
+            רוצים לדבר עם נציג? <a href={`tel:${BUSINESS.dial}`}><bdi dir="ltr">*2369</bdi></a> או{" "}
             <a href="/contact">השאירו פרטים</a>.
           </p>
         </div>

@@ -29,7 +29,7 @@ export default function NotFound() {
             <a className="goldButton" href="/cars">לכל הרכבים במלאי</a>
           </p>
           <p>
-            או התקשרו: <a href={`tel:${BUSINESS.dial}`}>*2369</a> · <a href="tel:0503707010">050-3707010</a>
+            או התקשרו: <a href={`tel:${BUSINESS.dial}`}><bdi dir="ltr">*2369</bdi></a> · <a href="tel:0503707010">050-3707010</a>
           </p>
         </div>
       </section>

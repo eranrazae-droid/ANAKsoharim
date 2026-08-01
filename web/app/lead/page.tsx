@@ -41,7 +41,8 @@ export default function LeadPage() {
           <aside className="leadAside">
             <h2>מעדיפים לדבר עכשיו?</h2>
             <p>
-              <a href={`tel:${BUSINESS.dial}`}>{BUSINESS.phone}</a>
+              {/* bdi מצמיד את הכוכבית למספר; בלעדיו היא קופצת לסוף */}
+              <a href={`tel:${BUSINESS.dial}`}><bdi dir="ltr">{BUSINESS.phone}</bdi></a>
             </p>
             <p>
               <a

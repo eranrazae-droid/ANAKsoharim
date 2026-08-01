@@ -49,7 +49,7 @@ export default function ReviewsPage() {
           {reviews.length === 0 ? (
             <p className="intro">
               ההמלצות שלנו בדרך. בינתיים נשמח לספר לכם על התהליך בטלפון{" "}
-              <a href={`tel:${BUSINESS.dial}`}>*2369</a>.
+              <a href={`tel:${BUSINESS.dial}`}><bdi dir="ltr">*2369</bdi></a>.
             </p>
           ) : (
             <div className="benefitGrid">
