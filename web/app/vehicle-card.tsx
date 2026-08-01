@@ -14,7 +14,7 @@ const PRICE_NOTE = "גמיש לרציניים";
 
 /** כמה תווים נכנסים בשורה אחת ברוחב הטלפון, לפי מדידה */
 const TITLE_CHARS = 19;
-const LINE_CHARS = 26;
+const LINE_CHARS = 22;
 
 /**
  * שתי השורות הראשונות.
@@ -118,7 +118,7 @@ export default function VehicleCard({ car }: { car: DisplayCar }) {
 
   return (
     <article className="listCard">
-      <a className="listCardMain" href={href}>
+      <a className={`listCardMain${title.length > TITLE_CHARS ? " listCardLong" : ""}`} href={href}>
         <div className={`listMedia ${car.image ? "" : "listMediaDemo"}`}>
           {car.image
             ? <img src={car.image} alt={`${name} שנת ${car.year}`} loading="lazy" decoding="async" />
@@ -126,7 +126,7 @@ export default function VehicleCard({ car }: { car: DisplayCar }) {
         </div>
 
         <div className="listBody">
-          <h3 className={`listTitle${title.length > TITLE_CHARS ? " listTitleLong" : ""}`}>{title}</h3>
+          <h3 className="listTitle">{title}</h3>
 
           <div className="listLines">
             <p className="listLine listSubline">
@@ -156,18 +156,19 @@ export default function VehicleCard({ car }: { car: DisplayCar }) {
           </div>
 
           <div className="listMoney">
-            {car.price > 0
-              ? <p className="listPrice">
-                  {car.price.toLocaleString("he-IL")} <span>₪</span>
-                  <em className="listPriceNote">{PRICE_NOTE}</em>
-                </p>
-              : <p className="listPrice listPriceCall">לפרטים חייגו</p>}
-            {car.monthly > 0 && (
-              <p className="listMonthly">
-                {car.monthly.toLocaleString("he-IL")} ₪ לחודש
-                {!car.advance && <b className="noAdvance">ללא מקדמה</b>}
-              </p>
-            )}
+            <p className={`listPrice${car.price > 0 ? "" : " listPriceCall"}`}>
+              <span>{car.price > 0 ? `${car.price.toLocaleString("he-IL")} ש״ח` : "לפרטים חייגו"}</span>
+              {car.monthly > 0 && (
+                <span className="listMonthly">
+                  <i aria-hidden="true">או</i>
+                  {car.monthly.toLocaleString("he-IL")} ש״ח בחודש
+                </span>
+              )}
+            </p>
+            <p className="listMoneyNotes">
+              {car.price > 0 && <em className="listPriceNote">{PRICE_NOTE}</em>}
+              {car.monthly > 0 && !car.advance && <b className="noAdvance">ללא מקדמה</b>}
+            </p>
           </div>
 
           {specs.length > 0 && (
