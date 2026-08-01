@@ -29,10 +29,13 @@ export const DEMO_CARS = [
     description:'רכב צעיר עם קילומטראז׳ נמוך. אחריות יצרן בתוקף.',
     images:[C, A, B] },
 
+  // גלריה מלאה מצילומים אמיתיים — חמש זוויות מהמגרש
   { id:'demo-4', plate:'42345604', make:'יונדאי', model:'i20', trim:'Inspire',
-    year:2020, hand:2, km:88000, price:69000, gearbox:'אוטומטית', fuel:'בנזין',
-    engine:'1368', color:'כסוף', test:'2026-09-02', body:'האצ׳בק',
-    images:[B] },
+    year:2022, hand:1, km:42000, price:79000, gearbox:'אוטומטית', fuel:'בנזין',
+    engine:'1197', color:'לבן', test:'2027-02-09', body:'האצ׳בק',
+    description:'רכב עירוני חסכוני, יד ראשונה מסוכנות.\nמצב מצוין, ספר טיפולים מלא.',
+    images:['images/i20-1.jpg','images/i20-2.jpg','images/i20-3.jpg',
+            'images/i20-4.jpg','images/i20-5.jpg'] },
 
   { id:'demo-5', plate:'52345605', make:'BMW', model:'X3', trim:'xDrive20d',
     year:2020, hand:1, km:96000, price:245000, gearbox:'אוטומטית', fuel:'דיזל',
