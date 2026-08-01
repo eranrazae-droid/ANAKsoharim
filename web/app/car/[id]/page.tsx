@@ -3,13 +3,18 @@ import { notFound } from "next/navigation";
 import { getActiveVehicles, type DisplayCar } from "../../vehicle-api";
 import { SiteFooter, SiteHeader } from "../../site-chrome";
 import VehicleGallery from "../../vehicle-gallery";
-import VehicleFinanceCalculator from "../../vehicle-finance-calculator";
 import { CarLeadForm } from "../../lead-forms";
-import { extraChips } from "../../vehicle-card";
 import { getMaxPaymentsByYear } from "../../finance-rules";
 import { BUSINESS, SITE_NAME, SITE_URL } from "../../site-config";
 
 export const revalidate = 600;
+
+/**
+ * תמונות המחשה זמניות.
+ * מוצגות רק כשלרכב אין תמונות מהמערכת, כדי לראות את הפריסה.
+ * למחיקה: להסיר את הקבוע ואת השימוש בו למטה, ואת public/placeholders.
+ */
+const PLACEHOLDERS = Array.from({ length: 10 }, (_, i) => `/placeholders/car-${i + 1}.svg`);
 
 async function findCar(id: string) {
   const cars = await getActiveVehicles().catch(() => [] as DisplayCar[]);
@@ -36,34 +41,32 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     description,
     alternates: { canonical: `/car/${car.id}` },
     openGraph: {
-      type: "website",
-      locale: "he_IL",
-      title: `${name} | ${SITE_NAME}`,
-      description,
+      type: "website", locale: "he_IL",
+      title: `${name} | ${SITE_NAME}`, description,
       url: `${SITE_URL}/car/${car.id}`,
       images: car.images?.length ? [car.images[0]] : undefined,
     },
   };
 }
 
-/** המפרט מוצג כרשימת מפתח-ערך נקייה, בלי אייקונים */
+/** המפרט מוצג בשני טורים, שורות מפוספסות */
 function specs(car: DisplayCar): [string, string][] {
   return ([
     ["שנת ייצור", String(car.year)],
-    ["קילומטראז׳", `${km(car.mileage)} ק״מ`],
-    ["יד", car.hand || "—"],
-    ["תיבת הילוכים", car.gear || "אוטומטי"],
+    ["נפח", car.engineCapacity || ""],
+    ["יד", car.hand || ""],
     ["סוג מנוע", car.engine],
-    ["נפח מנוע", car.engineCapacity ? `${car.engineCapacity} סמ״ק` : ""],
-    ["כוח סוס", car.horsePower || ""],
-    ["מערכת הנעה", car.drivetrain || ""],
-    ["מרכב", car.body || car.category],
-    ["צבע", car.color],
-    ["מספר דלתות", car.doors || ""],
-    ["מספר מקומות", car.seats || ""],
-    ["גג נפתח", car.openRoof ? "כן" : "לא"],
     ["מקוריות", car.ownership],
+    ["כוח סוס", car.horsePower || ""],
+    ["קילומטראז׳", km(car.mileage)],
+    ["צבע", car.color],
+    ["תיבת הילוכים", car.gear || "אוטומטי"],
+    ["מספר מקומות ישיבה", car.seats || ""],
+    ["מערכת הנעה", car.drivetrain || ""],
+    ["גג נפתח", car.openRoof ? "כן" : "לא"],
+    ["מספר דלתות", car.doors || ""],
     ["תוקף טסט", car.test || ""],
+    ["מרכב", car.body || ""],
     ["קטגוריה", car.categories?.join(", ") || car.category],
   ] as [string, string][]).filter(([, value]) => value && value !== "לא צוין");
 }
@@ -71,39 +74,35 @@ function specs(car: DisplayCar): [string, string][] {
 export default async function CarPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { cars, car } = await findCar(id);
-
-  // רכב שנמכר או קוד שגוי מחזיר 404 אמיתי — לא רכב אקראי.
   if (!car) notFound();
 
   const year = Number(car.year) || 2020;
   const maxPayments = getMaxPaymentsByYear(year);
   const price = askingPrice(car);
   const name = `${car.make} ${car.model}`;
-  const chips = extraChips(car.extras, 12);
   const related = cars.filter((item) => item.id !== car.id).slice(0, 10);
   const whatsapp = `https://wa.me/${BUSINESS.whatsapp}?text=${encodeURIComponent(`שלום, אני מתעניין ב-${name} שנת ${car.year}`)}`;
-  const gallery = car.images?.length ? car.images.slice(0, 10) : car.image ? [car.image] : [];
+
+  const real = car.images?.length ? car.images.slice(0, 10) : car.image ? [car.image] : [];
+  const gallery = real.length ? real : PLACEHOLDERS;   // המחשה עד לחיבור שרת התמונות
+  const isDemo = real.length === 0;
 
   const vehicleSchema = {
-    "@context": "https://schema.org",
-    "@type": "Car",
+    "@context": "https://schema.org", "@type": "Car",
     name: `${name} ${car.year}`,
     brand: { "@type": "Brand", name: car.make },
     model: car.baseModel || car.model,
     vehicleModelDate: String(car.year),
     url: `${SITE_URL}/car/${car.id}`,
-    image: gallery.length ? gallery : undefined,
-    sku: car.id,
-    color: car.color,
+    image: real.length ? real : undefined,
+    sku: car.id, color: car.color,
     numberOfDoors: Number(car.doors) || undefined,
     vehicleSeatingCapacity: Number(car.seats) || undefined,
     fuelType: car.engine,
     vehicleTransmission: car.gear || undefined,
     mileageFromOdometer: { "@type": "QuantitativeValue", value: Number(String(car.mileage).replace(/,/g, "")) || 0, unitCode: "KMT" },
     offers: {
-      "@type": "Offer",
-      priceCurrency: "ILS",
-      price: price || undefined,
+      "@type": "Offer", priceCurrency: "ILS", price: price || undefined,
       availability: "https://schema.org/InStock",
       itemCondition: "https://schema.org/UsedCondition",
       url: `${SITE_URL}/car/${car.id}`,
@@ -112,8 +111,7 @@ export default async function CarPage({ params }: { params: Promise<{ id: string
   };
 
   const breadcrumbSchema = {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
+    "@context": "https://schema.org", "@type": "BreadcrumbList",
     itemListElement: [
       { "@type": "ListItem", position: 1, name: "דף הבית", item: SITE_URL },
       { "@type": "ListItem", position: 2, name: "מלאי עדכני", item: `${SITE_URL}/cars` },
@@ -133,82 +131,57 @@ export default async function CarPage({ params }: { params: Promise<{ id: string
         </div>
       </nav>
 
-      {/* ═══ הרכב והעסקה ═══ */}
-      <section className="carTop">
-        <div className="shell carTopGrid">
-          <div className="carTopMedia">
+      <h1 className="carTitle">{car.make} {car.model} שנת ייצור {car.year}</h1>
+
+      <section className="carBoard">
+        <div className="shell carBoardGrid">
+
+          {/* ── תמונות ── */}
+          <div className="carMedia">
             <VehicleGallery images={gallery} vehicleName={name} />
+            {isDemo && <p className="carDemoNote">תמונות להמחשה — יוחלפו בתמונות הרכב מהמערכת</p>}
+
+            {/* פרטי צור קשר בשורה אחת צרה */}
+            <div className="carContactBar">
+              <a href={`tel:${BUSINESS.phone}`}>{BUSINESS.phone}</a>
+              <a href={`tel:${BUSINESS.mobile.replace(/-/g, "")}`}>{BUSINESS.mobile}</a>
+              <a href={whatsapp} target="_blank" rel="noreferrer">וואטסאפ</a>
+              <span>{BUSINESS.street}, {BUSINESS.city}</span>
+            </div>
+          </div>
+          {/* ── טקסט ── */}
+          <div className="carFacts">
+            <p className="carFactsHead"><span>למכירה!</span><b>{name}</b></p>
+
+            <dl className="carSpecTable">
+              {specs(car).map(([label, value]) => (
+                <div key={label}><dt>{label}:</dt><dd>{value}</dd></div>
+              ))}
+            </dl>
+
+            {car.extras && (
+              <p className="carNote"><b>תוספות:</b> {car.extras}</p>
+            )}
+            <p className="carNote">
+              <b>פרטים נוספים:</b>{" "}
+              {car.remarks || `הרכב קיים במלאי למסירה מיידית. אפשרות מימון עד 100% ללא מקדמה ועד ${maxPayments} תשלומים בהחזר חודשי משתלם במיוחד. אנו מבצעים טרייד אין לכל סוגי הרכבים — מחכים לך ב${SITE_NAME}, ${BUSINESS.street}, ${BUSINESS.city}.`}
+            </p>
+
+            <div className="carFactsFoot">
+              <span className="carRef"><b>קוד פנייה:</b> {"{"}67-{car.id}-00{"}"}</span>
+              <a className="carSimilarBtn" href="/cars">רכבים דומים</a>
+            </div>
+
+            <p className="carAsking">
+              <b>מחיר מבוקש:</b> <strong>{price.toLocaleString("he-IL")} ₪</strong>
+              {car.monthly > 0 && <em>או {car.monthly.toLocaleString("he-IL")} ₪ לחודש</em>}
+            </p>
           </div>
 
-          <aside className="carDeal">
-            <div className="carDealCard">
-              <h1>{car.make} <span>{car.model}</span></h1>
-              <p className="carDealMeta">
-                <span>{car.year}</span><i aria-hidden="true">·</i>
-                <span>יד {car.hand || "—"}</span><i aria-hidden="true">·</i>
-                <span>{km(car.mileage)} ק״מ</span>
-              </p>
-
-              <div className="carDealPrice">
-                <small>מחיר מבוקש</small>
-                <strong>{price.toLocaleString("he-IL")} <span>₪</span></strong>
-              </div>
-
-              {(car.monthly > 0 || (car.advance ?? 0) > 0) && (
-                <dl className="carDealTerms">
-                  {car.monthly > 0 && <div><dt>החזר חודשי</dt><dd>{car.monthly.toLocaleString("he-IL")} ₪</dd></div>}
-                  {(car.advance ?? 0) > 0 && <div><dt>מקדמה</dt><dd>{(car.advance ?? 0).toLocaleString("he-IL")} ₪</dd></div>}
-                  <div><dt>עד</dt><dd>{maxPayments} תשלומים</dd></div>
-                </dl>
-              )}
-
-              <div className="carDealActions">
-                <a className="carCall" href={`tel:${BUSINESS.phone}`}>חייגו {BUSINESS.phone}</a>
-                <a className="carWa" href={whatsapp} target="_blank" rel="noreferrer">וואטסאפ</a>
-              </div>
-
-              <p className="carDealCode">קוד רכב {car.id}</p>
-            </div>
-          </aside>
         </div>
       </section>
 
-      {/* ═══ מפרט ═══ */}
-      <section className="carSection">
-        <div className="shell">
-          <h2>מפרט הרכב</h2>
-          <dl className="carSpecs">
-            {specs(car).map(([label, value]) => (
-              <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
-            ))}
-          </dl>
-
-          {chips.length > 0 && (
-            <>
-              <h3 className="carSubhead">אבזור ותוספות</h3>
-              <ul className="carChips">{chips.map((chip) => <li key={chip}>{chip}</li>)}</ul>
-            </>
-          )}
-
-          {car.remarks && (
-            <>
-              <h3 className="carSubhead">פרטים נוספים</h3>
-              <p className="carRemarks">{car.remarks}</p>
-            </>
-          )}
-        </div>
-      </section>
-
-      {/* ═══ מימון ═══ */}
-      <section className="carSection carFinance">
-        <div className="shell">
-          <h2>כמה זה יעלה בחודש</h2>
-          <p className="carSectionLead">הזיזו את המקדמה ואת מספר התשלומים כדי לראות את ההחזר.</p>
-          <VehicleFinanceCalculator price={price} year={year} />
-        </div>
-      </section>
-
-      {/* ═══ השארת פרטים ═══ */}
+      {/* ── השארת פרטים ── */}
       <section className="carSection carLead">
         <div className="shell carLeadGrid">
           <div>
@@ -219,7 +192,7 @@ export default async function CarPage({ params }: { params: Promise<{ id: string
         </div>
       </section>
 
-      {/* ═══ רכבים נוספים ═══ */}
+      {/* ── רכבים נוספים ── */}
       {related.length > 0 && (
         <section className="carSection carRelated">
           <div className="shell">
@@ -230,7 +203,7 @@ export default async function CarPage({ params }: { params: Promise<{ id: string
                   <div className={`matchMedia ${item.image ? "" : "matchMediaEmpty"}`}>
                     {item.image
                       ? <img src={item.image} alt={`${item.make} ${item.baseModel || item.model}`} loading="lazy" decoding="async" />
-                      : <span>תמונה<br />בקרוב</span>}
+                      : <img src="/placeholders/car-1.svg" alt="" loading="lazy" decoding="async" />}
                   </div>
                   <div className="matchInfo">
                     <b>{item.make} {item.baseModel || item.model}</b>
@@ -246,7 +219,6 @@ export default async function CarPage({ params }: { params: Promise<{ id: string
 
       <SiteFooter />
 
-      {/* פס פעולה קבוע במובייל */}
       <div className="carMobileBar">
         <a href={`tel:${BUSINESS.phone}`}>חייגו {BUSINESS.phone}</a>
         <a href={whatsapp} target="_blank" rel="noreferrer">וואטסאפ</a>
