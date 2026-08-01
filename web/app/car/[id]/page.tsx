@@ -6,6 +6,7 @@ import VehicleGallery from "../../vehicle-gallery";
 import { CarLeadForm } from "../../lead-forms";
 import { getMaxPaymentsByYear } from "../../finance-rules";
 import { BUSINESS, DEMO_IMAGE, SITE_NAME, SITE_URL } from "../../site-config";
+import { similarByPrice, PRICE_FLOOR_SHARE } from "../../similar-by-price";
 
 export const revalidate = 600;
 
@@ -81,7 +82,8 @@ export default async function CarPage({ params }: { params: Promise<{ id: string
   const maxPayments = getMaxPaymentsByYear(year);
   const price = askingPrice(car);
   const name = `${car.make} ${car.model}`;
-  const related = cars.filter((item) => item.id !== car.id).slice(0, 10);
+  const related = similarByPrice(cars, car);
+  const priceFloor = Math.round(price * PRICE_FLOOR_SHARE);
   const whatsapp = `https://wa.me/${BUSINESS.whatsapp}?text=${encodeURIComponent(`שלום, אני מתעניין ב-${name} שנת ${car.year}`)}`;
 
   const real = car.images?.length ? car.images.slice(0, 10) : car.image ? [car.image] : [];
@@ -196,7 +198,15 @@ export default async function CarPage({ params }: { params: Promise<{ id: string
       {related.length > 0 && (
         <section className="carSection carRelated">
           <div className="shell">
-            <h2>רכבים נוספים במלאי</h2>
+            <header className="relatedHead">
+              <span className="eyebrow">לפני שסוגרים</span>
+              <h2>שווה להסתכל גם על אלה</h2>
+              <p>
+                רכבים מאותה קטגוריה שנמצאים בטווח שלכם — מתחילים
+                מ-{priceFloor.toLocaleString("he-IL")} ש״ח ועולים. לפעמים תוספת קטנה
+                בהחזר החודשי נותנת רכב חדש יותר או עם פחות קילומטרים.
+              </p>
+            </header>
             <div className="matchGrid" role="list" tabIndex={0} aria-label="רכבים נוספים, ניתן לגלול לצדדים">
               {related.map((item) => (
                 <a className="matchCard" role="listitem" href={`/car/${item.id}`} key={item.id}>
