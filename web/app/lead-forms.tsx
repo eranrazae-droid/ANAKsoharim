@@ -36,3 +36,33 @@ export function CarLeadForm({ vehicle }: { vehicle: string }) {
     </form>
   );
 }
+
+/**
+ * טופס העמוד "השארת פרטים".
+ * שלושה שדות בלבד: שם, טלפון ואיזה רכב מעניין. ככל שיש פחות
+ * שדות כך יותר לקוחות משלימים אותם.
+ */
+export function LeaveDetailsForm() {
+  const lead = useLead("lead-page");
+  return (
+    <form className="leadPageForm" onSubmit={lead.submit}>
+      <Honeypot />
+      <label>
+        שם מלא
+        <input required name="name" placeholder="ישראל ישראלי" aria-label="שם מלא" />
+      </label>
+      <label>
+        טלפון
+        <input required name="phone" inputMode="tel" placeholder="050-0000000" aria-label="טלפון" />
+      </label>
+      <label>
+        איזה רכב מעניין אתכם?
+        <input name="vehicle" placeholder="יצרן, דגם או תקציב" aria-label="הרכב שמעניין אתכם" />
+      </label>
+      <button disabled={lead.status === "sending"}>
+        {lead.status === "sending" ? "שולח..." : "שלחו פרטים"}
+      </button>
+      <LeadStatusMessage status={lead.status} error={lead.error} />
+    </form>
+  );
+}

@@ -147,7 +147,7 @@ export default async function CarPage({ params }: { params: Promise<{ id: string
 
             {/* פרטי צור קשר בשורה אחת צרה */}
             <div className="carContactBar">
-              <a href={`tel:${BUSINESS.phone}`}>{BUSINESS.phone}</a>
+              <a href={`tel:${BUSINESS.dial}`}>{BUSINESS.phone}</a>
               <a href={`tel:${BUSINESS.mobile.replace(/-/g, "")}`}>{BUSINESS.mobile}</a>
               <a href={whatsapp} target="_blank" rel="noreferrer">וואטסאפ</a>
               <span>{BUSINESS.street}, {BUSINESS.city}</span>

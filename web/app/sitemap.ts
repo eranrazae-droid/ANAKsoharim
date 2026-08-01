@@ -16,6 +16,7 @@ const STATIC_PAGES: { path: string; priority: number; changeFrequency: MetadataR
   { path: "/reviews", priority: 0.6, changeFrequency: "monthly" },
   { path: "/articles", priority: 0.6, changeFrequency: "monthly" },
   { path: "/contact", priority: 0.6, changeFrequency: "yearly" },
+  { path: "/lead", priority: 0.6, changeFrequency: "yearly" },
 ];
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {

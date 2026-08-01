@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { SiteFooter, SiteHeader } from "../../site-chrome";
 import { articles, findArticle } from "../../articles-data";
-import { SITE_NAME, SITE_URL } from "../../site-config";
+import { BUSINESS, SITE_NAME, SITE_URL } from "../../site-config";
 
 export function generateStaticParams() {
   return articles.map((article) => ({ slug: article.slug }));
@@ -83,7 +83,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
           )}
 
           <p className="intro">
-            רוצים לדבר עם נציג? <a href="tel:*2369">*2369</a> או{" "}
+            רוצים לדבר עם נציג? <a href={`tel:${BUSINESS.dial}`}>*2369</a> או{" "}
             <a href="/contact">השאירו פרטים</a>.
           </p>
         </div>

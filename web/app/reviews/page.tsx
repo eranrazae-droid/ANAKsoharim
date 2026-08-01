@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { SiteFooter, SiteHeader } from "../site-chrome";
 import { Breadcrumbs } from "../page-schema";
 import { reviews } from "../reviews-data";
-import { SITE_NAME, SITE_URL } from "../site-config";
+import { BUSINESS, SITE_NAME, SITE_URL } from "../site-config";
 
 // מחליף את העמוד הוותיק /לקוחות-ממליצים.asp מהאתר הישן.
 export const metadata: Metadata = {
@@ -49,7 +49,7 @@ export default function ReviewsPage() {
           {reviews.length === 0 ? (
             <p className="intro">
               ההמלצות שלנו בדרך. בינתיים נשמח לספר לכם על התהליך בטלפון{" "}
-              <a href="tel:*2369">*2369</a>.
+              <a href={`tel:${BUSINESS.dial}`}>*2369</a>.
             </p>
           ) : (
             <div className="benefitGrid">

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { propulsionTechnology, type DisplayCar } from "./vehicle-types";
-import { IS_LIVE } from "./site-config";
+import { BUSINESS, IS_LIVE } from "./site-config";
 import VehicleCard from "./vehicle-card";
 import CustomerStrip from "./customer-strip";
 import FloatingActions from "./floating-actions";
@@ -154,7 +154,7 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
     <main dir="rtl">
       <header className="topbar"><div className="shell headerInner">
         <a className="logo" href="#top" onClick={resetAllCalculators} aria-label="ענק הרכבים - דף הבית"><Logo eager /></a>
-        <SocialLinks /><div className="headerActions"><a className="location" href="https://waze.com/ul?ll=31.9888,34.77084&navigate=yes" target="_blank" rel="noreferrer">⌖ <span>דוד רזיאל 4, ראשון לציון</span></a><a className="phone" href="tel:*2369"><small>חייגו עכשיו</small><strong>*2369</strong><span>☎</span></a></div>
+        <SocialLinks /><div className="headerActions"><a className="location" href="https://waze.com/ul?ll=31.9888,34.77084&navigate=yes" target="_blank" rel="noreferrer">⌖ <span>דוד רזיאל 4, ראשון לציון</span></a><a className="phone" href={`tel:${BUSINESS.dial}`}><small>חייגו עכשיו</small><strong>*2369</strong><span>☎</span></a></div>
         <button className="menuButton" onClick={() => setMobileOpen(!mobileOpen)} aria-label="פתיחת תפריט">☰</button>
       </div></header>
       <nav className={`nav ${mobileOpen ? "open" : ""}`}><div className="shell navLinks"><a href="#top" onClick={resetAllCalculators}>דף הבית</a><a href="#inventory">מלאי עדכני</a><a href="/finance">מחשבון מימון</a><a href="/trade">טרייד אין</a><a href="/sell">מעוניינים למכור לנו את הרכב?</a><a href="/contact">צור קשר</a><a href="/compare">השוואת רכבים</a><a href="/account">האזור האישי</a></div></nav>
@@ -252,7 +252,7 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
       <section id="finance" className="benefits section"><div className="shell"><h2>רכב קונים רק <span>בענק הרכבים!</span></h2><p className="intro">אנחנו מלווים אתכם משלב בחירת הרכב ועד למסירה, בשקיפות מלאה ועם פתרונות שמתאימים בדיוק לכם.</p><div className="benefitGrid"><article><i>✓</i><h3>בדיקות קפדניות</h3><p>בדיקה מקצועית ושקיפות מלאה על היסטוריית הרכב.</p></article><article><i>🚘</i><h3>מגוון ענק</h3><p>עשרות רכבים מכל הסוגים ובכל רמות המחיר.</p></article><article><i>★</i><h3>שירות ואמינות</h3><p>ייעוץ אישי וליווי מקצועי גם אחרי הקנייה.</p></article><article><i>₪</i><h3>עד 100% מימון</h3><p>אפשרויות מימון נוחות ללא מקדמה, בכפוף לאישור.</p></article></div></div></section>
 
 
-      <footer id="contact"><div className="shell footerGrid"><div><Logo /><p>מכירה, קנייה וטרייד אין לרכבים מאז 1998.</p></div><div><h3>צרו קשר</h3><p>רחוב דוד רזיאל 4, ראשון לציון</p><a href="tel:*2369">*2369</a><p>א׳-ה׳ 08:30-18:00 | ו׳ 08:30-13:00</p></div><div><h3>קישורים</h3><a href="#inventory">רכבים במלאי</a><a href="/sell">מכירת רכב</a><a href="/finance">מימון וטרייד אין</a></div></div><div className="copyright">© {new Date().getFullYear()} ענק הרכבים. כל הזכויות שמורות.</div></footer>
+      <footer id="contact"><div className="shell footerGrid"><div><Logo /><p>מכירה, קנייה וטרייד אין לרכבים מאז 1998.</p></div><div><h3>צרו קשר</h3><p>רחוב דוד רזיאל 4, ראשון לציון</p><a href={`tel:${BUSINESS.dial}`}>*2369</a><p>א׳-ה׳ 08:30-18:00 | ו׳ 08:30-13:00</p></div><div><h3>קישורים</h3><a href="#inventory">רכבים במלאי</a><a href="/sell">מכירת רכב</a><a href="/finance">מימון וטרייד אין</a></div></div><div className="copyright">© {new Date().getFullYear()} ענק הרכבים. כל הזכויות שמורות.</div></footer>
       <FloatingActions />
     </main>
   );
