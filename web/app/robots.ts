@@ -1,6 +1,9 @@
 import type { MetadataRoute } from "next";
 import { IS_LIVE, SITE_URL } from "./site-config";
 
+// נקרא בכל בקשה, כדי ש-SITE_LIVE ישפיע מיד בלי פריסה מחדש
+export const dynamic = "force-dynamic";
+
 export default function robots(): MetadataRoute.Robots {
   // אתר הכנה — חסימה מלאה כדי שגוגל לא יאנדקס אותו במקביל לאתר הישן.
   if (!IS_LIVE) {

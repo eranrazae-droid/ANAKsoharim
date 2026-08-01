@@ -17,21 +17,6 @@ export const metadata: Metadata = {
 export default async function Home() {
   const cars = await getActiveVehicles().catch(() => []);
 
-  const searchSchema = {
-    "@context": "https://schema.org",
-    "@type": "WebSite",
-    name: "ענק הרכבים",
-    url: SITE_URL,
-    inLanguage: "he-IL",
-  };
-
-  return (
-    <>
-      <HomeClient initialCars={cars} />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(searchSchema) }}
-      />
-    </>
-  );
+  // סכמת האתר יושבת ב-layout ומשותפת לכל העמודים — אין לשכפל אותה כאן.
+  return <HomeClient initialCars={cars} />;
 }

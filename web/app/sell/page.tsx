@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { SiteFooter, SiteHeader } from "../site-chrome";
+import { Breadcrumbs } from "../page-schema";
 import { Honeypot, LeadStatusMessage, useLead } from "../use-lead";
 
 type Vehicle = { manufacturer: string; model: string; year: string };
@@ -138,6 +139,7 @@ export default function SellPage() {
       </section>
 
       <SiteFooter />
+      <Breadcrumbs path="/sell" name="מכירת רכב" />
     </main>
   );
 }

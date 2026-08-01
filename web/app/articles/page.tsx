@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { SiteFooter, SiteHeader } from "../site-chrome";
+import { Breadcrumbs } from "../page-schema";
 import { articles } from "../articles-data";
 
 // מחליף את /articles.asp מהאתר הישן.
@@ -38,6 +39,7 @@ export default function ArticlesPage() {
       </section>
 
       <SiteFooter />
+      <Breadcrumbs path="/articles" name="מדריכים" />
     </main>
   );
 }

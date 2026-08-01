@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { SiteFooter, SiteHeader } from "../site-chrome";
+import { Breadcrumbs } from "../page-schema";
 import { getActiveVehicles, type DisplayCar } from "../vehicle-api";
 import VehicleCard from "../vehicle-card";
 import MobileReveal from "../mobile-reveal";
@@ -65,6 +66,7 @@ export default async function CarsPage() {
       </section>
 
       <SiteFooter />
+      <Breadcrumbs path="/cars" name="מלאי עדכני" />
 
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(listSchema) }} />
     </main>

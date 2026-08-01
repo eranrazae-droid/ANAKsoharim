@@ -15,7 +15,13 @@ export const SITE_URL = "https://www.03-5189189.co.il";
  *   NEXT_PUBLIC_SITE_LIVE=true
  * ולהריץ פריסה מחדש. זו הפעולה היחידה שפותחת את האתר לגוגל.
  */
-export const IS_LIVE = process.env.NEXT_PUBLIC_SITE_LIVE === "true";
+/**
+ * האם האתר חי מבחינת מנועי החיפוש.
+ * NEXT_PUBLIC_SITE_LIVE נצרב בזמן הבנייה ולכן דורש פריסה מחדש.
+ * SITE_LIVE נקרא בזמן ריצה, ומאפשר לפתוח את האתר לגוגל בלי בנייה.
+ */
+export const IS_LIVE =
+  process.env.NEXT_PUBLIC_SITE_LIVE === "true" || process.env.SITE_LIVE === "true";
 
 export const BUSINESS = {
   phone: "*2369",

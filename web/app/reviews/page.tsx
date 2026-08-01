@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { SiteFooter, SiteHeader } from "../site-chrome";
+import { Breadcrumbs } from "../page-schema";
 import { reviews } from "../reviews-data";
 import { SITE_NAME, SITE_URL } from "../site-config";
 
@@ -64,6 +65,7 @@ export default function ReviewsPage() {
       </section>
 
       <SiteFooter />
+      <Breadcrumbs path="/reviews" name="לקוחות ממליצים" />
 
       {reviewSchema && (
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(reviewSchema) }} />

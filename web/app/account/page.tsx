@@ -6,7 +6,7 @@ import AccountClient from "./account-client";
 export const revalidate = 600;
 
 export const metadata: Metadata = {
-  title: "האזור האישי",
+  title: "האזור האישי — התראות על רכבים שאתם מחפשים",
   description:
     "פותחים חשבון בענק הרכבים ומגדירים איזה רכב אתם מחפשים. כשייכנס למלאי רכב שמתאים — נודיע לכם. הגלישה באתר פתוחה גם בלי חשבון.",
   alternates: { canonical: "/account" },

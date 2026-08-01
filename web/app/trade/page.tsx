@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { SiteFooter, SiteHeader } from "../site-chrome";
+import { Breadcrumbs, Faq } from "../page-schema";
+import { TRADE_FAQ } from "../faq-data";
 import { Honeypot, LeadStatusMessage, useLead } from "../use-lead";
 
 type Vehicle = {
@@ -134,7 +136,9 @@ export default function TradePage() {
         </div>
       </section>
 
+      <Faq items={TRADE_FAQ} />
       <SiteFooter />
+      <Breadcrumbs path="/trade" name="טרייד אין" />
     </main>
   );
 }

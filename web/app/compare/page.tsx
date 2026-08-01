@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { SiteFooter, SiteHeader } from "../site-chrome";
+import { Breadcrumbs } from "../page-schema";
 import { getActiveVehicles, type DisplayCar } from "../vehicle-api";
 import CompareClient from "./compare-client";
 import { SITE_NAME } from "../site-config";
@@ -35,6 +36,7 @@ export default async function ComparePage() {
       </section>
 
       <SiteFooter />
+      <Breadcrumbs path="/compare" name="השוואת רכבים" />
     </main>
   );
 }
