@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { SiteFooter, SiteHeader } from "../site-chrome";
 import { getActiveVehicles, type DisplayCar } from "../vehicle-api";
 import VehicleCard from "../vehicle-card";
+import MobileReveal from "../mobile-reveal";
 import { SITE_NAME, SITE_URL } from "../site-config";
 
 // מחליף את עמודי המלאי הוותיקים של האתר הישן:
@@ -55,9 +56,11 @@ export default async function CarsPage() {
               : "המלאי מתעדכן כעת. נסו שוב בעוד מספר דקות או התקשרו אלינו ל-*2369."}
           </p>
 
-          <div className="listGrid">
-            {cars.map((car) => <VehicleCard car={car} key={car.id} />)}
-          </div>
+          <MobileReveal label={`${cars.length.toLocaleString("he-IL")} רכבים במלאי`}>
+            <div className="listGrid">
+              {cars.map((car) => <VehicleCard car={car} key={car.id} />)}
+            </div>
+          </MobileReveal>
         </div>
       </section>
 

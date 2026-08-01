@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { DisplayCar } from "./vehicle-api";
 import VehicleCard from "./vehicle-card";
 import CustomerStrip from "./customer-strip";
@@ -60,6 +60,12 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
   const [tradeLookup, setTradeLookup] = useState<"idle" | "loading" | "error">("idle");
   const [tradeError, setTradeError] = useState("");
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  // טבלה של חמש עשרה עמודות אינה קריאה בטלפון. במסך צר פותחים בתצוגת כרטיסים.
+  useEffect(() => {
+    if (window.matchMedia("(max-width: 900px)").matches) setTableView(false);
+  }, []);
+  // כל הרכבים נשארים ב-HTML בשביל גוגל. בטלפון הרשימה מקופלת עד לחיצה.
+  const [revealAll, setRevealAll] = useState(false);
   // מדרגות מחיר לבחירה מהירה, נגזרות מהמלאי בפועל
   const priceSteps = useMemo(() => {
     const top = Math.ceil(inventoryMaxPrice / 10000) * 10000;
@@ -121,7 +127,7 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
   function resetAllCalculators() {
     setCategory("כל הרכבים"); setMake("הכל"); setModel("הכל"); setSortBy("alphabetical");
     setDriveTech("הכל"); setPropulsionTech("הכל"); setRoofFilter("הכל"); setFromYear("הכל"); setToYear("הכל"); setEngineType("הכל"); setGearbox("הכל");
-    setMinPrice(0); setMaxPrice(inventoryMaxPrice); setMinMonthly(0); setMaxMonthly(inventoryMaxMonthly); setTableView(true); setTableSortKey("make"); setTableSortDirection("asc");
+    setMinPrice(0); setMaxPrice(inventoryMaxPrice); setMinMonthly(0); setMaxMonthly(inventoryMaxMonthly); setTableSortKey("make"); setTableSortDirection("asc"); setRevealAll(false);
     setTradePlate(""); setTradeVehicle(null); setTradeLookup("idle"); setTradeError(""); setMobileOpen(false);
   }
   async function lookupTradeVehicle() {
@@ -184,6 +190,7 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
       </div></section>
 
       <section id="inventory" className="inventory section"><div className="shell"><h1 className="inventoryTitle">כל סוגי הרכבים במקום אחד!</h1><div className="viewToggle" role="group" aria-label="בחירת תצוגת רכבים"><button type="button" className={tableView ? "active" : ""} aria-pressed={tableView} onClick={() => setTableView(true)}>☷ תצוגת טבלה</button><button type="button" className={!tableView ? "active" : ""} aria-pressed={!tableView} onClick={() => setTableView(false)}>▦ תצוגת גלריה</button></div><div className="inventoryControls"><div className="categoryTabs">{categoryOptions.map((item) => <button key={item.value} className={category === item.value ? "active" : ""} onClick={() => setCategory(item.value)}>{item.label}</button>)}</div><label className="inventorySortBlock"><span>מיון</span><select className="inventorySort" aria-label="מיון רכבים" value={sortBy} onChange={(e) => setSortBy(e.target.value)}><option value="alphabetical">לפי א׳–ב׳</option><option value="price-asc">מחיר מזול ליקר</option><option value="price-desc">מחיר מיקר לזול</option><option value="year-desc">מחדש לישן</option><option value="year-asc">מישן לחדש</option></select></label></div>
+      <div className={`inventoryReveal${revealAll ? " open" : ""}`}>
       {tableView ? <div className="resultsTableWrap"><table className="resultsTable"><thead><tr><th>#</th><th>{sortableHeader("יצרן", "make")}</th><th>{sortableHeader("דגם", "model")}</th><th>{sortableHeader("תת דגם", "subModel")}</th><th>{sortableHeader("שנת ייצור", "year")}</th><th>{sortableHeader("נפח מנוע", "engineCapacity")}</th><th>{sortableHeader("יד", "hand")}</th><th>{sortableHeader("ק״מ", "mileage")}</th><th>{sortableHeader("תיבת הילוכים", "gear")}</th><th>{sortableHeader("סוג מנוע", "engine")}</th><th>{sortableHeader("גג נפתח", "openRoof")}</th><th>{sortableHeader("מקדמה", "advance")}</th><th>{sortableHeader("תשלום חודשי", "monthly")}</th><th>{sortableHeader("מחיר מבוקש", "price")}</th><th>תמונה</th></tr></thead><tbody>{tableCars.map((car, index) => [
         <tr key={`${car.id}-main`} onClick={() => { window.location.href = `/car/${car.id}`; }} tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter") window.location.href = `/car/${car.id}`; }}>
           <td><button className="expandRowButton" type="button" aria-expanded={expandedCarId === car.id} onClick={(event) => { event.stopPropagation(); setExpandedCarId(expandedCarId === car.id ? null : car.id); }}>{index + 1}<span>{expandedCarId === car.id ? "−" : "+"}</span></button></td>
@@ -191,6 +198,12 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
         </tr>,
         expandedCarId === car.id && <tr className="expandedVehicleRow" key={`${car.id}-details`}><td colSpan={15}><div className="expandedVehicleDetails"><span><b>קטגוריה:</b> {car.categories?.join(", ") || car.category}</span><span><b>צבע:</b> {car.color || "—"}</span><span><b>בעלות:</b> {car.ownership || "—"}</span><span><b>מרכב:</b> {car.body || "—"}</span><span><b>מספר דלתות:</b> {car.doors || "—"}</span><span><b>מספר מושבים:</b> {car.seats || "—"}</span><span><b>כוח סוס:</b> {car.horsePower || "—"}</span><span><b>תוקף טסט:</b> {car.test || "—"}</span><span><b>טכנולוגיית הנעה:</b> {car.drivetrain || "—"}</span><span className="expandedExtras"><b>תוספות:</b> {car.extras || "לא צוינו תוספות"}</span><a href={`/car/${car.id}`}>לכרטיס הרכב המלא</a></div></td></tr>
       ])}</tbody></table></div> : <div className="listGrid">{shownCars.map((car) => <VehicleCard car={car} key={car.id} />)}</div>}
+      </div>
+      {!revealAll && shownCars.length > 0 && (
+        <button type="button" className="showMore" onClick={() => setRevealAll(true)}>
+          הצגת כל הרכבים <span>{shownCars.length.toLocaleString("he-IL")} רכבים במלאי</span>
+        </button>
+      )}
       {shownCars.length === 0 && <p className="empty">לא נמצאו רכבים בסינון שבחרתם.</p>}</div></section>
 
       <SimilarCars cars={cars} profile={matchRef} />
