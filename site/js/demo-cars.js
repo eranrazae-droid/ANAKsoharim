@@ -10,11 +10,12 @@ const B = 'images/demo-car-2.svg';
 const C = 'images/demo-car-3.svg';
 
 export const DEMO_CARS = [
-  { id:'demo-1', plate:'12345601', make:'מרצדס', model:'C200', trim:'AMG Line',
-    year:2022, hand:1, km:38000, price:329000, gearbox:'אוטומטית', fuel:'בנזין',
-    engine:'1991', color:'שחור', test:'2027-03-01', body:'סדאן', featured:true,
-    description:'רכב שמור במיוחד, ספר טיפולים מלא בסוכנות.\nללא תאונות, צמיגים חדשים.',
-    images:[A, C, B] },
+  // הרכב היחיד עם צילום אמיתי מהמגרש — להמחשה בדף הרכב
+  { id:'demo-1', plate:'12345601', make:'ג׳יפ', model:'רנגלר', trim:'Rubicon',
+    year:2024, hand:1, km:12000, price:385000, gearbox:'אוטומטית', fuel:'בנזין',
+    engine:'1995', color:'לבן', test:'2027-04-18', body:'רכב שטח', featured:true,
+    description:'רכב צעיר עם קילומטראז׳ נמוך, הנעה 4×4.\nצמיגי שטח, פנים בעור אדום, אחריות יצרן בתוקף.',
+    images:['images/demo-jeep.jpg'] },
 
   { id:'demo-2', plate:'22345602', make:'טויוטה', model:'קורולה', trim:'Hybrid Premium',
     year:2021, hand:2, km:72000, price:112000, gearbox:'אוטומטית', fuel:'היברידי',
