@@ -141,9 +141,9 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
       </div></header>
       <nav className={`nav ${mobileOpen ? "open" : ""}`}><div className="shell navLinks"><a href="#top" onClick={resetAllCalculators}>דף הבית</a><a href="#inventory">מלאי עדכני</a><a href="/finance">תנאי מימון</a><a href="/trade">טרייד אין</a><a href="/sell">מעוניינים למכור לנו את הרכב?</a><a href="/contact">צור קשר</a></div></nav>
 
-      <section id="top" className="hero heroFinder"><img src="/assets/slide1.jpg" alt="מבחר רכבים בענק הרכבים" /><div className="heroShade" /><div className="shell finderContent">
-        <h1>כל סוגי הרכבים במקום אחד!</h1>
+      <section id="top" className="hero heroFinder"><img src="/assets/showroom.svg" alt="אולם התצוגה של ענק הרכבים" fetchPriority="high" decoding="async" /><div className="heroShade" /><div className="shell finderContent">
         <div className="finderBox" aria-label="חיפוש רכב">
+          <p className="finderBoxTitle">חיפוש רכב במלאי</p>
           <div className="finderFields">
             <label>קטגוריה<select value={category} onChange={(e) => setCategory(e.target.value)}>{categoryOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
             <label>יצרן<select value={make} onChange={(e) => { setMake(e.target.value); setModel("הכל"); }}><option value="הכל">כל היצרנים</option>{[...new Set(cars.map(c => c.make))].sort((a, b) => a.localeCompare(b, "he")).map((item) => <option key={item}>{item}</option>)}</select></label>
@@ -174,13 +174,9 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
           )}
 
         </div>
-        <div className="viewToggle" role="group" aria-label="בחירת תצוגת רכבים">
-          <button type="button" className={tableView ? "active" : ""} aria-pressed={tableView} onClick={() => setTableView(true)}>☷ תצוגת טבלה</button>
-          <button type="button" className={!tableView ? "active" : ""} aria-pressed={!tableView} onClick={() => setTableView(false)}>▦ תצוגת גלריה</button>
-        </div>
       </div></section>
 
-      <section id="inventory" className="inventory section"><div className="shell"><div className="inventoryControls"><div className="categoryTabs">{categoryOptions.map((item) => <button key={item.value} className={category === item.value ? "active" : ""} onClick={() => setCategory(item.value)}>{item.label}</button>)}</div><label className="inventorySortBlock"><span>מיון</span><select className="inventorySort" aria-label="מיון רכבים" value={sortBy} onChange={(e) => setSortBy(e.target.value)}><option value="alphabetical">לפי א׳–ב׳</option><option value="price-asc">מחיר מזול ליקר</option><option value="price-desc">מחיר מיקר לזול</option><option value="year-desc">מחדש לישן</option><option value="year-asc">מישן לחדש</option></select></label></div>
+      <section id="inventory" className="inventory section"><div className="shell"><h1 className="inventoryTitle">כל סוגי הרכבים במקום אחד!</h1><div className="viewToggle" role="group" aria-label="בחירת תצוגת רכבים"><button type="button" className={tableView ? "active" : ""} aria-pressed={tableView} onClick={() => setTableView(true)}>☷ תצוגת טבלה</button><button type="button" className={!tableView ? "active" : ""} aria-pressed={!tableView} onClick={() => setTableView(false)}>▦ תצוגת גלריה</button></div><div className="inventoryControls"><div className="categoryTabs">{categoryOptions.map((item) => <button key={item.value} className={category === item.value ? "active" : ""} onClick={() => setCategory(item.value)}>{item.label}</button>)}</div><label className="inventorySortBlock"><span>מיון</span><select className="inventorySort" aria-label="מיון רכבים" value={sortBy} onChange={(e) => setSortBy(e.target.value)}><option value="alphabetical">לפי א׳–ב׳</option><option value="price-asc">מחיר מזול ליקר</option><option value="price-desc">מחיר מיקר לזול</option><option value="year-desc">מחדש לישן</option><option value="year-asc">מישן לחדש</option></select></label></div>
       {tableView ? <div className="resultsTableWrap"><table className="resultsTable"><thead><tr><th>#</th><th>{sortableHeader("יצרן", "make")}</th><th>{sortableHeader("דגם", "model")}</th><th>{sortableHeader("תת דגם", "subModel")}</th><th>{sortableHeader("שנת ייצור", "year")}</th><th>{sortableHeader("נפח מנוע", "engineCapacity")}</th><th>{sortableHeader("יד", "hand")}</th><th>{sortableHeader("ק״מ", "mileage")}</th><th>{sortableHeader("תיבת הילוכים", "gear")}</th><th>{sortableHeader("סוג מנוע", "engine")}</th><th>{sortableHeader("גג נפתח", "openRoof")}</th><th>{sortableHeader("מקדמה", "advance")}</th><th>{sortableHeader("תשלום חודשי", "monthly")}</th><th>{sortableHeader("מחיר מבוקש", "price")}</th><th>תמונה</th></tr></thead><tbody>{tableCars.map((car, index) => [
         <tr key={`${car.id}-main`} onClick={() => { window.location.href = `/car/${car.id}`; }} tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter") window.location.href = `/car/${car.id}`; }}>
           <td><button className="expandRowButton" type="button" aria-expanded={expandedCarId === car.id} onClick={(event) => { event.stopPropagation(); setExpandedCarId(expandedCarId === car.id ? null : car.id); }}>{index + 1}<span>{expandedCarId === car.id ? "−" : "+"}</span></button></td>
