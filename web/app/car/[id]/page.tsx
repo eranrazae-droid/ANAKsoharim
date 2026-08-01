@@ -167,28 +167,28 @@ export default async function CarPage({ params }: { params: Promise<{ id: string
               {car.remarks || `הרכב קיים במלאי למסירה מיידית. אפשרות מימון עד 100% ללא מקדמה ועד ${maxPayments} תשלומים בהחזר חודשי משתלם במיוחד. אנו מבצעים טרייד אין לכל סוגי הרכבים — מחכים לך ב${SITE_NAME}, ${BUSINESS.street}, ${BUSINESS.city}.`}
             </p>
 
-            <div className="carFactsFoot">
-              <span className="carRef"><b>קוד פנייה:</b> {"{"}67-{car.id}-00{"}"}</span>
-              <a className="carSimilarBtn" href="/cars">רכבים דומים</a>
+            <p className="carRef"><b>קוד פנייה:</b> {"{"}67-{car.id}-00{"}"}</p>
+
+            <div className="carPrice">
+              <div className="carPriceMain">
+                <small>מחיר מבוקש</small>
+                <strong>{price.toLocaleString("he-IL")}<span>₪</span></strong>
+              </div>
+              {car.monthly > 0 && (
+                <div className="carPriceMonthly">
+                  <small>החזר חודשי</small>
+                  <b>{car.monthly.toLocaleString("he-IL")} ₪</b>
+                  <em>עד {maxPayments} תשלומים</em>
+                </div>
+              )}
             </div>
 
-            <p className="carAsking">
-              <b>מחיר מבוקש:</b> <strong>{price.toLocaleString("he-IL")} ₪</strong>
-              {car.monthly > 0 && <em>או {car.monthly.toLocaleString("he-IL")} ₪ לחודש</em>}
-            </p>
+            <div className="carLeadBox">
+              <p><b>מתעניינים ברכב?</b> השאירו פרטים ונחזור אליכם.</p>
+              <CarLeadForm vehicle={`${name} ${car.year}`} />
+            </div>
           </div>
 
-        </div>
-      </section>
-
-      {/* ── השארת פרטים ── */}
-      <section className="carSection carLead">
-        <div className="shell carLeadGrid">
-          <div>
-            <h2>רוצים לשמוע עוד על הרכב?</h2>
-            <p>נציג יחזור אליכם עם כל המידע ואפשרויות המימון.</p>
-          </div>
-          <CarLeadForm vehicle={`${name} ${car.year}`} />
         </div>
       </section>
 

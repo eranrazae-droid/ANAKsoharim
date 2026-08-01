@@ -34,7 +34,7 @@
   display: grid;
   gap: 20px;
   grid-template-columns: 1fr;
-  align-items: start;
+  align-items: stretch;   /* שתי העמודות מסתיימות באותו קו */
 }
 @media (min-width: 1000px) {
   .carBoardGrid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 26px; }
@@ -46,6 +46,8 @@
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 20px;
+  height: 100%;
+  display: flex; flex-direction: column;
 }
 .carFactsHead { margin: 0 0 14px; display: flex; flex-direction: column; gap: 2px; }
 .carFactsHead span { font-size: 16px; font-weight: 800; color: var(--gold-ink); }
@@ -77,30 +79,63 @@
 }
 .carNote b { color: var(--gold-ink); font-weight: 800; }
 
-.carFactsFoot {
-  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
-  gap: 12px;
-  padding-top: 14px; border-top: 1px solid var(--line);
-}
-.carRef { font-size: 13.5px; color: var(--ink2); }
-.carRef b { color: var(--gold-ink); }
-.carSimilarBtn {
-  background: #000; color: var(--gold);
-  border-radius: 8px; padding: 11px 24px;
-  font-size: 14.5px; font-weight: 800;
-  transition: background .16s, color .16s;
-}
-.carSimilarBtn:hover { background: var(--gold); color: #000; }
 
-.carAsking {
-  margin: 16px 0 0; padding-top: 14px;
-  border-top: 1px solid var(--line);
-  display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px;
-  font-size: 16px; color: var(--ink2);
+/* קוד פנייה */
+.carRef { margin: 0 0 14px; font-size: 13px; color: var(--muted); }
+.carRef b { color: var(--gold-ink); font-weight: 700; }
+
+/* ══ אזור המחיר — לוח שחור עם קו זהב ══ */
+.carPrice {
+  margin-top: auto;
+  background: #000;
+  border-radius: 12px;
+  padding: 16px 18px;
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px 22px;
+  position: relative; overflow: hidden;
 }
-.carAsking b { font-weight: 700; }
-.carAsking strong { font-size: 27px; font-weight: 800; color: var(--ink); letter-spacing: -.02em; }
-.carAsking em { font-style: normal; font-size: 14.5px; font-weight: 700; color: var(--gold-ink); }
+.carPrice::before {
+  content: ""; position: absolute; inset-inline: 0; top: 0; height: 3px;
+  background: linear-gradient(90deg, var(--gold), #8a6a22);
+}
+.carPriceMain { display: flex; flex-direction: column; gap: 3px; }
+.carPriceMain small { font-size: 11.5px; letter-spacing: .14em; color: var(--gold); }
+.carPriceMain strong {
+  display: flex; align-items: baseline; gap: 5px;
+  font-size: clamp(30px, 3.2vw, 38px); font-weight: 800;
+  color: #fff; letter-spacing: -.03em; line-height: 1;
+}
+.carPriceMain strong span { font-size: .5em; font-weight: 700; color: #cfcfd6; }
+
+.carPriceMonthly {
+  display: flex; flex-direction: column; gap: 2px;
+  padding-inline-start: 22px;
+  border-inline-start: 1px solid #24242c;
+}
+.carPriceMonthly small { font-size: 11.5px; letter-spacing: .1em; color: #8f8f9a; }
+.carPriceMonthly b { font-size: 21px; font-weight: 800; color: var(--gold); line-height: 1.1; }
+.carPriceMonthly em { font-style: normal; font-size: 12px; color: #8f8f9a; }
+
+/* ══ תיבת השארת פרטים — בתחתית עמודת הטקסט ══ */
+.carLeadBox {
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px 16px;
+  background: var(--panel);
+}
+.carLeadBox > p { margin: 0 0 10px; font-size: 14px; color: var(--ink2); }
+.carLeadBox > p b { color: var(--ink); font-weight: 800; }
+.carLeadBox .modernLeadForm {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+}
+.carLeadBox .modernLeadForm input { min-height: 44px; }
+.carLeadBox .modernLeadForm input[name="vehicle"] { grid-column: 1 / -1; }
+.carLeadBox .modernLeadForm button { grid-column: 1 / -1; min-height: 46px; }
+.carLeadBox .modernLeadForm .success,
+.carLeadBox .modernLeadForm .tradeError { grid-column: 1 / -1; margin: 0; }
+
+
+
 
 /* ══ צד התמונות ══ */
 .carMedia { display: flex; flex-direction: column; gap: 10px; }
@@ -160,20 +195,12 @@
 .carSection { padding: 26px 0; background: var(--paper); }
 .carSection > .shell > h2 { margin: 0 0 12px; font-size: 22px; color: var(--ink); }
 
-.carLead { border-top: 1px solid var(--line); }
-.carLeadGrid { display: grid; gap: 18px; grid-template-columns: 1fr; align-items: center; }
-@media (min-width: 900px) { .carLeadGrid { grid-template-columns: 1fr 1.1fr; gap: 36px; } }
-.carLeadGrid h2 { margin: 0 0 6px; font-size: 22px; color: var(--ink); }
-.carLeadGrid > div > p { margin: 0; font-size: 15px; color: var(--muted); }
-.carLead .modernLeadForm {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
-  background: #000; padding: 18px; border-radius: 12px;
-}
-.carLead .modernLeadForm input { min-height: 46px; }
-.carLead .modernLeadForm input[name="vehicle"] { grid-column: 1 / -1; }
-.carLead .modernLeadForm button { grid-column: 1 / -1; min-height: 48px; }
-.carLead .modernLeadForm .success,
-.carLead .modernLeadForm .tradeError { grid-column: 1 / -1; }
+
+
+
+
+
+
 
 .carRelated { border-top: 1px solid var(--line); }
 
@@ -186,6 +213,8 @@
   .carSpecTable > div:nth-child(4n+2) { background: transparent; }
   .carSpecTable > div:nth-child(odd) { background: var(--panel); }
   .carGalleryThumbs { grid-template-columns: repeat(5, 1fr); gap: 5px; }
+  .carPrice { margin-top: 16px; }
+  .carPriceMonthly { padding-inline-start: 0; border-inline-start: 0; }
   .carMobileBar {
     position: fixed; inset-inline: 0; bottom: 0; z-index: 90;
     display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
@@ -200,3 +229,13 @@
   .carMobileBar a:last-child { background: transparent; color: #fff; border: 1px solid #33333d; }
   .carPage { padding-bottom: 78px; }
 }
+
+/* שדות הטופס בעמודה דחפו את רוחב הרשת מעבר למסך.
+   minmax(0,1fr) ו-min-width:0 מונעים מהתוכן להרחיב את העמודה. */
+.carBoardGrid { grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 1000px) {
+  .carBoardGrid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
+.carFacts, .carMedia { min-width: 0; }
+.carLeadBox .modernLeadForm { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.carLeadBox .modernLeadForm input { min-width: 0; width: 100%; }
