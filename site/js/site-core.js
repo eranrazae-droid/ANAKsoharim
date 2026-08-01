@@ -39,6 +39,10 @@ const firebaseConfig = {
 export const CARS_COLLECTION  = 'cars';    // ← שם ה-collection של הרכבים ב-CRM
 export const LEADS_COLLECTION = 'leads';   // ← לכאן נכנסות הפניות מהאתר
 
+// כל עוד אין חיבור למלאי — האתר מציג רכבי דוגמה כדי שאפשר יהיה לראות עיצוב.
+// ביום שה-CRM מחובר: לשנות ל-false.
+export const DEMO_WHEN_EMPTY = true;
+
 // לכל שדה באתר — רשימת שמות אפשריים ב-CRM. הראשון שנמצא מנצח.
 const FIELDS = {
   plate:  ['plate','licensePlate','mispar_rechev','carNumber','מספר_רכב','לוחית'],
@@ -205,26 +209,52 @@ export function normalizeCar(id, raw){
 }
 
 let _cache = null;
+let _demo  = false;
+
+/** האם מה שמוצג כרגע הוא מלאי דוגמה ולא המלאי האמיתי */
+export function isDemo(){ return _demo; }
+
+async function readCollection(){
+  if (!db) return [];
+  const snap = await getDocs(collection(db, CARS_COLLECTION));
+  const cars = [];
+  snap.forEach(d => {
+    const c = normalizeCar(d.id, d.data() || {});
+    if (!c.hidden) cars.push(c);
+  });
+  return cars;
+}
 
 /** מחזיר את כל הרכבים שמותר להציג באתר */
 export async function loadCars(){
   if (_cache) return _cache;
-  if (!db) return [];
+
+  let cars = [];
   try {
-    const snap = await getDocs(collection(db, CARS_COLLECTION));
-    const cars = [];
-    snap.forEach(d => {
-      const c = normalizeCar(d.id, d.data() || {});
-      if (!c.hidden) cars.push(c);
-    });
-    // זמינים קודם, ואז לפי מחיר יורד
-    cars.sort((a,b) => (a.sold - b.sold) || ((b.price || 0) - (a.price || 0)));
-    _cache = cars;
-    return cars;
+    cars = await readCollection();
   } catch (e){
-    console.error('loadCars failed:', e);
-    return [];
+    console.warn('לא ניתן לקרוא את המלאי:', e);
   }
+
+  if (!cars.length && DEMO_WHEN_EMPTY){
+    const { DEMO_CARS } = await import('./demo-cars.js');
+    cars = DEMO_CARS.map(c => normalizeCar(c.id, c));
+    _demo = true;
+    showDemoBar();
+  }
+
+  // זמינים קודם, ואז לפי מחיר יורד
+  cars.sort((a,b) => (a.sold - b.sold) || ((b.price || 0) - (a.price || 0)));
+  _cache = cars;
+  return cars;
+}
+
+function showDemoBar(){
+  if (document.querySelector('.demo-bar')) return;
+  const bar = document.createElement('div');
+  bar.className = 'demo-bar';
+  bar.textContent = 'תצוגת עיצוב — הרכבים שמוצגים כאן הם דוגמה בלבד, עד לחיבור המלאי האמיתי';
+  document.body.insertBefore(bar, document.body.firstChild);
 }
 
 export async function getCar(id){

@@ -5,14 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ענק הרכבים — רכבי יוקרה ורכבים משומשים בבדיקה מלאה</title>
 <meta name="description" content="מגרש ענק הרכבים — מלאי רכבים משומשים ורכבי יוקרה, כל רכב עם היסטוריה מלאה ובדיקת מכון. מימון, טרייד־אין ונסיעת מבחן.">
-<meta name="theme-color" content="#0d1f3c">
+<meta name="theme-color" content="#0b0d10">
 <link rel="apple-touch-icon" href="../icon-180.png">
 <meta property="og:title" content="ענק הרכבים">
 <meta property="og:description" content="רכבים משומשים ורכבי יוקרה — שקיפות מלאה, מימון והחלפה.">
 <meta property="og:type" content="website">
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/site.css">
-<link rel="icon" href="../icar-logo.svg">
+<link rel="icon" href="../icon-192.png">
 <script src="js/reveal.js"></script>
 </head>
 <body>
@@ -35,13 +35,20 @@
 <!-- ═══ Hero ═══ -->
 <section class="hero">
   <div class="wrap">
-    <div class="eyebrow on-dark">מגרש רכבים · מכירה · החלפה · מימון</div>
-    <h1>הרכב הבא שלך.<br><em>בלי הפתעות.</em></h1>
-    <p>כל רכב במגרש עובר בדיקה מלאה לפני שהוא נכנס למלאי — היסטוריה, מכניקה וטיפולים. מה שאתם רואים באתר, זה מה שתקבלו.</p>
-    <div class="hero-actions">
-      <a class="btn btn-gold" href="inventory.html">לצפייה במלאי</a>
-      <a class="btn btn-ghost" id="heroWa" target="_blank" rel="noopener">שיחה בוואטסאפ</a>
+    <div class="hero-grid">
+      <div>
+        <div class="eyebrow">מגרש רכבים · מכירה · החלפה · מימון</div>
+        <h1>הרכב הבא שלך.<br><em>בלי הפתעות.</em></h1>
+        <p>כל רכב במגרש עובר בדיקה מלאה לפני שהוא נכנס למלאי — היסטוריה, מכניקה וטיפולים. מה שאתם רואים באתר, זה מה שתקבלו.</p>
+        <div class="hero-actions">
+          <a class="btn btn-gold" href="inventory.html">לצפייה במלאי</a>
+          <a class="btn btn-line" id="heroWa" target="_blank" rel="noopener">שיחה בוואטסאפ</a>
+        </div>
+      </div>
+      <!-- להחליף בצילום רכב אמיתי: images/hero-car.jpg -->
+      <div class="hero-media"><img src="images/hero-car.svg" alt="רכב מהמלאי"></div>
     </div>
+
     <div class="hero-stats">
       <div><div class="stat-n" id="statCars">—</div><div class="stat-l">רכבים במלאי</div></div>
       <div><div class="stat-n">100%</div><div class="stat-l">רכבים בבדיקה מלאה</div></div>
@@ -51,7 +58,7 @@
 </section>
 
 <!-- ═══ חיפוש מהיר ═══ -->
-<div class="wrap" style="padding:0">
+<div class="wrap">
   <form class="quick" id="quickForm">
     <div class="quick-grid">
       <div class="fld">
@@ -83,7 +90,7 @@
         </select>
       </div>
       <div class="fld fld-go">
-        <button class="btn btn-navy" type="submit">חיפוש</button>
+        <button class="btn btn-dark" type="submit">חיפוש</button>
       </div>
     </div>
   </form>
@@ -150,7 +157,7 @@
         <div class="eyebrow on-dark">נדבר?</div>
         <h2>נעזור לכם למצוא את הרכב הנכון</h2>
         <p>השאירו פרטים ונחזור אליכם. מחפשים משהו ספציפי שלא מופיע במלאי? כתבו לנו — לרוב נמצא אותו.</p>
-        <div style="margin-top:22px;font-size:15px;color:#cfdcf0;line-height:2">
+        <div style="margin-top:22px;font-size:15px;color:#b9bec7;line-height:2">
           <div>📞 <a id="telLink" style="font-weight:800;color:#fff"></a></div>
           <div>🕐 <span id="hoursTxt"></span></div>
         </div>
@@ -160,7 +167,7 @@
         <input name="phone" type="tel" placeholder="טלפון" required inputmode="tel">
         <textarea name="message" rows="3" placeholder="מה אתם מחפשים? (לא חובה)"></textarea>
         <button class="btn btn-gold btn-block" type="submit">שלחו לי הצעה</button>
-        <div style="font-size:12px;color:#8ba3c6;text-align:center">נחזור אליכם בשעות הפעילות</div>
+        <div style="font-size:12px;color:#9aa2af;text-align:center">נחזור אליכם בשעות הפעילות</div>
       </form>
     </div>
   </div>
@@ -227,10 +234,11 @@ const qYear = document.getElementById('qYear');
 const nowY = new Date().getFullYear();
 for (let y = nowY; y >= nowY - 14; y--) qYear.add(new Option(y, y));
 
-// רכבים נבחרים — מסומנים כמומלצים, ואם אין, השישה הראשונים
-const featured = (available.filter(c => c.featured).length
-  ? available.filter(c => c.featured)
-  : available).slice(0, 6);
+// רכבים נבחרים — המומלצים קודם, ואז משלימים עד שישה מהמלאי
+const featured = [
+  ...available.filter(c => c.featured),
+  ...available.filter(c => !c.featured),
+].slice(0, 6);
 
 const box = document.getElementById('featured');
 box.innerHTML = featured.length
