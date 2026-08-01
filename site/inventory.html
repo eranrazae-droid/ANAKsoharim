@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>המלאי שלנו — ענק הרכבים</title>
+<meta name="description" content="כל הרכבים שבמגרש ענק הרכבים — סינון לפי יצרן, שנה, מחיר, קילומטראז׳ ותיבת הילוכים.">
+<meta name="theme-color" content="#0d1f3c">
+<link rel="apple-touch-icon" href="../icon-180.png">
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/site.css">
+<link rel="icon" href="../icar-logo.svg">
+<script src="js/reveal.js"></script>
+<style>
+.page-head{background:var(--navy);color:#fff;padding:44px 0 40px}
+.page-head h1{font-size:36px;margin-bottom:8px}
+.page-head p{color:#b8c9e2}
+
+.inv{display:grid;grid-template-columns:286px 1fr;gap:34px;align-items:start;padding:36px 0 80px}
+
+.filters{
+  background:#fff;border:1px solid var(--line);border-radius:var(--radius);
+  padding:22px;box-shadow:var(--shadow);position:sticky;top:92px;
+}
+.filters h3{font-size:16px;margin-bottom:4px}
+.f-group{margin-top:18px}
+.f-group label{
+  display:block;font-size:11px;font-weight:700;color:var(--muted);
+  letter-spacing:.07em;margin-bottom:6px;
+}
+.f-group select,.f-group input{
+  width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:10px;
+  font-size:14px;font-weight:600;color:var(--ink);background:#fff;outline:none;
+}
+.f-group select:focus,.f-group input:focus{border-color:var(--gold)}
+.f-check{display:flex;align-items:center;gap:8px;margin-top:18px;font-size:14px;font-weight:600;color:#43587a}
+.f-check input{width:16px;height:16px;accent-color:var(--gold)}
+.f-clear{
+  width:100%;margin-top:20px;background:none;border:1px solid var(--line);
+  border-radius:10px;padding:11px;font-size:14px;font-weight:800;
+  color:var(--muted);cursor:pointer;
+}
+.f-clear:hover{color:var(--ink);border-color:#c9d3e4}
+
+.results-bar{
+  display:flex;align-items:center;justify-content:space-between;gap:16px;
+  margin-bottom:22px;flex-wrap:wrap;
+}
+.results-n{font-size:15px;font-weight:800;color:var(--muted)}
+.results-n b{color:var(--ink);font-size:19px}
+.sort-wrap{display:flex;align-items:center;gap:8px}
+.sort-wrap select{
+  padding:9px 12px;border:1px solid var(--line);border-radius:10px;
+  font-size:14px;font-weight:700;color:var(--ink);background:#fff;outline:none;
+}
+.f-toggle{display:none}
+
+@media(max-width:900px){
+  .inv{grid-template-columns:1fr;gap:18px;padding-top:22px}
+  .filters{position:static;max-height:0;overflow:hidden;padding:0 22px;border:none;box-shadow:none;transition:max-height .25s ease}
+  .filters.open{max-height:820px;padding:22px;border:1px solid var(--line)}
+  .f-toggle{
+    display:block;width:100%;background:var(--navy);color:#fff;border:none;
+    border-radius:12px;padding:14px;font-size:15px;font-weight:900;cursor:pointer;
+  }
+  .page-head h1{font-size:27px}
+}
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="index.html">ענק <span>הרכבים</span></a>
+    <nav class="nav-links">
+      <a href="index.html">בית</a>
+      <a href="inventory.html" class="active">המלאי שלנו</a>
+      <a href="index.html#why">למה אנחנו</a>
+      <a href="index.html#contact">צור קשר</a>
+      <a class="nav-cta" id="navWa" target="_blank" rel="noopener">דברו איתנו בוואטסאפ</a>
+    </nav>
+    <button class="nav-burger" aria-label="תפריט">☰</button>
+  </div>
+</header>
+
+<section class="page-head">
+  <div class="wrap">
+    <div class="eyebrow on-dark">מלאי מתעדכן</div>
+    <h1>המלאי שלנו</h1>
+    <p>כל רכב עם בדיקה מלאה, היסטוריה ומחיר ברור.</p>
+  </div>
+</section>
+
+<div class="wrap">
+  <button class="f-toggle" id="fToggle">סינון וחיפוש ⌄</button>
+  <div class="inv">
+
+    <!-- ═══ סינון ═══ -->
+    <aside class="filters" id="filters">
+      <h3>סינון</h3>
+      <div class="gold-rule" style="margin-top:10px"></div>
+
+      <div class="f-group">
+        <label>חיפוש חופשי</label>
+        <input id="fText" type="search" placeholder="יצרן, דגם או מס׳ רכב">
+      </div>
+      <div class="f-group">
+        <label>יצרן</label>
+        <select id="fMake"><option value="">כל היצרנים</option></select>
+      </div>
+      <div class="f-group">
+        <label>דגם</label>
+        <select id="fModel"><option value="">כל הדגמים</option></select>
+      </div>
+      <div class="f-group">
+        <label>שנה מ־</label>
+        <select id="fYear"><option value="">הכל</option></select>
+      </div>
+      <div class="f-group">
+        <label>מחיר עד</label>
+        <select id="fPrice">
+          <option value="">ללא הגבלה</option>
+          <option value="50000">₪50,000</option>
+          <option value="80000">₪80,000</option>
+          <option value="120000">₪120,000</option>
+          <option value="180000">₪180,000</option>
+          <option value="250000">₪250,000</option>
+          <option value="400000">₪400,000</option>
+        </select>
+      </div>
+      <div class="f-group">
+        <label>קילומטראז׳ עד</label>
+        <select id="fKm">
+          <option value="">ללא הגבלה</option>
+          <option value="20000">20,000</option>
+          <option value="50000">50,000</option>
+          <option value="80000">80,000</option>
+          <option value="120000">120,000</option>
+          <option value="200000">200,000</option>
+        </select>
+      </div>
+      <div class="f-group">
+        <label>תיבת הילוכים</label>
+        <select id="fGear">
+          <option value="">הכל</option>
+          <option value="אוטומט">אוטומטית</option>
+          <option value="ידני">ידנית</option>
+        </select>
+      </div>
+      <div class="f-group">
+        <label>סוג מנוע</label>
+        <select id="fFuel"><option value="">הכל</option></select>
+      </div>
+
+      <label class="f-check">
+        <input type="checkbox" id="fSold">
+        הצג גם רכבים שנמכרו
+      </label>
+
+      <button class="f-clear" id="fClear">ניקוי סינון</button>
+    </aside>
+
+    <!-- ═══ תוצאות ═══ -->
+    <main>
+      <div class="results-bar">
+        <div class="results-n" id="count">טוען מלאי...</div>
+        <div class="sort-wrap">
+          <span style="font-size:13px;color:var(--muted);font-weight:700">מיון</span>
+          <select id="fSort">
+            <option value="price_desc">מחיר — מהגבוה לנמוך</option>
+            <option value="price_asc">מחיר — מהנמוך לגבוה</option>
+            <option value="year_desc">שנה — מהחדש לישן</option>
+            <option value="km_asc">קילומטראז׳ — מהנמוך לגבוה</option>
+          </select>
+        </div>
+      </div>
+      <div class="cars-grid" id="grid">
+        <div class="skel"></div><div class="skel"></div><div class="skel"></div>
+      </div>
+    </main>
+
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="wrap">
+    <div class="footer-bar" style="border:none;padding-top:0">© <span id="yr"></span> ענק הרכבים · כל הזכויות שמורות</div>
+  </div>
+</footer>
+
+<a class="wa-float" id="waFloat" target="_blank" rel="noopener" aria-label="וואטסאפ">💬</a>
+
+<script type="module">
+import { loadCars, carCard, waLink, initReveal, initNav } from './js/site-core.js';
+
+initNav();
+document.getElementById('yr').textContent = new Date().getFullYear();
+const wa = waLink('היי, הגעתי מהאתר ואשמח לקבל פרטים על המלאי');
+['navWa','waFloat'].forEach(id => document.getElementById(id).href = wa);
+
+document.getElementById('fToggle').addEventListener('click', () => {
+  document.getElementById('filters').classList.toggle('open');
+});
+
+const cars = await loadCars();
+
+/* ── מילוי רשימות הסינון מתוך המלאי בפועל ── */
+const el = id => document.getElementById(id);
+const fill = (sel, values) => values.filter(Boolean).sort().forEach(v => sel.add(new Option(v, v)));
+
+fill(el('fMake'), [...new Set(cars.map(c => c.make))]);
+fill(el('fFuel'), [...new Set(cars.map(c => c.fuel))]);
+const nowY = new Date().getFullYear();
+for (let y = nowY; y >= nowY - 20; y--) el('fYear').add(new Option(y, y));
+
+/* דגמים מתעדכנים לפי היצרן שנבחר */
+function refreshModels(){
+  const make = el('fMake').value;
+  const cur = el('fModel').value;
+  el('fModel').innerHTML = '<option value="">כל הדגמים</option>';
+  const list = [...new Set(cars.filter(c => !make || c.make === make).map(c => c.model))];
+  fill(el('fModel'), list);
+  if (list.includes(cur)) el('fModel').value = cur;
+}
+
+/* ── קליטת פרמטרים מהחיפוש המהיר בדף הבית ── */
+const p = new URLSearchParams(location.search);
+if (p.get('make'))     el('fMake').value  = p.get('make');
+refreshModels();
+if (p.get('model'))    el('fModel').value = p.get('model');
+if (p.get('minYear'))  el('fYear').value  = p.get('minYear');
+if (p.get('maxPrice')) el('fPrice').value = p.get('maxPrice');
+if (p.get('gearbox'))  el('fGear').value  = p.get('gearbox');
+if (p.get('q'))        el('fText').value  = p.get('q');
+
+/* ── סינון ומיון ── */
+function apply(){
+  const q     = el('fText').value.trim().toLowerCase();
+  const make  = el('fMake').value;
+  const model = el('fModel').value;
+  const year  = Number(el('fYear').value)  || 0;
+  const price = Number(el('fPrice').value) || 0;
+  const km    = Number(el('fKm').value)    || 0;
+  const gear  = el('fGear').value;
+  const fuel  = el('fFuel').value;
+  const sold  = el('fSold').checked;
+
+  let out = cars.filter(c => {
+    if (!sold && c.sold) return false;
+    if (make  && c.make  !== make)  return false;
+    if (model && c.model !== model) return false;
+    if (year  && (c.year  || 0) < year)  return false;
+    if (price && (c.price || 0) > price) return false;
+    if (km    && (c.km    || 0) > km)    return false;
+    if (gear  && !String(c.gearbox).includes(gear)) return false;
+    if (fuel  && c.fuel !== fuel) return false;
+    if (q){
+      const hay = [c.make, c.model, c.trim, c.plate, c.color].join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  const s = el('fSort').value;
+  out.sort((a,b) => {
+    if (a.sold !== b.sold) return a.sold - b.sold;      // נמכרו תמיד בסוף
+    if (s === 'price_asc')  return (a.price || 1e9) - (b.price || 1e9);
+    if (s === 'year_desc')  return (b.year  || 0) - (a.year  || 0);
+    if (s === 'km_asc')     return (a.km    || 1e9) - (b.km  || 1e9);
+    return (b.price || 0) - (a.price || 0);
+  });
+
+  el('count').innerHTML = out.length
+    ? `<b>${out.length}</b> רכבים נמצאו`
+    : 'לא נמצאו רכבים';
+
+  el('grid').innerHTML = out.length
+    ? out.map(carCard).join('')
+    : `<div class="state" style="grid-column:1/-1">
+         <b>אין רכב שתואם לסינון</b>
+         נסו להרחיב את החיפוש, או שלחו לנו וואטסאפ ונחפש עבורכם.
+       </div>`;
+  initReveal();
+}
+
+['fText','fMake','fModel','fYear','fPrice','fKm','fGear','fFuel','fSold','fSort']
+  .forEach(id => el(id).addEventListener('input', () => {
+    if (id === 'fMake') refreshModels();
+    apply();
+  }));
+
+el('fClear').addEventListener('click', () => {
+  ['fText','fMake','fModel','fYear','fPrice','fKm','fGear','fFuel'].forEach(id => el(id).value = '');
+  el('fSold').checked = false;
+  refreshModels();
+  apply();
+});
+
+apply();
+</script>
+</body>
+</html>

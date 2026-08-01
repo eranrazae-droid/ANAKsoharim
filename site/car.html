@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>פרטי רכב — ענק הרכבים</title>
+<meta name="theme-color" content="#0d1f3c">
+<link rel="apple-touch-icon" href="../icon-180.png">
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/site.css">
+<link rel="icon" href="../icar-logo.svg">
+<script src="js/reveal.js"></script>
+<style>
+.crumbs{padding:18px 0;font-size:13px;color:var(--muted);font-weight:600}
+.crumbs a:hover{color:var(--gold)}
+
+.car-page{display:grid;grid-template-columns:1fr 372px;gap:38px;align-items:start;padding-bottom:80px}
+
+/* גלריה */
+.gal{border-radius:var(--radius-lg);overflow:hidden;background:var(--navy);position:relative}
+.gal-main{aspect-ratio:16/10;position:relative}
+.gal-main img{width:100%;height:100%;object-fit:cover}
+.gal-arrow{
+  position:absolute;top:50%;transform:translateY(-50%);
+  width:44px;height:44px;border-radius:50%;border:none;cursor:pointer;
+  background:rgba(13,31,60,.62);color:#fff;font-size:20px;
+  display:flex;align-items:center;justify-content:center;transition:background .15s;
+}
+.gal-arrow:hover{background:rgba(13,31,60,.9)}
+.gal-prev{right:14px}
+.gal-next{left:14px}
+.gal-count{
+  position:absolute;bottom:14px;right:14px;
+  background:rgba(13,31,60,.72);color:#fff;font-size:12px;font-weight:800;
+  padding:5px 12px;border-radius:20px;
+}
+.thumbs{display:flex;gap:8px;padding:8px;background:#0a1830;overflow-x:auto}
+.thumbs img{
+  width:88px;height:64px;object-fit:cover;border-radius:8px;cursor:pointer;
+  opacity:.5;transition:opacity .15s, outline-color .15s;
+  outline:2px solid transparent;flex-shrink:0;
+}
+.thumbs img.on{opacity:1;outline-color:var(--gold)}
+
+/* כותרת רכב */
+.car-head{margin:26px 0 8px}
+.car-head h1{font-size:33px}
+.car-head .sub{color:var(--muted);font-size:16px;font-weight:600;margin-top:4px}
+
+.key-specs{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin:24px 0}
+.ks{background:var(--bg-soft);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.ks-l{font-size:11px;color:var(--muted);font-weight:700;letter-spacing:.06em}
+.ks-v{font-size:17px;font-weight:900;margin-top:2px}
+
+.block{border-top:1px solid var(--line);padding-top:28px;margin-top:28px}
+.block h2{font-size:21px;margin-bottom:16px}
+.spec-table{display:grid;grid-template-columns:1fr 1fr;gap:0 34px}
+.spec-row{display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
+.spec-row .l{color:var(--muted);font-size:14px;font-weight:600}
+.spec-row .v{font-weight:800;font-size:14px}
+.desc-txt{color:#3c4f6d;font-size:15px;white-space:pre-line}
+
+/* פאנל פעולה */
+.panel{
+  background:#fff;border:1px solid var(--line);border-radius:var(--radius-lg);
+  box-shadow:var(--shadow-lg);padding:24px;position:sticky;top:92px;
+}
+.p-price{font-size:33px;font-weight:900;color:var(--navy);line-height:1.1}
+.p-price-sub{font-size:13px;color:var(--muted);font-weight:600;margin-top:4px}
+.p-actions{display:grid;gap:10px;margin:20px 0}
+.calc{background:var(--bg-soft);border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:18px}
+.calc-t{font-size:12px;font-weight:800;color:var(--muted);letter-spacing:.06em;margin-bottom:12px}
+.calc-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.calc-row label{font-size:13px;font-weight:700;color:#43587a}
+.calc-row select,.calc-row input{
+  width:118px;padding:8px 10px;border:1px solid var(--line);border-radius:9px;
+  font-size:13px;font-weight:700;outline:none;text-align:center;
+}
+.calc-out{
+  border-top:1px dashed #cfd8e8;margin-top:12px;padding-top:12px;
+  display:flex;align-items:baseline;justify-content:space-between;
+}
+.calc-out b{font-size:24px;font-weight:900;color:var(--green)}
+.calc-note{font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5}
+
+.sold-note{
+  background:#fdf0f1;border:1px solid #f3c9cd;color:#8f1c25;
+  border-radius:12px;padding:14px;font-size:14px;font-weight:700;text-align:center;margin-bottom:16px;
+}
+
+/* מודאל נסיעת מבחן */
+.ov{
+  position:fixed;inset:0;background:rgba(9,23,48,.62);z-index:80;
+  display:none;align-items:center;justify-content:center;padding:20px;
+}
+.ov.open{display:flex}
+.modal{background:#fff;border-radius:var(--radius-lg);padding:28px;width:100%;max-width:420px;box-shadow:var(--shadow-lg)}
+.modal h3{font-size:21px;margin-bottom:6px}
+.modal p{color:var(--muted);font-size:14px;margin-bottom:18px}
+.modal input,.modal textarea{
+  width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:10px;
+  font-size:15px;font-weight:600;outline:none;margin-bottom:10px;
+}
+.modal input:focus,.modal textarea:focus{border-color:var(--gold)}
+.modal-x{background:none;border:none;font-size:14px;color:var(--muted);cursor:pointer;width:100%;padding:10px;font-weight:700}
+
+/* סרגל פעולה קבוע בנייד — מחיר וכפתורים תמיד בהישג יד */
+.mbar{display:none}
+
+@media(max-width:980px){
+  .car-page{grid-template-columns:1fr;gap:26px}
+  .panel{position:static}
+  .car-head h1{font-size:25px}
+  .spec-table{grid-template-columns:1fr;gap:0}
+
+  .mbar{
+    display:flex;align-items:center;gap:10px;
+    position:fixed;bottom:0;right:0;left:0;z-index:75;
+    background:#fff;border-top:1px solid var(--line);
+    box-shadow:0 -6px 22px rgba(13,31,60,.12);
+    padding:10px 14px calc(10px + env(safe-area-inset-bottom));
+  }
+  .mbar-price{font-size:19px;font-weight:900;color:var(--navy);white-space:nowrap}
+  .mbar .btn{flex:1;padding:12px 14px;font-size:14px}
+  .wa-float{display:none}
+  body{padding-bottom:76px}
+}
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="index.html">ענק <span>הרכבים</span></a>
+    <nav class="nav-links">
+      <a href="index.html">בית</a>
+      <a href="inventory.html" class="active">המלאי שלנו</a>
+      <a href="index.html#why">למה אנחנו</a>
+      <a href="index.html#contact">צור קשר</a>
+      <a class="nav-cta" id="navWa" target="_blank" rel="noopener">דברו איתנו בוואטסאפ</a>
+    </nav>
+    <button class="nav-burger" aria-label="תפריט">☰</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="crumbs"><a href="index.html">בית</a> › <a href="inventory.html">המלאי שלנו</a> › <span id="crumbCar">רכב</span></div>
+  <div id="content">
+    <div class="skel" style="height:420px"></div>
+  </div>
+</div>
+
+<!-- רכבים דומים -->
+<section class="section soft" id="similarSec" style="display:none">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <div class="eyebrow">אולי יתאים לכם גם</div>
+        <h2 class="h-sec">רכבים דומים</h2>
+        <div class="gold-rule"></div>
+      </div>
+      <a class="link-more" href="inventory.html">לכל המלאי ←</a>
+    </div>
+    <div class="cars-grid" id="similar"></div>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="wrap">
+    <div class="footer-bar" style="border:none;padding-top:0">© <span id="yr"></span> ענק הרכבים · כל הזכויות שמורות</div>
+  </div>
+</footer>
+
+<!-- מודאל נסיעת מבחן -->
+<div class="ov" id="tdOverlay">
+  <div class="modal">
+    <h3>תיאום נסיעת מבחן</h3>
+    <p id="tdCar"></p>
+    <form id="tdForm">
+      <input name="name" placeholder="שם מלא" required>
+      <input name="phone" type="tel" placeholder="טלפון" required inputmode="tel">
+      <textarea name="message" rows="2" placeholder="מתי נוח לכם להגיע? (לא חובה)"></textarea>
+      <button class="btn btn-gold btn-block" type="submit">שליחת בקשה</button>
+      <button class="modal-x" type="button" id="tdClose">ביטול</button>
+    </form>
+  </div>
+</div>
+
+<a class="wa-float" id="waFloat" target="_blank" rel="noopener" aria-label="וואטסאפ">💬</a>
+
+<script type="module">
+import { SITE, getCar, loadCars, carCard, carTitle, carWaLink, waLink,
+         fmtPrice, fmtNum, fmtDate, esc, saveLead, toast, initReveal, initNav }
+  from './js/site-core.js';
+
+initNav();
+document.getElementById('yr').textContent = new Date().getFullYear();
+
+const id  = new URLSearchParams(location.search).get('id');
+const car = id ? await getCar(id) : null;
+const content = document.getElementById('content');
+
+if (!car){
+  document.getElementById('waFloat').href = waLink('היי, חיפשתי רכב באתר ולא מצאתי אותו');
+  document.getElementById('navWa').href   = waLink('היי, הגעתי מהאתר');
+  content.innerHTML = `<div class="state" style="margin:20px 0 70px">
+      <b>הרכב לא נמצא</b>
+      ייתכן שהוא כבר נמכר או הוסר מהמלאי.
+      <div style="margin-top:18px"><a class="btn btn-navy" href="inventory.html">חזרה למלאי</a></div>
+    </div>`;
+} else {
+  render(car);
+}
+
+function render(c){
+  const title = carTitle(c);
+  document.title = title + (c.year ? ' ' + c.year : '') + ' — ענק הרכבים';
+  document.getElementById('crumbCar').textContent = title;
+  document.getElementById('navWa').href  = carWaLink(c);
+  document.getElementById('waFloat').href = carWaLink(c);
+
+  /* ── גלריה ── */
+  const imgs = c.images.length ? c.images : [];
+  const gal = imgs.length ? `
+    <div class="gal">
+      <div class="gal-main">
+        <img id="galMain" src="${esc(imgs[0])}" alt="${esc(title)}">
+        ${imgs.length > 1 ? `
+          <button class="gal-arrow gal-prev" id="galPrev" aria-label="הקודם">›</button>
+          <button class="gal-arrow gal-next" id="galNext" aria-label="הבא">‹</button>
+          <div class="gal-count"><span id="galIdx">1</span>/${imgs.length}</div>` : ''}
+      </div>
+      ${imgs.length > 1 ? `<div class="thumbs" id="thumbs">
+        ${imgs.map((u,i) => `<img src="${esc(u)}" data-i="${i}" class="${i===0?'on':''}" alt="">`).join('')}
+      </div>` : ''}
+    </div>`
+    : `<div class="gal"><div class="gal-main"><div class="no-photo">${esc(SITE.name)}</div></div></div>`;
+
+  /* ── מפרט ── */
+  const rows = [
+    ['שנת ייצור', c.year],
+    ['יד',        c.hand],
+    ['קילומטראז׳', c.km ? fmtNum(c.km) + ' ק״מ' : ''],
+    ['תיבת הילוכים', c.gearbox],
+    ['סוג מנוע',  c.fuel],
+    ['נפח מנוע',  c.engine],
+    ['צבע',       c.color],
+    ['סוג רכב',   c.body],
+    ['טסט עד',    fmtDate(c.test)],
+    ['מס׳ רכב',   c.plate],
+  ].filter(r => r[1] !== '' && r[1] !== null && r[1] !== undefined);
+
+  const keySpecs = [
+    ['שנה', c.year || '—'],
+    ['יד', c.hand || '—'],
+    ['ק״מ', c.km ? fmtNum(c.km) : '—'],
+    ['תיבה', c.gearbox || '—'],
+  ];
+
+  content.innerHTML = `
+  <div class="car-page">
+    <div>
+      ${gal}
+      <div class="car-head">
+        <h1>${esc(title)}</h1>
+        <div class="sub">${esc([c.trim, c.year, c.body].filter(Boolean).join(' · '))}</div>
+      </div>
+      <div class="key-specs">
+        ${keySpecs.map(k => `<div class="ks"><div class="ks-l">${k[0]}</div><div class="ks-v">${esc(k[1])}</div></div>`).join('')}
+      </div>
+
+      <div class="block">
+        <h2>מפרט הרכב</h2>
+        <div class="spec-table">
+          ${rows.map(r => `<div class="spec-row"><span class="l">${r[0]}</span><span class="v">${esc(r[1])}</span></div>`).join('')}
+        </div>
+      </div>
+
+      ${c.desc ? `<div class="block"><h2>על הרכב</h2><div class="desc-txt">${esc(c.desc)}</div></div>` : ''}
+
+      <div class="block">
+        <h2>מה עשינו לרכב לפני המכירה</h2>
+        <div class="vals" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
+          <div class="val"><div class="val-ico">🔍</div><h3>בדיקת מכון</h3><p>הרכב נבדק ומוצג לכם לפני הקנייה.</p></div>
+          <div class="val"><div class="val-ico">🧰</div><h3>טיפול במגרש</h3><p>מה שדרש תיקון — טופל אצלנו.</p></div>
+          <div class="val"><div class="val-ico">📄</div><h3>היסטוריה מלאה</h3><p>בעלויות קודמות וקילומטראז׳ אמיתי.</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ פאנל ═══ -->
+    <aside class="panel">
+      ${c.sold ? '<div class="sold-note">הרכב נמכר — נשמח למצוא לכם רכב דומה</div>' : ''}
+      <div class="p-price">${fmtPrice(c.price)}</div>
+      <div class="p-price-sub">${c.sold ? 'מחיר אחרון' : 'מחיר מבוקש · ניתן לדבר'}</div>
+
+      <div class="p-actions">
+        <a class="btn btn-wa btn-block" id="pWa" target="_blank" rel="noopener">שיחה בוואטסאפ</a>
+        <a class="btn btn-navy btn-block" id="pTel">חיוג ${SITE.phoneNice}</a>
+        <button class="btn btn-gold btn-block" id="pTd">${c.sold ? 'מצאו לי רכב דומה' : 'תיאום נסיעת מבחן'}</button>
+      </div>
+
+      ${c.price ? `
+      <div class="calc">
+        <div class="calc-t">הערכת החזר חודשי</div>
+        <div class="calc-row">
+          <label>מקדמה</label>
+          <input id="cDown" type="number" min="0" step="1000" value="${Math.round(c.price * 0.2 / 1000) * 1000}">
+        </div>
+        <div class="calc-row">
+          <label>תקופה</label>
+          <select id="cTerm">
+            <option value="36">36 תשלומים</option>
+            <option value="48">48 תשלומים</option>
+            <option value="60" selected>60 תשלומים</option>
+            <option value="72">72 תשלומים</option>
+          </select>
+        </div>
+        <div class="calc-out"><span style="font-size:13px;font-weight:700;color:#43587a">החזר משוער</span><b id="cOut">—</b></div>
+        <div class="calc-note">הערכה בלבד לפי ריבית ממוצעת. המסלול והריבית בפועל נקבעים מול חברת המימון.</div>
+      </div>` : ''}
+    </aside>
+  </div>
+
+  <!-- סרגל פעולה בנייד -->
+  <div class="mbar">
+    <span class="mbar-price">${fmtPrice(c.price)}</span>
+    <a class="btn btn-wa" id="mWa" target="_blank" rel="noopener">וואטסאפ</a>
+    <button class="btn btn-gold" id="mTd">${c.sold ? 'רכב דומה' : 'נסיעת מבחן'}</button>
+  </div>`;
+
+  /* ── חיבורי פעולה ── */
+  document.getElementById('pWa').href  = carWaLink(c);
+  document.getElementById('mWa').href  = carWaLink(c);
+  document.getElementById('pTel').href = 'tel:+' + SITE.phone;
+
+  /* ── גלריה ── */
+  if (imgs.length > 1){
+    let i = 0;
+    const main = document.getElementById('galMain');
+    const idxEl = document.getElementById('galIdx');
+    const thumbs = [...document.querySelectorAll('#thumbs img')];
+    const show = n => {
+      i = (n + imgs.length) % imgs.length;
+      main.src = imgs[i];
+      idxEl.textContent = i + 1;
+      thumbs.forEach((t,k) => t.classList.toggle('on', k === i));
+    };
+    document.getElementById('galPrev').addEventListener('click', () => show(i - 1));
+    document.getElementById('galNext').addEventListener('click', () => show(i + 1));
+    thumbs.forEach(t => t.addEventListener('click', () => show(Number(t.dataset.i))));
+    document.addEventListener('keydown', e => {
+      if (e.key === 'ArrowRight') show(i - 1);
+      if (e.key === 'ArrowLeft')  show(i + 1);
+    });
+  }
+
+  /* ── מחשבון החזר חודשי (הערכה) ── */
+  const down = document.getElementById('cDown');
+  if (down){
+    const term = document.getElementById('cTerm');
+    const out  = document.getElementById('cOut');
+    const RATE = 0.09;                                  // ריבית שנתית משוערת
+    const calc = () => {
+      const principal = Math.max(0, (c.price || 0) - (Number(down.value) || 0));
+      const n = Number(term.value);
+      const r = RATE / 12;
+      const pay = principal <= 0 ? 0 : principal * r / (1 - Math.pow(1 + r, -n));
+      out.textContent = '₪' + Math.round(pay).toLocaleString('en-US');
+    };
+    down.addEventListener('input', calc);
+    term.addEventListener('change', calc);
+    calc();
+  }
+
+  /* ── נסיעת מבחן ── */
+  const ov = document.getElementById('tdOverlay');
+  document.getElementById('tdCar').textContent =
+    (c.sold ? 'נמצא לכם רכב דומה ל' : 'נחזור אליכם לתיאום מועד עבור ') + carTitle(c);
+  document.getElementById('pTd').addEventListener('click', () => ov.classList.add('open'));
+  document.getElementById('mTd').addEventListener('click', () => ov.classList.add('open'));
+  document.getElementById('tdClose').addEventListener('click', () => ov.classList.remove('open'));
+  ov.addEventListener('click', e => { if (e.target === ov) ov.classList.remove('open'); });
+
+  const tdForm = document.getElementById('tdForm');
+  tdForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = tdForm.querySelector('button[type=submit]');
+    if (btn.disabled) return;                            // הגנה מלחיצה כפולה
+    btn.disabled = true; btn.textContent = 'שולח...';
+    try {
+      const d = new FormData(tdForm);
+      await saveLead({
+        name: d.get('name'), phone: d.get('phone'), message: d.get('message'),
+        type: c.sold ? 'contact' : 'test_drive',
+        carId: c.id, carPlate: c.plate, carTitle: carTitle(c),
+      });
+      tdForm.reset();
+      ov.classList.remove('open');
+      toast('הבקשה נשלחה — נחזור אליכם בהקדם');
+    } catch (err){
+      console.error(err);
+      toast('השליחה נכשלה — נסו שוב או שלחו לנו וואטסאפ');
+    } finally {
+      btn.disabled = false; btn.textContent = 'שליחת בקשה';
+    }
+  });
+
+  /* ── SEO: נתונים מובנים ── */
+  const ld = document.createElement('script');
+  ld.type = 'application/ld+json';
+  ld.textContent = JSON.stringify({
+    "@context":"https://schema.org","@type":"Car",
+    name: title, brand: c.make, model: c.model,
+    vehicleModelDate: c.year || undefined,
+    mileageFromOdometer: c.km ? { "@type":"QuantitativeValue", value:c.km, unitCode:"KMT" } : undefined,
+    image: c.images.length ? c.images : undefined,
+    offers: c.price ? {
+      "@type":"Offer", price:c.price, priceCurrency:"ILS",
+      availability: c.sold ? "https://schema.org/SoldOut" : "https://schema.org/InStock"
+    } : undefined
+  });
+  document.head.appendChild(ld);
+
+  /* ── רכבים דומים ── */
+  showSimilar(c);
+}
+
+async function showSimilar(c){
+  const all = await loadCars();
+  const price = c.price || 0;
+  let list = all.filter(x => x.id !== c.id && !x.sold);
+  const sameMake = list.filter(x => x.make === c.make);
+  const near = price
+    ? list.filter(x => x.price && Math.abs(x.price - price) <= price * 0.25)
+    : [];
+  const merged = [...new Set([...sameMake, ...near, ...list])].slice(0, 3);
+  if (!merged.length) return;
+  document.getElementById('similar').innerHTML = merged.map(carCard).join('');
+  document.getElementById('similarSec').style.display = '';
+  initReveal();
+}
+
+initReveal();
+</script>
+</body>
+</html>
