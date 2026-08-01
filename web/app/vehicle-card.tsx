@@ -70,7 +70,6 @@ function showsHorsePower(car: DisplayCar) {
 /** נתוני הרכב שאינם מופיעים בשורות הראשיות — שורה נגללת מתחת לתמונה. */
 function specPills(car: DisplayCar) {
   return [
-    car.hand && `יד ${car.hand}`,
     // כוח סוס מופיע כאן רק אם שורת המנוע הציגה במקומו את טכנולוגיית ההנעה
     showsHorsePower(car) ? "" : car.horsePower && `${car.horsePower} כ״ס`,
     car.color,
@@ -80,7 +79,6 @@ function specPills(car: DisplayCar) {
     car.body,
     car.openRoof ? "גג נפתח" : "",
     car.test && `טסט ${car.test}`,
-    car.ownership,
   ]
     .map((item) => String(item ?? "").trim())
     .filter((item) => item && item !== "לא צוין");
@@ -171,7 +169,7 @@ export function PromoRail({ cars, title }: { cars: DisplayCar[]; title: string }
           </div>
           <div className="railInfo">
             <b>{car.make} {car.baseModel || car.model}</b>
-            <small>{car.year} · יד {car.hand || "—"}</small>
+            <small>{car.year}</small>
             <i>{car.price > 0 ? `${car.price.toLocaleString("he-IL")} ₪` : "לפרטים חייגו"}</i>
           </div>
         </a>

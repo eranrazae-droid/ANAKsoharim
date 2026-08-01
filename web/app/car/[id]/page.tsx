@@ -37,7 +37,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
   const name = `${car.make} ${car.model} שנת ${car.year}`;
   const price = askingPrice(car);
-  const description = `${name} למכירה ב${SITE_NAME} — ${km(car.mileage)} ק״מ, יד ${car.hand || "—"}, ${car.gear || "אוטומטי"}${price ? `, מחיר ${price.toLocaleString("he-IL")} ₪` : ""}. מימון עד 100% וטרייד אין. דוד רזיאל 4, ראשון לציון.`;
+  const description = `${name} למכירה ב${SITE_NAME} — ${km(car.mileage)} ק״מ, ${car.gear || "אוטומטי"}${price ? `, מחיר ${price.toLocaleString("he-IL")} ₪` : ""}. מימון עד 100% וטרייד אין. דוד רזיאל 4, ראשון לציון.`;
 
   return {
     title: `${name} למכירה`,
@@ -57,9 +57,7 @@ function specs(car: DisplayCar): [string, string][] {
   return ([
     ["שנת ייצור", String(car.year)],
     ["נפח", car.engineCapacity || ""],
-    ["יד", car.hand || ""],
     ["סוג מנוע", car.engine],
-    ["מקוריות", car.ownership],
     ["כוח סוס", car.horsePower || ""],
     ["קילומטראז׳", km(car.mileage)],
     ["צבע", car.color],
@@ -211,7 +209,7 @@ export default async function CarPage({ params }: { params: Promise<{ id: string
                   </div>
                   <div className="matchInfo">
                     <b>{item.make} {item.baseModel || item.model}</b>
-                    <small>{item.year} · יד {item.hand || "—"}</small>
+                    <small>{item.year}</small>
                     <i>{item.price > 0 ? `${item.price.toLocaleString("he-IL")} ₪` : "לפרטים חייגו"}</i>
                   </div>
                 </a>

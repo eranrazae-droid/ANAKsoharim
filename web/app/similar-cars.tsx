@@ -98,7 +98,7 @@ export default function SimilarCars({ cars, profile }: { cars: DisplayCar[]; pro
               </div>
               <div className="matchInfo">
                 <b>{car.make} {car.baseModel || car.model}</b>
-                <small>{car.year} · יד {car.hand || "—"}</small>
+                <small>{car.year}</small>
                 <i>{car.price.toLocaleString("he-IL")} ₪</i>
               </div>
             </a>
