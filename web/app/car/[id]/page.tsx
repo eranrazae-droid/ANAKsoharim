@@ -162,6 +162,13 @@ export default async function CarPage({ params }: { params: Promise<{ id: string
               {car.monthly > 0 && (
                 <div><dt>החזר חודשי:</dt><dd>{car.monthly.toLocaleString("he-IL")} ₪</dd></div>
               )}
+              {car.monthly > 0 && (
+                <div><dt>מקדמה:</dt><dd>
+                  {car.advance
+                    ? `${car.advance.toLocaleString("he-IL")} ₪`
+                    : <b className="noAdvance">ללא מקדמה</b>}
+                </dd></div>
+              )}
               <div><dt>עד:</dt><dd>{maxPayments} תשלומים</dd></div>
               {specs(car).map(([label, value]) => (
                 <div key={label}><dt>{label}:</dt><dd>{value}</dd></div>
