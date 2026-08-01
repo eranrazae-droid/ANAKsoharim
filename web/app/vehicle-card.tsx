@@ -131,8 +131,10 @@ export default function VehicleCard({ car }: { car: DisplayCar }) {
               התמונות והסרטון משמאל. זה הקישור היחיד בכרטיס. */}
           <div className="listTop">
             <p className="listPlace"><PinIcon size={12} />{BUSINESS.city}</p>
+            {/* הכיתוב עטוף ב-span אחד: בלעדיו הרווחים שסביב 360°
+                נבלעים, והמילים נדבקות זו לזו. */}
             <a className="listAllMedia" href={`/car/${car.id}`}>
-              תמונות <bdi>360°</bdi> וסרטון
+              <span>תמונות <bdi>360°</bdi> וסרטון</span>
             </a>
           </div>
           <h3 className={`listTitle${name.length > TITLE_CHARS ? " listTitleLong" : ""}`}>{name}</h3>
