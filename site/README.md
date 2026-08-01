@@ -23,7 +23,9 @@
 | `images/logo.png` | הלוגו הרשמי — חולץ מקובץ ה-PDF, רקע שקוף |
 | `images/favicon-512.png` | אייקון הדפדפן — המילה "ענק" על שחור |
 | `images/apple-touch-icon.png` | אייקון להוספה למסך הבית באייפון |
-| `images/demo-car-*.svg`, `hero-car.svg` | איורים זמניים. להחליף בצילומים אמיתיים |
+| `images/hero-showroom.jpg` | הצילום הגדול בראש דף הבית |
+| `images/demo-jeep.jpg` | צילום אמיתי מהמגרש — לרכב הדוגמה הראשון |
+| `images/demo-car-*.svg` | איורים זמניים לשאר רכבי הדוגמה |
 
 ## מצב תצוגה — רכבי דוגמה
 
@@ -37,7 +39,7 @@ export const DEMO_WHEN_EMPTY = false;
 ואז אפשר למחוק את `js/demo-cars.js` ואת התמונות שבתיקיית `images/`.
 
 ## תמונות להחלפה
-- `images/hero-car.svg` — הצילום בראש דף הבית. להחליף בצילום רכב אמיתי ולעדכן את הנתיב ב-`index.html`
+- `images/hero-showroom.jpg` — הצילום בראש דף הבית. הנתיב מוגדר ב-`index.html`
 - `images/demo-car-*.svg` — איורים לרכבי הדוגמה בלבד
 
 ## החיבור ל-CRM
