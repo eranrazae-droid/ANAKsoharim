@@ -86,6 +86,7 @@ export function CarFacts({ car, inTable = false }: { car: DisplayCar; inTable?: 
         {!inTable && <Fact label="גג נפתח" value={car.openRoof ? "כן" : null} />}
         <Fact label="תוקף טסט" value={car.test} />
         <Fact label="קטגוריה" value={car.categories?.join(", ") || car.category} />
+        <Fact label="מיקום הרכב" value={car.location || `${BUSINESS.street}, ${BUSINESS.city}`} />
       </dl>
 
       {car.extras && <p className="panelExtras"><b>תוספות:</b> {car.extras}</p>}

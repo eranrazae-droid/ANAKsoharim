@@ -93,6 +93,9 @@ export function normalizeVehicle(raw: Record<string, unknown>): DisplayCar {
     // מקבלים כאן כמה שמות אפשריים כדי שהחיבור יעבוד בלי
     // שינוי קוד. ראה README.
     status: String(raw.ank_s_status ?? raw.ank_gpl_status ?? raw.status ?? ""),
+    // מיקום הרכב. כשהמערכת לא שולחת — מוצגת כתובת המגרש,
+    // שם נמצאים כל הרכבים שבמלאי.
+    location: String(raw.ank_s_location ?? raw.ank_gpl_location ?? raw.location ?? ""),
   };
 }
 
