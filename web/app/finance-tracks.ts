@@ -6,7 +6,7 @@
  * מקום אחד לעדכון — כשהריביות משתנות משנים כאן בלבד.
  */
 
-import { getMaxPaymentsByYear } from "./finance-rules";
+import { maxPaymentsKal, maxPaymentsYasir } from "./finance-rules";
 
 /** ריבית הפריים. לעדכון כשבנק ישראל משנה. */
 export const PRIME = 5.5;
@@ -19,8 +19,8 @@ export type Track = {
   name: string;
   /** ריבית שנתית לפני תוספת לפי גובה ההלוואה */
   rate: number;
-  /** תקרת תשלומים */
-  maxPayments: (loan: number) => number;
+  /** תקרת תשלומים, לפי גובה ההלוואה ושנתון הרכב */
+  maxPayments: (loan: number, year: number) => number;
   /** האם המסלול כולל תשלום בלון בסוף התקופה */
   balloon: boolean;
   fee: (loan: number) => number;
@@ -30,15 +30,20 @@ const feeKal = (loan: number) => (loan <= 100000 ? 345 : Math.round(345 + loan *
 const feeYasir = (loan: number) => Math.round(loan * 0.015 + 400);
 
 /** מימון ישיר מאשרים 120 תשלומים רק בהלוואות מעל 400,000 */
-const yasirPayments = (loan: number) => (loan > 400000 ? 120 : 100);
+const yasirLoanCap = (loan: number) => (loan > 400000 ? 120 : 100);
+
+const kal = (_loan: number, year: number) => maxPaymentsKal(year);
+const kalBalloon = (_loan: number, year: number) => Math.min(60, maxPaymentsKal(year));
+const yasir = (loan: number, year: number) => Math.min(yasirLoanCap(loan), maxPaymentsYasir(year));
+const yasirBalloon = (loan: number, year: number) => Math.min(60, yasir(loan, year));
 
 export const TRACKS: Track[] = [
-  { company: "כאל", name: "צמוד מדד", rate: 4.2, maxPayments: () => 100, balloon: false, fee: feeKal },
-  { company: "כאל", name: "צמוד מדד + בלון", rate: 4.2, maxPayments: () => 60, balloon: true, fee: feeKal },
-  { company: "כאל", name: `פריים + 1.6%`, rate: PRIME + 1.6, maxPayments: () => 100, balloon: false, fee: feeKal },
-  { company: "מימון ישיר", name: "ריבית קבועה", rate: 7, maxPayments: yasirPayments, balloon: false, fee: feeYasir },
-  { company: "מימון ישיר", name: "ריבית קבועה", rate: 9, maxPayments: yasirPayments, balloon: false, fee: feeYasir },
-  { company: "מימון ישיר", name: "ריבית קבועה + בלון", rate: 7, maxPayments: () => 60, balloon: true, fee: feeYasir },
+  { company: "כאל", name: "צמוד מדד", rate: 4.2, maxPayments: kal, balloon: false, fee: feeKal },
+  { company: "כאל", name: "צמוד מדד + בלון", rate: 4.2, maxPayments: kalBalloon, balloon: true, fee: feeKal },
+  { company: "כאל", name: "פריים + 1.6%", rate: PRIME + 1.6, maxPayments: kal, balloon: false, fee: feeKal },
+  { company: "מימון ישיר", name: "ריבית קבועה", rate: 7, maxPayments: yasir, balloon: false, fee: feeYasir },
+  { company: "מימון ישיר", name: "ריבית קבועה", rate: 9, maxPayments: yasir, balloon: false, fee: feeYasir },
+  { company: "מימון ישיר", name: "ריבית קבועה + בלון", rate: 7, maxPayments: yasirBalloon, balloon: true, fee: feeYasir },
 ];
 
 /** תוספת ריבית לפי גובה ההלוואה */
@@ -70,9 +75,9 @@ export type Quote = {
   total: number;
 };
 
-function quote(track: Track, loan: number, maxByYear: number): Quote {
+function quote(track: Track, loan: number, year: number): Quote {
   const rate = track.rate + rateSurcharge(loan);
-  const payments = Math.min(track.maxPayments(loan), maxByYear);
+  const payments = track.maxPayments(loan, year);
   const balloon = track.balloon ? Math.round(loan * BALLOON_SHARE) : 0;
   const monthly = monthlyPayment(loan, rate, payments, balloon);
   const fee = track.fee(loan);
@@ -100,9 +105,9 @@ function quote(track: Track, loan: number, maxByYear: number): Quote {
  */
 export function cheapestQuote(loan: number, year: number, withBalloon = false): Quote | null {
   if (!loan || loan < 5000) return null;
-  const maxByYear = getMaxPaymentsByYear(year);
   return TRACKS
     .filter((track) => withBalloon || !track.balloon)
-    .map((track) => quote(track, loan, maxByYear))
-    .sort((a, b) => a.monthly - b.monthly)[0];
+    .map((track) => quote(track, loan, year))
+    .filter((option) => option.payments > 0)
+    .sort((a, b) => a.monthly - b.monthly)[0] ?? null;
 }

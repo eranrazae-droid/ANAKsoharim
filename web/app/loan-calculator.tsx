@@ -59,6 +59,8 @@ export default function LoanCalculator() {
 
       {best ? (
         <>
+          <p className="loanYearNote">רכב {year} ניתן עד {best.payments} תשלומים</p>
+
           <div className="loanResult">
             <small>ההחזר החודשי הנמוך ביותר</small>
             <strong>{shekel(best.monthly)}</strong>
