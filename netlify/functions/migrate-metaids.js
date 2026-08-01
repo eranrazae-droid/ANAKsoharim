@@ -89,19 +89,19 @@ exports.handler = async (event) => {
     if(isApply){
       // 8) endpoint ההחלה ניתן להשבתה לאחר הרצה מוצלחת
       if(process.env.MIGRATE_DISABLED === '1') return { statusCode:410, headers:H, body:JSON.stringify({ error:'apply endpoint disabled (set MIGRATE_DISABLED)' }) };
-      // 6) אימות סוד שרת מכותרת — אינו נמצא בקוד צד-לקוח. חובה להגדיר MIGRATE_TOKEN.
+      // 6) אימות סוד שרת מכותרת - אינו נמצא בקוד צד-לקוח. חובה להגדיר MIGRATE_TOKEN.
       const hdr = event.headers || {};
       const token = hdr['x-migrate-token'] || hdr['X-Migrate-Token'];
       if(!process.env.MIGRATE_TOKEN) return { statusCode:403, headers:H, body:JSON.stringify({ error:'server secret MIGRATE_TOKEN is not set' }) };
       if(token !== process.env.MIGRATE_TOKEN) return { statusCode:403, headers:H, body:JSON.stringify({ error:'bad or missing x-migrate-token' }) };
       // 4) חסימת כתיבה אם יש כפילויות
-      if(duplicates.length > 0) return { statusCode:409, headers:H, body:JSON.stringify({ error:'duplicates present — refusing to write', duplicates }) };
+      if(duplicates.length > 0) return { statusCode:409, headers:H, body:JSON.stringify({ error:'duplicates present - refusing to write', duplicates }) };
       // 4) בדיקת התאמת מספר הרשומות מול הדוח המקדים
       let body = {}; try{ body = JSON.parse(event.body||'{}'); }catch(e){}
       if(body.expectedTotal != null && Number(body.expectedTotal) !== cars.length)
         return { statusCode:409, headers:H, body:JSON.stringify({ error:'record count mismatch', expectedTotal:body.expectedTotal, actualTotal:cars.length }) };
       if(body.expectedChanged != null && Number(body.expectedChanged) !== changed)
-        return { statusCode:409, headers:H, body:JSON.stringify({ error:'changed count mismatch — rerun preview', expectedChanged:body.expectedChanged, actualChanged:changed }) };
+        return { statusCode:409, headers:H, body:JSON.stringify({ error:'changed count mismatch - rerun preview', expectedChanged:body.expectedChanged, actualChanged:changed }) };
 
       if(changed > 0){
         const w = await reqJson('PATCH', SB_URL + '/rest/v1/inventory?id=eq.1',

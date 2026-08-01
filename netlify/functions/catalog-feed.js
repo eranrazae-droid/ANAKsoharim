@@ -1,4 +1,4 @@
-// פיד קטלוג אוטומטי ל-Meta — נשלף ממלאי האתר ב-Supabase.
+// פיד קטלוג אוטומטי ל-Meta - נשלף ממלאי האתר ב-Supabase.
 // כתובת: https://autodealer.co.il/.netlify/functions/catalog-feed
 // מזהי המוצר (id) חייבים להיות זהים ל-metaContentId שנשלח באירועי הפיקסל.
 const https = require('https');
@@ -62,13 +62,13 @@ exports.handler = async () => {
       if(!c || c.hidden || HIDDEN_IDS.indexOf(c.id)>=0) return;
       const dealerPrice = Number(c.autodealerPriceNumber)||0;
       if(dealerPrice <= 1) return;
-      if(!(c.catalog_image && String(c.catalog_image).trim())) return; // ללא תמונת קטלוג — לא נכנס לפיד
+      if(!(c.catalog_image && String(c.catalog_image).trim())) return; // ללא תמונת קטלוג - לא נכנס לפיד
       const importerPrice = Number(c.catalogPriceNumber)||0;
       const listPrice = importerPrice > 0 ? importerPrice : dealerPrice;
       const id = metaContentId(c);
       const title = ((c.brand||'')+' '+(c.model||'')).trim();
       const desc = (c.summary && c.summary.trim()) ? c.summary.trim()
-        : (title + (c.year?(' '+c.year):'') + (c.engine?(' · '+c.engine):'') + ' — רכב חדש 0 ק"מ מיבואן רשמי.');
+        : (title + (c.year?(' '+c.year):'') + (c.engine?(' · '+c.engine):'') + ' - רכב חדש 0 ק"מ מיבואן רשמי.');
       const avail = (c.stockStatus === 'אזל במלאי') ? 'out of stock' : 'in stock';
       const link = SITE + '/?car=' + encodeURIComponent(c.id);
       const img = (c.catalog_image && c.catalog_image.trim()) ? c.catalog_image.trim() : '';

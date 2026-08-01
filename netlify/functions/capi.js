@@ -21,7 +21,7 @@ exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode:200, headers:CORS, body:'' };
 
   const token = process.env.META_CAPI_ACCESS_TOKEN;
-  // ללא אסימון — לא שולחים, אך מחזירים 200 כדי שהדפדפן לא ייכשל (הפיקסל לבדו עדיין עובד).
+  // ללא אסימון - לא שולחים, אך מחזירים 200 כדי שהדפדפן לא ייכשל (הפיקסל לבדו עדיין עובד).
   if (!token) return { statusCode:200, headers:CORS, body:JSON.stringify({ ok:false, reason:'no_token' }) };
 
   let p = {};

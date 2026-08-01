@@ -55,13 +55,13 @@ exports.handler = async () => {
                  if(c.meta_hide) return; // הוסתר ידנית מקטלוג Meta
                  const dealerPrice = Number(c.autodealerPriceNumber)||0;
       if(dealerPrice <= 1) return;
-      if(!(c.catalog_image && String(c.catalog_image).trim())) return; // ללא תמונת קטלוג — לא נכנס לפיד
+      if(!(c.catalog_image && String(c.catalog_image).trim())) return; // ללא תמונת קטלוג - לא נכנס לפיד
       const importerPrice = Number(c.catalogPriceNumber)||0;
       const listPrice = importerPrice > 0 ? importerPrice : dealerPrice; // מחיר רגיל = מחירון יבואן; נופל למחיר אוטודילר אם אין מחירון
                  const id = metaContentId(c);
       const title = ((c.brand||'')+' '+(c.model||'')+(c.year?(' '+c.year):'')).trim();
       const desc = (c.summary && c.summary.trim()) ? c.summary.trim()
-        : (((c.brand||'')+' '+(c.model||'')).trim() + (c.engine?(' · '+c.engine):'') + ' — רכב חדש 0 ק"מ מיבואן רשמי, אחריות מלאה.');
+        : (((c.brand||'')+' '+(c.model||'')).trim() + (c.engine?(' · '+c.engine):'') + ' - רכב חדש 0 ק"מ מיבואן רשמי, אחריות מלאה.');
       const avail = (c.stockStatus === 'אזל במלאי') ? 'out of stock' : 'in stock';
       const link = SITE + '/?car=' + encodeURIComponent(c.id);
       const img = (c.catalog_image && c.catalog_image.trim()) ? c.catalog_image.trim() : ''; // רק תמונה ייעודית לקטלוג; בלי נפילה לתמונת האתר
@@ -80,7 +80,7 @@ exports.handler = async () => {
     });
     const xml = '<?xml version="1.0" encoding="UTF-8"?>\n' +
       '<rss xmlns:g="http://base.google.com/ns/1.0" version="2.0">\n <channel>\n' +
-      ' <title>Autodealer — קטלוג רכבים</title>\n' +
+      ' <title>Autodealer - קטלוג רכבים</title>\n' +
       ' <link>' + SITE + '</link>\n' +
       ' <description>רכבים חדשים 0 ק"מ במחירי דיל</description>' +
       items + '\n </channel>\n</rss>\n';

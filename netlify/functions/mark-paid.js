@@ -1,7 +1,7 @@
-// סימון ליד כ"שולם" ושליחת אירוע Purchase ל-Meta (צד שרת בלבד) — רק לאחר אישור ידני של הצוות.
+// סימון ליד כ"שולם" ושליחת אירוע Purchase ל-Meta (צד שרת בלבד) - רק לאחר אישור ידני של הצוות.
 // אטומיות: תופסים את הליד (paid=true) לפני השליחה; אם השליחה נכשלת מחזירים paid=false כדי לאפשר ניסיון חוזר.
 // dedup: משתמשים באותו event_id ששמור על הליד → Meta מבצע deduplication, ולחיצה כפולה לא תשלח פעמיים.
-// האסימון נשמר אך ורק במשתנה סביבה META_CAPI_ACCESS_TOKEN (זהה ל-capi.js) — לעולם לא בקוד/דפדפן.
+// האסימון נשמר אך ורק במשתנה סביבה META_CAPI_ACCESS_TOKEN (זהה ל-capi.js) - לעולם לא בקוד/דפדפן.
 const https = require('https');
 
 const SB_URL = 'https://vwfmfjjdusirabgbkhvw.supabase.co';
@@ -25,7 +25,7 @@ exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode:200, headers:H, body:'' };
   if (event.httpMethod !== 'POST') return { statusCode:405, headers:H, body:JSON.stringify({ok:false, reason:'method_not_allowed'}) };
 
-  // אבטחה: פעולה זו מסמנת ליד כשולם ושולחת Purchase — חובה סוד שרת. ללא MARK_PAID_TOKEN ה-endpoint מושבת (fail-closed).
+  // אבטחה: פעולה זו מסמנת ליד כשולם ושולחת Purchase - חובה סוד שרת. ללא MARK_PAID_TOKEN ה-endpoint מושבת (fail-closed).
   if (!process.env.MARK_PAID_TOKEN) return { statusCode:403, headers:H, body:JSON.stringify({ok:false, reason:'endpoint_disabled_no_token'}) };
   const _h = event.headers || {};
   const _t = _h['x-admin-token'] || _h['X-Admin-Token'];
@@ -54,11 +54,11 @@ exports.handler = async (event) => {
       { paid:true, paid_at:new Date().toISOString(), status:'שולם' });
     let claimed; try{ claimed = JSON.parse(claim.body); }catch(e){ claimed = []; }
     if (!Array.isArray(claimed) || claimed.length === 0) {
-      // מישהו אחר כבר תפס — כבר שולם
+      // מישהו אחר כבר תפס - כבר שולם
       return { statusCode:200, headers:H, body:JSON.stringify({ok:true, already:true}) };
     }
 
-    // 3) שליחת Purchase ל-Meta. אם נכשל — מחזירים paid=false כדי לאפשר retry עם אותו event_id
+    // 3) שליחת Purchase ל-Meta. אם נכשל - מחזירים paid=false כדי לאפשר retry עם אותו event_id
     const token = process.env.META_CAPI_ACCESS_TOKEN;
     const eventId = lead.event_id || (lead.order_id ? ('purchase_' + lead.order_id) : ('purchase_' + leadId));
     const value = Number(lead.amount) || 300;
@@ -68,7 +68,7 @@ exports.handler = async (event) => {
       return { statusCode:200, headers:H, body:JSON.stringify({ok:false, reason:reason}) };
     }
 
-    if (!token) return await revert('no_token');   // ללא אסימון — לא סומן, ניתן לנסות שוב אחרי הגדרת ENV
+    if (!token) return await revert('no_token');   // ללא אסימון - לא סומן, ניתן לנסות שוב אחרי הגדרת ENV
 
     const payload = { data: [{
       event_name: 'Purchase',

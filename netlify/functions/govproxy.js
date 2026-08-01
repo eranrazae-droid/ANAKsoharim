@@ -1,4 +1,4 @@
-// פרוקסי שרת ל-data.gov.il — עוקף חסימת CORS של הדפדפן
+// פרוקסי שרת ל-data.gov.il - עוקף חסימת CORS של הדפדפן
 // קריאה: /.netlify/functions/govproxy?resource=<resource_id>&q=<plate>
 const https = require('https');
 

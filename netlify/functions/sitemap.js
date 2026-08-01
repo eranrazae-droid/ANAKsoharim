@@ -1,5 +1,5 @@
-// Sitemap דינמי ל-Google — נשלף ממלאי האתר ב-Supabase. כתובת ציבורית: https://autodealer.co.il/sitemap.xml
-// כולל את דף הבית, עמודי מידע, וכל עמוד רכב (?car=<id>) — כדי שגוגל יאנדקס כל רכב בנפרד.
+// Sitemap דינמי ל-Google - נשלף ממלאי האתר ב-Supabase. כתובת ציבורית: https://autodealer.co.il/sitemap.xml
+// כולל את דף הבית, עמודי מידע, וכל עמוד רכב (?car=<id>) - כדי שגוגל יאנדקס כל רכב בנפרד.
 const https = require('https');
 const SB_URL = 'https://vwfmfjjdusirabgbkhvw.supabase.co';
 const SB_KEY = 'sb_publishable_E6Dd48mtyJyw5_6vgP2lzw_Gaj-QcAx';
@@ -22,7 +22,7 @@ exports.handler = async () => {
       if((Number(c.autodealerPriceNumber)||0) <= 1) return;
       urls.push({ loc: SITE + '/?car=' + encodeURIComponent(c.id), pri: '0.8', freq: 'weekly' });
     });
-  } catch (e) { /* אם Supabase נכשל — עדיין מחזירים sitemap בסיסי */ }
+  } catch (e) { /* אם Supabase נכשל - עדיין מחזירים sitemap בסיסי */ }
 
   const body = '<?xml version="1.0" encoding="UTF-8"?>\n' +
     '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
