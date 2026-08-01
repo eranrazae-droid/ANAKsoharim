@@ -76,7 +76,6 @@ export default function VehicleCard({ car }: { car: DisplayCar }) {
             {car.price > 0
               ? <p className="listPrice">{car.price.toLocaleString("he-IL")} <span>₪</span></p>
               : <p className="listPrice listPriceCall">לפרטים חייגו</p>}
-            <span className="listGo" aria-hidden="true">←</span>
             {car.monthly > 0 && (
               <p className="listMonthly">
                 {car.monthly.toLocaleString("he-IL")} ₪ לחודש

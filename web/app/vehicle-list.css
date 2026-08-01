@@ -1,5 +1,6 @@
 /* ═══ רשימת רכבים — כרטיס בסגנון לוח ═══
-   תמונה בצד, כותרת ומפרט, תגיות אבזור, ומחיר עם כפתור מעבר. */
+   תמונה בצד, כותרת ומפרט, תגיות אבזור ומחיר.
+   כל שטח הכרטיס הוא קישור אחד לעמוד הרכב. */
 
 .listGrid { display: grid; grid-template-columns: 1fr; gap: 14px; }
 
@@ -7,13 +8,15 @@
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 12px;
-  padding: 16px 18px;
   transition: border-color .18s, box-shadow .18s;
 }
 .listCard:hover, .listCard:focus-within { border-color: var(--line2); box-shadow: var(--shadow); }
 
+/* הריפוד יושב על הקישור ולא על המסגרת, כדי שגם השוליים של
+   הכרטיס יהיו לחיצים ויובילו לעמוד הרכב. */
 .listCardMain {
   display: grid;
+  padding: 16px 18px;
   grid-template-columns: 1fr 200px;  /* ב-RTL: תוכן מימין, תמונה משמאל של הטור השני */
   gap: 18px;
   align-items: start;
@@ -65,7 +68,7 @@
   max-width: 100%; overflow: hidden; text-overflow: ellipsis;
 }
 
-/* שורת המחיר — מחיר גדול עם כפתור מעבר, כמו בלוח */
+/* שורת המחיר */
 .listFoot {
   display: flex; align-items: center; gap: 14px;
   margin-top: 16px;
@@ -76,14 +79,6 @@
 }
 .listPrice span { font-size: .7em; font-weight: 700; margin-inline-start: 3px; }
 .listPriceCall { font-size: 19px; color: var(--gold); }
-.listGo {
-  width: 38px; height: 38px; flex: none;
-  display: grid; place-items: center;
-  border: 1px solid var(--line2); border-radius: 50%;
-  color: var(--ink); font-size: 17px;
-  transition: background .18s, color .18s, border-color .18s;
-}
-.listCard:hover .listGo { background: var(--black); border-color: var(--black); color: var(--gold); }
 .listMonthly { margin: 0; font-size: 14px; font-weight: 700; color: var(--gold); }
 
 /* ——— מובייל ———
@@ -92,11 +87,11 @@
    display:contents מוציא את ילדי .listBody אל רשת הכרטיס,
    כך שאפשר למקם כל אחד מהם בנפרד בלי לגעת בתצוגת המחשב. */
 @media (max-width: 700px) {
-  .listCard { padding: 12px; }
   /* התמונה היא תצוגה מקדימה בלבד — את שאר התמונות רואים רק בעמוד
      הרכב. לכן היא תופסת רק את שלוש שורות הכותרת, והמחיר והתגיות
      נמשכים על כל רוחב הכרטיס, גם מתחת לתמונה. */
   .listCardMain {
+    padding: 12px;
     grid-template-columns: minmax(0, 1fr) 116px;
     grid-template-areas:
       "title  media"
@@ -127,16 +122,11 @@
   .listChips::-webkit-scrollbar { display: none; }
   .listChips li { flex: none; font-size: 13px; padding: 5px 9px; }
 
-  /* מחיר מעל ההחזר החודשי, החץ בצד */
+  /* מחיר מעל ההחזר החודשי */
   .listFoot {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    grid-template-areas: "price go" "monthly go";
-    align-items: center;
-    gap: 2px 10px;
+    display: flex; flex-direction: column; align-items: flex-start;
+    gap: 3px;
     margin-top: 12px;
   }
-  .listPrice   { grid-area: price; font-size: 21px; }
-  .listGo      { grid-area: go; }
-  .listMonthly { grid-area: monthly; }
+  .listPrice { font-size: 21px; }
 }
