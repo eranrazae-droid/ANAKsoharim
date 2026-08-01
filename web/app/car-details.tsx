@@ -1,5 +1,7 @@
 import { propulsionTechnology, type DisplayCar } from "./vehicle-types";
 import { CarLeadForm } from "./lead-forms";
+import { getMaxPaymentsByYear } from "./finance-rules";
+import { BUSINESS, SITE_NAME } from "./site-config";
 
 /**
  * פרטי הרכב ורצועת הפנייה.
@@ -22,6 +24,13 @@ function Fact({ label, value }: { label: string; value?: React.ReactNode }) {
       <dd>{text}</dd>
     </div>
   );
+}
+
+/* לרוב הרכבים מגיעה הערה מהמערכת. כשאין — נכתב הנוסח הקבוע,
+   כדי שלא יישאר שדה ריק בכרטיס. */
+function defaultRemarks(car: DisplayCar) {
+  const payments = getMaxPaymentsByYear(Number(car.year) || 0);
+  return `הרכב קיים במלאי למסירה מיידית. אפשרות מימון עד 100% ללא מקדמה ועד ${payments} תשלומים בהחזר חודשי משתלם במיוחד. אנו מבצעים טרייד אין לכל סוגי הרכבים — מחכים לך ב${SITE_NAME}, ${BUSINESS.street}, ${BUSINESS.city}.`;
 }
 
 export function carName(car: DisplayCar) {
@@ -69,14 +78,15 @@ export function CarFacts({ car, inTable = false }: { car: DisplayCar; inTable?: 
         <Fact label="מערכת הנעה" value={car.drivetrain} />
         <Fact label="צבע" value={car.color} />
         <Fact label="מרכב" value={car.body} />
-        <Fact label="קטגוריה" value={car.categories?.join(", ") || car.category} />
         <Fact label="מספר דלתות" value={car.doors} />
         <Fact label="מספר מושבים" value={car.seats} />
         {!inTable && <Fact label="גג נפתח" value={car.openRoof ? "כן" : null} />}
         <Fact label="תוקף טסט" value={car.test} />
+        <Fact label="קטגוריה" value={car.categories?.join(", ") || car.category} />
       </dl>
 
       {car.extras && <p className="panelExtras"><b>תוספות:</b> {car.extras}</p>}
+      <p className="panelExtras"><b>פרטים נוספים:</b> {car.remarks || defaultRemarks(car)}</p>
     </>
   );
 }

@@ -174,10 +174,8 @@ export default async function CarPage({ params }: { params: Promise<{ id: string
           {/* אותם נתונים ואותה רצועת פנייה שבכרטיס שנפתח בטבלה */}
           <CarFacts car={car} />
 
-          <p className="carNote">
-            <b>פרטים נוספים:</b>{" "}
-            {car.remarks || `הרכב קיים במלאי למסירה מיידית. אפשרות מימון עד 100% ללא מקדמה ועד ${maxPayments} תשלומים בהחזר חודשי משתלם במיוחד. אנו מבצעים טרייד אין לכל סוגי הרכבים — מחכים לך ב${SITE_NAME}, ${BUSINESS.street}, ${BUSINESS.city}.`}
-          </p>
+          {/* "פרטים נוספים" יושב עכשיו בתוך CarFacts, כדי שיופיע
+              גם בכרטיס שנפתח בטבלה ובאותו עיצוב. */}
           <p className="carRef"><b>קוד פנייה:</b> {"{"}67-{car.id}-00{"}"}</p>
 
           <CarContactStrip car={car} />

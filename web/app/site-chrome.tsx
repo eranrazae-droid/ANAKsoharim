@@ -10,5 +10,5 @@ export function SiteHeader() {
 }
 
 export function SiteFooter() {
-  return <footer><div className="shell footerGrid"><div><Logo /><p>מכירה, קנייה וטרייד אין לרכבים מאז 1998.</p></div><div><h3>צרו קשר</h3><p>רחוב דוד רזיאל 4, ראשון לציון</p><a href={`tel:${BUSINESS.dial}`}>*2369</a><p>א׳-ה׳ 08:30-18:00 | ו׳ 08:30-13:00</p></div><div><h3>קישורים</h3><a href="/cars">רכבים במלאי</a><a href="/sell">קונים את הרכב שלך</a><a href="/finance">מימון</a><a href="/trade">טרייד אין</a><a href="/reviews">לקוחות ממליצים</a><a href="/articles">מדריכים</a><a href="/contact">צור קשר</a></div></div><div className="copyright">© {new Date().getFullYear()} ענק הרכבים. כל הזכויות שמורות.</div><FloatingActions /></footer>;
+  return <footer><div className="shell footerGrid"><div><Logo /><p>מכירה, קנייה וטרייד אין לרכבים מאז 1998.</p></div><div><h3>צרו קשר</h3><p>רחוב דוד רזיאל 4, ראשון לציון</p><a href={`tel:${BUSINESS.dial}`}><bdi dir="ltr">*2369</bdi></a><p>א׳-ה׳ 08:30-18:00 | ו׳ 08:30-13:00</p></div><div><h3>קישורים</h3><a href="/cars">רכבים במלאי</a><a href="/sell">קונים את הרכב שלך</a><a href="/finance">מימון</a><a href="/trade">טרייד אין</a><a href="/reviews">לקוחות ממליצים</a><a href="/articles">מדריכים</a><a href="/contact">צור קשר</a></div></div><div className="copyright">© {new Date().getFullYear()} ענק הרכבים. כל הזכויות שמורות.</div><FloatingActions /></footer>;
 }
