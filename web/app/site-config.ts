@@ -35,7 +35,7 @@ export const BUSINESS = {
   phoneIntl: "+972-3-5189189",
   mobile: "050-3707010",
   /** מספר הווטסאפ, בפורמט בינלאומי ובלי סימנים */
-  whatsapp: "972547235425",
+  whatsapp: "972547236425",
   street: "דוד רזיאל 4",
   city: "ראשון לציון",
   country: "IL",
