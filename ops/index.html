@@ -1333,7 +1333,7 @@ if ('serviceWorker' in navigator) {
   <div style="padding:16px 16px 100px">
     <div class="form-group">
       <label>מספר רישוי</label>
-      <input class="form-input" id="pc-plate" inputmode="numeric" autocomplete="off" placeholder="לדוגמה 12345678" onkeydown="if(event.key==='Enter')lookupPartsPlate()">
+      <input class="form-input" id="pc-plate" inputmode="numeric" autocomplete="off" placeholder="לדוגמה 12345678" oninput="pcCleanPlateInput(this)" onkeydown="if(event.key==='Enter')lookupPartsPlate()">
     </div>
     <button class="btn-submit" id="pc-search-btn" onclick="lookupPartsPlate()">🔍 חפש רכב</button>
     <div id="pc-status" style="margin-top:12px;font-size:13px;font-weight:700;text-align:center;color:var(--muted)"></div>
@@ -6584,6 +6584,17 @@ function openPartsCatalogScreen() {
 // the registry stores plates as digits only
 function _pcNormalizePlate(raw) { return String(raw || '').replace(/\D/g, ''); }
 
+// strip anything that isn't a digit as it's typed, keeping the caret in place
+function pcCleanPlateInput(el) {
+  const before = el.value;
+  const clean = before.replace(/\D/g, '');
+  if (clean === before) return;
+  const pos = el.selectionStart;
+  const removed = before.slice(0, pos).replace(/\D/g, '').length;
+  el.value = clean;
+  try { el.setSelectionRange(removed, removed); } catch (e) { /* not all inputs allow it */ }
+}
+
 // cached vehicles almost never change — read the cache before going out to gov.il
 async function _pcReadCache(plate) {
   if (!window._getDoc || !window._docRef) return null;
@@ -6740,10 +6751,23 @@ function _pcIsJapanese(maker) {
 }
 
 function _pcCatalogsHtml(vin, maker) {
-  const list = _pcIsJapanese(maker)
-    ? [_PC_CATALOGS.amayama]
-    : [_PC_CATALOGS.partsouq, _PC_CATALOGS['7zap']];
-  const short = vin.replace(/\s/g, '').length !== 17;
+  const clean = vin.replace(/\s/g, '').toUpperCase();
+  // The first character of the chassis number is the region of manufacture.
+  // A Japanese make built in Europe (e.g. Nissan from the UK, "S...") is not in
+  // the Japanese catalogue — a real lookup failed exactly this way.
+  const builtInJapan = clean.charAt(0) === 'J';
+  const jpMake = _pcIsJapanese(maker);
+
+  let list, note = '';
+  if (jpMake && builtInJapan) {
+    list = [_PC_CATALOGS.amayama, _PC_CATALOGS.partsouq];
+  } else if (jpMake) {
+    list = [_PC_CATALOGS.partsouq, _PC_CATALOGS.amayama];
+    note = 'הרכב יפני אך לא יוצר ביפן — הקטלוג היפני עלול לא לזהות אותו, לכן מתחילים מ-PartSouq.';
+  } else {
+    list = [_PC_CATALOGS.partsouq, _PC_CATALOGS['7zap']];
+  }
+  const short = clean.length !== 17;
   // the first catalogue in the list is the one to try first for this make
   const btn = (c, i) => `<button onclick="pcOpenCatalog('${c.key}')" style="position:relative;display:flex;flex-direction:column;align-items:center;gap:2px;flex:1;background:${i===0?'#fffaf0':'var(--bg)'};border:2px solid ${i===0?'var(--gold)':'var(--border)'};border-radius:12px;padding:${i===0&&list.length>1?'16px 6px 10px':'10px 6px'};font-family:'Heebo',sans-serif;cursor:pointer">
       ${i===0 && list.length>1 ? `<span style="position:absolute;top:-9px;right:50%;transform:translateX(50%);background:var(--gold);color:#000;border-radius:999px;font-size:10px;font-weight:900;padding:1px 8px;white-space:nowrap">מומלץ</span>` : ''}
@@ -6754,6 +6778,7 @@ function _pcCatalogsHtml(vin, maker) {
   return `<div style="margin-top:14px;border-top:2px solid var(--border);padding-top:12px">
     <div style="font-size:13px;font-weight:700;color:var(--muted);margin-bottom:8px">חיפוש מק"ט בקטלוג היצרן</div>
     ${short ? `<div style="font-size:12px;color:#b45309;font-weight:700;margin-bottom:8px">⚠️ מספר השילדה אינו באורך 17 תווים — ייתכן שהקטלוג לא יזהה אותו</div>` : ''}
+    ${note ? `<div style="font-size:12px;color:#b45309;font-weight:700;margin-bottom:8px;line-height:1.6">ℹ️ ${esc(note)}</div>` : ''}
     <div style="display:flex;gap:8px;align-items:stretch">${list.map(btn).join('')}</div>
     <div style="font-size:12px;color:var(--muted);margin-top:10px;line-height:1.6">
       ${list.length > 1 ? `התחל מ-${esc(list[0].label)}. אם הרכב לא נמצא שם — נסה את השני.<br>` : ''}
@@ -6815,6 +6840,7 @@ function _pcCopyFallback(text, done) {
 
 window.openPartsCatalogScreen = openPartsCatalogScreen;
 window.lookupPartsPlate = lookupPartsPlate;
+window.pcCleanPlateInput = pcCleanPlateInput;
 window.pcCopyVin = pcCopyVin;
 window.pcOpenCatalog = pcOpenCatalog;
 
