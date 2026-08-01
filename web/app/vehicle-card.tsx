@@ -3,26 +3,10 @@ import { DEMO_IMAGE } from "./site-config";
 
 /**
  * כרטיס רכב ברשימה — תמונה בצד, ומולה שם הרכב, נתוני הבסיס והמחיר.
- * מתחת לתמונה, לכל רוחב הכרטיס: ההחזר החודשי, שורת נתונים נוספים
- * ושורת תגיות — שתי השורות האחרונות נגללות לצדדים.
+ * מתחת לתמונה, לכל רוחב הכרטיס: ההחזר החודשי ושורת נתוני הרכב
+ * שנגללת לצדדים.
  * משמש גם בדף הבית וגם בעמוד המלאי, כדי שיהיה מקור אמת אחד.
  */
-
-const MAX_CHIPS = 6;
-
-/** מפרק את שדה התוספות לתגיות קצרות וקריאות. */
-export function extraChips(extras?: string, limit = MAX_CHIPS) {
-  if (!extras) return [];
-  return Array.from(
-    new Set(
-      String(extras)
-        .replace(/;/g, ",")
-        .split(",")
-        .map((item) => item.replace(/\.$/, "").trim())
-        .filter((item) => item.length > 2 && item.length <= 28),
-    ),
-  ).slice(0, limit);
-}
 
 function mileage(car: DisplayCar) {
   return Number(String(car.mileage).replace(/,/g, "") || 0).toLocaleString("he-IL");
@@ -58,8 +42,6 @@ export default function VehicleCard({ car }: { car: DisplayCar }) {
   const href = `/car/${car.id}`;
   const name = [car.make, car.baseModel || car.model, car.subModel].filter(Boolean).join(" ");
   const specs = specPills(car);
-  // תוספת שכבר מופיעה בנתוני הרכב לא חוזרת שוב בשורת התגיות
-  const chips = extraChips(car.extras).filter((chip) => !specs.includes(chip));
 
   return (
     <article className="listCard">
@@ -100,12 +82,6 @@ export default function VehicleCard({ car }: { car: DisplayCar }) {
           {specs.length > 0 && (
             <ul className="listSpecs">
               {specs.map((item) => <li key={item}>{item}</li>)}
-            </ul>
-          )}
-
-          {chips.length > 0 && (
-            <ul className="listChips">
-              {chips.map((chip) => <li key={chip}>{chip}</li>)}
             </ul>
           )}
         </div>

@@ -30,7 +30,7 @@ export default function FloatingActions() {
           <span aria-hidden="true">☎</span> חייג עכשיו
         </a>
         <a className="floatWhats" href={WHATSAPP} target="_blank" rel="noreferrer">
-          <span aria-hidden="true">✆</span> שלח ווטסאפ
+          שלח ווטסאפ
         </a>
         <button type="button" className="floatLead" onClick={() => setOpen(true)}>
           <span aria-hidden="true">✎</span> השאר פרטים
