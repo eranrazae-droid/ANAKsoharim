@@ -1,7 +1,7 @@
 "use client";
 
 import { propulsionTechnology, type DisplayCar } from "./vehicle-types";
-import { BUSINESS, DEMO_IMAGE } from "./site-config";
+import { DEMO_IMAGE } from "./site-config";
 import CardGallery from "./card-gallery";
 import { CarLeadForm } from "./lead-forms";
 
@@ -93,13 +93,7 @@ export default function TableCarPanel({ car }: { car: DisplayCar }) {
       </div>
 
       <aside className="panelContact">
-        <div className="panelContactHead">
-          <h4>צור קשר לגבי הרכב הזה</h4>
-          <p>נחזור אליכם עם כל הפרטים: מחיר סופי, מימון וטרייד אין.</p>
-          <p className="panelCall">
-            או חייגו עכשיו <a href={`tel:${BUSINESS.dial}`}>{BUSINESS.phone}</a>
-          </p>
-        </div>
+        <h4>צור קשר לגבי הרכב הזה</h4>
         <CarLeadForm vehicle={`${name} שנת ${car.year}`} />
       </aside>
     </div>
