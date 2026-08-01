@@ -6689,7 +6689,7 @@ function _pcRenderVehicle(v, fromCache) {
              </div>`
           : `<div style="color:#dc2626;font-size:14px;font-weight:700">לא קיים מספר שילדה לרכב זה במאגר</div>`}
       </div>
-      ${v.misgeret ? _pcCatalogsHtml(v.misgeret) : ''}
+      ${v.misgeret ? _pcCatalogsHtml(v.misgeret, v.tozeret) : ''}
       ${fromCache ? `<div style="margin-top:10px;font-size:12px;color:var(--muted)">⚡ נטען מהזיכרון</div>` : ''}
     </div>`;
 }
@@ -6697,13 +6697,24 @@ function _pcRenderVehicle(v, fromCache) {
 /* Free manufacturer catalogues. They allow browsing by chassis number without
    registration, but block automated access — so the app opens them with the
    number ready instead of trying to read the part number itself. */
-const _PC_CATALOGS = [
-  { key: 'partsouq', label: 'PartSouq',  sub: 'אירופאיות · יפניות · קוריאניות', direct: true },
-  { key: 'amayama',  label: 'Amayama',   sub: 'הכי טוב ליפניות',                 direct: false },
-  { key: '7zap',     label: '7zap',      sub: 'כ-70 יצרנים',                     direct: false },
-];
+const _PC_CATALOGS = {
+  partsouq: { key: 'partsouq', label: 'PartSouq', sub: 'אירופאיות וקוריאניות', direct: true },
+  amayama:  { key: 'amayama',  label: 'Amayama',  sub: 'קטלוג יפני',            direct: false },
+  '7zap':   { key: '7zap',     label: '7zap',     sub: 'כ-70 יצרנים',           direct: false },
+};
 
-function _pcCatalogsHtml(vin) {
+// Japanese makes get the Japanese catalogue only; everything else gets the rest.
+const _PC_JAPANESE = ['טויוטה','לקסוס','מאזדה','ניסאן','אינפיניטי','מיצובישי','סובארו',
+  'סוזוקי','הונדה','אקורה','דייהטסו','איסוזו'];
+function _pcIsJapanese(maker) {
+  const m = String(maker || '').trim();
+  return !!m && _PC_JAPANESE.some(j => m.includes(j));
+}
+
+function _pcCatalogsHtml(vin, maker) {
+  const list = _pcIsJapanese(maker)
+    ? [_PC_CATALOGS.amayama]
+    : [_PC_CATALOGS.partsouq, _PC_CATALOGS['7zap']];
   const short = vin.replace(/\s/g, '').length !== 17;
   const btn = c => `<button onclick="pcOpenCatalog('${c.key}')" style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:1;background:var(--bg);border:2px solid var(--border);border-radius:12px;padding:10px 6px;font-family:'Heebo',sans-serif;cursor:pointer">
       <span style="font-weight:800;font-size:14px;color:var(--dark)">${esc(c.label)}</span>
@@ -6713,7 +6724,7 @@ function _pcCatalogsHtml(vin) {
   return `<div style="margin-top:14px;border-top:2px solid var(--border);padding-top:12px">
     <div style="font-size:13px;font-weight:700;color:var(--muted);margin-bottom:8px">חיפוש מק"ט בקטלוג היצרן</div>
     ${short ? `<div style="font-size:12px;color:#b45309;font-weight:700;margin-bottom:8px">⚠️ מספר השילדה אינו באורך 17 תווים — ייתכן שהקטלוג לא יזהה אותו</div>` : ''}
-    <div style="display:flex;gap:8px">${_PC_CATALOGS.map(btn).join('')}</div>
+    <div style="display:flex;gap:8px">${list.map(btn).join('')}</div>
     <div style="font-size:12px;color:var(--muted);margin-top:8px;line-height:1.6">בקטלוג מוצגים שרטוטי פירוק של הרכב — אתר את החלק בשרטוט וקבל את המק"ט שלו.</div>
   </div>`;
 }
