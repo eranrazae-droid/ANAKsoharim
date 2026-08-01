@@ -155,7 +155,7 @@ export default async function CarPage({ params }: { params: Promise<{ id: string
             </div>
 
             <dl className="carSpecTable">
-              <div className="carCellWide"><dt>מחיר מבוקש:</dt><dd>{price.toLocaleString("he-IL")} ₪</dd></div>
+              <div><dt>מחיר מבוקש:</dt><dd>{price.toLocaleString("he-IL")} ₪</dd></div>
               {car.monthly > 0 && (
                 <div><dt>החזר חודשי:</dt><dd>{car.monthly.toLocaleString("he-IL")} ₪</dd></div>
               )}
