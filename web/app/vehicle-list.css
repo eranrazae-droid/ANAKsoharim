@@ -46,12 +46,13 @@
 
 .listTitle { margin: 0; font-size: 21px; font-weight: 700; color: var(--ink); line-height: 1.25; }
 
-/* שתי שורות הנתונים: שנת ייצור וסוג מנוע, יד וקילומטראז׳ */
+/* שתי שורות הנתונים: שנת ייצור, ואחריה מנוע וקילומטראז׳ */
 .listLines { display: flex; gap: 6px 20px; flex-wrap: wrap; margin: 6px 0 0; }
 .listLine {
   margin: 0; font-size: 14.5px; color: var(--ink2); line-height: 1.45;
-  display: flex; align-items: center; gap: 7px; min-width: 0;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 0 7px; min-width: 0;
 }
+.listEngine span { display: inline-flex; align-items: center; gap: 7px; }
 .listLine i { color: var(--line2); font-style: normal; }
 
 /* מחיר והחזר חודשי */
@@ -59,8 +60,10 @@
 .listPrice {
   margin: 0; font-size: 27px; font-weight: 800;
   color: var(--ink); letter-spacing: -.02em; line-height: 1;
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 9px;
 }
-.listPrice span { font-size: .7em; font-weight: 700; margin-inline-start: 3px; }
+.listPrice > span { font-size: .7em; font-weight: 700; margin-inline-start: 3px; }
+.listPriceNote { font-size: 13px; font-weight: 500; font-style: normal; color: var(--muted); letter-spacing: 0; }
 .listPriceCall { font-size: 19px; color: var(--gold); }
 .listMonthly { margin: 0; font-size: 14px; font-weight: 700; color: var(--gold); }
 
@@ -80,25 +83,26 @@
 }
 
 /* ——— מובייל ———
-   התמונה למעלה משמאל, ומולה שם הרכב, שתי שורות הנתונים והמחיר.
-   ההחזר החודשי ושורת הנתונים נמשכים על כל רוחב הכרטיס —
+   התמונה למעלה משמאל, ומולה שם הרכב, שנת הייצור ושורת המנוע.
+   המחיר, ההחזר החודשי ושורת הנתונים נמשכים על כל רוחב הכרטיס —
    גם מתחת לתמונה.
-   display:contents מוציא את ילדי .listBody ו-.listMoney אל רשת
-   הכרטיס, כך שאפשר למקם כל אחד מהם בנפרד בלי לגעת בתצוגת המחשב. */
+   display:contents מוציא את ילדי .listBody, .listLines ו-.listMoney
+   אל רשת הכרטיס, כך שאפשר למקם כל אחד בנפרד בלי לגעת בתצוגת המחשב. */
 @media (max-width: 700px) {
   .listCardMain {
     padding: 12px;
     grid-template-columns: minmax(0, 1fr) 116px;
     grid-template-areas:
       "title    media"
-      "lines    media"
-      "price    media"
+      "year     media"
+      "engine   media"
+      "price    price"
       "monthly  monthly"
       "specs    specs";
     column-gap: 12px;
     row-gap: 0;            /* המרווחים מגיעים מהשוליים של כל שורה */
   }
-  .listBody, .listMoney { display: contents; }
+  .listBody, .listLines, .listMoney { display: contents; }
 
   /* התמונה נמתחת בדיוק לגובה שלוש השורות שלצידה — בלי שטח מת */
   .listMedia {
@@ -108,9 +112,10 @@
   }
 
   .listTitle   { grid-area: title; font-size: 17px; }
-  .listLines   { grid-area: lines; flex-direction: column; gap: 3px; margin-top: 5px; }
+  .listYear    { grid-area: year; margin-top: 5px; }
+  .listEngine  { grid-area: engine; margin-top: 3px; }
   .listLine    { font-size: 13.5px; }
-  .listPrice   { grid-area: price; font-size: 21px; margin-top: 10px; }
+  .listPrice   { grid-area: price; font-size: 21px; margin-top: 12px; }
   .listMonthly { grid-area: monthly; margin-top: 10px; }
   .listSpecs   { grid-area: specs; margin-top: 10px; }
   .listSpecs li { font-size: 13px; padding: 5px 9px; }

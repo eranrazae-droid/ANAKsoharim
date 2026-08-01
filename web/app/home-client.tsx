@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { DisplayCar } from "./vehicle-api";
+import { propulsionTechnology, type DisplayCar } from "./vehicle-api";
 import VehicleCard from "./vehicle-card";
 import CustomerStrip from "./customer-strip";
 import FloatingActions from "./floating-actions";
@@ -21,14 +21,6 @@ const categoryOptions = [
   { value: "קומפקטיים", label: "קומפקטיות" },
   { value: "מסחריות", label: "מסחריות" },
 ];
-
-function propulsionTechnology(engine: string) {
-  const value = String(engine || "").toLowerCase();
-  if (value.includes("פלאג") || value.includes("נטען") || value.includes("phev")) return "פלאג־אין";
-  if (value.includes("חשמל") || value.includes("electric")) return "חשמלי";
-  if (value.includes("היבריד") || value.includes("hybrid")) return "היברידי";
-  return "הנעה רגילה";
-}
 
 /**
  * השוואת מחיר או החזר חודשי.

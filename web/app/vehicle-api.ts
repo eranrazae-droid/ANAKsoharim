@@ -100,3 +100,20 @@ export async function getActiveVehicles(): Promise<DisplayCar[]> {
     return { ...car, image: images[0] ?? car.image, images };
   }));
 }
+
+/**
+ * טכנולוגיית ההנעה, נגזרת מסוג המנוע.
+ * משמשת גם לסינון בדף הבית וגם לתצוגה בכרטיס הרכב.
+ * "הנעה רגילה" הוא המקרה הרגיל ואינו מוצג ללקוח.
+ */
+export function propulsionTechnology(engine: string) {
+  const value = String(engine || "").toLowerCase();
+  const electric = value.includes("חשמל") || value.includes("electric");
+  const fuel = value.includes("בנזין") || value.includes("דיזל") || value.includes("petrol") || value.includes("diesel");
+  if (value.includes("פלאג") || value.includes("נטען") || value.includes("phev")) return "פלאג־אין";
+  // "חשמל/בנזין" הוא רכב היברידי, לא חשמלי. רק מנוע חשמלי בלבד הוא חשמלי.
+  if (electric && fuel) return "היברידי";
+  if (electric) return "חשמלי";
+  if (value.includes("היבריד") || value.includes("hybrid")) return "היברידי";
+  return "הנעה רגילה";
+}
