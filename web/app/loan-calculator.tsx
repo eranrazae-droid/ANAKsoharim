@@ -6,14 +6,20 @@ import { Honeypot, LeadStatusMessage, useLead } from "./use-lead";
 
 const shekel = (value: number) => `${Math.round(value).toLocaleString("he-IL")} ש״ח`;
 
+/** שנתוני הרכב שחברות המימון מאשרות */
+const FIRST_YEAR = 2011;
+const LAST_YEAR = 2026;
+const YEARS = Array.from({ length: LAST_YEAR - FIRST_YEAR + 1 }, (_, i) => LAST_YEAR - i);
+
 /**
  * מחשבון המימון.
- * מקישים סכום הלוואה ומקבלים מסלול אחד — הזול ביותר מבין המסלולים
- * של חברות המימון שאיתן אנחנו עובדים, עם ההחזר החודשי שלו.
+ * מקישים סכום הלוואה ושנתון הרכב ומקבלים את ההחזר החודשי הנמוך
+ * ביותר. השנתון קובע את מספר התשלומים המרבי שחברות המימון מאשרות.
  */
 export default function LoanCalculator() {
   const [loan, setLoan] = useState(100000);
-  const best = useMemo(() => cheapestQuote(loan), [loan]);
+  const [year, setYear] = useState(2022);
+  const best = useMemo(() => cheapestQuote(loan, year), [loan, year]);
   const lead = useLead("loan");
 
   return (
@@ -44,6 +50,13 @@ export default function LoanCalculator() {
         aria-label="בחירת סכום ההלוואה"
       />
 
+      <label className="loanField loanYear">
+        <span>שנת ייצור</span>
+        <select value={year} onChange={(event) => setYear(Number(event.target.value))} aria-label="שנת ייצור הרכב">
+          {YEARS.map((option) => <option key={option} value={option}>{option}</option>)}
+        </select>
+      </label>
+
       {best ? (
         <>
           <div className="loanResult">
@@ -51,20 +64,6 @@ export default function LoanCalculator() {
             <strong>{shekel(best.monthly)}</strong>
             <span>לחודש · {best.payments} תשלומים</span>
           </div>
-
-          <dl className="loanDetails">
-            <div><dt>חברת המימון</dt><dd>{best.company}</dd></div>
-            <div><dt>מסלול</dt><dd>{best.track}</dd></div>
-            <div><dt>ריבית שנתית</dt><dd>{best.rate.toFixed(1)}%</dd></div>
-            <div><dt>עמלת פתיחת תיק</dt><dd>{shekel(best.fee)}</dd></div>
-            {best.balloon > 0 && (
-              <div className="loanBalloon">
-                <dt>תשלום בלון בסוף התקופה</dt>
-                <dd>{shekel(best.balloon)}</dd>
-              </div>
-            )}
-            <div><dt>סך הכל לתשלום</dt><dd>{shekel(best.total)}</dd></div>
-          </dl>
 
           {best.balloon > 0 && (
             <p className="loanWarn">
@@ -87,8 +86,8 @@ export default function LoanCalculator() {
         onSubmit={(event) =>
           lead.submit(event, {
             notes: best
-              ? `הלוואה ${shekel(loan)} · ${best.company} ${best.track} · ${shekel(best.monthly)} לחודש ב-${best.payments} תשלומים`
-              : `הלוואה ${shekel(loan)}`,
+              ? `הלוואה ${shekel(loan)} · שנתון ${year} · ${best.company} ${best.track} ${best.rate.toFixed(1)}% · ${shekel(best.monthly)} לחודש ב-${best.payments} תשלומים`
+              : `הלוואה ${shekel(loan)} · שנתון ${year}`,
           })
         }
       >

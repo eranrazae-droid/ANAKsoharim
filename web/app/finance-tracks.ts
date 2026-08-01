@@ -6,6 +6,8 @@
  * מקום אחד לעדכון — כשהריביות משתנות משנים כאן בלבד.
  */
 
+import { getMaxPaymentsByYear } from "./finance-rules";
+
 /** ריבית הפריים. לעדכון כשבנק ישראל משנה. */
 export const PRIME = 5.5;
 
@@ -68,9 +70,9 @@ export type Quote = {
   total: number;
 };
 
-function quote(track: Track, loan: number): Quote {
+function quote(track: Track, loan: number, maxByYear: number): Quote {
   const rate = track.rate + rateSurcharge(loan);
-  const payments = track.maxPayments(loan);
+  const payments = Math.min(track.maxPayments(loan), maxByYear);
   const balloon = track.balloon ? Math.round(loan * BALLOON_SHARE) : 0;
   const monthly = monthlyPayment(loan, rate, payments, balloon);
   const fee = track.fee(loan);
@@ -89,16 +91,18 @@ function quote(track: Track, loan: number): Quote {
 /**
  * המסלול עם ההחזר החודשי הנמוך ביותר.
  * כל מסלול מחושב בפריסה המקסימלית שלו, כי זו הפריסה שנותנת
- * את ההחזר החודשי הנמוך ביותר באותו מסלול.
+ * את ההחזר החודשי הנמוך ביותר באותו מסלול. שנתון הרכב מגביל את
+ * הפריסה — רכב ישן יותר מקבל פחות תשלומים.
  *
  * מסלולי בלון אינם נכללים כברירת מחדל. ההחזר החודשי בהם נמוך
  * במעט, אבל בסוף התקופה נותר תשלום של מחצית ההלוואה — הצגתו
  * ללקוח כ"המסלול הזול ביותר" מטעה. להצגתם: withBalloon = true.
  */
-export function cheapestQuote(loan: number, withBalloon = false): Quote | null {
+export function cheapestQuote(loan: number, year: number, withBalloon = false): Quote | null {
   if (!loan || loan < 5000) return null;
+  const maxByYear = getMaxPaymentsByYear(year);
   return TRACKS
     .filter((track) => withBalloon || !track.balloon)
-    .map((track) => quote(track, loan))
+    .map((track) => quote(track, loan, maxByYear))
     .sort((a, b) => a.monthly - b.monthly)[0];
 }
