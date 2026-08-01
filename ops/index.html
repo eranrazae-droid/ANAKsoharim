@@ -1829,7 +1829,7 @@ if ('serviceWorker' in navigator) {
 <!-- ====== FIREBASE ====== -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, setDoc, query, orderBy, serverTimestamp, where }
+import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, setDoc, getDoc, query, orderBy, serverTimestamp, where }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
@@ -1871,6 +1871,7 @@ window._colRef    = CONFIG_DONE ? (n) => collection(db, n) : null;
 window._docRef    = CONFIG_DONE ? (c,id) => doc(db, c, id) : null;
 window._updateDoc = CONFIG_DONE ? updateDoc : null;
 window._setDoc    = CONFIG_DONE ? setDoc    : null;
+window._getDoc    = CONFIG_DONE ? getDoc    : null;
 window._query     = CONFIG_DONE ? query     : null;
 window._orderBy   = CONFIG_DONE ? orderBy   : null;
 window._serverTs  = CONFIG_DONE ? serverTimestamp : null;
@@ -6574,26 +6575,31 @@ function _pcNormalizePlate(raw) { return String(raw || '').replace(/\D/g, ''); }
 
 // cached vehicles almost never change — read the cache before going out to gov.il
 async function _pcReadCache(plate) {
-  if (!window._docRef) return null;
+  if (!window._getDoc || !window._docRef) return null;
   try {
-    const { getDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-    const snap = await getDoc(_docRef('parts_catalog_vehicles', plate));
+    const snap = await window._getDoc(_docRef('parts_catalog_vehicles', plate));
     return snap.exists() ? snap.data() : null;
   } catch (e) { console.warn('parts cache read failed', e); return null; }
 }
 
-async function _pcWriteCache(plate, data) {
-  if (!window._docRef) return;
-  try {
-    const { setDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-    await setDoc(_docRef('parts_catalog_vehicles', plate), data, { merge: true });
-  } catch (e) { console.warn('parts cache write failed', e); }
+function _pcWriteCache(plate, data) {
+  if (!window._setDoc || !window._docRef) return;
+  // fire-and-forget — the user already has the result on screen
+  Promise.resolve(window._setDoc(_docRef('parts_catalog_vehicles', plate), data, { merge: true }))
+    .catch(e => console.warn('parts cache write failed', e));
+}
+
+// a stalled request on weak reception must not hold the whole lookup
+function _pcFetch(url, ms) {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), ms || 6000);
+  return fetch(url, { signal: ctl.signal }).finally(() => clearTimeout(t));
 }
 
 // one filtered registry query; returns the record only if the plate matches exactly
 async function _pcFilterLookup(plate, value) {
   const filters = encodeURIComponent(JSON.stringify({ mispar_rechev: value }));
-  const res = await fetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=${_PC_REGISTRY}&filters=${filters}&limit=1`);
+  const res = await _pcFetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=${_PC_REGISTRY}&filters=${filters}&limit=1`);
   if (!res.ok) throw new Error('HTTP ' + res.status);
   const json = await res.json();
   const rec = json?.result?.records?.[0];
@@ -6613,8 +6619,17 @@ async function lookupPartsPlate() {
   st.textContent = '⏳ מחפש...';
   btn.disabled = true;
 
+  let netFailed = false;
+  const attempt = p => Promise.resolve(p).catch(e => { netFailed = true; console.warn('registry lookup failed', e); return null; });
+
   try {
-    const cached = await _pcReadCache(plate);
+    // Don't wait for the cache before asking the registry — both start together,
+    // so a cache miss costs nothing and a cache hit still renders immediately.
+    const cacheP = _pcReadCache(plate);
+    // the registry stores the plate as text — this is the fast path and normally hits
+    const textP = attempt(_pcFilterLookup(plate, plate));
+
+    const cached = await cacheP;
     if (cached && cached.misgeret) {
       _pcCurrent = cached;
       st.textContent = '';
@@ -6622,23 +6637,25 @@ async function lookupPartsPlate() {
       return;
     }
 
-    // the registry stores the plate as text — every working lookup in this app
-    // sends it as a string, so that is the fast path and it hits on the first try
-    let rec = await _pcFilterLookup(plate, plate);
+    let rec = await textP;
     // some records are stored numerically — try that before the slow free-text path
-    if (!rec) rec = await _pcFilterLookup(plate, Number(plate));
+    if (!rec) rec = await attempt(_pcFilterLookup(plate, Number(plate)));
 
     // last resort: free-text. It must return enough rows for the requested plate
     // to actually be among them, and the match is verified exactly.
     if (!rec) {
-      const res2 = await fetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=${_PC_REGISTRY}&q=${plate}&limit=100`);
-      const json2 = await res2.json();
-      rec = json2?.result?.records?.find(r => _pcNormalizePlate(r['mispar_rechev']) === plate) || null;
+      rec = await attempt((async () => {
+        const res2 = await _pcFetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=${_PC_REGISTRY}&q=${plate}&limit=100`);
+        const json2 = await res2.json();
+        return json2?.result?.records?.find(r => _pcNormalizePlate(r['mispar_rechev']) === plate) || null;
+      })());
     }
 
     if (!rec) {
       st.style.color = '#dc2626';
-      st.textContent = '❌ הרכב לא נמצא במאגר משרד התחבורה';
+      st.textContent = netFailed
+        ? '❌ שגיאה בחיפוש — בדוק חיבור לאינטרנט ונסה שוב'
+        : '❌ הרכב לא נמצא במאגר משרד התחבורה';
       return;
     }
 
@@ -6716,7 +6733,9 @@ function _pcCatalogsHtml(vin, maker) {
     ? [_PC_CATALOGS.amayama]
     : [_PC_CATALOGS.partsouq, _PC_CATALOGS['7zap']];
   const short = vin.replace(/\s/g, '').length !== 17;
-  const btn = c => `<button onclick="pcOpenCatalog('${c.key}')" style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:1;background:var(--bg);border:2px solid var(--border);border-radius:12px;padding:10px 6px;font-family:'Heebo',sans-serif;cursor:pointer">
+  // the first catalogue in the list is the one to try first for this make
+  const btn = (c, i) => `<button onclick="pcOpenCatalog('${c.key}')" style="position:relative;display:flex;flex-direction:column;align-items:center;gap:2px;flex:1;background:${i===0?'#fffaf0':'var(--bg)'};border:2px solid ${i===0?'var(--gold)':'var(--border)'};border-radius:12px;padding:${i===0&&list.length>1?'16px 6px 10px':'10px 6px'};font-family:'Heebo',sans-serif;cursor:pointer">
+      ${i===0 && list.length>1 ? `<span style="position:absolute;top:-9px;right:50%;transform:translateX(50%);background:var(--gold);color:#000;border-radius:999px;font-size:10px;font-weight:900;padding:1px 8px;white-space:nowrap">מומלץ</span>` : ''}
       <span style="font-weight:800;font-size:14px;color:var(--dark)">${esc(c.label)}</span>
       <span style="font-size:11px;color:var(--muted)">${esc(c.sub)}</span>
       <span style="font-size:11px;color:var(--muted)">${c.direct ? 'נפתח עם השילדה' : 'השילדה תועתק — הדבק'}</span>
@@ -6724,8 +6743,11 @@ function _pcCatalogsHtml(vin, maker) {
   return `<div style="margin-top:14px;border-top:2px solid var(--border);padding-top:12px">
     <div style="font-size:13px;font-weight:700;color:var(--muted);margin-bottom:8px">חיפוש מק"ט בקטלוג היצרן</div>
     ${short ? `<div style="font-size:12px;color:#b45309;font-weight:700;margin-bottom:8px">⚠️ מספר השילדה אינו באורך 17 תווים — ייתכן שהקטלוג לא יזהה אותו</div>` : ''}
-    <div style="display:flex;gap:8px">${list.map(btn).join('')}</div>
-    <div style="font-size:12px;color:var(--muted);margin-top:8px;line-height:1.6">בקטלוג מוצגים שרטוטי פירוק של הרכב — אתר את החלק בשרטוט וקבל את המק"ט שלו.</div>
+    <div style="display:flex;gap:8px;align-items:stretch">${list.map(btn).join('')}</div>
+    <div style="font-size:12px;color:var(--muted);margin-top:10px;line-height:1.6">
+      ${list.length > 1 ? `התחל מ-${esc(list[0].label)}. אם הרכב לא נמצא שם — נסה את השני.<br>` : ''}
+      בקטלוג מוצגים שרטוטי פירוק של הרכב — אתר את החלק בשרטוט וקבל את המק"ט שלו.
+    </div>
   </div>`;
 }
 
