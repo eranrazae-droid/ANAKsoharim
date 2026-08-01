@@ -148,6 +148,15 @@ export const CarIcon = ({ size = 26, className }: Props) => (
   </Svg>
 );
 
+/** שיתוף — שליחת הרכב לחבר */
+export const ShareIcon = (p: Props) => (
+  <Svg {...p}>
+    <path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7" />
+    <path d="M12 15V3" />
+    <path d="m8 7 4-4 4 4" />
+  </Svg>
+);
+
 /** כוכב — סמל "שירות ואמינות" */
 export const StarIcon = ({ size = 26, className }: Props) => (
   <svg className={className} viewBox="0 0 24 24" width={size} height={size} aria-hidden="true" focusable="false">

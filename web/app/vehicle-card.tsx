@@ -1,4 +1,5 @@
 import { propulsionTechnology, type DisplayCar } from "./vehicle-api";
+import { isNewInStock } from "./vehicle-types";
 import { BUSINESS, DEMO_IMAGE } from "./site-config";
 import { CARD_SIZES } from "./lib/images";
 import { Picture } from "./site-image";
@@ -124,6 +125,7 @@ export default function VehicleCard({ car }: { car: DisplayCar }) {
           <CardGallery images={slides} alt={`${name} שנת ${car.year}`} />
           {!real.length && <span>להמחשה</span>}
           {car.monthly > 0 && !car.advance && <b className="noAdvance">ללא מקדמה</b>}
+          {isNewInStock(car) && <b className="newInStock">חדש במלאי</b>}
         </div>
 
         <div className="listBody">

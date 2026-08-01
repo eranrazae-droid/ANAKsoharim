@@ -4,12 +4,13 @@ import { getActiveVehicles, type DisplayCar } from "../../vehicle-api";
 import { SiteFooter, SiteHeader } from "../../site-chrome";
 import VehicleGallery from "../../vehicle-gallery";
 import { CarContactStrip, CarFacts } from "../../car-details";
-import { BackIcon } from "../../icons";
+import { BackIcon, ShareIcon } from "../../icons";
 import { getMaxPaymentsByYear } from "../../finance-rules";
 import { BUSINESS, DEMO_IMAGE, SITE_NAME, SITE_URL } from "../../site-config";
 import { similarByPrice, PRICE_FLOOR_SHARE } from "../../similar-by-price";
 import VideoBlock from "../../video-block";
 import Spin360 from "../../spin-360";
+import CarPayment from "../../car-payment";
 import { CARD_SIZES } from "../../lib/images";
 import { Picture } from "../../site-image";
 
@@ -178,7 +179,21 @@ export default async function CarPage({ params }: { params: Promise<{ id: string
               גם בכרטיס שנפתח בטבלה ובאותו עיצוב. */}
           <p className="carRef"><b>קוד פנייה:</b> {"{"}67-{car.id}-00{"}"}</p>
 
+          {/* כמה זה יוצא בחודש — כאן, ולא בעמוד אחר */}
+          <CarPayment price={car.price} year={car.year} />
+
           <CarContactStrip car={car} />
+
+          {/* שליחת הרכב לחבר. wa.me בלי מספר פותח את רשימת
+              אנשי הקשר — הלקוח בוחר למי לשלוח. */}
+          <a
+            className="carShare"
+            href={`https://wa.me/?text=${encodeURIComponent(`${name} שנת ${car.year}${car.price > 0 ? ` — ${car.price.toLocaleString("he-IL")} ש״ח` : ""}\n${SITE_URL}/car/${car.id}`)}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <ShareIcon size={17} /> שלחו את הרכב לחבר בווטסאפ
+          </a>
         </div>
       </section>
 

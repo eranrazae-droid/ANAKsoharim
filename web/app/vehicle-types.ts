@@ -13,7 +13,21 @@ export type DisplayCar = {
   /* מחיר מחירון ומספר רישוי מגיעים כבר היום. הסטטוס יגיע
      כשה-CRM יחובר — עד אז הוא ריק והשדה פשוט לא מוצג. */
   listPrice?: number; plate?: string; status?: string;
+  /** כמה ימים הרכב נמצא במגרש. משמש לתגית "חדש במלאי" ולמיון */
+  daysInStock?: number;
 };
+
+/** עד כמה ימים במגרש רכב נחשב "חדש במלאי" */
+export const NEW_IN_STOCK_DAYS = 7;
+
+/**
+ * האם הרכב נכנס למגרש לאחרונה.
+ * ערך שלילי פירושו שהמערכת לא שלחה את הנתון — ואז אין תגית.
+ */
+export function isNewInStock(car: DisplayCar) {
+  const days = car.daysInStock ?? -1;
+  return days >= 0 && days <= NEW_IN_STOCK_DAYS;
+}
 
 /**
  * טכנולוגיית ההנעה, נגזרת מסוג המנוע.

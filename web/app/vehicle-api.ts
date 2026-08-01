@@ -87,6 +87,7 @@ export function normalizeVehicle(raw: Record<string, unknown>): DisplayCar {
     // נלקח מהשדה שלו ולא ממנו.
     listPrice: Number(raw.ank_m_price_list ?? 0),
     plate: String(raw.ank_s_car_number ?? ""),
+    daysInStock: Number(raw.ank_s_days_in_stock ?? -1),
     // סטטוס הרכב יגיע מה-CRM. כל עוד השדה לא נשלח הערך ריק
     // והשורה פשוט לא מוצגת בכרטיס — בלי שגיאה ובלי מידע שגוי.
     // מקבלים כאן כמה שמות אפשריים כדי שהחיבור יעבוד בלי

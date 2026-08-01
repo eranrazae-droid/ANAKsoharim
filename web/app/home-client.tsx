@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { propulsionTechnology, type DisplayCar } from "./vehicle-types";
+import { isNewInStock, propulsionTechnology, type DisplayCar } from "./vehicle-types";
 import { BUSINESS, IS_LIVE } from "./site-config";
 import VehicleCard from "./vehicle-card";
 import CustomerStrip from "./customer-strip";
@@ -14,7 +14,7 @@ import TableCarPanel from "./table-car-panel";
 import { Honeypot, LeadStatusMessage, useLead } from "./use-lead";
 
 type TradeVehicle = { plate: string; manufacturer: string; model: string; year: string; color: string; ownership: string; modelType: string; firstOnRoad: string; testValidity: string };
-type TableSortKey = "make" | "model" | "subModel" | "year" | "mileage" | "engineCapacity" | "engine" | "propulsion" | "openRoof" | "price" | "advance" | "monthly";
+type TableSortKey = "make" | "model" | "subModel" | "year" | "mileage" | "engineCapacity" | "engine" | "propulsion" | "openRoof" | "price" | "advance" | "monthly" | "newest";
 
 const categoryOptions = [
   { value: "כל הרכבים", label: "כל הרכבים" },
@@ -111,6 +111,12 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
       if (sortBy === "price-asc") return byValue(a.price, b.price, 1);
       if (sortBy === "price-desc") return byValue(a.price, b.price, -1);
       if (sortBy === "monthly-asc") return byValue(a.monthly, b.monthly, 1);
+      /* החדשים ביותר: מי שפחות ימים במגרש קודם. רכב בלי נתון
+         יורד לסוף, כדי שלא ייראה כאילו נכנס היום. */
+      if (sortBy === "newest") {
+        const days = (car: DisplayCar) => { const d = car.daysInStock ?? -1; return d < 0 ? Infinity : d; };
+        return days(a) - days(b) || b.year - a.year;
+      }
       return a.make.localeCompare(b.make, "he") || a.model.localeCompare(b.model, "he") || b.year - a.year;
     }), [cars, category, make, model, driveTech, propulsionTech, roofFilter, fromYear, toYear, engineType, gearbox, sortBy, minPrice, maxPrice, minMonthly, maxMonthly]);
   /* הערך שלפיו ממיינים עמודה. רוב העמודות הן שדה ישיר ברכב;
@@ -119,6 +125,9 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
     if (key === "model") return car.baseModel || car.model;
     if (key === "openRoof") return Number(Boolean(car.openRoof));
     if (key === "propulsion") return propulsionTechnology(car.engine);
+    /* רכב בלי נתון ימים במלאי יורד לסוף, כדי שלא ייראה כאילו
+       נכנס היום. */
+    if (key === "newest") { const d = car.daysInStock ?? -1; return d < 0 ? Number.MAX_SAFE_INTEGER : d; }
     return car[key] ?? "";
   }
   const tableCars = useMemo(() => [...shownCars].sort((a, b) => {
@@ -130,7 +139,7 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
         || a.year - b.year;
       return direction * hierarchy;
     }
-    const numericKeys: TableSortKey[] = ["year", "engineCapacity", "mileage", "advance", "monthly", "price"];
+    const numericKeys: TableSortKey[] = ["year", "engineCapacity", "mileage", "advance", "monthly", "price", "newest"];
     const aValue = sortValue(a, tableSortKey);
     const bValue = sortValue(b, tableSortKey);
     const comparison = numericKeys.includes(tableSortKey)
@@ -138,6 +147,21 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
       : String(aValue).localeCompare(String(bValue), "he", { numeric: true });
     return direction * comparison;
   }), [shownCars, tableSortKey, tableSortDirection]);
+  /* תיבת המיון שמעל הרשימה משפיעה גם על הטבלה. עד עכשיו
+     הטבלה מיינה תמיד לפי היצרן, ובחירה בתיבה לא עשתה בה כלום.
+     לחיצה על כותרת עמודה עדיין גוברת. */
+  useEffect(() => {
+    const map: Record<string, [TableSortKey, "asc" | "desc"]> = {
+      "price-asc": ["price", "asc"],
+      "price-desc": ["price", "desc"],
+      "monthly-asc": ["monthly", "asc"],
+      "newest": ["newest", "asc"],
+      "alphabetical": ["make", "asc"],
+    };
+    const next = map[sortBy];
+    if (next) { setTableSortKey(next[0]); setTableSortDirection(next[1]); }
+  }, [sortBy]);
+
   /* לחיצה על כל מקום בשורה פותחת וסוגרת את כרטיס הרכב, בדיוק
      כמו הפלוס שליד המספר. קודם היא הובילה לעמוד הרכב, והגולש
      היה מאבד את מקומו ברשימה. */
@@ -238,12 +262,12 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
         </div>
       </div></section>
 
-      <section id="inventory" className="inventory section"><div className="shell"><h1 className="inventoryTitle">כל סוגי הרכבים במקום אחד!</h1><div className="viewToggle" role="group" aria-label="בחירת תצוגת רכבים"><button type="button" className={tableView ? "active" : ""} aria-pressed={tableView} onClick={() => setTableView(true)}><TableIcon size={15} /> תצוגת טבלה</button><button type="button" className={!tableView ? "active" : ""} aria-pressed={!tableView} onClick={() => setTableView(false)}><GridIcon size={15} /> תצוגת גלריה</button></div><div className="inventoryControls"><div className="categoryTabs">{categoryOptions.map((item) => <button key={item.value} className={category === item.value ? "active" : ""} onClick={() => setCategory(item.value)}>{item.label}</button>)}</div><label className="inventorySortBlock"><span>מיון</span><select className="inventorySort" aria-label="מיון רכבים" value={sortBy} onChange={(e) => setSortBy(e.target.value)}><option value="price-asc">מחיר — מהזול ליקר</option><option value="price-desc">מחיר — מהיקר לזול</option><option value="monthly-asc">החזר חודשי — מהזול ליקר</option><option value="alphabetical">לפי שם א׳–ב׳</option></select></label></div>
+      <section id="inventory" className="inventory section"><div className="shell"><h1 className="inventoryTitle">כל סוגי הרכבים במקום אחד!</h1><div className="viewToggle" role="group" aria-label="בחירת תצוגת רכבים"><button type="button" className={tableView ? "active" : ""} aria-pressed={tableView} onClick={() => setTableView(true)}><TableIcon size={15} /> תצוגת טבלה</button><button type="button" className={!tableView ? "active" : ""} aria-pressed={!tableView} onClick={() => setTableView(false)}><GridIcon size={15} /> תצוגת גלריה</button></div><div className="inventoryControls"><div className="categoryTabs">{categoryOptions.map((item) => <button key={item.value} className={category === item.value ? "active" : ""} onClick={() => setCategory(item.value)}>{item.label}</button>)}</div><label className="inventorySortBlock"><span>מיון</span><select className="inventorySort" aria-label="מיון רכבים" value={sortBy} onChange={(e) => setSortBy(e.target.value)}><option value="price-asc">מחיר — מהזול ליקר</option><option value="price-desc">מחיר — מהיקר לזול</option><option value="monthly-asc">החזר חודשי — מהזול ליקר</option><option value="newest">החדשים במלאי</option><option value="alphabetical">לפי שם א׳–ב׳</option></select></label></div>
       <div className={`inventoryReveal${revealAll ? " open" : ""}`}>
       {tableView ? <div className="resultsTableWrap"><table className="resultsTable"><thead><tr><th>#</th><th>{sortableHeader("יצרן", "make")}</th><th>{sortableHeader("דגם", "model")}</th><th>{sortableHeader("תת דגם", "subModel")}</th><th>{sortableHeader("שנת ייצור", "year")}</th><th>{sortableHeader("ק״מ", "mileage")}</th><th>{sortableHeader("נפח מנוע", "engineCapacity")}</th><th>{sortableHeader("סוג מנוע", "engine")}</th><th>{sortableHeader("טכנולוגיית הנעה", "propulsion")}</th><th>{sortableHeader("גג נפתח", "openRoof")}</th><th>{sortableHeader("מחיר מבוקש", "price")}</th><th>{sortableHeader("מקדמה", "advance")}</th><th>{sortableHeader("תשלום חודשי", "monthly")}</th><th>תמונה</th></tr></thead><tbody>{tableCars.map((car, index) => [
         <tr key={`${car.id}-main`} aria-expanded={expandedCarId === car.id} onClick={() => toggleRow(car.id)} tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter") toggleRow(car.id); }}>
           <td><button className="expandRowButton" type="button" aria-expanded={expandedCarId === car.id} onClick={(event) => { event.stopPropagation(); toggleRow(car.id); }}>{index + 1}<span><PlusMinusIcon open={expandedCarId === car.id} /></span></button></td>
-          <td>{car.make}</td><td>{car.baseModel || car.model}</td><td>{car.subModel || "—"}</td><td>{car.year}</td><td>{Number(car.mileage || 0).toLocaleString("he-IL")}</td><td>{car.engineCapacity || "—"}</td><td>{car.engine || "—"}</td><td>{propulsionTechnology(car.engine)}</td><td>{car.openRoof ? "כן" : "לא"}</td><td className="askingPriceCell">{car.price.toLocaleString("he-IL")} ₪</td><td>{car.advance ? `${car.advance.toLocaleString("he-IL")} ₪` : <b className="noAdvance">ללא מקדמה</b>}</td><td>{car.monthly.toLocaleString("he-IL")} ₪</td><td><span className="tableCarImage">{car.image ? <Picture src={car.image} alt={`${car.make} ${car.model}`} sizes="68px" /> : <><Logo /><em>תמונות יעלו בקרוב</em></>}</span></td>
+          <td>{car.make}{isNewInStock(car) && <b className="rowNew">חדש</b>}</td><td>{car.baseModel || car.model}</td><td>{car.subModel || "—"}</td><td>{car.year}</td><td>{Number(car.mileage || 0).toLocaleString("he-IL")}</td><td>{car.engineCapacity || "—"}</td><td>{car.engine || "—"}</td><td>{propulsionTechnology(car.engine)}</td><td>{car.openRoof ? "כן" : "לא"}</td><td className="askingPriceCell">{car.price.toLocaleString("he-IL")} ₪</td><td>{car.advance ? `${car.advance.toLocaleString("he-IL")} ₪` : <b className="noAdvance">ללא מקדמה</b>}</td><td>{car.monthly.toLocaleString("he-IL")} ₪</td><td><span className="tableCarImage">{car.image ? <Picture src={car.image} alt={`${car.make} ${car.model}`} sizes="68px" /> : <><Logo /><em>תמונות יעלו בקרוב</em></>}</span></td>
         </tr>,
         expandedCarId === car.id && <tr className="expandedVehicleRow" key={`${car.id}-details`}><td colSpan={14}><TableCarPanel car={car} /></td></tr>
       ])}</tbody></table></div> : <div className="listGrid">{shownCars.map((car) => <VehicleCard car={car} key={car.id} />)}</div>}
