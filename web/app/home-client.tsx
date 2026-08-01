@@ -9,6 +9,7 @@ import FloatingActions from "./floating-actions";
 import SocialLinks from "./social-links";
 import { Logo, Picture } from "./site-image";
 import SimilarCars, { referencePrice } from "./similar-cars";
+import TableCarPanel from "./table-car-panel";
 import { Honeypot, LeadStatusMessage, useLead } from "./use-lead";
 
 type TradeVehicle = { plate: string; manufacturer: string; model: string; year: string; color: string; ownership: string; modelType: string; firstOnRoad: string; testValidity: string };
@@ -229,7 +230,7 @@ export default function HomeClient({ initialCars }: { initialCars: DisplayCar[] 
           <td><button className="expandRowButton" type="button" aria-expanded={expandedCarId === car.id} onClick={(event) => { event.stopPropagation(); setExpandedCarId(expandedCarId === car.id ? null : car.id); }}>{index + 1}<span>{expandedCarId === car.id ? "−" : "+"}</span></button></td>
           <td>{car.make}</td><td>{car.baseModel || car.model}</td><td>{car.subModel || "—"}</td><td>{car.year}</td><td>{car.engineCapacity || "—"}</td><td>{Number(car.mileage || 0).toLocaleString("he-IL")}</td><td>{car.gear || "—"}</td><td>{car.engine || "—"}</td><td>{car.openRoof ? "כן" : "לא"}</td><td>{car.advance ? `${car.advance.toLocaleString("he-IL")} ₪` : <b className="noAdvance">ללא מקדמה</b>}</td><td>{car.monthly.toLocaleString("he-IL")} ₪</td><td className="askingPriceCell">{car.price.toLocaleString("he-IL")} ₪</td><td><span className="tableCarImage">{car.image ? <Picture src={car.image} alt={`${car.make} ${car.model}`} sizes="68px" /> : <><Logo /><em>תמונות יעלו בקרוב</em></>}</span></td>
         </tr>,
-        expandedCarId === car.id && <tr className="expandedVehicleRow" key={`${car.id}-details`}><td colSpan={14}><div className="expandedVehicleDetails"><span><b>קטגוריה:</b> {car.categories?.join(", ") || car.category}</span><span><b>צבע:</b> {car.color || "—"}</span><span><b>מרכב:</b> {car.body || "—"}</span><span><b>מספר דלתות:</b> {car.doors || "—"}</span><span><b>מספר מושבים:</b> {car.seats || "—"}</span><span><b>כוח סוס:</b> {car.horsePower || "—"}</span><span><b>תוקף טסט:</b> {car.test || "—"}</span><span><b>טכנולוגיית הנעה:</b> {car.drivetrain || "—"}</span><span className="expandedExtras"><b>תוספות:</b> {car.extras || "לא צוינו תוספות"}</span><a href={`/car/${car.id}`}>לכרטיס הרכב המלא</a></div></td></tr>
+        expandedCarId === car.id && <tr className="expandedVehicleRow" key={`${car.id}-details`}><td colSpan={14}><TableCarPanel car={car} /></td></tr>
       ])}</tbody></table></div> : <div className="listGrid">{shownCars.map((car) => <VehicleCard car={car} key={car.id} />)}</div>}
       </div>
       {!revealAll && shownCars.length > 0 && (
