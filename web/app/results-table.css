@@ -146,9 +146,12 @@
 }
 
 /* ——— התצלומים ——— */
+/* התצלום ממלא את גובה השורה, כדי שהכפתור שמתחתיו יתחיל בדיוק
+   באותו קו שבו מתחילה רצועת הפנייה שלצידו. */
+.panelMedia { display: flex; flex-direction: column; }
 .panelSlides {
   position: relative;
-  aspect-ratio: 4 / 3;
+  flex: 1; min-height: 240px;
   border-radius: 10px;
   overflow: hidden;
   background: var(--panel);
@@ -234,9 +237,21 @@
 .panelContact .modernLeadForm .success,
 .panelContact .modernLeadForm > p { grid-column: 1 / -1; margin: 0; font-size: 15px; }
 
+/* ——— שורת הסיום: הכפתור לתמונות ורצועת הפנייה ———
+   שני מלבנים זה לצד זה: הכפתור ברוחב עמודת התצלומים והרצועה
+   ממלאת את השאר. שניהם מתחילים ונגמרים באותו קו. */
+.panelBottom {
+  grid-column: 1 / -1;
+  display: grid; grid-template-columns: 320px minmax(0, 1fr);
+  gap: 26px; align-items: stretch;
+}
+.panelBottom .panelContact { grid-column: auto; align-self: stretch; }
+
 /* ——— הכפתור לעמוד התמונות ——— */
+/* align-content ולא place-items: הכיתוב נשאר ברוחב מלא ומתמרכז
+   לגובה. עם place-items הוא היה מתכווץ ונשבר לשלוש שורות. */
 .panelAllMedia {
-  display: block; margin-top: 10px; padding: 12px;
+  display: grid; align-content: center; padding: 12px;
   border: 1px solid var(--black); border-radius: 9px;
   background: var(--black); color: #fff;
   font-size: 14.5px; font-weight: 700; text-align: center;
@@ -245,6 +260,9 @@
 
 @media (max-width: 1100px) {
   .carPanel { grid-template-columns: 240px minmax(0, 1fr); }
+  /* כאן הרצועה מתפרשת לכמה שורות; הכפתור נשאר בגובהו הטבעי
+     ולא נמתח יחד איתה. */
+  .panelBottom { grid-template-columns: 240px minmax(0, 1fr); align-items: start; }
   .panelContact { grid-template-columns: 1fr; }
   .panelContact .modernLeadForm { grid-template-columns: 1fr 1fr; }
   .panelContact .modernLeadForm button { grid-column: 1 / -1; }

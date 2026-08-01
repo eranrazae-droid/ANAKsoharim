@@ -34,16 +34,22 @@ export default function TableCarPanel({ car }: { car: DisplayCar }) {
           <CardGallery images={slides} alt={`${carName(car)} שנת ${car.year}`} />
           {!real.length && <span className="panelDemoTag">להמחשה</span>}
         </div>
-        <a className="panelAllMedia" href={`/car/${car.id}`}>
-          לצפייה בתמונות <bdi>360°</bdi> ובסרטון
-        </a>
       </div>
 
       <div className="panelBody">
         <CarFacts car={car} inTable />
       </div>
 
-      <CarContactStrip car={car} />
+      {/* שורת הסיום: הכפתור לעמוד התמונות ורצועת הפנייה זה לצד
+          זה, מתחילים ונגמרים באותו קו. */}
+      <div className="panelBottom">
+        {/* הכיתוב עטוף ב-span אחד: בלעדיו כל קטע טקסט היה הופך
+            לשורה נפרדת בתוך הכפתור. */}
+        <a className="panelAllMedia" href={`/car/${car.id}`}>
+          <span>לצפייה בתמונות <bdi>360°</bdi> ובסרטון</span>
+        </a>
+        <CarContactStrip car={car} />
+      </div>
     </div>
   );
 }
