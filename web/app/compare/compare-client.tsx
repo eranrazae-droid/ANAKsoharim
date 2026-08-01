@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { propulsionTechnology, type DisplayCar } from "../vehicle-types";
-import { DEMO_IMAGE } from "../site-config";
+import { BUSINESS, DEMO_IMAGE } from "../site-config";
 import { Picture } from "../site-image";
+import { CloseIcon, NextIcon, PencilIcon, PhoneIcon } from "../icons";
 
 /**
  * השוואת רכבים.
@@ -52,6 +53,8 @@ const ROWS: Row[] = [
   { label: "תוקף טסט", value: (car) => car.test || "—" },
 ];
 
+const WHATSAPP = `https://wa.me/${BUSINESS.whatsapp}?text=${encodeURIComponent("שלום, השוויתי בין שני רכבים באתר ואשמח לפרטים")}`;
+
 export default function CompareClient({ cars }: { cars: DisplayCar[] }) {
   const [picked, setPicked] = useState<string[]>(["", "", ""]);
 
@@ -89,7 +92,7 @@ export default function CompareClient({ cars }: { cars: DisplayCar[] }) {
     <div className="compare">
       <div className="compareSlots">
         {Array.from({ length: SLOTS }, (_, slot) => (
-          <label className="compareSlot" key={slot}>
+          <label className={`compareSlot ${picked[slot] ? "on" : ""}`} key={slot}>
             <span>רכב {slot + 1}</span>
             <select value={picked[slot]} onChange={(event) => pick(slot, event.target.value)}>
               <option value="">בחרו רכב</option>
@@ -98,7 +101,6 @@ export default function CompareClient({ cars }: { cars: DisplayCar[] }) {
                   {list.map((car) => (
                     <option value={car.id} key={car.id}>
                       {car.baseModel || car.model} {car.subModel} {car.year}
-                      {car.price ? ` · ${car.price.toLocaleString("he-IL")} ש״ח` : ""}
                     </option>
                   ))}
                 </optgroup>
@@ -109,18 +111,32 @@ export default function CompareClient({ cars }: { cars: DisplayCar[] }) {
       </div>
 
       {active.length < 2 ? (
-        <p className="compareEmpty">בחרו לפחות שני רכבים כדי לראות אותם זה מול זה.</p>
+        /* עד שנבחרים שני רכבים אין מה להשוות. במקום שורת טקסט
+           בודדת מוסבר כאן מה עומד לקרות, ומי שעוד לא יודע מה
+           הוא מחפש מקבל קישור למלאי. */
+        <div className="compareEmpty">
+          <h2>איך זה עובד</h2>
+          <ol>
+            <li><b>1</b> בוחרים רכב בתיבה הראשונה</li>
+            <li><b>2</b> בוחרים רכב שני להשוואה</li>
+            <li><b>3</b> רואים את כל המפרט זה מול זה, והמשתלם יותר מסומן בזהב</li>
+          </ol>
+          <a href="/cars">לעיון בכל המלאי <NextIcon size={15} /></a>
+        </div>
       ) : (
-        <div className="compareTableWrap">
-          <table className="compareTable" style={{ ["--cols" as string]: active.length }}>
+        <div className="compareTableWrap" style={{ ["--cols" as string]: active.length }}>
+          <table className="compareTable">
             <thead>
               <tr>
                 <th />
                 {active.map((car) => (
                   <th key={car.id}>
-                    <Picture src={car.image || DEMO_IMAGE} alt="" sizes="120px" />
+                    {/* כותרת העמודה מקשרת לעמוד הרכב עצמו */}
+                    <a href={`/car/${car.id}`}>
+                      <Picture src={car.image || DEMO_IMAGE} alt="" sizes="120px" />
                     <b>{car.make} {car.baseModel || car.model}</b>
                     <small>{car.subModel || " "}</small>
+                    </a>
                   </th>
                 ))}
               </tr>
@@ -145,10 +161,29 @@ export default function CompareClient({ cars }: { cars: DisplayCar[] }) {
       )}
 
       {active.length >= 2 && (
-        <p className="compareNote">
-          הערך המסומן בזהב הוא המשתלם יותר באותה שורה. השוואה אינה תחליף
-          לבדיקת הרכב — נשמח להראות לכם את שניהם במגרש.
-        </p>
+        <>
+          <p className="compareNote">
+            הערך המסומן בזהב הוא המשתלם יותר באותה שורה. השוואה אינה תחליף
+            לבדיקת הרכב — נשמח להראות לכם את שניהם במגרש.
+          </p>
+
+          {/* מה עושים אחרי שראו את ההשוואה */}
+          <aside className="compareNext">
+            <h2>עדיין מתלבטים?</h2>
+            <p>נציג יעבור איתכם על ההבדלים ויגיד לכם מה מתאים יותר למה שאתם מחפשים.</p>
+            <div className="compareNextLinks">
+              <a className="compareCall" href={`tel:${BUSINESS.dial}`}>
+                <PhoneIcon size={16} /> <bdi dir="ltr">{BUSINESS.phone}</bdi>
+              </a>
+              <a className="compareWhats" href={WHATSAPP} target="_blank" rel="noreferrer">ווטסאפ</a>
+              <a className="compareLead" href="/lead"><PencilIcon size={16} /> השארת פרטים</a>
+            </div>
+          </aside>
+
+          <button type="button" className="compareClear" onClick={() => setPicked(["", "", ""])}>
+            <CloseIcon size={14} /> ניקוי הבחירה
+          </button>
+        </>
       )}
     </div>
   );

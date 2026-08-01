@@ -1,14 +1,34 @@
-/* ═══ השוואת רכבים ═══ */
+/* ═══ השוואת רכבים ═══
+   העמוד מרוכז לרוחב נוח לקריאה. הטבלה לא נמתחת על כל המסך —
+   רוחבה נגזר ממספר הרכבים שנבחרו, כך שהעמודות לא יוצאות רחבות
+   וריקות כשמשווים שניים בלבד. */
 .comparePage { background: var(--panel); }
+.comparePage > .shell { max-width: 980px !important; }
 
-.compareSlots { display: grid; gap: 10px; grid-template-columns: repeat(3, 1fr); }
+/* ——— בחירת הרכבים ——— */
+.compareSlots {
+  display: grid; gap: 10px; grid-template-columns: repeat(3, minmax(0, 1fr));
+}
 .compareSlot {
+  position: relative;
   display: flex; align-items: center; gap: 8px;
   border: 1px solid var(--line2); border-radius: 10px;
-  padding: 0 12px; background: #fff;
+  /* ריווח: 12 בצד הפתיחה, 34 בצד השני כדי לפנות מקום לחץ */
+  padding-inline: 12px 34px; background: #fff;
+}
+/* חץ פתיחה — בלעדיו התיבה נראית כמו שדה טקסט ולא כמו בחירה.
+   inset-inline-end ולא start: בעברית הצד הזה הוא השמאלי. */
+.compareSlot::after {
+  content: ""; position: absolute; inset-inline-end: 13px; top: 50%;
+  width: 9px; height: 9px; margin-top: -6px;
+  border-left: 2px solid var(--muted); border-bottom: 2px solid var(--muted);
+  transform: rotate(-45deg); pointer-events: none;
 }
 .compareSlot:focus-within { border-color: var(--gold); }
-.compareSlot > span { flex: none; font-size: 13px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.compareSlot.on { border-color: var(--black); background: #fff; }
+.compareSlot > span {
+  flex: none; font-size: 13px; font-weight: 600; color: var(--muted); white-space: nowrap;
+}
 .compareSlot select {
   flex: 1; min-width: 0; width: 100%; min-height: 48px;
   border: 0; background: transparent; padding: 0;
@@ -17,15 +37,51 @@
 }
 .compareSlot select:focus { outline: none; }
 
-.compareEmpty { margin: 20px 0 0; text-align: center; font-size: 15px; color: var(--ink2); }
+/* ——— לפני שנבחרו שני רכבים ——— */
+.compareEmpty {
+  max-width: 620px; margin: 22px auto 0;
+  padding: 24px; text-align: center;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--paper);
+}
+.compareEmpty h2 { margin: 0 0 16px; font-size: 20px; color: var(--ink); }
+.compareEmpty ol {
+  list-style: none; margin: 0 0 18px; padding: 0;
+  display: grid; gap: 10px; text-align: start;
+}
+.compareEmpty li {
+  display: flex; align-items: center; gap: 11px;
+  font-size: 15px; color: var(--ink2); line-height: 1.5;
+}
+.compareEmpty li b {
+  flex: none; width: 26px; height: 26px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--black); color: var(--gold); font-size: 13px; font-weight: 800;
+}
+.compareEmpty > a {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 15px; font-weight: 800; color: var(--gold);
+}
+.compareEmpty > a:hover { text-decoration: underline; }
 
-.compareTableWrap { margin-top: 18px; overflow-x: auto; background: var(--paper); border: 1px solid var(--line); border-radius: 12px; }
-.compareTable { width: 100%; border-collapse: collapse; }
+/* ——— הטבלה ——— */
+/* המסגרת מתכווצת לרוחב הטבלה שבתוכה ומתמרכזת, כדי שלא יישאר
+   שטח לבן ריק לצד עמודות שתי מכוניות בלבד. */
+/* רוחב המסגרת נגזר ממספר הרכבים שנבחרו — עמודת התוויות בתוספת
+   רוחב קבוע לכל רכב. כך אין שטח לבן ריק כשמשווים שניים בלבד. */
+.compareTableWrap {
+  margin: 18px auto 0;
+  width: min(100%, calc(140px + var(--cols) * 210px));
+  overflow-x: auto;
+  background: var(--paper); border: 1px solid var(--line); border-radius: 12px;
+}
+.compareTable { width: 100%; table-layout: fixed; border-collapse: collapse; }
 
 .compareTable thead th { padding: 14px 10px; vertical-align: top; text-align: center; }
-.compareTable thead th:first-child { width: 104px; }
+.compareTable thead th:first-child { width: 140px; }
+.compareTable thead a { display: block; color: inherit; }
+.compareTable thead a:hover b { color: var(--gold-ink); }
 .compareTable thead img {
-  width: 100%; max-width: 140px; aspect-ratio: 16 / 10;
+  width: 100%; max-width: 150px; aspect-ratio: 16 / 10;
   object-fit: cover; border-radius: 8px; display: block; margin: 0 auto 7px;
   background: var(--panel);
 }
@@ -47,13 +103,50 @@
   margin-inline-start: 5px; vertical-align: middle; background: var(--gold);
 }
 
-.compareNote { margin: 12px 0 0; font-size: 13px; color: var(--muted); line-height: 1.6; }
+.compareNote { margin: 12px 0 0; font-size: 13px; color: var(--muted); line-height: 1.6; text-align: center; }
+
+/* ——— מה עושים אחרי ——— */
+.compareNext {
+  margin: 22px auto 0; max-width: 620px;
+  padding: 22px; text-align: center;
+  border-radius: 12px; background: var(--black);
+}
+.compareNext h2 { margin: 0 0 8px; font-size: 20px; color: #fff; }
+.compareNext p { margin: 0 0 16px; font-size: 15px; line-height: 1.7; color: #b4b4be; }
+.compareNextLinks {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 10px;
+}
+.compareNextLinks a {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  min-height: 46px; padding: 0 20px; border-radius: 9px;
+  font-size: 15px; font-weight: 800;
+}
+.compareCall { background: var(--gold); color: #101014; }
+.compareCall:hover { background: var(--gold-lite); }
+.compareWhats { background: #25d366; color: #06331a; }
+.compareLead { border: 1px solid #3a3a45; color: #fff; }
+.compareLead:hover { border-color: var(--gold); color: var(--gold); }
+
+.compareClear {
+  display: inline-flex; align-items: center; gap: 7px;
+  margin: 16px auto 0; padding: 9px 16px;
+  border: 1px solid var(--line2); border-radius: 9px; background: #fff;
+  font-family: inherit; font-size: 14px; font-weight: 700; color: var(--ink2);
+  cursor: pointer;
+}
+.compareClear:hover { border-color: var(--black); color: var(--ink); }
+/* כפתור הניקוי ממורכז מתחת לכל השאר */
+.compare { display: flex; flex-direction: column; align-items: stretch; }
+.compare > .compareClear { align-self: center; }
 
 @media (max-width: 700px) {
   .compareSlots { grid-template-columns: 1fr; gap: 8px; }
-  .compareTable thead th:first-child { width: 86px; }
+  .compareEmpty { padding: 20px 16px; }
+  .compareTable thead th:first-child { width: 92px; }
   .compareTable tbody th { padding: 10px; font-size: 12.5px; }
   .compareTable tbody td { padding: 10px 6px; font-size: 13px; }
   .compareTable thead th { padding: 12px 6px; }
   .compareTable thead b { font-size: 13.5px; }
+  .compareNext { padding: 18px 16px; }
+  .compareNextLinks a { flex: 1 1 100%; }
 }
