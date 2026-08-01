@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { SiteFooter, SiteHeader } from "../site-chrome";
 import { Honeypot, LeadStatusMessage, useLead } from "../use-lead";
 
@@ -24,30 +24,34 @@ type Vehicle = {
 export default function TradePage() {
   const [plate, setPlate] = useState("");
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const lead = useLead("trade");
 
-  async function lookup() {
+  // ברגע שמספר הרישוי מלא, פרטי הרכב נמשכים לבד ממאגר משרד התחבורה.
+  // הלקוח לא צריך ללחוץ על דבר, והפנייה שמגיעה למשרד כוללת את הרכב.
+  useEffect(() => {
     const digits = plate.replace(/\D/g, "");
-    if (digits.length < 7) {
-      setError("יש להזין מספר רישוי תקין");
-      return;
-    }
-    setLoading(true);
-    setError("");
     setVehicle(null);
-    try {
-      const response = await fetch(`/api/vehicle-lookup?plate=${digits}`);
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "הרכב לא נמצא");
-      setVehicle(data);
-    } catch (problem) {
-      setError(problem instanceof Error ? problem.message : "הרכב לא נמצא");
-    } finally {
-      setLoading(false);
-    }
-  }
+    setError("");
+    if (digits.length < 7) return;
+
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/vehicle-lookup?plate=${digits}`);
+        const data = await response.json();
+        if (cancelled) return;
+        if (response.ok) { setVehicle(data); return; }
+        // רק "לא נמצא" מעניין את הלקוח — סימן שהמספר שגוי.
+        // תקלת תקשורת מול המאגר היא עניין שלנו, והטופס ממשיך לעבוד בלעדיה.
+        if (response.status === 404) setError("לא מצאנו רכב עם המספר הזה");
+      } catch {
+        /* המאגר לא זמין — ממשיכים בלי פרטי הרכב */
+      }
+    }, 500);
+
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [plate]);
 
   return (
     <main dir="rtl">
@@ -82,30 +86,17 @@ export default function TradePage() {
                   inputMode="numeric"
                   placeholder="12345678"
                   value={plate}
-                  onChange={(event) => {
-                    setPlate(event.target.value.replace(/\D/g, "").slice(0, 8));
-                    setVehicle(null);
-                    setError("");
-                  }}
+                  onChange={(event) => setPlate(event.target.value.replace(/\D/g, "").slice(0, 8))}
                 />
-                <button type="button" onClick={lookup} disabled={loading}>
-                  {loading ? "בודק..." : "בדיקה"}
-                </button>
               </label>
 
-              {error && <p className="tradeError">{error}</p>}
-
               {vehicle && (
-                <div className="tradeVehicleDetails">
-                  <strong>{vehicle.manufacturer} {vehicle.model}</strong>
-                  <div>
-                    <span>שנה: {vehicle.year || "לא צוין"}</span>
-                    <span>צבע: {vehicle.color || "לא צוין"}</span>
-                    <span>בעלות: {vehicle.ownership || "לא צוין"}</span>
-                    <span>עלייה לכביש: {vehicle.firstOnRoad || "לא צוין"}</span>
-                  </div>
-                </div>
+                <p className="tradeFound">
+                  זיהינו: {vehicle.manufacturer} {vehicle.model}
+                  {vehicle.year ? `, ${vehicle.year}` : ""}
+                </p>
               )}
+              {error && <p className="tradeError">{error}</p>}
 
               <label className="tradeField">
                 <span>שם מלא</span>
