@@ -1,5 +1,6 @@
 import { propulsionTechnology, type DisplayCar } from "./vehicle-api";
 import { BUSINESS, DEMO_IMAGE } from "./site-config";
+import CardGallery from "./card-gallery";
 
 /**
  * כרטיס רכב ברשימה.
@@ -16,6 +17,15 @@ const MAX_CHIPS = 6;
 
 /** מעל אורך זה שם הרכב לא נכנס לשורה אחת בטלפון, ומוקטן מעט */
 const TITLE_CHARS = 26;
+
+/** כמה תמונות מוצגות בגלריית הכרטיס */
+const MAX_SLIDES = 5;
+
+/** תמונות המחשה זמניות, עד שתמונות הרכבים יגיעו מהמערכת */
+const DEMO_SLIDES = [
+  DEMO_IMAGE,
+  ...Array.from({ length: MAX_SLIDES - 1 }, (_, i) => `/placeholders/car-${i + 2}.svg`),
+];
 
 /** מפרק את שדה התוספות לתגיות קצרות וקריאות. */
 export function extraChips(extras?: string, limit = MAX_CHIPS) {
@@ -101,14 +111,15 @@ export default function VehicleCard({ car }: { car: DisplayCar }) {
   const specs = specPills(car);
   const chips = extraChips(car.extras).filter((chip) => !specs.includes(chip));
   const basics = [String(car.year), `${mileage(car)} ק״מ`, car.gear].filter(Boolean) as string[];
+  const real = car.images?.length ? car.images.slice(0, MAX_SLIDES) : car.image ? [car.image] : [];
+  const slides = real.length ? real : DEMO_SLIDES;
 
   return (
     <article className="listCard">
       <a className="listCardMain" href={href}>
-        <div className={`listMedia ${car.image ? "" : "listMediaDemo"}`}>
-          {car.image
-            ? <img src={car.image} alt={`${name} שנת ${car.year}`} loading="lazy" decoding="async" />
-            : <><img src={DEMO_IMAGE} alt="" loading="lazy" decoding="async" /><span>להמחשה</span></>}
+        <div className={`listMedia ${real.length ? "" : "listMediaDemo"}`}>
+          <CardGallery images={slides} alt={`${name} שנת ${car.year}`} />
+          {!real.length && <span>להמחשה</span>}
           {car.monthly > 0 && !car.advance && <b className="noAdvance">ללא מקדמה</b>}
         </div>
 
