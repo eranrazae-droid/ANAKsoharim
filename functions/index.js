@@ -36,9 +36,8 @@ exports.checkReminders = onSchedule(
 
     const contactsSnap = await db.collection("config").doc("driver_contacts").get();
     const contacts = contactsSnap.exists ? contactsSnap.data() : {};
-    const accountSid = contacts["_twilioSid"]?.value || "";
-    const authToken = contacts["_twilioToken"]?.value || "";
-    const from = contacts["_twilioFrom"]?.value || "";
+    // reminders go out over Telegram, like every other notification in the system
+    const tgToken = contacts["_telegramToken"]?.value || "";
 
     for (const docSnap of snap.docs) {
       const e = docSnap.data();
@@ -48,36 +47,67 @@ exports.checkReminders = onSchedule(
 
       const [y, m, d] = e.date.split("-").map(Number);
       const [hh, mm] = (e.startTime || "00:00").split(":").map(Number);
-      const eventTime = new Date(Date.UTC(y, m - 1, d, hh || 0, mm || 0));
-      const reminderTime = new Date(eventTime.getTime() - e.reminderMinutes * 60000);
+      const repeat = e.repeat || "none";
 
-      // event already fully passed (function was down / missed the window) — skip silently
-      if (eventTime < dayAgo) { await docSnap.ref.update({ reminderSent: true }); continue; }
-      if (now < reminderTime) continue; // not due yet
+      // A repeating task occurs on many dates, so the reminder must be anchored
+      // to a specific occurrence — not to the document. Scan the nearby days for
+      // an occurrence whose reminder window is open now.
+      let dueDateStr = null; // YYYY-MM-DD of the occurrence to remind about
+      let dueEventTime = null;
+      for (let off = -1; off <= 2 && !dueDateStr; off++) {
+        const day = new Date(now.getTime() + off * 24 * 60 * 60 * 1000);
+        const ds = `${day.getUTCFullYear()}-${String(day.getUTCMonth() + 1).padStart(2, "0")}-${String(day.getUTCDate()).padStart(2, "0")}`;
+        if (ds < e.date) continue; // occurrence can't precede the task's start date
+        let occurs = false;
+        if (repeat === "none") occurs = ds === e.date;
+        else if (repeat === "daily") occurs = true;
+        else if (repeat === "weekly") occurs = day.getUTCDay() === new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+        else if (repeat === "monthly") occurs = day.getUTCDate() === d;
+        if (!occurs) continue;
 
-      if (accountSid && authToken && from) {
+        const eventTime = new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), hh || 0, mm || 0));
+        const reminderTime = new Date(eventTime.getTime() - e.reminderMinutes * 60000);
+        // Grace for a missed window: a one-off is worth sending late (up to a day),
+        // but a repeating task recurs anyway — a stale occurrence shouldn't fire
+        // hours after the fact, so its grace is short.
+        const floor = repeat === "none" ? dayAgo : new Date(now.getTime() - 2 * 60 * 60 * 1000);
+        if (now >= reminderTime && eventTime >= floor) { dueDateStr = ds; dueEventTime = eventTime; }
+      }
+
+      if (!dueDateStr) {
+        // one-off event whose date is long past — close it so we stop scanning it
+        if (repeat === "none") {
+          const eventTime = new Date(Date.UTC(y, m - 1, d, hh || 0, mm || 0));
+          if (eventTime < dayAgo) await docSnap.ref.update({ reminderSent: true });
+        }
+        continue;
+      }
+      // this occurrence was already reminded about — wait for the next one
+      if (e.lastRemindedOccurrence === dueDateStr) continue;
+
+      if (tgToken) {
+        const text =
+          `🔔 תזכורת: ${e.title || ""}` +
+          (e.startTime ? ` — ${e.startTime}` : "") +
+          (e.notes ? `\n${e.notes}` : "");
         for (const name of e.reminderTo) {
-          let phone = contacts[name]?.phone;
-          if (!phone && name === "ליאל") phone = contacts["_managerPhone"]?.value;
-          if (!phone) continue;
-          const toNum = "+" + String(phone).replace(/\D/g, "");
-          const fromNum = from.startsWith("+") ? from : "+" + from.replace(/\D/g, "");
-          const params = new URLSearchParams({
-            From: fromNum,
-            To: toNum,
-            Body: `🔔 תזכורת: ${e.title || ""}${e.startTime ? " — " + e.startTime : ""}`,
-          });
-          const auth = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
+          const chatId = contacts[name]?.telegramId;
+          if (!chatId) { console.warn("reminder: no telegramId for", name); continue; }
           try {
-            await fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`, {
+            await fetch(`https://api.telegram.org/bot${tgToken}/sendMessage`, {
               method: "POST",
-              headers: { Authorization: `Basic ${auth}`, "Content-Type": "application/x-www-form-urlencoded" },
-              body: params.toString(),
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ chat_id: chatId, text }),
             });
           } catch (err) { console.error("reminder send failed for", name, err); }
         }
       }
-      await docSnap.ref.update({ reminderSent: true });
+      // repeating tasks stay open (reminderSent=false) so future occurrences fire too
+      await docSnap.ref.update(
+        repeat === "none"
+          ? { reminderSent: true, lastRemindedOccurrence: dueDateStr }
+          : { lastRemindedOccurrence: dueDateStr },
+      );
     }
   }
 );
