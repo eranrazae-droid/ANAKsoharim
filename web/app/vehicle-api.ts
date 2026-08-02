@@ -1,5 +1,6 @@
 import inventorySnapshot from "./inventory-snapshot.json";
 import type { DisplayCar } from "./vehicle-types";
+import { parseVehiclesXml } from "./vehicle-xml";
 
 export type { DisplayCar } from "./vehicle-types";
 export { propulsionTechnology } from "./vehicle-types";
@@ -22,6 +23,40 @@ export const VEHICLES_API =
 
 export const VEHICLE_IMAGES_XML =
   process.env.VEHICLE_IMAGES_XML_URL || "https://03-5189189.netstyle.co.il/xml/yad2/";
+
+/**
+ * פיד ה-XML של האתר הקיים — רכבים ותמונות באותו קובץ.
+ * זהו כרגע מקור המלאי לבדיקות, עד שהמערכת החדשה תחובר.
+ * לחזרה למקור ה-JSON מגדירים ב-Vercel VEHICLES_SOURCE=api.
+ */
+export const VEHICLES_XML = process.env.VEHICLES_XML_URL || "https://www.03-5189189.co.il/xml/";
+export const VEHICLES_SOURCE = process.env.VEHICLES_SOURCE || "xml";
+
+async function readXml(url: string) {
+  const response = await fetch(url, { next: { revalidate: 600 } });
+  return response.ok ? await response.text() : "";
+}
+
+export async function getVehiclesFromXml(): Promise<DisplayCar[]> {
+  try {
+    const body = await readXml(VEHICLES_XML);
+    if (!body) return [];
+    const cars = parseVehiclesXml(body, VEHICLES_XML);
+    if (cars.length) return cars;
+
+    // הכתובת עשויה להיות תיקייה שמציגה את הקבצים שבה ולא הפיד עצמו.
+    // במקרה כזה קוראים את קובצי ה-XML שברשימה.
+    const links = Array.from(body.matchAll(/href="([^"]+\.xml)"/gi), (match) => match[1]).slice(0, 5);
+    const found: DisplayCar[] = [];
+    for (const link of links) {
+      const url = new URL(link, VEHICLES_XML).href;
+      found.push(...parseVehiclesXml(await readXml(url), url));
+    }
+    return found.filter((car, index) => found.findIndex((other) => other.id === car.id) === index);
+  } catch {
+    return [];
+  }
+}
 
 
 function cleanCategories(value: unknown) {
@@ -101,6 +136,13 @@ export function normalizeVehicle(raw: Record<string, unknown>): DisplayCar {
 }
 
 export async function getActiveVehicles(): Promise<DisplayCar[]> {
+  // הפיד של האתר הקיים ראשון. אם הוא לא זמין או חזר ריק, ממשיכים
+  // לשרשרת הרגילה — כך שינוי המקור לא יכול להשאיר את האתר בלי מלאי.
+  if (VEHICLES_SOURCE === "xml") {
+    const fromXml = await getVehiclesFromXml();
+    if (fromXml.length) return await withImages(fromXml);
+  }
+
   let cars: DisplayCar[];
   try {
     // רענון כל 10 דקות במקום בכל טעינת עמוד — מוריד עומס מה-API ומאיץ את האתר.
@@ -113,9 +155,18 @@ export async function getActiveVehicles(): Promise<DisplayCar[]> {
   } catch {
     cars = (inventorySnapshot as Record<string, unknown>[]).map(normalizeVehicle).filter((car) => car.id && car.make && car.model);
   }
+  return await withImages(cars);
+}
+
+/**
+ * משלים תמונות מקובץ ה-XML של התמונות.
+ * רכב שכבר הגיע עם תמונות — למשל מפיד ה-XML — שומר עליהן.
+ */
+async function withImages(cars: DisplayCar[]) {
+  if (cars.every((car) => car.images?.length)) return sortVehicles(cars);
   const imageMap = await getVehicleImageMap();
   return sortVehicles(cars.map((car) => {
-    const images = imageMap.get(car.id) ?? [];
+    const images = car.images?.length ? car.images : imageMap.get(car.id) ?? [];
     return { ...car, image: images[0] ?? car.image, images };
   }));
 }
