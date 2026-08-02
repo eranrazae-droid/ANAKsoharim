@@ -1,8 +1,12 @@
 rules_version = '2';
+
+// Storage is not used by the app — photos are stored as base64 inside Firestore
+// documents. Nothing reads or writes here, so it is closed completely.
+// If uploads are ever added, loosen this to `request.auth != null`.
 service firebase.storage {
   match /b/{bucket}/o {
     match /{allPaths=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }

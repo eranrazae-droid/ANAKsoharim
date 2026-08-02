@@ -1844,6 +1844,8 @@ import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, setDoc, g
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
+import { getAuth, signInAnonymously, onAuthStateChanged }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 // ┌─────────────────────────────────────────────────────────────────┐
 // │  הכנס כאן את פרטי ה-Firebase שלך (ראה הוראות בתחתית הדף)      │
@@ -1861,12 +1863,35 @@ const firebaseConfig = {
 // Anthropic API key stored in localStorage under 'anak_anthropic_key'
 const CONFIG_DONE = !firebaseConfig.apiKey.includes("PASTE");
 
-let db, app, storage;
+let db, app, storage, auth;
 if (CONFIG_DONE) {
   app     = initializeApp(firebaseConfig);
   db      = getFirestore(app, 'default');
   storage = getStorage(app);
+  auth    = getAuth(app);
 }
+
+/* Anonymous sign-in.
+   The database was reachable from any browser without credentials. Signing in
+   anonymously lets the security rules demand `request.auth != null`, which
+   blocks that direct access. It is a lock on the front door, not real identity
+   — anyone reading this page's source can still obtain a token — so the long
+   term answer is a real account per employee. Nothing here changes who sees
+   what inside the app; the role still comes from the login screen. */
+window._authReady = CONFIG_DONE
+  ? new Promise(resolve => {
+      let settled = false;
+      const done = ok => { if (!settled) { settled = true; window._authOk = ok; resolve(ok); } };
+      onAuthStateChanged(auth, user => { if (user) done(true); });
+      signInAnonymously(auth).catch(err => {
+        // Most likely cause: Anonymous sign-in is not enabled for the project.
+        console.error('anonymous sign-in failed', err);
+        done(false);
+      });
+      // never hang the app on a slow or blocked auth call
+      setTimeout(() => done(!!auth?.currentUser), 8000);
+    })
+  : Promise.resolve(false);
 
 // ── expose to global scope ──
 window._db = db;
@@ -1926,9 +1951,14 @@ var RIGHT_ROWS = [
 /* ═══════════════════════════════════════════════════════
    INIT
 ═══════════════════════════════════════════════════════ */
-window.addEventListener('firebase-ready', () => {
+window.addEventListener('firebase-ready', async () => {
   if (!window._CONFIG_DONE) {
     showConfigWarning();
+  }
+  // the security rules require a signed-in session — wait for it before any read
+  if (window._authReady) {
+    const ok = await window._authReady;
+    if (!ok) showToast('⚠️ בעיית התחברות לשרת — רענן את הדף', 6000);
   }
   // check saved session
   const saved = localStorage.getItem('anak_user');

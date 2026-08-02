@@ -1,8 +1,19 @@
 rules_version = '2';
+
+// The operations app has no real per-user identity — the role is picked on a
+// login screen in the browser. These rules therefore cannot tell a manager from
+// a driver. What they do is stop the database being readable and writable by
+// anyone on the internet who knows the project id, which was the case before.
+//
+// Requires anonymous sign-in to be enabled for the project. Without it the app
+// can neither read nor write.
+//
+// Note: these rules apply to the NAMED database "default" (see firebase.json),
+// not to the reserved (default) database.
 service cloud.firestore {
   match /databases/{database}/documents {
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null;
     }
   }
 }
