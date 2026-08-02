@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { SiteFooter, SiteHeader } from "../site-chrome";
-import { Breadcrumbs } from "../page-schema";
+import { Breadcrumbs, Faq } from "../page-schema";
+import { SELL_FAQ } from "../faq-data";
 import { Honeypot, LeadStatusMessage, useLead } from "../use-lead";
 
 type Vehicle = { manufacturer: string; model: string; year: string };
@@ -127,17 +128,25 @@ export default function SellPage() {
 
           <div className="tradeIntro">
             <span className="eyebrow">מוכרים רכב?</span>
-            <h2>אנחנו קונים כל רכב</h2>
-            <p>תהליך פשוט, תשלום במקום והעברת בעלות מסודרת.</p>
+            <h2>אנחנו קונים כל רכב, גם בלי שתקנו מאיתנו</h2>
+            <p>
+              משאירים מספר רישוי ופרטים, ואנחנו חוזרים אליכם עם הצעה. אחרי
+              שאנחנו רואים את הרכב סוגרים במקום — בלי מודעות ובלי פגישות
+              עם קונים.
+            </p>
             <ul>
-              <li>קונים גם בלי שתקנו מאיתנו</li>
-              <li>בדיקה מקצועית ללא התחייבות</li>
-              <li>תשלום מיידי והעברת בעלות</li>
+              <li>הצעה מהירה ושקופה, בדרך כלל באותו יום עסקים</li>
+              <li>בדיקת הרכב אצלנו ללא התחייבות</li>
+              <li>תשלום והעברת בעלות מסודרת במקום</li>
             </ul>
+            <p className="tradeCross">
+              מחפשים גם רכב אחר? <a href="/trade">שווי הרכב שלכם יכול לשמש כמקדמה</a>
+            </p>
           </div>
         </div>
       </section>
 
+      <Faq items={SELL_FAQ} />
       <SiteFooter />
       <Breadcrumbs path="/sell" name="מכירת רכב" />
     </main>
