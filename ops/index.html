@@ -1568,9 +1568,10 @@ if ('serviceWorker' in navigator) {
       <label>איש קשר</label>
       <input type="text" id="pickup-contact" placeholder="שם + טלפון..." style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:14px;box-sizing:border-box">
     </div>
-    <div class="form-group">
+    <div class="form-group" style="position:relative">
       <label>עיר</label>
-      <input type="text" id="pickup-city" placeholder="תל אביב, חיפה..." style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:14px;box-sizing:border-box">
+      <input type="text" id="pickup-city" autocomplete="off" placeholder="התחל להקליד עיר..." oninput="_cityAutocomplete('pickup-city','pickup-city-dd')" onblur="_cityBlur('pickup-city-dd')" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:14px;box-sizing:border-box">
+      <div id="pickup-city-dd" style="display:none;position:absolute;left:0;right:0;top:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;max-height:220px;overflow-y:auto;z-index:1000;box-shadow:0 6px 20px rgba(0,0,0,0.15)"></div>
     </div>
     <div class="form-group">
       <label>כתובת לאיסוף</label>
@@ -10413,6 +10414,7 @@ function _normCityName(s) {
   return String(s || '')
     .replace(/[־–—-]/g, ' ')  // maqaf ־ / en–em dash / hyphen → space
     .replace(/['"׳״`]/g, '')        // gershayim / quotes → remove
+    .replace(/(^|\s)קרית/g, '$1קריית') // common short spelling → the list's spelling
     .replace(/\s+/g, ' ').trim();
 }
 const _CITY_REGION_NORM = (() => { const o = {}; for (const k in _CITY_REGION) o[_normCityName(k)] = _CITY_REGION[k]; return o; })();
