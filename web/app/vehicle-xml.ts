@@ -24,14 +24,48 @@ const IMAGE_TAG = /image|img|photo|pic|picture/;
  * נכון כל האותיות בעברית הופכות לסימני שאלה.
  */
 export function decodeXml(buffer: ArrayBuffer) {
-  const head = new TextDecoder("latin1").decode(buffer.slice(0, 200));
-  const label = head.match(/encoding=["']([\w-]+)["']/i)?.[1] || "utf-8";
+  const bytes = new Uint8Array(buffer);
+  let head = "";
+  for (let i = 0; i < Math.min(200, bytes.length); i++) head += String.fromCharCode(bytes[i]);
+  const label = (head.match(/encoding=["']([\w-]+)["']/i)?.[1] || "utf-8").toLowerCase();
+
+  if (/1255|8859-8|hebrew/.test(label)) return fromHebrewCodepage(bytes);
   try {
     return new TextDecoder(label).decode(buffer);
   } catch {
     return new TextDecoder("utf-8").decode(buffer);
   }
 }
+
+/**
+ * המרה מקידוד עברי ישן (windows-1255) לטקסט רגיל.
+ *
+ * הטבלה כתובה כאן ולא נשענת על השרת בכוונה: לא כל שרת יודע
+ * להמיר את הקידוד הזה, וכשההמרה נכשלת כל העברית באתר הופכת
+ * לסימני שאלה. כך זה עובד אותו דבר בכל מקום.
+ */
+function fromHebrewCodepage(bytes: Uint8Array) {
+  let out = "";
+  for (const byte of bytes) {
+    if (byte < 0x80) { out += String.fromCharCode(byte); continue; }
+    // אותיות עברית: א עד ת
+    if (byte >= 0xe0 && byte <= 0xfa) { out += String.fromCharCode(0x05d0 + byte - 0xe0); continue; }
+    // ניקוד וסימני פיסוק עבריים
+    if (byte >= 0xc0 && byte <= 0xc9) { out += String.fromCharCode(0x05b0 + byte - 0xc0); continue; }
+    if (byte >= 0xcb && byte <= 0xd3) { out += String.fromCharCode(0x05bb + byte - 0xcb); continue; }
+    if (byte >= 0xd4 && byte <= 0xd8) { out += String.fromCharCode(0x05f0 + byte - 0xd4); continue; }
+    out += HEBREW_CODEPAGE_EXTRAS[byte] ?? "";
+  }
+  return out;
+}
+
+/** תווים בודדים שאינם אותיות ומופיעים בפיד */
+const HEBREW_CODEPAGE_EXTRAS: Record<number, string> = {
+  0x85: "…", 0x91: "‘", 0x92: "’", 0x93: "“", 0x94: "”",
+  0x96: "–", 0x97: "—", 0x99: "™", 0xa0: " ", 0xa4: "₪", 0xaa: "×", 0xab: "«",
+  0xad: "­", 0xb0: "°", 0xb1: "±", 0xba: "÷", 0xbb: "»",
+  0xfd: "‎", 0xfe: "‏",
+};
 
 function decode(value: string) {
   return value
