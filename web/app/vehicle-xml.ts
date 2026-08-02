@@ -165,11 +165,27 @@ function testDate(value: string) {
  * המילה שאחריו היא הדגם וכל השאר תת הדגם.
  */
 function splitName(description: string, makes: string[]) {
+  const year = description.match(/\b(19|20)\d{2}\b\s*$/)?.[0] ?? "";
   const clean = description.replace(/\s*\b(19|20)\d{2}\b\s*$/, "").trim();
-  if (!clean) return { make: "", baseModel: "", subModel: "" };
-  const make = makes.find((name) => clean === name || clean.startsWith(`${name} `)) || clean.split(/\s+/)[0];
+  if (!clean) return { make: "", baseModel: "", subModel: "", year: "" };
+  const known = makes.find((name) => clean === name || clean.startsWith(`${name} `));
+  const make = known || clean.split(/\s+/)[0];
   const [baseModel = "", ...rest] = clean.slice(make.length).trim().split(/\s+/);
-  return { make, baseModel, subModel: rest.join(" ") };
+  return { make, baseModel, subModel: rest.join(" "), year, known: Boolean(known) };
+}
+
+/**
+ * מספר מתוך ערך שמכיל גם טקסט — "החל מ- 1334 ש״ח בחודש" -> 1334.
+ * מחפש לפי משמעות הערך ולא לפי שם התגית, כי בפיד של גוגל שופינג
+ * ההחזר החודשי יושב בשדה בשם customlabel0.
+ */
+function numByValue(fields: Map<string, string>, pattern: RegExp) {
+  for (const value of fields.values()) {
+    if (!pattern.test(value)) continue;
+    const found = value.match(/\d[\d,]*/)?.[0];
+    if (found) return Number(found.replace(/,/g, ""));
+  }
+  return 0;
 }
 
 /**
@@ -202,27 +218,35 @@ export function parseVehiclesXml(xml: string, base = "", makes: string[] = []): 
     const fields = readFields(match[2], block);
 
     const images = readImages(block, base);
-    const plate = pick(fields, [/^carnumber$/, /carnumber/, /^plate/, /licen/, /^adid$|^adnumber$|^itemid$/, /^id$/]);
-    // אין מספר רישוי בפיד? הקוד שבקישור לעמוד הרכב באתר הישן משמש
-    // כמזהה, ובלעדיו שם קובץ התמונה — שהוא מספר הרישוי.
-    const fallbackId =
-      block.match(/carcode=(\d+)/i)?.[1] ||
-      images[0]?.match(/\/(\d{5,})\.[a-z]+$/i)?.[1] ||
-      "";
-    const id = plate.replace(/\D/g, "") || plate || fallbackId;
+    // מספר הרישוי הוא שם קובץ התמונה. בפידים מסוימים השדה שנראה
+    // כמזהה מחזיק קוד פנימי קצר (110) ולא את מספר הרכב.
+    const imagePlate = images[0]?.match(/\/(\d{5,})\.[a-z]+$/i)?.[1] ?? "";
+    const tagPlate = pick(fields, [/^carnumber$/, /carnumber/, /^plate/, /licen/, /^adid$|^adnumber$|^itemid$/, /^id$/]);
+    const plate = /^\d{5,}$/.test(tagPlate) ? tagPlate : imagePlate || tagPlate;
+    const id = plate.replace(/\D/g, "") || plate || block.match(/carcode=(\d+)/i)?.[1] || "";
     if (!id || seen.has(id)) continue;
 
-    // אין שדות נפרדים ליצרן ולדגם? נגזרים משורת התיאור
-    const named = splitName(pick(fields, [/^description$/, /^cartitle$|^title$/]), known);
+    // אין שדות נפרדים ליצרן ולדגם? נגזרים משורת השם. הכותרת קודמת
+    // לתיאור, כי בפיד של גוגל שופינג התיאור הוא רשימת האבזור.
+    const title = pick(fields, [/^title$/, /^cartitle$/]);
+    const description = pick(fields, [/^description$/]);
+    const named = splitName(title || description, known);
     // מדויק בכוונה: ManufactureYear הוא שנת ייצור, לא יצרן
-    const make = pick(fields, [/^manufacturer/, /^carmanufacturer/, /^make$/, /^brand/, /יצרן/]) || named.make;
+    const tagMake = pick(fields, [/^manufacturer/, /^carmanufacturer/, /^make$/, /^brand/, /יצרן/]);
+    // בפיד של גוגל שופינג השדה brand מחזיק את הקטגוריה ולא את היצרן.
+    // לכן יצרן מזוהה מהכותרת מנצח שם שאינו ברשימת היצרנים שבמלאי.
+    const fromTag = tagMake && (known.includes(tagMake) || !named.known);
+    const make = fromTag ? tagMake : named.make;
     const baseModel =
       pick(fields, [/^model$/, /^modelname$/, /^carmodel$/, /^basemodel$/, /^דגם$/, /^name$/]) || named.baseModel;
     const subModel = pick(fields, [/submodel/, /^trim/, /^version/, /תתדגם/]) || named.subModel;
     const model = `${baseModel} ${subModel}`.trim();
     if (!make || !model) continue;
 
-    const category = pick(fields, [/category/, /^segment/, /^cartype$/, /^type$/, /קטגוריה/]);
+    // השדה שהחזיק את הקטגוריה במקום את היצרן הוא הקטגוריה עצמה
+    const category =
+      pick(fields, [/category/, /^segment/, /^cartype$/, /^type$/, /קטגוריה/]) ||
+      (!fromTag && tagMake ? tagMake : "");
 
     seen.add(id);
     cars.push({
@@ -234,10 +258,14 @@ export function parseVehiclesXml(xml: string, base = "", makes: string[] = []): 
       subModel,
       image: images[0] ?? null,
       images,
-      year: num(pick(fields, [/yearofmanufact/, /manufactureyear/, /^year/, /^shnat/, /^yr$/, /year/, /שנת|שנה/])),
+      year:
+        num(pick(fields, [/yearofmanufact/, /manufactureyear/, /^year/, /^shnat/, /^yr$/, /year/, /שנת|שנה/])) ||
+        num(named.year),
       price: num(pick(fields, [/^askingprice/, /^price$/, /^sellprice/, /^currentprice/, /^carprice$/, /^cost$/, /^מחיר$/])),
       listPrice: num(pick(fields, [/pricelist/, /listprice/, /mehiron/, /מחירון/])),
-      monthly: num(pick(fields, [/monthly/, /permonth/, /^payment/, /החזרחודשי|תשלוםחודשי/])),
+      monthly:
+        num(pick(fields, [/monthly/, /permonth/, /^payment/, /החזרחודשי|תשלוםחודשי/])) ||
+        numByValue(fields, /בחודש/),
       advance: num(pick(fields, [/advance/, /downpayment/, /firstpayment/, /מקדמה/])),
       mileage: pick(fields, [/^kms?$/, /kilomet/, /mileage/, /^mile/, /^קמ$/]) || "0",
       hand: pick(fields, [/^hand$/, /^yad$/, /numberofowner/, /^owners?$/, /^יד$/]),
@@ -255,7 +283,8 @@ export function parseVehiclesXml(xml: string, base = "", makes: string[] = []): 
       body: text(pick(fields, [/merkav/, /^body/, /carbody/, /מרכב/])),
       // רשימת האבזור. "הערות" בפיד הן טקסט שיווקי אחיד עם קוד
       // פנימי בסופו, ולכן אינן מוצגות ללקוח.
-      extras: pick(fields, [/extra/, /accessor/, /option/, /^remark/, /תוספות/]),
+      // כשהשם הגיע מהכותרת, התיאור הוא רשימת האבזור
+      extras: pick(fields, [/extra/, /accessor/, /option/, /^remark/, /תוספות/]) || (title ? description : ""),
       remarks: pick(fields, [/^comment/, /^note/, /הערות/]),
       openRoof: yes(pick(fields, [/sunroof/, /openroof/, /גגנפתח/])),
       category: category || "כל הרכבים",

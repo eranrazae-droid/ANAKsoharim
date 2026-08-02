@@ -114,7 +114,11 @@ export default function VehicleCard({ car }: { car: DisplayCar }) {
   const name = [car.make, car.baseModel || car.model, car.subModel].filter(Boolean).join(" ");
   const specs = specPills(car);
   const chips = extraChips(car.extras).filter((chip) => !specs.includes(chip));
-  const basics = [String(car.year), `${mileage(car)} ק״מ`, car.gear].filter(Boolean) as string[];
+  // שדה שלא הגיע מהמערכת פשוט לא מוצג. אפס קילומטרים או שנת 0
+  // הם היעדר נתון, לא נתון — והצגתם מטעה את הלקוח.
+  const km = Number(String(car.mileage).replace(/,/g, "") || 0);
+  const basics = [car.year > 0 ? String(car.year) : "", km > 0 ? `${mileage(car)} ק״מ` : "", car.gear]
+    .filter(Boolean) as string[];
   const real = car.images?.length ? car.images.slice(0, MAX_SLIDES) : car.image ? [car.image] : [];
   const slides = real.length ? real : DEMO_SLIDES;
 
