@@ -1,6 +1,6 @@
 import inventorySnapshot from "./inventory-snapshot.json";
 import type { DisplayCar } from "./vehicle-types";
-import { parseVehiclesXml } from "./vehicle-xml";
+import { decodeXml, parseVehiclesXml } from "./vehicle-xml";
 
 export type { DisplayCar } from "./vehicle-types";
 export { propulsionTechnology } from "./vehicle-types";
@@ -34,14 +34,27 @@ export const VEHICLES_SOURCE = process.env.VEHICLES_SOURCE || "xml";
 
 async function readXml(url: string) {
   const response = await fetch(url, { next: { revalidate: 600 } });
-  return response.ok ? await response.text() : "";
+  // הפיד כתוב ב-windows-1255 ולא ב-UTF-8, ולכן הוא נקרא כבתים
+  // ומפוענח לפי הקידוד שהוא מצהיר עליו.
+  return response.ok ? decodeXml(await response.arrayBuffer()) : "";
 }
+
+/**
+ * שמות היצרנים כפי שהם מופיעים במלאי.
+ * הפיד מוסר שורת תיאור אחת ("ב מ וו X3 XDRIVE20I 2020") בלי הפרדה
+ * בין יצרן לדגם, והרשימה הזו היא שמאפשרת לחתוך אותה נכון.
+ */
+const KNOWN_MAKES = Array.from(new Set(
+  (inventorySnapshot as Record<string, unknown>[])
+    .map((raw) => String(raw.ank_id_manufacturer ?? "").trim())
+    .filter(Boolean),
+));
 
 export async function getVehiclesFromXml(): Promise<DisplayCar[]> {
   try {
     const body = await readXml(VEHICLES_XML);
     if (!body) return [];
-    const cars = parseVehiclesXml(body, VEHICLES_XML);
+    const cars = parseVehiclesXml(body, VEHICLES_XML, KNOWN_MAKES);
     if (cars.length) return cars;
 
     // הכתובת עשויה להיות תיקייה שמציגה את הקבצים שבה ולא הפיד עצמו.
@@ -50,7 +63,7 @@ export async function getVehiclesFromXml(): Promise<DisplayCar[]> {
     const found: DisplayCar[] = [];
     for (const link of links) {
       const url = new URL(link, VEHICLES_XML).href;
-      found.push(...parseVehiclesXml(await readXml(url), url));
+      found.push(...parseVehiclesXml(await readXml(url), url, KNOWN_MAKES));
     }
     return found.filter((car, index) => found.findIndex((other) => other.id === car.id) === index);
   } catch {

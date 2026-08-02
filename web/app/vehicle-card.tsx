@@ -77,7 +77,7 @@ function engineLine(car: DisplayCar) {
     showsHorsePower(car) ? car.horsePower && `${car.horsePower} כ״ס` : propulsionTechnology(car.engine),
   ]
     .map((item) => String(item ?? "").trim())
-    .filter(Boolean);
+    .filter((item) => item && item !== "לא צוין");
 }
 
 /** נתוני הרכב שאינם מופיעים בשורות הראשיות — שורה נגללת */

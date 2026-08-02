@@ -18,6 +18,21 @@ const CAR_BLOCK = /<(car|vehicle|item|record|row|ad|auto)\b([^>]*)>([\s\S]*?)<\/
 /** תגית שמכילה כתובת תמונה */
 const IMAGE_TAG = /image|img|photo|pic|picture/;
 
+/**
+ * פענוח הקובץ לפי הקידוד שהוא מצהיר עליו בשורה הראשונה.
+ * הפיד של האתר הקיים כתוב ב-windows-1255 ולא ב-UTF-8, ובלי פענוח
+ * נכון כל האותיות בעברית הופכות לסימני שאלה.
+ */
+export function decodeXml(buffer: ArrayBuffer) {
+  const head = new TextDecoder("latin1").decode(buffer.slice(0, 200));
+  const label = head.match(/encoding=["']([\w-]+)["']/i)?.[1] || "utf-8";
+  try {
+    return new TextDecoder(label).decode(buffer);
+  } catch {
+    return new TextDecoder("utf-8").decode(buffer);
+  }
+}
+
 function decode(value: string) {
   return value
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
@@ -127,6 +142,37 @@ function yes(value: string) {
 }
 
 /**
+ * שדה טקסט שערכו מספר בלבד הוא קוד פנימי של הפיד — צבע 32, סוג
+ * מנוע 1 וכדומה. אין לנו את טבלת הקודים, ולכן עדיף לא להציג כלום
+ * מאשר להציג מספר חסר משמעות ללקוח.
+ */
+function text(value: string) {
+  return /^\d+$/.test(value.trim()) ? "" : value;
+}
+
+/** תוקף טסט מגיע כ-2027-05 ומוצג כ-05/2027 */
+function testDate(value: string) {
+  const match = value.match(/^(\d{4})-(\d{1,2})$/);
+  return match ? `${match[2].padStart(2, "0")}/${match[1]}` : value;
+}
+
+/**
+ * שם הרכב מתוך שורת התיאור.
+ *
+ * בפיד של האתר הקיים אין שדות נפרדים ליצרן ולדגם — יש שורה אחת
+ * כמו "ב מ וו X3 XDRIVE20I 2020". מזהים את היצרן לפי רשימת
+ * היצרנים שבמלאי (הארוך ביותר קודם, כי "ב מ וו" הוא שלוש מילים),
+ * המילה שאחריו היא הדגם וכל השאר תת הדגם.
+ */
+function splitName(description: string, makes: string[]) {
+  const clean = description.replace(/\s*\b(19|20)\d{2}\b\s*$/, "").trim();
+  if (!clean) return { make: "", baseModel: "", subModel: "" };
+  const make = makes.find((name) => clean === name || clean.startsWith(`${name} `)) || clean.split(/\s+/)[0];
+  const [baseModel = "", ...rest] = clean.slice(make.length).trim().split(/\s+/);
+  return { make, baseModel, subModel: rest.join(" ") };
+}
+
+/**
  * מה באמת יש בפיד — שמות התגיות של הרכב הראשון וכמה בלוקים נמצאו.
  * משמש את /api/inventory-source, כדי שאפשר יהיה לראות מה חסר בלי
  * לנחש. אינו משפיע על האתר עצמו.
@@ -145,9 +191,11 @@ export function describeVehiclesXml(xml: string) {
  * הופך קובץ XML לרשימת רכבים.
  * base היא כתובת הקובץ, ומשמשת להשלמת כתובות תמונה יחסיות.
  */
-export function parseVehiclesXml(xml: string, base = ""): DisplayCar[] {
+export function parseVehiclesXml(xml: string, base = "", makes: string[] = []): DisplayCar[] {
   const cars: DisplayCar[] = [];
   const seen = new Set<string>();
+  // הארוך ביותר קודם, כדי ש"ב מ וו" ינצח לפני "ב"
+  const known = [...makes].sort((a, b) => b.length - a.length);
 
   for (const match of xml.matchAll(CAR_BLOCK)) {
     const block = match[3];
@@ -164,10 +212,13 @@ export function parseVehiclesXml(xml: string, base = ""): DisplayCar[] {
     const id = plate.replace(/\D/g, "") || plate || fallbackId;
     if (!id || seen.has(id)) continue;
 
-    // ^ מתחילת השם בכוונה: yearofmanufacture הוא שנה, לא יצרן
-    const make = pick(fields, [/^manufactu/, /^carmanufactu/, /^make$/, /^brand/, /יצרן/]);
-    const baseModel = pick(fields, [/^model$/, /^modelname$/, /^carmodel$/, /^basemodel$/, /^דגם$/, /^cartitle$|^title$|^name$/]);
-    const subModel = pick(fields, [/submodel/, /^trim/, /^version/, /תתדגם/]);
+    // אין שדות נפרדים ליצרן ולדגם? נגזרים משורת התיאור
+    const named = splitName(pick(fields, [/^description$/, /^cartitle$|^title$/]), known);
+    // מדויק בכוונה: ManufactureYear הוא שנת ייצור, לא יצרן
+    const make = pick(fields, [/^manufacturer/, /^carmanufacturer/, /^make$/, /^brand/, /יצרן/]) || named.make;
+    const baseModel =
+      pick(fields, [/^model$/, /^modelname$/, /^carmodel$/, /^basemodel$/, /^דגם$/, /^name$/]) || named.baseModel;
+    const subModel = pick(fields, [/submodel/, /^trim/, /^version/, /תתדגם/]) || named.subModel;
     const model = `${baseModel} ${subModel}`.trim();
     if (!make || !model) continue;
 
@@ -183,26 +234,29 @@ export function parseVehiclesXml(xml: string, base = ""): DisplayCar[] {
       subModel,
       image: images[0] ?? null,
       images,
-      year: num(pick(fields, [/yearofmanufact/, /^year/, /^shnat/, /^yr$/, /שנת|שנה/])),
+      year: num(pick(fields, [/yearofmanufact/, /manufactureyear/, /^year/, /^shnat/, /^yr$/, /year/, /שנת|שנה/])),
       price: num(pick(fields, [/^askingprice/, /^price$/, /^sellprice/, /^currentprice/, /^carprice$/, /^cost$/, /^מחיר$/])),
       listPrice: num(pick(fields, [/pricelist/, /listprice/, /mehiron/, /מחירון/])),
       monthly: num(pick(fields, [/monthly/, /permonth/, /^payment/, /החזרחודשי|תשלוםחודשי/])),
       advance: num(pick(fields, [/advance/, /downpayment/, /firstpayment/, /מקדמה/])),
-      mileage: pick(fields, [/^km$/, /kilomet/, /mileage/, /^mile/, /^קמ$/]) || "0",
-      hand: pick(fields, [/^hand/, /^yad$/, /numberofowner/, /^owners?$/, /^יד$/]),
-      ownership: pick(fields, [/ownership/, /baalut/, /בעלות/]) || "לא צוין",
-      engine: pick(fields, [/enginetype/, /fueltype/, /^fuel/, /סוגמנוע/]) || "לא צוין",
+      mileage: pick(fields, [/^kms?$/, /kilomet/, /mileage/, /^mile/, /^קמ$/]) || "0",
+      hand: pick(fields, [/^hand$/, /^yad$/, /numberofowner/, /^owners?$/, /^יד$/]),
+      // שדה שאין לו ערך נשאר ריק ופשוט לא מוצג — עדיף מ"לא צוין"
+      ownership: text(pick(fields, [/ownership/, /baalut/, /בעלות/])),
+      engine: text(pick(fields, [/enginetype/, /fueltype/, /^fuel/, /סוגמנוע/])),
       engineCapacity: pick(fields, [/enginecapacity/, /enginevolume/, /^cc$/, /נפחמנוע/, /^engine$/]),
       horsePower: pick(fields, [/horsepower/, /^hp$/, /כוחסוס/]),
-      gear: pick(fields, [/gear/, /transmission/, /תיבתהילוכים/]),
-      drivetrain: pick(fields, [/propulsion/, /drivetrain/, /^drive/, /מערכתהנעה/]),
-      color: pick(fields, [/^colou?r/, /צבע/]) || "לא צוין",
+      gear: text(pick(fields, [/^gear/, /transmission/, /^gir$/, /תיבתהילוכים/])),
+      drivetrain: text(pick(fields, [/propulsion/, /drivetrain/, /^drive$/, /מערכתהנעה/])),
+      color: text(pick(fields, [/^colou?r/, /צבע/])),
       doors: pick(fields, [/door/, /דלת/]).replace(/\D/g, ""),
       seats: pick(fields, [/seat/, /מושב/]).replace(/\D/g, ""),
-      test: pick(fields, [/test/, /טסט/]),
-      body: pick(fields, [/merkav/, /^body/, /carbody/, /מרכב/]),
-      extras: pick(fields, [/extra/, /accessor/, /option/, /תוספות/]),
-      remarks: pick(fields, [/remark/, /^description/, /^comment/, /^note/, /^text$/, /הערות/]),
+      test: testDate(pick(fields, [/test/, /טסט/])),
+      body: text(pick(fields, [/merkav/, /^body/, /carbody/, /מרכב/])),
+      // רשימת האבזור. "הערות" בפיד הן טקסט שיווקי אחיד עם קוד
+      // פנימי בסופו, ולכן אינן מוצגות ללקוח.
+      extras: pick(fields, [/extra/, /accessor/, /option/, /^remark/, /תוספות/]),
+      remarks: pick(fields, [/^comment/, /^note/, /הערות/]),
       openRoof: yes(pick(fields, [/sunroof/, /openroof/, /גגנפתח/])),
       category: category || "כל הרכבים",
       categories: category ? [category] : [],
