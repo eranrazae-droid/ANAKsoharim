@@ -25,6 +25,8 @@ export async function GET() {
       cars: cars.length,
       withImages: cars.filter((car) => car.images?.length).length,
       feed: describeVehiclesXml(xml),
+      // תחילת הקובץ כפי שהוא, כדי לראות את שמות התגיות האמיתיים
+      sample: xml.slice(0, 1200),
       first: cars[0] ?? null,
     });
   } catch (error) {

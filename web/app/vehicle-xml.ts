@@ -112,6 +112,12 @@ function readImages(block: string, base: string) {
     // כמה כתובות בתגית אחת, מופרדות בפסיק או ברווח — כל אחת בנפרד
     for (const part of decode(match[2]).split(/[,;|\s]+/)) if (isImage(part)) add(part);
   }
+
+  // רשת ביטחון: אם שם התגית לא רומז על תמונה, כל כתובת תמונה
+  // שנמצאת בתוך בלוק של רכב שייכת לאותו רכב ממילא.
+  if (!urls.length) {
+    for (const part of decode(block).split(/[,;|"'<>\s]+/)) if (isImage(part)) add(part);
+  }
   return urls;
 }
 
@@ -147,19 +153,25 @@ export function parseVehiclesXml(xml: string, base = ""): DisplayCar[] {
     const block = match[3];
     const fields = readFields(match[2], block);
 
+    const images = readImages(block, base);
     const plate = pick(fields, [/^carnumber$/, /carnumber/, /^plate/, /licen/, /^adid$|^adnumber$|^itemid$/, /^id$/]);
-    const id = plate.replace(/\D/g, "") || plate;
+    // אין מספר רישוי בפיד? הקוד שבקישור לעמוד הרכב באתר הישן משמש
+    // כמזהה, ובלעדיו שם קובץ התמונה — שהוא מספר הרישוי.
+    const fallbackId =
+      block.match(/carcode=(\d+)/i)?.[1] ||
+      images[0]?.match(/\/(\d{5,})\.[a-z]+$/i)?.[1] ||
+      "";
+    const id = plate.replace(/\D/g, "") || plate || fallbackId;
     if (!id || seen.has(id)) continue;
 
     // ^ מתחילת השם בכוונה: yearofmanufacture הוא שנה, לא יצרן
     const make = pick(fields, [/^manufactu/, /^carmanufactu/, /^make$/, /^brand/, /יצרן/]);
-    const baseModel = pick(fields, [/^model$/, /^modelname$/, /^carmodel$/, /^basemodel$/, /^דגם$/]);
+    const baseModel = pick(fields, [/^model$/, /^modelname$/, /^carmodel$/, /^basemodel$/, /^דגם$/, /^cartitle$|^title$|^name$/]);
     const subModel = pick(fields, [/submodel/, /^trim/, /^version/, /תתדגם/]);
     const model = `${baseModel} ${subModel}`.trim();
     if (!make || !model) continue;
 
     const category = pick(fields, [/category/, /^segment/, /^cartype$/, /^type$/, /קטגוריה/]);
-    const images = readImages(block, base);
 
     seen.add(id);
     cars.push({
@@ -171,11 +183,11 @@ export function parseVehiclesXml(xml: string, base = ""): DisplayCar[] {
       subModel,
       image: images[0] ?? null,
       images,
-      year: num(pick(fields, [/yearofmanufact/, /^year/, /^shnat/, /שנת|שנה/])),
-      price: num(pick(fields, [/^askingprice/, /^price$/, /^sellprice/, /^currentprice/, /^carprice$/, /^מחיר$/])),
+      year: num(pick(fields, [/yearofmanufact/, /^year/, /^shnat/, /^yr$/, /שנת|שנה/])),
+      price: num(pick(fields, [/^askingprice/, /^price$/, /^sellprice/, /^currentprice/, /^carprice$/, /^cost$/, /^מחיר$/])),
       listPrice: num(pick(fields, [/pricelist/, /listprice/, /mehiron/, /מחירון/])),
-      monthly: num(pick(fields, [/monthly/, /החזרחודשי/])),
-      advance: num(pick(fields, [/advance/, /downpayment/, /מקדמה/])),
+      monthly: num(pick(fields, [/monthly/, /permonth/, /^payment/, /החזרחודשי|תשלוםחודשי/])),
+      advance: num(pick(fields, [/advance/, /downpayment/, /firstpayment/, /מקדמה/])),
       mileage: pick(fields, [/^km$/, /kilomet/, /mileage/, /^mile/, /^קמ$/]) || "0",
       hand: pick(fields, [/^hand/, /^yad$/, /numberofowner/, /^owners?$/, /^יד$/]),
       ownership: pick(fields, [/ownership/, /baalut/, /בעלות/]) || "לא צוין",
