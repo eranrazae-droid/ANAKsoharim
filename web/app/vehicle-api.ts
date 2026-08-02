@@ -28,8 +28,13 @@ export const VEHICLE_IMAGES_XML =
  * פיד ה-XML של האתר הקיים — רכבים ותמונות באותו קובץ.
  * זהו כרגע מקור המלאי לבדיקות, עד שהמערכת החדשה תחובר.
  * לחזרה למקור ה-JSON מגדירים ב-Vercel VEHICLES_SOURCE=api.
+ *
+ * שתי כתובות מגישות קבצים שונים לגמרי. זו של netstyle היא פיד
+ * יד2 מסודר — יצרן, דגם, שנה, מחיר ותמונות. הכתובת
+ * 03-5189189.co.il/xml מגישה קובץ בעל מבנה אחר, שבו הקטגוריה
+ * יושבת בשדה הראשון והאבזור בשדה הדגם, ולכן היא אינה בשימוש.
  */
-export const VEHICLES_XML = process.env.VEHICLES_XML_URL || "https://www.03-5189189.co.il/xml/";
+export const VEHICLES_XML = process.env.VEHICLES_XML_URL || VEHICLE_IMAGES_XML;
 export const VEHICLES_SOURCE = process.env.VEHICLES_SOURCE || "xml";
 
 async function readXml(url: string) {
