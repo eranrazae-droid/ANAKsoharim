@@ -916,7 +916,7 @@ if ('serviceWorker' in navigator) {
     <div class="checklist-item" style="flex-direction:column;align-items:stretch;gap:0">
       <div style="display:flex;align-items:center;justify-content:space-between;width:100%">
         <span class="ci-label">בדיקה והשלמת אביזרים</span>
-        <span style="font-size:11px;color:var(--muted)">לחיצה = ✓ · הקשה כפולה מבטלת</span>
+        <span style="font-size:11px;color:var(--muted)">לחיצה = ✓ · לחיצה שוב מבטלת</span>
       </div>
       <div style="display:flex;flex-direction:column;gap:6px;margin-top:10px">
         <div style="display:flex;align-items:center;gap:10px">
@@ -5261,26 +5261,10 @@ async function uploadPhotos(key) {
    no-op, so the two clicks that precede a dblclick can't undo it by accident. */
 const _SF_ITEMS = { 'sf-jack': 'ג׳ק + מפתח גלגלים + משולש', 'sf-vest': 'אפוד זוהר', 'sf-spare': 'גלגל ספייר' };
 
-/* Phones do not fire a reliable `dblclick` — a double tap is usually swallowed
-   as a zoom gesture — so the second tap is detected here from the click timing
-   instead. First tap marks; a second tap within 800ms clears. */
-const _sfLastTap = {};
-function sfMark(btn) {
-  const id = btn.dataset.sf;
-  const now = Date.now();
-  const prev = _sfLastTap[id];
-  // an explicit "was there a previous tap" check — falling back to 0 would make
-  // the very first tap look like the second half of a double
-  const isDouble = prev !== undefined && (now - prev) < 800;
-  _sfLastTap[id] = now;
-  if (isDouble) btn.classList.remove('v-active');
-  else btn.classList.add('v-active');
-}
+// plain toggle — tap to mark, tap again to clear. No timing involved, so it
+// behaves the same on a phone in the sun as it does on a desktop.
+function sfMark(btn) { btn.classList.toggle('v-active'); }
 window.sfMark = sfMark;
-
-// kept for the desktop dblclick handler; the timing check above already covers it
-function sfClear(btn) { btn.classList.remove('v-active'); }
-window.sfClear = sfClear;
 
 function _sfRead() {
   const out = {};
