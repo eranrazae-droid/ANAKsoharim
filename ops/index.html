@@ -916,11 +916,11 @@ if ('serviceWorker' in navigator) {
     <div class="checklist-item" style="flex-direction:column;align-items:stretch;gap:0">
       <div style="display:flex;align-items:center;justify-content:space-between;width:100%">
         <span class="ci-label">בדיקה והשלמת אביזרים</span>
-        <span style="font-size:11px;color:var(--muted)">לחיצה = ✓ · לחיצה כפולה מבטלת</span>
+        <span style="font-size:11px;color:var(--muted)">לחיצה = ✓ · הקשה כפולה מבטלת</span>
       </div>
       <div style="display:flex;flex-direction:column;gap:6px;margin-top:10px">
         <div style="display:flex;align-items:center;gap:10px">
-          <button type="button" class="ci-box sf-box" data-sf="sf-jack" onclick="sfMark(this)" ondblclick="sfClear(this)">✓</button>
+          <button type="button" class="ci-box sf-box" data-sf="sf-jack" onclick="sfMark(this)">✓</button>
           <span style="font-size:14px;font-weight:600;flex:1">ג׳ק + מפתח גלגלים + משולש</span>
         </div>
         <div id="sf-jack-photo-row" style="padding-right:42px">
@@ -929,11 +929,11 @@ if ('serviceWorker' in navigator) {
           <input type="file" accept="image/*" capture="environment" id="file-c-safety-jack" style="display:none" onchange="addPhotos('c-safety-jack',this)">
         </div>
         <div style="display:flex;align-items:center;gap:10px">
-          <button type="button" class="ci-box sf-box" data-sf="sf-vest" onclick="sfMark(this)" ondblclick="sfClear(this)">✓</button>
+          <button type="button" class="ci-box sf-box" data-sf="sf-vest" onclick="sfMark(this)">✓</button>
           <span style="font-size:14px;font-weight:600;flex:1">אפוד זוהר</span>
         </div>
         <div style="display:flex;align-items:center;gap:10px">
-          <button type="button" class="ci-box sf-box" data-sf="sf-spare" onclick="sfMark(this)" ondblclick="sfClear(this)">✓</button>
+          <button type="button" class="ci-box sf-box" data-sf="sf-spare" onclick="sfMark(this)">✓</button>
           <span style="font-size:14px;font-weight:600;flex:1">גלגל ספייר</span>
         </div>
       </div>
@@ -4528,10 +4528,13 @@ function openDriverIntake(id) {
   });
   document.querySelectorAll('#modal-driver-intake textarea, #modal-driver-intake input[type=number], #di-code').forEach(t => t.value = '');
   ['di-ev-v','di-ev-x'].forEach(id=>{const b=document.getElementById(id);if(b){b.classList.remove('v-active','x-active');b.style.color='transparent';}});const _evF=document.getElementById('di-ev-fields');if(_evF)_evF.style.display='none';
-  ['c-battery-original','c-oil','c-coolant','c-safety','c-lights-break','c-glass-break','c-bulbs','c-tires','c-glove','c-windows','c-mirrors','c-ac','c-ac-noise','c-dashboard','c-sunroof','c-upholstery','c-mats','c-steering'].forEach(k => {
+  // use the single source of truth — a duplicated list here once meant a new
+  // photo section opened with no camera button at all
+  _photoKeys.forEach(k => {
     ciPhotoFiles[k] = [];
     renderPhotoGrid(k);
   });
+  _sfApply({});
   // live header — updates when manager edits basic fields
   if (_diHeaderUnsub) { _diHeaderUnsub(); _diHeaderUnsub = null; }
   if (window._CONFIG_DONE) {
@@ -5258,9 +5261,24 @@ async function uploadPhotos(key) {
    no-op, so the two clicks that precede a dblclick can't undo it by accident. */
 const _SF_ITEMS = { 'sf-jack': 'ג׳ק + מפתח גלגלים + משולש', 'sf-vest': 'אפוד זוהר', 'sf-spare': 'גלגל ספייר' };
 
-function sfMark(btn) { btn.classList.add('v-active'); }
+/* Phones do not fire a reliable `dblclick` — a double tap is usually swallowed
+   as a zoom gesture — so the second tap is detected here from the click timing
+   instead. First tap marks; a second tap within 800ms clears. */
+const _sfLastTap = {};
+function sfMark(btn) {
+  const id = btn.dataset.sf;
+  const now = Date.now();
+  const prev = _sfLastTap[id];
+  // an explicit "was there a previous tap" check — falling back to 0 would make
+  // the very first tap look like the second half of a double
+  const isDouble = prev !== undefined && (now - prev) < 800;
+  _sfLastTap[id] = now;
+  if (isDouble) btn.classList.remove('v-active');
+  else btn.classList.add('v-active');
+}
 window.sfMark = sfMark;
 
+// kept for the desktop dblclick handler; the timing check above already covers it
 function sfClear(btn) { btn.classList.remove('v-active'); }
 window.sfClear = sfClear;
 
