@@ -3286,6 +3286,7 @@ function renderTasksFromCache() {
         </div>
       </div>
       ${t.notes ? `<div class="task-notes" style="font-size:12px;color:var(--muted);margin-bottom:6px">${esc(t.notes)}</div>` : ''}
+      ${Array.isArray(t.photos) && t.photos.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">${t.photos.map(p => `<img src="${p}" onclick="event.stopPropagation();openLightbox(this.src)" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:2px solid var(--border);cursor:pointer">`).join('')}</div>` : ''}
       <div class="task-meta">
         <span class="tag assignee" style="font-size:11px">👤 ${esc(t.assignedTo)}</span>
         <span class="tag status-${t.status}" style="font-size:11px">${statusLabel[t.status]||t.status}</span>
@@ -4741,7 +4742,7 @@ async function submitDriverIntake() {
 
   // auto-create tasks for X-marked items
   try {
-    await createIntakeTasks(checklist, notes, _currentIntakeVehicle);
+    await createIntakeTasks(checklist, notes, _currentIntakeVehicle, photoUrls);
   } catch(te) {
     console.warn('createIntakeTasks partial error:', te);
     // tasks may be partially created — Firestore write already succeeded, continue closing
@@ -4781,7 +4782,7 @@ async function submitDriverIntake() {
   }
 }
 
-async function createIntakeTasks(checklist, allNotes, vehicle) {
+async function createIntakeTasks(checklist, allNotes, vehicle, photoUrls) {
   if (!vehicle) return;
   // safety guard: only create tasks when intake is confirmed done
   if (!_currentIntakeId) return;
@@ -4824,6 +4825,14 @@ async function createIntakeTasks(checklist, allNotes, vehicle) {
     'משימות כלליות': 'כולם',
   };
 
+  // The photos the driver took for a faulty item belong on the task itself —
+  // otherwise they stay buried in the intake and whoever works off the task
+  // board never sees what the fault actually looks like.
+  const photosForKey = (key) => {
+    const arr = (photoUrls && photoUrls[key]) || [];
+    return Array.isArray(arr) ? arr.slice(0, 2) : []; // cap: a task doc must stay well under 1MB
+  };
+
   for (const rule of rules) {
     if (checklist[rule.key] !== 'x') continue;
     const note = getNoteForKey(rule.key);
@@ -4831,7 +4840,12 @@ async function createIntakeTasks(checklist, allNotes, vehicle) {
     const isDriverCol = !colToAssigned[rule.col];
     const label      = rule.col;
     const assignedTo = isDriverCol ? rule.col : colToAssigned[rule.col];
-    await _addDoc(_colRef('tasks'), { title: taskTitle, assignedTo, label, status: 'open', createdBy: driverName, createdAt: _serverTs() });
+    const photos     = photosForKey(rule.key);
+    await _addDoc(_colRef('tasks'), {
+      title: taskTitle, assignedTo, label, status: 'open',
+      createdBy: driverName, createdAt: _serverTs(),
+      ...(photos.length ? { photos } : {}),
+    });
   }
 
   // Dashboard checkboxes — each sends to its own column
