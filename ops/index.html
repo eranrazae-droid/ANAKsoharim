@@ -377,6 +377,7 @@ if ('serviceWorker' in navigator) {
           <div class="stat-card"><div class="num" id="stat-tasks">—</div><div class="lbl">משימות פתוחות</div></div>
           <div class="stat-card" id="stat-vehicles-card" style="display:none"><div class="num" id="stat-vehicles">—</div><div class="lbl">רכבים במגרש</div></div>
           <div class="stat-card" id="stat-pickup-driver-card" style="display:none;cursor:pointer;background:linear-gradient(135deg,#1e3a8a,#1e40af);color:#fff" onclick="openDriverPickupModal()"><div class="num" id="stat-pickup-driver-count" style="color:#fff">0</div><div class="lbl" style="color:rgba(255,255,255,.8)">🚙 לאיסוף</div></div>
+          <div class="stat-card" id="stat-inventory-driver-card" style="display:none;cursor:pointer;background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff" onclick="goToScreen('driver-inventory')"><div class="num" id="stat-inventory-driver-count" style="color:#fff">0</div><div class="lbl" style="color:rgba(255,255,255,.8)">📦 בדיקת מלאי</div></div>
           <div style="display:none"><div id="stat-parts">—</div></div>
         </div>
         <div class="menu-grid" id="menu-grid"></div>
@@ -2336,7 +2337,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-04 · 15';
+const APP_BUILD = '2026-08-04 · 16';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -2440,7 +2441,6 @@ function renderHome() {
     : [
         { icon: '📋', title: 'המשימות שלי', sub: 'משימות שהוקצו לך', screen: 'tasks' },
         { icon: '🚗', title: 'קליטות ורענון רכבים שלי', sub: 'קליטות ורענונים ממתינים', screen: 'vehicles' },
-        { icon: '📦', title: 'בדיקות מלאי שלי', sub: 'רשימות מלאי לסימון', screen: 'driver-inventory' },
         { icon: '🔋', title: 'בדיקת סוללה והטענת רכבים חשמליים', sub: 'מילוי אחוזי טעינה וטווח', screen: 'driver-battery' },
         { icon: '🅿️', title: 'סידור מגרש', sub: 'צפייה בטבלת חניות', screen: 'yard' },
         { icon: '🕳️', title: 'בורות', sub: 'בדיקות ממתינות לביצוע', screen: 'pits' },
@@ -2460,7 +2460,7 @@ function renderHome() {
 
   const grid = document.getElementById('menu-grid');
   if (!isManager && currentUser.name === 'גיל') {
-    const topScreens = ['tasks','vehicles','driver-inventory'];
+    const topScreens = ['tasks','vehicles'];
     const topItems = menuItems.filter(m => topScreens.includes(m.screen));
     const botItems = menuItems.filter(m => !topScreens.includes(m.screen));
     grid.style.display = 'flex';
@@ -2967,8 +2967,13 @@ function loadDriverBadges() {
         _renderIntakeList(_driverIntakeDocs || []);
       }
     });
+    // בדיקת מלאי — קוביה קטנה שמופיעה רק כשיש מלאי שהוקצה לנהג ונעלמת כששלח
     _onSnap(_query(_colRef('inventory_assignments'), _where('assignedTo','==',name)), snap => {
-      _setCardBadge('driver-inventory', snap.docs.filter(d => d.data().status === 'pending').length);
+      const pending = snap.docs.filter(d => d.data().status === 'pending').length;
+      const card = document.getElementById('stat-inventory-driver-card');
+      const cnt  = document.getElementById('stat-inventory-driver-count');
+      if (card) card.style.display = pending ? 'block' : 'none';
+      if (cnt) cnt.textContent = pending;
     });
     let _battPending = 0;
     const _dcTasks = {};
@@ -7357,27 +7362,61 @@ function bsmOpenJob(id) {
 }
 window.bsmOpenJob = bsmOpenJob;
 
-// Basic note layout — to be replaced with the manager's own form once he sends it
+/* "טופס הזמנת תיקון" — same layout as the printed form already in use.
+   The date and time are stamped at print time so a form always carries them,
+   and the owner line is fixed to the yard's name. */
+const _BSHOP_OWNER = 'ענק הרכבים';
+const _BSHOP_FORM_ROWS = 10; // the paper form has ten numbered lines
+
 function bsmPrint(id) {
   const j = _bshopJobs.find(x => x.id === id);
   if (!j) return;
-  const rows = (j.items || []).map(it => `<tr><td style="padding:8px 10px;border:1px solid #000">${esc(it.name)}</td><td style="padding:8px 10px;border:1px solid #000;width:110px"></td></tr>`).join('');
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('he-IL');
+  const timeStr = now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+  const names = (j.items || []).map(it => it.name);
+  // keep the ten numbered lines even when fewer parts were selected, so there
+  // is room to add work by hand at the shop
+  const rowCount = Math.max(_BSHOP_FORM_ROWS, names.length);
+  let rows = '';
+  for (let i = 0; i < rowCount; i++) {
+    rows += `<tr><td class="d">${esc(names[i] || '')}</td><td class="n">${i + 1}.</td></tr>`;
+  }
+  const cell = (label, value) => `<td class="hc"><span class="hl">${label}</span> <span class="hv">${esc(value || '')}</span></td>`;
+
   const w = window.open('', '_blank');
-  if (!w) return showToast('הדפדפן חסם את חלון ההדפסה');
-  w.document.write(`<html dir="rtl"><head><meta charset="utf-8"><title>פתק פחחות ${esc(j.plate)}</title></head>
-    <body style="font-family:Arial,sans-serif;padding:24px">
-      <h2 style="margin:0 0 4px">עבודות פחחות</h2>
-      <div style="font-size:20px;font-weight:bold;margin-bottom:2px">${esc(j.plate)}</div>
-      <div style="margin-bottom:14px">${esc(j.desc || '')}</div>
-      ${j.note ? `<div style="margin-bottom:10px">הערה: ${esc(j.note)}</div>` : ''}
-      <table style="border-collapse:collapse;width:100%">
-        <tr><th style="padding:8px 10px;border:1px solid #000;text-align:right">חלק</th><th style="padding:8px 10px;border:1px solid #000">מחיר</th></tr>
-        ${rows}
-      </table>
-    </body></html>`);
+  if (!w) return showToast('הדפדפן חסם את חלון ההדפסה — אפשר לאשר חלונות קופצים');
+  w.document.write(`<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8">
+<title>טופס הזמנת תיקון ${esc(j.plate)}</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  body { font-family: Arial, "Segoe UI", sans-serif; color:#000; }
+  h1 { text-align:center; font-size:26px; margin:0 0 22px; text-decoration:underline; }
+  table { border-collapse:collapse; width:100%; }
+  td, th { border:1.5px solid #000; }
+  .hc { padding:10px 12px; text-align:right; width:50%; height:34px; }
+  .hl { font-size:14px; }
+  .hv { font-size:15px; font-weight:bold; }
+  .title { padding:10px; text-align:center; font-size:15px; }
+  .n { padding:9px 12px; width:52px; text-align:right; font-size:14px; }
+  .d { padding:9px 12px; font-size:14px; }
+  .sp { height:26px; border:none; }
+</style></head><body>
+  <h1>טופס הזמנת תיקון</h1>
+  <table>
+    <tr>${cell('מס רישוי :', j.plate)}${cell('שם מוסך :', '')}</tr>
+    <tr>${cell('שייך ל:', _BSHOP_OWNER)}${cell('שם הרכב :', j.desc || '')}</tr>
+    <tr>${cell('שעה :', timeStr)}${cell('תאריך :', dateStr)}</tr>
+  </table>
+  <table class="sp"><tr><td class="sp"></td></tr></table>
+  <table>
+    <tr><td class="title" colspan="2">תיאור העבודה הדרושה :</td></tr>
+    ${rows}
+  </table>
+</body></html>`);
   w.document.close();
   w.focus();
-  w.print();
+  setTimeout(() => w.print(), 250); // give the layout a moment before printing
 }
 window.bsmPrint = bsmPrint;
 
