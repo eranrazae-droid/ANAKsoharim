@@ -2338,7 +2338,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-04 · 20';
+const APP_BUILD = '2026-08-04 · 21';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -7196,12 +7196,25 @@ function _pcCopyFallback(text, done) {
    A job's life: at_shop → returned → (settled: paidAt is set and it leaves both
    screens). Jobs are only ever hidden by being paid, never deleted, so the
    history of what was charged stays intact. */
+// Walk-around order: start at the front of the car, go right down the right
+// side, around the back, up the left side and back to the front. The roof and
+// polish close the list. This is the order the panel beater sees on the note.
 const _BSHOP_DEFAULT_ITEMS = [
-  'כנף קדמית ימין','כנף קדמית שמאל','כנף אחורית ימין','כנף אחורית שמאל',
-  'דלת קדמית ימין','דלת קדמית שמאל','דלת אחורית ימין','דלת אחורית שמאל',
-  'מכסה מנוע','דלת תא מטען','גג','פגוש קדמי','פגוש אחורי',
-  'סף ימין','סף שמאל','מראה ימין','מראה שמאל','עמוד ימין','עמוד שמאל','פוליש'
+  'פגוש קדמי','מכסה מנוע',
+  'כנף קדמית ימין','מראה ימין','דלת קדמית ימין','סף ימין','עמוד ימין',
+  'דלת אחורית ימין','כנף אחורית ימין',
+  'פגוש אחורי','דלת תא מטען',
+  'כנף אחורית שמאל','דלת אחורית שמאל','עמוד שמאל','סף שמאל',
+  'דלת קדמית שמאל','מראה שמאל','כנף קדמית שמאל',
+  'גג','פוליש'
 ];
+
+// Sort any set of part names by their position in the catalogue, so a job
+// always reads in the walk-around order no matter what order they were picked.
+function _bshopSortNames(names) {
+  const idx = n => { const i = _bshopItems.indexOf(n); return i === -1 ? 9999 : i; };
+  return [...names].sort((a, b) => idx(a) - idx(b));
+}
 
 let _bshopJobs = [];        // unpaid jobs only — the current billing cycle
 let _bshopItems = [];       // the fixed catalogue of parts
@@ -7218,7 +7231,12 @@ function _bshopListen(onChange) {
   });
   _bshopUnsubCfg = _onSnap(_docRef('config', 'bodyshop'), snap => {
     const d = snap.exists() ? snap.data() : {};
-    _bshopItems = Array.isArray(d.items) ? d.items : _BSHOP_DEFAULT_ITEMS;
+    const raw = Array.isArray(d.items) ? d.items : _BSHOP_DEFAULT_ITEMS;
+    // keep the walk-around order for known parts; anything you added yourself
+    // stays at the end, in the order you added it
+    const known = raw.filter(n => _BSHOP_DEFAULT_ITEMS.includes(n))
+      .sort((a, b) => _BSHOP_DEFAULT_ITEMS.indexOf(a) - _BSHOP_DEFAULT_ITEMS.indexOf(b));
+    _bshopItems = [...known, ...raw.filter(n => !_BSHOP_DEFAULT_ITEMS.includes(n))];
     onChange();
     // the parts-list modal must refresh too, otherwise add/delete looks like it did nothing
     const im = document.getElementById('modal-bsm-items');
@@ -7370,7 +7388,7 @@ function bsmPrint(id) {
   const now = new Date();
   const dateStr = now.toLocaleDateString('he-IL');
   const timeStr = now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
-  const names = (j.items || []).map(it => it.name);
+  const names = _bshopSortNames((j.items || []).map(it => it.name));
   // keep the ten numbered lines even when fewer parts were selected, so there
   // is room to add work by hand at the shop
   const rowCount = Math.max(_BSHOP_FORM_ROWS, names.length);
@@ -7474,7 +7492,7 @@ async function submitBsmSend() {
   try {
     await _addDoc(_colRef('bodyshop_jobs'), {
       plate, desc, note,
-      items: _bsmPicked.map(name => ({ name, price: null })),
+      items: _bshopSortNames(_bsmPicked).map(name => ({ name, price: null })),
       status: 'at_shop', paidAt: null,
       sentAt: new Date().toISOString(),
       createdBy: currentUser.name, createdAt: _serverTs()
