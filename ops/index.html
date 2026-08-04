@@ -2337,7 +2337,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-04 · 16';
+const APP_BUILD = '2026-08-04 · 17';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -2871,33 +2871,20 @@ function loadStats() {
       document.getElementById('stat-parts').textContent = snap.size;
     });
   } else {
-    // Driver: sum of all pending items across all modules
+    // Driver: "משימות פתוחות" counts ONLY tasks — exactly like the driver's own
+    // column in the manager task board. Other modules have their own cards.
     const name = currentUser.name;
-    const counts = { tasks: 0, intake: 0, inventory: 0, yard: 0, pits: 0 };
     const update = () => {
-      const total = Object.values(counts).reduce((a,b) => a+b, 0);
-      document.getElementById('stat-tasks').textContent = total || '0';
+      document.getElementById('stat-tasks').textContent = _taskIds.size || '0';
     };
     const _taskIds = new Set();
     _onSnap(_query(_colRef('tasks'), _where('assignedTo','==',name)), snap => {
       snap.docs.forEach(d => { if (d.data().status !== 'done') _taskIds.add(d.id); else _taskIds.delete(d.id); });
-      counts.tasks = _taskIds.size; update();
+      update();
     });
     _onSnap(_query(_colRef('tasks'), _where('label','==',name)), snap => {
       snap.docs.forEach(d => { if (d.data().status !== 'done') _taskIds.add(d.id); else _taskIds.delete(d.id); });
-      counts.tasks = _taskIds.size; update();
-    });
-    _onSnap(_query(_colRef('intake_assignments'), _where('assignedTo','==',name), _where('status','==','pending')), snap => {
-      counts.intake = snap.size; update();
-    });
-    _onSnap(_query(_colRef('inventory_assignments'), _where('assignedTo','==',name), _where('status','==','pending')), snap => {
-      counts.inventory = snap.size; update();
-    });
-    _onSnap(_query(_colRef('pit_checks'), _where('status','==','pending')), snap => {
-      counts.pits = snap.size; update();
-    });
-    _onSnap(_docRef('yard','current'), snap => {
-      counts.yard = (snap.exists() && snap.data().status === 'pending') ? 1 : 0; update();
+      update();
     });
   }
 }
