@@ -2349,7 +2349,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-04 · 26';
+const APP_BUILD = '2026-08-04 · 27';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -7578,12 +7578,16 @@ async function _bsmLookupPlate(manual) {
   say('מחפש במשרד התחבורה…');
   try {
     const rec = await _pcFilterLookup(plate, plate);
-    if (!rec) return say('לא נמצא רכב במספר הזה — אפשר למלא ידנית');
-    const maker = _cleanMaker(rec['tozeret_nm'] || '');
+    const maker = rec ? _cleanMaker(rec['tozeret_nm'] || '') : '';
+    const model = rec ? (rec['kinuy_mishari'] || rec['degem_nm'] || '') : '';
+    // a record with no make and no model is not a real match — never report it
+    // as found, otherwise a made-up plate looks like a real car
+    if (!rec || !(maker || model)) return say('לא נמצא רכב במספר הזה — אפשר למלא ידנית');
     _bsmMaker = maker;
-    descEl.value = [maker, rec['kinuy_mishari'] || rec['degem_nm'] || '',
-      rec['shnat_yitzur'] || '', rec['tzeva_rechev'] || ''].filter(Boolean).join(' ');
-    say('✅ נמצא');
+    const parts = [maker, model, rec['shnat_yitzur'] || '', rec['tzeva_rechev'] || ''].filter(Boolean);
+    descEl.value = parts.join(' ');
+    // echo what came back so a wrong plate is obvious at a glance
+    say('✅ נמצא: ' + parts.join(' · '));
   } catch (e) {
     say(manual ? 'לא הצלחנו למשוך פרטים — אפשר למלא ידנית' : '');
   }
