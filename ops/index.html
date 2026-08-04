@@ -2364,7 +2364,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-04 · 32';
+const APP_BUILD = '2026-08-04 · 33';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -7288,6 +7288,27 @@ function _bshopListen(onChange) {
 
 const _bshopTotal = j => (j.items || []).reduce((s, it) => s + (Number(it.price) || 0), 0);
 
+// Days the car has been at Ibrahim's. The clock starts when the note is sent
+// and stops the moment the car is marked as finished — by him or by the yard.
+function _bshopDays(j) {
+  if (!j.sentAt) return null;
+  const start = new Date(j.sentAt).getTime();
+  if (!start) return null;
+  const end = j.status === 'returned' && j.returnedAt ? new Date(j.returnedAt).getTime() : Date.now();
+  return Math.max(0, Math.floor((end - start) / 86400000));
+}
+
+function _bshopDaysHtml(j) {
+  const d = _bshopDays(j);
+  if (d === null) return '';
+  const done = j.status === 'returned';
+  const txt = d === 0 ? 'נשלח היום' : d === 1 ? 'יום אחד' : `${d} ימים`;
+  const suffix = done ? ' · הסתיים' : d === 0 ? '' : ' אצל הפחח';
+  const bg = done ? 'var(--surface2)' : d >= 7 ? '#fee2e2' : 'var(--surface2)';
+  const col = done ? 'var(--muted)' : d >= 7 ? '#b91c1c' : 'var(--text)';
+  return `<span style="display:inline-block;background:${bg};color:${col};border-radius:999px;padding:3px 10px;font-size:12px;font-weight:800">⏱ ${txt}${suffix}</span>`;
+}
+
 /* The manufacturer's logo replaces the generic car emoji on every body-shop
    card. Names come from the transport ministry in Hebrew, so they are matched
    by substring; anything unknown simply stays an emoji. */
@@ -7347,11 +7368,14 @@ function _bshopJobCard(j, forWorker) {
       </div>
       ${total > 0 ? `<div style="font-size:18px;font-weight:900;color:var(--gold);white-space:nowrap">${total.toLocaleString('he-IL')} ₪</div>` : ''}
     </div>
-    <div style="margin-top:8px;font-size:13px;color:var(--muted)">
-      ${(j.items || []).length} חלקים${filled ? ` · מולאו ${filled}` : ''}
+    <div style="margin-top:8px;font-size:13px;color:var(--muted);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <span>${(j.items || []).length} חלקים${filled ? ` · מולאו ${filled}` : ''}</span>
+      ${_bshopDaysHtml(j)}
     </div>
     ${j.note ? `<div style="margin-top:6px;font-size:13px">📝 ${esc(j.note)}</div>` : ''}
     ${j.photo ? `<img src="${j.photo}" alt="" style="margin-top:8px;width:100%;max-height:150px;object-fit:cover;border-radius:10px;display:block">` : ''}
+    ${!forWorker && j.status === 'at_shop' ? `<button onclick="event.stopPropagation();bsmMarkReturned('${j.id}')"
+      style="margin-top:10px;width:100%;background:var(--dark);color:#fff;border:none;border-radius:10px;padding:10px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:900;cursor:pointer">✅ סיימנו עם הרכב</button>` : ''}
     ${!forWorker && j.status === 'draft' ? `<button onclick="event.stopPropagation();bsmSendToShop('${j.id}')"
       style="margin-top:10px;width:100%;background:var(--success);color:#fff;border:none;border-radius:10px;padding:11px;font-family:'Heebo',sans-serif;font-size:15px;font-weight:900;cursor:pointer">📤 שלח לאיברהים</button>` : ''}
   </div>`;
@@ -7509,6 +7533,19 @@ async function bsmSendToShop(id) {
   } catch (e) { showToast('שגיאה בשליחה — נסה שוב'); }
 }
 window.bsmSendToShop = bsmSendToShop;
+
+// the yard can close a car too — same effect as the beater pressing finish,
+// and it is what stops the day counter
+async function bsmMarkReturned(id) {
+  const j = _bshopJobs.find(x => x.id === id);
+  if (!j || j.status !== 'at_shop') return;
+  if (!confirm(`לסמן שסיימנו עם הרכב ${j.plate}?`)) return;
+  try {
+    await _updateDoc(_docRef('bodyshop_jobs', id), { status: 'returned', returnedAt: new Date().toISOString() });
+    showToast('✅ הרכב סומן כמוכן');
+  } catch (e) { showToast('שגיאה — נסה שוב'); }
+}
+window.bsmMarkReturned = bsmMarkReturned;
 
 /* "טופס הזמנת תיקון" — same layout as the printed form already in use.
    The date and time are stamped at print time so a form always carries them,
