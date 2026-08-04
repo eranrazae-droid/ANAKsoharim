@@ -2338,7 +2338,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-04 · 21';
+const APP_BUILD = '2026-08-04 · 22';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -7196,17 +7196,19 @@ function _pcCopyFallback(text, done) {
    A job's life: at_shop → returned → (settled: paidAt is set and it leaves both
    screens). Jobs are only ever hidden by being paid, never deleted, so the
    history of what was charged stays intact. */
-// Walk-around order: start at the front of the car, go right down the right
-// side, around the back, up the left side and back to the front. The roof and
-// polish close the list. This is the order the panel beater sees on the note.
+// Walk-around order: the front of the car, down the right side, the back, then
+// up the left side and back to the front — the circle closes. This is the order
+// the panel beater sees on his screen and on the printed note.
+const _BSHOP_CATALOG_VERSION = 2;
 const _BSHOP_DEFAULT_ITEMS = [
-  'פגוש קדמי','מכסה מנוע',
-  'כנף קדמית ימין','מראה ימין','דלת קדמית ימין','סף ימין','עמוד ימין',
-  'דלת אחורית ימין','כנף אחורית ימין',
-  'פגוש אחורי','דלת תא מטען',
-  'כנף אחורית שמאל','דלת אחורית שמאל','עמוד שמאל','סף שמאל',
-  'דלת קדמית שמאל','מראה שמאל','כנף קדמית שמאל',
-  'גג','פוליש'
+  // חזית קדמית
+  'טמבון קדמי','מכסה מנוע','שפם',
+  // צד ימין
+  'כנף קדמי ימין','דלת קדמי ימין','דלת אחורי ימין','כנף אחורי ימין',
+  // חזית אחורית
+  'טמבון אחורי','דלת תא מטען','ספוילר מעל שמשה אחורית',
+  // צד שמאל — סוגר את המעגל חזרה לחזית
+  'כנף אחורי שמאל','דלת אחורי שמאל','דלת קדמי שמאל','כנף קדמי שמאל'
 ];
 
 // Sort any set of part names by their position in the catalogue, so a job
@@ -7231,7 +7233,10 @@ function _bshopListen(onChange) {
   });
   _bshopUnsubCfg = _onSnap(_docRef('config', 'bodyshop'), snap => {
     const d = snap.exists() ? snap.data() : {};
-    const raw = Array.isArray(d.items) ? d.items : _BSHOP_DEFAULT_ITEMS;
+    // a catalogue saved before the current part list is ignored, so the new
+    // walk-around list replaces the old part names instead of merging with them
+    const fresh = d.v === _BSHOP_CATALOG_VERSION && Array.isArray(d.items);
+    const raw = fresh ? d.items : _BSHOP_DEFAULT_ITEMS;
     // keep the walk-around order for known parts; anything you added yourself
     // stays at the end, in the order you added it
     const known = raw.filter(n => _BSHOP_DEFAULT_ITEMS.includes(n))
@@ -7538,7 +7543,7 @@ function _bsmRenderCatalog() {
 
 async function _bsmSaveCatalog(items) {
   const { setDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-  await setDoc(_docRef('config', 'bodyshop'), { items }, { merge: true });
+  await setDoc(_docRef('config', 'bodyshop'), { items, v: _BSHOP_CATALOG_VERSION }, { merge: true });
 }
 
 async function bsmAddCatalogItem() {
