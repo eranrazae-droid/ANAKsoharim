@@ -1394,10 +1394,12 @@ if ('serviceWorker' in navigator) {
   </div>
   <div style="padding:16px 16px 100px">
     <div style="display:flex;gap:8px;margin-bottom:14px">
-      <button class="btn-submit" onclick="openBsmSendModal()" style="margin-top:0">➕ שלח רכב לפחח</button>
+      <button class="btn-submit" onclick="openBsmSendModal()" style="margin-top:0">➕ יצירת פתק</button>
       <button class="btn-submit" onclick="openBsmItemsModal()" style="margin-top:0;background:var(--dark);color:#fff">⚙️ רשימת חלקים</button>
     </div>
     <div id="bsm-summary"></div>
+    <div class="section-title">📝 פתקים שממתינים לשליחה</div>
+    <div id="bsm-drafts"></div>
     <div class="section-title">אצל הפחח</div>
     <div id="bsm-open"></div>
     <div style="margin:34px 0 16px;border-top:4px solid var(--border);padding-top:18px">
@@ -1418,7 +1420,7 @@ if ('serviceWorker' in navigator) {
 
 <div class="modal-overlay" id="modal-bsm-send">
   <div class="modal-box">
-    <div class="modal-title"><span>➕ שליחת רכב לפחח</span> <button class="modal-close" onclick="closeModal('modal-bsm-send')">✕</button></div>
+    <div class="modal-title"><span>➕ יצירת פתק</span> <button class="modal-close" onclick="closeModal('modal-bsm-send')">✕</button></div>
     <div class="form-group"><label>מספר רישוי <span style="color:#ef4444">*</span></label>
       <div style="display:flex;gap:6px">
         <input class="form-input" id="bsm-plate" inputmode="numeric" autocomplete="off" placeholder="לדוגמה 12345678" oninput="pcCleanPlateInput(this)" style="flex:1">
@@ -1439,7 +1441,7 @@ if ('serviceWorker' in navigator) {
       </div></div>
     <div class="form-group"><label>הערה לפחח</label>
       <input class="form-input" id="bsm-note" placeholder="לא חובה"></div>
-    <button class="btn-submit" onclick="submitBsmSend()">שלח ✅</button>
+    <button class="btn-submit" onclick="submitBsmSend()">📝 צור פתק</button>
   </div>
 </div>
 
@@ -2353,7 +2355,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-04 · 29';
+const APP_BUILD = '2026-08-04 · 30';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -7331,6 +7333,8 @@ function _bshopJobCard(j, forWorker) {
     </div>
     ${j.note ? `<div style="margin-top:6px;font-size:13px">📝 ${esc(j.note)}</div>` : ''}
     ${j.photo ? `<img src="${j.photo}" alt="" style="margin-top:8px;width:100%;max-height:150px;object-fit:cover;border-radius:10px;display:block">` : ''}
+    ${!forWorker && j.status === 'draft' ? `<button onclick="event.stopPropagation();bsmSendToShop('${j.id}')"
+      style="margin-top:10px;width:100%;background:var(--success);color:#fff;border:none;border-radius:10px;padding:11px;font-family:'Heebo',sans-serif;font-size:15px;font-weight:900;cursor:pointer">📤 שלח לאיברהים</button>` : ''}
   </div>`;
 }
 
@@ -7338,7 +7342,7 @@ function _bshopRenderWorker() {
   const openC = document.getElementById('bshop-open');
   const retC  = document.getElementById('bshop-returned');
   if (!openC || !retC) return;
-  const open = _bshopJobs.filter(j => j.status !== 'returned');
+  const open = _bshopJobs.filter(j => j.status === 'at_shop');
   const ret  = _bshopJobs.filter(j => j.status === 'returned');
   openC.innerHTML = open.length ? open.map(j => _bshopJobCard(j, true)).join('')
     : `<div style="padding:24px;text-align:center;color:var(--muted)">אין רכבים כרגע</div>`;
@@ -7437,7 +7441,8 @@ function _bshopRenderMgr() {
   const retC  = document.getElementById('bsm-returned');
   const sumC  = document.getElementById('bsm-summary');
   if (!openC || !retC) return;
-  const open = _bshopJobs.filter(j => j.status !== 'returned');
+  const draft = _bshopJobs.filter(j => j.status === 'draft');
+  const open = _bshopJobs.filter(j => j.status === 'at_shop');
   const ret  = _bshopJobs.filter(j => j.status === 'returned');
   const sum  = ret.reduce((s, j) => s + _bshopTotal(j), 0);
   const openSum = open.reduce((s, j) => s + _bshopTotal(j), 0);
@@ -7453,6 +7458,10 @@ function _bshopRenderMgr() {
     </div>
   </div>${openSum ? `<div style="font-size:12px;color:var(--muted);margin-bottom:6px">בנוסף ${openSum.toLocaleString('he-IL')} ₪ נרשמו על רכבים שעדיין אצלו</div>` : ''}`;
 
+  const draftC = document.getElementById('bsm-drafts');
+  if (draftC) draftC.innerHTML = draft.length
+    ? draft.map(j => _bshopJobCard(j, false)).join('')
+    : `<div style="padding:16px;text-align:center;color:var(--muted)">אין פתקים שממתינים לשליחה</div>`;
   openC.innerHTML = open.length ? open.map(j => _bshopJobCard(j, false)).join('')
     : `<div style="padding:16px;text-align:center;color:var(--muted)">אין רכבים אצל הפחח</div>`;
   retC.innerHTML = ret.length ? ret.map(j => _bshopJobCard(j, false)).join('')
@@ -7468,6 +7477,19 @@ function bsmOpenJob(id) {
   if (confirm(`🚗 ${j.plate}\n\n${lines}\n\nסה״כ: ${_bshopTotal(j).toLocaleString('he-IL')} ₪\n\nלהדפיס פתק לרכב זה?`)) bsmPrint(id);
 }
 window.bsmOpenJob = bsmOpenJob;
+
+// a note stays with the manager until this is pressed — only then does the
+// panel beater see the car on his screen
+async function bsmSendToShop(id) {
+  const j = _bshopJobs.find(x => x.id === id);
+  if (!j || j.status !== 'draft') return;
+  if (!confirm(`לשלוח את הרכב ${j.plate} לאיברהים?`)) return;
+  try {
+    await _updateDoc(_docRef('bodyshop_jobs', id), { status: 'at_shop', sentAt: new Date().toISOString() });
+    showToast('📤 נשלח לאיברהים');
+  } catch (e) { showToast('שגיאה בשליחה — נסה שוב'); }
+}
+window.bsmSendToShop = bsmSendToShop;
 
 /* "טופס הזמנת תיקון" — same layout as the printed form already in use.
    The date and time are stamped at print time so a form always carries them,
@@ -7636,12 +7658,12 @@ async function submitBsmSend() {
       maker: _bsmMaker,
       ...(_bsmPhoto ? { photo: _bsmPhoto } : {}),
       items: _bshopSortNames(_bsmPicked).map(name => ({ name, price: null })),
-      status: 'at_shop', paidAt: null,
-      sentAt: new Date().toISOString(),
+      status: 'draft', paidAt: null,
+      sentAt: null,
       createdBy: currentUser.name, createdAt: _serverTs()
     });
     closeModal('modal-bsm-send');
-    showToast('✅ הרכב נשלח לפחח');
+    showToast('📝 הפתק נוצר — נשאר אצלך עד ששולחים');
   } catch (e) { showToast('שגיאה בשמירה: ' + (e.code || e.message)); }
 }
 window.submitBsmSend = submitBsmSend;
