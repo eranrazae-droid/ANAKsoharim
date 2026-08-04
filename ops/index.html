@@ -1369,15 +1369,16 @@ if ('serviceWorker' in navigator) {
 
 <div class="modal-overlay" id="modal-bshop-fill">
   <div class="modal-box">
-    <div class="modal-title"><span id="bshop-fill-title">רכב</span> <button class="modal-close" onclick="closeModal('modal-bshop-fill')">✕</button></div>
+    <div class="modal-title"><span id="bshop-fill-title">רכב</span> <button class="modal-close" onclick="_bshopAutoSave(true);closeModal('modal-bshop-fill')">✕</button></div>
     <div style="font-size:13px;color:var(--muted);margin-bottom:12px">רשום מחיר ליד כל חלק שצבעת. חלק שלא עשית — השאר ריק.</div>
     <div id="bshop-fill-items"></div>
     <div style="display:flex;justify-content:space-between;align-items:center;border-top:2px solid var(--border);padding-top:12px;margin-top:8px">
       <div style="font-size:15px;font-weight:900">סה״כ</div>
       <div id="bshop-fill-total" style="font-size:22px;font-weight:900;color:var(--gold)">0 ₪</div>
     </div>
-    <button class="btn-submit" onclick="bshopSave(false)">💾 שמור</button>
-    <button class="btn-submit" onclick="bshopSave(true)" style="background:var(--success);color:#fff">✅ סיימתי את הרכב</button>
+    <div id="bshop-fill-saved" style="text-align:center;font-size:13px;font-weight:800;color:var(--muted);margin-top:10px">המחירים נשמרים לבד</div>
+    <button class="btn-submit" id="bshop-fill-done" onclick="bshopSave(true)" style="background:var(--success);color:#fff">✅ סיימתי את הרכב</button>
+    <div id="bshop-fill-donenote" style="display:none;text-align:center;font-size:13px;color:var(--muted);margin-top:10px">הרכב כבר סומן כמוכן — אפשר עדיין לשנות מחירים</div>
   </div>
 </div>
 
@@ -2340,7 +2341,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-04 · 24';
+const APP_BUILD = '2026-08-04 · 25';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -7299,12 +7300,20 @@ function bshopOpenFill(id) {
   if (!j) return;
   _bshopFillId = id;
   document.getElementById('bshop-fill-title').textContent = `🚗 ${j.plate}${j.desc ? ' · ' + j.desc : ''}`;
+  // a car already marked as finished can still have its prices corrected,
+  // it just does not need the green button any more
+  const isDone = j.status === 'returned';
+  const doneBtn = document.getElementById('bshop-fill-done');
+  if (doneBtn) doneBtn.style.display = isDone ? 'none' : '';
+  const doneNote = document.getElementById('bshop-fill-donenote');
+  if (doneNote) doneNote.style.display = isDone ? 'block' : 'none';
+  _bshopSetSaved('');
   document.getElementById('bshop-fill-items').innerHTML = (j.items || []).map((it, i) => `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
       <div style="flex:1;font-size:15px;font-weight:700">${esc(it.name)}</div>
       <input type="number" inputmode="numeric" min="0" class="form-input bshop-price" data-i="${i}"
              value="${it.price != null && it.price !== '' ? it.price : ''}" placeholder="מחיר"
-             oninput="_bshopRecalc()" style="width:110px;text-align:center;font-size:17px;font-weight:800">
+             oninput="_bshopRecalc();_bshopAutoSave()" onblur="_bshopAutoSave(true)" style="width:110px;text-align:center;font-size:17px;font-weight:800">
       <span style="font-size:15px;font-weight:800;color:var(--muted)">₪</span>
     </div>`).join('');
   _bshopRecalc();
@@ -7320,9 +7329,25 @@ function _bshopRecalc() {
 }
 window._bshopRecalc = _bshopRecalc;
 
-async function bshopSave(markDone) {
+// The panel beater must never have to press save. Every keystroke schedules a
+// write, and leaving a field writes immediately.
+let _bshopSaveTimer = null;
+function _bshopSetSaved(txt) {
+  const el = document.getElementById('bshop-fill-saved');
+  if (el) el.textContent = txt || 'המחירים נשמרים לבד';
+}
+function _bshopAutoSave(now) {
+  if (!_bshopFillId) return;
+  clearTimeout(_bshopSaveTimer);
+  _bshopSetSaved('שומר…');
+  _bshopSaveTimer = setTimeout(() => bshopSave(false, true), now ? 0 : 700);
+}
+window._bshopAutoSave = _bshopAutoSave;
+
+async function bshopSave(markDone, silent) {
   const j = _bshopJobs.find(x => x.id === _bshopFillId);
   if (!j) return;
+  if (markDone) clearTimeout(_bshopSaveTimer);
   const items = (j.items || []).map(it => ({ ...it }));
   document.querySelectorAll('.bshop-price').forEach(el => {
     const i = Number(el.dataset.i);
@@ -7332,9 +7357,13 @@ async function bshopSave(markDone) {
   if (markDone) { payload.status = 'returned'; payload.returnedAt = new Date().toISOString(); }
   try {
     await _updateDoc(_docRef('bodyshop_jobs', _bshopFillId), payload);
+    if (silent) { _bshopSetSaved('✓ נשמר'); return; }
     closeModal('modal-bshop-fill');
     showToast(markDone ? '✅ הרכב סומן כמוכן' : '💾 נשמר');
-  } catch (e) { showToast('שגיאה בשמירה — נסה שוב'); }
+  } catch (e) {
+    if (silent) { _bshopSetSaved('⚠️ לא נשמר — בדוק חיבור'); return; }
+    showToast('שגיאה בשמירה — נסה שוב');
+  }
 }
 window.bshopSave = bshopSave;
 
