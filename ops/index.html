@@ -2364,7 +2364,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-04 · 33';
+const APP_BUILD = '2026-08-04 · 34';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -7264,9 +7264,15 @@ function _bshopListen(onChange) {
       _bsmRenderArchive();
     });
   }
-  _bshopUnsubJobs = _onSnap(_colRef('bodyshop_jobs'), snap => {
+  // Only the open cycle is loaded. Paid jobs stay in the database untouched —
+  // they are simply not fetched, so the screens stay fast however many notes
+  // pile up over the years.
+  _bshopUnsubJobs = _onSnap(_query(_colRef('bodyshop_jobs'), _where('paidAt', '==', null)), snap => {
     _bshopJobs = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(j => !j.paidAt);
     onChange();
+  }, err => {
+    console.error('bodyshop jobs listen error:', err);
+    showToast('⚠️ בעיה בטעינת הרכבים — רענן את הדף');
   });
   _bshopUnsubCfg = _onSnap(_docRef('config', 'bodyshop'), snap => {
     const d = snap.exists() ? snap.data() : {};
@@ -7373,7 +7379,7 @@ function _bshopJobCard(j, forWorker) {
       ${_bshopDaysHtml(j)}
     </div>
     ${j.note ? `<div style="margin-top:6px;font-size:13px">📝 ${esc(j.note)}</div>` : ''}
-    ${j.photo ? `<img src="${j.photo}" alt="" style="margin-top:8px;width:100%;max-height:150px;object-fit:cover;border-radius:10px;display:block">` : ''}
+    ${(j.photoThumb || j.photo) ? `<img src="${j.photoThumb || j.photo}" alt="" loading="lazy" style="margin-top:8px;width:100%;max-height:150px;object-fit:cover;border-radius:10px;display:block">` : ''}
     ${!forWorker && j.status === 'at_shop' ? `<button onclick="event.stopPropagation();bsmMarkReturned('${j.id}')"
       style="margin-top:10px;width:100%;background:var(--dark);color:#fff;border:none;border-radius:10px;padding:10px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:900;cursor:pointer">✅ סיימנו עם הרכב</button>` : ''}
     ${!forWorker && j.status === 'draft' ? `<button onclick="event.stopPropagation();bsmSendToShop('${j.id}')"
@@ -7401,8 +7407,10 @@ function bshopOpenFill(id) {
   document.getElementById('bshop-fill-title').innerHTML =
     `${_brandIcon(j.maker)} ${esc(j.plate)}${j.desc ? ' · ' + esc(j.desc) : ''}`;
   const fp = document.getElementById('bshop-fill-photo');
-  if (fp) fp.innerHTML = j.photo
-    ? `<img src="${j.photo}" alt="" onclick="openLightbox(this.src)" style="width:100%;max-height:220px;object-fit:cover;border-radius:12px;margin-bottom:12px;cursor:zoom-in;display:block">` : '';
+  const small = j.photoThumb || j.photo || '';
+  if (fp) fp.innerHTML = small
+    ? `<img id="bshop-fill-img" src="${small}" alt="" onclick="openLightbox(this.src)" style="width:100%;max-height:220px;object-fit:cover;border-radius:12px;margin-bottom:12px;cursor:zoom-in;display:block">` : '';
+  if (small && !j.photo) _bshopLoadFullPhoto(id);
   // a car already marked as finished can still have its prices corrected,
   // it just does not need the green button any more
   const isDone = j.status === 'returned';
@@ -7423,6 +7431,18 @@ function bshopOpenFill(id) {
   openModal('modal-bshop-fill');
 }
 window.bshopOpenFill = bshopOpenFill;
+
+// swap the thumbnail for the full photo once it arrives; failing is harmless,
+// the small copy stays on screen
+async function _bshopLoadFullPhoto(id) {
+  if (!window._getDoc || !window._docRef) return;
+  try {
+    const snap = await window._getDoc(_docRef('bodyshop_photos', id));
+    const url = snap.exists() ? snap.data().photo : '';
+    const img = document.getElementById('bshop-fill-img');
+    if (url && img && _bshopFillId === id) img.src = url;
+  } catch (e) { /* thumbnail is good enough */ }
+}
 
 function _bshopRecalc() {
   let t = 0;
@@ -7614,6 +7634,7 @@ function openBsmSendModal() {
   document.getElementById('bsm-lookup-msg').textContent = '';
   _bsmMaker = '';
   _bsmPhoto = null;
+  _bsmThumb = null;
   _bsmRenderPhoto();
   _bsmRenderPicker();
   openModal('modal-bsm-send');
@@ -7677,6 +7698,7 @@ async function _bsmLookupPlate(manual) {
 window._bsmLookupPlate = _bsmLookupPlate;
 
 let _bsmPhoto = null;   // one optional photo of the car, shown to the beater
+let _bsmThumb = null;   // small copy kept on the job document itself
 
 function _bsmRenderPhoto() {
   const w = document.getElementById('bsm-photo-wrap');
@@ -7693,13 +7715,15 @@ async function bsmPickPhoto(input) {
   const f = input.files && input.files[0];
   input.value = '';
   if (!f) return;
-  try { _bsmPhoto = await compressToBase64(f, 800, 0.7); }
-  catch (e) { return showToast('לא הצלחנו לעבד את התמונה'); }
+  try {
+    _bsmPhoto = await compressToBase64(f, 1000, 0.7);   // full size, own document
+    _bsmThumb = await compressToBase64(f, 320, 0.55);   // small, rides on the job
+  } catch (e) { _bsmPhoto = null; _bsmThumb = null; return showToast('לא הצלחנו לעבד את התמונה'); }
   _bsmRenderPhoto();
 }
 window.bsmPickPhoto = bsmPickPhoto;
 
-function bsmClearPhoto() { _bsmPhoto = null; _bsmRenderPhoto(); }
+function bsmClearPhoto() { _bsmPhoto = null; _bsmThumb = null; _bsmRenderPhoto(); }
 window.bsmClearPhoto = bsmClearPhoto;
 
 async function submitBsmSend() {
@@ -7709,15 +7733,22 @@ async function submitBsmSend() {
   if (!plate) return showToast('נא להזין מספר רישוי');
   if (!_bsmPicked.length) return showToast('נא לבחור לפחות חלק אחד');
   try {
-    await _addDoc(_colRef('bodyshop_jobs'), {
+    const ref = await _addDoc(_colRef('bodyshop_jobs'), {
       plate, desc, note,
       maker: _bsmMaker,
-      ...(_bsmPhoto ? { photo: _bsmPhoto } : {}),
+      ...(_bsmThumb ? { photoThumb: _bsmThumb } : {}),
       items: _bshopSortNames(_bsmPicked).map(name => ({ name, price: null })),
       status: 'draft', paidAt: null,
       sentAt: null,
       createdBy: currentUser.name, createdAt: _serverTs()
     });
+    // the full photo lives in its own document, fetched only when a car is
+    // opened, so hundreds of notes never weigh down the list
+    if (_bsmPhoto && ref?.id) {
+      const { setDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+      try { await setDoc(_docRef('bodyshop_photos', ref.id), { photo: _bsmPhoto }); }
+      catch (e) { console.error('bodyshop photo save', e); }
+    }
     closeModal('modal-bsm-send');
     showToast('📝 הפתק נוצר — נשאר אצלך עד ששולחים');
   } catch (e) { showToast('שגיאה בשמירה: ' + (e.code || e.message)); }
@@ -7743,7 +7774,16 @@ async function bsmSettle() {
       cars: ret.map(j => ({ plate: j.plate, desc: j.desc || '', total: _bshopTotal(j) })),
       createdBy: currentUser.name, createdAt: _serverTs()
     });
-    for (const j of ret) await _updateDoc(_docRef('bodyshop_jobs', j.id), { paidAt: stamp, paidTotal: _bshopTotal(j) });
+    // batched so closing a month with hundreds of cars is one short round trip
+    // per chunk instead of hundreds of separate writes
+    const { writeBatch } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    for (let i = 0; i < ret.length; i += 400) {
+      const batch = writeBatch(window._db);
+      for (const j of ret.slice(i, i + 400)) {
+        batch.update(_docRef('bodyshop_jobs', j.id), { paidAt: stamp, paidTotal: _bshopTotal(j) });
+      }
+      await batch.commit();
+    }
     showToast(`💰 נסגר חשבון על ${sum.toLocaleString('he-IL')} ₪`);
   } catch (e) { showToast('שגיאה: ' + (e.code || e.message)); }
 }
