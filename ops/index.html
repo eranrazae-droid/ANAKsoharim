@@ -912,7 +912,7 @@ if ('serviceWorker' in navigator) {
       <input type="file" accept="image/*" capture="environment" id="file-c-coolant" style="display:none" onchange="addPhotos('c-coolant',this)">
     </div>
 
-    <!-- Accessories: a ✓-only checklist. One click marks, double click clears. -->
+    <!-- Accessories: a ✓-only checklist. Tap toggles the tick. -->
     <div class="checklist-item" style="flex-direction:column;align-items:stretch;gap:0">
       <div style="display:flex;align-items:center;justify-content:space-between;width:100%">
         <span class="ci-label">בדיקה והשלמת אביזרים</span>
@@ -937,7 +937,6 @@ if ('serviceWorker' in navigator) {
           <span style="font-size:14px;font-weight:600;flex:1">גלגל ספייר</span>
         </div>
       </div>
-      <textarea class="form-textarea" id="cn-c-safety" placeholder="הערה..." rows="2" style="margin-top:10px"></textarea>
     </div>
 
     <div class="checklist-item"><span class="ci-label">שברים בפנסים</span><div class="ci-btns"><button type="button" class="ci-box" data-key="c-lights-break" data-val="v" onclick="ciClick(this)">✓</button><button type="button" class="ci-box" data-key="c-lights-break" data-val="x" onclick="ciClick(this)">✕</button></div></div>
@@ -4630,12 +4629,22 @@ async function submitDriverIntake() {
     }
   }
 
+  // The accessories section has no ✓/✕ row of its own — its state is derived
+  // from the three sub-items — so it must be skipped here or it always fails.
+  // It is validated on its own terms just below.
+  if (!(ciPhotoFiles['c-safety-jack'] || []).length) {
+    document.getElementById('sf-jack-photo-row')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    showToast('⚠️ חסרה תמונה בסעיף: ג׳ק + מפתח גלגלים + משולש', 4500);
+    return;
+  }
+
   // validate all checklist items are marked
   for (const [key, label] of Object.entries(_ciLabels)) {
+    if (key === 'c-safety') continue;
     const active = document.querySelector(`#modal-driver-intake .ci-box[data-key="${key}"].v-active,#modal-driver-intake .ci-box[data-key="${key}"].x-active`);
     if (!active) {
       document.querySelector(`#modal-driver-intake .ci-box[data-key="${key}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      showToast(`⚠️ נא לסמן: ${label}`);
+      showToast(`⚠️ חסר סימון בסעיף: ${label}`, 4500);
       return;
     }
   }
@@ -4670,11 +4679,6 @@ async function submitDriverIntake() {
   // accessories checklist — the jack row must carry a photo either way, so the
   // manager can see what is actually in the boot
   const safetyChecks = _sfRead();
-  if (!(ciPhotoFiles['c-safety-jack'] || []).length) {
-    document.getElementById('sf-jack-photo-row')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    showToast('⚠️ חובה לצלם תמונה בסעיף ג׳ק + מפתח גלגלים + משולש');
-    return;
-  }
   // an unmarked accessory is a missing one — that is what opens the task
   const _sfMissing = Object.keys(_SF_ITEMS).filter(id => !safetyChecks[id]);
   checklist['c-safety'] = _sfMissing.length ? 'x' : 'v';
@@ -4873,7 +4877,11 @@ async function createIntakeTasks(checklist, allNotes, vehicle, photoUrls) {
 
   for (const rule of rules) {
     if (checklist[rule.key] !== 'x') continue;
-    const note = getNoteForKey(rule.key);
+    // accessories have no free-text field — the note is the derived list of
+    // exactly which items were missing
+    const note = rule.key === 'c-safety'
+      ? (checklist['c-safety_note'] || '')
+      : getNoteForKey(rule.key);
     const taskTitle = `${prefix} – ${rule.title}${note ? ': ' + note : ''}`;
     const isDriverCol = !colToAssigned[rule.col];
     const label      = rule.col;
