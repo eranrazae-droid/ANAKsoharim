@@ -1371,6 +1371,7 @@ if ('serviceWorker' in navigator) {
   <div class="modal-box">
     <div class="modal-title"><span id="bshop-fill-title">רכב</span> <button class="modal-close" onclick="_bshopAutoSave(true);closeModal('modal-bshop-fill')">✕</button></div>
     <div style="font-size:13px;color:var(--muted);margin-bottom:12px">רשום מחיר ליד כל חלק שצבעת. חלק שלא עשית — השאר ריק.</div>
+    <div id="bshop-fill-photo"></div>
     <div id="bshop-fill-items"></div>
     <div style="display:flex;justify-content:space-between;align-items:center;border-top:2px solid var(--border);padding-top:12px;margin-top:8px">
       <div style="font-size:15px;font-weight:900">סה״כ</div>
@@ -1415,9 +1416,16 @@ if ('serviceWorker' in navigator) {
   <div class="modal-box">
     <div class="modal-title"><span>➕ שליחת רכב לפחח</span> <button class="modal-close" onclick="closeModal('modal-bsm-send')">✕</button></div>
     <div class="form-group"><label>מספר רישוי <span style="color:#ef4444">*</span></label>
-      <input class="form-input" id="bsm-plate" inputmode="numeric" autocomplete="off" placeholder="לדוגמה 12345678" oninput="pcCleanPlateInput(this)" onblur="_bsmLookupPlate()"></div>
+      <div style="display:flex;gap:6px">
+        <input class="form-input" id="bsm-plate" inputmode="numeric" autocomplete="off" placeholder="לדוגמה 12345678" oninput="pcCleanPlateInput(this)" style="flex:1">
+        <button type="button" onclick="_bsmLookupPlate(true)" style="background:var(--dark);color:#fff;border:none;border-radius:10px;padding:0 16px;font-family:'Heebo',sans-serif;font-weight:800;cursor:pointer;white-space:nowrap">🔎 משוך פרטים</button>
+      </div>
+      <div id="bsm-lookup-msg" style="font-size:13px;color:var(--muted);margin-top:6px"></div></div>
     <div class="form-group"><label>הרכב</label>
-      <input class="form-input" id="bsm-desc" placeholder="יצרן, דגם, צבע"></div>
+      <input class="form-input" id="bsm-desc" placeholder="יצרן, דגם, שנה, צבע"></div>
+    <div class="form-group"><label>תמונת הרכב (לא חובה)</label>
+      <input type="file" accept="image/*" id="bsm-photo-file" style="display:none" onchange="bsmPickPhoto(this)">
+      <div id="bsm-photo-wrap"></div></div>
     <div class="form-group"><label>מה צריך לעשות <span style="color:#ef4444">*</span></label>
       <div id="bsm-items-pick" style="display:flex;flex-wrap:wrap;gap:6px"></div></div>
     <div class="form-group"><label>הוסף חלק שלא ברשימה</label>
@@ -2341,7 +2349,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-04 · 25';
+const APP_BUILD = '2026-08-04 · 26';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -7255,6 +7263,45 @@ function _bshopListen(onChange) {
 
 const _bshopTotal = j => (j.items || []).reduce((s, it) => s + (Number(it.price) || 0), 0);
 
+/* The manufacturer's logo replaces the generic car emoji on every body-shop
+   card. Names come from the transport ministry in Hebrew, so they are matched
+   by substring; anything unknown simply stays an emoji. */
+const _BRAND_SLUGS = [
+  ['אאודי','audi'],['ב.מ.וו','bmw'],['במוו','bmw'],['ב מ וו','bmw'],
+  ['מרצדס','mercedes'],['פולקסווגן','volkswagen'],['פולקסוואגן','volkswagen'],
+  ['סקודה','skoda'],['סיאט','seat'],['קופרה','cupra'],['פורשה','porsche'],['פורש','porsche'],
+  ['מיני','mini'],['אופל','opel'],['פיג׳ו','peugeot'],['פיגו','peugeot'],['פיז׳ו','peugeot'],
+  ['רנו','renault'],['סיטרואן','citroen'],['דאצ׳יה','dacia'],['דאציה','dacia'],
+  ['פיאט','fiat'],['אלפא','alfaromeo'],['ג׳יפ','jeep'],['גיפ','jeep'],
+  ['פורד','ford'],['שברולט','chevrolet'],['טסלה','tesla'],
+  ['טויוטה','toyota'],['טויטה','toyota'],['לקסוס','lexus'],['הונדה','honda'],['אקורה','acura'],
+  ['ניסאן','nissan'],['ניסן','nissan'],['מאזדה','mazda'],['מזדה','mazda'],
+  ['סובארו','subaru'],['סוברו','subaru'],['סוזוקי','suzuki'],
+  ['מיצובישי','mitsubishi'],['מיצובושי','mitsubishi'],['דייהטסו','daihatsu'],['איסוזו','isuzu'],
+  ['יונדאי','hyundai'],['הונדאי','hyundai'],['קיה','kia'],['קיא','kia'],['סאנגיונג','ssangyong'],
+  ['וולוו','volvo'],['וולבו','volvo'],['יגואר','jaguar'],['לנד רובר','landrover'],['ריינג','landrover'],
+  ['פרארי','ferrari'],['למבורגיני','lamborghini'],['מזראטי','maserati'],['בנטלי','bentley'],
+  ['רולס','rollsroyce'],['אסטון','astonmartin'],['סמארט','smart'],
+  ['ביי די','byd'],['בי.וואי.די','byd'],['צ׳רי','chery'],['גילי','geely'],['ג׳ילי','geely'],
+];
+
+function _brandSlug(maker) {
+  const m = String(maker || '');
+  for (const [heb, slug] of _BRAND_SLUGS) if (m.includes(heb)) return slug;
+  return '';
+}
+
+// falls back to the car emoji if the logo cannot be fetched (no network, or a
+// make the icon service does not carry)
+function _brandIcon(maker, size) {
+  const slug = _brandSlug(maker);
+  const px = size || 22;
+  if (!slug) return '🚗';
+  return `<img src="https://cdn.simpleicons.org/${slug}" alt="" width="${px}" height="${px}"
+    loading="lazy" referrerpolicy="no-referrer"
+    style="vertical-align:-3px;object-fit:contain" onerror="this.outerHTML='🚗'">`;
+}
+
 /* ---- the panel beater's screen ---- */
 function openBodyShopScreen() {
   showScreen('bodyshop');
@@ -7270,7 +7317,7 @@ function _bshopJobCard(j, forWorker) {
       style="border:2px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px;background:var(--card);cursor:pointer">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
       <div style="flex:1;min-width:0">
-        <div style="font-weight:900;font-size:17px">🚗 ${esc(j.plate)}</div>
+        <div style="font-weight:900;font-size:17px">${_brandIcon(j.maker)} ${esc(j.plate)}</div>
         ${desc ? `<div style="font-size:13px;color:var(--muted)">${esc(desc)}</div>` : ''}
       </div>
       ${total > 0 ? `<div style="font-size:18px;font-weight:900;color:var(--gold);white-space:nowrap">${total.toLocaleString('he-IL')} ₪</div>` : ''}
@@ -7279,6 +7326,7 @@ function _bshopJobCard(j, forWorker) {
       ${(j.items || []).length} חלקים${filled ? ` · מולאו ${filled}` : ''}
     </div>
     ${j.note ? `<div style="margin-top:6px;font-size:13px">📝 ${esc(j.note)}</div>` : ''}
+    ${j.photo ? `<img src="${j.photo}" alt="" style="margin-top:8px;width:100%;max-height:150px;object-fit:cover;border-radius:10px;display:block">` : ''}
   </div>`;
 }
 
@@ -7299,7 +7347,11 @@ function bshopOpenFill(id) {
   const j = _bshopJobs.find(x => x.id === id);
   if (!j) return;
   _bshopFillId = id;
-  document.getElementById('bshop-fill-title').textContent = `🚗 ${j.plate}${j.desc ? ' · ' + j.desc : ''}`;
+  document.getElementById('bshop-fill-title').innerHTML =
+    `${_brandIcon(j.maker)} ${esc(j.plate)}${j.desc ? ' · ' + esc(j.desc) : ''}`;
+  const fp = document.getElementById('bshop-fill-photo');
+  if (fp) fp.innerHTML = j.photo
+    ? `<img src="${j.photo}" alt="" onclick="openLightbox(this.src)" style="width:100%;max-height:220px;object-fit:cover;border-radius:12px;margin-bottom:12px;cursor:zoom-in;display:block">` : '';
   // a car already marked as finished can still have its prices corrected,
   // it just does not need the green button any more
   const isDone = j.status === 'returned';
@@ -7477,6 +7529,10 @@ function openBsmSendModal() {
   document.getElementById('bsm-desc').value = '';
   document.getElementById('bsm-note').value = '';
   document.getElementById('bsm-extra').value = '';
+  document.getElementById('bsm-lookup-msg').textContent = '';
+  _bsmMaker = '';
+  _bsmPhoto = null;
+  _bsmRenderPhoto();
   _bsmRenderPicker();
   openModal('modal-bsm-send');
 }
@@ -7509,16 +7565,56 @@ function bsmAddExtra() {
 }
 window.bsmAddExtra = bsmAddExtra;
 
-async function _bsmLookupPlate() {
+let _bsmMaker = '';   // manufacturer, kept for the brand logo on the card
+
+async function _bsmLookupPlate(manual) {
   const plate = document.getElementById('bsm-plate').value.replace(/\D/g, '');
   const descEl = document.getElementById('bsm-desc');
-  if (!plate || descEl.value.trim()) return;
+  const msgEl = document.getElementById('bsm-lookup-msg');
+  const say = t => { if (msgEl) msgEl.textContent = t; };
+  if (!plate) return say(manual ? 'נא להזין מספר רישוי' : '');
+  // pressing the button always refreshes; typing never overwrites what you wrote
+  if (!manual && descEl.value.trim()) return;
+  say('מחפש במשרד התחבורה…');
   try {
     const rec = await _pcFilterLookup(plate, plate);
-    if (rec) descEl.value = [_cleanMaker(rec['tozeret_nm'] || ''), rec['kinuy_mishari'] || rec['degem_nm'] || '', rec['tzeva_rechev'] || ''].filter(Boolean).join(' ');
-  } catch (e) { /* the description is optional — never block on the registry */ }
+    if (!rec) return say('לא נמצא רכב במספר הזה — אפשר למלא ידנית');
+    const maker = _cleanMaker(rec['tozeret_nm'] || '');
+    _bsmMaker = maker;
+    descEl.value = [maker, rec['kinuy_mishari'] || rec['degem_nm'] || '',
+      rec['shnat_yitzur'] || '', rec['tzeva_rechev'] || ''].filter(Boolean).join(' ');
+    say('✅ נמצא');
+  } catch (e) {
+    say(manual ? 'לא הצלחנו למשוך פרטים — אפשר למלא ידנית' : '');
+  }
 }
 window._bsmLookupPlate = _bsmLookupPlate;
+
+let _bsmPhoto = null;   // one optional photo of the car, shown to the beater
+
+function _bsmRenderPhoto() {
+  const w = document.getElementById('bsm-photo-wrap');
+  if (!w) return;
+  w.innerHTML = _bsmPhoto
+    ? `<div style="position:relative">
+         <img src="${_bsmPhoto}" alt="" style="width:100%;max-height:200px;object-fit:cover;border-radius:12px;display:block">
+         <button type="button" onclick="bsmClearPhoto()" style="position:absolute;top:8px;left:8px;background:#ef4444;color:#fff;border:none;border-radius:8px;width:30px;height:30px;font-weight:900;cursor:pointer">✕</button>
+       </div>`
+    : `<button type="button" onclick="document.getElementById('bsm-photo-file').click()" style="width:100%;background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:10px;font-family:Heebo,sans-serif;font-weight:700;font-size:14px;cursor:pointer">📷 צלם תמונה</button>`;
+}
+
+async function bsmPickPhoto(input) {
+  const f = input.files && input.files[0];
+  input.value = '';
+  if (!f) return;
+  try { _bsmPhoto = await compressToBase64(f, 800, 0.7); }
+  catch (e) { return showToast('לא הצלחנו לעבד את התמונה'); }
+  _bsmRenderPhoto();
+}
+window.bsmPickPhoto = bsmPickPhoto;
+
+function bsmClearPhoto() { _bsmPhoto = null; _bsmRenderPhoto(); }
+window.bsmClearPhoto = bsmClearPhoto;
 
 async function submitBsmSend() {
   const plate = document.getElementById('bsm-plate').value.replace(/\D/g, '');
@@ -7529,6 +7625,8 @@ async function submitBsmSend() {
   try {
     await _addDoc(_colRef('bodyshop_jobs'), {
       plate, desc, note,
+      maker: _bsmMaker,
+      ...(_bsmPhoto ? { photo: _bsmPhoto } : {}),
       items: _bshopSortNames(_bsmPicked).map(name => ({ name, price: null })),
       status: 'at_shop', paidAt: null,
       sentAt: new Date().toISOString(),
