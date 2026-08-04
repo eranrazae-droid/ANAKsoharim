@@ -1409,6 +1409,8 @@ if ('serviceWorker' in navigator) {
     <div id="bsm-pay-wrap" style="display:none;margin-top:16px">
       <button class="btn-submit" onclick="bsmSettle()" style="background:var(--success);color:#fff">💰 שילמתי — סגור חשבון</button>
     </div>
+    <div class="section-title">🗄️ ארכיון תשלומים</div>
+    <div id="bsm-archive"></div>
     <div class="section-title">קישור לפחח</div>
     <div style="font-size:13px;color:var(--muted);line-height:1.8;margin-bottom:8px">שלח לו את הקישור פעם אחת. הוא נכנס ורואה רק את המסך שלו, בלי סיסמה ובלי בחירת שם.</div>
     <div style="display:flex;gap:8px">
@@ -1442,6 +1444,13 @@ if ('serviceWorker' in navigator) {
     <div class="form-group"><label>הערה לפחח</label>
       <input class="form-input" id="bsm-note" placeholder="לא חובה"></div>
     <button class="btn-submit" onclick="submitBsmSend()">📝 צור פתק</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-bsm-arc">
+  <div class="modal-box">
+    <div class="modal-title"><span id="bsm-arc-title">📁</span> <button class="modal-close" onclick="closeModal('modal-bsm-arc')">✕</button></div>
+    <div id="bsm-arc-body"></div>
   </div>
 </div>
 
@@ -2355,7 +2364,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-04 · 30';
+const APP_BUILD = '2026-08-04 · 31';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -7238,13 +7247,23 @@ function _bshopSortNames(names) {
 
 let _bshopJobs = [];        // unpaid jobs only — the current billing cycle
 let _bshopItems = [];       // the fixed catalogue of parts
-let _bshopUnsubJobs = null, _bshopUnsubCfg = null;
+let _bshopUnsubJobs = null, _bshopUnsubCfg = null, _bshopUnsubArc = null;
+let _bshopArchive = [];   // one folder per payment to Ibrahim
 let _bsmPicked = [];        // parts selected while composing a new job
 let _bshopFillId = null;
 
 function _bshopListen(onChange) {
   if (_bshopUnsubJobs) _bshopUnsubJobs();
   if (_bshopUnsubCfg) _bshopUnsubCfg();
+  if (_bshopUnsubArc) { _bshopUnsubArc(); _bshopUnsubArc = null; }
+  // only the manager has an archive screen
+  if (currentUser?.role === 'manager') {
+    _bshopUnsubArc = _onSnap(_colRef('bodyshop_archive'), snap => {
+      _bshopArchive = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => String(b.paidAt || '').localeCompare(String(a.paidAt || '')));
+      _bsmRenderArchive();
+    });
+  }
   _bshopUnsubJobs = _onSnap(_colRef('bodyshop_jobs'), snap => {
     _bshopJobs = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(j => !j.paidAt);
     onChange();
@@ -7676,12 +7695,56 @@ async function bsmSettle() {
   const sum = ret.reduce((s, j) => s + _bshopTotal(j), 0);
   if (!confirm(`לסגור חשבון על ${ret.length} רכבים בסך ${sum.toLocaleString('he-IL')} ₪?\n\nהם ייעלמו מהמסך של הפחח וממסך זה.`)) return;
   const stamp = new Date().toISOString();
+  const dateStr = new Date().toLocaleDateString('he-IL');
   try {
+    // the folder is written first, so a payment is never lost even if marking
+    // the jobs as paid fails half way through
+    await _addDoc(_colRef('bodyshop_archive'), {
+      title: 'עד ' + dateStr,
+      paidAt: stamp,
+      total: sum,
+      cars: ret.map(j => ({ plate: j.plate, desc: j.desc || '', total: _bshopTotal(j) })),
+      createdBy: currentUser.name, createdAt: _serverTs()
+    });
     for (const j of ret) await _updateDoc(_docRef('bodyshop_jobs', j.id), { paidAt: stamp, paidTotal: _bshopTotal(j) });
     showToast(`💰 נסגר חשבון על ${sum.toLocaleString('he-IL')} ₪`);
   } catch (e) { showToast('שגיאה: ' + (e.code || e.message)); }
 }
 window.bsmSettle = bsmSettle;
+
+/* ---- payment archive: one folder per payment, each holding the cars ---- */
+function _bsmRenderArchive() {
+  const c = document.getElementById('bsm-archive');
+  if (!c) return;
+  if (!_bshopArchive.length) {
+    c.innerHTML = `<div style="padding:16px;text-align:center;color:var(--muted)">עדיין לא נסגר חשבון</div>`;
+    return;
+  }
+  c.innerHTML = _bshopArchive.map(a => `<div onclick="bsmOpenArchive('${a.id}')"
+      style="display:flex;align-items:center;gap:10px;border:2px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px;background:var(--card);cursor:pointer">
+    <div style="font-size:26px">📁</div>
+    <div style="flex:1;min-width:0">
+      <div style="font-weight:900;font-size:16px">${esc(a.title || '')}</div>
+      <div style="font-size:13px;color:var(--muted)">${(a.cars || []).length} רכבים</div>
+    </div>
+    <div style="font-size:17px;font-weight:900;color:var(--gold);white-space:nowrap">${Number(a.total || 0).toLocaleString('he-IL')} ₪</div>
+  </div>`).join('');
+}
+
+function bsmOpenArchive(id) {
+  const a = _bshopArchive.find(x => x.id === id);
+  if (!a) return;
+  document.getElementById('bsm-arc-title').textContent = '📁 ' + (a.title || '');
+  const rows = (a.cars || []).map(c => `<div style="display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--border);padding:9px 0">
+      <div style="font-weight:800">🚗 ${esc(c.plate)}${c.desc ? `<span style="font-weight:600;color:var(--muted);font-size:13px"> · ${esc(c.desc)}</span>` : ''}</div>
+      <div style="font-weight:900;white-space:nowrap">${Number(c.total || 0).toLocaleString('he-IL')} ₪</div>
+    </div>`).join('');
+  document.getElementById('bsm-arc-body').innerHTML = rows +
+    `<div style="display:flex;justify-content:space-between;padding-top:12px;margin-top:6px;border-top:2px solid var(--border);font-size:17px;font-weight:900">
+       <span>סה״כ ששולם לאיברהים</span><span style="color:var(--gold)">${Number(a.total || 0).toLocaleString('he-IL')} ₪</span></div>`;
+  openModal('modal-bsm-arc');
+}
+window.bsmOpenArchive = bsmOpenArchive;
 
 function bsmCopyLink() {
   const el = document.getElementById('bsm-link');
