@@ -2183,7 +2183,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-04 · 8';
+const APP_BUILD = '2026-08-04 · 9';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -4283,20 +4283,11 @@ function _renderIntakeList(all) {
     const checkedInAssign = all.filter(v => v.status === 'checked').map(v => ({ ...v, _src: 'assignments' }));
     const checkedRefreshes = refreshes.filter(r => r.status === 'checked').map(r => ({ ...r, _src: 'refresh', formType: 'refresh' }));
     const archivedAll = archivedFromCol.concat(checkedInAssign, checkedRefreshes);
-    const drivers = ['ליאל','עופר','גיל','איתי'];
-    summary.style.display = 'grid';
-    const activeFilter = window._vehicleDriverFilter || null;
-    summary.innerHTML = drivers.map(name => {
-      const pending = all.filter(v => v.assignedTo === name && v.status === 'pending').length;
-      const done    = all.filter(v => v.assignedTo === name && v.status === 'done').length;
-      const checked = archivedAll.filter(v => v.assignedTo === name).length;
-      const isActive = activeFilter === name;
-      return `<div onclick="filterVehiclesByDriver('${name}')" style="background:${isActive?'var(--dark)':'#fff'};border:2px solid ${isActive?'var(--dark)':'var(--border)'};border-radius:14px;padding:14px 10px;text-align:center;cursor:pointer;transition:all .15s">
-        <div style="font-size:12px;font-weight:800;margin-bottom:4px;color:${isActive?'#fff':'var(--dark)'}">${name}</div>
-        <div style="font-size:20px;font-weight:900;color:${isActive?'#fbbf24':'var(--warning)'}">${pending} ⏳</div>
-        <div style="font-size:12px;font-weight:700;color:${isActive?'#86efac':'var(--success)'}">בוצע ${done} · נבדק ${checked}</div>
-      </div>`;
-    }).join('');
+    // The per-driver count cards were removed — they took a quarter of the
+    // screen to show mostly zeros. The list itself now gets the space.
+    summary.style.display = 'none';
+    summary.innerHTML = '';
+    window._vehicleDriverFilter = null; // nothing can set the filter any more
 
     const f = window._vehicleDriverFilter;
     const activeRaw = all.filter(v => (v.status === 'pending' || v.status === 'done') && (!f || v.assignedTo === f));
