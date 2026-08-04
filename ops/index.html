@@ -299,8 +299,24 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
 .config-warning{background:#fef3c7;border:2px solid var(--warning);border-radius:12px;padding:14px 16px;margin:16px;font-size:13px;color:#92400e;font-weight:600}
 </style>
 <script>
+/* Devices kept serving an old copy of the app for days — a fix would ship and
+   the team would still see the previous screen. The worker now re-checks for a
+   new version on load and whenever the app is brought back to the foreground,
+   and reloads once a newer one takes over. */
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/ops/sw.js');
+  navigator.serviceWorker.register('/ops/sw.js', { updateViaCache: 'none' }).then(reg => {
+    reg.update();
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') reg.update();
+    });
+  }).catch(() => { /* an unavailable worker must never block the app */ });
+
+  let _swReloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (_swReloading) return;   // guard against a reload loop
+    _swReloading = true;
+    location.reload();
+  });
 }
 </script>
 </head>
@@ -2167,7 +2183,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-01 · 7';
+const APP_BUILD = '2026-08-04 · 8';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
