@@ -1350,6 +1350,94 @@ if ('serviceWorker' in navigator) {
 </div>
 
 <!-- ====== SCREEN: RECALL CHECK (MANAGER) ====== -->
+<!-- ====== SCREEN: BODY SHOP — the panel beater's own view ====== -->
+<div id="screen-bodyshop" class="screen">
+  <div class="app-header">
+    <div class="logo">🔨 עבודות פחחות</div>
+  </div>
+  <div style="padding:16px 16px 100px">
+    <div class="section-title" style="margin-top:0">רכבים אצלך עכשיו</div>
+    <div id="bshop-open"></div>
+    <div class="section-title">רכבים שסיימת</div>
+    <div id="bshop-returned"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-bshop-fill">
+  <div class="modal-box">
+    <div class="modal-title"><span id="bshop-fill-title">רכב</span> <button class="modal-close" onclick="closeModal('modal-bshop-fill')">✕</button></div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:12px">רשום מחיר ליד כל חלק שצבעת. חלק שלא עשית — השאר ריק.</div>
+    <div id="bshop-fill-items"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;border-top:2px solid var(--border);padding-top:12px;margin-top:8px">
+      <div style="font-size:15px;font-weight:900">סה״כ</div>
+      <div id="bshop-fill-total" style="font-size:22px;font-weight:900;color:var(--gold)">0 ₪</div>
+    </div>
+    <button class="btn-submit" onclick="bshopSave(false)">💾 שמור</button>
+    <button class="btn-submit" onclick="bshopSave(true)" style="background:var(--success);color:#fff">✅ סיימתי את הרכב</button>
+  </div>
+</div>
+
+<!-- ====== SCREEN: BODY SHOP (MANAGER) ====== -->
+<div id="screen-bodyshop-mgr" class="screen">
+  <div class="app-header">
+    <button class="back-btn" onclick="goHome()">→</button>
+    <div class="logo">🔨 פחחות</div>
+    <div class="user-badge" id="bsm-user-badge" onclick="logout()"></div>
+  </div>
+  <div style="padding:16px 16px 100px">
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <button class="btn-submit" onclick="openBsmSendModal()" style="margin-top:0">➕ שלח רכב לפחח</button>
+      <button class="btn-submit" onclick="openBsmItemsModal()" style="margin-top:0;background:var(--dark);color:#fff">⚙️ רשימת חלקים</button>
+    </div>
+    <div id="bsm-summary"></div>
+    <div class="section-title">אצל הפחח</div>
+    <div id="bsm-open"></div>
+    <div class="section-title">סיים — ממתין לתשלום</div>
+    <div id="bsm-returned"></div>
+    <div id="bsm-pay-wrap" style="display:none;margin-top:16px">
+      <button class="btn-submit" onclick="bsmSettle()" style="background:var(--success);color:#fff">💰 שילמתי — סגור חשבון</button>
+    </div>
+    <div class="section-title">קישור לפחח</div>
+    <div style="font-size:13px;color:var(--muted);line-height:1.8;margin-bottom:8px">שלח לו את הקישור פעם אחת. הוא נכנס ורואה רק את המסך שלו, בלי סיסמה ובלי בחירת שם.</div>
+    <div style="display:flex;gap:8px">
+      <input class="form-input" id="bsm-link" readonly style="flex:1;font-size:12px;direction:ltr">
+      <button onclick="bsmCopyLink()" style="background:var(--gold);color:#000;border:none;border-radius:10px;padding:0 16px;font-family:'Heebo',sans-serif;font-weight:800;cursor:pointer">העתק</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-bsm-send">
+  <div class="modal-box">
+    <div class="modal-title"><span>➕ שליחת רכב לפחח</span> <button class="modal-close" onclick="closeModal('modal-bsm-send')">✕</button></div>
+    <div class="form-group"><label>מספר רישוי <span style="color:#ef4444">*</span></label>
+      <input class="form-input" id="bsm-plate" inputmode="numeric" autocomplete="off" placeholder="לדוגמה 12345678" oninput="pcCleanPlateInput(this)" onblur="_bsmLookupPlate()"></div>
+    <div class="form-group"><label>הרכב</label>
+      <input class="form-input" id="bsm-desc" placeholder="יצרן, דגם, צבע"></div>
+    <div class="form-group"><label>מה צריך לעשות <span style="color:#ef4444">*</span></label>
+      <div id="bsm-items-pick" style="display:flex;flex-wrap:wrap;gap:6px"></div></div>
+    <div class="form-group"><label>הוסף חלק שלא ברשימה</label>
+      <div style="display:flex;gap:6px">
+        <input class="form-input" id="bsm-extra" placeholder="כתוב חלק..." onkeydown="if(event.key==='Enter'){event.preventDefault();bsmAddExtra();}">
+        <button onclick="bsmAddExtra()" style="background:var(--dark);color:#fff;border:none;border-radius:10px;padding:0 18px;font-family:'Heebo',sans-serif;font-weight:800;cursor:pointer">הוסף</button>
+      </div></div>
+    <div class="form-group"><label>הערה לפחח</label>
+      <input class="form-input" id="bsm-note" placeholder="לא חובה"></div>
+    <button class="btn-submit" onclick="submitBsmSend()">שלח ✅</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-bsm-items">
+  <div class="modal-box">
+    <div class="modal-title"><span>⚙️ רשימת החלקים הקבועה</span> <button class="modal-close" onclick="closeModal('modal-bsm-items')">✕</button></div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:10px">אלה החלקים שיוצעו לך בכל שליחה. אפשר להוסיף ולמחוק.</div>
+    <div style="display:flex;gap:6px;margin-bottom:12px">
+      <input class="form-input" id="bsm-new-item" placeholder="שם חלק חדש" onkeydown="if(event.key==='Enter'){event.preventDefault();bsmAddCatalogItem();}">
+      <button onclick="bsmAddCatalogItem()" style="background:var(--gold);color:#000;border:none;border-radius:10px;padding:0 18px;font-family:'Heebo',sans-serif;font-weight:800;cursor:pointer">הוסף</button>
+    </div>
+    <div id="bsm-items-list"></div>
+  </div>
+</div>
+
 <!-- ====== SCREEN: BATTERY STOCK (MANAGER) ====== -->
 <div id="screen-battery-stock" class="screen">
   <div class="app-header">
@@ -2052,6 +2140,15 @@ window.addEventListener('firebase-ready', async () => {
     const ok = await window._authReady;
     if (!ok) showToast('⚠️ בעיית התחברות לשרת — רענן את הדף', 6000);
   }
+  // The panel beater gets his own link and never sees the login screen — he
+  // opens it and lands straight on his jobs. Nothing else is reachable from
+  // there: no menu, no back button, no other screen.
+  if (/[?&]pahach\b/.test(location.search)) {
+    currentUser = { role: 'bodyshop', name: 'פחח' };
+    openBodyShopScreen();
+    return;
+  }
+
   // check saved session
   const saved = localStorage.getItem('anak_user');
   if (saved) {
@@ -2239,7 +2336,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-04 · 14';
+const APP_BUILD = '2026-08-04 · 15';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -2337,6 +2434,7 @@ function renderHome() {
         // row 3 — recall is not here, it lives on the floating home button
         { icon: '🚙', title: 'מכוניות לאיסוף', sub: 'ניהול רכבים לאיסוף', screen: 'pickup' },
         { icon: '🔋', title: 'בדיקת טעינה', sub: 'אחוזי טעינה וטווח נסיעה', screen: 'battery' },
+        { icon: '🔨', title: 'פחחות', sub: 'עבודות, מחירים וחשבון חודשי', screen: 'bodyshop-mgr' },
         { icon: '🔧', title: 'קטלוג חלפים', sub: 'חיפוש מק"ט לפי רכב', screen: 'parts-catalog' },
       ]
     : [
@@ -2748,6 +2846,7 @@ function goToScreen(name) {
   else if (name === 'recall') openRecallScreen();
   else if (name === 'parts-catalog') { if (currentUser.role !== 'manager') return; openPartsCatalogScreen(); }
   else if (name === 'battery-stock') { if (currentUser.role !== 'manager') return; openBatteryStockScreen(); }
+  else if (name === 'bodyshop-mgr') { if (currentUser.role !== 'manager') return; openBodyShopMgrScreen(); }
   else if (name === 'driver-battery-unified') {
     const card = document.getElementById('menu-card-driver-battery');
     if (card && card.dataset.unifiedMode === 'charging') openDriverChargingScreen();
@@ -7089,6 +7188,321 @@ function _pcCopyFallback(text, done) {
     done();
   } catch (e) { showToast('לא ניתן להעתיק — סמן ידנית'); }
 }
+
+/* ─── BODY SHOP ────────────────────────────────────────
+   Replaces a paper note per car. The manager sends a car with a list of parts;
+   the panel beater writes a price next to each part he actually painted, since
+   prices are not fixed. At the end of the month the manager settles up and the
+   cycle starts over.
+
+   A job's life: at_shop → returned → (settled: paidAt is set and it leaves both
+   screens). Jobs are only ever hidden by being paid, never deleted, so the
+   history of what was charged stays intact. */
+const _BSHOP_DEFAULT_ITEMS = [
+  'כנף קדמית ימין','כנף קדמית שמאל','כנף אחורית ימין','כנף אחורית שמאל',
+  'דלת קדמית ימין','דלת קדמית שמאל','דלת אחורית ימין','דלת אחורית שמאל',
+  'מכסה מנוע','דלת תא מטען','גג','פגוש קדמי','פגוש אחורי',
+  'סף ימין','סף שמאל','מראה ימין','מראה שמאל','עמוד ימין','עמוד שמאל','פוליש'
+];
+
+let _bshopJobs = [];        // unpaid jobs only — the current billing cycle
+let _bshopItems = [];       // the fixed catalogue of parts
+let _bshopUnsubJobs = null, _bshopUnsubCfg = null;
+let _bsmPicked = [];        // parts selected while composing a new job
+let _bshopFillId = null;
+
+function _bshopListen(onChange) {
+  if (_bshopUnsubJobs) _bshopUnsubJobs();
+  if (_bshopUnsubCfg) _bshopUnsubCfg();
+  _bshopUnsubJobs = _onSnap(_colRef('bodyshop_jobs'), snap => {
+    _bshopJobs = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(j => !j.paidAt);
+    onChange();
+  });
+  _bshopUnsubCfg = _onSnap(_docRef('config', 'bodyshop'), snap => {
+    const d = snap.exists() ? snap.data() : {};
+    _bshopItems = Array.isArray(d.items) && d.items.length ? d.items : _BSHOP_DEFAULT_ITEMS;
+    onChange();
+  });
+}
+
+const _bshopTotal = j => (j.items || []).reduce((s, it) => s + (Number(it.price) || 0), 0);
+
+/* ---- the panel beater's screen ---- */
+function openBodyShopScreen() {
+  showScreen('bodyshop');
+  _bshopListen(_bshopRenderWorker);
+}
+window.openBodyShopScreen = openBodyShopScreen;
+
+function _bshopJobCard(j, forWorker) {
+  const total = _bshopTotal(j);
+  const filled = (j.items || []).filter(it => Number(it.price) > 0).length;
+  const desc = [j.desc].filter(Boolean).join(' ');
+  return `<div onclick="${forWorker ? `bshopOpenFill('${j.id}')` : `bsmOpenJob('${j.id}')`}"
+      style="border:2px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px;background:var(--card);cursor:pointer">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:900;font-size:17px">🚗 ${esc(j.plate)}</div>
+        ${desc ? `<div style="font-size:13px;color:var(--muted)">${esc(desc)}</div>` : ''}
+      </div>
+      ${total > 0 ? `<div style="font-size:18px;font-weight:900;color:var(--gold);white-space:nowrap">${total.toLocaleString('he-IL')} ₪</div>` : ''}
+    </div>
+    <div style="margin-top:8px;font-size:13px;color:var(--muted)">
+      ${(j.items || []).length} חלקים${filled ? ` · מולאו ${filled}` : ''}
+    </div>
+    ${j.note ? `<div style="margin-top:6px;font-size:13px">📝 ${esc(j.note)}</div>` : ''}
+  </div>`;
+}
+
+function _bshopRenderWorker() {
+  const openC = document.getElementById('bshop-open');
+  const retC  = document.getElementById('bshop-returned');
+  if (!openC || !retC) return;
+  const open = _bshopJobs.filter(j => j.status !== 'returned');
+  const ret  = _bshopJobs.filter(j => j.status === 'returned');
+  openC.innerHTML = open.length ? open.map(j => _bshopJobCard(j, true)).join('')
+    : `<div style="padding:24px;text-align:center;color:var(--muted)">אין רכבים כרגע</div>`;
+  const sum = ret.reduce((s, j) => s + _bshopTotal(j), 0);
+  retC.innerHTML = (ret.length ? ret.map(j => _bshopJobCard(j, true)).join('') : `<div style="padding:16px;text-align:center;color:var(--muted)">עדיין לא סיימת רכבים</div>`)
+    + (ret.length ? `<div style="border-radius:14px;padding:14px;background:var(--dark);color:#fff;display:flex;justify-content:space-between;font-size:16px;font-weight:900"><span>סה״כ לתשלום</span><span>${sum.toLocaleString('he-IL')} ₪</span></div>` : '');
+}
+
+function bshopOpenFill(id) {
+  const j = _bshopJobs.find(x => x.id === id);
+  if (!j) return;
+  _bshopFillId = id;
+  document.getElementById('bshop-fill-title').textContent = `🚗 ${j.plate}${j.desc ? ' · ' + j.desc : ''}`;
+  document.getElementById('bshop-fill-items').innerHTML = (j.items || []).map((it, i) => `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <div style="flex:1;font-size:15px;font-weight:700">${esc(it.name)}</div>
+      <input type="number" inputmode="numeric" min="0" class="form-input bshop-price" data-i="${i}"
+             value="${it.price != null && it.price !== '' ? it.price : ''}" placeholder="מחיר"
+             oninput="_bshopRecalc()" style="width:110px;text-align:center;font-size:17px;font-weight:800">
+      <span style="font-size:15px;font-weight:800;color:var(--muted)">₪</span>
+    </div>`).join('');
+  _bshopRecalc();
+  openModal('modal-bshop-fill');
+}
+window.bshopOpenFill = bshopOpenFill;
+
+function _bshopRecalc() {
+  let t = 0;
+  document.querySelectorAll('.bshop-price').forEach(el => { t += Number(el.value) || 0; });
+  const el = document.getElementById('bshop-fill-total');
+  if (el) el.textContent = t.toLocaleString('he-IL') + ' ₪';
+}
+window._bshopRecalc = _bshopRecalc;
+
+async function bshopSave(markDone) {
+  const j = _bshopJobs.find(x => x.id === _bshopFillId);
+  if (!j) return;
+  const items = (j.items || []).map(it => ({ ...it }));
+  document.querySelectorAll('.bshop-price').forEach(el => {
+    const i = Number(el.dataset.i);
+    if (items[i]) items[i].price = el.value === '' ? null : Number(el.value);
+  });
+  const payload = { items, updatedAt: _serverTs() };
+  if (markDone) { payload.status = 'returned'; payload.returnedAt = new Date().toISOString(); }
+  try {
+    await _updateDoc(_docRef('bodyshop_jobs', _bshopFillId), payload);
+    closeModal('modal-bshop-fill');
+    showToast(markDone ? '✅ הרכב סומן כמוכן' : '💾 נשמר');
+  } catch (e) { showToast('שגיאה בשמירה — נסה שוב'); }
+}
+window.bshopSave = bshopSave;
+
+/* ---- the manager's screen ---- */
+function openBodyShopMgrScreen() {
+  document.getElementById('bsm-user-badge').textContent = currentUser.name;
+  document.getElementById('bsm-link').value = location.origin + location.pathname + '?pahach';
+  showScreen('bodyshop-mgr');
+  _bshopListen(_bshopRenderMgr);
+}
+window.openBodyShopMgrScreen = openBodyShopMgrScreen;
+
+function _bshopRenderMgr() {
+  const openC = document.getElementById('bsm-open');
+  const retC  = document.getElementById('bsm-returned');
+  const sumC  = document.getElementById('bsm-summary');
+  if (!openC || !retC) return;
+  const open = _bshopJobs.filter(j => j.status !== 'returned');
+  const ret  = _bshopJobs.filter(j => j.status === 'returned');
+  const sum  = ret.reduce((s, j) => s + _bshopTotal(j), 0);
+  const openSum = open.reduce((s, j) => s + _bshopTotal(j), 0);
+
+  if (sumC) sumC.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px">
+    <div style="border:2px solid var(--border);border-radius:14px;padding:12px;text-align:center;background:var(--card)">
+      <div style="font-size:12px;color:var(--muted);font-weight:700">אצל הפחח</div>
+      <div style="font-size:22px;font-weight:900">${open.length}</div>
+    </div>
+    <div style="border:2px solid var(--gold);border-radius:14px;padding:12px;text-align:center;background:#fffaf0">
+      <div style="font-size:12px;color:var(--muted);font-weight:700">לתשלום</div>
+      <div style="font-size:22px;font-weight:900;color:var(--gold)">${sum.toLocaleString('he-IL')} ₪</div>
+    </div>
+  </div>${openSum ? `<div style="font-size:12px;color:var(--muted);margin-bottom:6px">בנוסף ${openSum.toLocaleString('he-IL')} ₪ נרשמו על רכבים שעדיין אצלו</div>` : ''}`;
+
+  openC.innerHTML = open.length ? open.map(j => _bshopJobCard(j, false)).join('')
+    : `<div style="padding:16px;text-align:center;color:var(--muted)">אין רכבים אצל הפחח</div>`;
+  retC.innerHTML = ret.length ? ret.map(j => _bshopJobCard(j, false)).join('')
+    : `<div style="padding:16px;text-align:center;color:var(--muted)">אין רכבים שממתינים לתשלום</div>`;
+  const payWrap = document.getElementById('bsm-pay-wrap');
+  if (payWrap) payWrap.style.display = ret.length ? 'block' : 'none';
+}
+
+function bsmOpenJob(id) {
+  const j = _bshopJobs.find(x => x.id === id);
+  if (!j) return;
+  const lines = (j.items || []).map(it => `${it.name} — ${it.price ? it.price + ' ₪' : 'טרם תומחר'}`).join('\n');
+  if (confirm(`🚗 ${j.plate}\n\n${lines}\n\nסה״כ: ${_bshopTotal(j).toLocaleString('he-IL')} ₪\n\nלהדפיס פתק לרכב זה?`)) bsmPrint(id);
+}
+window.bsmOpenJob = bsmOpenJob;
+
+// Basic note layout — to be replaced with the manager's own form once he sends it
+function bsmPrint(id) {
+  const j = _bshopJobs.find(x => x.id === id);
+  if (!j) return;
+  const rows = (j.items || []).map(it => `<tr><td style="padding:8px 10px;border:1px solid #000">${esc(it.name)}</td><td style="padding:8px 10px;border:1px solid #000;width:110px"></td></tr>`).join('');
+  const w = window.open('', '_blank');
+  if (!w) return showToast('הדפדפן חסם את חלון ההדפסה');
+  w.document.write(`<html dir="rtl"><head><meta charset="utf-8"><title>פתק פחחות ${esc(j.plate)}</title></head>
+    <body style="font-family:Arial,sans-serif;padding:24px">
+      <h2 style="margin:0 0 4px">עבודות פחחות</h2>
+      <div style="font-size:20px;font-weight:bold;margin-bottom:2px">${esc(j.plate)}</div>
+      <div style="margin-bottom:14px">${esc(j.desc || '')}</div>
+      ${j.note ? `<div style="margin-bottom:10px">הערה: ${esc(j.note)}</div>` : ''}
+      <table style="border-collapse:collapse;width:100%">
+        <tr><th style="padding:8px 10px;border:1px solid #000;text-align:right">חלק</th><th style="padding:8px 10px;border:1px solid #000">מחיר</th></tr>
+        ${rows}
+      </table>
+    </body></html>`);
+  w.document.close();
+  w.focus();
+  w.print();
+}
+window.bsmPrint = bsmPrint;
+
+function openBsmSendModal() {
+  _bsmPicked = [];
+  document.getElementById('bsm-plate').value = '';
+  document.getElementById('bsm-desc').value = '';
+  document.getElementById('bsm-note').value = '';
+  document.getElementById('bsm-extra').value = '';
+  _bsmRenderPicker();
+  openModal('modal-bsm-send');
+}
+window.openBsmSendModal = openBsmSendModal;
+
+function _bsmRenderPicker() {
+  const c = document.getElementById('bsm-items-pick');
+  if (!c) return;
+  const all = [..._bshopItems, ..._bsmPicked.filter(p => !_bshopItems.includes(p))];
+  c.innerHTML = all.map(name => {
+    const on = _bsmPicked.includes(name);
+    return `<button type="button" onclick="bsmTogglePick(this.dataset.n)" data-n="${esc(name)}"
+      style="background:${on ? 'var(--dark)' : 'var(--bg)'};color:${on ? '#fff' : 'var(--text)'};border:2px solid ${on ? 'var(--dark)' : 'var(--border)'};border-radius:999px;padding:7px 13px;font-family:'Heebo',sans-serif;font-size:13px;font-weight:700;cursor:pointer">${esc(name)}</button>`;
+  }).join('');
+}
+
+function bsmTogglePick(name) {
+  _bsmPicked = _bsmPicked.includes(name) ? _bsmPicked.filter(n => n !== name) : [..._bsmPicked, name];
+  _bsmRenderPicker();
+}
+window.bsmTogglePick = bsmTogglePick;
+
+function bsmAddExtra() {
+  const el = document.getElementById('bsm-extra');
+  const v = el.value.trim();
+  if (!v) return;
+  if (!_bsmPicked.includes(v)) _bsmPicked.push(v);
+  el.value = '';
+  _bsmRenderPicker();
+}
+window.bsmAddExtra = bsmAddExtra;
+
+async function _bsmLookupPlate() {
+  const plate = document.getElementById('bsm-plate').value.replace(/\D/g, '');
+  const descEl = document.getElementById('bsm-desc');
+  if (!plate || descEl.value.trim()) return;
+  try {
+    const rec = await _pcFilterLookup(plate, plate);
+    if (rec) descEl.value = [_cleanMaker(rec['tozeret_nm'] || ''), rec['kinuy_mishari'] || rec['degem_nm'] || '', rec['tzeva_rechev'] || ''].filter(Boolean).join(' ');
+  } catch (e) { /* the description is optional — never block on the registry */ }
+}
+window._bsmLookupPlate = _bsmLookupPlate;
+
+async function submitBsmSend() {
+  const plate = document.getElementById('bsm-plate').value.replace(/\D/g, '');
+  const desc = document.getElementById('bsm-desc').value.trim();
+  const note = document.getElementById('bsm-note').value.trim();
+  if (!plate) return showToast('נא להזין מספר רישוי');
+  if (!_bsmPicked.length) return showToast('נא לבחור לפחות חלק אחד');
+  try {
+    await _addDoc(_colRef('bodyshop_jobs'), {
+      plate, desc, note,
+      items: _bsmPicked.map(name => ({ name, price: null })),
+      status: 'at_shop', paidAt: null,
+      sentAt: new Date().toISOString(),
+      createdBy: currentUser.name, createdAt: _serverTs()
+    });
+    closeModal('modal-bsm-send');
+    showToast('✅ הרכב נשלח לפחח');
+  } catch (e) { showToast('שגיאה בשמירה: ' + (e.code || e.message)); }
+}
+window.submitBsmSend = submitBsmSend;
+
+// Settling marks every returned job as paid, which is what clears both screens
+// and starts the next cycle. Cars still at the shop are deliberately untouched.
+async function bsmSettle() {
+  const ret = _bshopJobs.filter(j => j.status === 'returned');
+  if (!ret.length) return;
+  const sum = ret.reduce((s, j) => s + _bshopTotal(j), 0);
+  if (!confirm(`לסגור חשבון על ${ret.length} רכבים בסך ${sum.toLocaleString('he-IL')} ₪?\n\nהם ייעלמו מהמסך של הפחח וממסך זה.`)) return;
+  const stamp = new Date().toISOString();
+  try {
+    for (const j of ret) await _updateDoc(_docRef('bodyshop_jobs', j.id), { paidAt: stamp, paidTotal: _bshopTotal(j) });
+    showToast(`💰 נסגר חשבון על ${sum.toLocaleString('he-IL')} ₪`);
+  } catch (e) { showToast('שגיאה: ' + (e.code || e.message)); }
+}
+window.bsmSettle = bsmSettle;
+
+function bsmCopyLink() {
+  const el = document.getElementById('bsm-link');
+  _pcCopyFallback(el.value, () => showToast('📋 הקישור הועתק'));
+}
+window.bsmCopyLink = bsmCopyLink;
+
+function openBsmItemsModal() { _bsmRenderCatalog(); openModal('modal-bsm-items'); }
+window.openBsmItemsModal = openBsmItemsModal;
+
+function _bsmRenderCatalog() {
+  const c = document.getElementById('bsm-items-list');
+  if (!c) return;
+  c.innerHTML = _bshopItems.map(name => `<div style="display:flex;align-items:center;gap:8px;border:2px solid var(--border);border-radius:10px;padding:8px 12px;margin-bottom:6px">
+      <div style="flex:1;font-size:14px;font-weight:700">${esc(name)}</div>
+      <button onclick="bsmRemoveCatalogItem(this.dataset.n)" data-n="${esc(name)}" style="background:#ef4444;color:#fff;border:none;border-radius:8px;width:28px;height:28px;cursor:pointer">🗑</button>
+    </div>`).join('');
+}
+
+async function _bsmSaveCatalog(items) {
+  const { setDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  await setDoc(_docRef('config', 'bodyshop'), { items }, { merge: true });
+}
+
+async function bsmAddCatalogItem() {
+  const el = document.getElementById('bsm-new-item');
+  const v = el.value.trim();
+  if (!v) return;
+  if (_bshopItems.includes(v)) { el.value = ''; return showToast('החלק כבר ברשימה'); }
+  try { await _bsmSaveCatalog([..._bshopItems, v]); el.value = ''; }
+  catch (e) { showToast('שגיאה בשמירה'); }
+}
+window.bsmAddCatalogItem = bsmAddCatalogItem;
+
+async function bsmRemoveCatalogItem(name) {
+  try { await _bsmSaveCatalog(_bshopItems.filter(n => n !== name)); }
+  catch (e) { showToast('שגיאה בשמירה'); }
+}
+window.bsmRemoveCatalogItem = bsmRemoveCatalogItem;
 
 /* ─── BATTERY CABINET (manager) ────────────────────────
    Two collections: battery_stock holds one document per battery model with its
