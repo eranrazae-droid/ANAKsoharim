@@ -391,6 +391,7 @@ if ('serviceWorker' in navigator) {
         <div id="cal-agenda" style="margin-top:10px"></div>
       </div>
     </div>
+    <button id="btn-recall-home" onclick="goToScreen('recall')" style="display:none;position:fixed;bottom:80px;right:16px;z-index:200;width:auto;margin:0;background:linear-gradient(135deg,#d4a017,#b8860b);color:#000;border:none;border-radius:14px;padding:13px 22px;font-family:Heebo,sans-serif;font-size:16px;font-weight:800;cursor:pointer;text-align:center;box-shadow:0 3px 12px rgba(0,0,0,.3)"><span id="recall-home-warn" style="display:none">⚠️ </span>בדיקת ריקול<span id="recall-home-count" style="display:none;margin-right:8px;background:rgba(255,255,255,.35);border-radius:999px;padding:2px 10px;font-size:15px;font-weight:900"></span></button>
     <button id="btn-test-drive-home" onclick="openTestDriveFromHome()" style="display:none;position:fixed;bottom:24px;right:16px;z-index:200;width:auto;margin:0;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;border:none;border-radius:14px;padding:13px 22px;font-family:Heebo,sans-serif;font-size:16px;font-weight:800;cursor:pointer;text-align:center;box-shadow:0 3px 12px rgba(0,0,0,.3)">🏎️ נסיעות מבחן<span id="td-home-count" style="display:none;margin-right:8px;background:rgba(255,255,255,.28);border-radius:999px;padding:2px 10px;font-size:15px;font-weight:900"></span><span id="badge-test-drive" style="display:none;position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;border-radius:999px;font-size:11px;font-weight:900;padding:2px 7px;min-width:18px;text-align:center"></span></button>
   </div>
 </div>
@@ -1344,6 +1345,56 @@ if ('serviceWorker' in navigator) {
 </div>
 
 <!-- ====== SCREEN: RECALL CHECK (MANAGER) ====== -->
+<!-- ====== SCREEN: BATTERY STOCK (MANAGER) ====== -->
+<div id="screen-battery-stock" class="screen">
+  <div class="app-header">
+    <button class="back-btn" onclick="goHome()">→</button>
+    <div class="logo">🔋 ארון מצברים</div>
+    <div class="user-badge" id="bs-user-badge" onclick="logout()"></div>
+  </div>
+  <div style="padding:16px 16px 100px">
+    <div style="display:flex;gap:8px;margin-bottom:16px">
+      <button class="btn-submit" onclick="openBsAddModal()" style="margin-top:0">➕ הוסף מצברים למלאי</button>
+      <button class="btn-submit" onclick="openBsIssueModal()" style="margin-top:0;background:#0ea5e9;color:#fff">🚗 הרכבתי לרכב</button>
+    </div>
+    <div id="bs-stock"></div>
+    <div class="section-title">סטטיסטיקה</div>
+    <div id="bs-stats"></div>
+    <div class="section-title">הרכבות אחרונות</div>
+    <div id="bs-history"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-bs-add">
+  <div class="modal-box">
+    <div class="modal-title"><span>➕ הוספת מצברים למלאי</span> <button class="modal-close" onclick="closeModal('modal-bs-add')">✕</button></div>
+    <div class="form-group"><label>דגם / סוג מצבר <span style="color:#ef4444">*</span></label>
+      <input class="form-input" id="bs-model" autocomplete="off" placeholder="לדוגמה: 72Ah רגיל / 70Ah AGM" oninput="_bsModelSuggest()">
+      <div id="bs-model-dd" style="display:none;position:absolute;left:16px;right:16px;background:var(--card);border:2px solid var(--border);border-radius:10px;max-height:180px;overflow-y:auto;z-index:20"></div>
+    </div>
+    <div class="form-group"><label>כמות שנכנסה <span style="color:#ef4444">*</span></label>
+      <input class="form-input" id="bs-qty" type="number" min="1" inputmode="numeric" placeholder="לדוגמה: 10"></div>
+    <div class="form-group"><label>הערה</label>
+      <input class="form-input" id="bs-add-note" placeholder="ספק, מחיר, חשבונית..."></div>
+    <button class="btn-submit" onclick="submitBsAdd()">שמור ✅</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-bs-issue">
+  <div class="modal-box">
+    <div class="modal-title"><span>🚗 הרכבת מצבר לרכב</span> <button class="modal-close" onclick="closeModal('modal-bs-issue')">✕</button></div>
+    <div class="form-group"><label>איזה מצבר <span style="color:#ef4444">*</span></label>
+      <select class="form-input" id="bs-issue-model"></select></div>
+    <div class="form-group"><label>מספר רישוי <span style="color:#ef4444">*</span></label>
+      <input class="form-input" id="bs-issue-plate" inputmode="numeric" autocomplete="off" placeholder="לדוגמה 12345678" oninput="pcCleanPlateInput(this)"></div>
+    <div class="form-group"><label>תאריך ההרכבה</label>
+      <input class="form-input" id="bs-issue-date" type="date"></div>
+    <div class="form-group"><label>הערה</label>
+      <input class="form-input" id="bs-issue-note" placeholder="למשל: המצבר הישן היה מ-2019"></div>
+    <button class="btn-submit" onclick="submitBsIssue()">שמור ✅</button>
+  </div>
+</div>
+
 <div id="screen-recall" class="screen">
   <div class="app-header">
     <button class="back-btn" onclick="goHome()">→</button>
@@ -2183,7 +2234,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-04 · 9';
+const APP_BUILD = '2026-08-04 · 10';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -2214,6 +2265,8 @@ function renderHome() {
     if (statsRow) statsRow.style.display = '';
     const tdBtn = document.getElementById('btn-test-drive-home');
     if (tdBtn) tdBtn.style.display = 'none';
+    const rcBtn = document.getElementById('btn-recall-home');
+    if (rcBtn) rcBtn.style.display = 'none';
     document.getElementById('menu-grid').innerHTML = '';
     _onSnap(_query(_colRef('pickup_cars'), _where('assignedDriver','==',currentUser.name)), snap => {
       const cars = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -2235,6 +2288,8 @@ function renderHome() {
     if (statsRow) statsRow.style.display = 'none';
     const tdBtn = document.getElementById('btn-test-drive-home');
     if (tdBtn) tdBtn.style.display = 'none';
+    const rcBtn = document.getElementById('btn-recall-home');
+    if (rcBtn) rcBtn.style.display = 'none';
     document.getElementById('menu-grid').innerHTML =
       `<div class="menu-card" id="menu-card-pickup" onclick="openPickupScreen()">
         <div style="position:relative;display:inline-block">
@@ -2264,6 +2319,7 @@ function renderHome() {
         { icon: '🚙', title: 'מכוניות לאיסוף', sub: 'ניהול רכבים לאיסוף', screen: 'pickup' },
         { icon: '⚠️', title: 'בדיקת ריקול', sub: 'קריאות תיקון לרכבי המלאי', screen: 'recall' },
         { icon: '🔧', title: 'קטלוג חלפים', sub: 'חיפוש מק"ט לפי רכב', screen: 'parts-catalog' },
+        { icon: '🔋', title: 'ארון מצברים', sub: 'מלאי, הרכבות וסטטיסטיקה', screen: 'battery-stock' },
       ]
     : [
         { icon: '📋', title: 'המשימות שלי', sub: 'משימות שהוקצו לך', screen: 'tasks' },
@@ -2310,6 +2366,8 @@ function renderHome() {
   if (statsRowMain) statsRowMain.style.display = '';
   const tdBtn = document.getElementById('btn-test-drive-home');
   if (tdBtn) tdBtn.style.display = isManager ? 'inline-flex' : 'none';
+  const rcBtn = document.getElementById('btn-recall-home');
+  if (rcBtn) rcBtn.style.display = isManager ? 'inline-flex' : 'none';
 
   loadStats();
   if (isManager) { loadManagerBadges(); setTimeout(_restoreTdLivePanelIfNeeded, 800); initManagerCalendar(); }
@@ -2671,6 +2729,7 @@ function goToScreen(name) {
   else if (name === 'test-drive') openTestDriveScreen();
   else if (name === 'recall') openRecallScreen();
   else if (name === 'parts-catalog') { if (currentUser.role !== 'manager') return; openPartsCatalogScreen(); }
+  else if (name === 'battery-stock') { if (currentUser.role !== 'manager') return; openBatteryStockScreen(); }
   else if (name === 'driver-battery-unified') {
     const card = document.getElementById('menu-card-driver-battery');
     if (card && card.dataset.unifiedMode === 'charging') openDriverChargingScreen();
@@ -2972,7 +3031,9 @@ function loadManagerBadges() {
     });
     _onSnap(_docRef('recall_status', 'current'), snap => {
       const cars = snap.exists() ? (snap.data().cars || []) : [];
-      _setCardBadge('recall', cars.filter(c => !c.resolved).length, '#ef4444');
+      const openRecalls = cars.filter(c => !c.resolved).length;
+      _setCardBadge('recall', openRecalls, '#ef4444');
+      _recallUpdateHomeButton(openRecalls);
     });
     let _batteryAssignmentsDone = 0;
     const _mcTasks = {};
@@ -6524,7 +6585,28 @@ async function _recallSyncFirestore() {
 function _recallUpdateHomeBadge() {
   const openCount = _recallRows.filter(r => r.recallState === 'open' && !r.resolved).length;
   _setCardBadge('recall', openCount, '#ef4444');
+  _recallUpdateHomeButton(openCount);
 }
+
+// Home-screen recall button: gold while nothing needs doing, red with a warning
+// sign the moment an unresolved recall exists.
+function _recallUpdateHomeButton(openCount) {
+  const btn = document.getElementById('btn-recall-home');
+  if (!btn) return;
+  const warn = document.getElementById('recall-home-warn');
+  const cnt  = document.getElementById('recall-home-count');
+  const hasOpen = openCount > 0;
+  btn.style.background = hasOpen
+    ? 'linear-gradient(135deg,#ef4444,#b91c1c)'
+    : 'linear-gradient(135deg,#d4a017,#b8860b)';
+  btn.style.color = hasOpen ? '#fff' : '#000';
+  if (warn) warn.style.display = hasOpen ? 'inline' : 'none';
+  if (cnt) {
+    cnt.style.display = hasOpen ? 'inline-block' : 'none';
+    cnt.textContent = hasOpen ? openCount : '';
+  }
+}
+window._recallUpdateHomeButton = _recallUpdateHomeButton;
 
 async function recallOpenTask(plate) {
   const row = _recallRows.find(r => r.plate === plate);
@@ -6989,6 +7071,226 @@ function _pcCopyFallback(text, done) {
     done();
   } catch (e) { showToast('לא ניתן להעתיק — סמן ידנית'); }
 }
+
+/* ─── BATTERY CABINET (manager) ────────────────────────
+   Two collections: battery_stock holds one document per battery model with its
+   current quantity, battery_installs is the log of every battery that left the
+   cabinet and went into a car. Stock is derived from the log where possible, so
+   the two can be reconciled rather than silently drifting apart. */
+let _bsStock = [];      // [{id, model, qty, updatedAt}]
+let _bsInstalls = [];   // [{id, model, plate, installedAt, note}]
+let _bsUnsubStock = null, _bsUnsubInstalls = null;
+
+function openBatteryStockScreen() {
+  document.getElementById('bs-user-badge').textContent = currentUser.name;
+  showScreen('battery-stock');
+  if (_bsUnsubStock) _bsUnsubStock();
+  if (_bsUnsubInstalls) _bsUnsubInstalls();
+  _bsUnsubStock = _onSnap(_colRef('battery_stock'), snap => {
+    _bsStock = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    _bsRenderAll();
+  });
+  _bsUnsubInstalls = _onSnap(_colRef('battery_installs'), snap => {
+    _bsInstalls = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    _bsRenderAll();
+  });
+}
+window.openBatteryStockScreen = openBatteryStockScreen;
+
+function _bsRenderAll() { _bsRenderStock(); _bsRenderStats(); _bsRenderHistory(); }
+
+function _bsRenderStock() {
+  const c = document.getElementById('bs-stock');
+  if (!c) return;
+  const rows = [..._bsStock].sort((a, b) => (b.qty || 0) - (a.qty || 0));
+  if (!rows.length) {
+    c.innerHTML = `<div class="empty-state" style="padding:30px 20px;text-align:center;color:var(--muted)">הארון ריק — הוסף מצברים כדי להתחיל</div>`;
+    return;
+  }
+  const total = rows.reduce((s, r) => s + (r.qty || 0), 0);
+  c.innerHTML = `<div style="font-size:13px;font-weight:800;color:var(--muted);margin-bottom:8px">סה״כ בארון: ${total}</div>` +
+    rows.map(r => {
+      const q = r.qty || 0;
+      // a cabinet that is nearly empty is the thing worth shouting about
+      const color = q === 0 ? '#ef4444' : q <= 2 ? '#f59e0b' : 'var(--success)';
+      return `<div style="display:flex;align-items:center;gap:10px;border:2px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;background:var(--card)">
+        <div style="flex:1;font-weight:800;font-size:15px">${esc(r.model)}</div>
+        <div style="font-size:20px;font-weight:900;color:${color};min-width:34px;text-align:center">${q}</div>
+        <button onclick="bsAdjust('${r.id}',1)" style="background:var(--success);color:#fff;border:none;border-radius:8px;width:30px;height:30px;font-size:16px;font-weight:900;cursor:pointer">+</button>
+        <button onclick="bsAdjust('${r.id}',-1)" style="background:#94a3b8;color:#fff;border:none;border-radius:8px;width:30px;height:30px;font-size:16px;font-weight:900;cursor:pointer">−</button>
+      </div>`;
+    }).join('');
+}
+
+// manual correction for a miscount — does not create an installation record
+async function bsAdjust(id, delta) {
+  const row = _bsStock.find(r => r.id === id);
+  if (!row) return;
+  const next = Math.max(0, (row.qty || 0) + delta);
+  try {
+    await _updateDoc(_docRef('battery_stock', id), { qty: next, updatedAt: _serverTs() });
+  } catch (e) { showToast('שגיאה: ' + (e.code || e.message)); }
+}
+window.bsAdjust = bsAdjust;
+
+function _bsRenderStats() {
+  const c = document.getElementById('bs-stats');
+  if (!c) return;
+  if (!_bsInstalls.length) {
+    c.innerHTML = `<div style="font-size:13px;color:var(--muted);padding:4px 0 12px">עדיין לא נרשמו הרכבות. אחרי כמה הרכבות יופיעו כאן הדגמים המבוקשים וקצב ההחלפה.</div>`;
+    return;
+  }
+  const dates = _bsInstalls.map(i => new Date(i.installedAt)).filter(d => !isNaN(d)).sort((a, b) => a - b);
+  const byModel = {};
+  for (const i of _bsInstalls) byModel[i.model] = (byModel[i.model] || 0) + 1;
+  const ranked = Object.entries(byModel).sort((a, b) => b[1] - a[1]);
+
+  // "a battery every N days" is only meaningful once there are two dates to
+  // measure between — with one install there is no interval yet
+  let rateHtml = '';
+  if (dates.length >= 2) {
+    const spanDays = (dates[dates.length - 1] - dates[0]) / 86400000;
+    const perBattery = spanDays / (dates.length - 1);
+    const perMonth = perBattery > 0 ? (30 / perBattery) : 0;
+    rateHtml = `<div style="border:2px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;background:var(--card)">
+      <div style="font-size:13px;color:var(--muted);font-weight:700">קצב החלפה</div>
+      <div style="font-size:16px;font-weight:900;margin-top:2px">מצבר כל ${perBattery.toFixed(1)} ימים · כ-${perMonth.toFixed(1)} בחודש</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px">מבוסס על ${dates.length} הרכבות מאז ${dates[0].toLocaleDateString('he-IL')}</div>
+    </div>`;
+  }
+
+  const max = ranked[0][1];
+  c.innerHTML = rateHtml +
+    `<div style="border:2px solid var(--border);border-radius:12px;padding:12px 14px;background:var(--card)">
+      <div style="font-size:13px;color:var(--muted);font-weight:700;margin-bottom:8px">הדגמים המבוקשים ביותר</div>
+      ${ranked.map(([m, n]) => `
+        <div style="margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700"><span>${esc(m)}</span><span>${n}</span></div>
+          <div style="background:var(--bg);border-radius:999px;height:8px;margin-top:3px;overflow:hidden">
+            <div style="background:var(--gold);height:100%;width:${Math.round(n / max * 100)}%"></div>
+          </div>
+        </div>`).join('')}
+    </div>`;
+}
+
+function _bsRenderHistory() {
+  const c = document.getElementById('bs-history');
+  if (!c) return;
+  const rows = [..._bsInstalls].sort((a, b) => String(b.installedAt).localeCompare(String(a.installedAt))).slice(0, 25);
+  if (!rows.length) { c.innerHTML = `<div style="font-size:13px;color:var(--muted)">אין עדיין הרכבות</div>`; return; }
+  c.innerHTML = rows.map(r => {
+    const d = new Date(r.installedAt);
+    const ds = isNaN(d) ? '' : d.toLocaleDateString('he-IL');
+    return `<div style="display:flex;align-items:center;gap:10px;border:2px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:8px;background:var(--card)">
+      <div style="flex:1">
+        <div style="font-weight:800;font-size:14px">🚗 ${esc(r.plate)}</div>
+        <div style="font-size:12px;color:var(--muted)">${esc(r.model)}${r.note ? ' · ' + esc(r.note) : ''}</div>
+      </div>
+      <div style="font-size:12px;color:var(--muted);white-space:nowrap">${esc(ds)}</div>
+      <button onclick="bsDeleteInstall('${r.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:8px;width:28px;height:28px;cursor:pointer" title="מחק">🗑</button>
+    </div>`;
+  }).join('');
+}
+
+function openBsAddModal() {
+  document.getElementById('bs-model').value = '';
+  document.getElementById('bs-qty').value = '';
+  document.getElementById('bs-add-note').value = '';
+  const dd = document.getElementById('bs-model-dd'); if (dd) dd.style.display = 'none';
+  openModal('modal-bs-add');
+}
+window.openBsAddModal = openBsAddModal;
+
+// suggest models already in the cabinet, so the same battery isn't typed two
+// different ways and split into two rows
+function _bsModelSuggest() {
+  const input = document.getElementById('bs-model');
+  const dd = document.getElementById('bs-model-dd');
+  if (!input || !dd) return;
+  const v = input.value.trim();
+  const matches = _bsStock.map(r => r.model).filter(m => m && (!v || m.includes(v)));
+  if (!matches.length) { dd.style.display = 'none'; return; }
+  dd.innerHTML = matches.map(m => `<div onclick="_bsPickModel(this.dataset.m)" data-m="${esc(m)}" style="padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:14px">${esc(m)}</div>`).join('');
+  dd.style.display = 'block';
+}
+window._bsModelSuggest = _bsModelSuggest;
+
+function _bsPickModel(m) {
+  document.getElementById('bs-model').value = m;
+  document.getElementById('bs-model-dd').style.display = 'none';
+}
+window._bsPickModel = _bsPickModel;
+
+async function submitBsAdd() {
+  const model = document.getElementById('bs-model').value.trim();
+  const qty = parseInt(document.getElementById('bs-qty').value, 10);
+  const note = document.getElementById('bs-add-note').value.trim();
+  if (!model) return showToast('נא להזין דגם מצבר');
+  if (!qty || qty < 1) return showToast('נא להזין כמות');
+  try {
+    const existing = _bsStock.find(r => r.model === model);
+    if (existing) {
+      await _updateDoc(_docRef('battery_stock', existing.id), { qty: (existing.qty || 0) + qty, updatedAt: _serverTs() });
+    } else {
+      await _addDoc(_colRef('battery_stock'), { model, qty, note, createdBy: currentUser.name, createdAt: _serverTs(), updatedAt: _serverTs() });
+    }
+    closeModal('modal-bs-add');
+    showToast(`✅ נוספו ${qty} לארון`);
+  } catch (e) { showToast('שגיאה בשמירה: ' + (e.code || e.message)); }
+}
+window.submitBsAdd = submitBsAdd;
+
+function openBsIssueModal() {
+  const sel = document.getElementById('bs-issue-model');
+  const avail = _bsStock.filter(r => (r.qty || 0) > 0);
+  if (!avail.length) return showToast('אין מצברים במלאי — הוסף קודם לארון');
+  sel.innerHTML = avail.map(r => `<option value="${esc(r.id)}">${esc(r.model)} (${r.qty} במלאי)</option>`).join('');
+  document.getElementById('bs-issue-plate').value = '';
+  document.getElementById('bs-issue-note').value = '';
+  const d = new Date();
+  document.getElementById('bs-issue-date').value =
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  openModal('modal-bs-issue');
+}
+window.openBsIssueModal = openBsIssueModal;
+
+async function submitBsIssue() {
+  const id = document.getElementById('bs-issue-model').value;
+  const plate = document.getElementById('bs-issue-plate').value.replace(/\D/g, '');
+  const date = document.getElementById('bs-issue-date').value;
+  const note = document.getElementById('bs-issue-note').value.trim();
+  const row = _bsStock.find(r => r.id === id);
+  if (!row) return showToast('נא לבחור מצבר');
+  if (!plate) return showToast('נא להזין מספר רישוי');
+  if ((row.qty || 0) < 1) return showToast('אין יחידות מהדגם הזה במלאי');
+  try {
+    // log first — a battery that left the cabinet must be recorded even if the
+    // stock update fails, otherwise the history loses an installation
+    await _addDoc(_colRef('battery_installs'), {
+      model: row.model, stockId: id, plate,
+      installedAt: date || new Date().toISOString().slice(0, 10),
+      note, createdBy: currentUser.name, createdAt: _serverTs()
+    });
+    await _updateDoc(_docRef('battery_stock', id), { qty: Math.max(0, (row.qty || 0) - 1), updatedAt: _serverTs() });
+    closeModal('modal-bs-issue');
+    showToast(`✅ נרשם: ${row.model} לרכב ${plate}`);
+  } catch (e) { showToast('שגיאה בשמירה: ' + (e.code || e.message)); }
+}
+window.submitBsIssue = submitBsIssue;
+
+async function bsDeleteInstall(id) {
+  const rec = _bsInstalls.find(r => r.id === id);
+  if (!rec) return;
+  if (!confirm(`למחוק את רישום ההרכבה לרכב ${rec.plate}? המצבר יוחזר למלאי.`)) return;
+  try {
+    const { deleteDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    await deleteDoc(doc(window._db, 'battery_installs', id));
+    const row = _bsStock.find(r => r.id === rec.stockId) || _bsStock.find(r => r.model === rec.model);
+    if (row) await _updateDoc(_docRef('battery_stock', row.id), { qty: (row.qty || 0) + 1, updatedAt: _serverTs() });
+    showToast('🗑️ הרישום נמחק והמצבר הוחזר למלאי');
+  } catch (e) { showToast('שגיאה: ' + (e.code || e.message)); }
+}
+window.bsDeleteInstall = bsDeleteInstall;
 
 window.openPartsCatalogScreen = openPartsCatalogScreen;
 window.lookupPartsPlate = lookupPartsPlate;
