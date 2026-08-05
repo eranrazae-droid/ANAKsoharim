@@ -1454,7 +1454,7 @@ if ('serviceWorker' in navigator) {
       <input type="file" accept="image/*" id="bsm-photo-file" style="display:none" onchange="bsmPickPhoto(this)">
       <div id="bsm-photo-wrap"></div></div>
     <div class="form-group"><label>מה צריך לעשות <span style="color:#ef4444">*</span></label>
-      <div id="bsm-items-pick" style="display:flex;flex-wrap:wrap;gap:6px"></div></div>
+      <div id="bsm-items-pick"></div></div>
     <div class="form-group"><label>הוסף חלק שלא ברשימה</label>
       <div style="display:flex;gap:6px">
         <input class="form-input" id="bsm-extra" placeholder="כתוב חלק..." onkeydown="if(event.key==='Enter'){event.preventDefault();bsmAddExtra();}">
@@ -2450,7 +2450,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 68';
+const APP_BUILD = '2026-08-05 · 69';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -7364,6 +7364,26 @@ function _pcCopyFallback(text, done) {
 // Walk-around order: the front of the car, down the right side, the back, then
 // up the left side and back to the front — the circle closes. This is the order
 // the panel beater sees on his screen and on the printed note.
+// The same walk-around, written out as categories. Every screen that lists
+// parts groups them this way; a part that is not here — one you typed in
+// yourself — falls into "אחר" at the end.
+const _BSHOP_GROUPS = [
+  ['חזית קדמית',  ['טמבון קדמי','מכסה מנוע','שפם']],
+  ['צד ימין',      ['כנף קדמי ימין','דלת קדמי ימין','דלת אחורי ימין','כנף אחורי ימין']],
+  ['חזית אחורית',  ['טמבון אחורי','דלת תא מטען','ספוילר מעל שמשה אחורית']],
+  ['צד שמאל',      ['כנף אחורי שמאל','דלת אחורי שמאל','דלת קדמי שמאל','כנף קדמי שמאל']],
+  ['אחר',          ['קריסטל']],
+];
+const _bshopGroupOf = name => (_BSHOP_GROUPS.find(g => g[1].includes(name)) || ['אחר'])[0];
+
+// Splits a list of parts into [category, parts] pairs, keeping the category
+// order and dropping categories with nothing in them.
+function _bshopByGroup(names) {
+  return _BSHOP_GROUPS.map(([g]) => [g, names.filter(n => _bshopGroupOf(n) === g)])
+    .filter(([, list]) => list.length);
+}
+const _bshopGroupTitle = g => `<div style="font-size:12px;font-weight:900;color:var(--muted);margin:12px 0 6px">${esc(g)}</div>`;
+
 const _BSHOP_CATALOG_VERSION = 3;
 const _BSHOP_DEFAULT_ITEMS = [
   // חזית קדמית
@@ -7580,14 +7600,24 @@ function bshopOpenFill(id) {
   const doneNote = document.getElementById('bshop-fill-donenote');
   if (doneNote) doneNote.style.display = isDone ? 'block' : 'none';
   _bshopSetSaved('');
-  document.getElementById('bshop-fill-items').innerHTML = (j.items || []).map((it, i) => `
+  const _row = (it, i) => `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
       <div style="flex:1;font-size:15px;font-weight:700">${esc(it.name)}</div>
       <input type="number" inputmode="numeric" min="0" class="form-input bshop-price" data-i="${i}"
              value="${it.price != null && it.price !== '' ? it.price : ''}" placeholder="מחיר"
              oninput="_bshopRecalc();_bshopAutoSave()" onblur="_bshopAutoSave(true)" style="width:110px;text-align:center;font-size:17px;font-weight:800">
       <span style="font-size:15px;font-weight:800;color:var(--muted)">₪</span>
-    </div>`).join('');
+    </div>`;
+  // the index stays the one from j.items, so grouping does not disturb saving
+  const rows = (j.items || []).map((it, i) => ({ it, i }));
+  document.getElementById('bshop-fill-items').innerHTML =
+    _bshopByGroup(rows.map(r => r.it.name)).map(([g, list]) =>
+      _bshopGroupTitle(g) + list.map(n => {
+        const r = rows.find(x => x.it.name === n && !x.used);
+        if (r) r.used = true;
+        return r ? _row(r.it, r.i) : '';
+      }).join('')
+    ).join('');
   _bshopRecalc();
   openModal('modal-bshop-fill');
 }
@@ -7806,11 +7836,14 @@ function _bsmRenderPicker() {
   const c = document.getElementById('bsm-items-pick');
   if (!c) return;
   const all = [..._bshopItems, ..._bsmPicked.filter(p => !_bshopItems.includes(p))];
-  c.innerHTML = all.map(name => {
+  const btn = name => {
     const on = _bsmPicked.includes(name);
     return `<button type="button" onclick="bsmTogglePick(this.dataset.n)" data-n="${esc(name)}"
       style="background:${on ? 'var(--dark)' : 'var(--bg)'};color:${on ? '#fff' : 'var(--text)'};border:2px solid ${on ? 'var(--dark)' : 'var(--border)'};border-radius:999px;padding:7px 13px;font-family:'Heebo',sans-serif;font-size:13px;font-weight:700;cursor:pointer">${esc(name)}</button>`;
-  }).join('');
+  };
+  c.innerHTML = _bshopByGroup(all).map(([g, list]) =>
+    _bshopGroupTitle(g) + `<div style="display:flex;flex-wrap:wrap;gap:6px">${list.map(btn).join('')}</div>`
+  ).join('');
 }
 
 function bsmTogglePick(name) {
