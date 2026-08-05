@@ -1462,10 +1462,7 @@ if ('serviceWorker' in navigator) {
     <div style="margin-top:22px;text-align:center">
       <button onclick="bshopResetJobs()" style="background:var(--surface2);color:var(--muted);border:2px solid var(--border);border-radius:10px;padding:8px 18px;font-family:'Heebo',sans-serif;font-size:13px;font-weight:800;cursor:pointer">🧹 אפס פתקים</button>
     </div>
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-      <div class="section-title">🗄️ ארכיון תשלומים</div>
-      <button onclick="bsmExportArchive()" style="background:var(--dark);color:#fff;border:none;border-radius:10px;padding:8px 16px;font-family:'Heebo',sans-serif;font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap">📤 ייצוא לקובץ</button>
-    </div>
+    <div class="section-title">🗄️ ארכיון תשלומים</div>
     <div id="bsm-archive"></div>
     <div class="section-title">קישור לפחח</div>
     <div style="font-size:13px;color:var(--muted);line-height:1.8;margin-bottom:8px">שלח לו את הקישור פעם אחת. הוא נכנס ורואה רק את המסך שלו, בלי סיסמה ובלי בחירת שם.</div>
@@ -2495,7 +2492,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 91';
+const APP_BUILD = '2026-08-05 · 92';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8244,7 +8241,10 @@ function bsmOpenArchive(id) {
       <div style="font-weight:800">🚗 ${esc(c.plate)}${c.desc ? `<span style="font-weight:600;color:var(--muted);font-size:13px"> · ${esc(c.desc)}</span>` : ''}</div>
       <div style="font-weight:900;white-space:nowrap">${Number(c.total || 0).toLocaleString('he-IL')} ₪</div>
     </div>`).join('');
-  const search = `<input class="form-input" id="bsm-arc-search" placeholder="🔎 חפש מספר רכב" oninput="bsmArcFilter(this.value)" style="margin-bottom:12px">`;
+  const search = `<div style="display:flex;gap:8px;margin-bottom:12px">
+      <input class="form-input" id="bsm-arc-search" placeholder="🔎 חפש מספר רכב" oninput="bsmArcFilter(this.value)" style="flex:1;margin:0">
+      ${currentUser?.role === 'manager' ? `<button onclick="bsmExportArchive('${a.id}')" style="background:var(--dark);color:#fff;border:none;border-radius:10px;padding:0 16px;font-family:'Heebo',sans-serif;font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap">📤 ייצוא</button>` : ''}
+    </div>`;
   document.getElementById('bsm-arc-body').innerHTML = search + rows +
     `<div style="display:flex;justify-content:space-between;padding-top:12px;margin-top:6px;border-top:2px solid var(--border);font-size:17px;font-weight:900">
        <span>סה״כ ששולם לאיברהים</span><span style="color:var(--gold)">${Number(a.total || 0).toLocaleString('he-IL')} ₪</span></div>`;
@@ -8305,23 +8305,20 @@ async function bsmOpenArchiveCar(archiveId, idx) {
 }
 window.bsmOpenArchiveCar = bsmOpenArchiveCar;
 
-// The whole archive as one file, a line per car — opens straight in Excel.
-function bsmExportArchive() {
-  if (!_bshopArchive.length) return showToast('אין מה לייצא');
+// One folder as one file, a line per car — opens straight in Excel.
+function bsmExportArchive(archiveId) {
+  const a = _bshopArchive.find(x => x.id === archiveId);
+  if (!a || !(a.cars || []).length) return showToast('אין מה לייצא');
   const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const rows = [['מספר רישוי', 'רכב', 'סכום']];
-  let grand = 0;
-  for (const a of _bshopArchive) {
-    for (const c of (a.cars || [])) rows.push([c.plate || '', c.desc || '', Number(c.total || 0)]);
-    grand += Number(a.total || 0);
-  }
-  rows.push([]); rows.push(['סה״כ ששולם', '', grand]);
+  for (const c of a.cars) rows.push([c.plate || '', c.desc || '', Number(c.total || 0)]);
+  rows.push([]); rows.push(['סה״כ ששולם', '', Number(a.total || 0)]);
   // the BOM is what makes Excel read the Hebrew correctly
   const csv = '\uFEFF' + rows.map(r => r.map(q).join(',')).join('\r\n');
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
   const el = document.createElement('a');
   el.href = url;
-  el.download = `פחחות-ארכיון-${new Date().toLocaleDateString('he-IL').replace(/\//g, '-')}.csv`;
+  el.download = `פחחות-${String(a.title || 'חשבון').replace(/[\\/:*?"<>|]/g, '-')}.csv`;
   document.body.appendChild(el); el.click(); el.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
   showToast('📤 הקובץ הורד');
