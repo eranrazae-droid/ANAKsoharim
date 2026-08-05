@@ -78,6 +78,7 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
 .home-body.has-calendar #home-layout{display:flex;gap:20px;align-items:flex-start}
 .home-body.has-calendar #home-cards-area{flex:1;min-width:0}
 .home-body.has-calendar #home-calendar-area{display:block !important;width:340px;flex-shrink:0;border-right:2px solid var(--border);padding-right:20px}
+.home-body.has-calendar #cal-agenda{max-height:none}
 .home-body.has-calendar .menu-grid{grid-template-columns:repeat(3,1fr) !important}
 @media (max-width:900px){
   .home-body.has-calendar #home-layout{flex-direction:column}
@@ -2480,7 +2481,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 83';
+const APP_BUILD = '2026-08-05 · 84';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -2490,6 +2491,7 @@ function renderHome() {
   // reset calendar layout — only the manager gets the calendar
   const _hb = document.querySelector('#screen-home .home-body');
   if (_hb) _hb.classList.remove('has-calendar');
+  _moveWelcomeBar(false);
   document.getElementById('home-welcome').textContent =
     'שלום, ' + currentUser.name + ' 👋';
   const now = new Date();
@@ -2650,9 +2652,22 @@ function _ymd(dt) {
   return `${y}-${m}-${d}`;
 }
 
+/* With the calendar on, the greeting belongs inside the cards column so the
+   calendar can start at the very top of the screen — that is where the extra
+   room for the day's tasks comes from. */
+function _moveWelcomeBar(intoCards) {
+  const bar = document.querySelector('#screen-home .welcome-bar');
+  const body = document.querySelector('#screen-home .home-body');
+  const cards = document.getElementById('home-cards-area');
+  if (!bar || !body || !cards) return;
+  const target = intoCards ? cards : body;
+  if (bar.parentElement !== target) target.prepend(bar);
+}
+
 function initManagerCalendar() {
   const hb = document.querySelector('#screen-home .home-body');
   if (hb) hb.classList.add('has-calendar');
+  _moveWelcomeBar(true);
   if (!_calSelected) _calSelected = _ymd(new Date());
   _calMonth = new Date(); _calMonth.setDate(1);
   if (!_calUnsub && window._CONFIG_DONE) {
