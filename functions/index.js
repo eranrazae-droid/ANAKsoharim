@@ -198,7 +198,7 @@ exports.dailyRecallPull = onSchedule(
   // the per-plate fallback path can take minutes for a full lot — the default
   // 60s timeout would kill the run halfway through
   { schedule: "0 7 * * 0-5", region: "europe-west1", timeZone: "Asia/Jerusalem", timeoutSeconds: 540, memory: "512MiB" },
-  async () => { await _runRecallScan(); }
+  async () => { await _runRecallScan("schedule"); }
 );
 
 // same scan, on demand — lets the manager verify without waiting for 07:00
@@ -206,7 +206,7 @@ exports.runRecallScanNow = onRequest(
   { cors: true, region: "europe-west1", timeoutSeconds: 540, memory: "512MiB" },
   async (req, res) => {
     try {
-      const r = await _runRecallScan();
+      const r = await _runRecallScan("manual");
       res.status(200).json(r);
     } catch (err) {
       res.status(500).json({ ok: false, error: err.message });
@@ -214,7 +214,49 @@ exports.runRecallScanNow = onRequest(
   }
 );
 
-async function _runRecallScan() {
+// A run that ends early used to write nothing at all, so a morning with no
+// scan looked exactly like a morning with no recalls. Every run now stamps
+// recall_status/lastRun, and every failure sends a Telegram message.
+async function _recallReportRun(result, trigger) {
+  try {
+    await db.collection("recall_status").doc("lastRun").set({
+      at: new Date(), trigger: trigger || "schedule", ...result,
+    });
+  } catch (err) { console.error("recall lastRun write failed", err); }
+  if (result.ok) return;
+  const reasons = {
+    "inventory-fetch-failed": "לא הצלחנו למשוך את רשימת הרכבים מהמערכת (השרת לא הגיב)",
+    "empty-inventory": "רשימת הרכבים חזרה ריקה מהמערכת",
+    "no-valid-plates": "לא נמצאו מספרי רישוי תקינים ברשימת הרכבים",
+    "unreliable": "משרד התחבורה לא הגיב — הרשימה הקודמת נשמרה",
+    "crashed": "הסריקה נעצרה עקב שגיאה",
+  };
+  try {
+    const cs = await db.collection("config").doc("driver_contacts").get();
+    const contacts = cs.exists ? cs.data() : {};
+    const token = contacts["_telegramToken"]?.value || "";
+    const chatId = contacts["ליאל"]?.telegramId || "";
+    if (!token || !chatId) return;
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: `⚠️ בדיקת הריקול לא הושלמה.\nסיבה: ${reasons[result.reason] || result.reason || "לא ידוע"}\nהרשימה הקודמת נשמרה. אפשר להריץ סריקה ידנית מהמסך.`,
+      }),
+    });
+  } catch (err) { console.error("recall failure alert failed", err); }
+}
+
+async function _runRecallScan(trigger) {
+  const res = await _runRecallScanInner().catch((err) => {
+    console.error("recall scan crashed", err);
+    return { ok: false, reason: "crashed", error: String(err && err.message || err) };
+  });
+  await _recallReportRun(res, trigger);
+  return res;
+}
+
+async function _runRecallScanInner() {
     let vehicles;
     try {
       const res = await fetch(_INVENTORY_URL);
@@ -317,18 +359,6 @@ async function _runRecallScan() {
       const probeOk = await _recallProbeWorks();
       if (!probeOk || failedPlates) {
         console.error(`dailyRecallPull: unreliable run (probeOk=${probeOk}, failedPlates=${failedPlates}) — keeping previous list`);
-        try {
-          const cs = await db.collection("config").doc("driver_contacts").get();
-          const contacts = cs.exists ? cs.data() : {};
-          const token = contacts["_telegramToken"]?.value || "";
-          const chatId = contacts["ליאל"]?.telegramId || "";
-          if (token && chatId) {
-            await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-              method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ chat_id: chatId, text: "⚠️ בדיקת הריקול הבוקר לא הושלמה (בעיית תקשורת מול משרד התחבורה). הרשימה הקודמת נשמרה — הבדיקה תרוץ שוב מחר." }),
-            });
-          }
-        } catch (err) { console.error("recall failure alert failed", err); }
         return { ok: false, reason: "unreliable", probeOk, failedPlates, checked: cars.length };
       }
     }

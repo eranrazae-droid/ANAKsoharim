@@ -1524,6 +1524,7 @@ if ('serviceWorker' in navigator) {
   </div>
   <div style="padding:16px 16px 100px">
     <div id="recall-status-banner" style="display:none;border-radius:14px;padding:14px 16px;margin-bottom:14px;font-size:14px;font-weight:700"></div>
+    <div id="recall-run-banner" style="display:none;border-radius:14px;padding:12px 16px;margin-bottom:12px;font-size:14px;font-weight:800;line-height:1.7"></div>
     <div id="recall-scan-info" style="border:2px solid var(--border);border-radius:16px;padding:14px 16px;margin-bottom:16px;background:var(--surface2);font-size:14px;line-height:1.9"></div>
     <div id="recall-list" style="overflow-x:auto"></div>
     <div style="display:flex;justify-content:center;margin-top:24px">
@@ -2364,7 +2365,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-04 · 34';
+const APP_BUILD = '2026-08-05 · 35';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -6645,10 +6646,17 @@ function _stripMfrCountry(name) { return _cleanMaker(name); }
 // must never push stale local/localStorage data over it (that would erase
 // this morning's automatic results) — it only LISTENS.
 let _recallStatusUnsub = null;
+let _recallRunUnsub = null;
 function openRecallScreen() {
   document.getElementById('recall-user-badge').textContent = currentUser.name;
   showScreen('recall');
   if (_recallStatusUnsub) _recallStatusUnsub();
+  // report of the last run — success or failure — so a morning without a scan
+  // can never look like a morning without recalls
+  if (_recallRunUnsub) _recallRunUnsub();
+  _recallRunUnsub = _onSnap(_docRef('recall_status', 'lastRun'), snap => {
+    _renderRecallLastRun(snap.exists() ? snap.data() : null);
+  }, () => _renderRecallLastRun(null));
   _recallStatusUnsub = _onSnap(_docRef('recall_status', 'current'), snap => {
     const data = snap.exists() ? snap.data() : {};
     const cars = data.cars || [];
@@ -6684,6 +6692,37 @@ async function runRecallScanNow() {
   }
 }
 window.runRecallScanNow = runRecallScanNow;
+
+const _RECALL_REASONS = {
+  'inventory-fetch-failed': 'לא הצלחנו למשוך את רשימת הרכבים מהמערכת',
+  'empty-inventory': 'רשימת הרכבים חזרה ריקה',
+  'no-valid-plates': 'לא נמצאו מספרי רישוי תקינים',
+  'unreliable': 'משרד התחבורה לא הגיב',
+  'crashed': 'הסריקה נעצרה עקב שגיאה',
+};
+
+function _renderRecallLastRun(d) {
+  const box = document.getElementById('recall-run-banner');
+  if (!box) return;
+  const paint = (bg, col, html) => {
+    box.style.display = 'block'; box.style.background = bg; box.style.color = col;
+    box.innerHTML = html;
+  };
+  if (!d || !d.at) {
+    return paint('#fef3c7', '#92400e', '⏳ אין עדיין דיווח על ריצת סריקה. הסריקה רצה כל בוקר ב-07:00 (ראשון–שישי).');
+  }
+  const at = d.at?.toDate ? d.at.toDate() : new Date(d.at);
+  const when = at.toLocaleDateString('he-IL') + ' בשעה ' + at.toLocaleTimeString('he-IL', { hour:'2-digit', minute:'2-digit' });
+  const stale = (Date.now() - at.getTime()) > 26 * 3600000;
+  if (d.ok && !stale) {
+    return paint('#dcfce7', '#166534', `✅ הסריקה האחרונה רצה בהצלחה · ${when}`);
+  }
+  if (d.ok && stale) {
+    return paint('#fee2e2', '#991b1b', `⚠️ לא רצה סריקה מאז ${when} — עברו יותר מיממה. כדאי להריץ סריקה ידנית.`);
+  }
+  paint('#fee2e2', '#991b1b',
+    `⚠️ הסריקה האחרונה נכשלה · ${when}<br>סיבה: ${_RECALL_REASONS[d.reason] || d.reason || 'לא ידועה'}<br>אפשר להריץ סריקה ידנית מהכפתור למטה.`);
+}
 
 // report of the last automatic scan: when it ran and what it found
 function _renderRecallScanInfo(data) {
