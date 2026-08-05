@@ -382,6 +382,8 @@ if ('serviceWorker' in navigator) {
           <div class="stat-card" id="stat-vehicles-card" style="display:none"><div class="num" id="stat-vehicles">—</div><div class="lbl">רכבים במגרש</div></div>
           <div class="stat-card" id="stat-pickup-driver-card" style="display:none;cursor:pointer;background:linear-gradient(135deg,#1e3a8a,#1e40af);color:#fff" onclick="openDriverPickupModal()"><div class="num" id="stat-pickup-driver-count" style="color:#fff">0</div><div class="lbl" style="color:rgba(255,255,255,.8)">🚙 לאיסוף</div></div>
           <div class="stat-card" id="stat-inventory-driver-card" style="display:none;cursor:pointer;background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff" onclick="goToScreen('driver-inventory')"><div class="num" id="stat-inventory-driver-count" style="color:#fff">0</div><div class="lbl" style="color:rgba(255,255,255,.8)">📦 בדיקת מלאי</div></div>
+          <div class="stat-card" id="stat-pits-driver-card" style="display:none;cursor:pointer;background:linear-gradient(135deg,#0f766e,#115e59);color:#fff" onclick="goToScreen('pits')"><div class="num" id="stat-pits-driver-count" style="color:#fff">0</div><div class="lbl" style="color:rgba(255,255,255,.8)">🕳️ בורות</div></div>
+          <div class="stat-card" id="stat-yard-driver-card" style="display:none;cursor:pointer;background:linear-gradient(135deg,#b45309,#92400e);color:#fff" onclick="goToScreen('yard')"><div class="num" id="stat-yard-driver-count" style="color:#fff">0</div><div class="lbl" style="color:rgba(255,255,255,.8)">🅿️ סידור מגרש</div></div>
           <div style="display:none"><div id="stat-parts">—</div></div>
         </div>
         <div class="menu-grid" id="menu-grid"></div>
@@ -2433,7 +2435,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 63';
+const APP_BUILD = '2026-08-05 · 64';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -2541,8 +2543,6 @@ function renderHome() {
         { icon: '📋', title: 'המשימות שלי', sub: 'משימות שהוקצו לך', screen: 'tasks' },
         { icon: '🚗', title: 'קליטות ורענון רכבים שלי', sub: 'קליטות ורענונים ממתינים', screen: 'vehicles' },
         { icon: '🔋', title: 'בדיקת סוללה והטענת רכבים חשמליים', sub: 'מילוי אחוזי טעינה וטווח', screen: 'driver-battery' },
-        { icon: '🅿️', title: 'סידור מגרש', sub: 'צפייה בטבלת חניות', screen: 'yard' },
-        { icon: '🕳️', title: 'בורות', sub: 'בדיקות ממתינות לביצוע', screen: 'pits' },
       ];
 
   function _cardHtml(m) {
@@ -3118,12 +3118,20 @@ function loadDriverBadges() {
       snap.docChanges().filter(c => c.type === 'removed').forEach(c => delete _dcTasks[c.doc.id]);
       _renderUnifiedBatteryCard();
     });
+    // בורות וסידור מגרש — קוביות קטנות שמופיעות רק כשיש עבודה ונעלמות בסיום
+    const _showSmall = (card, count, screen) => {
+      const el = document.getElementById(`stat-${card}-driver-card`);
+      const cnt = document.getElementById(`stat-${card}-driver-count`);
+      if (el) el.style.display = count ? 'block' : 'none';
+      if (cnt) cnt.textContent = count;
+      _setCardBadge(screen, count);
+    };
     _onSnap(_docRef('yard','current'), snap => {
       const status = snap.exists() ? snap.data().status : null;
-      _setCardBadge('yard', status === 'pending' ? 1 : 0);
+      _showSmall('yard', status === 'pending' ? 1 : 0, 'yard');
     });
     _onSnap(_query(_colRef('pit_checks'), _where('status','==','pending')), snap => {
-      _setCardBadge('pits', snap.size);
+      _showSmall('pits', snap.size, 'pits');
     });
     // pickup cars assigned to this driver
     _onSnap(_query(_colRef('pickup_cars'), _where('assignedDriver','==',name)), snap => {
