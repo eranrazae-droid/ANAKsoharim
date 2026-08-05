@@ -1510,7 +1510,10 @@ if ('serviceWorker' in navigator) {
     <div class="logo">📊 סטטיסטיקת מצברים</div>
     <div class="user-badge" id="bstat-user-badge" onclick="logout()"></div>
   </div>
-  <div style="padding:16px 16px 100px" id="bs-stats"></div>
+  <div style="padding:16px 16px 100px">
+    <div id="bs-stats"></div>
+    <button class="btn-submit" onclick="bsResetStats()" style="background:var(--surface2);color:var(--muted);border:2px solid var(--border);font-size:14px">🧹 אפס סטטיסטיקה</button>
+  </div>
 </div>
 
 <div class="modal-overlay" id="modal-bs-history">
@@ -2424,7 +2427,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 57';
+const APP_BUILD = '2026-08-05 · 58';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -7995,9 +7998,11 @@ window._bsVatHint = _bsVatHint;
 
 const _bsSkuId = sku => 's_' + encodeURIComponent(String(sku || '').trim()).replace(/\./g, '%2E');
 
-function openBatteryStockScreen() {
-  document.getElementById('bs-user-badge').textContent = currentUser.name;
-  showScreen('battery-stock');
+// The cabinet, the statistics and the order list all read the same data, so the
+// listeners live in one place. Opening the statistics screen directly — which is
+// what happens after a refresh — must start them too, otherwise the screen has
+// nothing to show and looks empty.
+function _bsListen() {
   if (_bsUnsubStock) _bsUnsubStock();
   if (_bsUnsubInstalls) _bsUnsubInstalls();
   _bsUnsubStock = _onSnap(_colRef('battery_stock'), snap => {
@@ -8013,6 +8018,7 @@ function openBatteryStockScreen() {
     _bsDeliveries = snap.docs.map(d => ({ id: d.id, ...d.data() }))
       .sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
     _bsRenderDeliveries();
+    _bsRenderAll();
   });
   if (_bsUnsubCatalog) _bsUnsubCatalog();
   _bsUnsubCatalog = _onSnap(_colRef('battery_catalog'), snap => {
@@ -8022,6 +8028,12 @@ function openBatteryStockScreen() {
     _bsRenderTypes();
     _bsRenderAll();
   });
+}
+
+function openBatteryStockScreen() {
+  document.getElementById('bs-user-badge').textContent = currentUser.name;
+  showScreen('battery-stock');
+  _bsListen();
 }
 window.openBatteryStockScreen = openBatteryStockScreen;
 
@@ -8169,9 +8181,29 @@ window.bsResetStock = bsResetStock;
 function openBatteryStatsScreen() {
   document.getElementById('bstat-user-badge').textContent = currentUser.name;
   showScreen('battery-stats');
+  _bsListen();
   _bsRenderStats();
 }
 window.openBatteryStatsScreen = openBatteryStatsScreen;
+
+// Wipes the history the statistics are built from. The cabinet contents and the
+// SKU list are left alone — only what happened until now is cleared.
+async function bsResetStats() {
+  const n = _bsInstalls.length, d = _bsDeliveries.length;
+  if (!n && !d) return showToast('אין מה לאפס');
+  if (!confirm(`לאפס את הסטטיסטיקה?\n\n${n} הרכבות ו-${d} הזמנות יימחקו, וגם רשימת ההזמנות תתאפס.\nהמלאי בארון ורשימת המק״טים לא ייפגעו.`)) return;
+  try {
+    const { writeBatch } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const jobs = [..._bsInstalls.map(r => ['battery_installs', r.id]), ..._bsDeliveries.map(r => ['battery_deliveries', r.id])];
+    for (let i = 0; i < jobs.length; i += 400) {
+      const batch = writeBatch(window._db);
+      for (const [col, id] of jobs.slice(i, i + 400)) batch.delete(_docRef(col, id));
+      await batch.commit();
+    }
+    showToast('🧹 הסטטיסטיקה אופסה');
+  } catch (e) { showToast('שגיאה: ' + (e.code || e.message)); }
+}
+window.bsResetStats = bsResetStats;
 
 const _bsCard = (label, value, sub, color) => `<div style="border:2px solid var(--border);border-radius:14px;padding:12px;background:var(--card)">
   <div style="font-size:12px;color:var(--muted);font-weight:800">${label}</div>
@@ -8191,13 +8223,8 @@ function _bsRenderStats() {
   const priceOf = i => Number(i.price ?? _bsCatFind(i.sku)?.price ?? 0);
   const money = n => Math.round(n).toLocaleString('he-IL') + ' ₪';
 
-  if (!installs.length) {
-    c.innerHTML = `<div style="padding:30px;text-align:center;color:var(--muted)">עדיין לא נרשמו הרכבות — אחרי כמה הרכבות יופיעו כאן כל הנתונים.</div>`;
-    return;
-  }
-
   const dates = installs.map(i => i.d).sort((a, b) => a - b);
-  const spanDays = Math.max(1, (dates[dates.length - 1] - dates[0]) / 86400000);
+  const spanDays = dates.length ? Math.max(1, (dates[dates.length - 1] - dates[0]) / 86400000) : 1;
   const perDay = installs.length > 1 ? (installs.length - 1) / spanDays : 0;
   const everyDays = perDay > 0 ? 1 / perDay : 0;
   const inCabinet = _bsStock.reduce((t, r) => t + (r.qty || 0), 0);
@@ -8219,14 +8246,14 @@ function _bsRenderStats() {
     if (!byKey[k].last || i.d > byKey[k].last) byKey[k].last = i.d;
   }
   const ranked = Object.values(byKey).sort((a, b) => b.n - a.n);
-  const max = ranked[0].n;
   const stockOf = sku => _bsStock.filter(r => r.sku === sku).reduce((t, r) => t + (r.qty || 0), 0);
-  const rMax = ranked[0].n;
+  const rMax = Math.max(1, ...ranked.map(r => r.n));
   html += _bsBox('הסוגים המבוקשים ביותר',
-    `<div style="display:flex;align-items:flex-end;gap:6px;height:130px;direction:rtl;margin-bottom:10px">
-      ${ranked.map(r => `<div style="flex:1;text-align:center;min-width:0">
-        <div style="font-size:11px;font-weight:800;margin-bottom:2px">${r.n}</div>
-        <div style="background:var(--gold);border-radius:4px 4px 0 0;height:${Math.max(4, Math.round(r.n / rMax * 80))}px"></div>
+    (ranked.length ? '' : `<div style="font-size:13px;color:var(--muted);margin-bottom:8px">עדיין לא הורכבו מצברים</div>`) +
+    `<div style="display:flex;align-items:flex-end;justify-content:center;gap:10px;height:130px;direction:rtl;margin-bottom:10px">
+      ${(ranked.length ? ranked : [{ sku: '', model: '', n: 0, empty: true }]).map(r => `<div style="flex:1;max-width:110px;text-align:center;min-width:0">
+        <div style="font-size:11px;font-weight:800;margin-bottom:2px">${r.n || ''}</div>
+        <div style="background:${r.n ? 'var(--gold)' : 'var(--border)'};border-radius:4px 4px 0 0;height:${Math.max(4, Math.round(r.n / rMax * 80))}px"></div>
         <div style="font-size:10px;color:var(--muted);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.sku || r.model)}</div>
       </div>`).join('')}
     </div>` +
@@ -8237,7 +8264,7 @@ function _bsRenderStats() {
       const warn = q === 0 ? '#ef4444' : (daysLeft !== null && daysLeft < 14) ? '#f59e0b' : 'var(--muted)';
       return `<div style="display:flex;justify-content:space-between;gap:8px;border-top:1px solid var(--border);padding:6px 0;font-size:12px">
         <span style="font-weight:800;min-width:0">${esc(r.model)}${r.sku ? ` · ${esc(r.sku)}` : ''}</span>
-        <span style="color:${warn};font-weight:700;white-space:nowrap">${r.n} · ${Math.round(r.n / installs.length * 100)}% · בארון ${q}${daysLeft !== null ? ` · ל-${daysLeft} ימים` : ''}</span>
+        <span style="color:${warn};font-weight:700;white-space:nowrap">${r.n} · ${Math.round(r.n / Math.max(1, installs.length) * 100)}% · בארון ${q}${daysLeft !== null ? ` · ל-${daysLeft} ימים` : ''}</span>
       </div>`;
     }).join(''));
 
@@ -8251,8 +8278,8 @@ function _bsRenderStats() {
   }
   const mMax = Math.max(1, ...months.map(m => m.n));
   html += _bsBox(`הרכבות לפי חודש · ${year}`,
-    `<div style="display:flex;align-items:flex-end;gap:4px;height:110px;direction:ltr">
-      ${months.map(m => `<div style="flex:1;text-align:center">
+    `<div style="display:flex;align-items:flex-end;justify-content:center;gap:4px;height:110px;direction:ltr">
+      ${months.map(m => `<div style="flex:1;max-width:90px;text-align:center">
         <div style="font-size:11px;font-weight:800;margin-bottom:2px">${m.n || ''}</div>
         <div style="background:${m.n ? 'var(--gold)' : 'var(--border)'};border-radius:4px 4px 0 0;height:${Math.max(3, Math.round(m.n / mMax * 70))}px"></div>
         <div style="font-size:10px;color:var(--muted);margin-top:3px">${m.label}</div>
