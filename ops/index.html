@@ -2461,7 +2461,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 77';
+const APP_BUILD = '2026-08-05 · 78';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -7606,7 +7606,7 @@ function _bshopJobCard(j, forWorker) {
       ${_bshopDaysHtml(j)}
     </div>
     ${j.note ? `<div style="margin-top:6px;font-size:13px">📝 ${esc(j.note)}</div>` : ''}
-    ${(j.photoThumb || j.photo) ? `<img src="${j.photoThumb || j.photo}" alt="" loading="lazy" style="margin-top:8px;width:100%;max-height:150px;object-fit:cover;border-radius:10px;display:block">` : ''}
+    ${(j.photoThumb || j.photo) ? `<img id="bshop-card-img-${j.id}" src="${j.photo || j.photoThumb}" alt="" loading="lazy" style="margin-top:8px;width:100%;max-height:150px;object-fit:cover;border-radius:10px;display:block">` : ''}
     ${!forWorker && j.status === 'at_shop' ? `<button onclick="event.stopPropagation();bsmMarkReturned('${j.id}')"
       style="margin-top:10px;width:100%;background:var(--dark);color:#fff;border:none;border-radius:10px;padding:10px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:900;cursor:pointer">✅ סיימנו עם הרכב</button>` : ''}
     ${!forWorker && j.status === 'draft' ? `<button onclick="event.stopPropagation();bsmSendToShop('${j.id}')"
@@ -7625,6 +7625,7 @@ function _bshopRenderWorker() {
   const sum = ret.reduce((s, j) => s + _bshopTotal(j), 0);
   retC.innerHTML = (ret.length ? ret.map(j => _bshopJobCard(j, true)).join('') : `<div class="bshop-span" style="padding:16px;text-align:center;color:var(--muted)">עדיין לא סיימת רכבים</div>`)
     + (ret.length ? `<div class="bshop-span" style="border-radius:14px;padding:14px;background:var(--dark);color:#fff;display:flex;justify-content:space-between;font-size:16px;font-weight:900"><span>סה״כ לתשלום</span><span>${sum.toLocaleString('he-IL')} ₪</span></div>` : '');
+  _bshopUpgradeCardPhotos();
 }
 
 let _bshopFillMgr = false;   // the manager edits the same note, with more freedom
@@ -7733,14 +7734,37 @@ window.bshopRemovePart = bshopRemovePart;
 
 // swap the thumbnail for the full photo once it arrives; failing is harmless,
 // the small copy stays on screen
-async function _bshopLoadFullPhoto(id) {
-  if (!window._getDoc || !window._docRef) return;
+// The full photo lives in its own document. It is fetched once per note and
+// kept on the job in memory, so the card and the open note both show it sharp
+// instead of a stretched thumbnail.
+async function _bshopFullPhoto(id) {
+  const j = _bshopJobs.find(x => x.id === id);
+  if (j?.photo) return j.photo;
+  if (!window._getDoc || !window._docRef) return '';
   try {
     const snap = await window._getDoc(_docRef('bodyshop_photos', id));
     const url = snap.exists() ? snap.data().photo : '';
-    const img = document.getElementById('bshop-fill-img');
-    if (url && img && _bshopFillId === id) img.src = url;
-  } catch (e) { /* thumbnail is good enough */ }
+    if (url && j) j.photo = url;
+    return url;
+  } catch (e) { return ''; }   // thumbnail is good enough
+}
+
+async function _bshopLoadFullPhoto(id) {
+  const url = await _bshopFullPhoto(id);
+  const img = document.getElementById('bshop-fill-img');
+  if (url && img && _bshopFillId === id) img.src = url;
+}
+
+// after a list is drawn, upgrade every card that is still showing a thumbnail
+function _bshopUpgradeCardPhotos() {
+  for (const j of _bshopJobs) {
+    const img = document.getElementById('bshop-card-img-' + j.id);
+    if (!img || j.photo) continue;
+    _bshopFullPhoto(j.id).then(url => {
+      const el = document.getElementById('bshop-card-img-' + j.id);
+      if (url && el) el.src = url;
+    });
+  }
 }
 
 function _bshopRecalc() {
@@ -7830,6 +7854,7 @@ function _bshopRenderMgr() {
     : `<div class="bshop-span" style="padding:16px;text-align:center;color:var(--muted)">אין רכבים שממתינים לתשלום</div>`;
   const payWrap = document.getElementById('bsm-pay-wrap');
   if (payWrap) payWrap.style.display = ret.length ? 'block' : 'none';
+  _bshopUpgradeCardPhotos();
 }
 
 function bsmOpenJob(id) { bshopOpenFill(id); }
@@ -8028,7 +8053,7 @@ async function bsmPickPhoto(input) {
   if (!f) return;
   try {
     _bsmPhoto = await compressToBase64(f, 1000, 0.7);   // full size, own document
-    _bsmThumb = await compressToBase64(f, 320, 0.55);   // small, rides on the job
+    _bsmThumb = await compressToBase64(f, 700, 0.62);   // small, rides on the job
   } catch (e) { _bsmPhoto = null; _bsmThumb = null; return showToast('לא הצלחנו לעבד את התמונה'); }
   _bsmRenderPhoto();
 }
