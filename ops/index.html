@@ -2408,7 +2408,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 46';
+const APP_BUILD = '2026-08-05 · 47';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8449,7 +8449,12 @@ async function bsImportInvoice(input) {
   }
   // fill the manual form instead of writing anything, so every line is seen
   // and confirmed before it touches the cabinet
-  _bsLines = r.items.map(it => {
+  // the packaging line is not a battery — it is dropped from the form, but it
+  // still counts in the arithmetic check above, which is what validates the file
+  const goods = r.items.filter(it => !/אריזה|אריזות/.test(it.desc || '') && !/אריזה/.test(it.sku || ''));
+  const dropped = r.items.length - goods.length;
+  if (!goods.length) return showToast('⚠️ לא נמצאו מצברים בחשבונית — אפשר להוסיף ידנית', 6000);
+  _bsLines = goods.map(it => {
     const known = _bsCatFind(it.sku);
     return { key: ++_bsLineSeq, sku: it.sku, model: known?.model || it.desc, price: String(it.unit), qty: String(it.qty) };
   });
@@ -8458,7 +8463,7 @@ async function bsImportInvoice(input) {
   if (inv) inv.value = r.invoice || '';
   const note = document.getElementById('bs-add-note');
   if (note) note.value = r.date ? 'חשבונית מתאריך ' + r.date : '';
-  _bsImportBanner(true, `✅ נקראה חשבונית ${r.invoice || ''}${r.date ? ' · ' + r.date : ''}<br>${r.items.length} שורות · סה״כ ${r.sum.toLocaleString('he-IL')} ₪ לפני מע״מ · הסכומים נבדקו ומסתדרים<br>עבור על השורות ותקן אם צריך, ואז שמור.`);
+  _bsImportBanner(true, `✅ נקראה חשבונית ${r.invoice || ''}${r.date ? ' · ' + r.date : ''}<br>${goods.length} סוגי מצברים · הסכומים בחשבונית נבדקו ומסתדרים${dropped ? `<br>שורת אריזה דולגה` : ''}<br>עבור על השורות ותקן אם צריך, ואז שמור.`);
   openModal('modal-bs-add');
 }
 window.bsImportInvoice = bsImportInvoice;
