@@ -2492,7 +2492,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 92';
+const APP_BUILD = '2026-08-05 · 93';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8312,7 +8312,11 @@ function bsmExportArchive(archiveId) {
   const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const rows = [['מספר רישוי', 'רכב', 'סכום']];
   for (const c of a.cars) rows.push([c.plate || '', c.desc || '', Number(c.total || 0)]);
-  rows.push([]); rows.push(['סה״כ ששולם', '', Number(a.total || 0)]);
+  const sum = Number(a.total || 0), vat = sum * _VAT_RATE;
+  rows.push([]);
+  rows.push(['סה״כ ששולם לפני מע״מ', '', sum]);
+  rows.push([`מע״מ ${Math.round(_VAT_RATE * 100)}%`, '', Math.round(vat)]);
+  rows.push(['סה״כ ששולם כולל מע״מ', '', Math.round(sum + vat)]);
   // the BOM is what makes Excel read the Hebrew correctly
   const csv = '\uFEFF' + rows.map(r => r.map(q).join(',')).join('\r\n');
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
