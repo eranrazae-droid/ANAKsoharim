@@ -2416,7 +2416,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 48';
+const APP_BUILD = '2026-08-05 · 49';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8448,6 +8448,24 @@ function _bsParseInvoice(toks) {
   return { invoice, date, items, checks, sum };
 }
 
+/* The supplier writes a free-text description ("סטרט סטופ EFB 65 יפני").
+   What matters in the cabinet is the amperage, whether it is a start-stop
+   battery, and where it is made — so the description is boiled down to that.
+   Anything the rule cannot make sense of is left exactly as it came. */
+const _BS_ORIGINS = ['אירופאי', 'יפני', 'קוריאני', 'אמריקאי', 'סיני'];
+
+function _bsCleanModel(desc) {
+  const d = String(desc || '');
+  // the amperage is the only plausible battery rating in the text
+  const amp = (d.match(/\d{2,3}/g) || []).map(Number).find(n => n >= 30 && n <= 250);
+  if (!amp) return d.replace(/\s+/g, ' ').trim();
+  const parts = [amp + ' אמפר'];
+  if (/סטרט\s*סטופ|start\s*stop/i.test(d)) parts.push('סטרט סטופ');
+  const origin = _BS_ORIGINS.find(o => d.includes(o));
+  if (origin) parts.push(origin);
+  return parts.join(' ');
+}
+
 function _bsImportBanner(ok, html) {
   const el = document.getElementById('bs-import-banner');
   if (!el) return;
@@ -8488,7 +8506,7 @@ async function bsImportInvoice(input) {
   if (!goods.length) return showToast('⚠️ לא נמצאו מצברים בחשבונית — אפשר להוסיף ידנית', 6000);
   _bsLines = goods.map(it => {
     const known = _bsCatFind(it.sku);
-    return { key: ++_bsLineSeq, sku: it.sku, model: known?.model || it.desc, price: String(it.unit), qty: String(it.qty) };
+    return { key: ++_bsLineSeq, sku: it.sku, model: known?.model || _bsCleanModel(it.desc), price: String(it.unit), qty: String(it.qty) };
   });
   _bsRenderLines();
   const inv = document.getElementById('bs-invoice');
