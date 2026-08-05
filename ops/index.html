@@ -2461,7 +2461,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 76';
+const APP_BUILD = '2026-08-05 · 77';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -4873,7 +4873,7 @@ function openDriverIntake(id) {
   const localDraftStr = localStorage.getItem('intake_draft_' + id);
   const localChecks = localDraftStr ? (JSON.parse(localDraftStr).checks || {}) : {};
   const hasLocalChecks = Object.keys(localChecks).length > 0;
-  if (localDraftStr) restoreIntakeDraft(id);
+  restoreIntakeDraft(id);
   openModal('modal-driver-intake');
   // fetch from Firestore only if local has no checks — handles TD→intake pre-fill
   if (!hasLocalChecks && window._CONFIG_DONE) {
@@ -5517,6 +5517,7 @@ function addBatteryPhoto(input) {
     const url = URL.createObjectURL(f);
     return `<div class="ci-photo-box"><img src="${url}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" style="width:100%;height:100%;object-fit:cover"><span style="display:none;align-items:center;justify-content:center;width:100%;height:100%;font-size:12px;font-weight:700;color:#166534;background:#dcfce7;border-radius:8px">✓ נבחרה</span><button class="rm-btn" onclick="_batteryPhotoFiles.splice(${i},1);addBatteryPhoto({files:[]})">✕</button></div>`;
   }).join('');
+  scheduleIntakePhotoDraft();
 }
 window.addBatteryPhoto = addBatteryPhoto;
 
@@ -5527,11 +5528,13 @@ function addPhotos(key, input) {
   ciPhotoFiles[key].push(...files);
   input.value = '';
   renderPhotoGrid(key);
+  scheduleIntakePhotoDraft();
 }
 
 function removePhoto(key, idx) {
   ciPhotoFiles[key].splice(idx, 1);
   renderPhotoGrid(key);
+  scheduleIntakePhotoDraft();
 }
 
 function renderPhotoGrid(key) {
@@ -5691,28 +5694,48 @@ evSelection: document.getElementById('di-ev-v')?.classList.contains('v-active') 
   }, 1500);
 }
 
+/* A photo straight off the camera is several megabytes; the whole of local
+   storage is about five. Saving them as they came meant the write failed and
+   the photos were quietly lost the moment the form was reopened. The draft copy
+   is therefore compressed — the photo that is actually sent is still built from
+   the original file at submit time, so nothing is lost in quality. */
+const _INTAKE_DRAFT_PX = 700, _INTAKE_DRAFT_Q = 0.6;
+
+let _intakePhotoDraftTimer = null;
+// photos are saved whenever one is added or removed, not only when the form is
+// closed with the ✕ — leaving any other way used to lose them
+function scheduleIntakePhotoDraft() {
+  clearTimeout(_intakePhotoDraftTimer);
+  _intakePhotoDraftTimer = setTimeout(saveIntakeDraftPhotos, 400);
+}
+window.scheduleIntakePhotoDraft = scheduleIntakePhotoDraft;
+
 async function saveIntakeDraftPhotos() {
   if (!_currentIntakeId) return;
+  const id = _currentIntakeId;
+  const _put = (key, value) => {
+    if (value) localStorage.setItem(key, value);
+    else localStorage.removeItem(key);   // the last photo was removed
+  };
   try {
-    // save battery photos as base64
-    if (_batteryPhotoFiles?.length) {
-      const b64s = await Promise.all(_batteryPhotoFiles.map(f => new Promise((res,rej) => {
-        const r = new FileReader(); r.onload = e => res(e.target.result); r.onerror = rej; r.readAsDataURL(f);
-      })));
-      localStorage.setItem('intake_draft_battery_' + _currentIntakeId, JSON.stringify(b64s));
-    }
-    // save ci photo files as base64
+    const batt = _batteryPhotoFiles?.length
+      ? JSON.stringify(await Promise.all(_batteryPhotoFiles.map(f => compressToBase64(f, _INTAKE_DRAFT_PX, _INTAKE_DRAFT_Q))))
+      : '';
     const photoData = {};
     for (const key of Object.keys(ciPhotoFiles)) {
       const files = ciPhotoFiles[key] || [];
       if (!files.length) continue;
-      photoData[key] = await Promise.all(files.map(f => new Promise((res,rej) => {
-        const r = new FileReader(); r.onload = e => res(e.target.result); r.onerror = rej; r.readAsDataURL(f);
-      })));
+      photoData[key] = await Promise.all(files.map(f => compressToBase64(f, _INTAKE_DRAFT_PX, _INTAKE_DRAFT_Q)));
     }
-    if (Object.keys(photoData).length)
-      localStorage.setItem('intake_draft_photos_' + _currentIntakeId, JSON.stringify(photoData));
-  } catch(e) { console.warn('photo draft save error', e); }
+    const photos = Object.keys(photoData).length ? JSON.stringify(photoData) : '';
+    if (id !== _currentIntakeId) return;   // a different intake was opened meanwhile
+    _put('intake_draft_battery_' + id, batt);
+    _put('intake_draft_photos_' + id, photos);
+  } catch(e) {
+    console.warn('photo draft save error', e);
+    // the driver must know, rather than discover it when he comes back
+    showToast('⚠️ התמונות לא נשמרו — סיים את הקליטה בלי לצאת');
+  }
 }
 
 function _applyIntakeDraftObj(draft) {
@@ -5809,11 +5832,12 @@ window.openManagerIntakeLive = openManagerIntakeLive;
 function restoreIntakeDraft(id) {
   try {
     const raw = localStorage.getItem('intake_draft_' + id);
-    if (!raw) return;
-    const draft = JSON.parse(raw);
-    _applyIntakeDraftObj(draft);
-    showToast('✏️ ממשיך מהמצב השמור');
-    // restore photos from base64
+    if (raw) {
+      _applyIntakeDraftObj(JSON.parse(raw));
+      showToast('✏️ ממשיך מהמצב השמור');
+    }
+    // photos are restored even when nothing else was filled in — a driver who
+    // only took pictures must find them waiting for him
     const batteryB64s = localStorage.getItem('intake_draft_battery_' + id);
     if (batteryB64s) {
       try {
