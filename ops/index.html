@@ -1529,7 +1529,7 @@ if ('serviceWorker' in navigator) {
       <input class="form-input" id="bsc-sku" autocomplete="off" placeholder="לדוגמה 57412"></div>
     <div class="form-group"><label>סוג מצבר <span style="color:#ef4444">*</span></label>
       <input class="form-input" id="bsc-model" autocomplete="off" placeholder="לדוגמה 72Ah AGM"></div>
-    <div class="form-group"><label>מחיר ליחידה (כולל מע״מ)</label>
+    <div class="form-group"><label>מחיר ליחידה (לפני מע״מ)</label>
       <input class="form-input" id="bsc-price" type="number" min="0" inputmode="numeric" placeholder="₪" oninput="_bsVatHint('bsc-price','bsc-price-vat')">
       <div id="bsc-price-vat" style="font-size:13px;color:var(--muted);font-weight:700;margin-top:5px"></div></div>
     <button class="btn-submit" onclick="submitBsCatalog()">שמור מק״ט ✅</button>
@@ -2402,7 +2402,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 40';
+const APP_BUILD = '2026-08-05 · 41';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -7955,17 +7955,18 @@ const _bsCatFind = sku => _bsCatalog.find(c => c.sku === String(sku || '').trim(
 // A SKU is written by hand and may contain "/" or "." — both illegal in a
 // Firestore document id. The id is therefore an encoded, prefixed form of the
 // SKU, while the readable value stays in the sku field.
-// Prices are entered as the supplier's price including VAT; the pre-VAT figure
-// is derived, never stored, so there is only one number to keep correct.
+// Prices are entered the way the supplier quotes them — before VAT. The figure
+// including VAT is derived, never stored, so there is only one number to keep
+// correct.
 const _VAT_RATE = 0.18;
-const _exVat = p => (Number(p) || 0) / (1 + _VAT_RATE);
+const _incVat = p => (Number(p) || 0) * (1 + _VAT_RATE);
 const _fmtIls = n => Math.round(n).toLocaleString('he-IL') + ' ₪';
 function _bsVatHint(inputId, hintId) {
   const el = document.getElementById(hintId);
   const v = document.getElementById(inputId)?.value;
   if (!el) return;
   el.textContent = v === '' || v == null || !Number(v)
-    ? '' : `לפני מע״מ: ${_fmtIls(_exVat(v))}  (מע״מ ${Math.round(_VAT_RATE * 100)}%)`;
+    ? '' : `כולל מע״מ: ${_fmtIls(_incVat(v))}  (מע״מ ${Math.round(_VAT_RATE * 100)}%)`;
 }
 window._bsVatHint = _bsVatHint;
 
@@ -8033,7 +8034,7 @@ function _bsRenderOrders() {
       ${l.price ? `<div style="font-weight:900;white-space:nowrap;color:var(--gold)">${(l.price * l.qty).toLocaleString('he-IL')} ₪</div>` : ''}
     </div>`).join('') +
     `<div style="display:flex;justify-content:space-between;border-radius:12px;padding:12px 14px;background:var(--dark);color:#fff;font-weight:900;margin-top:4px">
-       <span>סה״כ להזמנה: ${units} יחידות</span>${total ? `<span>${total.toLocaleString('he-IL')} ₪ · לפני מע״מ ${_fmtIls(_exVat(total))}</span>` : ''}</div>` +
+       <span>סה״כ להזמנה: ${units} יחידות</span>${total ? `<span>${total.toLocaleString('he-IL')} ₪ לפני מע״מ · ${_fmtIls(_incVat(total))} כולל מע״מ</span>` : ''}</div>` +
     `<button class="btn-submit" onclick="bsMarkOrdered()" style="background:var(--success);color:#fff">✅ הזמנתי — נקה את הרשימה</button>`;
 }
 
@@ -8079,7 +8080,7 @@ function _bsRenderStock() {
       return `<div style="display:flex;align-items:center;gap:10px;border:2px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;background:var(--card)">
         <div style="flex:1;min-width:0">
           <div style="font-weight:800;font-size:15px">${esc(r.model)}</div>
-          ${r.sku ? `<div style="font-size:12px;color:var(--muted);font-weight:700">מק״ט ${esc(r.sku)}${r.price ? ` · ${Number(r.price).toLocaleString('he-IL')} ₪ (לפני מע״מ ${_fmtIls(_exVat(r.price))})` : ''}${r.invoice ? ` · חשבונית ${esc(r.invoice)}` : ''}</div>` : ''}
+          ${r.sku ? `<div style="font-size:12px;color:var(--muted);font-weight:700">מק״ט ${esc(r.sku)}${r.price ? ` · ${Number(r.price).toLocaleString('he-IL')} ₪ (כולל מע״מ ${_fmtIls(_incVat(r.price))})` : ''}${r.invoice ? ` · חשבונית ${esc(r.invoice)}` : ''}</div>` : ''}
         </div>
         <div style="font-size:20px;font-weight:900;color:${color};min-width:34px;text-align:center">${q}</div>
 
@@ -8203,7 +8204,7 @@ function _bsRenderLines() {
       <div class="form-group"><label>סוג מצבר <span style="color:#ef4444">*</span></label>
         <input class="form-input" id="bs-model-${l.key}" autocomplete="off" placeholder="לדוגמה: 72Ah רגיל" value="${esc(l.model || '')}"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div class="form-group"><label>מחיר ליחידה (כולל מע״מ)</label>
+        <div class="form-group"><label>מחיר ליחידה (לפני מע״מ)</label>
           <input class="form-input" id="bs-price-${l.key}" type="number" min="0" inputmode="numeric" placeholder="₪" value="${esc(l.price || '')}" oninput="_bsVatHint('bs-price-${l.key}','bs-price-vat-${l.key}')">
           <div id="bs-price-vat-${l.key}" style="font-size:12px;color:var(--muted);font-weight:700;margin-top:5px"></div></div>
         <div class="form-group"><label>כמות <span style="color:#ef4444">*</span></label>
