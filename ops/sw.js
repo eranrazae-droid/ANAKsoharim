@@ -1,4 +1,4 @@
-// v88 — force update
+// v89 — force update
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', e => e.waitUntil(clients.claim()));
 
