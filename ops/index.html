@@ -2435,7 +2435,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 64';
+const APP_BUILD = '2026-08-05 · 65';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -2543,10 +2543,13 @@ function renderHome() {
         { icon: '📋', title: 'המשימות שלי', sub: 'משימות שהוקצו לך', screen: 'tasks' },
         { icon: '🚗', title: 'קליטות ורענון רכבים שלי', sub: 'קליטות ורענונים ממתינים', screen: 'vehicles' },
         { icon: '🔋', title: 'בדיקת סוללה והטענת רכבים חשמליים', sub: 'מילוי אחוזי טעינה וטווח', screen: 'driver-battery' },
+        { icon: _ICON_CAR_BATTERY, title: 'מצברים', sub: 'רישום מצבר שהורכב לרכב', screen: 'driver-battery-install' },
       ];
 
   function _cardHtml(m) {
-    const _onclick = m.screen === 'driver-battery' ? "goToScreen('driver-battery-unified')" : `goToScreen('${m.screen}')`;
+    const _onclick = m.screen === 'driver-battery' ? "goToScreen('driver-battery-unified')"
+      : m.screen === 'driver-battery-install' ? "openDriverBatteryInstall()"
+      : `goToScreen('${m.screen}')`;
     return `<div class="menu-card" id="menu-card-${m.screen}" onclick="${_onclick}">
       <div style="position:relative;display:inline-block">
         <div class="mc-icon">${m.icon}</div>
@@ -8016,12 +8019,27 @@ const _bsSkuId = sku => 's_' + encodeURIComponent(String(sku || '').trim()).repl
 // listeners live in one place. Opening the statistics screen directly — which is
 // what happens after a refresh — must start them too, otherwise the screen has
 // nothing to show and looks empty.
+let _bsOpenIssueWhenReady = false;
+
+// the driver's entry point: no cabinet screen, only the form for recording a
+// battery that went into a car
+function openDriverBatteryInstall() {
+  if (_bsStock.length) { _bsListen(); return openBsIssueModal(); }
+  _bsOpenIssueWhenReady = true;
+  showToast('רגע, טוען את הארון…');
+  _bsListen();
+}
+window.openDriverBatteryInstall = openDriverBatteryInstall;
+
 function _bsListen() {
   if (_bsUnsubStock) _bsUnsubStock();
   if (_bsUnsubInstalls) _bsUnsubInstalls();
   _bsUnsubStock = _onSnap(_colRef('battery_stock'), snap => {
     _bsStock = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     _bsRenderAll();
+    // a driver who tapped the battery cube waits here until the cabinet is
+    // loaded, otherwise the form would open and claim the cabinet is empty
+    if (_bsOpenIssueWhenReady) { _bsOpenIssueWhenReady = false; openBsIssueModal(); }
   });
   _bsUnsubInstalls = _onSnap(_colRef('battery_installs'), snap => {
     _bsInstalls = snap.docs.map(d => ({ id: d.id, ...d.data() }));
