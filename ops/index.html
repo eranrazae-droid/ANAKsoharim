@@ -1477,9 +1477,11 @@ if ('serviceWorker' in navigator) {
   </div>
   <div style="padding:16px 16px 100px">
     <div style="display:flex;gap:8px;margin-bottom:16px">
-      <button class="btn-submit" onclick="openBsAddModal()" style="margin-top:0">➕ הוסף מצברים למלאי</button>
-      <button class="btn-submit" onclick="openBsIssueModal()" style="margin-top:0;background:#0ea5e9;color:#fff">🚗 הרכבתי לרכב</button>
+      <button class="btn-submit" onclick="openBsAddModal()" style="margin-top:0">➕ הוספה ידנית</button>
+      <button class="btn-submit" onclick="document.getElementById('bs-invoice-file').click()" style="margin-top:0;background:#0369a1;color:#fff">📄 הוספה מקובץ</button>
     </div>
+    <input type="file" id="bs-invoice-file" accept="application/pdf,.pdf" style="display:none" onchange="bsImportInvoice(this)">
+    <button class="btn-submit" onclick="openBsIssueModal()" style="margin-top:0;margin-bottom:10px;background:#0ea5e9;color:#fff">🚗 הרכבתי לרכב</button>
     <button class="btn-submit" onclick="openBsCatalogModal()" style="margin-top:0;margin-bottom:16px;background:var(--dark);color:#fff">⚙️ מק״טים וסוגי מצברים</button>
     <div class="bs-split">
       <div>
@@ -1513,6 +1515,7 @@ if ('serviceWorker' in navigator) {
 <div class="modal-overlay" id="modal-bs-add">
   <div class="modal-box">
     <div class="modal-title"><span>➕ הוספת מצברים למלאי</span> <button class="modal-close" onclick="closeModal('modal-bs-add')">✕</button></div>
+    <div id="bs-import-banner" style="display:none;border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:13px;font-weight:800;line-height:1.6"></div>
     <div style="font-size:13px;color:var(--muted);margin-bottom:10px">אפשר להוסיף כמה סוגי מצברים באותה חשבונית — הוסף שורה לכל סוג.</div>
     <div id="bs-lines"></div>
     <button type="button" onclick="bsAddLine()" style="width:100%;background:var(--surface2);border:2px dashed var(--border);border-radius:10px;padding:10px;font-family:'Heebo',sans-serif;font-weight:800;font-size:14px;cursor:pointer;margin-bottom:14px">➕ הוסף סוג מצבר נוסף</button>
@@ -2405,7 +2408,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 43';
+const APP_BUILD = '2026-08-05 · 44';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8316,6 +8319,150 @@ async function submitBsAdd() {
   } catch (e) { showToast('שגיאה בשמירה: ' + (e.code || e.message)); }
 }
 window.submitBsAdd = submitBsAdd;
+
+/* ═══ reading a supplier invoice (PDF) ═══════════════════════════════
+   The supplier's file carries a broken character table — the codes inside it
+   are the real characters shifted by a fixed amount, and only every other
+   entry is listed. Both blocks are recovered below. Nothing is trusted on
+   faith: the quantities and prices read out must satisfy the invoice's own
+   arithmetic before a single field is filled in. */
+async function _bsInflate(bytes) {
+  const ds = new DecompressionStream('deflate');
+  const out = new Response(new Blob([bytes]).stream().pipeThrough(ds));
+  return new Uint8Array(await out.arrayBuffer());
+}
+function _bsLatin(bytes) { let s = ''; const CH = 8192;
+  for (let i = 0; i < bytes.length; i += CH) s += String.fromCharCode.apply(null, bytes.subarray(i, i + CH));
+  return s; }
+// Schnapp's invoices carry a broken character table: the glyph codes are the
+// real characters shifted by a fixed amount. Both blocks are recovered here.
+function _bsFixChar(c) {
+  if (c >= 3 && c <= 130) return String.fromCharCode(c + 0x1d);
+  if (c >= 640 && c <= 800) return String.fromCharCode(c + 0x330);
+  if (c >= 1488 && c <= 1514) return String.fromCharCode(c);
+  return '';
+}
+async function _bsPdfTokens(buf) {
+  const bytes = new Uint8Array(buf);
+  const raw = _bsLatin(bytes);
+  let best = '';
+  let pos = 0;
+  while (true) {
+    const i = raw.indexOf('stream', pos);
+    if (i < 0) break;
+    let st = i + 6;
+    if (raw[st] === '\r') st++;
+    if (raw[st] === '\n') st++;
+    const en = raw.indexOf('endstream', st);
+    if (en < 0) break;
+    pos = en + 9;
+    // the slice may carry a trailing newline before "endstream", which the
+    // browser's inflater rejects as trailing junk — trim and retry
+    let end = en;
+    while (end > st && (raw[end - 1] === '\n' || raw[end - 1] === '\r')) end--;
+    for (const e2 of [end, en]) {
+      try {
+        const inf = _bsLatin(await _bsInflate(bytes.subarray(st, e2)));
+        if (inf.indexOf('Tj') >= 0 && inf.length > best.length) best = inf;
+        break;
+      } catch (e) { /* not a deflate stream, or a different trim — try next */ }
+    }
+  }
+  if (!best) return [];
+  const toks = [];
+  const re = /\((.*?)\)\s*Tj/gs;
+  let m;
+  while ((m = re.exec(best))) {
+    const s = m[1].replace(/\\([()\\])/g, '$1').replace(/\\r/g, '\x00\r').replace(/\\n/g, '\x00\n');
+    let t = '';
+    for (let i = 0; i + 1 < s.length; i += 2) t += _bsFixChar((s.charCodeAt(i) << 8) | s.charCodeAt(i + 1));
+    t = t.trim();
+    if (t) toks.push(t);
+  }
+  return toks;
+}
+const _bsIsNum = t => /^\d{1,3}(,\d{3})*(\.\d+)?$/.test(t);
+const _bsNum = t => Number(String(t).replace(/,/g, ''));
+
+function _bsParseInvoice(toks) {
+  const all = toks.join(' ');
+  const invoice = (all.match(/SI\d{6,}/) || [''])[0];
+  const date = (all.match(/\d{2}\/\d{2}\/\d{2}/) || [''])[0];
+  const i = toks.findIndex(t => t.includes('ט"קמ'));
+  const j = toks.findIndex((t, k) => k > i && t.includes('תומכ כ"הס'));
+  if (i < 0 || j < 0) return { error: 'לא זוהתה טבלת הפריטים' };
+  const body = toks.slice(i + 1, j);
+  const five = k => k + 4 < body.length && [0,1,2,3,4].every(n => _bsIsNum(body[k + n]));
+  const items = [];
+  let k = 0;
+  while (k < body.length) {
+    if (_bsIsNum(body[k]) && five(k)) {
+      const total = _bsNum(body[k]), qty = _bsNum(body[k + 2]), unit = _bsNum(body[k + 3]);
+      k += 5;
+      const rest = [];
+      while (k < body.length && !(_bsIsNum(body[k]) && five(k))) rest.push(body[k++]);
+      const sku = rest.find(t => /\d/.test(t) && t.length <= 20) || rest[rest.length - 1] || '';
+      const desc = rest.filter(t => t !== sku)
+        .map(t => /[֐-׿]/.test(t) ? t.split('').reverse().join('') : t)
+        .join(' ').replace(/\s+/g, ' ').trim();
+      items.push({ sku, desc, qty, unit, total });
+    } else k++;
+  }
+  // Self-check with the invoice's own arithmetic. Anything that does not add up
+  // is refused rather than guessed at — wrong stock is worse than no import.
+  const tail = toks.slice(j).filter(_bsIsNum).map(_bsNum);
+  const sum = items.reduce((s, it) => s + it.total, 0);
+  const checks = {
+    lines: items.every(it => Math.abs(it.unit * it.qty - it.total) < 0.02),
+    total: tail.some(v => Math.abs(v - sum) < 0.02),
+  };
+  return { invoice, date, items, checks, sum };
+}
+
+function _bsImportBanner(ok, html) {
+  const el = document.getElementById('bs-import-banner');
+  if (!el) return;
+  el.style.display = html ? 'block' : 'none';
+  el.style.background = ok ? '#dcfce7' : '#fee2e2';
+  el.style.color = ok ? '#166534' : '#991b1b';
+  el.innerHTML = html || '';
+}
+
+async function bsImportInvoice(input) {
+  const f = input.files && input.files[0];
+  input.value = '';
+  if (!f) return;
+  showToast('📄 קורא את החשבונית...');
+  let r;
+  try {
+    const toks = await _bsPdfTokens(await f.arrayBuffer());
+    if (!toks.length) return showToast('⚠️ לא הצלחנו לקרוא טקסט מהקובץ — אפשר להוסיף ידנית', 6000);
+    r = _bsParseInvoice(toks);
+  } catch (e) {
+    console.error('invoice import', e);
+    return showToast('⚠️ שגיאה בקריאת הקובץ — אפשר להוסיף ידנית', 6000);
+  }
+  if (r.error || !r.items?.length) return showToast('⚠️ לא זוהו שורות מוצר בקובץ — אפשר להוסיף ידנית', 6000);
+  if (!r.checks.lines || !r.checks.total) {
+    // the numbers do not add up, so they are not offered at all
+    return showToast('⚠️ הסכומים בקובץ לא הסתדרו בבדיקה — נא להוסיף ידנית', 7000);
+  }
+  // fill the manual form instead of writing anything, so every line is seen
+  // and confirmed before it touches the cabinet
+  _bsLines = r.items.map(it => {
+    const known = _bsCatFind(it.sku);
+    return { key: ++_bsLineSeq, sku: it.sku, model: known?.model || it.desc, price: String(it.unit), qty: String(it.qty) };
+  });
+  _bsRenderLines();
+  const inv = document.getElementById('bs-invoice');
+  if (inv) inv.value = r.invoice || '';
+  const note = document.getElementById('bs-add-note');
+  if (note) note.value = r.date ? 'חשבונית מתאריך ' + r.date : '';
+  _bsImportBanner(true, `✅ נקראה חשבונית ${r.invoice || ''}${r.date ? ' · ' + r.date : ''}<br>${r.items.length} שורות · סה״כ ${r.sum.toLocaleString('he-IL')} ₪ לפני מע״מ · הסכומים נבדקו ומסתדרים<br>עבור על השורות ותקן אם צריך, ואז שמור.`);
+  openModal('modal-bs-add');
+}
+window.bsImportInvoice = bsImportInvoice;
+
 
 /* ---- the SKU catalogue: entered once, used from then on ---- */
 function openBsCatalogModal() {
