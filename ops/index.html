@@ -1487,6 +1487,15 @@ if ('serviceWorker' in navigator) {
     <div class="section-title">הרכבות אחרונות</div>
     <div id="bs-history"></div>
   </div>
+  <button onclick="openBsTypesModal()" style="position:fixed;bottom:24px;left:16px;z-index:200;width:auto;margin:0;background:linear-gradient(135deg,#0ea5e9,#0369a1);color:#fff;border:none;border-radius:14px;padding:13px 22px;font-family:Heebo,sans-serif;font-size:16px;font-weight:800;cursor:pointer;box-shadow:0 3px 12px rgba(0,0,0,.3)">🔋 סוגי מצברים</button>
+</div>
+
+<div class="modal-overlay" id="modal-bs-types">
+  <div class="modal-box">
+    <div class="modal-title"><span>🔋 סוגי מצברים</span> <button class="modal-close" onclick="closeModal('modal-bs-types')">✕</button></div>
+    <input class="form-input" id="bs-types-search" placeholder="חפש סוג או מק״ט..." oninput="_bsRenderTypes()" style="margin-bottom:12px">
+    <div id="bs-types-table" style="overflow-x:auto"></div>
+  </div>
 </div>
 
 <div class="modal-overlay" id="modal-bs-add">
@@ -2391,7 +2400,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 37';
+const APP_BUILD = '2026-08-05 · 38';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -7960,6 +7969,7 @@ function openBatteryStockScreen() {
     _bsCatalog = snap.docs.map(d => ({ id: d.id, ...d.data() }))
       .sort((a, b) => String(a.sku).localeCompare(String(b.sku), 'he', { numeric: true }));
     _bsRenderCatalog();
+    _bsRenderTypes();
     _bsRenderAll();
   });
 }
@@ -8181,6 +8191,46 @@ function openBsCatalogModal() {
   openModal('modal-bs-catalog');
 }
 window.openBsCatalogModal = openBsCatalogModal;
+
+/* read-only table of every battery type on record — for deciding which battery
+   a particular car needs, without touching the catalogue itself */
+function openBsTypesModal() {
+  const q = document.getElementById('bs-types-search');
+  if (q) q.value = '';
+  _bsRenderTypes();
+  openModal('modal-bs-types');
+}
+window.openBsTypesModal = openBsTypesModal;
+
+function _bsRenderTypes() {
+  const c = document.getElementById('bs-types-table');
+  if (!c) return;
+  const q = (document.getElementById('bs-types-search')?.value || '').trim();
+  const rows = _bsCatalog
+    .filter(x => !q || String(x.sku).includes(q) || String(x.model || '').includes(q))
+    .sort((a, b) => String(a.model || '').localeCompare(String(b.model || ''), 'he'));
+  if (!rows.length) {
+    c.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted)">${_bsCatalog.length ? 'לא נמצא סוג מתאים' : 'עדיין לא נקלטו מק״טים'}</div>`;
+    return;
+  }
+  const stockOf = sku => _bsStock.filter(r => r.sku === sku).reduce((s, r) => s + (r.qty || 0), 0);
+  c.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:14px;direction:rtl">
+    <thead><tr style="background:var(--dark);color:#fff">
+      <th style="text-align:right;padding:9px 10px;border-radius:0 8px 0 0">סוג מצבר</th>
+      <th style="text-align:right;padding:9px 10px">מק״ט</th>
+      <th style="text-align:right;padding:9px 10px">מחיר</th>
+      <th style="text-align:center;padding:9px 10px;border-radius:8px 0 0 0">בארון</th>
+    </tr></thead><tbody>${rows.map(x => {
+      const q2 = stockOf(x.sku);
+      return `<tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:9px 10px;font-weight:800">${esc(x.model || '')}</td>
+        <td style="padding:9px 10px;font-weight:700">${esc(x.sku)}</td>
+        <td style="padding:9px 10px;white-space:nowrap">${x.price ? Number(x.price).toLocaleString('he-IL') + ' ₪' : '—'}</td>
+        <td style="padding:9px 10px;text-align:center;font-weight:900;color:${q2 ? 'var(--success)' : '#ef4444'}">${q2}</td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
+}
+window._bsRenderTypes = _bsRenderTypes;
 
 function _bsRenderCatalog() {
   const c = document.getElementById('bsc-list');
