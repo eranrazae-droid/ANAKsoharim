@@ -2416,7 +2416,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 53';
+const APP_BUILD = '2026-08-05 · 54';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8334,6 +8334,12 @@ async function submitBsAdd() {
     lines.push({ sku, model, price: l.price === '' || l.price == null ? null : Number(l.price), qty });
   }
   if (!lines.length) return showToast('נא למלא לפחות סוג מצבר אחד');
+  const dup = _bsInvoiceUsed(invoice);
+  if (dup) {
+    const when = dup.invoiceDate || (dup.at ? new Date(dup.at).toLocaleDateString('he-IL') : '');
+    _bsImportBanner(false, `⚠️ המצברים מההזמנה הזאת כבר עלו.<br>חשבונית ${esc(invoice)} נקלטה${when ? ' ב-' + esc(when) : ''} · ${dup.units || 0} יחידות.`);
+    return showToast(`⚠️ המצברים מההזמנה הזאת כבר עלו — חשבונית ${invoice}`, 8000);
+  }
   try {
     const { setDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
     let added = 0;
@@ -8581,6 +8587,11 @@ async function bsImportInvoice(input) {
   }
   // fill the manual form instead of writing anything, so every line is seen
   // and confirmed before it touches the cabinet
+  const dup = _bsInvoiceUsed(r.invoice);
+  if (dup) {
+    const when = dup.invoiceDate || (dup.at ? new Date(dup.at).toLocaleDateString('he-IL') : '');
+    return showToast(`⚠️ המצברים מההזמנה הזאת כבר עלו — חשבונית ${r.invoice} נקלטה${when ? ' ב-' + when : ''}`, 8000);
+  }
   // the packaging line is not a battery — it is dropped from the form, but it
   // still counts in the arithmetic check above, which is what validates the file
   const goods = r.items.filter(it => !/אריזה|אריזות/.test(it.desc || '') && !/אריזה/.test(it.sku || ''));
@@ -8690,6 +8701,14 @@ window.openBsTypesModal = openBsTypesModal;
 /* ---- order history: one row per delivery, with its invoice file ---- */
 function openBsHistoryModal() { _bsRenderDeliveries(); openModal('modal-bs-history'); }
 window.openBsHistoryModal = openBsHistoryModal;
+
+// an invoice may only be taken in once — the same delivery must never be
+// counted into the cabinet twice
+function _bsInvoiceUsed(inv) {
+  const v = String(inv || '').trim().toUpperCase();
+  if (!v) return null;
+  return _bsDeliveries.find(d => String(d.invoice || '').trim().toUpperCase() === v) || null;
+}
 
 function _bsRenderDeliveries() {
   const c = document.getElementById('bs-history-list');
