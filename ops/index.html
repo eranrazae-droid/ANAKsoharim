@@ -1495,14 +1495,22 @@ if ('serviceWorker' in navigator) {
         <div id="bs-orders"></div>
       </div>
     </div>
-    <div class="section-title">סטטיסטיקה</div>
-    <div id="bs-stats"></div>
     <div class="section-title">הרכבות אחרונות</div>
     <div id="bs-history"></div>
   </div>
   <button onclick="openBsHistoryModal()" style="position:fixed;bottom:136px;left:16px;z-index:200;width:auto;margin:0;background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff;border:none;border-radius:14px;padding:13px 22px;font-family:Heebo,sans-serif;font-size:16px;font-weight:800;cursor:pointer;box-shadow:0 3px 12px rgba(0,0,0,.3)">🧾 היסטוריית הזמנות</button>
   <button onclick="openBsCatalogModal()" style="position:fixed;bottom:80px;left:16px;z-index:200;width:auto;margin:0;background:var(--dark);color:#fff;border:none;border-radius:14px;padding:13px 22px;font-family:Heebo,sans-serif;font-size:16px;font-weight:800;cursor:pointer;box-shadow:0 3px 12px rgba(0,0,0,.3)">⚙️ מק״טים וסוגי מצברים</button>
-  <button onclick="openBsTypesModal()" style="position:fixed;bottom:24px;left:16px;z-index:200;width:auto;margin:0;background:linear-gradient(135deg,#0ea5e9,#0369a1);color:#fff;border:none;border-radius:14px;padding:13px 22px;font-family:Heebo,sans-serif;font-size:16px;font-weight:800;cursor:pointer;box-shadow:0 3px 12px rgba(0,0,0,.3)">🔋 סוגי מצברים</button>
+  <button onclick="openBatteryStatsScreen()" style="position:fixed;bottom:24px;left:16px;z-index:200;width:auto;margin:0;background:linear-gradient(135deg,#0ea5e9,#0369a1);color:#fff;border:none;border-radius:14px;padding:13px 22px;font-family:Heebo,sans-serif;font-size:16px;font-weight:800;cursor:pointer;box-shadow:0 3px 12px rgba(0,0,0,.3)">📊 סטטיסטיקה</button>
+</div>
+
+<!-- ====== SCREEN: BATTERY STATISTICS ====== -->
+<div id="screen-battery-stats" class="screen">
+  <div class="app-header">
+    <button class="back-btn" onclick="openBatteryStockScreen()">→</button>
+    <div class="logo">📊 סטטיסטיקת מצברים</div>
+    <div class="user-badge" id="bstat-user-badge" onclick="logout()"></div>
+  </div>
+  <div style="padding:16px 16px 100px" id="bs-stats"></div>
 </div>
 
 <div class="modal-overlay" id="modal-bs-history">
@@ -2360,7 +2368,7 @@ function enterApp() {
   renderHome();
   const savedScreen = sessionStorage.getItem('anak_screen');
   if (savedScreen && savedScreen !== 'home' && savedScreen !== 'login') {
-    const screenFns = { vehicles: openVehiclesScreen, tasks: openTasksScreen, parts: openPartsScreen, inventory: openInventoryScreen, pits: openPitsScreen, yard: openYardScreen, 'driver-inventory': openDriverInventoryScreen, battery: openBatteryScreen, 'driver-battery': openDriverBatteryScreen, 'driver-charging': openDriverChargingScreen, refresh: openVehiclesScreen, recall: openRecallScreen };
+    const screenFns = { vehicles: openVehiclesScreen, tasks: openTasksScreen, parts: openPartsScreen, inventory: openInventoryScreen, pits: openPitsScreen, yard: openYardScreen, 'driver-inventory': openDriverInventoryScreen, battery: openBatteryScreen, 'driver-battery': openDriverBatteryScreen, 'driver-charging': openDriverChargingScreen, 'battery-stats': openBatteryStatsScreen, refresh: openVehiclesScreen, recall: openRecallScreen };
     if (screenFns[savedScreen]) { screenFns[savedScreen](); }
     else { showScreen('home'); }
   } else {
@@ -2416,7 +2424,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 54';
+const APP_BUILD = '2026-08-05 · 55';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8158,44 +8166,122 @@ window.bsResetStock = bsResetStock;
 // Quantities are never edited by hand any more — the only two things that
 // move stock are adding a delivery and fitting a battery to a car.
 
+function openBatteryStatsScreen() {
+  document.getElementById('bstat-user-badge').textContent = currentUser.name;
+  showScreen('battery-stats');
+  _bsRenderStats();
+}
+window.openBatteryStatsScreen = openBatteryStatsScreen;
+
+const _bsCard = (label, value, sub, color) => `<div style="border:2px solid var(--border);border-radius:14px;padding:12px;background:var(--card)">
+  <div style="font-size:12px;color:var(--muted);font-weight:800">${label}</div>
+  <div style="font-size:22px;font-weight:900;margin-top:2px${color ? `;color:${color}` : ''}">${value}</div>
+  ${sub ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${sub}</div>` : ''}</div>`;
+
+const _bsBox = (title, inner) => `<div style="border:2px solid var(--border);border-radius:14px;padding:14px;background:var(--card);margin-bottom:12px">
+  <div style="font-size:14px;font-weight:900;margin-bottom:10px">${title}</div>${inner}</div>`;
+
 function _bsRenderStats() {
   const c = document.getElementById('bs-stats');
   if (!c) return;
-  if (!_bsInstalls.length) {
-    c.innerHTML = `<div style="font-size:13px;color:var(--muted);padding:4px 0 12px">עדיין לא נרשמו הרכבות. אחרי כמה הרכבות יופיעו כאן הדגמים המבוקשים וקצב ההחלפה.</div>`;
+  const installs = _bsInstalls.map(i => ({ ...i, d: new Date(i.installedAt) })).filter(i => !isNaN(i.d));
+  const now = new Date();
+  const since = days => new Date(now.getTime() - days * 86400000);
+  const inLast = days => installs.filter(i => i.d >= since(days));
+  const priceOf = i => Number(i.price ?? _bsCatFind(i.sku)?.price ?? 0);
+  const money = n => Math.round(n).toLocaleString('he-IL') + ' ₪';
+
+  if (!installs.length) {
+    c.innerHTML = `<div style="padding:30px;text-align:center;color:var(--muted)">עדיין לא נרשמו הרכבות — אחרי כמה הרכבות יופיעו כאן כל הנתונים.</div>`;
     return;
   }
-  const dates = _bsInstalls.map(i => new Date(i.installedAt)).filter(d => !isNaN(d)).sort((a, b) => a - b);
-  const byModel = {};
-  for (const i of _bsInstalls) byModel[i.model] = (byModel[i.model] || 0) + 1;
-  const ranked = Object.entries(byModel).sort((a, b) => b[1] - a[1]);
 
-  // "a battery every N days" is only meaningful once there are two dates to
-  // measure between — with one install there is no interval yet
-  let rateHtml = '';
-  if (dates.length >= 2) {
-    const spanDays = (dates[dates.length - 1] - dates[0]) / 86400000;
-    const perBattery = spanDays / (dates.length - 1);
-    const perMonth = perBattery > 0 ? (30 / perBattery) : 0;
-    rateHtml = `<div style="border:2px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;background:var(--card)">
-      <div style="font-size:13px;color:var(--muted);font-weight:700">קצב החלפה</div>
-      <div style="font-size:16px;font-weight:900;margin-top:2px">מצבר כל ${perBattery.toFixed(1)} ימים · כ-${perMonth.toFixed(1)} בחודש</div>
-      <div style="font-size:12px;color:var(--muted);margin-top:4px">מבוסס על ${dates.length} הרכבות מאז ${dates[0].toLocaleDateString('he-IL')}</div>
-    </div>`;
+  const dates = installs.map(i => i.d).sort((a, b) => a - b);
+  const spanDays = Math.max(1, (dates[dates.length - 1] - dates[0]) / 86400000);
+  const perDay = installs.length > 1 ? (installs.length - 1) / spanDays : 0;
+  const everyDays = perDay > 0 ? 1 / perDay : 0;
+  const inCabinet = _bsStock.reduce((t, r) => t + (r.qty || 0), 0);
+
+  // ── 1. headline numbers ────────────────────────────────────────────────
+  let html = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+    ${_bsCard('הורכבו החודש', inLast(30).length, `${inLast(90).length} ב-3 חודשים · ${inLast(365).length} בשנה`)}
+    ${_bsCard('קצב החלפה', everyDays ? `כל ${everyDays.toFixed(1)} ימים` : '—', everyDays ? `כ-${(30 * perDay).toFixed(1)} בחודש` : 'צריך שתי הרכבות לפחות')}
+    ${_bsCard('עלות החודש', money(inLast(30).reduce((t, i) => t + priceOf(i), 0)), 'לפני מע״מ · לפי מחיר הקנייה')}
+    ${_bsCard('יש בארון עכשיו', inCabinet, perDay > 0 ? `מספיק לכ-${Math.round(inCabinet / perDay)} ימים` : '', inCabinet === 0 ? '#ef4444' : inCabinet <= 2 ? '#f59e0b' : 'var(--success)')}
+  </div>`;
+
+  // ── 2. which type goes the most, and will it run out ───────────────────
+  const byKey = {};
+  for (const i of installs) {
+    const k = i.sku || i.model || '—';
+    if (!byKey[k]) byKey[k] = { sku: i.sku || '', model: i.model || _bsCatFind(i.sku)?.model || k, n: 0, cost: 0, last: null };
+    byKey[k].n++; byKey[k].cost += priceOf(i);
+    if (!byKey[k].last || i.d > byKey[k].last) byKey[k].last = i.d;
   }
-
-  const max = ranked[0][1];
-  c.innerHTML = rateHtml +
-    `<div style="border:2px solid var(--border);border-radius:12px;padding:12px 14px;background:var(--card)">
-      <div style="font-size:13px;color:var(--muted);font-weight:700;margin-bottom:8px">הדגמים המבוקשים ביותר</div>
-      ${ranked.map(([m, n]) => `
-        <div style="margin-bottom:8px">
-          <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700"><span>${esc(m)}</span><span>${n}</span></div>
-          <div style="background:var(--bg);border-radius:999px;height:8px;margin-top:3px;overflow:hidden">
-            <div style="background:var(--gold);height:100%;width:${Math.round(n / max * 100)}%"></div>
-          </div>
-        </div>`).join('')}
+  const ranked = Object.values(byKey).sort((a, b) => b.n - a.n);
+  const max = ranked[0].n;
+  const stockOf = sku => _bsStock.filter(r => r.sku === sku).reduce((t, r) => t + (r.qty || 0), 0);
+  html += _bsBox('הסוגים המבוקשים ביותר', ranked.map(r => {
+    const rate = r.n / spanDays;                    // units per day for this type
+    const q = stockOf(r.sku);
+    const daysLeft = rate > 0 ? Math.round(q / rate) : null;
+    const warn = q === 0 ? '#ef4444' : (daysLeft !== null && daysLeft < 14) ? '#f59e0b' : 'var(--muted)';
+    return `<div style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:800;gap:8px">
+        <span style="min-width:0">${esc(r.model)}${r.sku ? ` <span style="color:var(--muted);font-weight:700">· ${esc(r.sku)}</span>` : ''}</span>
+        <span style="white-space:nowrap">${r.n} · ${Math.round(r.n / installs.length * 100)}%</span>
+      </div>
+      <div style="background:var(--bg);border-radius:999px;height:8px;margin-top:3px;overflow:hidden">
+        <div style="background:var(--gold);height:100%;width:${Math.round(r.n / max * 100)}%"></div>
+      </div>
+      <div style="font-size:11px;color:${warn};font-weight:700;margin-top:3px">
+        בארון ${q}${daysLeft !== null ? ` · לפי הקצב מספיק לכ-${daysLeft} ימים` : ''}${r.last ? ` · אחרון ב-${r.last.toLocaleDateString('he-IL')}` : ''}</div>
     </div>`;
+  }).join(''));
+
+  // ── 3. month by month ──────────────────────────────────────────────────
+  const months = [];
+  for (let k = 11; k >= 0; k--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - k, 1);
+    const key = d.getFullYear() + '-' + d.getMonth();
+    const n = installs.filter(i => i.d.getFullYear() === d.getFullYear() && i.d.getMonth() === d.getMonth()).length;
+    months.push({ label: d.toLocaleDateString('he-IL', { month: 'short' }), n, key });
+  }
+  const mMax = Math.max(1, ...months.map(m => m.n));
+  html += _bsBox('הרכבות לפי חודש (12 חודשים אחרונים)',
+    `<div style="display:flex;align-items:flex-end;gap:4px;height:110px;direction:rtl">
+      ${months.map(m => `<div style="flex:1;text-align:center">
+        <div style="font-size:11px;font-weight:800;margin-bottom:2px">${m.n || ''}</div>
+        <div style="background:${m.n ? 'var(--gold)' : 'var(--border)'};border-radius:4px 4px 0 0;height:${Math.max(3, Math.round(m.n / mMax * 70))}px"></div>
+        <div style="font-size:10px;color:var(--muted);margin-top:3px">${m.label}</div>
+      </div>`).join('')}
+    </div>`);
+
+  // ── 4. cars that came back for a second battery ────────────────────────
+  const byPlate = {};
+  for (const i of installs) { const p = String(i.plate || '').trim(); if (p) (byPlate[p] = byPlate[p] || []).push(i); }
+  const repeats = Object.entries(byPlate).filter(([, v]) => v.length > 1)
+    .sort((a, b) => b[1].length - a[1].length);
+  html += _bsBox('רכבים שקיבלו יותר ממצבר אחד', repeats.length
+    ? repeats.map(([plate, list]) => {
+        const ds = list.map(i => i.d).sort((a, b) => a - b);
+        const gap = Math.round((ds[ds.length - 1] - ds[0]) / 86400000 / (ds.length - 1));
+        return `<div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--border);padding:7px 0;font-size:13px">
+          <span style="font-weight:800">🚗 ${esc(plate)}</span>
+          <span style="color:var(--muted);font-weight:700">${list.length} מצברים · כל ${gap} ימים בממוצע</span></div>`;
+      }).join('')
+    : `<div style="font-size:13px;color:var(--muted)">אין — כל רכב קיבל מצבר אחד בלבד</div>`);
+
+  // ── 5. what was bought against what went out ───────────────────────────
+  const bought = _bsDeliveries.reduce((t, d) => t + (d.units || 0), 0);
+  const boughtCost = _bsDeliveries.reduce((t, d) => t + (Number(d.total) || 0), 0);
+  const outCost = installs.reduce((t, i) => t + priceOf(i), 0);
+  html += _bsBox('קניות מול יציאות', `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+    ${_bsCard('נקנו', bought, boughtCost ? money(boughtCost) + ' לפני מע״מ' : '')}
+    ${_bsCard('הורכבו', installs.length, outCost ? money(outCost) + ' לפני מע״מ' : '')}
+  </div>${bought ? `<div style="font-size:12px;color:var(--muted);margin-top:8px">מחיר ממוצע ליחידה שנקנתה: ${money(boughtCost / bought)}</div>` : ''}`);
+
+  c.innerHTML = html;
 }
 
 function _bsRenderHistory() {
