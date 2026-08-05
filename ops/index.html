@@ -2451,7 +2451,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 70';
+const APP_BUILD = '2026-08-05 · 71';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -7385,7 +7385,10 @@ function _bshopByGroup(names) {
   return _BSHOP_GROUPS.map(([g]) => [g, names.filter(n => _bshopGroupOf(n) === g)])
     .filter(([, list]) => list.length);
 }
-const _bshopGroupTitle = g => `<div style="font-size:12px;font-weight:900;color:var(--muted);margin:12px 0 6px">${esc(g)}</div>`;
+const _bshopGroupTitle = g => `<div style="display:flex;align-items:center;gap:8px;margin:18px 0 8px">
+  <span style="background:var(--dark);color:#fff;border-radius:999px;padding:5px 14px;font-size:14px;font-weight:900">${esc(g)}</span>
+  <span style="flex:1;height:2px;background:var(--border)"></span>
+</div>`;
 
 const _BSHOP_CATALOG_VERSION = 3;
 const _BSHOP_DEFAULT_ITEMS = [
@@ -7445,9 +7448,13 @@ function _bshopListen(onChange) {
     const raw = fresh ? d.items : _BSHOP_DEFAULT_ITEMS;
     // keep the walk-around order for known parts; anything you added yourself
     // stays at the end, in the order you added it
-    const known = raw.filter(n => _BSHOP_DEFAULT_ITEMS.includes(n))
-      .sort((a, b) => _BSHOP_DEFAULT_ITEMS.indexOf(a) - _BSHOP_DEFAULT_ITEMS.indexOf(b));
-    _bshopItems = [...known, ...raw.filter(n => !_BSHOP_DEFAULT_ITEMS.includes(n))];
+    if (fresh) {
+      _bshopItems = raw;   // saved by us — this is the order the manager set
+    } else {
+      const known = raw.filter(n => _BSHOP_DEFAULT_ITEMS.includes(n))
+        .sort((a, b) => _BSHOP_DEFAULT_ITEMS.indexOf(a) - _BSHOP_DEFAULT_ITEMS.indexOf(b));
+      _bshopItems = [...known, ...raw.filter(n => !_BSHOP_DEFAULT_ITEMS.includes(n))];
+    }
     onChange();
     // the parts-list modal must refresh too, otherwise add/delete looks like it did nothing
     const im = document.getElementById('modal-bsm-items');
@@ -8033,18 +8040,75 @@ window.openBsmItemsModal = openBsmItemsModal;
 function _bsmRenderCatalog() {
   const c = document.getElementById('bsm-items-list');
   if (!c) return;
-  const row = name => `<div style="display:flex;align-items:center;gap:8px;border:2px solid var(--border);border-radius:10px;padding:8px 12px;margin-bottom:6px">
+  const row = name => `<div class="bsm-cat-row" data-n="${esc(name)}" style="display:flex;align-items:center;gap:8px;border:2px solid var(--border);border-radius:10px;padding:8px 12px;margin-bottom:6px;background:var(--card);touch-action:none">
+      <span onpointerdown="_bsmDragStart(event)" style="cursor:grab;color:var(--muted);font-size:17px;font-weight:900;padding:0 4px;user-select:none">⣿</span>
       <div style="flex:1;font-size:14px;font-weight:700">${esc(name)}</div>
       <button onclick="bsmRemoveCatalogItem(this.dataset.i)" data-i="${_bshopItems.indexOf(name)}" style="background:#ef4444;color:#fff;border:none;border-radius:8px;width:28px;height:28px;cursor:pointer">🗑</button>
     </div>`;
   c.innerHTML = _bshopByGroup(_bshopItems).map(([g, list]) =>
-    _bshopGroupTitle(g) + list.map(row).join('')).join('');
+    _bshopGroupTitle(g) + `<div class="bsm-cat-box">${list.map(row).join('')}</div>`).join('');
   // the category picker — filled once, keeps whatever was chosen
   const sel = document.getElementById('bsm-new-cat');
   if (sel && !sel.options.length) {
     sel.innerHTML = _BSHOP_GROUPS.map(([g]) => `<option value="${esc(g)}">${esc(g)}</option>`).join('');
     sel.value = 'אחר';
   }
+}
+
+/* Dragging a part by its handle moves it inside its own category only — the
+   order of the categories themselves is fixed. Uses pointer events so it works
+   the same with a finger and with a mouse. */
+let _bsmDrag = null;
+
+function _bsmDragStart(ev) {
+  const el = ev.target.closest('.bsm-cat-row');
+  const box = el?.parentElement;
+  if (!el || !box) return;
+  ev.preventDefault();
+  _bsmDrag = { el, box, y: ev.clientY };
+  el.style.opacity = '.6';
+  el.style.boxShadow = '0 4px 14px rgba(0,0,0,.2)';
+  ev.target.setPointerCapture(ev.pointerId);
+  ev.target.onpointermove = _bsmDragMove;
+  ev.target.onpointerup = ev.target.onpointercancel = _bsmDragEnd;
+}
+window._bsmDragStart = _bsmDragStart;
+
+function _bsmDragMove(ev) {
+  if (!_bsmDrag) return;
+  const { el, box } = _bsmDrag;
+  const rows = [...box.children];
+  for (const other of rows) {
+    if (other === el) continue;
+    const r = other.getBoundingClientRect();
+    const mid = r.top + r.height / 2;
+    // crossing another row's middle swaps the two
+    if (ev.clientY < mid && other.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING) {
+      box.insertBefore(el, other); break;
+    }
+    if (ev.clientY > mid && other.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_PRECEDING) {
+      box.insertBefore(el, other.nextSibling); break;
+    }
+  }
+}
+
+async function _bsmDragEnd(ev) {
+  if (!_bsmDrag) return;
+  const { el } = _bsmDrag;
+  el.style.opacity = '';
+  el.style.boxShadow = '';
+  if (ev.target.onpointermove) ev.target.onpointermove = ev.target.onpointerup = ev.target.onpointercancel = null;
+  _bsmDrag = null;
+  // read the new order straight off the screen, category by category
+  const order = [...document.querySelectorAll('#bsm-items-list .bsm-cat-row')].map(r => r.dataset.n);
+  const next = order.filter(n => _bshopItems.includes(n));
+  if (next.length !== _bshopItems.length) return _bsmRenderCatalog();  // something is off — redraw
+  if (next.every((n, i) => n === _bshopItems[i])) return;              // nothing moved
+  const prev = _bshopItems;
+  _bshopItems = next;
+  _bsmRenderCatalog();
+  try { await _bsmSaveCatalog(next); }
+  catch (e) { console.error('bodyshop order save', e); showToast('שגיאה בשמירת הסדר'); _bshopItems = prev; _bsmRenderCatalog(); }
 }
 
 async function _bsmSaveCatalog(items, cats) {
