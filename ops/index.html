@@ -1388,15 +1388,16 @@ if ('serviceWorker' in navigator) {
 <div class="modal-overlay" id="modal-bshop-fill">
   <div class="modal-box">
     <div class="modal-title"><span id="bshop-fill-title">רכב</span> <button class="modal-close" onclick="_bshopAutoSave(true);closeModal('modal-bshop-fill')">✕</button></div>
-    <div style="font-size:13px;color:var(--muted);margin-bottom:12px">רשום מחיר ליד כל חלק שצבעת. חלק שלא עשית — השאר ריק.</div>
+    <div id="bshop-fill-hint" style="font-size:13px;color:var(--muted);margin-bottom:12px">רשום מחיר ליד כל חלק שצבעת. חלק שלא עשית — השאר ריק.</div>
     <div id="bshop-fill-photo"></div>
     <div id="bshop-fill-items"></div>
-    <button type="button" onclick="openBshopAddPart()" style="width:100%;margin-top:14px;background:var(--gold);color:#000;border:none;border-radius:12px;padding:13px;font-family:'Heebo',sans-serif;font-size:16px;font-weight:900;cursor:pointer">➕ צבעתי עוד חלק</button>
+    <button type="button" onclick="openBshopAddPart()" style="width:100%;margin-top:14px;background:var(--gold);color:#000;border:none;border-radius:12px;padding:13px;font-family:'Heebo',sans-serif;font-size:16px;font-weight:900;cursor:pointer" id="bshop-fill-add">➕ צבעתי עוד חלק</button>
     <div style="display:flex;justify-content:space-between;align-items:center;border-top:2px solid var(--border);padding-top:12px;margin-top:14px">
       <div style="font-size:15px;font-weight:900">סה״כ</div>
       <div id="bshop-fill-total" style="font-size:22px;font-weight:900;color:var(--gold)">0 ₪</div>
     </div>
     <div id="bshop-fill-saved" style="text-align:center;font-size:13px;font-weight:800;color:var(--muted);margin-top:10px">המחירים נשמרים לבד</div>
+    <button class="btn-submit" id="bshop-fill-print" onclick="bshopPrintCurrent()" style="display:none;background:var(--dark);color:#fff">🖨️ הדפס פתק</button>
     <button class="btn-submit" id="bshop-fill-done" onclick="bshopSave(true)" style="background:var(--success);color:#fff">✅ סיימתי את הרכב</button>
     <div id="bshop-fill-donenote" style="display:none;text-align:center;font-size:13px;color:var(--muted);margin-top:10px">הרכב כבר סומן כמוכן — אפשר עדיין לשנות מחירים</div>
   </div>
@@ -2460,7 +2461,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 74';
+const APP_BUILD = '2026-08-05 · 75';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -7602,10 +7603,20 @@ function _bshopRenderWorker() {
     + (ret.length ? `<div class="bshop-span" style="border-radius:14px;padding:14px;background:var(--dark);color:#fff;display:flex;justify-content:space-between;font-size:16px;font-weight:900"><span>סה״כ לתשלום</span><span>${sum.toLocaleString('he-IL')} ₪</span></div>` : '');
 }
 
+let _bshopFillMgr = false;   // the manager edits the same note, with more freedom
+
 function bshopOpenFill(id) {
   const j = _bshopJobs.find(x => x.id === id);
   if (!j) return;
   _bshopFillId = id;
+  _bshopFillMgr = currentUser?.role === 'manager';
+  const _set = (elId, txt) => { const e = document.getElementById(elId); if (e) e.textContent = txt; };
+  _set('bshop-fill-hint', _bshopFillMgr
+    ? 'אפשר להוסיף חלקים, להוריד חלקים ולתקן מחירים. הכל נשמר לבד.'
+    : 'רשום מחיר ליד כל חלק שצבעת. חלק שלא עשית — השאר ריק.');
+  _set('bshop-fill-add', _bshopFillMgr ? '➕ הוסף חלק' : '➕ צבעתי עוד חלק');
+  const prn = document.getElementById('bshop-fill-print');
+  if (prn) prn.style.display = _bshopFillMgr ? '' : 'none';
   document.getElementById('bshop-fill-title').innerHTML =
     `${_brandIcon(j.maker)} ${esc(j.plate)}${j.desc ? ' · ' + esc(j.desc) : ''}`;
   const fp = document.getElementById('bshop-fill-photo');
@@ -7617,13 +7628,13 @@ function bshopOpenFill(id) {
   // it just does not need the green button any more
   const isDone = j.status === 'returned';
   const doneBtn = document.getElementById('bshop-fill-done');
-  if (doneBtn) doneBtn.style.display = isDone ? 'none' : '';
+  if (doneBtn) doneBtn.style.display = (isDone || _bshopFillMgr) ? 'none' : '';
   const doneNote = document.getElementById('bshop-fill-donenote');
-  if (doneNote) doneNote.style.display = isDone ? 'block' : 'none';
+  if (doneNote) doneNote.style.display = (isDone && !_bshopFillMgr) ? 'block' : 'none';
   _bshopSetSaved('');
   const _row = (it, i) => `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-      ${it.addedByShop ? `<button type="button" onclick="bshopRemovePart(${i})" title="הורד מהרשימה" style="background:#ef4444;color:#fff;border:none;border-radius:8px;width:30px;height:30px;font-size:15px;cursor:pointer">✕</button>` : ''}
+      ${(it.addedByShop || _bshopFillMgr) ? `<button type="button" onclick="bshopRemovePart(${i})" title="הורד מהרשימה" style="background:#ef4444;color:#fff;border:none;border-radius:8px;width:30px;height:30px;font-size:15px;cursor:pointer">✕</button>` : ''}
       <div style="flex:1;font-size:15px;font-weight:700">${esc(it.name)}</div>
       <input type="number" inputmode="numeric" min="0" class="form-input bshop-price" data-i="${i}"
              value="${it.price != null && it.price !== '' ? it.price : ''}" placeholder="מחיר"
@@ -7797,15 +7808,10 @@ function _bshopRenderMgr() {
   if (payWrap) payWrap.style.display = ret.length ? 'block' : 'none';
 }
 
-function bsmOpenJob(id) {
-  const j = _bshopJobs.find(x => x.id === id);
-  if (!j) return;
-  // a part the panel beater added himself is marked, so the manager sees what
-  // was painted beyond what he asked for
-  const lines = (j.items || []).map(it =>
-    `${it.addedByShop ? '➕ ' : ''}${it.name} — ${it.price ? it.price + ' ₪' : 'טרם תומחר'}`).join('\n');
-  if (confirm(`🚗 ${j.plate}\n\n${lines}\n\nסה״כ: ${_bshopTotal(j).toLocaleString('he-IL')} ₪\n\nלהדפיס פתק לרכב זה?`)) bsmPrint(id);
-}
+function bsmOpenJob(id) { bshopOpenFill(id); }
+// printing from inside the open note
+function bshopPrintCurrent() { if (_bshopFillId) bsmPrint(_bshopFillId); }
+window.bshopPrintCurrent = bshopPrintCurrent;
 window.bsmOpenJob = bsmOpenJob;
 
 // a note stays with the manager until this is pressed — only then does the
