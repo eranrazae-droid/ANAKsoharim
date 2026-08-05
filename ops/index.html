@@ -1479,6 +1479,7 @@ if ('serviceWorker' in navigator) {
     <div style="font-size:13px;color:var(--muted);margin-bottom:10px">אלה החלקים שיוצעו לך בכל שליחה. אפשר להוסיף ולמחוק.</div>
     <div style="display:flex;gap:6px;margin-bottom:12px">
       <input class="form-input" id="bsm-new-item" placeholder="שם חלק חדש" onkeydown="if(event.key==='Enter'){event.preventDefault();bsmAddCatalogItem();}">
+      <select class="form-input" id="bsm-new-cat" style="flex:0 0 120px"></select>
       <button onclick="bsmAddCatalogItem()" style="background:var(--gold);color:#000;border:none;border-radius:10px;padding:0 18px;font-family:'Heebo',sans-serif;font-weight:800;cursor:pointer">הוסף</button>
     </div>
     <div id="bsm-items-list"></div>
@@ -2450,7 +2451,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 69';
+const APP_BUILD = '2026-08-05 · 70';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -7374,7 +7375,9 @@ const _BSHOP_GROUPS = [
   ['צד שמאל',      ['כנף אחורי שמאל','דלת אחורי שמאל','דלת קדמי שמאל','כנף קדמי שמאל']],
   ['אחר',          ['קריסטל']],
 ];
-const _bshopGroupOf = name => (_BSHOP_GROUPS.find(g => g[1].includes(name)) || ['אחר'])[0];
+let _bshopCats = {};   // {part name: category} — only for parts you added yourself
+const _bshopGroupOf = name =>
+  _bshopCats[name] || (_BSHOP_GROUPS.find(g => g[1].includes(name)) || ['אחר'])[0];
 
 // Splits a list of parts into [category, parts] pairs, keeping the category
 // order and dropping categories with nothing in them.
@@ -7437,6 +7440,7 @@ function _bshopListen(onChange) {
     const d = snap.exists() ? snap.data() : {};
     // a catalogue saved before the current part list is ignored, so the new
     // walk-around list replaces the old part names instead of merging with them
+    _bshopCats = (d.cats && typeof d.cats === 'object') ? d.cats : {};
     const fresh = d.v === _BSHOP_CATALOG_VERSION && Array.isArray(d.items);
     const raw = fresh ? d.items : _BSHOP_DEFAULT_ITEMS;
     // keep the walk-around order for known parts; anything you added yourself
@@ -8029,15 +8033,25 @@ window.openBsmItemsModal = openBsmItemsModal;
 function _bsmRenderCatalog() {
   const c = document.getElementById('bsm-items-list');
   if (!c) return;
-  c.innerHTML = _bshopItems.map((name, i) => `<div style="display:flex;align-items:center;gap:8px;border:2px solid var(--border);border-radius:10px;padding:8px 12px;margin-bottom:6px">
+  const row = name => `<div style="display:flex;align-items:center;gap:8px;border:2px solid var(--border);border-radius:10px;padding:8px 12px;margin-bottom:6px">
       <div style="flex:1;font-size:14px;font-weight:700">${esc(name)}</div>
-      <button onclick="bsmRemoveCatalogItem(this.dataset.i)" data-i="${i}" style="background:#ef4444;color:#fff;border:none;border-radius:8px;width:28px;height:28px;cursor:pointer">🗑</button>
-    </div>`).join('');
+      <button onclick="bsmRemoveCatalogItem(this.dataset.i)" data-i="${_bshopItems.indexOf(name)}" style="background:#ef4444;color:#fff;border:none;border-radius:8px;width:28px;height:28px;cursor:pointer">🗑</button>
+    </div>`;
+  c.innerHTML = _bshopByGroup(_bshopItems).map(([g, list]) =>
+    _bshopGroupTitle(g) + list.map(row).join('')).join('');
+  // the category picker — filled once, keeps whatever was chosen
+  const sel = document.getElementById('bsm-new-cat');
+  if (sel && !sel.options.length) {
+    sel.innerHTML = _BSHOP_GROUPS.map(([g]) => `<option value="${esc(g)}">${esc(g)}</option>`).join('');
+    sel.value = 'אחר';
+  }
 }
 
-async function _bsmSaveCatalog(items) {
+async function _bsmSaveCatalog(items, cats) {
   const { setDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-  await setDoc(_docRef('config', 'bodyshop'), { items, v: _BSHOP_CATALOG_VERSION }, { merge: true });
+  const payload = { items, v: _BSHOP_CATALOG_VERSION };
+  if (cats) payload.cats = cats;
+  await setDoc(_docRef('config', 'bodyshop'), payload, { merge: true });
 }
 
 async function bsmAddCatalogItem() {
@@ -8046,7 +8060,9 @@ async function bsmAddCatalogItem() {
   if (!v) return;
   if (_bshopItems.includes(v)) { el.value = ''; return showToast('החלק כבר ברשימה'); }
   const next = [..._bshopItems, v];
-  try { await _bsmSaveCatalog(next); el.value = ''; _bshopItems = next; _bsmRenderCatalog(); }
+  const cat = document.getElementById('bsm-new-cat')?.value || 'אחר';
+  const cats = { ..._bshopCats, [v]: cat };
+  try { await _bsmSaveCatalog(next, cats); el.value = ''; _bshopItems = next; _bshopCats = cats; _bsmRenderCatalog(); }
   catch (e) { console.error('bodyshop catalog add', e); showToast('שגיאה בשמירה'); }
 }
 window.bsmAddCatalogItem = bsmAddCatalogItem;
@@ -8054,8 +8070,10 @@ window.bsmAddCatalogItem = bsmAddCatalogItem;
 async function bsmRemoveCatalogItem(idx) {
   const i = Number(idx);
   if (!Number.isInteger(i) || i < 0 || i >= _bshopItems.length) return;
+  const gone = _bshopItems[i];
   const next = _bshopItems.filter((_, k) => k !== i);
-  try { await _bsmSaveCatalog(next); _bshopItems = next; _bsmRenderCatalog(); }
+  const cats = { ..._bshopCats }; delete cats[gone];
+  try { await _bsmSaveCatalog(next, cats); _bshopItems = next; _bshopCats = cats; _bsmRenderCatalog(); }
   catch (e) { console.error('bodyshop catalog delete', e); showToast('שגיאה בשמירה'); }
 }
 window.bsmRemoveCatalogItem = bsmRemoveCatalogItem;
