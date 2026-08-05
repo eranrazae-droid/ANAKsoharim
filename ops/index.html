@@ -2495,7 +2495,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 89';
+const APP_BUILD = '2026-08-05 · 90';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8306,17 +8306,13 @@ window.bsmOpenArchiveCar = bsmOpenArchiveCar;
 function bsmExportArchive() {
   if (!_bshopArchive.length) return showToast('אין מה לייצא');
   const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const rows = [['חשבון', 'תאריך תשלום', 'מספר רישוי', 'רכב', 'חלקים', 'סכום']];
+  const rows = [['מספר רישוי', 'רכב', 'סכום']];
   let grand = 0;
   for (const a of _bshopArchive) {
-    const date = a.paidAt ? new Date(a.paidAt).toLocaleDateString('he-IL') : '';
-    for (const c of (a.cars || [])) {
-      const parts = (c.items || []).map(it => it.name).join(' | ');
-      rows.push([a.title || '', date, c.plate || '', c.desc || '', parts, Number(c.total || 0)]);
-    }
+    for (const c of (a.cars || [])) rows.push([c.plate || '', c.desc || '', Number(c.total || 0)]);
     grand += Number(a.total || 0);
   }
-  rows.push([]); rows.push(['סה״כ ששולם', '', '', '', '', grand]);
+  rows.push([]); rows.push(['סה״כ ששולם', '', grand]);
   // the BOM is what makes Excel read the Hebrew correctly
   const csv = '\uFEFF' + rows.map(r => r.map(q).join(',')).join('\r\n');
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
