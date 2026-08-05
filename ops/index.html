@@ -1478,7 +1478,10 @@ if ('serviceWorker' in navigator) {
       <button class="btn-submit" onclick="openBsAddModal()" style="margin-top:0">➕ הוסף מצברים למלאי</button>
       <button class="btn-submit" onclick="openBsIssueModal()" style="margin-top:0;background:#0ea5e9;color:#fff">🚗 הרכבתי לרכב</button>
     </div>
+    <button class="btn-submit" onclick="openBsCatalogModal()" style="margin-top:0;margin-bottom:16px;background:var(--dark);color:#fff">⚙️ מק״טים וסוגי מצברים</button>
     <div id="bs-stock"></div>
+    <div class="section-title">🧾 רשימת הזמנות</div>
+    <div id="bs-orders"></div>
     <div class="section-title">סטטיסטיקה</div>
     <div id="bs-stats"></div>
     <div class="section-title">הרכבות אחרונות</div>
@@ -1489,15 +1492,36 @@ if ('serviceWorker' in navigator) {
 <div class="modal-overlay" id="modal-bs-add">
   <div class="modal-box">
     <div class="modal-title"><span>➕ הוספת מצברים למלאי</span> <button class="modal-close" onclick="closeModal('modal-bs-add')">✕</button></div>
-    <div class="form-group"><label>דגם / סוג מצבר <span style="color:#ef4444">*</span></label>
-      <input class="form-input" id="bs-model" autocomplete="off" placeholder="לדוגמה: 72Ah רגיל / 70Ah AGM" oninput="_bsModelSuggest()">
-      <div id="bs-model-dd" style="display:none;position:absolute;left:16px;right:16px;background:var(--card);border:2px solid var(--border);border-radius:10px;max-height:180px;overflow-y:auto;z-index:20"></div>
+    <div class="form-group"><label>מק״ט <span style="color:#ef4444">*</span></label>
+      <input class="form-input" id="bs-sku" autocomplete="off" placeholder="הקלד מק״ט" oninput="_bsSkuInput()">
+      <div id="bs-sku-dd" style="display:none;position:absolute;left:16px;right:16px;background:var(--card);border:2px solid var(--border);border-radius:10px;max-height:180px;overflow-y:auto;z-index:20"></div>
+      <div id="bs-sku-msg" style="font-size:13px;font-weight:800;margin-top:6px"></div>
     </div>
+    <div class="form-group"><label>סוג מצבר <span style="color:#ef4444">*</span></label>
+      <input class="form-input" id="bs-model" autocomplete="off" placeholder="לדוגמה: 72Ah רגיל / 70Ah AGM"></div>
+    <div class="form-group"><label>מחיר ליחידה</label>
+      <input class="form-input" id="bs-price" type="number" min="0" inputmode="numeric" placeholder="₪"></div>
     <div class="form-group"><label>כמות שנכנסה <span style="color:#ef4444">*</span></label>
       <input class="form-input" id="bs-qty" type="number" min="1" inputmode="numeric" placeholder="לדוגמה: 10"></div>
     <div class="form-group"><label>הערה</label>
       <input class="form-input" id="bs-add-note" placeholder="ספק, מחיר, חשבונית..."></div>
     <button class="btn-submit" onclick="submitBsAdd()">שמור ✅</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-bs-catalog">
+  <div class="modal-box">
+    <div class="modal-title"><span>⚙️ מק״טים וסוגי מצברים</span> <button class="modal-close" onclick="closeModal('modal-bs-catalog')">✕</button></div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:12px">קלוט כאן כל מק״ט פעם אחת. מכאן והלאה מספיק להקליד את המק״ט בהוספת מלאי — הסוג והמחיר יעלו לבד.</div>
+    <div class="form-group"><label>מק״ט <span style="color:#ef4444">*</span></label>
+      <input class="form-input" id="bsc-sku" autocomplete="off" placeholder="לדוגמה 57412"></div>
+    <div class="form-group"><label>סוג מצבר <span style="color:#ef4444">*</span></label>
+      <input class="form-input" id="bsc-model" autocomplete="off" placeholder="לדוגמה 72Ah AGM"></div>
+    <div class="form-group"><label>מחיר ליחידה</label>
+      <input class="form-input" id="bsc-price" type="number" min="0" inputmode="numeric" placeholder="₪"></div>
+    <button class="btn-submit" onclick="submitBsCatalog()">שמור מק״ט ✅</button>
+    <div class="section-title" style="margin-top:18px">מק״טים שנקלטו</div>
+    <div id="bsc-list"></div>
   </div>
 </div>
 
@@ -2365,7 +2389,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 35';
+const APP_BUILD = '2026-08-05 · 36';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -7912,7 +7936,9 @@ window.bsmRemoveCatalogItem = bsmRemoveCatalogItem;
    the two can be reconciled rather than silently drifting apart. */
 let _bsStock = [];      // [{id, model, qty, updatedAt}]
 let _bsInstalls = [];   // [{id, model, plate, installedAt, note}]
-let _bsUnsubStock = null, _bsUnsubInstalls = null;
+let _bsUnsubStock = null, _bsUnsubInstalls = null, _bsUnsubCatalog = null;
+let _bsCatalog = [];    // [{id: sku, sku, model, price}] — a SKU is entered once
+const _bsCatFind = sku => _bsCatalog.find(c => c.sku === String(sku || '').trim());
 
 function openBatteryStockScreen() {
   document.getElementById('bs-user-badge').textContent = currentUser.name;
@@ -7927,10 +7953,82 @@ function openBatteryStockScreen() {
     _bsInstalls = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     _bsRenderAll();
   });
+  if (_bsUnsubCatalog) _bsUnsubCatalog();
+  _bsUnsubCatalog = _onSnap(_colRef('battery_catalog'), snap => {
+    _bsCatalog = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => String(a.sku).localeCompare(String(b.sku), 'he', { numeric: true }));
+    _bsRenderCatalog();
+    _bsRenderAll();
+  });
 }
 window.openBatteryStockScreen = openBatteryStockScreen;
 
-function _bsRenderAll() { _bsRenderStock(); _bsRenderStats(); _bsRenderHistory(); }
+function _bsRenderAll() { _bsRenderStock(); _bsRenderOrders(); _bsRenderStats(); _bsRenderHistory(); }
+
+/* Order list: every battery that leaves the cabinet lands here by itself, so
+   what went out is exactly what needs buying back. Pressing "הזמנתי" clears the
+   list by marking those installations as ordered — nothing is deleted. */
+function _bsOrderLines() {
+  const pending = _bsInstalls.filter(r => !r.ordered);
+  const by = {};
+  for (const r of pending) {
+    const key = r.sku || r.model || '—';
+    if (!by[key]) {
+      const cat = _bsCatFind(r.sku);
+      by[key] = { sku: r.sku || '', model: r.model || cat?.model || '', price: r.price ?? cat?.price ?? null, qty: 0 };
+    }
+    by[key].qty++;
+  }
+  return Object.values(by).sort((a, b) => b.qty - a.qty);
+}
+
+function _bsRenderOrders() {
+  const c = document.getElementById('bs-orders');
+  if (!c) return;
+  const lines = _bsOrderLines();
+  if (!lines.length) {
+    c.innerHTML = `<div style="padding:16px;text-align:center;color:var(--muted)">אין מה להזמין — לא יצאו מצברים מאז ההזמנה האחרונה</div>`;
+    return;
+  }
+  const total = lines.reduce((s, l) => s + (l.price ? l.price * l.qty : 0), 0);
+  const units = lines.reduce((s, l) => s + l.qty, 0);
+  c.innerHTML = lines.map(l => `<div style="display:flex;align-items:center;gap:10px;border:2px solid var(--border);border-radius:12px;padding:11px 13px;margin-bottom:6px;background:var(--card)">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:800;font-size:15px">${esc(l.model || '')}</div>
+        ${l.sku ? `<div style="font-size:12px;color:var(--muted);font-weight:700">מק״ט ${esc(l.sku)}${l.price ? ` · ${Number(l.price).toLocaleString('he-IL')} ₪ ליחידה` : ''}</div>` : ''}
+      </div>
+      <div style="font-size:20px;font-weight:900;min-width:34px;text-align:center">${l.qty}</div>
+      ${l.price ? `<div style="font-weight:900;white-space:nowrap;color:var(--gold)">${(l.price * l.qty).toLocaleString('he-IL')} ₪</div>` : ''}
+    </div>`).join('') +
+    `<div style="display:flex;justify-content:space-between;border-radius:12px;padding:12px 14px;background:var(--dark);color:#fff;font-weight:900;margin-top:4px">
+       <span>סה״כ להזמנה: ${units} יחידות</span>${total ? `<span>${total.toLocaleString('he-IL')} ₪</span>` : ''}</div>` +
+    `<button class="btn-submit" onclick="bsMarkOrdered()" style="background:var(--success);color:#fff">✅ הזמנתי — נקה את הרשימה</button>`;
+}
+
+async function bsMarkOrdered() {
+  const pending = _bsInstalls.filter(r => !r.ordered);
+  if (!pending.length) return;
+  const lines = _bsOrderLines();
+  const total = lines.reduce((s, l) => s + (l.price ? l.price * l.qty : 0), 0);
+  const units = lines.reduce((s, l) => s + l.qty, 0);
+  if (!confirm(`לסמן שהזמנת ${units} מצברים?\n\nהרשימה תתאפס ותתחיל להתמלא מחדש בכל מצבר שיצא מהארון.`)) return;
+  try {
+    // the order is filed first, so a record of what was ordered survives even
+    // if marking the installations fails half way
+    await _addDoc(_colRef('battery_orders'), {
+      lines, units, total, at: new Date().toISOString(),
+      createdBy: currentUser.name, createdAt: _serverTs()
+    });
+    const { writeBatch } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    for (let i = 0; i < pending.length; i += 400) {
+      const batch = writeBatch(window._db);
+      for (const r of pending.slice(i, i + 400)) batch.update(_docRef('battery_installs', r.id), { ordered: true });
+      await batch.commit();
+    }
+    showToast(`🧾 נרשמה הזמנה על ${units} מצברים`);
+  } catch (e) { showToast('שגיאה: ' + (e.code || e.message)); }
+}
+window.bsMarkOrdered = bsMarkOrdered;
 
 function _bsRenderStock() {
   const c = document.getElementById('bs-stock');
@@ -7947,7 +8045,10 @@ function _bsRenderStock() {
       // a cabinet that is nearly empty is the thing worth shouting about
       const color = q === 0 ? '#ef4444' : q <= 2 ? '#f59e0b' : 'var(--success)';
       return `<div style="display:flex;align-items:center;gap:10px;border:2px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;background:var(--card)">
-        <div style="flex:1;font-weight:800;font-size:15px">${esc(r.model)}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:800;font-size:15px">${esc(r.model)}</div>
+          ${r.sku ? `<div style="font-size:12px;color:var(--muted);font-weight:700">מק״ט ${esc(r.sku)}${r.price ? ` · ${Number(r.price).toLocaleString('he-IL')} ₪` : ''}</div>` : ''}
+        </div>
         <div style="font-size:20px;font-weight:900;color:${color};min-width:34px;text-align:center">${q}</div>
         <button onclick="bsAdjust('${r.id}',1)" style="background:var(--success);color:#fff;border:none;border-radius:8px;width:30px;height:30px;font-size:16px;font-weight:900;cursor:pointer">+</button>
         <button onclick="bsAdjust('${r.id}',-1)" style="background:#94a3b8;color:#fff;border:none;border-radius:8px;width:30px;height:30px;font-size:16px;font-weight:900;cursor:pointer">−</button>
@@ -8026,46 +8127,136 @@ function _bsRenderHistory() {
 }
 
 function openBsAddModal() {
-  document.getElementById('bs-model').value = '';
-  document.getElementById('bs-qty').value = '';
-  document.getElementById('bs-add-note').value = '';
-  const dd = document.getElementById('bs-model-dd'); if (dd) dd.style.display = 'none';
+  ['bs-sku', 'bs-model', 'bs-price', 'bs-qty', 'bs-add-note'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  const msg = document.getElementById('bs-sku-msg'); if (msg) msg.textContent = '';
+  const dd = document.getElementById('bs-sku-dd'); if (dd) dd.style.display = 'none';
   openModal('modal-bs-add');
 }
 window.openBsAddModal = openBsAddModal;
 
 // suggest models already in the cabinet, so the same battery isn't typed two
 // different ways and split into two rows
-function _bsModelSuggest() {
-  const input = document.getElementById('bs-model');
-  const dd = document.getElementById('bs-model-dd');
+function _bsSkuInput() {
+  const input = document.getElementById('bs-sku');
+  const dd = document.getElementById('bs-sku-dd');
+  const msg = document.getElementById('bs-sku-msg');
   if (!input || !dd) return;
   const v = input.value.trim();
-  const matches = _bsStock.map(r => r.model).filter(m => m && (!v || m.includes(v)));
+  const hit = _bsCatFind(v);
+  if (hit) {
+    // a known SKU fills in the type and the price by itself
+    document.getElementById('bs-model').value = hit.model || '';
+    document.getElementById('bs-price').value = hit.price != null ? hit.price : '';
+    if (msg) { msg.style.color = '#166534'; msg.textContent = `✅ ${hit.model || ''}${hit.price ? ' · ' + Number(hit.price).toLocaleString('he-IL') + ' ₪' : ''}`; }
+    dd.style.display = 'none';
+    return;
+  }
+  if (msg) {
+    msg.style.color = v ? '#92400e' : 'var(--muted)';
+    msg.textContent = v ? 'מק״ט חדש — מלא סוג ומחיר והוא יישמר לפעם הבאה' : '';
+  }
+  const matches = _bsCatalog.filter(c => !v || String(c.sku).includes(v) || String(c.model || '').includes(v)).slice(0, 12);
   if (!matches.length) { dd.style.display = 'none'; return; }
-  dd.innerHTML = matches.map(m => `<div onclick="_bsPickModel(this.dataset.m)" data-m="${esc(m)}" style="padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:14px">${esc(m)}</div>`).join('');
+  dd.innerHTML = matches.map(c => `<div onclick="_bsPickSku(this.dataset.s)" data-s="${esc(c.sku)}" style="padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:14px">
+      <b>${esc(c.sku)}</b> · ${esc(c.model || '')}${c.price ? ` · ${Number(c.price).toLocaleString('he-IL')} ₪` : ''}</div>`).join('');
   dd.style.display = 'block';
 }
-window._bsModelSuggest = _bsModelSuggest;
+window._bsSkuInput = _bsSkuInput;
 
-function _bsPickModel(m) {
-  document.getElementById('bs-model').value = m;
-  document.getElementById('bs-model-dd').style.display = 'none';
+function _bsPickSku(sku) {
+  document.getElementById('bs-sku').value = sku;
+  document.getElementById('bs-sku-dd').style.display = 'none';
+  _bsSkuInput();
 }
-window._bsPickModel = _bsPickModel;
+window._bsPickSku = _bsPickSku;
+
+/* ---- the SKU catalogue: entered once, used from then on ---- */
+function openBsCatalogModal() {
+  ['bsc-sku', 'bsc-model', 'bsc-price'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  _bsRenderCatalog();
+  openModal('modal-bs-catalog');
+}
+window.openBsCatalogModal = openBsCatalogModal;
+
+function _bsRenderCatalog() {
+  const c = document.getElementById('bsc-list');
+  if (!c) return;
+  if (!_bsCatalog.length) {
+    c.innerHTML = `<div style="padding:16px;text-align:center;color:var(--muted)">עדיין לא נקלטו מק״טים</div>`;
+    return;
+  }
+  c.innerHTML = _bsCatalog.map(x => `<div style="display:flex;align-items:center;gap:10px;border:2px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:6px">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:900;font-size:14px">${esc(x.sku)}</div>
+        <div style="font-size:13px;color:var(--muted);font-weight:700">${esc(x.model || '')}${x.price ? ` · ${Number(x.price).toLocaleString('he-IL')} ₪` : ''}</div>
+      </div>
+      <button onclick="bsEditCatalog(this.dataset.s)" data-s="${esc(x.sku)}" style="background:var(--surface2);border:none;border-radius:8px;width:30px;height:30px;cursor:pointer">✏️</button>
+      <button onclick="bsRemoveCatalog(this.dataset.s)" data-s="${esc(x.sku)}" style="background:#ef4444;color:#fff;border:none;border-radius:8px;width:30px;height:30px;cursor:pointer">🗑</button>
+    </div>`).join('');
+}
+
+function bsEditCatalog(sku) {
+  const x = _bsCatFind(sku);
+  if (!x) return;
+  document.getElementById('bsc-sku').value = x.sku;
+  document.getElementById('bsc-model').value = x.model || '';
+  document.getElementById('bsc-price').value = x.price != null ? x.price : '';
+}
+window.bsEditCatalog = bsEditCatalog;
+
+async function submitBsCatalog() {
+  const sku = document.getElementById('bsc-sku').value.trim();
+  const model = document.getElementById('bsc-model').value.trim();
+  const priceRaw = document.getElementById('bsc-price').value;
+  if (!sku) return showToast('נא להזין מק״ט');
+  if (!model) return showToast('נא להזין סוג מצבר');
+  try {
+    // the SKU is the document id, so saving the same SKU updates it instead of
+    // creating a second row for the same battery
+    const { setDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    await setDoc(_docRef('battery_catalog', sku), {
+      sku, model, price: priceRaw === '' ? null : Number(priceRaw), updatedAt: _serverTs()
+    }, { merge: true });
+    ['bsc-sku', 'bsc-model', 'bsc-price'].forEach(id => { document.getElementById(id).value = ''; });
+    showToast('✅ המק״ט נשמר');
+  } catch (e) { showToast('שגיאה בשמירה: ' + (e.code || e.message)); }
+}
+window.submitBsCatalog = submitBsCatalog;
+
+async function bsRemoveCatalog(sku) {
+  if (!confirm(`למחוק את המק״ט ${sku} מהרשימה? המלאי הקיים לא ייפגע.`)) return;
+  try {
+    const { deleteDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    await deleteDoc(doc(window._db, 'battery_catalog', sku));
+    showToast('🗑️ נמחק');
+  } catch (e) { showToast('שגיאה: ' + (e.code || e.message)); }
+}
+window.bsRemoveCatalog = bsRemoveCatalog;
 
 async function submitBsAdd() {
+  const sku = document.getElementById('bs-sku').value.trim();
   const model = document.getElementById('bs-model').value.trim();
+  const priceRaw = document.getElementById('bs-price').value;
+  const price = priceRaw === '' ? null : Number(priceRaw);
   const qty = parseInt(document.getElementById('bs-qty').value, 10);
   const note = document.getElementById('bs-add-note').value.trim();
-  if (!model) return showToast('נא להזין דגם מצבר');
+  if (!sku) return showToast('נא להזין מק״ט');
+  if (!model) return showToast('נא להזין סוג מצבר');
   if (!qty || qty < 1) return showToast('נא להזין כמות');
   try {
-    const existing = _bsStock.find(r => r.model === model);
+    const { setDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    // a SKU typed here for the first time is learned, so next time it fills in
+    await setDoc(_docRef('battery_catalog', sku), { sku, model, price, updatedAt: _serverTs() }, { merge: true });
+    // stock is grouped by SKU; rows saved before SKUs existed are matched by type
+    const existing = _bsStock.find(r => r.sku === sku) || _bsStock.find(r => !r.sku && r.model === model);
     if (existing) {
-      await _updateDoc(_docRef('battery_stock', existing.id), { qty: (existing.qty || 0) + qty, updatedAt: _serverTs() });
+      await _updateDoc(_docRef('battery_stock', existing.id), {
+        qty: (existing.qty || 0) + qty, sku, model, price, updatedAt: _serverTs()
+      });
     } else {
-      await _addDoc(_colRef('battery_stock'), { model, qty, note, createdBy: currentUser.name, createdAt: _serverTs(), updatedAt: _serverTs() });
+      await _addDoc(_colRef('battery_stock'), { sku, model, price, qty, note, createdBy: currentUser.name, createdAt: _serverTs(), updatedAt: _serverTs() });
     }
     closeModal('modal-bs-add');
     showToast(`✅ נוספו ${qty} לארון`);
@@ -8077,7 +8268,7 @@ function openBsIssueModal() {
   const sel = document.getElementById('bs-issue-model');
   const avail = _bsStock.filter(r => (r.qty || 0) > 0);
   if (!avail.length) return showToast('אין מצברים במלאי — הוסף קודם לארון');
-  sel.innerHTML = avail.map(r => `<option value="${esc(r.id)}">${esc(r.model)} (${r.qty} במלאי)</option>`).join('');
+  sel.innerHTML = avail.map(r => `<option value="${esc(r.id)}">${r.sku ? esc(r.sku) + ' · ' : ''}${esc(r.model)} (${r.qty} במלאי)</option>`).join('');
   document.getElementById('bs-issue-plate').value = '';
   document.getElementById('bs-issue-note').value = '';
   const d = new Date();
@@ -8100,7 +8291,7 @@ async function submitBsIssue() {
     // log first — a battery that left the cabinet must be recorded even if the
     // stock update fails, otherwise the history loses an installation
     await _addDoc(_colRef('battery_installs'), {
-      model: row.model, stockId: id, plate,
+      model: row.model, sku: row.sku || '', price: row.price ?? null, stockId: id, plate,
       installedAt: date || new Date().toISOString().slice(0, 10),
       note, createdBy: currentUser.name, createdAt: _serverTs()
     });
