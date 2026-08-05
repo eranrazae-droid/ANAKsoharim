@@ -2433,7 +2433,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 62';
+const APP_BUILD = '2026-08-05 · 63';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8254,8 +8254,26 @@ function _bsRenderStats() {
   const ranked = Object.values(byKey).sort((a, b) => b.n - a.n);
   const stockOf = sku => _bsStock.filter(r => r.sku === sku).reduce((t, r) => t + (r.qty || 0), 0);
   const rMax = Math.max(1, ...ranked.map(r => r.n));
-  html += _bsBox('הסוגים המבוקשים ביותר',
-    (ranked.length ? '' : `<div style="font-size:13px;color:var(--muted);margin-bottom:8px">עדיין לא הורכבו מצברים</div>`) +
+  // ── 3. month by month ──────────────────────────────────────────────────
+  // a full calendar year — January through December of the current year
+  const year = now.getFullYear();
+  const months = [];
+  for (let mo = 0; mo < 12; mo++) {
+    const n = installs.filter(i => i.d.getFullYear() === year && i.d.getMonth() === mo).length;
+    months.push({ label: (mo + 1) + '/' + String(year).slice(-2), n });
+  }
+  const mMax = Math.max(1, ...months.map(m => m.n));
+
+  // the two charts sit side by side — the year on the right, the types on the left
+  html += `<div class="bs-split" style="margin-bottom:12px">
+    ${_bsBox(`הרכבות לפי חודש · ${year}`, `<div style="display:flex;align-items:flex-end;justify-content:center;gap:4px;height:110px;direction:ltr">
+      ${months.map(m => `<div style="flex:1;max-width:90px;text-align:center">
+        <div style="font-size:11px;font-weight:800;margin-bottom:2px">${m.n || ''}</div>
+        <div style="background:${m.n ? 'var(--gold)' : 'var(--border)'};border-radius:4px 4px 0 0;height:${Math.max(3, Math.round(m.n / mMax * 70))}px"></div>
+        <div style="font-size:10px;color:var(--muted);margin-top:3px">${m.label}</div>
+      </div>`).join('')}
+    </div>`)}
+    ${_bsBox('הסוגים המבוקשים ביותר', (ranked.length ? '' : `<div style="font-size:13px;color:var(--muted);margin-bottom:8px">עדיין לא הורכבו מצברים</div>`) +
     `<div style="display:flex;align-items:flex-end;justify-content:center;gap:10px;height:130px;direction:rtl;margin-bottom:10px">
       ${(ranked.length ? ranked : [{ sku: '', model: '', n: 0, empty: true }]).map(r => `<div style="flex:1;max-width:110px;text-align:center;min-width:0">
         <div style="font-size:11px;font-weight:800;margin-bottom:2px">${r.n || ''}</div>
@@ -8272,25 +8290,8 @@ function _bsRenderStats() {
         <span style="font-weight:800;min-width:0">${esc(r.model)}${r.sku ? ` · ${esc(r.sku)}` : ''}</span>
         <span style="color:${warn};font-weight:700;white-space:nowrap">${r.n} · ${Math.round(r.n / Math.max(1, installs.length) * 100)}% · בארון ${q}${daysLeft !== null ? ` · ל-${daysLeft} ימים` : ''}</span>
       </div>`;
-    }).join(''));
-
-  // ── 3. month by month ──────────────────────────────────────────────────
-  // a full calendar year — January through December of the current year
-  const year = now.getFullYear();
-  const months = [];
-  for (let mo = 0; mo < 12; mo++) {
-    const n = installs.filter(i => i.d.getFullYear() === year && i.d.getMonth() === mo).length;
-    months.push({ label: (mo + 1) + '/' + String(year).slice(-2), n });
-  }
-  const mMax = Math.max(1, ...months.map(m => m.n));
-  html += _bsBox(`הרכבות לפי חודש · ${year}`,
-    `<div style="display:flex;align-items:flex-end;justify-content:center;gap:4px;height:110px;direction:ltr">
-      ${months.map(m => `<div style="flex:1;max-width:90px;text-align:center">
-        <div style="font-size:11px;font-weight:800;margin-bottom:2px">${m.n || ''}</div>
-        <div style="background:${m.n ? 'var(--gold)' : 'var(--border)'};border-radius:4px 4px 0 0;height:${Math.max(3, Math.round(m.n / mMax * 70))}px"></div>
-        <div style="font-size:10px;color:var(--muted);margin-top:3px">${m.label}</div>
-      </div>`).join('')}
-    </div>`);
+    }).join(''))}
+  </div>`;
 
   // ── 4. what was bought against what went out ───────────────────────────
   const bought = _bsDeliveries.reduce((t, d) => t + (d.units || 0), 0);
