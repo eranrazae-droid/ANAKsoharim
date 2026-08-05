@@ -2433,7 +2433,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 60';
+const APP_BUILD = '2026-08-05 · 61';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8905,9 +8905,17 @@ function _bsRenderTypes() {
 }
 window._bsRenderTypes = _bsRenderTypes;
 
+// the amperage written in the type name, used to order the list
+function _bsAmpOf(row) {
+  const m = String(row?.model || _bsCatFind(row?.sku)?.model || '').match(/\d{2,3}/);
+  return m ? Number(m[0]) : Infinity;   // anything without an amperage goes last
+}
+
 function openBsIssueModal() {
   const sel = document.getElementById('bs-issue-model');
-  const avail = _bsStock.filter(r => (r.qty || 0) > 0);
+  // lowest amperage first, highest last
+  const avail = _bsStock.filter(r => (r.qty || 0) > 0)
+    .sort((a, b) => _bsAmpOf(a) - _bsAmpOf(b) || String(a.model || '').localeCompare(String(b.model || ''), 'he'));
   if (!avail.length) return showToast('אין מצברים במלאי — הוסף קודם לארון');
   sel.innerHTML = avail.map(r => `<option value="${esc(r.id)}">${r.sku ? esc(r.sku) + ' · ' : ''}${esc(r.model)} (${r.qty} במלאי)</option>`).join('');
   document.getElementById('bs-issue-plate').value = '';
