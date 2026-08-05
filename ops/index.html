@@ -382,6 +382,7 @@ if ('serviceWorker' in navigator) {
           <div class="stat-card" id="stat-vehicles-card" style="display:none"><div class="num" id="stat-vehicles">—</div><div class="lbl">רכבים במגרש</div></div>
           <div class="stat-card" id="stat-pickup-driver-card" style="display:none;cursor:pointer;background:linear-gradient(135deg,#1e3a8a,#1e40af);color:#fff" onclick="openDriverPickupModal()"><div class="num" id="stat-pickup-driver-count" style="color:#fff">0</div><div class="lbl" style="color:rgba(255,255,255,.8)">🚙 לאיסוף</div></div>
           <div class="stat-card" id="stat-inventory-driver-card" style="display:none;cursor:pointer;background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff" onclick="goToScreen('driver-inventory')"><div class="num" id="stat-inventory-driver-count" style="color:#fff">0</div><div class="lbl" style="color:rgba(255,255,255,.8)">📦 בדיקת מלאי</div></div>
+          <div class="stat-card" id="stat-intake-driver-card" style="display:none;cursor:pointer;background:linear-gradient(135deg,#047857,#065f46);color:#fff" onclick="goToScreen('vehicles')"><div class="num" id="stat-intake-driver-count" style="color:#fff">0</div><div class="lbl" style="color:rgba(255,255,255,.8)">🚗 קליטות ורענון</div></div>
           <div class="stat-card" id="stat-pits-driver-card" style="display:none;cursor:pointer;background:linear-gradient(135deg,#0f766e,#115e59);color:#fff" onclick="goToScreen('pits')"><div class="num" id="stat-pits-driver-count" style="color:#fff">0</div><div class="lbl" style="color:rgba(255,255,255,.8)">🕳️ בורות</div></div>
           <div class="stat-card" id="stat-yard-driver-card" style="display:none;cursor:pointer;background:linear-gradient(135deg,#b45309,#92400e);color:#fff" onclick="goToScreen('yard')"><div class="num" id="stat-yard-driver-count" style="color:#fff">0</div><div class="lbl" style="color:rgba(255,255,255,.8)">🅿️ סידור מגרש</div></div>
           <div style="display:none"><div id="stat-parts">—</div></div>
@@ -2435,7 +2436,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 65';
+const APP_BUILD = '2026-08-05 · 66';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -2541,7 +2542,6 @@ function renderHome() {
       ]
     : [
         { icon: '📋', title: 'המשימות שלי', sub: 'משימות שהוקצו לך', screen: 'tasks' },
-        { icon: '🚗', title: 'קליטות ורענון רכבים שלי', sub: 'קליטות ורענונים ממתינים', screen: 'vehicles' },
         { icon: '🔋', title: 'בדיקת סוללה והטענת רכבים חשמליים', sub: 'מילוי אחוזי טעינה וטווח', screen: 'driver-battery' },
         { icon: _ICON_CAR_BATTERY, title: 'מצברים', sub: 'רישום מצבר שהורכב לרכב', screen: 'driver-battery-install' },
       ];
@@ -2562,7 +2562,7 @@ function renderHome() {
 
   const grid = document.getElementById('menu-grid');
   if (!isManager && currentUser.name === 'גיל') {
-    const topScreens = ['tasks','vehicles'];
+    const topScreens = ['tasks'];
     const topItems = menuItems.filter(m => topScreens.includes(m.screen));
     const botItems = menuItems.filter(m => !topScreens.includes(m.screen));
     grid.style.display = 'flex';
@@ -3025,7 +3025,14 @@ function _setCardBadge(screen, count, color) {
 function _setDriverVehiclesBadge() {
   const intakes = (_driverIntakeDocs || []).filter(v => v.status === 'pending').length;
   const refs    = (_refreshCache || []).filter(r => r.status === 'pending').length;
-  _setCardBadge('vehicles', intakes + refs);
+  const total = intakes + refs;
+  _setCardBadge('vehicles', total);
+  // for the driver there is no big cube — a small one that shows up only when
+  // something is actually waiting
+  const el  = document.getElementById('stat-intake-driver-card');
+  const cnt = document.getElementById('stat-intake-driver-count');
+  if (el)  el.style.display = total ? 'block' : 'none';
+  if (cnt) cnt.textContent = total;
 }
 
 function loadDriverBadges() {
