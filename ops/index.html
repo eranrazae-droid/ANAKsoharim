@@ -303,6 +303,14 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
 @media(min-width:901px){
   .menu-grid{grid-template-columns:repeat(3,1fr)}
 }
+/* Body shop: a phone gets one card per row, a computer two or three, and the
+   page stops stretching so the cards never turn into wide empty strips. */
+.bshop-wrap{max-width:1180px;margin:0 auto}
+.bshop-grid{display:grid;grid-template-columns:1fr;gap:10px}
+.bshop-grid>*{margin-bottom:0 !important}
+.bshop-grid .bshop-span{grid-column:1/-1}
+@media(min-width:700px){.bshop-grid{grid-template-columns:1fr 1fr}}
+@media(min-width:1080px){.bshop-grid{grid-template-columns:repeat(3,1fr)}}
 
 /* ===== FIREBASE CONFIG WARNING ===== */
 .config-warning{background:#fef3c7;border:2px solid var(--warning);border-radius:12px;padding:14px 16px;margin:16px;font-size:13px;color:#92400e;font-weight:600}
@@ -1364,13 +1372,16 @@ if ('serviceWorker' in navigator) {
   <div class="app-header">
     <div class="logo">🔨 עבודות פחחות</div>
   </div>
-  <div style="padding:16px 16px 100px">
+  <div class="bshop-wrap" style="padding:16px 16px 100px">
     <div class="section-title" style="margin-top:0">רכבים שבעבודה</div>
-    <div id="bshop-open"></div>
+    <div id="bshop-open" class="bshop-grid"></div>
     <div style="margin:34px 0 16px;border-top:4px solid var(--border);padding-top:18px">
       <div style="display:inline-block;background:var(--dark);color:#fff;border-radius:999px;padding:9px 20px;font-size:17px;font-weight:900">✅ מכוניות שסיימנו</div>
     </div>
-    <div id="bshop-returned"></div>
+    <div id="bshop-returned" class="bshop-grid"></div>
+    <div style="margin-top:30px;text-align:center">
+      <button onclick="bshopResetJobs()" style="background:var(--surface2);color:var(--muted);border:2px solid var(--border);border-radius:10px;padding:8px 18px;font-family:'Heebo',sans-serif;font-size:13px;font-weight:800;cursor:pointer">🧹 אפס פתקים</button>
+    </div>
   </div>
 </div>
 
@@ -1397,20 +1408,20 @@ if ('serviceWorker' in navigator) {
     <div class="logo">🔨 פחחות</div>
     <div class="user-badge" id="bsm-user-badge" onclick="logout()"></div>
   </div>
-  <div style="padding:16px 16px 100px">
+  <div class="bshop-wrap" style="padding:16px 16px 100px">
     <div style="display:flex;gap:8px;margin-bottom:14px">
       <button class="btn-submit" onclick="openBsmSendModal()" style="margin-top:0">➕ יצירת פתק</button>
       <button class="btn-submit" onclick="openBsmItemsModal()" style="margin-top:0;background:var(--dark);color:#fff">⚙️ רשימת חלקים</button>
     </div>
     <div id="bsm-summary"></div>
     <div class="section-title">📝 פתקים שממתינים לשליחה</div>
-    <div id="bsm-drafts"></div>
+    <div id="bsm-drafts" class="bshop-grid"></div>
     <div class="section-title">אצל הפחח</div>
-    <div id="bsm-open"></div>
+    <div id="bsm-open" class="bshop-grid"></div>
     <div style="margin:34px 0 16px;border-top:4px solid var(--border);padding-top:18px">
       <div style="display:inline-block;background:var(--dark);color:#fff;border-radius:999px;padding:9px 20px;font-size:17px;font-weight:900">✅ מכוניות שסיימנו</div>
     </div>
-    <div id="bsm-returned"></div>
+    <div id="bsm-returned" class="bshop-grid"></div>
     <div id="bsm-pay-wrap" style="display:none;margin-top:16px">
       <button class="btn-submit" onclick="bsmSettle()" style="background:var(--success);color:#fff">💰 שילמתי — סגור חשבון</button>
     </div>
@@ -2436,7 +2447,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 66';
+const APP_BUILD = '2026-08-05 · 67';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -7486,6 +7497,28 @@ function openBodyShopScreen() {
 }
 window.openBodyShopScreen = openBodyShopScreen;
 
+// Clears every note in the open cycle — the cars in progress and the finished
+// ones. Notes that were already paid for sit in the archive and are not touched.
+async function bshopResetJobs() {
+  const jobs = [..._bshopJobs];
+  if (!jobs.length) return showToast('אין פתקים לאיפוס');
+  const sum = jobs.reduce((s, j) => s + _bshopTotal(j), 0);
+  if (!confirm(`לאפס את כל הפתקים?\n\n${jobs.length} פתקים (${sum.toLocaleString('he-IL')} ₪) יימחקו לתמיד.\nגם המנהל לא יראה אותם יותר.\nחשבונות שכבר נסגרו לא ייפגעו.`)) return;
+  try {
+    const { writeBatch } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    for (let i = 0; i < jobs.length; i += 200) {
+      const batch = writeBatch(window._db);
+      for (const j of jobs.slice(i, i + 200)) {
+        batch.delete(_docRef('bodyshop_jobs', j.id));
+        batch.delete(_docRef('bodyshop_photos', j.id)); // deleting a photo that was never saved is harmless
+      }
+      await batch.commit();
+    }
+    showToast('🧹 הפתקים אופסו');
+  } catch (e) { showToast('שגיאה: ' + (e.code || e.message)); }
+}
+window.bshopResetJobs = bshopResetJobs;
+
 function _bshopJobCard(j, forWorker) {
   const total = _bshopTotal(j);
   const filled = (j.items || []).filter(it => Number(it.price) > 0).length;
@@ -7519,10 +7552,10 @@ function _bshopRenderWorker() {
   const open = _bshopJobs.filter(j => j.status === 'at_shop');
   const ret  = _bshopJobs.filter(j => j.status === 'returned');
   openC.innerHTML = open.length ? open.map(j => _bshopJobCard(j, true)).join('')
-    : `<div style="padding:24px;text-align:center;color:var(--muted)">אין רכבים כרגע</div>`;
+    : `<div class="bshop-span" style="padding:24px;text-align:center;color:var(--muted)">אין רכבים כרגע</div>`;
   const sum = ret.reduce((s, j) => s + _bshopTotal(j), 0);
-  retC.innerHTML = (ret.length ? ret.map(j => _bshopJobCard(j, true)).join('') : `<div style="padding:16px;text-align:center;color:var(--muted)">עדיין לא סיימת רכבים</div>`)
-    + (ret.length ? `<div style="border-radius:14px;padding:14px;background:var(--dark);color:#fff;display:flex;justify-content:space-between;font-size:16px;font-weight:900"><span>סה״כ לתשלום</span><span>${sum.toLocaleString('he-IL')} ₪</span></div>` : '');
+  retC.innerHTML = (ret.length ? ret.map(j => _bshopJobCard(j, true)).join('') : `<div class="bshop-span" style="padding:16px;text-align:center;color:var(--muted)">עדיין לא סיימת רכבים</div>`)
+    + (ret.length ? `<div class="bshop-span" style="border-radius:14px;padding:14px;background:var(--dark);color:#fff;display:flex;justify-content:space-between;font-size:16px;font-weight:900"><span>סה״כ לתשלום</span><span>${sum.toLocaleString('he-IL')} ₪</span></div>` : '');
 }
 
 function bshopOpenFill(id) {
@@ -7649,11 +7682,11 @@ function _bshopRenderMgr() {
   const draftC = document.getElementById('bsm-drafts');
   if (draftC) draftC.innerHTML = draft.length
     ? draft.map(j => _bshopJobCard(j, false)).join('')
-    : `<div style="padding:16px;text-align:center;color:var(--muted)">אין פתקים שממתינים לשליחה</div>`;
+    : `<div class="bshop-span" style="padding:16px;text-align:center;color:var(--muted)">אין פתקים שממתינים לשליחה</div>`;
   openC.innerHTML = open.length ? open.map(j => _bshopJobCard(j, false)).join('')
-    : `<div style="padding:16px;text-align:center;color:var(--muted)">אין רכבים אצל הפחח</div>`;
+    : `<div class="bshop-span" style="padding:16px;text-align:center;color:var(--muted)">אין רכבים אצל הפחח</div>`;
   retC.innerHTML = ret.length ? ret.map(j => _bshopJobCard(j, false)).join('')
-    : `<div style="padding:16px;text-align:center;color:var(--muted)">אין רכבים שממתינים לתשלום</div>`;
+    : `<div class="bshop-span" style="padding:16px;text-align:center;color:var(--muted)">אין רכבים שממתינים לתשלום</div>`;
   const payWrap = document.getElementById('bsm-pay-wrap');
   if (payWrap) payWrap.style.display = ret.length ? 'block' : 'none';
 }
