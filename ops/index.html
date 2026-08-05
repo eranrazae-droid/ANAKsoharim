@@ -1391,7 +1391,7 @@ if ('serviceWorker' in navigator) {
     <div style="font-size:13px;color:var(--muted);margin-bottom:12px">רשום מחיר ליד כל חלק שצבעת. חלק שלא עשית — השאר ריק.</div>
     <div id="bshop-fill-photo"></div>
     <div id="bshop-fill-items"></div>
-    <button type="button" onclick="openBshopAddPart()" style="width:100%;margin-top:14px;background:var(--surface2);color:var(--text);border:2px dashed var(--border);border-radius:12px;padding:13px;font-family:'Heebo',sans-serif;font-size:16px;font-weight:900;cursor:pointer">➕ צבעתי עוד חלק</button>
+    <button type="button" onclick="openBshopAddPart()" style="width:100%;margin-top:14px;background:var(--gold);color:#000;border:none;border-radius:12px;padding:13px;font-family:'Heebo',sans-serif;font-size:16px;font-weight:900;cursor:pointer">➕ צבעתי עוד חלק</button>
     <div style="display:flex;justify-content:space-between;align-items:center;border-top:2px solid var(--border);padding-top:12px;margin-top:14px">
       <div style="font-size:15px;font-weight:900">סה״כ</div>
       <div id="bshop-fill-total" style="font-size:22px;font-weight:900;color:var(--gold)">0 ₪</div>
@@ -2460,7 +2460,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 73';
+const APP_BUILD = '2026-08-05 · 74';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -7394,8 +7394,9 @@ function _bshopByGroup(names) {
   return _BSHOP_GROUPS.map(([g]) => [g, names.filter(n => _bshopGroupOf(n) === g)])
     .filter(([, list]) => list.length);
 }
-const _bshopGroupTitle = g => `<div style="display:flex;align-items:center;gap:8px;margin:18px 0 8px">
-  <span style="background:var(--dark);color:#fff;border-radius:999px;padding:5px 14px;font-size:14px;font-weight:900">${esc(g)}</span>
+const _BSHOP_GROUP_CAR = '#1d4ed8';
+const _bshopGroupTitle = (g, color) => `<div style="display:flex;align-items:center;gap:8px;margin:18px 0 8px">
+  <span style="background:${color || 'var(--dark)'};color:#fff;border-radius:999px;padding:5px 14px;font-size:14px;font-weight:900">${esc(g)}</span>
   <span style="flex:1;height:2px;background:var(--border)"></span>
 </div>`;
 
@@ -7633,7 +7634,7 @@ function bshopOpenFill(id) {
   const rows = (j.items || []).map((it, i) => ({ it, i }));
   document.getElementById('bshop-fill-items').innerHTML =
     _bshopByGroup(rows.map(r => r.it.name)).map(([g, list]) =>
-      _bshopGroupTitle(g) + list.map(n => {
+      _bshopGroupTitle(g, _BSHOP_GROUP_CAR) + list.map(n => {
         const r = rows.find(x => x.it.name === n && !x.used);
         if (r) r.used = true;
         return r ? _row(r.it, r.i) : '';
@@ -7667,7 +7668,7 @@ function openBshopAddPart() {
   const btn = n => `<button type="button" onclick="bshopAddPart(this.dataset.n)" data-n="${esc(n)}"
     style="background:var(--bg);color:var(--text);border:2px solid var(--border);border-radius:12px;padding:12px 16px;font-family:'Heebo',sans-serif;font-size:16px;font-weight:800;cursor:pointer">${esc(n)}</button>`;
   c.innerHTML = _bshopByGroup(left).map(([g, list]) =>
-    _bshopGroupTitle(g) + `<div style="display:flex;flex-wrap:wrap;gap:8px">${list.map(btn).join('')}</div>`).join('');
+    _bshopGroupTitle(g, _BSHOP_GROUP_CAR) + `<div style="display:flex;flex-wrap:wrap;gap:8px">${list.map(btn).join('')}</div>`).join('');
   openModal('modal-bshop-add');
 }
 window.openBshopAddPart = openBshopAddPart;
