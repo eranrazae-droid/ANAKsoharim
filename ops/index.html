@@ -2405,7 +2405,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 42';
+const APP_BUILD = '2026-08-05 · 43';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8316,6 +8316,114 @@ async function submitBsAdd() {
   } catch (e) { showToast('שגיאה בשמירה: ' + (e.code || e.message)); }
 }
 window.submitBsAdd = submitBsAdd;
+
+/* ---- the SKU catalogue: entered once, used from then on ---- */
+function openBsCatalogModal() {
+  ['bsc-sku', 'bsc-model', 'bsc-price'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  _bsVatHint('bsc-price', 'bsc-price-vat');
+  _bsRenderCatalog();
+  openModal('modal-bs-catalog');
+}
+window.openBsCatalogModal = openBsCatalogModal;
+
+function _bsRenderCatalog() {
+  const c = document.getElementById('bsc-list');
+  if (!c) return;
+  if (!_bsCatalog.length) {
+    c.innerHTML = `<div style="padding:16px;text-align:center;color:var(--muted)">עדיין לא נקלטו מק״טים</div>`;
+    return;
+  }
+  c.innerHTML = _bsCatalog.map(x => `<div style="display:flex;align-items:center;gap:10px;border:2px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:6px">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:900;font-size:14px">${esc(x.sku)}</div>
+        <div style="font-size:13px;color:var(--muted);font-weight:700">${esc(x.model || '')}${x.price ? ` · ${Number(x.price).toLocaleString('he-IL')} ₪ לפני מע״מ` : ''}</div>
+      </div>
+      <button onclick="bsEditCatalog(this.dataset.s)" data-s="${esc(x.sku)}" style="background:var(--surface2);border:none;border-radius:8px;width:30px;height:30px;cursor:pointer">✏️</button>
+      <button onclick="bsRemoveCatalog(this.dataset.s)" data-s="${esc(x.sku)}" style="background:#ef4444;color:#fff;border:none;border-radius:8px;width:30px;height:30px;cursor:pointer">🗑</button>
+    </div>`).join('');
+}
+
+function bsEditCatalog(sku) {
+  const x = _bsCatFind(sku);
+  if (!x) return;
+  document.getElementById('bsc-sku').value = x.sku;
+  document.getElementById('bsc-model').value = x.model || '';
+  document.getElementById('bsc-price').value = x.price != null ? x.price : '';
+  _bsVatHint('bsc-price', 'bsc-price-vat');
+}
+window.bsEditCatalog = bsEditCatalog;
+
+async function submitBsCatalog() {
+  const sku = document.getElementById('bsc-sku').value.trim();
+  const model = document.getElementById('bsc-model').value.trim();
+  const priceRaw = document.getElementById('bsc-price').value;
+  if (!sku) return showToast('נא להזין מק״ט');
+  if (!model) return showToast('נא להזין סוג מצבר');
+  try {
+    // the SKU is encoded into the document id, so saving the same SKU updates it
+    // instead of creating a second row for the same battery
+    const { setDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    await setDoc(_docRef('battery_catalog', _bsSkuId(sku)), {
+      sku, model, price: priceRaw === '' ? null : Number(priceRaw), updatedAt: _serverTs()
+    }, { merge: true });
+    ['bsc-sku', 'bsc-model', 'bsc-price'].forEach(id => { document.getElementById(id).value = ''; });
+    _bsVatHint('bsc-price', 'bsc-price-vat');
+    showToast('✅ המק״ט נשמר');
+  } catch (e) { showToast('שגיאה בשמירה: ' + (e.code || e.message)); }
+}
+window.submitBsCatalog = submitBsCatalog;
+
+async function bsRemoveCatalog(sku) {
+  if (!confirm(`למחוק את המק״ט ${sku} מהרשימה? המלאי הקיים לא ייפגע.`)) return;
+  try {
+    const { deleteDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    await deleteDoc(doc(window._db, 'battery_catalog', _bsSkuId(sku)));
+    showToast('🗑️ נמחק');
+  } catch (e) { showToast('שגיאה: ' + (e.code || e.message)); }
+}
+window.bsRemoveCatalog = bsRemoveCatalog;
+
+/* read-only table of every battery type on record — for deciding which battery
+   a particular car needs, without touching the catalogue itself */
+function openBsTypesModal() {
+  const q = document.getElementById('bs-types-search');
+  if (q) q.value = '';
+  _bsRenderTypes();
+  openModal('modal-bs-types');
+}
+window.openBsTypesModal = openBsTypesModal;
+
+function _bsRenderTypes() {
+  const c = document.getElementById('bs-types-table');
+  if (!c) return;
+  const q = (document.getElementById('bs-types-search')?.value || '').trim();
+  const rows = _bsCatalog
+    .filter(x => !q || String(x.sku).includes(q) || String(x.model || '').includes(q))
+    .sort((a, b) => String(a.model || '').localeCompare(String(b.model || ''), 'he'));
+  if (!rows.length) {
+    c.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted)">${_bsCatalog.length ? 'לא נמצא סוג מתאים' : 'עדיין לא נקלטו מק״טים'}</div>`;
+    return;
+  }
+  const stockOf = sku => _bsStock.filter(r => r.sku === sku).reduce((s, r) => s + (r.qty || 0), 0);
+  c.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:14px;direction:rtl">
+    <thead><tr style="background:var(--dark);color:#fff">
+      <th style="text-align:right;padding:9px 10px;border-radius:0 8px 0 0">סוג מצבר</th>
+      <th style="text-align:right;padding:9px 10px">מק״ט</th>
+      <th style="text-align:right;padding:9px 10px">לפני מע״מ</th>
+      <th style="text-align:right;padding:9px 10px">כולל מע״מ</th>
+      <th style="text-align:center;padding:9px 10px;border-radius:8px 0 0 0">בארון</th>
+    </tr></thead><tbody>${rows.map(x => {
+      const q2 = stockOf(x.sku);
+      return `<tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:9px 10px;font-weight:800">${esc(x.model || '')}</td>
+        <td style="padding:9px 10px;font-weight:700">${esc(x.sku)}</td>
+        <td style="padding:9px 10px;white-space:nowrap">${x.price ? Number(x.price).toLocaleString('he-IL') + ' ₪' : '—'}</td>
+        <td style="padding:9px 10px;white-space:nowrap;color:var(--muted)">${x.price ? _fmtIls(_incVat(x.price)) : '—'}</td>
+        <td style="padding:9px 10px;text-align:center;font-weight:900;color:${q2 ? 'var(--success)' : '#ef4444'}">${q2}</td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
+}
+window._bsRenderTypes = _bsRenderTypes;
 
 function openBsIssueModal() {
   const sel = document.getElementById('bs-issue-model');
