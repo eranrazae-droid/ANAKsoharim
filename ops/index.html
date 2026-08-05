@@ -2416,7 +2416,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 51';
+const APP_BUILD = '2026-08-05 · 52';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8087,7 +8087,9 @@ window.bsMarkOrdered = bsMarkOrdered;
 function _bsRenderStock() {
   const c = document.getElementById('bs-stock');
   if (!c) return;
-  const rows = [..._bsStock].sort((a, b) => (b.qty || 0) - (a.qty || 0));
+  // a battery that was fitted to a car is no longer in the cabinet — its row
+  // leaves this list and lives on in "צריך להזמין" until it is reordered
+  const rows = _bsStock.filter(r => (r.qty || 0) > 0).sort((a, b) => (b.qty || 0) - (a.qty || 0));
   if (!rows.length) {
     c.innerHTML = `<div class="empty-state" style="padding:30px 20px;text-align:center;color:var(--muted)">הארון ריק — הוסף מצברים כדי להתחיל</div>`;
     return;
