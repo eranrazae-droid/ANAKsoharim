@@ -1508,8 +1508,9 @@ if ('serviceWorker' in navigator) {
     </div>
     <div class="form-group"><label>סוג מצבר <span style="color:#ef4444">*</span></label>
       <input class="form-input" id="bs-model" autocomplete="off" placeholder="לדוגמה: 72Ah רגיל / 70Ah AGM"></div>
-    <div class="form-group"><label>מחיר ליחידה</label>
-      <input class="form-input" id="bs-price" type="number" min="0" inputmode="numeric" placeholder="₪"></div>
+    <div class="form-group"><label>מחיר ליחידה (כולל מע״מ)</label>
+      <input class="form-input" id="bs-price" type="number" min="0" inputmode="numeric" placeholder="₪" oninput="_bsVatHint('bs-price','bs-price-vat')">
+      <div id="bs-price-vat" style="font-size:13px;color:var(--muted);font-weight:700;margin-top:5px"></div></div>
     <div class="form-group"><label>כמות שנכנסה <span style="color:#ef4444">*</span></label>
       <input class="form-input" id="bs-qty" type="number" min="1" inputmode="numeric" placeholder="לדוגמה: 10"></div>
     <div class="form-group"><label>מספר חשבונית</label>
@@ -1528,8 +1529,9 @@ if ('serviceWorker' in navigator) {
       <input class="form-input" id="bsc-sku" autocomplete="off" placeholder="לדוגמה 57412"></div>
     <div class="form-group"><label>סוג מצבר <span style="color:#ef4444">*</span></label>
       <input class="form-input" id="bsc-model" autocomplete="off" placeholder="לדוגמה 72Ah AGM"></div>
-    <div class="form-group"><label>מחיר ליחידה</label>
-      <input class="form-input" id="bsc-price" type="number" min="0" inputmode="numeric" placeholder="₪"></div>
+    <div class="form-group"><label>מחיר ליחידה (כולל מע״מ)</label>
+      <input class="form-input" id="bsc-price" type="number" min="0" inputmode="numeric" placeholder="₪" oninput="_bsVatHint('bsc-price','bsc-price-vat')">
+      <div id="bsc-price-vat" style="font-size:13px;color:var(--muted);font-weight:700;margin-top:5px"></div></div>
     <button class="btn-submit" onclick="submitBsCatalog()">שמור מק״ט ✅</button>
     <div class="section-title" style="margin-top:18px">מק״טים שנקלטו</div>
     <div id="bsc-list"></div>
@@ -2400,7 +2402,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 38';
+const APP_BUILD = '2026-08-05 · 39';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -7950,6 +7952,24 @@ let _bsInstalls = [];   // [{id, model, plate, installedAt, note}]
 let _bsUnsubStock = null, _bsUnsubInstalls = null, _bsUnsubCatalog = null;
 let _bsCatalog = [];    // [{id: sku, sku, model, price}] — a SKU is entered once
 const _bsCatFind = sku => _bsCatalog.find(c => c.sku === String(sku || '').trim());
+// A SKU is written by hand and may contain "/" or "." — both illegal in a
+// Firestore document id. The id is therefore an encoded, prefixed form of the
+// SKU, while the readable value stays in the sku field.
+// Prices are entered as the supplier's price including VAT; the pre-VAT figure
+// is derived, never stored, so there is only one number to keep correct.
+const _VAT_RATE = 0.18;
+const _exVat = p => (Number(p) || 0) / (1 + _VAT_RATE);
+const _fmtIls = n => Math.round(n).toLocaleString('he-IL') + ' ₪';
+function _bsVatHint(inputId, hintId) {
+  const el = document.getElementById(hintId);
+  const v = document.getElementById(inputId)?.value;
+  if (!el) return;
+  el.textContent = v === '' || v == null || !Number(v)
+    ? '' : `לפני מע״מ: ${_fmtIls(_exVat(v))}  (מע״מ ${Math.round(_VAT_RATE * 100)}%)`;
+}
+window._bsVatHint = _bsVatHint;
+
+const _bsSkuId = sku => 's_' + encodeURIComponent(String(sku || '').trim()).replace(/\./g, '%2E');
 
 function openBatteryStockScreen() {
   document.getElementById('bs-user-badge').textContent = currentUser.name;
@@ -8013,7 +8033,7 @@ function _bsRenderOrders() {
       ${l.price ? `<div style="font-weight:900;white-space:nowrap;color:var(--gold)">${(l.price * l.qty).toLocaleString('he-IL')} ₪</div>` : ''}
     </div>`).join('') +
     `<div style="display:flex;justify-content:space-between;border-radius:12px;padding:12px 14px;background:var(--dark);color:#fff;font-weight:900;margin-top:4px">
-       <span>סה״כ להזמנה: ${units} יחידות</span>${total ? `<span>${total.toLocaleString('he-IL')} ₪</span>` : ''}</div>` +
+       <span>סה״כ להזמנה: ${units} יחידות</span>${total ? `<span>${total.toLocaleString('he-IL')} ₪ · לפני מע״מ ${_fmtIls(_exVat(total))}</span>` : ''}</div>` +
     `<button class="btn-submit" onclick="bsMarkOrdered()" style="background:var(--success);color:#fff">✅ הזמנתי — נקה את הרשימה</button>`;
 }
 
@@ -8059,7 +8079,7 @@ function _bsRenderStock() {
       return `<div style="display:flex;align-items:center;gap:10px;border:2px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;background:var(--card)">
         <div style="flex:1;min-width:0">
           <div style="font-weight:800;font-size:15px">${esc(r.model)}</div>
-          ${r.sku ? `<div style="font-size:12px;color:var(--muted);font-weight:700">מק״ט ${esc(r.sku)}${r.price ? ` · ${Number(r.price).toLocaleString('he-IL')} ₪` : ''}${r.invoice ? ` · חשבונית ${esc(r.invoice)}` : ''}</div>` : ''}
+          ${r.sku ? `<div style="font-size:12px;color:var(--muted);font-weight:700">מק״ט ${esc(r.sku)}${r.price ? ` · ${Number(r.price).toLocaleString('he-IL')} ₪ (לפני מע״מ ${_fmtIls(_exVat(r.price))})` : ''}${r.invoice ? ` · חשבונית ${esc(r.invoice)}` : ''}</div>` : ''}
         </div>
         <div style="font-size:20px;font-weight:900;color:${color};min-width:34px;text-align:center">${q}</div>
         <button onclick="bsAdjust('${r.id}',1)" style="background:var(--success);color:#fff;border:none;border-radius:8px;width:30px;height:30px;font-size:16px;font-weight:900;cursor:pointer">+</button>
@@ -8143,6 +8163,7 @@ function openBsAddModal() {
     const el = document.getElementById(id); if (el) el.value = '';
   });
   const msg = document.getElementById('bs-sku-msg'); if (msg) msg.textContent = '';
+  _bsVatHint('bs-price', 'bs-price-vat');
   const dd = document.getElementById('bs-sku-dd'); if (dd) dd.style.display = 'none';
   openModal('modal-bs-add');
 }
@@ -8161,6 +8182,7 @@ function _bsSkuInput() {
     // a known SKU fills in the type and the price by itself
     document.getElementById('bs-model').value = hit.model || '';
     document.getElementById('bs-price').value = hit.price != null ? hit.price : '';
+    _bsVatHint('bs-price', 'bs-price-vat');
     if (msg) { msg.style.color = '#166534'; msg.textContent = `✅ ${hit.model || ''}${hit.price ? ' · ' + Number(hit.price).toLocaleString('he-IL') + ' ₪' : ''}`; }
     dd.style.display = 'none';
     return;
@@ -8187,6 +8209,7 @@ window._bsPickSku = _bsPickSku;
 /* ---- the SKU catalogue: entered once, used from then on ---- */
 function openBsCatalogModal() {
   ['bsc-sku', 'bsc-model', 'bsc-price'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  _bsVatHint('bsc-price', 'bsc-price-vat');
   _bsRenderCatalog();
   openModal('modal-bs-catalog');
 }
@@ -8218,7 +8241,8 @@ function _bsRenderTypes() {
     <thead><tr style="background:var(--dark);color:#fff">
       <th style="text-align:right;padding:9px 10px;border-radius:0 8px 0 0">סוג מצבר</th>
       <th style="text-align:right;padding:9px 10px">מק״ט</th>
-      <th style="text-align:right;padding:9px 10px">מחיר</th>
+      <th style="text-align:right;padding:9px 10px">מחיר כולל מע״מ</th>
+      <th style="text-align:right;padding:9px 10px">לפני מע״מ</th>
       <th style="text-align:center;padding:9px 10px;border-radius:8px 0 0 0">בארון</th>
     </tr></thead><tbody>${rows.map(x => {
       const q2 = stockOf(x.sku);
@@ -8226,6 +8250,7 @@ function _bsRenderTypes() {
         <td style="padding:9px 10px;font-weight:800">${esc(x.model || '')}</td>
         <td style="padding:9px 10px;font-weight:700">${esc(x.sku)}</td>
         <td style="padding:9px 10px;white-space:nowrap">${x.price ? Number(x.price).toLocaleString('he-IL') + ' ₪' : '—'}</td>
+        <td style="padding:9px 10px;white-space:nowrap;color:var(--muted)">${x.price ? _fmtIls(_exVat(x.price)) : '—'}</td>
         <td style="padding:9px 10px;text-align:center;font-weight:900;color:${q2 ? 'var(--success)' : '#ef4444'}">${q2}</td>
       </tr>`;
     }).join('')}</tbody></table>`;
@@ -8255,6 +8280,7 @@ function bsEditCatalog(sku) {
   document.getElementById('bsc-sku').value = x.sku;
   document.getElementById('bsc-model').value = x.model || '';
   document.getElementById('bsc-price').value = x.price != null ? x.price : '';
+  _bsVatHint('bsc-price', 'bsc-price-vat');
 }
 window.bsEditCatalog = bsEditCatalog;
 
@@ -8268,10 +8294,11 @@ async function submitBsCatalog() {
     // the SKU is the document id, so saving the same SKU updates it instead of
     // creating a second row for the same battery
     const { setDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-    await setDoc(_docRef('battery_catalog', sku), {
+    await setDoc(_docRef('battery_catalog', _bsSkuId(sku)), {
       sku, model, price: priceRaw === '' ? null : Number(priceRaw), updatedAt: _serverTs()
     }, { merge: true });
     ['bsc-sku', 'bsc-model', 'bsc-price'].forEach(id => { document.getElementById(id).value = ''; });
+    _bsVatHint('bsc-price', 'bsc-price-vat');
     showToast('✅ המק״ט נשמר');
   } catch (e) { showToast('שגיאה בשמירה: ' + (e.code || e.message)); }
 }
@@ -8281,7 +8308,7 @@ async function bsRemoveCatalog(sku) {
   if (!confirm(`למחוק את המק״ט ${sku} מהרשימה? המלאי הקיים לא ייפגע.`)) return;
   try {
     const { deleteDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-    await deleteDoc(doc(window._db, 'battery_catalog', sku));
+    await deleteDoc(doc(window._db, 'battery_catalog', _bsSkuId(sku)));
     showToast('🗑️ נמחק');
   } catch (e) { showToast('שגיאה: ' + (e.code || e.message)); }
 }
@@ -8301,7 +8328,7 @@ async function submitBsAdd() {
   try {
     const { setDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
     // a SKU typed here for the first time is learned, so next time it fills in
-    await setDoc(_docRef('battery_catalog', sku), { sku, model, price, updatedAt: _serverTs() }, { merge: true });
+    await setDoc(_docRef('battery_catalog', _bsSkuId(sku)), { sku, model, price, updatedAt: _serverTs() }, { merge: true });
     // stock is grouped by SKU; rows saved before SKUs existed are matched by type
     const existing = _bsStock.find(r => r.sku === sku) || _bsStock.find(r => !r.sku && r.model === model);
     if (existing) {
