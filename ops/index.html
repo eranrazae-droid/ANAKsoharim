@@ -1500,8 +1500,16 @@ if ('serviceWorker' in navigator) {
     <div class="section-title">הרכבות אחרונות</div>
     <div id="bs-history"></div>
   </div>
+  <button onclick="openBsHistoryModal()" style="position:fixed;bottom:136px;left:16px;z-index:200;width:auto;margin:0;background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff;border:none;border-radius:14px;padding:13px 22px;font-family:Heebo,sans-serif;font-size:16px;font-weight:800;cursor:pointer;box-shadow:0 3px 12px rgba(0,0,0,.3)">🧾 היסטוריית הזמנות</button>
   <button onclick="openBsCatalogModal()" style="position:fixed;bottom:80px;left:16px;z-index:200;width:auto;margin:0;background:var(--dark);color:#fff;border:none;border-radius:14px;padding:13px 22px;font-family:Heebo,sans-serif;font-size:16px;font-weight:800;cursor:pointer;box-shadow:0 3px 12px rgba(0,0,0,.3)">⚙️ מק״טים וסוגי מצברים</button>
   <button onclick="openBsTypesModal()" style="position:fixed;bottom:24px;left:16px;z-index:200;width:auto;margin:0;background:linear-gradient(135deg,#0ea5e9,#0369a1);color:#fff;border:none;border-radius:14px;padding:13px 22px;font-family:Heebo,sans-serif;font-size:16px;font-weight:800;cursor:pointer;box-shadow:0 3px 12px rgba(0,0,0,.3)">🔋 סוגי מצברים</button>
+</div>
+
+<div class="modal-overlay" id="modal-bs-history">
+  <div class="modal-box">
+    <div class="modal-title"><span>🧾 היסטוריית הזמנות</span> <button class="modal-close" onclick="closeModal('modal-bs-history')">✕</button></div>
+    <div id="bs-history-list"></div>
+  </div>
 </div>
 
 <div class="modal-overlay" id="modal-bs-types">
@@ -2408,7 +2416,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 47';
+const APP_BUILD = '2026-08-05 · 48';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -7955,7 +7963,8 @@ window.bsmRemoveCatalogItem = bsmRemoveCatalogItem;
    the two can be reconciled rather than silently drifting apart. */
 let _bsStock = [];      // [{id, model, qty, updatedAt}]
 let _bsInstalls = [];   // [{id, model, plate, installedAt, note}]
-let _bsUnsubStock = null, _bsUnsubInstalls = null, _bsUnsubCatalog = null;
+let _bsUnsubStock = null, _bsUnsubInstalls = null, _bsUnsubCatalog = null, _bsUnsubDeliv = null;
+let _bsDeliveries = [];   // one entry per delivery — the order history
 let _bsCatalog = [];    // [{id: sku, sku, model, price}] — a SKU is entered once
 const _bsCatFind = sku => _bsCatalog.find(c => c.sku === String(sku || '').trim());
 // A SKU is written by hand and may contain "/" or "." — both illegal in a
@@ -7990,6 +7999,12 @@ function openBatteryStockScreen() {
   _bsUnsubInstalls = _onSnap(_colRef('battery_installs'), snap => {
     _bsInstalls = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     _bsRenderAll();
+  });
+  if (_bsUnsubDeliv) _bsUnsubDeliv();
+  _bsUnsubDeliv = _onSnap(_colRef('battery_deliveries'), snap => {
+    _bsDeliveries = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
+    _bsRenderDeliveries();
   });
   if (_bsUnsubCatalog) _bsUnsubCatalog();
   _bsUnsubCatalog = _onSnap(_colRef('battery_catalog'), snap => {
@@ -8183,6 +8198,8 @@ let _bsLines = [];
 let _bsLineSeq = 0;
 
 function openBsAddModal() {
+  _bsImportFile = null;
+  _bsImportBanner(true, '');
   _bsLines = [];
   bsAddLine();
   ['bs-invoice', 'bs-add-note'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
@@ -8314,6 +8331,18 @@ async function submitBsAdd() {
       });
       added += ln.qty;
     }
+    // one row per delivery for the order history — the invoice file rides along
+    // when the delivery came from a file
+    await _addDoc(_colRef('battery_deliveries'), {
+      at: new Date().toISOString(),
+      invoice: invoice || _bsImportFile?.invoice || '',
+      invoiceDate: _bsImportFile?.date || '',
+      lines, units: added, note,
+      total: lines.reduce((t, l) => t + (l.price || 0) * l.qty, 0),
+      ...(_bsImportFile?.data ? { fileName: _bsImportFile.name, file: _bsImportFile.data } : {}),
+      createdBy: currentUser.name, createdAt: _serverTs()
+    });
+    _bsImportFile = null;
     closeModal('modal-bs-add');
     showToast(`✅ נוספו ${added} מצברים לארון${lines.length > 1 ? ` (${lines.length} סוגים)` : ''}`);
   } catch (e) { showToast('שגיאה בשמירה: ' + (e.code || e.message)); }
@@ -8428,10 +8457,13 @@ function _bsImportBanner(ok, html) {
   el.innerHTML = html || '';
 }
 
+let _bsImportFile = null;   // the invoice PDF that filled the form, kept for the archive
+
 async function bsImportInvoice(input) {
   const f = input.files && input.files[0];
   input.value = '';
   if (!f) return;
+  _bsImportFile = null;
   showToast('📄 קורא את החשבונית...');
   let r;
   try {
@@ -8463,6 +8495,16 @@ async function bsImportInvoice(input) {
   if (inv) inv.value = r.invoice || '';
   const note = document.getElementById('bs-add-note');
   if (note) note.value = r.date ? 'חשבונית מתאריך ' + r.date : '';
+  try {
+    const b64 = await new Promise((res, rej) => {
+      const fr = new FileReader(); fr.onload = e => res(e.target.result); fr.onerror = rej; fr.readAsDataURL(f);
+    });
+    // a document has a hard 1MB limit — an unusually large file is still
+    // imported, it just is not kept in the history
+    _bsImportFile = { name: f.name, invoice: r.invoice || '', date: r.date || '',
+      data: b64.length < 700000 ? b64 : '' };
+    if (!_bsImportFile.data) showToast('הקובץ גדול מדי לשמירה בהיסטוריה — הנתונים נקראו בכל זאת', 6000);
+  } catch (e) { /* the import still works, it just will not keep the file */ }
   _bsImportBanner(true, `✅ נקראה חשבונית ${r.invoice || ''}${r.date ? ' · ' + r.date : ''}<br>${goods.length} סוגי מצברים · הסכומים בחשבונית נבדקו ומסתדרים${dropped ? `<br>שורת אריזה דולגה` : ''}<br>עבור על השורות ותקן אם צריך, ואז שמור.`);
   openModal('modal-bs-add');
 }
@@ -8544,6 +8586,52 @@ function openBsTypesModal() {
   openModal('modal-bs-types');
 }
 window.openBsTypesModal = openBsTypesModal;
+
+/* ---- order history: one row per delivery, with its invoice file ---- */
+function openBsHistoryModal() { _bsRenderDeliveries(); openModal('modal-bs-history'); }
+window.openBsHistoryModal = openBsHistoryModal;
+
+function _bsRenderDeliveries() {
+  const c = document.getElementById('bs-history-list');
+  if (!c) return;
+  if (!_bsDeliveries.length) {
+    c.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted)">עדיין לא נרשמו הזמנות</div>`;
+    return;
+  }
+  c.innerHTML = _bsDeliveries.map(d => {
+    const when = d.invoiceDate || (d.at ? new Date(d.at).toLocaleDateString('he-IL') : '');
+    const kinds = (d.lines || []).map(l => `${esc(l.model || l.sku)} ×${l.qty}`).join(' · ');
+    return `<div style="display:flex;align-items:center;gap:10px;border:2px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px;background:var(--card)">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:900;font-size:15px">🧾 ${esc(d.invoice || 'ללא מספר חשבונית')}</div>
+        <div style="font-size:13px;color:var(--muted);font-weight:700">${esc(when)} · ${d.units || 0} יחידות${d.total ? ` · ${Number(d.total).toLocaleString('he-IL')} ₪ לפני מע״מ` : ''}</div>
+        ${kinds ? `<div style="font-size:12px;color:var(--muted);margin-top:3px">${kinds}</div>` : ''}
+      </div>
+      ${d.file
+        ? `<button onclick="bsOpenInvoiceFile('${d.id}')" style="background:#0369a1;color:#fff;border:none;border-radius:10px;padding:9px 14px;font-family:'Heebo',sans-serif;font-weight:800;font-size:13px;cursor:pointer;white-space:nowrap">📄 הקובץ</button>`
+        : `<span style="font-size:12px;color:var(--muted);font-weight:700;white-space:nowrap">הוזן ידנית</span>`}
+    </div>`;
+  }).join('');
+}
+
+// data: URLs are blocked from opening directly, so the file is handed over as a
+// real download instead
+function bsOpenInvoiceFile(id) {
+  const d = _bsDeliveries.find(x => x.id === id);
+  if (!d?.file) return;
+  try {
+    const b64 = d.file.split(',')[1] || '';
+    const bin = atob(b64);
+    const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    const url = URL.createObjectURL(new Blob([arr], { type: 'application/pdf' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = d.fileName || `חשבונית ${d.invoice || ''}.pdf`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  } catch (e) { showToast('לא הצלחנו לפתוח את הקובץ'); }
+}
+window.bsOpenInvoiceFile = bsOpenInvoiceFile;
 
 function _bsRenderTypes() {
   const c = document.getElementById('bs-types-table');
