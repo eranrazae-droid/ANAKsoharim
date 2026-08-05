@@ -2495,7 +2495,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 86';
+const APP_BUILD = '2026-08-05 · 87';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -7546,6 +7546,21 @@ function _bshopListen(onChange) {
 
 const _bshopTotal = j => (j.items || []).reduce((s, it) => s + (Number(it.price) || 0), 0);
 
+/* Prices are written without VAT, the way the panel beater quotes them. The
+   payment box therefore shows all three numbers: the sum, the VAT on it, and
+   what is actually paid. */
+function _bshopTotalsHtml(sum) {
+  const vat = sum * _VAT_RATE;
+  const ils = n => Math.round(n).toLocaleString('he-IL') + ' ₪';
+  const line = (label, value, big) => `<div style="display:flex;justify-content:space-between;gap:10px;${big ? 'font-size:19px;padding-top:8px;margin-top:6px;border-top:1px solid rgba(255,255,255,.3)' : 'font-size:15px;margin-bottom:4px'}">
+      <span>${label}</span><span>${value}</span></div>`;
+  return `<div style="border-radius:14px;padding:14px;background:var(--dark);color:#fff;font-weight:900">
+    ${line('סכום לתשלום', ils(sum))}
+    ${line(`מע״מ ${Math.round(_VAT_RATE * 100)}%`, ils(vat))}
+    ${line('סה״כ כולל מע״מ', ils(sum + vat), true)}
+  </div>`;
+}
+
 // Days the car has been at Ibrahim's. The clock starts when the note is sent
 // and stops the moment the car is marked as finished — by him or by the yard.
 function _bshopDays(j) {
@@ -7688,7 +7703,7 @@ function _bshopRenderWorker() {
     : `<div class="bshop-span" style="padding:24px;text-align:center;color:var(--muted)">אין רכבים כרגע</div>`;
   const sum = ret.reduce((s, j) => s + _bshopTotal(j), 0);
   retC.innerHTML = (ret.length ? ret.map(j => _bshopJobCard(j, true)).join('') : `<div class="bshop-span" style="padding:16px;text-align:center;color:var(--muted)">עדיין לא סיימת רכבים</div>`)
-    + (ret.length ? `<div class="bshop-span" style="border-radius:14px;padding:14px;background:var(--dark);color:#fff;display:flex;justify-content:space-between;font-size:16px;font-weight:900"><span>סה״כ לתשלום</span><span>${sum.toLocaleString('he-IL')} ₪</span></div>` : '');
+    + (ret.length ? `<div class="bshop-span">${_bshopTotalsHtml(sum)}</div>` : '');
   _bshopUpgradeCardPhotos();
   _bshopRenderWorkerArchive();
 }
@@ -7916,7 +7931,7 @@ function _bshopRenderMgr() {
       <div style="font-size:12px;color:var(--muted);font-weight:700">לתשלום</div>
       <div style="font-size:22px;font-weight:900;color:var(--gold)">${sum.toLocaleString('he-IL')} ₪</div>
     </div>
-  </div>${openSum ? `<div style="font-size:12px;color:var(--muted);margin-bottom:6px">בנוסף ${openSum.toLocaleString('he-IL')} ₪ נרשמו על רכבים שעדיין אצלו</div>` : ''}`;
+  </div>${sum ? _bshopTotalsHtml(sum) : ''}${openSum ? `<div style="font-size:12px;color:var(--muted);margin:6px 0">בנוסף ${openSum.toLocaleString('he-IL')} ₪ נרשמו על רכבים שעדיין אצלו</div>` : ''}`;
 
   const draftC = document.getElementById('bsm-drafts');
   if (draftC) draftC.innerHTML = draft.length
