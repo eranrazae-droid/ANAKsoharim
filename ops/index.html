@@ -2416,7 +2416,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 49';
+const APP_BUILD = '2026-08-05 · 50';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8363,15 +8363,18 @@ async function _bsInflate(bytes) {
 function _bsLatin(bytes) { let s = ''; const CH = 8192;
   for (let i = 0; i < bytes.length; i += CH) s += String.fromCharCode.apply(null, bytes.subarray(i, i + CH));
   return s; }
-// Schnapp's invoices carry a broken character table: the glyph codes are the
-// real characters shifted by a fixed amount. Both blocks are recovered here.
+// The supplier's file carries a broken character table: the codes in it are the
+// real characters shifted by a fixed amount, and only every other entry is
+// listed. Both blocks are recovered here.
 function _bsFixChar(c) {
   if (c >= 3 && c <= 130) return String.fromCharCode(c + 0x1d);
   if (c >= 640 && c <= 800) return String.fromCharCode(c + 0x330);
   if (c >= 1488 && c <= 1514) return String.fromCharCode(c);
   return '';
 }
-async function _bsPdfTokens(buf) {
+// Every piece of text with the position it is printed at, so the invoice can be
+// read by its columns instead of by guesswork.
+async function _bsPdfCells(buf) {
   const bytes = new Uint8Array(buf);
   const raw = _bsLatin(bytes);
   let best = '';
@@ -8385,8 +8388,6 @@ async function _bsPdfTokens(buf) {
     const en = raw.indexOf('endstream', st);
     if (en < 0) break;
     pos = en + 9;
-    // the slice may carry a trailing newline before "endstream", which the
-    // browser's inflater rejects as trailing junk — trim and retry
     let end = en;
     while (end > st && (raw[end - 1] === '\n' || raw[end - 1] === '\r')) end--;
     for (const e2 of [end, en]) {
@@ -8398,70 +8399,123 @@ async function _bsPdfTokens(buf) {
     }
   }
   if (!best) return [];
-  const toks = [];
-  const re = /\((.*?)\)\s*Tj/gs;
+  const cells = [];
+  let tm = null, tlm = null;
+  const re = /BT|ET|(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+Tm|(-?[\d.]+)\s+(-?[\d.]+)\s+T[dD]|\((.*?)\)\s*Tj/gs;
   let m;
   while ((m = re.exec(best))) {
-    const s = m[1].replace(/\\([()\\])/g, '$1').replace(/\\r/g, '\x00\r').replace(/\\n/g, '\x00\n');
+    if (m[0] === 'BT') { tm = tlm = [0, 0]; continue; }
+    if (m[0] === 'ET') continue;
+    if (m[1] !== undefined) { tlm = [Number(m[5]), Number(m[6])]; tm = tlm.slice(); continue; }
+    if (m[7] !== undefined) { if (!tlm) tlm = [0, 0]; tlm = [tlm[0] + Number(m[7]), tlm[1] + Number(m[8])]; tm = tlm.slice(); continue; }
+    const s = m[9].replace(/\\([()\\])/g, '$1').replace(/\\r/g, '\x00\r').replace(/\\n/g, '\x00\n');
     let t = '';
     for (let i = 0; i + 1 < s.length; i += 2) t += _bsFixChar((s.charCodeAt(i) << 8) | s.charCodeAt(i + 1));
     t = t.trim();
-    if (t) toks.push(t);
+    if (t && tm) cells.push({ y: Math.round(tm[1] * 10) / 10, x: Math.round(tm[0] * 10) / 10, t });
   }
-  return toks;
+  return cells;
 }
 const _bsIsNum = t => /^\d{1,3}(,\d{3})*(\.\d+)?$/.test(t);
 const _bsNum = t => Number(String(t).replace(/,/g, ''));
 
-function _bsParseInvoice(toks) {
-  const all = toks.join(' ');
+/* The item table is read by its own column headings — מק"ט, מחיר ליחידה, כמות
+   and so on — so a value is taken from the field it is printed in and never
+   inferred from how the number looks. */
+function _bsParseInvoice(cells) {
+  const all = cells.map(c => c.t).join(' ');
   const invoice = (all.match(/SI\d{6,}/) || [''])[0];
   const date = (all.match(/\d{2}\/\d{2}\/\d{2}/) || [''])[0];
-  const i = toks.findIndex(t => t.includes('ט"קמ'));
-  const j = toks.findIndex((t, k) => k > i && t.includes('תומכ כ"הס'));
-  if (i < 0 || j < 0) return { error: 'לא זוהתה טבלת הפריטים' };
-  const body = toks.slice(i + 1, j);
-  const five = k => k + 4 < body.length && [0,1,2,3,4].every(n => _bsIsNum(body[k + n]));
-  const items = [];
-  let k = 0;
-  while (k < body.length) {
-    if (_bsIsNum(body[k]) && five(k)) {
-      const total = _bsNum(body[k]), qty = _bsNum(body[k + 2]), unit = _bsNum(body[k + 3]);
-      k += 5;
-      const rest = [];
-      while (k < body.length && !(_bsIsNum(body[k]) && five(k))) rest.push(body[k++]);
-      const sku = rest.find(t => /\d/.test(t) && t.length <= 20) || rest[rest.length - 1] || '';
-      const desc = rest.filter(t => t !== sku)
-        .map(t => /[֐-׿]/.test(t) ? t.split('').reverse().join('') : t)
-        .join(' ').replace(/\s+/g, ' ').trim();
-      items.push({ sku, desc, qty, unit, total });
-    } else k++;
+
+  const rows = new Map();
+  for (const c of cells) {
+    if (!rows.has(c.y)) rows.set(c.y, []);
+    rows.get(c.y).push(c);
   }
-  // Self-check with the invoice's own arithmetic. Anything that does not add up
-  // is refused rather than guessed at — wrong stock is worse than no import.
-  const tail = toks.slice(j).filter(_bsIsNum).map(_bsNum);
+  for (const r of rows.values()) r.sort((a, b) => b.x - a.x);   // right to left
+
+  const ys = [...rows.keys()].sort((a, b) => b - a);
+  const headY = ys.find(y => rows.get(y).some(c => c.t.includes('ט"קמ')));
+  if (headY === undefined) return { error: 'לא זוהתה טבלת הפריטים' };
+  const head = rows.get(headY);
+  const colX = name => head.find(c => c.t.includes(name))?.x;
+  const cols = {
+    sku:      colX('ט"קמ'),
+    consumer: colX('ןכרצל ריחמ'),
+    unit:     colX('הדיחיל ריחמ'),
+    qty:      colX('תומכ'),
+    total:    colX('כ"הס'),
+  };
+  if (cols.unit === undefined || cols.qty === undefined || cols.sku === undefined) {
+    return { error: 'לא זוהו העמודות בטבלה' };
+  }
+  const numCols = [['consumer', cols.consumer], ['unit', cols.unit], ['qty', cols.qty], ['total', cols.total]]
+    .filter(([, x]) => x !== undefined);
+  const colOf = x => numCols.reduce((best, c) => Math.abs(x - c[1]) < Math.abs(x - best[1]) ? c : best)[0];
+
+  const endY = ys.find(y => y < headY && rows.get(y).some(c => c.t.includes('תומכ כ"הס')));
+  const items = [];
+  for (const y of ys) {
+    if (y >= headY || (endY !== undefined && y <= endY)) continue;
+    const row = rows.get(y);
+    // a number counts only if it is printed inside one of the price columns —
+    // a bare number in the description is not a price
+    const nums = row.filter(c => _bsIsNum(c.t) &&
+      numCols.some(([, x]) => Math.abs(c.x - x) <= 70));
+    if (nums.length < 3) continue;
+    const f = {};
+    for (const c of nums) { const k = colOf(c.x); if (f[k] === undefined) f[k] = _bsNum(c.t); }
+    if (f.unit === undefined || f.qty === undefined) continue;
+    // the SKU column is the right-hand edge of the table
+    const skuCell = row[0];
+    const sku = skuCell ? skuCell.t : '';
+    // the description occupies the space between the SKU column and the first
+    // price printed on the row — including any bare number inside it, which is
+    // usually the amperage
+    const priceEdge = Math.max(...nums.map(c => c.x));
+    const descCells = row.filter(c => c !== skuCell && c.x > priceEdge + 20);
+    items.push({
+      sku,
+      descCells: descCells.map(c => c.t),
+      desc: descCells.map(c => /[֐-׿]/.test(c.t) ? c.t.split('').reverse().join('') : c.t).join(' ').replace(/\s+/g, ' ').trim(),
+      qty: f.qty, unit: f.unit, total: f.total ?? f.unit * f.qty,
+    });
+  }
   const sum = items.reduce((s, it) => s + it.total, 0);
+  const tail = cells.filter(c => endY !== undefined && c.y <= endY && _bsIsNum(c.t)).map(c => _bsNum(c.t));
   const checks = {
-    lines: items.every(it => Math.abs(it.unit * it.qty - it.total) < 0.02),
+    lines: items.length > 0 && items.every(it => Math.abs(it.unit * it.qty - it.total) < 0.02),
     total: tail.some(v => Math.abs(v - sum) < 0.02),
   };
   return { invoice, date, items, checks, sum };
 }
 
-/* The supplier writes a free-text description ("סטרט סטופ EFB 65 יפני").
-   What matters in the cabinet is the amperage, whether it is a start-stop
-   battery, and where it is made — so the description is boiled down to that.
-   Anything the rule cannot make sense of is left exactly as it came. */
+/* The amperage is taken from the words around it — the figure next to "אמפר",
+   or the one written after the battery technology (EFB / AGM) — never from a
+   number that merely looks like an amperage. */
 const _BS_ORIGINS = ['אירופאי', 'יפני', 'קוריאני', 'אמריקאי', 'סיני'];
 
-function _bsCleanModel(desc) {
-  const d = String(desc || '');
-  // the amperage is the only plausible battery rating in the text
-  const amp = (d.match(/\d{2,3}/g) || []).map(Number).find(n => n >= 30 && n <= 250);
-  if (!amp) return d.replace(/\s+/g, ' ').trim();
+function _bsCleanModel(item) {
+  const cells = (item.descCells || []).map(t => /[֐-׿]/.test(t) ? t.split('').reverse().join('') : t);
+  const text = cells.join(' ');
+  let amp = null;
+  for (let i = 0; i < cells.length; i++) {
+    const c = cells[i];
+    let m = c.match(/(?:EFB|AGM|MF)\s*(\d{2,3})/i) || c.match(/(\d{2,3})\s*(?:AH|אמפר)/i) || c.match(/אמפר\s*(\d{2,3})/);
+    if (m) { amp = Number(m[1]); break; }
+    // the figure printed in the cell next to the word אמפר
+    if (/^אמפר$/.test(c.trim())) {
+      for (const nb of [cells[i - 1], cells[i + 1]]) {
+        const n = String(nb || '').match(/^\d{2,3}$/);
+        if (n) { amp = Number(n[0]); break; }
+      }
+      if (amp) break;
+    }
+  }
+  if (!amp) return text.replace(/\s+/g, ' ').trim();
   const parts = [amp + ' אמפר'];
-  if (/סטרט\s*סטופ|start\s*stop/i.test(d)) parts.push('סטרט סטופ');
-  const origin = _BS_ORIGINS.find(o => d.includes(o));
+  if (/סטרט\s*סטופ|start\s*stop/i.test(text)) parts.push('סטרט סטופ');
+  const origin = _BS_ORIGINS.find(o => text.includes(o));
   if (origin) parts.push(origin);
   return parts.join(' ');
 }
@@ -8485,9 +8539,9 @@ async function bsImportInvoice(input) {
   showToast('📄 קורא את החשבונית...');
   let r;
   try {
-    const toks = await _bsPdfTokens(await f.arrayBuffer());
-    if (!toks.length) return showToast('⚠️ לא הצלחנו לקרוא טקסט מהקובץ — אפשר להוסיף ידנית', 6000);
-    r = _bsParseInvoice(toks);
+    const cells = await _bsPdfCells(await f.arrayBuffer());
+    if (!cells.length) return showToast('⚠️ לא הצלחנו לקרוא טקסט מהקובץ — אפשר להוסיף ידנית', 6000);
+    r = _bsParseInvoice(cells);
   } catch (e) {
     console.error('invoice import', e);
     return showToast('⚠️ שגיאה בקריאת הקובץ — אפשר להוסיף ידנית', 6000);
@@ -8506,7 +8560,7 @@ async function bsImportInvoice(input) {
   if (!goods.length) return showToast('⚠️ לא נמצאו מצברים בחשבונית — אפשר להוסיף ידנית', 6000);
   _bsLines = goods.map(it => {
     const known = _bsCatFind(it.sku);
-    return { key: ++_bsLineSeq, sku: it.sku, model: known?.model || _bsCleanModel(it.desc), price: String(it.unit), qty: String(it.qty) };
+    return { key: ++_bsLineSeq, sku: it.sku, model: known?.model || _bsCleanModel(it), price: String(it.unit), qty: String(it.qty) };
   });
   _bsRenderLines();
   const inv = document.getElementById('bs-invoice');
