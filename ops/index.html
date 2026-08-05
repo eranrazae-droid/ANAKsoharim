@@ -1569,7 +1569,13 @@ if ('serviceWorker' in navigator) {
     <div class="form-group"><label>איזה מצבר <span style="color:#ef4444">*</span></label>
       <select class="form-input" id="bs-issue-model"></select></div>
     <div class="form-group"><label>מספר רישוי <span style="color:#ef4444">*</span></label>
-      <input class="form-input" id="bs-issue-plate" inputmode="numeric" autocomplete="off" placeholder="לדוגמה 12345678" oninput="pcCleanPlateInput(this)"></div>
+      <div style="display:flex;gap:6px">
+        <input class="form-input" id="bs-issue-plate" inputmode="numeric" autocomplete="off" placeholder="לדוגמה 12345678" oninput="pcCleanPlateInput(this)" style="flex:1">
+        <button type="button" onclick="bsIssueLookupPlate()" style="background:var(--dark);color:#fff;border:none;border-radius:10px;padding:0 14px;font-family:'Heebo',sans-serif;font-weight:800;cursor:pointer;white-space:nowrap">🔎 משוך נתוני רכב</button>
+      </div>
+      <div id="bs-issue-msg" style="font-size:13px;color:var(--muted);margin-top:6px"></div></div>
+    <div class="form-group"><label>הרכב</label>
+      <input class="form-input" id="bs-issue-car" placeholder="יצרן, דגם, שנה, צבע"></div>
     <div class="form-group"><label>תאריך ההרכבה</label>
       <input class="form-input" id="bs-issue-date" type="date"></div>
     <div class="form-group"><label>הערה</label>
@@ -2427,7 +2433,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 59';
+const APP_BUILD = '2026-08-05 · 60';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8323,7 +8329,7 @@ function _bsRenderHistory() {
     const ds = isNaN(d) ? '' : d.toLocaleDateString('he-IL');
     return `<div style="display:flex;align-items:center;gap:10px;border:2px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:8px;background:var(--card)">
       <div style="flex:1">
-        <div style="font-weight:800;font-size:14px">🚗 ${esc(r.plate)}</div>
+        <div style="font-weight:800;font-size:14px">🚗 ${esc(r.plate)}${r.car ? ` <span style="font-weight:700;color:var(--muted);font-size:12px">· ${esc(r.car)}</span>` : ''}</div>
         <div style="font-size:12px;color:var(--muted)">${esc(r.model)}${r.note ? ' · ' + esc(r.note) : ''}</div>
       </div>
       <div style="font-size:12px;color:var(--muted);white-space:nowrap">${esc(ds)}</div>
@@ -8906,6 +8912,8 @@ function openBsIssueModal() {
   sel.innerHTML = avail.map(r => `<option value="${esc(r.id)}">${r.sku ? esc(r.sku) + ' · ' : ''}${esc(r.model)} (${r.qty} במלאי)</option>`).join('');
   document.getElementById('bs-issue-plate').value = '';
   document.getElementById('bs-issue-note').value = '';
+  document.getElementById('bs-issue-car').value = '';
+  document.getElementById('bs-issue-msg').textContent = '';
   const d = new Date();
   document.getElementById('bs-issue-date').value =
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -8913,10 +8921,34 @@ function openBsIssueModal() {
 }
 window.openBsIssueModal = openBsIssueModal;
 
+// pulls the car's details from the transport ministry, exactly like the parts
+// catalogue does — a record with no make and no model is not treated as a match
+async function bsIssueLookupPlate() {
+  const plate = document.getElementById('bs-issue-plate').value.replace(/\D/g, '');
+  const carEl = document.getElementById('bs-issue-car');
+  const msgEl = document.getElementById('bs-issue-msg');
+  const say = t => { if (msgEl) msgEl.textContent = t; };
+  if (!plate) return say('נא להזין מספר רישוי');
+  say('מחפש במשרד התחבורה…');
+  try {
+    const rec = await _pcFilterLookup(plate, plate);
+    const maker = rec ? _cleanMaker(rec['tozeret_nm'] || '') : '';
+    const model = rec ? (rec['kinuy_mishari'] || rec['degem_nm'] || '') : '';
+    if (!rec || !(maker || model)) return say('לא נמצא רכב במספר הזה — אפשר למלא ידנית');
+    const parts = [maker, model, rec['shnat_yitzur'] || '', rec['tzeva_rechev'] || ''].filter(Boolean);
+    carEl.value = parts.join(' ');
+    say('✅ נמצא: ' + parts.join(' · '));
+  } catch (e) {
+    say('לא הצלחנו למשוך פרטים — אפשר למלא ידנית');
+  }
+}
+window.bsIssueLookupPlate = bsIssueLookupPlate;
+
 async function submitBsIssue() {
   const id = document.getElementById('bs-issue-model').value;
   const plate = document.getElementById('bs-issue-plate').value.replace(/\D/g, '');
   const date = document.getElementById('bs-issue-date').value;
+  const car = document.getElementById('bs-issue-car').value.trim();
   const note = document.getElementById('bs-issue-note').value.trim();
   const row = _bsStock.find(r => r.id === id);
   if (!row) return showToast('נא לבחור מצבר');
@@ -8926,7 +8958,7 @@ async function submitBsIssue() {
     // log first — a battery that left the cabinet must be recorded even if the
     // stock update fails, otherwise the history loses an installation
     await _addDoc(_colRef('battery_installs'), {
-      model: row.model, sku: row.sku || '', price: row.price ?? null, stockId: id, plate,
+      model: row.model, sku: row.sku || '', price: row.price ?? null, stockId: id, plate, car,
       installedAt: date || new Date().toISOString().slice(0, 10),
       note, createdBy: currentUser.name, createdAt: _serverTs()
     });
