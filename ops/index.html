@@ -2433,7 +2433,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 61';
+const APP_BUILD = '2026-08-05 · 62';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8292,22 +8292,7 @@ function _bsRenderStats() {
       </div>`).join('')}
     </div>`);
 
-  // ── 4. cars that came back for a second battery ────────────────────────
-  const byPlate = {};
-  for (const i of installs) { const p = String(i.plate || '').trim(); if (p) (byPlate[p] = byPlate[p] || []).push(i); }
-  const repeats = Object.entries(byPlate).filter(([, v]) => v.length > 1)
-    .sort((a, b) => b[1].length - a[1].length);
-  html += _bsBox('רכבים שקיבלו יותר ממצבר אחד', repeats.length
-    ? repeats.map(([plate, list]) => {
-        const ds = list.map(i => i.d).sort((a, b) => a - b);
-        const gap = Math.round((ds[ds.length - 1] - ds[0]) / 86400000 / (ds.length - 1));
-        return `<div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--border);padding:7px 0;font-size:13px">
-          <span style="font-weight:800">🚗 ${esc(plate)}</span>
-          <span style="color:var(--muted);font-weight:700">${list.length} מצברים · כל ${gap} ימים בממוצע</span></div>`;
-      }).join('')
-    : `<div style="font-size:13px;color:var(--muted)">אין — כל רכב קיבל מצבר אחד בלבד</div>`);
-
-  // ── 5. what was bought against what went out ───────────────────────────
+  // ── 4. what was bought against what went out ───────────────────────────
   const bought = _bsDeliveries.reduce((t, d) => t + (d.units || 0), 0);
   const boughtCost = _bsDeliveries.reduce((t, d) => t + (Number(d.total) || 0), 0);
   const outCost = installs.reduce((t, i) => t + priceOf(i), 0);
