@@ -1503,7 +1503,7 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
-<div class="modal-overlay" id="modal-bsm-arccar">
+<div class="modal-overlay" id="modal-bsm-arccar" style="z-index:260">
   <div class="modal-box">
     <div class="modal-title"><span id="bsm-arccar-title">🚗</span> <button class="modal-close" onclick="closeModal('modal-bsm-arccar')">✕</button></div>
     <div id="bsm-arccar-body"></div>
@@ -2495,7 +2495,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 87';
+const APP_BUILD = '2026-08-05 · 88';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8240,16 +8240,27 @@ function bsmOpenArchive(id) {
   const a = _bshopArchive.find(x => x.id === id);
   if (!a) return;
   document.getElementById('bsm-arc-title').textContent = '📁 ' + (a.title || '');
-  const rows = (a.cars || []).map((c, i) => `<div onclick="bsmOpenArchiveCar('${a.id}',${i})" style="display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--border);padding:9px 0;cursor:pointer">
+  const rows = (a.cars || []).map((c, i) => `<div class="bsm-arc-row" data-plate="${esc(c.plate || '')}" onclick="bsmOpenArchiveCar('${a.id}',${i})" style="display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--border);padding:9px 0;cursor:pointer">
       <div style="font-weight:800">🚗 ${esc(c.plate)}${c.desc ? `<span style="font-weight:600;color:var(--muted);font-size:13px"> · ${esc(c.desc)}</span>` : ''}</div>
       <div style="font-weight:900;white-space:nowrap">${Number(c.total || 0).toLocaleString('he-IL')} ₪</div>
     </div>`).join('');
-  document.getElementById('bsm-arc-body').innerHTML = rows +
+  const search = `<input class="form-input" id="bsm-arc-search" placeholder="🔎 חפש מספר רכב" oninput="bsmArcFilter(this.value)" style="margin-bottom:12px">`;
+  document.getElementById('bsm-arc-body').innerHTML = search + rows +
     `<div style="display:flex;justify-content:space-between;padding-top:12px;margin-top:6px;border-top:2px solid var(--border);font-size:17px;font-weight:900">
        <span>סה״כ ששולם לאיברהים</span><span style="color:var(--gold)">${Number(a.total || 0).toLocaleString('he-IL')} ₪</span></div>`;
   openModal('modal-bsm-arc');
 }
 window.bsmOpenArchive = bsmOpenArchive;
+
+// hides the lines that do not match; the total at the bottom is left alone
+function bsmArcFilter(term) {
+  const t = String(term || '').replace(/\D/g, '');
+  document.querySelectorAll('#bsm-arc-body .bsm-arc-row').forEach(row => {
+    const plate = String(row.dataset.plate || '').replace(/\D/g, '');
+    row.style.display = (!t || plate.includes(t)) ? '' : 'none';
+  });
+}
+window.bsmArcFilter = bsmArcFilter;
 
 /* The repair card of a car that was already paid for. Folders closed from now
    on carry the parts with them; for older folders the note is fetched from the
