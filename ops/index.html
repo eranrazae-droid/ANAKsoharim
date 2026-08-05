@@ -1390,6 +1390,7 @@ if ('serviceWorker' in navigator) {
     <div class="modal-title"><span id="bshop-fill-title">רכב</span> <button class="modal-close" onclick="_bshopAutoSave(true);closeModal('modal-bshop-fill')">✕</button></div>
     <div id="bshop-fill-hint" style="font-size:13px;color:var(--muted);margin-bottom:12px">רשום מחיר ליד כל חלק שצבעת. חלק שלא עשית — השאר ריק.</div>
     <div id="bshop-fill-photo"></div>
+    <div id="bshop-fill-note"></div>
     <div id="bshop-fill-items"></div>
     <button type="button" onclick="openBshopAddPart()" style="width:100%;margin-top:14px;background:var(--gold);color:#000;border:none;border-radius:12px;padding:13px;font-family:'Heebo',sans-serif;font-size:16px;font-weight:900;cursor:pointer" id="bshop-fill-add">➕ צבעתי עוד חלק</button>
     <div style="display:flex;justify-content:space-between;align-items:center;border-top:2px solid var(--border);padding-top:12px;margin-top:14px">
@@ -2461,7 +2462,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 80';
+const APP_BUILD = '2026-08-05 · 81';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -7649,6 +7650,12 @@ function bshopOpenFill(id) {
   if (fp) fp.innerHTML = small
     ? `<img id="bshop-fill-img" src="${small}" alt="" onclick="openLightbox(this.src)" style="width:100%;max-height:220px;object-fit:cover;border-radius:12px;margin-bottom:12px;cursor:zoom-in;display:block">` : '';
   if (small) _bshopLoadFullPhoto(id);   // swaps in the full photo when it is not in memory yet
+  // the manager's note is the first thing that must be read, so it sits above
+  // the parts, in large type, marked in yellow
+  const noteEl = document.getElementById('bshop-fill-note');
+  if (noteEl) noteEl.innerHTML = j.note
+    ? `<div style="background:#fef08a;color:#000;border-right:6px solid #eab308;border-radius:12px;padding:14px 16px;margin-bottom:14px;font-size:20px;font-weight:900;line-height:1.5">📝 ${esc(j.note)}</div>`
+    : '';
   // a car already marked as finished can still have its prices corrected,
   // it just does not need the green button any more
   const isDone = j.status === 'returned';
