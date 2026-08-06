@@ -2583,7 +2583,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 134';
+const APP_BUILD = '2026-08-05 · 135';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8094,6 +8094,7 @@ window.bshopSave = bshopSave;
 /* The manager's screen is split the same way, behind its own menu button. */
 const _BSM_VIEWS = { draft: 1, open: 1, done: 1, arc: 1, link: 1 };
 let _bsmView = 'open';
+let _bsmAutoView = false;   // pick the opening screen once, on entry
 
 function toggleBsmMenu(force) {
   const m = document.getElementById('bsm-menu');
@@ -8123,7 +8124,9 @@ document.addEventListener('click', e => {
 });
 
 function openBodyShopMgrScreen() {
-  bsmShowView('open');
+  // which screen opens is decided once the notes have loaded — see below
+  _bsmAutoView = true;
+  bsmShowView('draft');
   document.getElementById('bsm-user-badge').textContent = currentUser.name;
   document.getElementById('bsm-link').value = location.origin + location.pathname + '?pahach';
   showScreen('bodyshop-mgr');
@@ -8160,6 +8163,12 @@ function _bshopRenderMgr() {
     : `<div class="bshop-span" style="padding:16px;text-align:center;color:var(--muted)">אין רכבים שממתינים לתשלום</div>`;
   const payWrap = document.getElementById('bsm-pay-wrap');
   if (payWrap) payWrap.style.display = ret.length ? 'block' : 'none';
+  // entering the screen lands on the notes waiting to be sent; with none
+  // waiting there is nothing to do there, so it lands on the cars at the shop
+  if (_bsmAutoView) {
+    _bsmAutoView = false;
+    bsmShowView(draft.length ? 'draft' : 'open');
+  }
   // how many cars sit behind each menu line
   for (const [k, n] of [['draft', draft.length], ['open', open.length], ['done', ret.length]]) {
     const el = document.getElementById('bsm-cnt-' + k);
