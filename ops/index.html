@@ -2593,7 +2593,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 142';
+const APP_BUILD = '2026-08-05 · 143';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -7810,8 +7810,13 @@ function _bshopJobCard(j, forWorker) {
       ${_bshopDaysHtml(j)}
     </div>
     ${j.note ? `<div class="bs-note" style="margin-top:6px;font-size:13px">📝 ${esc(j.note)}</div>` : ''}
-    ${(j.status === 'returned' && (j.items || []).some(it => !(Number(it.price) > 0)))
-      ? `<div class="bs-note" style="margin-top:6px;background:#fee2e2;color:#991b1b;border-right:5px solid #dc2626;border-radius:8px;padding:6px 9px;font-size:12px;font-weight:900">⚠️ ${total > 0 ? 'חסר מחיר לחלק בפתק' : 'לא עודכן תשלום'}</div>` : ''}
+    ${(() => {
+      // a price of 0 is a real answer — only an empty field is missing
+      const empty = (j.items || []).filter(it => it.price == null || it.price === '').length;
+      if (j.status !== 'returned' || !empty) return '';
+      const all = empty === (j.items || []).length;
+      return `<div class="bs-note" style="margin-top:6px;background:#fee2e2;color:#991b1b;border-right:5px solid #dc2626;border-radius:8px;padding:6px 9px;font-size:12px;font-weight:900">⚠️ ${all ? 'לא עודכן תשלום' : 'חסר מחיר לחלק בפתק'}</div>`;
+    })()}
     ${(j.photoThumb || j.photo) ? `<img id="bshop-card-img-${j.id}" src="${j.photo || j.photoThumb}" alt="" loading="lazy" style="margin-top:8px;width:100%;max-height:150px;object-fit:cover;object-position:${_bshopFocusCss(j)};border-radius:10px;display:block">` : ''}
     ${!forWorker && j.status === 'at_shop' ? `<button onclick="event.stopPropagation();bsmMarkReturned('${j.id}')"
       style="margin-top:10px;width:100%;background:var(--dark);color:#fff;border:none;border-radius:10px;padding:10px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:900;cursor:pointer">✅ סיימנו עם הרכב</button>` : ''}
