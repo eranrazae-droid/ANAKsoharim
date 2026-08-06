@@ -219,6 +219,17 @@ body.modal-open{overflow:hidden}
 .bshop-menu-item:hover{background:var(--surface2)}
 .bshop-menu-item.active{background:var(--dark);color:#fff}
 .bsm-cnt{display:none;background:var(--gold);color:#000;border-radius:999px;padding:1px 9px;font-size:13px;font-weight:900;margin-right:6px}
+@media(min-width:900px){
+  #bsm-stat-tiles{grid-template-columns:repeat(auto-fit,minmax(230px,1fr)) !important;gap:16px !important}
+  .bsm-stat-tile{padding:20px !important;border-radius:18px !important}
+  .bsm-stat-tile .t-lbl{font-size:15px !important}
+  .bsm-stat-tile .t-val{font-size:34px !important;margin-top:6px !important}
+  .bsm-stat-tile .t-sub{font-size:13px !important;margin-top:4px !important}
+  #bsm-stat-chart{height:280px !important;gap:12px !important}
+  #bsm-stat-chart .bsm-bar{border-radius:10px 10px 0 0 !important}
+  #bsm-view-stats .section-title{font-size:20px}
+  #bsm-partavg{font-size:16px}
+}
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .25s}
 .modal-overlay.open{opacity:1;pointer-events:all}
 .modal-box{background:#fff;border-radius:24px 24px 0 0;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;padding:24px 20px 40px;transform:translateY(100%);transition:transform .3s}
@@ -2598,7 +2609,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 152';
+const APP_BUILD = '2026-08-05 · 153';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8213,14 +8224,14 @@ function _bsmRenderStats() {
   const spans = _bshopJobs.map(_bshopDays).filter(d => d != null);
   const avgDays = spans.length ? spans.reduce((t, d) => t + d, 0) / spans.length : null;
 
-  const tile = (label, value, sub) => `<div style="border:2px solid var(--border);border-radius:14px;padding:12px;background:var(--card)">
-      <div style="font-size:12px;color:var(--muted);font-weight:800">${label}</div>
-      <div style="font-size:21px;font-weight:900;margin-top:2px">${value}</div>
-      ${sub ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${sub}</div>` : ''}
+  const tile = (label, value, sub) => `<div class="bsm-stat-tile" style="border:2px solid var(--border);border-radius:14px;padding:12px;background:var(--card)">
+      <div class="t-lbl" style="font-size:12px;color:var(--muted);font-weight:800">${label}</div>
+      <div class="t-val" style="font-size:21px;font-weight:900;margin-top:2px">${value}</div>
+      ${sub ? `<div class="t-sub" style="font-size:11px;color:var(--muted);margin-top:2px">${sub}</div>` : ''}
     </div>`;
 
   c.innerHTML = `
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px">
+    <div id="bsm-stat-tiles" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px">
       ${tile('שולם מאז ומעולם', ils(paidTotal), `${paidCars} רכבים`)}
       ${tile('פתוח כרגע', ils(openSum), 'אצל הפחח ומחכה לתשלום')}
       ${tile('ממוצע לרכב', ils(avgPerCar), `${paidCars} רכבים ששולמו`)}
@@ -8239,12 +8250,12 @@ function _bsmRenderStats() {
     })()}
 
     <div class="section-title">תשלומים לפי חודש · ${yr}</div>
-    <div style="direction:ltr;display:flex;align-items:flex-end;gap:6px;height:150px;border-bottom:2px solid var(--border);padding-bottom:4px;margin-bottom:6px;overflow-x:auto">
+    <div id="bsm-stat-chart" style="direction:ltr;display:flex;align-items:flex-end;gap:6px;height:150px;border-bottom:2px solid var(--border);padding-bottom:4px;margin-bottom:6px;overflow-x:auto">
       ${months.map(m => {
         const v = byMonth[m.key] || 0;
         return `<div style="flex:1;min-width:26px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%">
           ${v ? `<div style="font-size:10px;font-weight:800;color:var(--muted);white-space:nowrap">${Math.round(v / 1000)}k</div>` : ''}
-          <div title="${ils(v)}" style="width:100%;height:${Math.round((v / maxMonth) * 110)}px;min-height:${v ? 3 : 0}px;background:var(--gold);border-radius:6px 6px 0 0"></div>
+          <div title="${ils(v)}" class="bsm-bar" style="width:100%;height:${Math.round((v / maxMonth) * 100)}%;min-height:${v ? 3 : 0}px;background:var(--gold);border-radius:6px 6px 0 0"></div>
         </div>`;
       }).join('')}
     </div>
