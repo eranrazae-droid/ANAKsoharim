@@ -2593,7 +2593,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 140';
+const APP_BUILD = '2026-08-05 · 141';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -7593,6 +7593,7 @@ let _bshopItems = [];       // the fixed catalogue of parts
 let _bshopUnsubJobs = null, _bshopUnsubCfg = null, _bshopUnsubArc = null;
 let _bshopArchive = [];   // one folder per payment to Ibrahim
 let _bsmPicked = [];        // parts selected while composing a new job
+let _bsmFocus = null;       // where the number plate sits in the photo, 0..1
 let _bshopFillId = null;
 
 function _bshopListen(onChange) {
@@ -7641,6 +7642,11 @@ function _bshopListen(onChange) {
 }
 
 const _bshopTotal = j => (j.items || []).reduce((s, it) => s + (Number(it.price) || 0), 0);
+
+// keeps the plate inside the visible strip of the photo
+const _bshopFocusCss = j => j.photoFocus
+  ? `${Math.round(j.photoFocus.x * 100)}% ${Math.round(j.photoFocus.y * 100)}%`
+  : '50% 50%';
 
 /* Prices are written without VAT, the way the panel beater quotes them. The
    payment box therefore shows all three numbers: the sum, the VAT on it, and
@@ -7806,7 +7812,7 @@ function _bshopJobCard(j, forWorker) {
     ${j.note ? `<div class="bs-note" style="margin-top:6px;font-size:13px">📝 ${esc(j.note)}</div>` : ''}
     ${(j.status === 'returned' && (j.items || []).some(it => !(Number(it.price) > 0)))
       ? `<div class="bs-note" style="margin-top:6px;background:#fee2e2;color:#991b1b;border-right:5px solid #dc2626;border-radius:8px;padding:6px 9px;font-size:12px;font-weight:900">⚠️ ${total > 0 ? 'חסר מחיר לחלק בפתק' : 'לא עודכן תשלום'}</div>` : ''}
-    ${(j.photoThumb || j.photo) ? `<img id="bshop-card-img-${j.id}" src="${j.photo || j.photoThumb}" alt="" loading="lazy" style="margin-top:8px;width:100%;max-height:150px;object-fit:cover;border-radius:10px;display:block">` : ''}
+    ${(j.photoThumb || j.photo) ? `<img id="bshop-card-img-${j.id}" src="${j.photo || j.photoThumb}" alt="" loading="lazy" style="margin-top:8px;width:100%;max-height:150px;object-fit:cover;object-position:${_bshopFocusCss(j)};border-radius:10px;display:block">` : ''}
     ${!forWorker && j.status === 'at_shop' ? `<button onclick="event.stopPropagation();bsmMarkReturned('${j.id}')"
       style="margin-top:10px;width:100%;background:var(--dark);color:#fff;border:none;border-radius:10px;padding:10px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:900;cursor:pointer">✅ סיימנו עם הרכב</button>` : ''}
     ${!forWorker && j.status === 'draft' ? `<button onclick="event.stopPropagation();bsmSendToShop('${j.id}')"
@@ -7870,7 +7876,7 @@ function bshopOpenFill(id) {
   const fp = document.getElementById('bshop-fill-photo');
   const small = j.photo || j.photoThumb || '';
   if (fp) fp.innerHTML = small
-    ? `<img id="bshop-fill-img" src="${small}" alt="" onclick="openLightbox(this.src)" style="width:100%;max-height:220px;object-fit:cover;border-radius:12px;margin-bottom:12px;cursor:zoom-in;display:block">` : '';
+    ? `<img id="bshop-fill-img" src="${small}" alt="" onclick="openLightbox(this.src)" style="width:100%;max-height:220px;object-fit:cover;object-position:${_bshopFocusCss(j)};border-radius:12px;margin-bottom:12px;cursor:zoom-in;display:block">` : '';
   if (small) _bshopLoadFullPhoto(id);   // swaps in the full photo when it is not in memory yet
   // the manager's note is the first thing that must be read, so it sits above
   // the parts, in large type, marked in yellow
@@ -8292,6 +8298,7 @@ window.bsmPrint = bsmPrint;
 
 function openBsmSendModal() {
   _bsmPicked = [];
+  _bsmFocus = null;
   document.getElementById('bsm-plate').value = '';
   document.getElementById('bsm-desc').value = '';
   document.getElementById('bsm-note').value = '';
@@ -8379,6 +8386,34 @@ function _bsmRenderPhoto() {
     : `<button type="button" onclick="document.getElementById('bsm-photo-file').click()" style="width:100%;background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:10px;font-family:Heebo,sans-serif;font-weight:700;font-size:14px;cursor:pointer">📷 צלם תמונה</button>`;
 }
 
+/* The photo is always the front of the car, and the card shows only a strip of
+   it. Left alone that strip cuts the middle of the picture and the number plate
+   falls outside it. The yellow plate is found in the image and the strip is
+   centred on it instead. Nothing is found — the picture behaves as before. */
+async function _bsmPlateFocus(dataUrl) {
+  try {
+    const img = await _loadImg(dataUrl);
+    const w = 200, h = Math.max(1, Math.round(img.height * w / img.width));
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(img, 0, 0, w, h);
+    const d = ctx.getImageData(0, 0, w, h).data;
+    const xs = [], ys = [];
+    for (let i = 0; i < d.length; i += 4) {
+      const r = d[i], g = d[i + 1], b = d[i + 2];
+      // israeli plates are a strong yellow: red and green high, blue far below
+      if (r > 150 && g > 120 && b < 120 && r - b > 70 && g - b > 50) {
+        const px = (i / 4) % w, py = Math.floor((i / 4) / w);
+        xs.push(px); ys.push(py);
+      }
+    }
+    if (xs.length < w * h * 0.002) return null;   // too little yellow to trust
+    const mid = a => { a.sort((x, y) => x - y); return a[Math.floor(a.length / 2)]; };
+    return { x: +(mid(xs) / w).toFixed(3), y: +(mid(ys) / h).toFixed(3) };
+  } catch (e) { return null; }
+}
+
 async function bsmPickPhoto(input) {
   const f = input.files && input.files[0];
   input.value = '';
@@ -8386,7 +8421,8 @@ async function bsmPickPhoto(input) {
   try {
     _bsmPhoto = await compressToBase64(f, 1000, 0.7);   // full size, own document
     _bsmThumb = await compressToBase64(f, 700, 0.62);   // small, rides on the job
-  } catch (e) { _bsmPhoto = null; _bsmThumb = null; return showToast('לא הצלחנו לעבד את התמונה'); }
+    _bsmFocus = await _bsmPlateFocus(_bsmPhoto);
+  } catch (e) { _bsmPhoto = null; _bsmThumb = null; _bsmFocus = null; return showToast('לא הצלחנו לעבד את התמונה'); }
   _bsmRenderPhoto();
 }
 window.bsmPickPhoto = bsmPickPhoto;
@@ -8405,6 +8441,7 @@ async function submitBsmSend() {
       plate, desc, note,
       maker: _bsmMaker,
       ...(_bsmThumb ? { photoThumb: _bsmThumb } : {}),
+      ...(_bsmFocus ? { photoFocus: _bsmFocus } : {}),
       items: _bshopSortNames(_bsmPicked).map(name => ({ name, price: null })),
       status: 'draft', paidAt: null,
       sentAt: null,
