@@ -2543,7 +2543,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 120';
+const APP_BUILD = '2026-08-05 · 121';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -13975,13 +13975,27 @@ function openOwnershipModal() {
 }
 window.openOwnershipModal = openOwnershipModal;
 
+/* Some transfer confirmations are real digital documents, not scans — the plate
+   is written inside the file. Reading it out is exact, so those pages skip the
+   OCR guessing entirely; a scanned page still falls back to OCR. */
+function _ownPlateFromText(text) {
+  const t = String(text || '').replace(/[\u200e\u200f]/g, '');
+  const m = t.match(/מספר\s*הרכב[^0-9]{0,4}(\d{7,8})/);
+  return m ? m[1] : '';
+}
+
 async function _pdfFileToImages(file) {
   if (!window.pdfjsLib) throw new Error('pdf.js not loaded');
   const buf = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
   const imgs = [];
+  _ownPdfText = [];
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
+    try {
+      const tc = await page.getTextContent();
+      _ownPdfText.push(tc.items.map(x => x.str).join(' '));
+    } catch (e) { _ownPdfText.push(''); }
     const vp1 = page.getViewport({ scale: 1 });
     const scale = Math.min(3, 1600 / vp1.width);
     const vp = page.getViewport({ scale });
@@ -14003,6 +14017,8 @@ function _fileToDataUrl(file) {
     r.readAsDataURL(file);
   });
 }
+
+let _ownPdfText = [];   // the text layer of the last PDF, page by page
 
 function _normPlate(p) { return String(p || '').replace(/\D/g, ''); }
 
@@ -14102,14 +14118,18 @@ async function handleOwnershipFiles(input) {
   try {
     status.textContent = '⏳ מפצל את הקובץ לעמודים...';
     const images = [];
+    const texts = [];
     for (const f of files) {
-      if (f.type === 'application/pdf') images.push(...await _pdfFileToImages(f));
-      else if (f.type.startsWith('image/')) images.push(await _fileToDataUrl(f));
+      if (f.type === 'application/pdf') {
+        const imgs = await _pdfFileToImages(f);
+        images.push(...imgs);
+        texts.push(...imgs.map((_, i) => _ownPdfText[i] || ''));
+      } else if (f.type.startsWith('image/')) { images.push(await _fileToDataUrl(f)); texts.push(''); }
     }
     if (!images.length) { status.textContent = 'לא זוהו עמודים בקובץ'; return; }
     const worker = await Tesseract.createWorker('eng', 1);
     await worker.setParameters({ tessedit_char_whitelist: '0123456789' });
-    _ownFlow = { images, idx: 0, pages: [], worker, pendingCarId: null };
+    _ownFlow = { images, texts, idx: 0, pages: [], worker, pendingCarId: null };
     await _ownProcessNext();
   } catch (e) {
     console.error('handleOwnershipFiles error', e);
@@ -14157,7 +14177,14 @@ async function _ownProcessNext() {
     </div>`;
   await new Promise(r => setTimeout(r, 40)); // let the UI paint before the heavy OCR
   let m = { plate: '', carId: null };
-  try { m = await _ownOcrPage(f.worker, f.images[f.idx]); } catch (e) { console.error('own ocr', e); }
+  // a plate written in the file itself is read as it is — no OCR, no guessing
+  const exact = _ownPlateFromText((f.texts || [])[f.idx]);
+  if (exact) {
+    const car = _pickupAllCars.find(c => _normPlate(c.plate) === exact);
+    m = { plate: exact, carId: car ? car.id : null };
+  } else {
+    try { m = await _ownOcrPage(f.worker, f.images[f.idx]); } catch (e) { console.error('own ocr', e); }
+  }
   if (m.carId) {
     f.pages.push({ img: f.images[f.idx], plate: m.plate, carId: m.carId });
     f.idx++;
