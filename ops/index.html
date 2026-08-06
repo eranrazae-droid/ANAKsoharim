@@ -2492,7 +2492,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 95';
+const APP_BUILD = '2026-08-05 · 96';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8656,7 +8656,7 @@ function _bsRenderStock() {
           ${r.sku ? `<div style="font-size:12px;color:var(--muted);font-weight:700">מק״ט ${esc(r.sku)}${r.price ? ` · ${Number(r.price).toLocaleString('he-IL')} ₪ (כולל מע״מ ${_fmtIls(_incVat(r.price))})` : ''}${r.invoice ? ` · חשבונית ${esc(r.invoice)}` : ''}</div>` : ''}
         </div>
         <div style="font-size:20px;font-weight:900;color:${color};min-width:34px;text-align:center">${q}</div>
-
+        <button onclick="bsRemoveStock('${r.id}')" title="הורד מהארון" style="background:#ef4444;color:#fff;border:none;border-radius:8px;width:30px;height:30px;font-size:14px;cursor:pointer">🗑</button>
       </div>`;
     }).join('');
 }
@@ -8680,6 +8680,28 @@ async function bsResetStock() {
   } catch (e) { showToast('שגיאה: ' + (e.code || e.message)); }
 }
 window.bsResetStock = bsResetStock;
+
+/* Taking batteries off the shelf by hand — one that was damaged, miscounted or
+   returned to the supplier. With more than one in the cabinet you say how many;
+   the row itself is kept even at zero, so the model stays in "צריך להזמין". */
+async function bsRemoveStock(id) {
+  const row = _bsStock.find(r => r.id === id);
+  if (!row) return;
+  const have = row.qty || 0;
+  if (have <= 0) return;
+  let n = 1;
+  if (have > 1) {
+    const ans = prompt(`כמה יחידות להוריד מ-${row.model}?\n\nיש בארון ${have}.`, '1');
+    if (ans === null) return;
+    n = Math.floor(Number(ans));
+    if (!Number.isFinite(n) || n < 1 || n > have) return showToast(`יש להזין מספר בין 1 ל-${have}`);
+  } else if (!confirm(`להוריד את ${row.model} מהארון?`)) return;
+  try {
+    await _updateDoc(_docRef('battery_stock', id), { qty: have - n, updatedAt: _serverTs() });
+    showToast(`🗑 ירדו ${n} מהארון`);
+  } catch (e) { showToast('שגיאה: ' + (e.code || e.message)); }
+}
+window.bsRemoveStock = bsRemoveStock;
 
 // Quantities are never edited by hand any more — the only two things that
 // move stock are adding a delivery and fitting a battery to a car.
