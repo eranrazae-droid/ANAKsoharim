@@ -1493,7 +1493,7 @@ if ('serviceWorker' in navigator) {
       <button onclick="bsmShowView('open')" class="bshop-menu-item">🔨 אצל הפחח <span id="bsm-cnt-open" class="bsm-cnt"></span></button>
       <button onclick="bsmShowView('done')" class="bshop-menu-item">✅ מכוניות שסיימנו <span id="bsm-cnt-done" class="bsm-cnt"></span></button>
       <button onclick="bsmShowView('arc')" class="bshop-menu-item">🗄️ ארכיון תשלומים</button>
-      <button onclick="bsmShowView('link')" class="bshop-menu-item">🔗 קישור לפחח</button>
+      <button onclick="bsmCopyLink(true)" class="bshop-menu-item">🔗 העתק קישור לפחח</button>
     </div>
   </div>
   <div class="bshop-wrap" style="padding:16px 16px 100px">
@@ -2593,7 +2593,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 143';
+const APP_BUILD = '2026-08-05 · 144';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8115,7 +8115,7 @@ window.bshopSave = bshopSave;
 
 /* ---- the manager's screen ---- */
 /* The manager's screen is split the same way, behind its own menu button. */
-const _BSM_VIEWS = { draft: 1, open: 1, done: 1, arc: 1, link: 1 };
+const _BSM_VIEWS = { draft: 1, open: 1, done: 1, arc: 1 };
 let _bsmView = 'open';
 let _bsmAutoView = false;   // pick the opening screen once, on entry
 
@@ -8632,9 +8632,13 @@ function bsmExportArchive(archiveId) {
 }
 window.bsmExportArchive = bsmExportArchive;
 
-function bsmCopyLink() {
+// copied straight from the menu — there is nothing to read on that screen,
+// only a link to hand over once
+function bsmCopyLink(fromMenu) {
   const el = document.getElementById('bsm-link');
-  _pcCopyFallback(el.value, () => showToast('📋 הקישור הועתק'));
+  const link = (el?.value || '').trim() || (location.origin + '/ops/pahach/');
+  if (fromMenu) toggleBsmMenu(false);
+  _pcCopyFallback(link, () => showToast('📋 הקישור לפחח הועתק'));
 }
 window.bsmCopyLink = bsmCopyLink;
 
