@@ -1493,6 +1493,7 @@ if ('serviceWorker' in navigator) {
       <button onclick="bsmShowView('open')" class="bshop-menu-item">🔨 אצל הפחח <span id="bsm-cnt-open" class="bsm-cnt"></span></button>
       <button onclick="bsmShowView('done')" class="bshop-menu-item">✅ מכוניות שסיימנו <span id="bsm-cnt-done" class="bsm-cnt"></span></button>
       <button onclick="bsmShowView('arc')" class="bshop-menu-item">🗄️ ארכיון תשלומים</button>
+      <button onclick="bsmShowView('stats')" class="bshop-menu-item">📊 סטטיסטיקה</button>
       <button onclick="bsmCopyLink(true)" class="bshop-menu-item">🔗 העתק קישור לפחח</button>
     </div>
   </div>
@@ -1523,6 +1524,10 @@ if ('serviceWorker' in navigator) {
     <div id="bsm-view-arc" style="display:none">
       <div class="section-title">🗄️ ארכיון תשלומים</div>
       <div id="bsm-archive"></div>
+    </div>
+    <div id="bsm-view-stats" style="display:none">
+      <div class="section-title">📊 סטטיסטיקה</div>
+      <div id="bsm-stats-body"></div>
     </div>
     <div id="bsm-view-link" style="display:none">
     <div class="section-title">קישור לפחח</div>
@@ -2593,7 +2598,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 146';
+const APP_BUILD = '2026-08-05 · 147';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8144,7 +8149,7 @@ window.bshopSave = bshopSave;
 
 /* ---- the manager's screen ---- */
 /* The manager's screen is split the same way, behind its own menu button. */
-const _BSM_VIEWS = { draft: 1, open: 1, done: 1, arc: 1 };
+const _BSM_VIEWS = { draft: 1, open: 1, done: 1, arc: 1, stats: 1 };
 let _bsmView = 'open';
 let _bsmAutoView = false;   // pick the opening screen once, on entry
 
@@ -8155,6 +8160,98 @@ function toggleBsmMenu(force) {
 }
 window.toggleBsmMenu = toggleBsmMenu;
 
+/* Everything here comes from what is already stored: the payment folders and
+   the open cycle. Nothing new is collected. */
+function _bsmRenderStats() {
+  const c = document.getElementById('bsm-stats-body');
+  if (!c) return;
+  const ils = n => Math.round(n).toLocaleString('he-IL') + ' ₪';
+
+  // ── money ──
+  const byMonth = {};
+  let paidTotal = 0, paidCars = 0;
+  for (const a of _bshopArchive) {
+    paidTotal += Number(a.total || 0);
+    paidCars += (a.cars || []).length;
+    const d = a.paidAt ? new Date(a.paidAt) : null;
+    if (d && !isNaN(d)) {
+      const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      byMonth[k] = (byMonth[k] || 0) + Number(a.total || 0);
+    }
+  }
+  const openSum = _bshopJobs.filter(j => j.status !== 'draft').reduce((t, j) => t + _bshopTotal(j), 0);
+  const now = new Date();
+  const months = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push({ key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
+                  label: `${d.getMonth() + 1}/${String(d.getFullYear()).slice(2)}` });
+  }
+  const thisMonth = byMonth[months[months.length - 1].key] || 0;
+  const maxMonth = Math.max(1, ...months.map(m => byMonth[m.key] || 0));
+  const avgPerCar = paidCars ? paidTotal / paidCars : 0;
+
+  // ── parts: every note we can still read, paid or open ──
+  const partStat = {};
+  let addedN = 0, addedSum = 0;
+  const eatItems = items => {
+    for (const it of (items || [])) {
+      const price = Number(it.price);
+      if (it.addedByShop) { addedN++; addedSum += (price || 0); }
+      if (!(price > 0)) continue;
+      const p = partStat[it.name] || (partStat[it.name] = { n: 0, sum: 0 });
+      p.n++; p.sum += price;
+    }
+  };
+  for (const a of _bshopArchive) for (const car of (a.cars || [])) eatItems(car.items);
+  for (const j of _bshopJobs) eatItems(j.items);
+  const parts = Object.entries(partStat)
+    .map(([name, p]) => ({ name, n: p.n, avg: p.sum / p.n }))
+    .sort((a, b) => b.avg - a.avg);
+
+  // ── time: only notes that carry both dates ──
+  const spans = _bshopJobs.map(_bshopDays).filter(d => d != null);
+  const avgDays = spans.length ? spans.reduce((t, d) => t + d, 0) / spans.length : null;
+
+  const tile = (label, value, sub) => `<div style="border:2px solid var(--border);border-radius:14px;padding:12px;background:var(--card)">
+      <div style="font-size:12px;color:var(--muted);font-weight:800">${label}</div>
+      <div style="font-size:21px;font-weight:900;margin-top:2px">${value}</div>
+      ${sub ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${sub}</div>` : ''}
+    </div>`;
+
+  c.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px">
+      ${tile('שולם החודש', ils(thisMonth))}
+      ${tile('פתוח כרגע', ils(openSum), 'אצל הפחח ומחכה לתשלום')}
+      ${tile('ממוצע לרכב', ils(avgPerCar), `${paidCars} רכבים ששולמו`)}
+      ${tile('סה״כ ששולם', ils(paidTotal), 'מאז ומעולם')}
+      ${tile('ממוצע ימים אצל הפחח', avgDays == null ? '—' : avgDays.toFixed(1), 'מהמחזור הפתוח')}
+      ${tile('חלקים שאיברהים הוסיף', addedN, ils(addedSum))}
+    </div>
+
+    <div class="section-title">תשלומים לפי חודש</div>
+    <div style="display:flex;align-items:flex-end;gap:6px;height:150px;border-bottom:2px solid var(--border);padding-bottom:4px;margin-bottom:6px;overflow-x:auto">
+      ${months.map(m => {
+        const v = byMonth[m.key] || 0;
+        return `<div style="flex:1;min-width:26px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%">
+          ${v ? `<div style="font-size:10px;font-weight:800;color:var(--muted);white-space:nowrap">${Math.round(v / 1000)}k</div>` : ''}
+          <div title="${ils(v)}" style="width:100%;height:${Math.round((v / maxMonth) * 110)}px;min-height:${v ? 3 : 0}px;background:var(--gold);border-radius:6px 6px 0 0"></div>
+        </div>`;
+      }).join('')}
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:20px;overflow-x:auto">
+      ${months.map(m => `<div style="flex:1;min-width:26px;text-align:center;font-size:10px;color:var(--muted);font-weight:700">${m.label}</div>`).join('')}
+    </div>
+
+    <div class="section-title">מחיר ממוצע לחלק</div>
+    ${parts.length ? parts.map(p => `<div style="display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--border);padding:8px 0">
+        <div style="font-weight:700;font-size:14px">${esc(p.name)} <span style="color:var(--muted);font-weight:600;font-size:12px">· ${p.n} פעמים</span></div>
+        <div style="font-weight:900;white-space:nowrap">${ils(p.avg)}</div>
+      </div>`).join('')
+      : `<div style="padding:16px;text-align:center;color:var(--muted)">אין עדיין מספיק נתונים</div>`}
+    <div style="font-size:11px;color:var(--muted);margin-top:10px">המחירים מחושבים מכל הפתקים שנשמרו — פתוחים וגם כאלה ששולמו. חלק בלי מחיר לא נספר.</div>`;
+}
+
 function bsmShowView(name) {
   _bsmView = _BSM_VIEWS[name] ? name : 'open';
   for (const k of Object.keys(_BSM_VIEWS)) {
@@ -8164,6 +8261,7 @@ function bsmShowView(name) {
   document.querySelectorAll('#bsm-menu .bshop-menu-item').forEach((b, i) => {
     b.classList.toggle('active', Object.keys(_BSM_VIEWS)[i] === _bsmView);
   });
+  if (_bsmView === 'stats') _bsmRenderStats();
   toggleBsmMenu(false);
   window.scrollTo({ top: 0 });
 }
