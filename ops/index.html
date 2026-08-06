@@ -2512,7 +2512,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 103';
+const APP_BUILD = '2026-08-05 · 104';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -7742,6 +7742,7 @@ function bshopOpenFill(id) {
   if (prn) prn.style.display = _bshopFillMgr ? '' : 'none';
   document.getElementById('bshop-fill-title').innerHTML =
     `${_brandIcon(j.maker)} ${esc(j.plate)}${j.desc ? ' · ' + esc(j.desc) : ''}`;
+  if (!j.desc) _bshopFillCarDetails(id);   // an old note with no car details
   const fp = document.getElementById('bshop-fill-photo');
   const small = j.photo || j.photoThumb || '';
   if (fp) fp.innerHTML = small
@@ -7787,6 +7788,30 @@ function bshopOpenFill(id) {
   openModal('modal-bshop-fill');
 }
 window.bshopOpenFill = bshopOpenFill;
+
+/* A note written before the details were pulled shows a bare plate number. The
+   car is looked up once, written onto the note, and from then on everybody sees
+   it — the card, the note and the printed form. */
+async function _bshopFillCarDetails(id) {
+  const j = _bshopJobs.find(x => x.id === id);
+  if (!j || j.desc) return;
+  const plate = String(j.plate || '').replace(/\D/g, '');
+  if (!plate) return;
+  try {
+    const rec = await _pcFilterLookup(plate, plate);
+    const maker = rec ? _cleanMaker(rec['tozeret_nm'] || '') : '';
+    const model = rec ? (rec['kinuy_mishari'] || rec['degem_nm'] || '') : '';
+    if (!rec || !(maker || model)) return;
+    const desc = [maker, model, rec['shnat_yitzur'] || '', rec['tzeva_rechev'] || ''].filter(Boolean).join(' ');
+    j.desc = desc; j.maker = maker;
+    const title = document.getElementById('bshop-fill-title');
+    if (title && _bshopFillId === id) title.innerHTML = `${_brandIcon(maker)} ${esc(j.plate)} · ${esc(desc)}`;
+    // only the manager writes it back, so a note is never edited from two sides
+    if (currentUser?.role === 'manager') {
+      await _updateDoc(_docRef('bodyshop_jobs', id), { desc, maker, updatedAt: _serverTs() });
+    }
+  } catch (e) { /* the note works fine without the details */ }
+}
 
 /* The panel beater paints what the car needs, not always what is written on the
    note. A part he did not paint he simply leaves empty; a part he added himself
