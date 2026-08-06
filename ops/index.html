@@ -2598,7 +2598,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 151';
+const APP_BUILD = '2026-08-05 · 152';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8202,8 +8202,9 @@ function _bsmRenderStats() {
       p.n++; p.sum += price;
     }
   };
-  for (const a of _bshopArchive) for (const car of (a.cars || [])) eatItems(car.items);
-  for (const j of _bshopJobs) eatItems(j.items);
+  let carsCounted = 0;
+  for (const a of _bshopArchive) for (const car of (a.cars || [])) { if (car.items) { carsCounted++; eatItems(car.items); } }
+  for (const j of _bshopJobs) { if (j.status !== 'draft') { carsCounted++; eatItems(j.items); } }
   const parts = Object.entries(partStat)
     .map(([name, p]) => ({ name, n: p.n, avg: p.sum / p.n }))
     .sort((a, b) => b.avg - a.avg);
@@ -8226,6 +8227,16 @@ function _bsmRenderStats() {
       ${tile('ממוצע ימים אצל הפחח', avgDays == null ? '—' : Math.round(avgDays), 'מהמחזור הפתוח')}
       ${tile('חלקים שאיברהים הוסיף', addedN, ils(addedSum))}
     </div>
+    ${(() => {
+      // stated the way it is actually thought about: one extra part per N cars
+      if (!carsCounted) return '';
+      if (!addedN) return `<div style="background:var(--surface2);border-radius:12px;padding:12px 14px;margin-bottom:18px;font-size:15px;font-weight:800">איברהים עדיין לא הוסיף חלקים על דעת עצמו (${carsCounted} מכוניות)</div>`;
+      const ratio = carsCounted / addedN;
+      const txt = ratio >= 1
+        ? `בממוצע איברהים מוסיף 1 חלק לכל ${ratio.toFixed(1).replace(/\.0$/, '')} מכוניות`
+        : `בממוצע איברהים מוסיף ${(addedN / carsCounted).toFixed(1).replace(/\.0$/, '')} חלקים לכל מכונית`;
+      return `<div style="background:#fef3c7;border-right:6px solid var(--gold);border-radius:12px;padding:12px 14px;margin-bottom:18px;font-size:16px;font-weight:900">➕ ${txt}</div>`;
+    })()}
 
     <div class="section-title">תשלומים לפי חודש · ${yr}</div>
     <div style="direction:ltr;display:flex;align-items:flex-end;gap:6px;height:150px;border-bottom:2px solid var(--border);padding-bottom:4px;margin-bottom:6px;overflow-x:auto">
