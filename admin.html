@@ -1550,13 +1550,18 @@
     const el=document.getElementById('tasksList'); if(!el) return;
     if(!tasksData.length){ el.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)">אין משימות כרגע 🎉</div>'; return; }
     const open=tasksData.filter(t=>!t.done), done=tasksData.filter(t=>t.done);
-    el.innerHTML=[...open,...done].map(t=>`<div class="card panel" style="margin-bottom:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;${t.done?'opacity:.55':''}">
+    el.innerHTML=[...open,...done].map(t=>{
+      const _car=taskFindCar(t.title);
+      const siteBtn = _car ? `<a href="https://autodealer.co.il/?car=${_car.id}" target="_blank" rel="noreferrer" title="פתח את הרכב באתר" style="border:1.5px solid #16a34a;background:#f0fdf4;color:#15803d;border-radius:999px;padding:6px 14px;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap;flex-shrink:0;text-decoration:none">🔗 באתר</a>` : '';
+      return `<div class="card panel" style="margin-bottom:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;${t.done?'opacity:.55':''}">
       <button onclick="toggleTask(${t.id},${t.done})" style="width:26px;height:26px;border-radius:8px;border:2px solid ${t.done?'#16a34a':'#cbd5e1'};background:${t.done?'#16a34a':'#fff'};color:#fff;font-weight:900;cursor:pointer;flex-shrink:0">${t.done?'✓':''}</button>
       <div style="flex:1;min-width:140px;font-size:15px;font-weight:600;${t.done?'text-decoration:line-through':''}">${t.title}</div>
+      ${siteBtn}
       <button onclick="taskEditSpec(${t.id})" title="פתח עריכת רכב להוספת מפרט טכני" style="border:1.5px solid #0d0d0d;background:#0d0d0d;color:#fff;border-radius:999px;padding:6px 14px;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap;flex-shrink:0">📋 מפרט טכני</button>
       <button onclick="taskUploadImage(${t.id})" title="העלה תמונת קטלוג לרכב" style="border:1.5px solid #D4A017;background:#fff8e1;color:#a16207;border-radius:999px;padding:6px 14px;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap;flex-shrink:0">🖼️ תמונה</button>
       <button onclick="deleteTask(${t.id})" class="btn btn-red btn-sm">🗑</button>
-    </div>`).join('');
+    </div>`;
+    }).join('');
   }
 
   // ===== שכר =====
