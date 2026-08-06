@@ -2492,7 +2492,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 96';
+const APP_BUILD = '2026-08-05 · 97';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8994,13 +8994,20 @@ async function submitBsAdd() {
     }
     // one row per delivery for the order history — the invoice file rides along
     // when the delivery came from a file
+    const fromFile = _bsImportFile?.lines?.length ? _bsImportFile : null;
     await _addDoc(_colRef('battery_deliveries'), {
       at: new Date().toISOString(),
       invoice: invoice || _bsImportFile?.invoice || '',
       invoiceDate: _bsImportFile?.date || '',
-      lines, units: added, note,
-      total: lines.reduce((t, l) => t + (l.price || 0) * l.qty, 0),
+      // what the invoice said, even if a line was taken off the form
+      lines: fromFile ? fromFile.lines : lines,
+      units: fromFile ? fromFile.units : added,
+      total: fromFile ? fromFile.total : lines.reduce((t, l) => t + (l.price || 0) * l.qty, 0),
+      // and what actually went into the cabinet
+      addedLines: lines, addedUnits: added,
+      note,
       ...(_bsImportFile?.data ? { fileName: _bsImportFile.name, file: _bsImportFile.data } : {}),
+      ...(_bsImportFile?.url ? { fileName: _bsImportFile.name, fileUrl: _bsImportFile.url } : {}),
       createdBy: currentUser.name, createdAt: _serverTs()
     });
     _bsImportFile = null;
@@ -9235,16 +9242,34 @@ async function bsImportInvoice(input) {
   if (inv) inv.value = r.invoice || '';
   const note = document.getElementById('bs-add-note');
   if (note) note.value = r.date ? 'חשבונית מתאריך ' + r.date : '';
+  // The order history records the invoice as it came in — every line that was
+  // on it and its own total. Removing a line from the form below takes it off
+  // the cabinet, it does not rewrite what the supplier sent.
+  const origLines = goods.map(it => {
+    const known = _bsCatFind(it.sku);
+    return { sku: it.sku, model: known?.model || _bsCleanModel(it), price: Number(it.unit) || null, qty: Number(it.qty) || 0 };
+  });
+  _bsImportFile = {
+    name: f.name, invoice: r.invoice || '', date: r.date || '', data: '', url: '',
+    lines: origLines,
+    units: origLines.reduce((t, l) => t + l.qty, 0),
+    total: origLines.reduce((t, l) => t + (l.price || 0) * l.qty, 0),
+  };
   try {
     const b64 = await new Promise((res, rej) => {
       const fr = new FileReader(); fr.onload = e => res(e.target.result); fr.onerror = rej; fr.readAsDataURL(f);
     });
-    // a document has a hard 1MB limit — an unusually large file is still
-    // imported, it just is not kept in the history
-    _bsImportFile = { name: f.name, invoice: r.invoice || '', date: r.date || '',
-      data: b64.length < 700000 ? b64 : '' };
-    if (!_bsImportFile.data) showToast('הקובץ גדול מדי לשמירה בהיסטוריה — הנתונים נקראו בכל זאת', 6000);
-  } catch (e) { /* the import still works, it just will not keep the file */ }
+    // a document has a hard 1MB limit, so a large file goes to storage instead
+    // of being dropped — either way the whole invoice is kept
+    if (b64.length < 700000) _bsImportFile.data = b64;
+    else if (window._uploadBytes && window._storageRef) {
+      showToast('📤 מעלה את הקובץ...');
+      const path = `battery_invoices/${Date.now()}_${f.name}`;
+      const ref = window._storageRef(window._storage, path);
+      await window._uploadBytes(ref, f);
+      _bsImportFile.url = await window._getDownloadURL(ref);
+    } else showToast('הקובץ גדול מדי לשמירה בהיסטוריה — הנתונים נקראו בכל זאת', 6000);
+  } catch (e) { console.error('invoice keep', e); /* the import still works */ }
   _bsImportBanner(true, `✅ נקראה חשבונית ${r.invoice || ''}${r.date ? ' · ' + r.date : ''}<br>${goods.length} סוגי מצברים · הסכומים בחשבונית נבדקו ומסתדרים${dropped ? `<br>שורת אריזה דולגה` : ''}<br>עבור על השורות ותקן אם צריך, ואז שמור.`);
   openModal('modal-bs-add');
 }
@@ -9354,8 +9379,9 @@ function _bsRenderDeliveries() {
         <div style="font-weight:900;font-size:15px">🧾 ${esc(d.invoice || 'ללא מספר חשבונית')}</div>
         <div style="font-size:13px;color:var(--muted);font-weight:700"><span style="background:#fde68a;color:#78350f;border-radius:6px;padding:1px 7px;font-weight:900">${esc(when)}</span> · ${d.units || 0} יחידות${d.total ? ` · ${Number(d.total).toLocaleString('he-IL')} ₪ לפני מע״מ` : ''}</div>
         ${kinds ? `<div style="font-size:12px;color:var(--muted);margin-top:3px">${kinds}</div>` : ''}
+        ${(d.addedUnits != null && d.addedUnits !== d.units) ? `<div style="font-size:12px;color:#b45309;font-weight:800;margin-top:3px">נכנסו לארון ${d.addedUnits} מתוך ${d.units}</div>` : ''}
       </div>
-      ${d.file
+      ${(d.file || d.fileUrl)
         ? `<button onclick="bsOpenInvoiceFile('${d.id}')" style="background:#0369a1;color:#fff;border:none;border-radius:10px;padding:9px 14px;font-family:'Heebo',sans-serif;font-weight:800;font-size:13px;cursor:pointer;white-space:nowrap">📄 הקובץ</button>`
         : `<span style="font-size:12px;color:var(--muted);font-weight:700;white-space:nowrap">הוזן ידנית</span>`}
     </div>`;
@@ -9366,6 +9392,7 @@ function _bsRenderDeliveries() {
 // real download instead
 function bsOpenInvoiceFile(id) {
   const d = _bsDeliveries.find(x => x.id === id);
+  if (d?.fileUrl) return void window.open(d.fileUrl, '_blank');
   if (!d?.file) return;
   try {
     const b64 = d.file.split(',')[1] || '';
