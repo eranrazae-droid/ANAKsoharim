@@ -2522,7 +2522,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 110';
+const APP_BUILD = '2026-08-05 · 111';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -14417,6 +14417,7 @@ function _levenshtein(a, b) {
 // matcher would otherwise mis-guess). Checked before fuzzy matching.
 // To add more: { alias: 'שם היישוב', city: 'העיר המשויכת' }
 const _CITY_ALIASES = [
+  { alias: 'שנקר', city: 'פתח תקווה' },
   { alias: 'עין המפרץ', city: 'עכו' },
   { alias: 'המפרץ', city: 'עכו' },
 ];
@@ -14566,6 +14567,10 @@ function _splitPickupBlocks(raw) {
    collector reads before he sets off. */
 const _TECHNO_RE = /טכנו/;
 const _TECHNO = { contact: 'שרית 0525816341', city: 'טירת הכרמל', address: 'עוצמה 11' };
+/* Our own yard. The list writes it as "שנקר פ״ת", which the city matcher used to
+   twist into some other town — the name is now recognised outright. */
+const _SHENKAR_RE = /שנקר/;
+const _SHENKAR = { city: 'פתח תקווה', address: 'שנקר 15' };
 
 function _parsePickupBlock(lines) {
   const car = { plate:'', type:'', year:'', color:'', km:'', contact:'', city:'', address:'', note:'' };
@@ -14606,6 +14611,11 @@ function _parsePickupBlock(lines) {
     const yearM = joined.match(/\b(19[89]\d|20[0-3]\d)\b/); if (yearM) car.year = yearM[1];
     const kmM = joined.match(/\b([\d,]{3,})\b/); if (kmM && !car.km) car.km = _fmtKm(kmM[1]);
     const ph = _extractPhone(joined); if (ph) car.contact = ph;
+  }
+
+  if (lines.some(l => _SHENKAR_RE.test(l))) {
+    car.city = _SHENKAR.city;
+    car.address = _SHENKAR.address;
   }
 
   if (lines.some(l => _TECHNO_RE.test(l))) {
