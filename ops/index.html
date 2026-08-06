@@ -2598,7 +2598,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 147';
+const APP_BUILD = '2026-08-05 · 148';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8180,14 +8180,14 @@ function _bsmRenderStats() {
     }
   }
   const openSum = _bshopJobs.filter(j => j.status !== 'draft').reduce((t, j) => t + _bshopTotal(j), 0);
+  // the calendar year, january through december, read left to right
   const now = new Date();
+  const yr = now.getFullYear();
   const months = [];
-  for (let i = 11; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    months.push({ key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
-                  label: `${d.getMonth() + 1}/${String(d.getFullYear()).slice(2)}` });
+  for (let m = 1; m <= 12; m++) {
+    months.push({ key: `${yr}-${String(m).padStart(2, '0')}`, label: `${m}/${String(yr).slice(2)}` });
   }
-  const thisMonth = byMonth[months[months.length - 1].key] || 0;
+  const thisMonth = byMonth[`${yr}-${String(now.getMonth() + 1).padStart(2, '0')}`] || 0;
   const maxMonth = Math.max(1, ...months.map(m => byMonth[m.key] || 0));
   const avgPerCar = paidCars ? paidTotal / paidCars : 0;
 
@@ -8229,8 +8229,8 @@ function _bsmRenderStats() {
       ${tile('חלקים שאיברהים הוסיף', addedN, ils(addedSum))}
     </div>
 
-    <div class="section-title">תשלומים לפי חודש</div>
-    <div style="display:flex;align-items:flex-end;gap:6px;height:150px;border-bottom:2px solid var(--border);padding-bottom:4px;margin-bottom:6px;overflow-x:auto">
+    <div class="section-title">תשלומים לפי חודש · ${yr}</div>
+    <div style="direction:ltr;display:flex;align-items:flex-end;gap:6px;height:150px;border-bottom:2px solid var(--border);padding-bottom:4px;margin-bottom:6px;overflow-x:auto">
       ${months.map(m => {
         const v = byMonth[m.key] || 0;
         return `<div style="flex:1;min-width:26px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%">
@@ -8239,7 +8239,7 @@ function _bsmRenderStats() {
         </div>`;
       }).join('')}
     </div>
-    <div style="display:flex;gap:6px;margin-bottom:20px;overflow-x:auto">
+    <div style="direction:ltr;display:flex;gap:6px;margin-bottom:20px;overflow-x:auto">
       ${months.map(m => `<div style="flex:1;min-width:26px;text-align:center;font-size:10px;color:var(--muted);font-weight:700">${m.label}</div>`).join('')}
     </div>
 
