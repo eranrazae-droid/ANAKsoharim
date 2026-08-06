@@ -1516,7 +1516,11 @@ if ('serviceWorker' in navigator) {
       <button class="btn-submit" onclick="openBsmSendModal()" style="margin-top:0">➕ יצירת פתק</button>
       <button class="btn-submit" onclick="openBsmItemsModal()" style="margin-top:0;background:var(--dark);color:#fff">⚙️ רשימת חלקים</button>
     </div>
-    <div id="bsm-summary"></div>
+    <div id="bsm-summary" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px;align-items:start">
+      <div id="bsm-summary-tile"></div>
+      <div id="bsm-summary-pay"></div>
+    </div>
+    <div id="bsm-summary-extra"></div>
     <div id="bsm-view-draft" style="display:none">
       <div class="section-title">📝 פתקים שממתינים לשליחה</div>
       <div id="bsm-drafts" class="bshop-grid"></div>
@@ -2613,7 +2617,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 157';
+const APP_BUILD = '2026-08-05 · 158';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8306,13 +8310,25 @@ function bsmShowView(name) {
   document.querySelectorAll('#bsm-menu .bshop-menu-item').forEach((b, i) => {
     b.classList.toggle('active', Object.keys(_BSM_VIEWS)[i] === _bsmView);
   });
-  // the statistics screen stands on its own — the buttons and the summary
-  // above it belong to the working screens
-  const bare = _bsmView === 'stats';
-  for (const id of ['bsm-top-actions', 'bsm-summary']) {
-    const el = document.getElementById(id);
-    if (el) el.style.display = bare ? 'none' : '';
-  }
+  /* Each screen carries only the header it needs: the payment box belongs to
+     the finished cars, the buttons and the counter belong to the rest, and the
+     statistics screen stands entirely on its own. */
+  const show = {
+    draft: { actions: 1, tile: 1, pay: 0, extra: 1 },
+    open:  { actions: 1, tile: 1, pay: 1, extra: 1 },
+    done:  { actions: 0, tile: 0, pay: 1, extra: 0 },
+    arc:   { actions: 1, tile: 1, pay: 1, extra: 1 },
+    stats: { actions: 0, tile: 0, pay: 0, extra: 0 },
+  }[_bsmView] || { actions: 1, tile: 1, pay: 1, extra: 1 };
+  const setVis = (id, on, disp) => { const el = document.getElementById(id); if (el) el.style.display = on ? (disp || '') : 'none'; };
+  setVis('bsm-top-actions', show.actions, 'flex');
+  setVis('bsm-summary-tile', show.tile);
+  setVis('bsm-summary-pay', show.pay);
+  setVis('bsm-summary-extra', show.extra);
+  setVis('bsm-summary', show.tile || show.pay, 'grid');
+  const sumEl = document.getElementById('bsm-summary');
+  // one half alone takes the full width
+  if (sumEl) sumEl.style.gridTemplateColumns = (show.tile && show.pay) ? '1fr 1fr' : '1fr';
   if (_bsmView === 'stats') _bsmRenderStats();
   toggleBsmMenu(false);
   window.scrollTo({ top: 0 });
@@ -8347,13 +8363,16 @@ function _bshopRenderMgr() {
   const sum  = ret.reduce((s, j) => s + _bshopTotal(j), 0);
   const openSum = open.reduce((s, j) => s + _bshopTotal(j), 0);
 
-  if (sumC) sumC.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px;align-items:start">
-    <div style="border:2px solid var(--border);border-radius:14px;padding:12px;text-align:center;background:var(--card)">
+  // the two halves live apart, so each screen can show only what belongs to it
+  const tileC = document.getElementById('bsm-summary-tile');
+  const payC = document.getElementById('bsm-summary-pay');
+  const extraC = document.getElementById('bsm-summary-extra');
+  if (tileC) tileC.innerHTML = `<div style="border:2px solid var(--border);border-radius:14px;padding:12px;text-align:center;background:var(--card)">
       <div style="font-size:12px;color:var(--muted);font-weight:700">אצל הפחח</div>
       <div style="font-size:22px;font-weight:900">${open.length}</div>
-    </div>
-    ${_bshopTotalsHtml(sum)}
-  </div>${openSum ? `<div style="font-size:12px;color:var(--muted);margin:6px 0">בנוסף ${openSum.toLocaleString('he-IL')} ₪ נרשמו על רכבים שעדיין אצלו</div>` : ''}`;
+    </div>`;
+  if (payC) payC.innerHTML = _bshopTotalsHtml(sum);
+  if (extraC) extraC.innerHTML = openSum ? `<div style="font-size:12px;color:var(--muted);margin:6px 0">בנוסף ${openSum.toLocaleString('he-IL')} ₪ נרשמו על רכבים שעדיין אצלו</div>` : '';
 
   const draftC = document.getElementById('bsm-drafts');
   if (draftC) draftC.innerHTML = draft.length
