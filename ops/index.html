@@ -218,6 +218,16 @@ body.modal-open{overflow:hidden}
 .bshop-menu-item{display:block;width:100%;text-align:right;background:none;border:none;border-radius:10px;padding:12px 14px;font-family:'Heebo',sans-serif;font-size:16px;font-weight:800;color:var(--text);cursor:pointer}
 .bshop-menu-item:hover{background:var(--surface2)}
 .bshop-menu-item.active{background:var(--dark);color:#fff}
+/* The two actions float at the bottom left, out of the way of the list, and
+   only on the screen where notes are written. */
+#bsm-top-actions{position:fixed;bottom:18px;left:14px;z-index:130;display:flex;flex-direction:column;gap:10px;align-items:flex-start}
+.bsm-fab{border:none;border-radius:14px;padding:13px 20px;font-family:'Heebo',sans-serif;font-size:15px;font-weight:900;cursor:pointer;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.3)}
+.bsm-fab-gold{background:var(--gold);color:#000}
+.bsm-fab-dark{background:var(--dark);color:#fff}
+@media(max-width:600px){
+  #bsm-top-actions{bottom:14px;left:10px;gap:8px}
+  .bsm-fab{padding:11px 16px;font-size:14px;border-radius:12px}
+}
 .bsm-cnt{display:none;background:var(--gold);color:#000;border-radius:999px;padding:1px 9px;font-size:13px;font-weight:900;margin-right:6px}
 .bsm-stat-split{display:grid;grid-template-columns:1fr;gap:20px}
 @media(min-width:900px){
@@ -1512,9 +1522,9 @@ if ('serviceWorker' in navigator) {
     </div>
   </div>
   <div class="bshop-wrap" style="padding:16px 16px 100px">
-    <div id="bsm-top-actions" style="display:flex;gap:8px;margin-bottom:14px">
-      <button class="btn-submit" onclick="openBsmSendModal()" style="margin-top:0">➕ יצירת פתק</button>
-      <button class="btn-submit" onclick="openBsmItemsModal()" style="margin-top:0;background:var(--dark);color:#fff">⚙️ רשימת חלקים</button>
+    <div id="bsm-top-actions">
+      <button class="bsm-fab bsm-fab-gold" onclick="openBsmSendModal()">➕ יצירת פתק</button>
+      <button class="bsm-fab bsm-fab-dark" onclick="openBsmItemsModal()">⚙️ רשימת חלקים</button>
     </div>
     <div id="bsm-summary" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px;align-items:start">
       <div id="bsm-summary-tile"></div>
@@ -2616,6 +2626,7 @@ function listenForNewVehicles() {
 }
 
 function goHome() {
+  _bsmHideActions();   // the body-shop buttons float — they must not stay behind
   showScreen('home');
 }
 
@@ -2624,7 +2635,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 159';
+const APP_BUILD = '2026-08-05 · 160';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8325,11 +8336,11 @@ function bsmShowView(name) {
      statistics screen stands entirely on its own. */
   const show = {
     draft: { actions: 1, tile: 1, pay: 0, extra: 1 },
-    open:  { actions: 1, tile: 1, pay: 1, extra: 1 },
+    open:  { actions: 0, tile: 1, pay: 1, extra: 1 },
     done:  { actions: 0, tile: 0, pay: 1, extra: 0 },
-    arc:   { actions: 1, tile: 1, pay: 1, extra: 1 },
+    arc:   { actions: 0, tile: 1, pay: 1, extra: 1 },
     stats: { actions: 0, tile: 0, pay: 0, extra: 0 },
-  }[_bsmView] || { actions: 1, tile: 1, pay: 1, extra: 1 };
+  }[_bsmView] || { actions: 0, tile: 1, pay: 1, extra: 1 };
   const setVis = (id, on, disp) => { const el = document.getElementById(id); if (el) el.style.display = on ? (disp || '') : 'none'; };
   setVis('bsm-top-actions', show.actions, 'flex');
   setVis('bsm-summary-tile', show.tile);
@@ -8350,6 +8361,9 @@ document.addEventListener('click', e => {
   if (!m || m.style.display === 'none') return;
   if (!e.target.closest('#bsm-menu') && !e.target.closest('[aria-label="תפריט פחחות"]')) toggleBsmMenu(false);
 });
+
+// the floating pair belongs to this screen only
+function _bsmHideActions() { const el = document.getElementById('bsm-top-actions'); if (el) el.style.display = 'none'; }
 
 function openBodyShopMgrScreen() {
   // which screen opens is decided once the notes have loaded — see below
