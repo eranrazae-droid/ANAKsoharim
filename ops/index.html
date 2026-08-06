@@ -2512,7 +2512,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 102';
+const APP_BUILD = '2026-08-05 · 103';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8487,6 +8487,14 @@ let _bsUnsubStock = null, _bsUnsubInstalls = null, _bsUnsubCatalog = null, _bsUn
 let _bsDeliveries = [];   // one entry per delivery — the order history
 let _bsCatalog = [];    // [{id: sku, sku, model, price}] — a SKU is entered once
 const _bsCatFind = sku => _bsCatalog.find(c => c.sku === String(sku || '').trim());
+/* The SKU list is the single source of truth for what a battery is called and
+   what it costs. Every list shows the name from there, so renaming a SKU once
+   renames it everywhere — the cabinet, the order list and the fitting form. */
+const _bsModelOf = row => _bsCatFind(row?.sku)?.model || row?.model || '';
+const _bsPriceOf = row => {
+  const c = _bsCatFind(row?.sku);
+  return c?.price != null ? c.price : row?.price;
+};
 // A SKU is written by hand and may contain "/" or "." — both illegal in a
 // Firestore document id. The id is therefore an encoded, prefixed form of the
 // SKU, while the readable value stays in the sku field.
@@ -8542,7 +8550,7 @@ function _bsRenderDriverStock() {
       const color = q <= 2 ? '#f59e0b' : 'var(--success)';
       return `<div style="display:flex;align-items:center;gap:10px;border:2px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;background:var(--card)">
         <div style="flex:1;min-width:0">
-          <div style="font-weight:800;font-size:16px">${esc(r.model)}</div>
+          <div style="font-weight:800;font-size:16px">${esc(_bsModelOf(r))}</div>
           ${r.sku ? `<div style="font-size:12px;color:var(--muted);font-weight:700">מק״ט ${esc(r.sku)}</div>` : ''}
         </div>
         <div style="font-size:22px;font-weight:900;color:${color};min-width:34px;text-align:center">${q}</div>
@@ -8698,8 +8706,8 @@ function _bsRenderStock() {
       const color = q === 0 ? '#ef4444' : q <= 2 ? '#f59e0b' : 'var(--success)';
       return `<div style="display:flex;align-items:center;gap:10px;border:2px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;background:var(--card)">
         <div style="flex:1;min-width:0">
-          <div style="font-weight:800;font-size:15px">${esc(r.model)}</div>
-          ${r.sku ? `<div style="font-size:12px;color:var(--muted);font-weight:700">מק״ט ${esc(r.sku)}${r.price ? ` · ${Number(r.price).toLocaleString('he-IL')} ₪ (כולל מע״מ ${_fmtIls(_incVat(r.price))})` : ''}${r.invoice ? ` · חשבונית ${esc(r.invoice)}` : ''}</div>` : ''}
+          <div style="font-weight:800;font-size:15px">${esc(_bsModelOf(r))}</div>
+          ${r.sku ? `<div style="font-size:12px;color:var(--muted);font-weight:700">מק״ט ${esc(r.sku)}${_bsPriceOf(r) ? ` · ${Number(_bsPriceOf(r)).toLocaleString('he-IL')} ₪ (כולל מע״מ ${_fmtIls(_incVat(_bsPriceOf(r)))})` : ''}${r.invoice ? ` · חשבונית ${esc(r.invoice)}` : ''}</div>` : ''}
         </div>
         <div style="font-size:20px;font-weight:900;color:${color};min-width:34px;text-align:center">${q}</div>
         <button onclick="bsRemoveStock('${r.id}')" title="הורד מהארון" style="background:#ef4444;color:#fff;border:none;border-radius:8px;width:30px;height:30px;font-size:14px;cursor:pointer">🗑</button>
@@ -8855,7 +8863,7 @@ function _bsRenderStats() {
       const daysLeft = rate > 0 ? Math.round(q / rate) : null;
       const warn = q === 0 ? '#ef4444' : (daysLeft !== null && daysLeft < 14) ? '#f59e0b' : 'var(--muted)';
       return `<div style="display:flex;justify-content:space-between;gap:8px;border-top:1px solid var(--border);padding:6px 0;font-size:12px">
-        <span style="font-weight:800;min-width:0">${esc(r.model)}${r.sku ? ` · ${esc(r.sku)}` : ''}</span>
+        <span style="font-weight:800;min-width:0">${esc(_bsModelOf(r))}${r.sku ? ` · ${esc(r.sku)}` : ''}</span>
         <span style="color:${warn};font-weight:700;white-space:nowrap">${r.n} · ${Math.round(r.n / Math.max(1, installs.length) * 100)}% · בארון ${q}${daysLeft !== null ? ` · ל-${daysLeft} ימים` : ''}</span>
       </div>`;
     }).join(''))}
@@ -8884,7 +8892,7 @@ function _bsRenderHistory() {
     return `<div style="display:flex;align-items:center;gap:10px;border:2px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:8px;background:var(--card)">
       <div style="flex:1">
         <div style="font-weight:800;font-size:14px">🚗 ${esc(r.plate)}${r.car ? ` <span style="font-weight:700;color:var(--muted);font-size:12px">· ${esc(r.car)}</span>` : ''}</div>
-        <div style="font-size:12px;color:var(--muted)">${esc(r.model)}${r.note ? ' · ' + esc(r.note) : ''}</div>
+        <div style="font-size:12px;color:var(--muted)">${esc(_bsModelOf(r))}${r.note ? ' · ' + esc(r.note) : ''}</div>
       </div>
       <div style="font-size:12px;color:var(--muted);white-space:nowrap">${esc(ds)}</div>
       <button onclick="bsDeleteInstall('${r.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:8px;width:28px;height:28px;cursor:pointer" title="מחק">🗑</button>
@@ -9496,7 +9504,7 @@ window._bsRenderTypes = _bsRenderTypes;
 
 // the amperage written in the type name, used to order the list
 function _bsAmpOf(row) {
-  const m = String(row?.model || _bsCatFind(row?.sku)?.model || '').match(/\d{2,3}/);
+  const m = String(_bsModelOf(row)).match(/\d{2,3}/);
   return m ? Number(m[0]) : Infinity;   // anything without an amperage goes last
 }
 
@@ -9506,7 +9514,7 @@ function openBsIssueModal() {
   const avail = _bsStock.filter(r => (r.qty || 0) > 0)
     .sort((a, b) => _bsAmpOf(a) - _bsAmpOf(b) || String(a.model || '').localeCompare(String(b.model || ''), 'he'));
   if (!avail.length) return showToast('אין מצברים במלאי — הוסף קודם לארון');
-  sel.innerHTML = avail.map(r => `<option value="${esc(r.id)}">${r.sku ? esc(r.sku) + ' · ' : ''}${esc(r.model)} (${r.qty} במלאי)</option>`).join('');
+  sel.innerHTML = avail.map(r => `<option value="${esc(r.id)}">${r.sku ? esc(r.sku) + ' · ' : ''}${esc(_bsModelOf(r))} (${r.qty} במלאי)</option>`).join('');
   document.getElementById('bs-issue-plate').value = '';
   document.getElementById('bs-issue-note').value = '';
   document.getElementById('bs-issue-car').value = '';
