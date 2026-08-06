@@ -10,7 +10,8 @@ function closeModal(id) {
 }
 document.querySelectorAll('.modal-overlay').forEach(o => {
   o.addEventListener('click', e => {
-    if (e.target === o) o.classList.remove('open');
+    // goes through closeModal so the page scroll is released as well
+    if (e.target === o) closeModal(o.id);
   });
 });
 
