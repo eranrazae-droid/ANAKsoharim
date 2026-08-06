@@ -2543,7 +2543,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 121';
+const APP_BUILD = '2026-08-05 · 122';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -13568,8 +13568,15 @@ function _rebuildPickupCityFilter() {
   const sel = document.getElementById('pickup-filter-city');
   if (!sel) return;
   const current = sel.value;
-  const cities = [...new Set(_pickupAllCars.map(c => _pickupCity(c).trim()).filter(Boolean))].sort();
-  sel.innerHTML = '<option value="">כל הערים</option>' + cities.map(c => `<option value="${c}"${c===current?' selected':''}>${c}</option>`).join('');
+  // how many cars are waiting in each town, right there in the list
+  const counts = {};
+  for (const car of _pickupAllCars) {
+    const city = _pickupCity(car).trim();
+    if (city) counts[city] = (counts[city] || 0) + 1;
+  }
+  const cities = Object.keys(counts).sort((a, b) => counts[b] - counts[a] || a.localeCompare(b, 'he'));
+  sel.innerHTML = `<option value="">כל הערים (${_pickupAllCars.length})</option>` +
+    cities.map(c => `<option value="${c}"${c===current?' selected':''}>${c} (${counts[c]})</option>`).join('');
 }
 
 /* Distance is measured from the yard, so the nearest cars can be collected in
