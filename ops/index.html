@@ -1593,6 +1593,13 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
+<div class="modal-overlay" id="modal-bsm-partavg">
+  <div class="modal-box">
+    <div class="modal-title"><span>📐 מחיר ממוצע לכל חלק</span> <button class="modal-close" onclick="closeModal('modal-bsm-partavg')">✕</button></div>
+    <div id="bsm-partavg-body"></div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-bsm-arc">
   <div class="modal-box">
     <div class="modal-title"><span id="bsm-arc-title">📁</span> <button class="modal-close" onclick="closeModal('modal-bsm-arc')">✕</button></div>
@@ -2617,7 +2624,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 158';
+const APP_BUILD = '2026-08-05 · 159';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8227,6 +8234,7 @@ function _bsmRenderStats() {
   const parts = Object.entries(partStat)
     .map(([name, p]) => ({ name, n: p.n, avg: p.sum / p.n }))
     .sort((a, b) => b.avg - a.avg);
+  _bsmPartAvg = parts;
 
   // ── time: only notes that carry both dates ──
   const spans = _bshopJobs.map(_bshopDays).filter(d => d != null);
@@ -8278,28 +8286,30 @@ function _bsmRenderStats() {
       ${months.map(m => `<div style="flex:1;min-width:26px;text-align:center;font-size:10px;color:var(--muted);font-weight:700">${m.label}</div>`).join('')}
     </div>
 
-    <button onclick="bsmTogglePartAvg()" class="btn-submit" id="bsm-partavg-btn" style="margin-top:0;background:var(--dark);color:#fff">📐 ממוצע לכל חלק</button>
-    <div id="bsm-partavg" style="display:none;margin-top:12px">
-      ${parts.length ? parts.map(p => `<div style="display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--border);padding:8px 0">
-          <div style="font-weight:700;font-size:14px">${esc(p.name)} <span style="color:var(--muted);font-weight:600;font-size:12px">· ${p.n} פעמים</span></div>
-          <div style="font-weight:900;white-space:nowrap">${ils(p.avg)}</div>
-        </div>`).join('')
-        : `<div style="padding:16px;text-align:center;color:var(--muted)">אין עדיין מספיק נתונים</div>`}
-      <div style="font-size:11px;color:var(--muted);margin-top:10px">מחושב מכל הפתקים שנשמרו — פתוחים וגם ששולמו. חלק ריק או שנרשם בו 0 (עבודה שלא נעשתה בסוף) לא נספר בממוצע.</div>
-    </div>
+    <button onclick="bsmOpenPartAvg()" class="btn-submit" style="margin-top:0;background:var(--dark);color:#fff">📐 ממוצע לכל חלק</button>
     </div>
    </div>`;
 }
 
-function bsmTogglePartAvg() {
-  const box = document.getElementById('bsm-partavg');
-  const btn = document.getElementById('bsm-partavg-btn');
-  if (!box) return;
-  const show = box.style.display === 'none';
-  box.style.display = show ? 'block' : 'none';
-  if (btn) btn.textContent = show ? '📐 סגור את הממוצעים' : '📐 ממוצע לכל חלק';
+let _bsmPartAvg = [];   // [{name, n, avg}] — filled while the statistics are drawn
+
+function bsmOpenPartAvg() {
+  const c = document.getElementById('bsm-partavg-body');
+  if (!c) return;
+  const ils = n => Math.round(n).toLocaleString('he-IL') + ' ₪';
+  c.innerHTML = (_bsmPartAvg.length
+    ? _bsmPartAvg.map(p => `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;border-bottom:1px solid var(--border);padding:11px 0">
+        <div style="min-width:0">
+          <div style="font-weight:800;font-size:15px">${esc(p.name)}</div>
+          <div style="font-size:12px;color:var(--muted);font-weight:600">${p.n} פעמים</div>
+        </div>
+        <div style="font-weight:900;font-size:17px;white-space:nowrap;color:var(--gold)">${ils(p.avg)}</div>
+      </div>`).join('')
+    : `<div style="padding:20px;text-align:center;color:var(--muted)">אין עדיין מספיק נתונים</div>`)
+    + `<div style="font-size:11px;color:var(--muted);margin-top:12px">מחושב מכל הפתקים שנשמרו — פתוחים וגם ששולמו. חלק ריק או שנרשם בו 0 (עבודה שלא נעשתה בסוף) לא נספר בממוצע.</div>`;
+  openModal('modal-bsm-partavg');
 }
-window.bsmTogglePartAvg = bsmTogglePartAvg;
+window.bsmOpenPartAvg = bsmOpenPartAvg;
 
 function bsmShowView(name) {
   _bsmView = _BSM_VIEWS[name] ? name : 'open';
