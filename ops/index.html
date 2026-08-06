@@ -2582,7 +2582,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 131';
+const APP_BUILD = '2026-08-05 · 132';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -7888,14 +7888,17 @@ function bshopOpenFill(id) {
     </div>`;
   // the index stays the one from j.items, so grouping does not disturb saving
   const rows = (j.items || []).map((it, i) => ({ it, i }));
-  document.getElementById('bshop-fill-items').innerHTML =
-    _bshopByGroup(rows.map(r => r.it.name)).map(([g, list]) =>
-      _bshopGroupTitle(g, _BSHOP_GROUP_CAR) + list.map(n => {
-        const r = rows.find(x => x.it.name === n && !x.used);
-        if (r) r.used = true;
-        return r ? _row(r.it, r.i) : '';
-      }).join('')
-    ).join('');
+  // the panel beater gets a plain list of parts; the categories are the
+  // manager's way of organising them and only clutter his screen
+  document.getElementById('bshop-fill-items').innerHTML = _bshopFillMgr
+    ? _bshopByGroup(rows.map(r => r.it.name)).map(([g, list]) =>
+        _bshopGroupTitle(g, _BSHOP_GROUP_CAR) + list.map(n => {
+          const r = rows.find(x => x.it.name === n && !x.used);
+          if (r) r.used = true;
+          return r ? _row(r.it, r.i) : '';
+        }).join('')
+      ).join('')
+    : rows.map(r => _row(r.it, r.i)).join('');
   _bshopRecalc();
   openModal('modal-bshop-fill');
 }
@@ -7947,10 +7950,12 @@ function openBshopAddPart() {
 
   const btn = n => `<button type="button" onclick="bshopAddPart(this.dataset.n)" data-n="${esc(n)}"
     style="background:var(--bg);color:var(--text);border:2px solid var(--border);border-radius:12px;padding:12px 16px;font-family:'Heebo',sans-serif;font-size:16px;font-weight:800;cursor:pointer">${esc(n)}</button>`;
-  c.innerHTML = left.length
-    ? _bshopByGroup(left).map(([g, list]) =>
-        _bshopGroupTitle(g, _BSHOP_GROUP_CAR) + `<div style="display:flex;flex-wrap:wrap;gap:8px">${list.map(btn).join('')}</div>`).join('')
-    : `<div style="padding:16px;text-align:center;color:var(--muted)">כל החלקים כבר ברשימה</div>`;
+  c.innerHTML = !left.length
+    ? `<div style="padding:16px;text-align:center;color:var(--muted)">כל החלקים כבר ברשימה</div>`
+    : _bshopFillMgr
+      ? _bshopByGroup(left).map(([g, list]) =>
+          _bshopGroupTitle(g, _BSHOP_GROUP_CAR) + `<div style="display:flex;flex-wrap:wrap;gap:8px">${list.map(btn).join('')}</div>`).join('')
+      : `<div style="display:flex;flex-wrap:wrap;gap:8px">${left.map(btn).join('')}</div>`;
   const other = document.getElementById('bshop-add-other');
   if (other) other.value = '';
   openModal('modal-bshop-add');
