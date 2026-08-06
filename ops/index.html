@@ -9,6 +9,7 @@
 <meta name="theme-color" content="#1a1a2e">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<base href="/ops/">
 <title>ענק הרכבים — תפעול v5</title>
 <link rel="manifest" href="manifest.json">
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
@@ -2387,12 +2388,14 @@ window.addEventListener('firebase-ready', async () => {
   // The panel beater gets his own link and never sees the login screen — he
   // opens it and lands straight on his jobs. Nothing else is reachable from
   // there: no menu, no back button, no other screen.
-  if (/[?&]pahach\b/.test(location.search)) {
+  // his own address (/ops/pahach/) is a separate app as far as the phone is
+  // concerned, so its home-screen shortcut opens his screen and not ours
+  if (/[?&]pahach\b/.test(location.search) || /\/pahach\/?$/.test(location.pathname)) {
     // added to the home screen, his shortcut carries his own picture and name
     const mf = document.querySelector('link[rel="manifest"]');
-    if (mf) mf.href = 'manifest-pahach.json';
+    if (mf) mf.href = '/ops/manifest-pahach.json';
     const ic = document.createElement('link');
-    ic.rel = 'apple-touch-icon'; ic.href = 'icon-pahach-180.png';
+    ic.rel = 'apple-touch-icon'; ic.href = '/ops/icon-pahach-180.png';
     document.head.appendChild(ic);
     document.title = 'ענק הרכבים פחחות';
     currentUser = { role: 'bodyshop', name: 'פחח' };
@@ -2587,7 +2590,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 138';
+const APP_BUILD = '2026-08-05 · 139';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8134,7 +8137,7 @@ function openBodyShopMgrScreen() {
   _bsmAutoView = true;
   bsmShowView('draft');
   document.getElementById('bsm-user-badge').textContent = currentUser.name;
-  document.getElementById('bsm-link').value = location.origin + location.pathname + '?pahach';
+  document.getElementById('bsm-link').value = location.origin + '/ops/pahach/';
   showScreen('bodyshop-mgr');
   _bshopListen(_bshopRenderMgr);
 }
