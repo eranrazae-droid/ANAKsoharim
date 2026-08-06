@@ -11,7 +11,17 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <base href="/ops/">
 <title>ענק הרכבים — תפעול v5</title>
-<link rel="manifest" href="manifest.json">
+<script>
+  /* The phone reads the manifest while the page is parsed, so the panel
+     beater's address must declare its own before anything else runs —
+     swapping it later was too late and his shortcut kept opening ours. */
+  (function () {
+    var pahach = /\/pahach\/?$/.test(location.pathname) || /[?&]pahach\b/.test(location.search);
+    document.write('<link rel="manifest" href="' + (pahach ? '/ops/manifest-pahach.json' : '/ops/manifest.json') + '">');
+    document.write('<link rel="apple-touch-icon" href="' + (pahach ? '/ops/icon-pahach-180.png' : '/ops/icon-192.png') + '">');
+    if (pahach) document.title = 'ענק הרכבים פחחות';
+  })();
+</script>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -2391,13 +2401,6 @@ window.addEventListener('firebase-ready', async () => {
   // his own address (/ops/pahach/) is a separate app as far as the phone is
   // concerned, so its home-screen shortcut opens his screen and not ours
   if (/[?&]pahach\b/.test(location.search) || /\/pahach\/?$/.test(location.pathname)) {
-    // added to the home screen, his shortcut carries his own picture and name
-    const mf = document.querySelector('link[rel="manifest"]');
-    if (mf) mf.href = '/ops/manifest-pahach.json';
-    const ic = document.createElement('link');
-    ic.rel = 'apple-touch-icon'; ic.href = '/ops/icon-pahach-180.png';
-    document.head.appendChild(ic);
-    document.title = 'ענק הרכבים פחחות';
     currentUser = { role: 'bodyshop', name: 'פחח' };
     openBodyShopScreen();
     return;
@@ -2590,7 +2593,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 139';
+const APP_BUILD = '2026-08-05 · 140';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
