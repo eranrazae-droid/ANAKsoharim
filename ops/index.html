@@ -2512,7 +2512,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 101';
+const APP_BUILD = '2026-08-05 · 102';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -2635,16 +2635,13 @@ function renderHome() {
 
   const grid = document.getElementById('menu-grid');
   if (!isManager && currentUser.name === 'גיל') {
-    const topScreens = ['tasks'];
-    const topItems = menuItems.filter(m => topScreens.includes(m.screen));
-    const botItems = menuItems.filter(m => !topScreens.includes(m.screen));
+    // all the cubes in one row, and the picture underneath them
     grid.style.display = 'flex';
     grid.style.flexDirection = 'column';
     grid.style.gap = '14px';
     grid.innerHTML =
-      `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px">${topItems.map(_cardHtml).join('')}</div>` +
-      `<img src="${_GIL_BG}" style="width:100%;border-radius:18px;object-fit:cover;max-height:220px;display:block">` +
-      `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px">${botItems.map(_cardHtml).join('')}</div>`;
+      `<div style="display:grid;grid-template-columns:repeat(${menuItems.length},1fr);gap:14px">${menuItems.map(_cardHtml).join('')}</div>` +
+      `<img src="${_GIL_BG}" style="width:100%;border-radius:18px;object-fit:cover;max-height:220px;display:block">`;
   } else {
     grid.style.display = '';
     grid.style.flexDirection = '';
