@@ -2593,7 +2593,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 144';
+const APP_BUILD = '2026-08-05 · 145';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8090,6 +8090,31 @@ function _bshopAutoSave(now) {
 }
 window._bshopAutoSave = _bshopAutoSave;
 
+// the whole note in one message: the car, what was painted, and the money
+async function _bshopReportDone(j) {
+  try {
+    const ils = n => Math.round(n).toLocaleString('he-IL') + ' ₪';
+    const sum = (j.items || []).reduce((t, it) => t + (Number(it.price) || 0), 0);
+    const vat = sum * _VAT_RATE;
+    const lines = (j.items || []).map(it =>
+      `• ${it.name}${it.addedByShop ? ' (הוסיף איברהים)' : ''} — ${it.price == null || it.price === '' ? 'לא תומחר' : ils(Number(it.price))}`);
+    const msg = [
+      '🔨 סיום עבודת פחחות',
+      `🚗 ${j.plate || ''}${j.desc ? ' · ' + j.desc : ''}`,
+      j.note ? `📝 ${j.note}` : '',
+      j.sentAt ? `📅 נשלח: ${new Date(j.sentAt).toLocaleDateString('he-IL')}` : '',
+      `✅ הסתיים: ${new Date().toLocaleDateString('he-IL')} ${new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}`,
+      '',
+      ...lines,
+      '',
+      `סכום לתשלום: ${ils(sum)}`,
+      `מע״מ ${Math.round(_VAT_RATE * 100)}%: ${ils(vat)}`,
+      `סה״כ כולל מע״מ: ${ils(sum + vat)}`,
+    ].filter(Boolean).join('\n');
+    await _notifyDriver('ליאל', msg);
+  } catch (e) { console.error('bodyshop telegram report', e); }
+}
+
 async function bshopSave(markDone, silent) {
   const j = _bshopJobs.find(x => x.id === _bshopFillId);
   if (!j) return;
@@ -8101,8 +8126,12 @@ async function bshopSave(markDone, silent) {
   });
   const payload = { items, updatedAt: _serverTs() };
   if (markDone) { payload.status = 'returned'; payload.returnedAt = new Date().toISOString(); }
+  const wasDone = j.status === 'returned';
   try {
     await _updateDoc(_docRef('bodyshop_jobs', _bshopFillId), payload);
+    // a finished car is reported to Telegram, so the note also lives outside
+    // the app and nothing is lost if a phone is
+    if (markDone && !wasDone) _bshopReportDone({ ...j, items });
     if (silent) { _bshopSetSaved('✓ נשמר'); return; }
     closeModal('modal-bshop-fill');
     showToast(markDone ? '✅ הרכב סומן כמוכן' : '💾 נשמר');
