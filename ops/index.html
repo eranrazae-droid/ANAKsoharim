@@ -2612,7 +2612,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 155';
+const APP_BUILD = '2026-08-05 · 156';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8242,17 +8242,20 @@ function _bsmRenderStats() {
       ${tile('ממוצע לרכב', ils(avgPerCar), `${paidCars} רכבים ששולמו`)}
       ${tile('ממוצע ימים אצל הפחח', avgDays == null ? '—' : Math.round(avgDays), 'מהמחזור הפתוח')}
       ${tile('חלקים שאיברהים הוסיף', addedN, ils(addedSum))}
+      ${(() => {
+        // stated the way it is actually thought about: one extra part per N cars
+        if (!carsCounted) return '';
+        const txt = !addedN
+          ? `איברהים עדיין לא הוסיף חלקים על דעת עצמו`
+          : (carsCounted / addedN >= 1
+              ? `בממוצע איברהים מוסיף 1 חלק לכל ${(carsCounted / addedN).toFixed(1).replace(/\.0$/, '')} מכוניות`
+              : `בממוצע איברהים מוסיף ${(addedN / carsCounted).toFixed(1).replace(/\.0$/, '')} חלקים לכל מכונית`);
+        return `<div class="bsm-stat-tile" style="grid-column:1/-1;border:2px solid var(--gold);border-radius:14px;padding:12px;background:#fef3c7">
+          <div class="t-val" style="font-size:17px;font-weight:900;color:#78350f">➕ ${txt}</div>
+          <div class="t-sub" style="font-size:11px;color:#92400e;margin-top:2px">מתוך ${carsCounted} מכוניות</div>
+        </div>`;
+      })()}
     </div>
-    ${(() => {
-      // stated the way it is actually thought about: one extra part per N cars
-      if (!carsCounted) return '';
-      if (!addedN) return `<div style="background:var(--surface2);border-radius:12px;padding:12px 14px;margin-bottom:18px;font-size:15px;font-weight:800">איברהים עדיין לא הוסיף חלקים על דעת עצמו (${carsCounted} מכוניות)</div>`;
-      const ratio = carsCounted / addedN;
-      const txt = ratio >= 1
-        ? `בממוצע איברהים מוסיף 1 חלק לכל ${ratio.toFixed(1).replace(/\.0$/, '')} מכוניות`
-        : `בממוצע איברהים מוסיף ${(addedN / carsCounted).toFixed(1).replace(/\.0$/, '')} חלקים לכל מכונית`;
-      return `<div style="background:#fef3c7;border-right:6px solid var(--gold);border-radius:12px;padding:12px 14px;margin-bottom:18px;font-size:16px;font-weight:900">➕ ${txt}</div>`;
-    })()}
 
     </div>
     <div>
