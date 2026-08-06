@@ -1834,6 +1834,7 @@ if ('serviceWorker' in navigator) {
   </div>
   <div id="pickup-dup-banner" style="display:none;margin:12px 16px 0;background:#fef9c3;border:2px solid #ca8a04;border-radius:12px;padding:12px 14px;font-size:13px;font-weight:700;color:#854d0e"></div>
   <div style="padding:12px 16px 0;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <input type="text" id="pickup-search-plate" placeholder="🔎 חפש מספר רכב" inputmode="numeric" oninput="renderPickupCars()" style="flex:1;min-width:140px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700">
     <select id="pickup-filter-city" onchange="renderPickupCars()" style="flex:1;min-width:120px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700">
       <option value="">כל הערים</option>
     </select>
@@ -2522,7 +2523,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 112';
+const APP_BUILD = '2026-08-05 · 113';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -13538,6 +13539,9 @@ function renderPickupCars() {
   const cityFilter = document.getElementById('pickup-filter-city')?.value || '';
   let cars = [..._pickupAllCars];
   if (cityFilter) cars = cars.filter(c => _pickupCity(c).trim() === cityFilter);
+  // searching by plate ignores dashes and spaces, and a part of the number works
+  const term = (document.getElementById('pickup-search-plate')?.value || '').replace(/\D/g, '');
+  if (term) cars = cars.filter(c => String(c.plate || '').replace(/\D/g, '').includes(term));
   // sort
   if (_pickupSortMode === 0) {
     cars.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
@@ -13551,7 +13555,7 @@ function renderPickupCars() {
   _computeTaskClosest();
   _pickupShownIds = cars.map(c => c.id);
   if (!cars.length) {
-    list.innerHTML = '<div style="text-align:center;padding:60px 20px;color:var(--muted);font-size:15px">אין רכבים לאיסוף</div>';
+    list.innerHTML = `<div style="text-align:center;padding:60px 20px;color:var(--muted);font-size:15px">${term ? 'לא נמצא רכב במספר הזה' : 'אין רכבים לאיסוף'}</div>`;
     _syncSelectAllLabel();
     return;
   }
