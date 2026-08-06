@@ -40,7 +40,7 @@ function metaContentId(car){
   if(m) return m;
   return stableId(((car.brand||'')+'|'+((car&&car.model)||'').trim()));
 }
-const HIDDEN_IDS = [11,13];
+const HIDDEN_IDS = [11];
 
 function fetchJson(url, headers){
   return new Promise((resolve,reject)=>{

@@ -4,7 +4,7 @@ const https = require('https');
 const SB_URL = 'https://vwfmfjjdusirabgbkhvw.supabase.co';
 const SB_KEY = 'sb_publishable_E6Dd48mtyJyw5_6vgP2lzw_Gaj-QcAx';
 const SITE = 'https://autodealer.co.il';
-const HIDDEN_IDS = [11,13];
+const HIDDEN_IDS = [11];
 
 function fetchJson(url, headers){ return new Promise((resolve,reject)=>{ https.get(url,{headers},(res)=>{ let d=''; res.on('data',c=>d+=c); res.on('end',()=>{ try{ resolve(JSON.parse(d)); }catch(e){ reject(e); } }); }).on('error',reject); }); }
 function xmlEsc(v){ return (v==null?'':String(v)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;'); }

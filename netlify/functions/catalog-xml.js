@@ -6,7 +6,7 @@ const https = require('https');
 const SB_URL = 'https://vwfmfjjdusirabgbkhvw.supabase.co';
 const SB_KEY = 'sb_publishable_E6Dd48mtyJyw5_6vgP2lzw_Gaj-QcAx';
 const SITE = 'https://autodealer.co.il';
-const HIDDEN_IDS = [11,13];
+const HIDDEN_IDS = [11];
 
 // מיפוי 38 מזהי הקטלוג הקיימים ב-Meta (מתוך meta_catalog_existing_ids.csv). מפתח = דגם הרכב במלאי.
 const META_ID_BY_MODEL_RAW = {
