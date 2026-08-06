@@ -2492,7 +2492,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 98';
+const APP_BUILD = '2026-08-05 · 99';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -9311,6 +9311,14 @@ function bsEditCatalog(sku) {
   document.getElementById('bsc-model').value = x.model || '';
   document.getElementById('bsc-price').value = x.price != null ? x.price : '';
   _bsVatHint('bsc-price', 'bsc-price-vat');
+  // the form sits above a long list — without this the click looks like it did
+  // nothing at all
+  const sku = document.getElementById('bsc-sku');
+  sku.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  document.getElementById('bsc-model').focus();
+  sku.style.borderColor = 'var(--gold)';
+  setTimeout(() => { sku.style.borderColor = ''; }, 1500);
+  showToast(`✏️ עורך את ${x.sku} — שנה ולחץ שמור`);
 }
 window.bsEditCatalog = bsEditCatalog;
 
