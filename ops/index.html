@@ -1533,6 +1533,21 @@ if ('serviceWorker' in navigator) {
 </div>
 
 <!-- ====== SCREEN: BATTERY STOCK (MANAGER) ====== -->
+<div id="screen-driver-battery-stock" class="screen">
+  <div class="app-header">
+    <button class="back-btn" onclick="goHome()">→</button>
+    <div class="logo">🔋 מצברים</div>
+    <div class="user-badge" id="dbs-user-badge" onclick="logout()"></div>
+  </div>
+  <div style="padding:16px 16px 110px">
+    <div class="section-title" style="margin-top:0">מה יש בארון</div>
+    <div id="dbs-stock"></div>
+  </div>
+  <div style="position:fixed;bottom:0;right:0;left:0;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:var(--card);border-top:2px solid var(--border);z-index:120">
+    <button class="btn-submit" onclick="openBsIssueModal()" style="margin:0;background:#0ea5e9;color:#fff">🚗 הרכבתי מצבר לרכב</button>
+  </div>
+</div>
+
 <div id="screen-battery-stock" class="screen">
   <div class="app-header">
     <button class="back-btn" onclick="goHome()">→</button>
@@ -2497,7 +2512,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 100';
+const APP_BUILD = '2026-08-05 · 101';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -3024,6 +3039,7 @@ function goToScreen(name) {
   else if (name === 'recall') openRecallScreen();
   else if (name === 'parts-catalog') { if (currentUser.role !== 'manager') return; openPartsCatalogScreen(); }
   else if (name === 'battery-stock') { if (currentUser.role !== 'manager') return; openBatteryStockScreen(); }
+  else if (name === 'driver-battery-stock') openDriverBatteryStockScreen();
   else if (name === 'bodyshop-mgr') { if (currentUser.role !== 'manager') return; openBodyShopMgrScreen(); }
   else if (name === 'driver-battery-unified') {
     const card = document.getElementById('menu-card-driver-battery');
@@ -8498,17 +8514,44 @@ const _bsSkuId = sku => 's_' + encodeURIComponent(String(sku || '').trim()).repl
 // listeners live in one place. Opening the statistics screen directly — which is
 // what happens after a refresh — must start them too, otherwise the screen has
 // nothing to show and looks empty.
-let _bsOpenIssueWhenReady = false;
-
 // the driver's entry point: no cabinet screen, only the form for recording a
 // battery that went into a car
+// the driver sees the shelf as it is, and fits a battery from the button below
 function openDriverBatteryInstall() {
-  if (_bsStock.length) { _bsListen(); return openBsIssueModal(); }
-  _bsOpenIssueWhenReady = true;
-  showToast('רגע, טוען את הארון…');
+  const badge = document.getElementById('dbs-user-badge');
+  if (badge) badge.textContent = currentUser?.name || '';
+  showScreen('driver-battery-stock');
   _bsListen();
+  _bsRenderDriverStock();
 }
 window.openDriverBatteryInstall = openDriverBatteryInstall;
+const openDriverBatteryStockScreen = openDriverBatteryInstall;
+window.openDriverBatteryStockScreen = openDriverBatteryStockScreen;
+
+// the same shelf as the manager's, without prices, invoices or buttons
+function _bsRenderDriverStock() {
+  const c = document.getElementById('dbs-stock');
+  if (!c) return;
+  const rows = _bsStock.filter(r => (r.qty || 0) > 0)
+    .sort((a, b) => _bsAmpOf(a) - _bsAmpOf(b) || String(a.model || '').localeCompare(String(b.model || ''), 'he'));
+  if (!rows.length) {
+    c.innerHTML = `<div style="padding:30px 20px;text-align:center;color:var(--muted)">הארון ריק כרגע</div>`;
+    return;
+  }
+  const total = rows.reduce((s, r) => s + (r.qty || 0), 0);
+  c.innerHTML = `<div style="font-size:13px;font-weight:800;color:var(--muted);margin-bottom:8px">סה״כ בארון: ${total}</div>` +
+    rows.map(r => {
+      const q = r.qty || 0;
+      const color = q <= 2 ? '#f59e0b' : 'var(--success)';
+      return `<div style="display:flex;align-items:center;gap:10px;border:2px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;background:var(--card)">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:800;font-size:16px">${esc(r.model)}</div>
+          ${r.sku ? `<div style="font-size:12px;color:var(--muted);font-weight:700">מק״ט ${esc(r.sku)}</div>` : ''}
+        </div>
+        <div style="font-size:22px;font-weight:900;color:${color};min-width:34px;text-align:center">${q}</div>
+      </div>`;
+    }).join('');
+}
 
 function _bsListen() {
   if (_bsUnsubStock) _bsUnsubStock();
@@ -8518,7 +8561,6 @@ function _bsListen() {
     _bsRenderAll();
     // a driver who tapped the battery cube waits here until the cabinet is
     // loaded, otherwise the form would open and claim the cabinet is empty
-    if (_bsOpenIssueWhenReady) { _bsOpenIssueWhenReady = false; openBsIssueModal(); }
   });
   _bsUnsubInstalls = _onSnap(_colRef('battery_installs'), snap => {
     _bsInstalls = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -8548,7 +8590,7 @@ function openBatteryStockScreen() {
 }
 window.openBatteryStockScreen = openBatteryStockScreen;
 
-function _bsRenderAll() { _bsRenderStock(); _bsRenderOrders(); _bsRenderStats(); _bsRenderHistory(); }
+function _bsRenderAll() { _bsRenderStock(); _bsRenderDriverStock(); _bsRenderOrders(); _bsRenderStats(); _bsRenderHistory(); }
 
 /* Order list: every battery that leaves the cabinet lands here by itself, so
    what went out is exactly what needs buying back. Pressing "הזמנתי" clears the
