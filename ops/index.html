@@ -2524,7 +2524,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 114';
+const APP_BUILD = '2026-08-05 · 115';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -13565,7 +13565,8 @@ function renderPickupCars() {
   if (cityFilter) cars = cars.filter(c => _pickupCity(c).trim() === cityFilter);
   // searching by plate ignores dashes and spaces, and a part of the number works
   const term = (document.getElementById('pickup-search-plate')?.value || '').replace(/\D/g, '');
-  if (term) cars = cars.filter(c => String(c.plate || '').replace(/\D/g, '').includes(term));
+  // matches from the start of the number, so "42" is the cars that begin with 42
+  if (term) cars = cars.filter(c => String(c.plate || '').replace(/\D/g, '').startsWith(term));
   // sort
   if (_pickupSortMode === 0) {
     cars.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
