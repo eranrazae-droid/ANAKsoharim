@@ -316,11 +316,21 @@ body.modal-open{overflow:hidden}
 /* Body shop: a phone gets one card per row, a computer two or three, and the
    page stops stretching so the cards never turn into wide empty strips. */
 .bshop-wrap{max-width:1180px;margin:0 auto}
-.bshop-grid{display:grid;grid-template-columns:1fr;gap:10px}
+/* The panel beater works on a phone only: two cards to a row there, and the
+   cards are short enough that three rows fit on one screen. */
+.bshop-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .bshop-grid>*{margin-bottom:0 !important}
 .bshop-grid .bshop-span{grid-column:1/-1}
-@media(min-width:700px){.bshop-grid{grid-template-columns:1fr 1fr}}
-@media(min-width:1080px){.bshop-grid{grid-template-columns:repeat(3,1fr)}}
+@media(min-width:700px){.bshop-grid{grid-template-columns:repeat(3,1fr)}}
+@media(min-width:1080px){.bshop-grid{grid-template-columns:repeat(4,1fr)}}
+/* compact card — the panel beater's screen only */
+.bshop-card-sm{padding:10px !important}
+.bshop-card-sm .bs-plate{font-size:15px !important}
+.bshop-card-sm .bs-desc{font-size:11px !important}
+.bshop-card-sm .bs-meta{font-size:11px !important;margin-top:4px !important}
+.bshop-card-sm .bs-total{font-size:15px !important}
+.bshop-card-sm img{max-height:84px !important;margin-top:6px !important}
+.bshop-card-sm .bs-note{font-size:11px !important;margin-top:4px !important}
 
 /* The manager's side actions: six buttons under the calendar, two to a row,
    each half the calendar's width. Colours live here and not inline, so a red
@@ -2555,7 +2565,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 127';
+const APP_BUILD = '2026-08-05 · 128';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -7749,23 +7759,23 @@ function _bshopJobCard(j, forWorker) {
   const total = _bshopTotal(j);
   const filled = (j.items || []).filter(it => Number(it.price) > 0).length;
   const desc = [j.desc].filter(Boolean).join(' ');
-  return `<div onclick="${forWorker ? `bshopOpenFill('${j.id}')` : `bsmOpenJob('${j.id}')`}"
+  return `<div class="${forWorker ? 'bshop-card-sm' : ''}" onclick="${forWorker ? `bshopOpenFill('${j.id}')` : `bsmOpenJob('${j.id}')`}"
       style="border:2px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px;background:var(--card);cursor:pointer">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
       <div style="flex:1;min-width:0">
-        <div style="font-weight:900;font-size:17px">${_brandIcon(j.maker)} ${esc(j.plate)}</div>
-        ${desc ? `<div style="font-size:13px;color:var(--muted)">${esc(desc)}</div>` : ''}
+        <div class="bs-plate" style="font-weight:900;font-size:17px">${_brandIcon(j.maker)} ${esc(j.plate)}</div>
+        ${desc ? `<div class="bs-desc" style="font-size:13px;color:var(--muted)">${esc(desc)}</div>` : ''}
       </div>
       ${total > 0 ? `<div style="text-align:left;white-space:nowrap">
-        <div style="font-size:18px;font-weight:900;color:var(--gold)">${total.toLocaleString('he-IL')} ₪</div>
+        <div class="bs-total" style="font-size:18px;font-weight:900;color:var(--gold)">${total.toLocaleString('he-IL')} ₪</div>
         <div style="font-size:11px;font-weight:700;color:var(--muted)">לפני מע״מ</div>
       </div>` : ''}
     </div>
-    <div style="margin-top:8px;font-size:13px;color:var(--muted);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <div class="bs-meta" style="margin-top:8px;font-size:13px;color:var(--muted);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       <span>${(j.items || []).length} חלקים${filled ? ` · מולאו ${filled}` : ''}</span>
       ${_bshopDaysHtml(j)}
     </div>
-    ${j.note ? `<div style="margin-top:6px;font-size:13px">📝 ${esc(j.note)}</div>` : ''}
+    ${j.note ? `<div class="bs-note" style="margin-top:6px;font-size:13px">📝 ${esc(j.note)}</div>` : ''}
     ${(j.photoThumb || j.photo) ? `<img id="bshop-card-img-${j.id}" src="${j.photo || j.photoThumb}" alt="" loading="lazy" style="margin-top:8px;width:100%;max-height:150px;object-fit:cover;border-radius:10px;display:block">` : ''}
     ${!forWorker && j.status === 'at_shop' ? `<button onclick="event.stopPropagation();bsmMarkReturned('${j.id}')"
       style="margin-top:10px;width:100%;background:var(--dark);color:#fff;border:none;border-radius:10px;padding:10px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:900;cursor:pointer">✅ סיימנו עם הרכב</button>` : ''}
