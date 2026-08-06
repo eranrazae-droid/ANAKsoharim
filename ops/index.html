@@ -1940,6 +1940,10 @@ if ('serviceWorker' in navigator) {
       <input type="text" id="pickup-address" placeholder="רחוב ומספר..." style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:14px;box-sizing:border-box">
     </div>
     <div class="form-group">
+      <label>הערה לאיסוף</label>
+      <input type="text" id="pickup-note" placeholder="הערה שתוצג לאוסף..." style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:14px;box-sizing:border-box">
+    </div>
+    <div class="form-group">
       <label>אישור העברת בעלות</label>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <button type="button" onclick="document.getElementById('pickup-doc-file').click()" style="background:#6366f1;color:#fff;border:none;border-radius:10px;padding:9px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">📎 צרף קובץ / תמונה</button>
@@ -2518,7 +2522,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 108';
+const APP_BUILD = '2026-08-05 · 109';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -13642,6 +13646,7 @@ function _pickupCardHtml(c) {
           ${c.test ? `<span style="font-size:13px;font-weight:800;color:${_testExpired(c.test)?'#dc2626':'var(--dark)'}">🔧 טסט: ${e(c.test)}${_testExpired(c.test)?' — פג תוקף':''}</span>` : ''}
           ${c.doc ? `<span style="background:#38bdf8;color:#fff;border-radius:999px;padding:3px 11px;font-size:12px;font-weight:800;white-space:nowrap">✓ אישור העברת בעלות</span>` : ''}
         </div>` : ''}
+        ${c.note ? `<div style="margin-top:6px;background:#fef08a;color:#000;border-right:5px solid #eab308;border-radius:8px;padding:7px 10px;font-size:13px;font-weight:800">📝 ${e(c.note)}</div>` : ''}
         ${_pickupRegionTasksHtml(c, e)}
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">
@@ -13671,6 +13676,7 @@ function _pickupFillForm(c) {
   document.getElementById('pickup-contact').value = c.contact || '';
   document.getElementById('pickup-city').value = c.city || '';
   document.getElementById('pickup-address').value = c.address || '';
+  document.getElementById('pickup-note').value = c.note || '';
   document.getElementById('pickup-lookup-status').textContent = '';
   document.getElementById('pickup-doc-file').value = '';
   document.getElementById('pickup-doc-name').textContent = c.docName || '';
@@ -13784,6 +13790,7 @@ async function submitPickupCar() {
     contact: document.getElementById('pickup-contact').value.trim(),
     city: document.getElementById('pickup-city').value.trim(),
     address: document.getElementById('pickup-address').value.trim(),
+    note: document.getElementById('pickup-note').value.trim(),
     ...(_pickupDocData
       ? { doc: _pickupDocData, docMime: _pickupDocMime, docName }
       : { doc: null, docMime: null, docName: null }),
@@ -14553,8 +14560,15 @@ function _splitPickupBlocks(raw) {
 // Parse a block of lines into a car object
 // Structured format (line-by-line):
 //   plate / model / year / km / city / [extra lines = address + contact]
+/* Cars standing at the Techno external garages always come from the same place
+   and the same person, whatever the list says. The address on the list is the
+   old one, so it is replaced and the change is written on the car as a note the
+   collector reads before he sets off. */
+const _TECHNO_RE = /טכנו/;
+const _TECHNO = { contact: 'שרית 0525816341', city: 'טירת הכרמל', address: 'עוצמה 11' };
+
 function _parsePickupBlock(lines) {
-  const car = { plate:'', type:'', year:'', color:'', km:'', contact:'', city:'', address:'' };
+  const car = { plate:'', type:'', year:'', color:'', km:'', contact:'', city:'', address:'', note:'' };
   const extra = [];
   let step = 0; // 0=plate 1=model 2=year 3=km 4=city 5+=extra
 
@@ -14592,6 +14606,17 @@ function _parsePickupBlock(lines) {
     const yearM = joined.match(/\b(19[89]\d|20[0-3]\d)\b/); if (yearM) car.year = yearM[1];
     const kmM = joined.match(/\b([\d,]{3,})\b/); if (kmM && !car.km) car.km = _fmtKm(kmM[1]);
     const ph = _extractPhone(joined); if (ph) car.contact = ph;
+  }
+
+  if (lines.some(l => _TECHNO_RE.test(l))) {
+    const wasAddr = [car.address, car.city].filter(Boolean).join(', ');
+    const nowAddr = `${_TECHNO.address}, ${_TECHNO.city}`;
+    car.contact = _TECHNO.contact;
+    car.city = _TECHNO.city;
+    car.address = _TECHNO.address;
+    car.note = wasAddr && wasAddr !== nowAddr
+      ? `לוודא שהרכב נמצא, כתובת שונתה מ(${wasAddr}) ל(${nowAddr})`
+      : 'לוודא שהרכב נמצא — מוסכים חיצוניים טכנו';
   }
 
   return car;
@@ -14935,6 +14960,7 @@ function _renderDriverPickupModal() {
       c.type && `<div style="font-size:15px;font-weight:700">${e(c.type)}${c.year?' · '+e(c.year):''}</div>`,
       c.city && `<div style="font-size:13px;color:var(--muted)">🏙️ ${e(c.city)}</div>`,
       c.address && `<div style="font-size:13px;color:var(--muted)">📍 ${e(c.address)}</div>`,
+      c.note && `<div style="background:#fef08a;color:#000;border-right:5px solid #eab308;border-radius:8px;padding:8px 10px;margin:6px 0;font-size:14px;font-weight:800">📝 ${e(c.note)}</div>`,
       c.contact && `<div style="font-size:13px;color:var(--muted)">📞 <a href="tel:${e(c.contact)}" style="color:inherit">${e(c.contact)}</a></div>`,
       km && `<div style="font-size:13px;color:var(--muted)">🛣️ ${e(km)}</div>`,
     ].filter(Boolean).join('');
@@ -15045,7 +15071,7 @@ function openPickupDetail(id) {
   const rows = [
     ['לוחית', car.plate], ['סוג רכב', [car.type,car.year].filter(Boolean).join(' · ')],
     ['צבע', car.color], ['קמ"ש', km], ['איש קשר', car.contact],
-    ['עיר', car.city], ['כתובת', car.address]
+    ['עיר', car.city], ['כתובת', car.address], ['הערה', car.note]
   ].filter(([,v]) => v);
   const docHtml = car.doc ? `<div style="margin-top:14px"><div style="font-size:13px;font-weight:700;color:var(--muted);margin-bottom:6px">אישור העברת בעלות:</div>${_pickupDocThumb(car.doc, car.docMime, car.docName)}</div>` : '';
   document.getElementById('pickup-detail-body').innerHTML =
