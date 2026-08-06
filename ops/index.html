@@ -2581,7 +2581,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 129';
+const APP_BUILD = '2026-08-05 · 130';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -7875,9 +7875,10 @@ function bshopOpenFill(id) {
         <div style="font-size:15px;font-weight:700">${esc(it.name)}</div>
         ${it.addedByShop ? `<div style="font-size:12px;font-weight:800;color:#b45309">➕ איברהים הוסיף</div>` : ''}
       </div>
-      <input type="number" inputmode="numeric" min="0" class="form-input bshop-price" data-i="${i}"
+      <input type="text" inputmode="numeric" class="form-input bshop-price" data-i="${i}"
              value="${it.price != null && it.price !== '' ? it.price : ''}" placeholder="מחיר"
-             oninput="_bshopRecalc();_bshopAutoSave()" onblur="_bshopAutoSave(true)" style="width:110px;text-align:center;font-size:17px;font-weight:800">
+             onfocus="_bshopCaretEnd(this)" oninput="this.value=this.value.replace(/[^0-9]/g,'');_bshopRecalc();_bshopAutoSave()"
+             onblur="_bshopAutoSave(true)" style="width:110px;text-align:center;font-size:17px;font-weight:800">
       <span style="font-size:15px;font-weight:800;color:var(--muted)">₪</span>
     </div>`;
   // the index stays the one from j.items, so grouping does not disturb saving
@@ -8021,6 +8022,16 @@ function _bshopUpgradeCardPhotos() {
     });
   }
 }
+
+/* Coming back to a price already written, the cursor used to land before the
+   first digit — backspace then did nothing. It is put after the last digit. */
+function _bshopCaretEnd(el) {
+  setTimeout(() => {
+    const n = el.value.length;
+    try { el.setSelectionRange(n, n); } catch (e) {}
+  }, 0);
+}
+window._bshopCaretEnd = _bshopCaretEnd;
 
 function _bshopRecalc() {
   let t = 0;
