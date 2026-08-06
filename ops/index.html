@@ -1430,6 +1430,7 @@ if ('serviceWorker' in navigator) {
     </div>
     <div id="bshop-view-done" style="display:none">
       <div class="section-title" style="margin-top:0">✅ מכוניות שסיימנו</div>
+      <div id="bshop-returned-total" style="margin-bottom:14px"></div>
       <div id="bshop-returned" class="bshop-grid"></div>
     </div>
     <div id="bshop-view-arc" style="display:none">
@@ -2581,7 +2582,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 130';
+const APP_BUILD = '2026-08-05 · 131';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -7826,8 +7827,12 @@ function _bshopRenderWorker() {
   openC.innerHTML = open.length ? open.map(j => _bshopJobCard(j, true)).join('')
     : `<div class="bshop-span" style="padding:24px;text-align:center;color:var(--muted)">אין רכבים כרגע</div>`;
   const sum = ret.reduce((s, j) => s + _bshopTotal(j), 0);
-  retC.innerHTML = (ret.length ? ret.map(j => _bshopJobCard(j, true)).join('') : `<div class="bshop-span" style="padding:16px;text-align:center;color:var(--muted)">עדיין לא סיימת רכבים</div>`)
-    + (ret.length ? `<div class="bshop-span">${_bshopTotalsHtml(sum)}</div>` : '');
+  // the money is what he came to see — it sits above the cars, not under them
+  const totC = document.getElementById('bshop-returned-total');
+  if (totC) totC.innerHTML = ret.length ? _bshopTotalsHtml(sum) : '';
+  retC.innerHTML = ret.length
+    ? ret.map(j => _bshopJobCard(j, true)).join('')
+    : `<div class="bshop-span" style="padding:16px;text-align:center;color:var(--muted)">עדיין לא סיימת רכבים</div>`;
   _bshopUpgradeCardPhotos();
   _bshopRenderWorkerArchive();
 }
