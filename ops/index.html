@@ -219,8 +219,11 @@ body.modal-open{overflow:hidden}
 .bshop-menu-item:hover{background:var(--surface2)}
 .bshop-menu-item.active{background:var(--dark);color:#fff}
 .bsm-cnt{display:none;background:var(--gold);color:#000;border-radius:999px;padding:1px 9px;font-size:13px;font-weight:900;margin-right:6px}
+.bsm-stat-split{display:grid;grid-template-columns:1fr;gap:20px}
 @media(min-width:900px){
-  #bsm-stat-tiles{grid-template-columns:repeat(auto-fit,minmax(230px,1fr)) !important;gap:16px !important}
+  /* numbers on the right, graphs on the left */
+  .bsm-stat-split{grid-template-columns:minmax(320px,1fr) 1.3fr;gap:26px;align-items:start}
+  #bsm-stat-tiles{grid-template-columns:repeat(2,1fr) !important;gap:16px !important}
   .bsm-stat-tile{padding:20px !important;border-radius:18px !important}
   .bsm-stat-tile .t-lbl{font-size:15px !important}
   .bsm-stat-tile .t-val{font-size:34px !important;margin-top:6px !important}
@@ -2609,7 +2612,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 154';
+const APP_BUILD = '2026-08-05 · 155';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8231,6 +8234,8 @@ function _bsmRenderStats() {
     </div>`;
 
   c.innerHTML = `
+   <div class="bsm-stat-split">
+    <div>
     <div id="bsm-stat-tiles" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px">
       ${tile('שולם מאז ומעולם', ils(paidTotal), `${paidCars} רכבים`)}
       ${tile('פתוח כרגע', ils(openSum), 'אצל הפחח ומחכה לתשלום')}
@@ -8249,7 +8254,9 @@ function _bsmRenderStats() {
       return `<div style="background:#fef3c7;border-right:6px solid var(--gold);border-radius:12px;padding:12px 14px;margin-bottom:18px;font-size:16px;font-weight:900">➕ ${txt}</div>`;
     })()}
 
-    <div class="section-title">תשלומים לפי חודש · ${yr}</div>
+    </div>
+    <div>
+    <div class="section-title" style="margin-top:0">תשלומים לפי חודש · ${yr}</div>
     <div id="bsm-stat-chart" style="direction:ltr;display:flex;align-items:flex-end;gap:6px;height:150px;border-bottom:2px solid var(--border);padding-bottom:4px;margin-bottom:6px;overflow-x:auto">
       ${months.map(m => {
         const v = byMonth[m.key] || 0;
@@ -8271,7 +8278,9 @@ function _bsmRenderStats() {
         </div>`).join('')
         : `<div style="padding:16px;text-align:center;color:var(--muted)">אין עדיין מספיק נתונים</div>`}
       <div style="font-size:11px;color:var(--muted);margin-top:10px">מחושב מכל הפתקים שנשמרו — פתוחים וגם ששולמו. חלק ריק או שנרשם בו 0 (עבודה שלא נעשתה בסוף) לא נספר בממוצע.</div>
-    </div>`;
+    </div>
+    </div>
+   </div>`;
 }
 
 function bsmTogglePartAvg() {
