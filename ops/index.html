@@ -1473,10 +1473,18 @@ if ('serviceWorker' in navigator) {
 
 <!-- ====== SCREEN: BODY SHOP (MANAGER) ====== -->
 <div id="screen-bodyshop-mgr" class="screen">
-  <div class="app-header">
+  <div class="app-header" style="position:relative">
     <button class="back-btn" onclick="goHome()">→</button>
+    <button onclick="toggleBsmMenu()" aria-label="תפריט פחחות" style="background:rgba(255,255,255,.14);border:none;border-radius:12px;width:42px;height:42px;color:#fff;font-size:20px;font-weight:900;cursor:pointer;line-height:1;flex-shrink:0;margin-left:8px">☰</button>
     <div class="logo">🔨 פחחות</div>
     <div class="user-badge" id="bsm-user-badge" onclick="logout()"></div>
+    <div id="bsm-menu" style="display:none;position:absolute;top:calc(100% - 6px);right:12px;z-index:150;background:var(--card);border:2px solid var(--border);border-radius:14px;padding:8px;min-width:240px;box-shadow:0 10px 30px rgba(0,0,0,.28)">
+      <button onclick="bsmShowView('open')" class="bshop-menu-item">🔨 אצל הפחח</button>
+      <button onclick="bsmShowView('draft')" class="bshop-menu-item">📝 פתקים שממתינים לשליחה</button>
+      <button onclick="bsmShowView('done')" class="bshop-menu-item">✅ מכוניות שסיימנו</button>
+      <button onclick="bsmShowView('arc')" class="bshop-menu-item">🗄️ ארכיון תשלומים</button>
+      <button onclick="bsmShowView('link')" class="bshop-menu-item">🔗 קישור לפחח</button>
+    </div>
   </div>
   <div class="bshop-wrap" style="padding:16px 16px 100px">
     <div style="display:flex;gap:8px;margin-bottom:14px">
@@ -1484,27 +1492,35 @@ if ('serviceWorker' in navigator) {
       <button class="btn-submit" onclick="openBsmItemsModal()" style="margin-top:0;background:var(--dark);color:#fff">⚙️ רשימת חלקים</button>
     </div>
     <div id="bsm-summary"></div>
-    <div class="section-title">📝 פתקים שממתינים לשליחה</div>
-    <div id="bsm-drafts" class="bshop-grid"></div>
-    <div class="section-title">אצל הפחח</div>
-    <div id="bsm-open" class="bshop-grid"></div>
-    <div style="margin:34px 0 16px;border-top:4px solid var(--border);padding-top:18px">
-      <div style="display:inline-block;background:var(--dark);color:#fff;border-radius:999px;padding:9px 20px;font-size:17px;font-weight:900">✅ מכוניות שסיימנו</div>
+    <div id="bsm-view-draft" style="display:none">
+      <div class="section-title">📝 פתקים שממתינים לשליחה</div>
+      <div id="bsm-drafts" class="bshop-grid"></div>
     </div>
-    <div id="bsm-returned" class="bshop-grid"></div>
-    <div id="bsm-pay-wrap" style="display:none;margin-top:16px">
-      <button class="btn-submit" onclick="bsmSettle()" style="background:var(--success);color:#fff">💰 שילמתי — סגור חשבון</button>
+    <div id="bsm-view-open">
+      <div class="section-title">אצל הפחח</div>
+      <div id="bsm-open" class="bshop-grid"></div>
+      <div style="margin-top:22px;text-align:center">
+        <button onclick="bshopResetJobs()" style="background:var(--surface2);color:var(--muted);border:2px solid var(--border);border-radius:10px;padding:8px 18px;font-family:'Heebo',sans-serif;font-size:13px;font-weight:800;cursor:pointer">🧹 אפס פתקים</button>
+      </div>
     </div>
-    <div style="margin-top:22px;text-align:center">
-      <button onclick="bshopResetJobs()" style="background:var(--surface2);color:var(--muted);border:2px solid var(--border);border-radius:10px;padding:8px 18px;font-family:'Heebo',sans-serif;font-size:13px;font-weight:800;cursor:pointer">🧹 אפס פתקים</button>
+    <div id="bsm-view-done" style="display:none">
+      <div class="section-title">✅ מכוניות שסיימנו</div>
+      <div id="bsm-returned" class="bshop-grid"></div>
+      <div id="bsm-pay-wrap" style="display:none;margin-top:16px">
+        <button class="btn-submit" onclick="bsmSettle()" style="background:var(--success);color:#fff">💰 שילמתי — סגור חשבון</button>
+      </div>
     </div>
-    <div class="section-title">🗄️ ארכיון תשלומים</div>
-    <div id="bsm-archive"></div>
+    <div id="bsm-view-arc" style="display:none">
+      <div class="section-title">🗄️ ארכיון תשלומים</div>
+      <div id="bsm-archive"></div>
+    </div>
+    <div id="bsm-view-link" style="display:none">
     <div class="section-title">קישור לפחח</div>
     <div style="font-size:13px;color:var(--muted);line-height:1.8;margin-bottom:8px">שלח לו את הקישור פעם אחת. הוא נכנס ורואה רק את המסך שלו, בלי סיסמה ובלי בחירת שם.</div>
     <div style="display:flex;gap:8px">
       <input class="form-input" id="bsm-link" readonly style="flex:1;font-size:12px;direction:ltr">
       <button onclick="bsmCopyLink()" style="background:var(--gold);color:#000;border:none;border-radius:10px;padding:0 16px;font-family:'Heebo',sans-serif;font-weight:800;cursor:pointer">העתק</button>
+    </div>
     </div>
   </div>
 </div>
@@ -2565,7 +2581,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 128';
+const APP_BUILD = '2026-08-05 · 129';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8053,7 +8069,39 @@ async function bshopSave(markDone, silent) {
 window.bshopSave = bshopSave;
 
 /* ---- the manager's screen ---- */
+/* The manager's screen is split the same way, behind its own menu button. */
+const _BSM_VIEWS = { open: 1, draft: 1, done: 1, arc: 1, link: 1 };
+let _bsmView = 'open';
+
+function toggleBsmMenu(force) {
+  const m = document.getElementById('bsm-menu');
+  if (!m) return;
+  m.style.display = (force != null ? force : m.style.display === 'none') ? 'block' : 'none';
+}
+window.toggleBsmMenu = toggleBsmMenu;
+
+function bsmShowView(name) {
+  _bsmView = _BSM_VIEWS[name] ? name : 'open';
+  for (const k of Object.keys(_BSM_VIEWS)) {
+    const el = document.getElementById('bsm-view-' + k);
+    if (el) el.style.display = k === _bsmView ? '' : 'none';
+  }
+  document.querySelectorAll('#bsm-menu .bshop-menu-item').forEach((b, i) => {
+    b.classList.toggle('active', Object.keys(_BSM_VIEWS)[i] === _bsmView);
+  });
+  toggleBsmMenu(false);
+  window.scrollTo({ top: 0 });
+}
+window.bsmShowView = bsmShowView;
+
+document.addEventListener('click', e => {
+  const m = document.getElementById('bsm-menu');
+  if (!m || m.style.display === 'none') return;
+  if (!e.target.closest('#bsm-menu') && !e.target.closest('[aria-label="תפריט פחחות"]')) toggleBsmMenu(false);
+});
+
 function openBodyShopMgrScreen() {
+  bsmShowView('open');
   document.getElementById('bsm-user-badge').textContent = currentUser.name;
   document.getElementById('bsm-link').value = location.origin + location.pathname + '?pahach';
   showScreen('bodyshop-mgr');
