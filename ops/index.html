@@ -1839,6 +1839,7 @@ if ('serviceWorker' in navigator) {
       <option value="">כל הערים</option>
     </select>
     <button id="pickup-sort-btn" onclick="cyclePickupSort()" style="flex:1;min-width:160px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;text-align:center">סינון לפי זמן המתנה מהגבוה לנמוך</button>
+    <button id="pickup-dist-btn" onclick="togglePickupDistSort()" style="flex:1;min-width:150px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;text-align:center">📍 מיון לפי מרחק</button>
     <button id="pickup-select-btn" onclick="toggleSelectAllPickup()" style="flex:1;min-width:120px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;text-align:center">☑️ סמן הכל</button>
   </div>
   <div style="padding:12px 16px 0" id="pickup-list">
@@ -2523,7 +2524,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 113';
+const APP_BUILD = '2026-08-05 · 114';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -13533,6 +13534,29 @@ function _rebuildPickupCityFilter() {
   sel.innerHTML = '<option value="">כל הערים</option>' + cities.map(c => `<option value="${c}"${c===current?' selected':''}>${c}</option>`).join('');
 }
 
+/* Distance is measured from the yard, so the nearest cars can be collected in
+   one trip. A car whose town is unknown has no distance and goes last. */
+const _PICKUP_BASE_CITY = 'פתח תקווה';
+let _pickupDistSort = false;
+
+function _pickupDistKm(car) {
+  const base = _coordOfCity(_PICKUP_BASE_CITY);
+  const cc = _coordOfCity(_pickupCity(car));
+  return (base && cc) ? _haversineKm(base, cc) : Infinity;
+}
+
+function togglePickupDistSort() {
+  _pickupDistSort = !_pickupDistSort;
+  const b = document.getElementById('pickup-dist-btn');
+  if (b) {
+    b.textContent = _pickupDistSort ? '📍 מהקרוב לרחוק ✓' : '📍 מיון לפי מרחק';
+    b.style.background = _pickupDistSort ? 'var(--dark)' : 'var(--surface2)';
+    b.style.color = _pickupDistSort ? '#fff' : 'var(--text)';
+  }
+  renderPickupCars();
+}
+window.togglePickupDistSort = togglePickupDistSort;
+
 function renderPickupCars() {
   const list = document.getElementById('pickup-list');
   if (!list) return;
@@ -13550,6 +13574,8 @@ function renderPickupCars() {
   } else {
     cars.sort((a, b) => (_pickupDays(a) || 0) - (_pickupDays(b) || 0));
   }
+  // distance takes over from the time sort while it is on
+  if (_pickupDistSort) cars.sort((a, b) => _pickupDistKm(a) - _pickupDistKm(b));
   // assigned cars always float to top (stable)
   cars.sort((a, b) => (b.assignedDriver ? 1 : 0) - (a.assignedDriver ? 1 : 0));
   _computeTaskClosest();
