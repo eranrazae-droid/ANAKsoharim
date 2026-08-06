@@ -1531,8 +1531,9 @@ if ('serviceWorker' in navigator) {
     <div id="bsm-view-done" style="display:none">
       <div class="section-title">✅ מכוניות שסיימנו</div>
       <div id="bsm-returned" class="bshop-grid"></div>
-      <div id="bsm-pay-wrap" style="display:none;margin-top:16px">
-        <button class="btn-submit" onclick="bsmSettle()" style="background:var(--success);color:#fff">💰 שילמתי — סגור חשבון</button>
+      <div id="bsm-pay-wrap" style="display:none;margin-top:16px;gap:8px">
+        <button class="btn-submit" onclick="bsmSettle()" style="margin-top:0;background:var(--success);color:#fff">💰 שילמתי — סגור חשבון</button>
+        <button class="btn-submit" onclick="bsmExportPdf()" style="margin-top:0;background:var(--dark);color:#fff">📄 ייצוא ל-PDF</button>
       </div>
     </div>
     <div id="bsm-view-arc" style="display:none">
@@ -2612,7 +2613,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 156';
+const APP_BUILD = '2026-08-05 · 157';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8363,7 +8364,7 @@ function _bshopRenderMgr() {
   retC.innerHTML = ret.length ? ret.map(j => _bshopJobCard(j, false)).join('')
     : `<div class="bshop-span" style="padding:16px;text-align:center;color:var(--muted)">אין רכבים שממתינים לתשלום</div>`;
   const payWrap = document.getElementById('bsm-pay-wrap');
-  if (payWrap) payWrap.style.display = ret.length ? 'block' : 'none';
+  if (payWrap) payWrap.style.display = ret.length ? 'flex' : 'none';
   // entering the screen lands on the notes waiting to be sent; with none
   // waiting there is nothing to do there, so it lands on the cars at the shop
   if (_bsmAutoView) {
@@ -8645,6 +8646,69 @@ window.submitBsmSend = submitBsmSend;
 
 // Settling marks every returned job as paid, which is what clears both screens
 // and starts the next cycle. Cars still at the shop are deliberately untouched.
+/* The whole open account on one page: every car, every part and the totals.
+   It is printed the same way the repair form is, so "save as PDF" in the print
+   window produces the file. */
+function bsmExportPdf() {
+  const ret = _bshopJobs.filter(j => j.status === 'returned');
+  if (!ret.length) return showToast('אין רכבים לייצוא');
+  const ils = n => Math.round(n).toLocaleString('he-IL') + ' ₪';
+  const sum = ret.reduce((t, j) => t + _bshopTotal(j), 0);
+  const vat = sum * _VAT_RATE;
+  const today = new Date().toLocaleDateString('he-IL');
+
+  const cars = ret.map(j => {
+    const rows = (j.items || []).map(it => `<tr>
+        <td>${esc(it.name)}${it.addedByShop ? ' <span class="add">(הוסיף איברהים)</span>' : ''}</td>
+        <td class="p">${it.price == null || it.price === '' ? '—' : ils(Number(it.price))}</td>
+      </tr>`).join('');
+    return `<div class="car">
+      <div class="ch"><span>${esc(j.plate || '')}${j.desc ? ' · ' + esc(j.desc) : ''}</span><span>${ils(_bshopTotal(j))}</span></div>
+      ${j.note ? `<div class="note">📝 ${esc(j.note)}</div>` : ''}
+      <table>${rows}</table>
+    </div>`;
+  }).join('');
+
+  const fr = document.createElement('iframe');
+  fr.style.cssText = 'position:fixed;left:-9999px;top:0;width:210mm;height:297mm;border:0';
+  document.body.appendChild(fr);
+  const w = fr.contentWindow;
+  w.document.write(`<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8">
+<title>חשבון פחחות ${today}</title>
+<style>
+  @page { size: A4; margin: 15mm; }
+  body { font-family: Arial, "Segoe UI", sans-serif; color:#000; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  .sub { font-size:13px; color:#444; margin-bottom:16px; }
+  .car { border:1.5px solid #000; border-radius:6px; padding:8px 10px; margin-bottom:10px; page-break-inside:avoid; }
+  .ch { display:flex; justify-content:space-between; font-weight:bold; font-size:15px; margin-bottom:4px; }
+  .note { font-size:12px; background:#fff3c4; padding:3px 6px; margin-bottom:4px; }
+  table { width:100%; border-collapse:collapse; }
+  td { font-size:13px; padding:3px 0; border-bottom:1px solid #ddd; }
+  td.p { text-align:left; white-space:nowrap; font-weight:bold; width:90px; }
+  .add { font-size:11px; color:#92400e; }
+  .tot { margin-top:14px; border-top:2px solid #000; padding-top:8px; page-break-inside:avoid; }
+  .tot div { display:flex; justify-content:space-between; font-size:14px; padding:2px 0; }
+  .tot .big { font-size:18px; font-weight:bold; border-top:1px solid #000; margin-top:6px; padding-top:6px; }
+</style></head><body>
+  <h1>חשבון פחחות — ${esc(_BSHOP_SHOP)}</h1>
+  <div class="sub">${esc(_BSHOP_OWNER)} · הופק ב-${today} · ${ret.length} רכבים</div>
+  ${cars}
+  <div class="tot">
+    <div><span>סכום לתשלום</span><span>${ils(sum)}</span></div>
+    <div><span>מע״מ ${Math.round(_VAT_RATE * 100)}%</span><span>${ils(vat)}</span></div>
+    <div class="big"><span>סה״כ כולל מע״מ</span><span>${ils(sum + vat)}</span></div>
+  </div>
+</body></html>`);
+  w.document.close();
+  setTimeout(() => {
+    try { w.focus(); w.print(); }
+    catch (e) { console.error('bodyshop pdf', e); showToast('שגיאה בייצוא'); }
+    setTimeout(() => fr.remove(), 1000);
+  }, 250);
+}
+window.bsmExportPdf = bsmExportPdf;
+
 async function bsmSettle() {
   const ret = _bshopJobs.filter(j => j.status === 'returned');
   if (!ret.length) return;
