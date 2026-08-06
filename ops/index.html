@@ -2598,7 +2598,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 148';
+const APP_BUILD = '2026-08-05 · 149';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8187,7 +8187,6 @@ function _bsmRenderStats() {
   for (let m = 1; m <= 12; m++) {
     months.push({ key: `${yr}-${String(m).padStart(2, '0')}`, label: `${m}/${String(yr).slice(2)}` });
   }
-  const thisMonth = byMonth[`${yr}-${String(now.getMonth() + 1).padStart(2, '0')}`] || 0;
   const maxMonth = Math.max(1, ...months.map(m => byMonth[m.key] || 0));
   const avgPerCar = paidCars ? paidTotal / paidCars : 0;
 
@@ -8221,10 +8220,9 @@ function _bsmRenderStats() {
 
   c.innerHTML = `
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px">
-      ${tile('שולם החודש', ils(thisMonth))}
+      ${tile('שולם מאז ומעולם', ils(paidTotal), `${paidCars} רכבים`)}
       ${tile('פתוח כרגע', ils(openSum), 'אצל הפחח ומחכה לתשלום')}
       ${tile('ממוצע לרכב', ils(avgPerCar), `${paidCars} רכבים ששולמו`)}
-      ${tile('סה״כ ששולם', ils(paidTotal), 'מאז ומעולם')}
       ${tile('ממוצע ימים אצל הפחח', avgDays == null ? '—' : avgDays.toFixed(1), 'מהמחזור הפתוח')}
       ${tile('חלקים שאיברהים הוסיף', addedN, ils(addedSum))}
     </div>
