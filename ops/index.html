@@ -2635,7 +2635,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 163';
+const APP_BUILD = '2026-08-05 · 164';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -7601,8 +7601,17 @@ const _bshopGroupOf = name =>
 // Splits a list of parts into [category, parts] pairs, keeping the category
 // order and dropping categories with nothing in them.
 function _bshopByGroup(names) {
-  return _BSHOP_GROUPS.map(([g]) => [g, names.filter(n => _bshopGroupOf(n) === g)])
-    .filter(([, list]) => list.length);
+  const out = _BSHOP_GROUPS.map(([g]) => [g, names.filter(n => _bshopGroupOf(n) === g)]);
+  // a part whose saved category is not one of ours must never disappear from
+  // the screen — it joins "אחר" instead
+  const placed = new Set(out.flatMap(([, list]) => list));
+  const left = names.filter(n => !placed.has(n));
+  if (left.length) {
+    const other = out.find(([g]) => g === 'אחר');
+    if (other) other[1] = [...other[1], ...left];
+    else out.push(['אחר', left]);
+  }
+  return out.filter(([, list]) => list.length);
 }
 const _BSHOP_GROUP_CAR = '#0f766e';   // the one colour category labels wear
 const _bshopGroupTitle = (g, color) => `<div style="display:flex;align-items:center;gap:8px;margin:18px 0 8px">
