@@ -2635,7 +2635,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 165';
+const APP_BUILD = '2026-08-05 · 166';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8952,8 +8952,13 @@ function _bsmRenderCatalog() {
       <div style="flex:1;font-size:14px;font-weight:700">${esc(name)}</div>
       <button onclick="bsmRemoveCatalogItem(this.dataset.i)" data-i="${_bshopItems.indexOf(name)}" style="background:#ef4444;color:#fff;border:none;border-radius:8px;width:28px;height:28px;cursor:pointer">🗑</button>
     </div>`;
-  c.innerHTML = _bshopByGroup(_bshopItems).map(([g, list]) =>
-    _bshopGroupTitle(g) + `<div class="bsm-cat-box">${list.map(row).join('')}</div>`).join('');
+  c.innerHTML = _bshopItems.length
+    ? _bshopByGroup(_bshopItems).map(([g, list]) =>
+        _bshopGroupTitle(g) + `<div class="bsm-cat-box">${list.map(row).join('')}</div>`).join('')
+    : `<div style="text-align:center;padding:18px 10px">
+        <div style="color:var(--muted);font-size:14px;font-weight:700;margin-bottom:12px">הרשימה ריקה</div>
+        <button onclick="bsmRestoreDefaultItems()" class="btn-submit" style="margin-top:0;background:var(--dark);color:#fff">↩️ שחזר את רשימת החלקים המקורית</button>
+      </div>`;
   // the category picker — filled once, keeps whatever was chosen
   const sel = document.getElementById('bsm-new-cat');
   if (sel && !sel.options.length) {
@@ -9024,6 +9029,19 @@ async function _bsmSaveCatalog(items, cats) {
   if (cats) payload.cats = cats;
   await setDoc(_docRef('config', 'bodyshop'), payload, { merge: true });
 }
+
+// puts the walk-around list back, for when the saved list was emptied
+async function bsmRestoreDefaultItems() {
+  if (!confirm('לשחזר את רשימת החלקים המקורית?')) return;
+  try {
+    await _bsmSaveCatalog([..._BSHOP_DEFAULT_ITEMS], {});
+    _bshopItems = [..._BSHOP_DEFAULT_ITEMS];
+    _bshopCats = {};
+    _bsmRenderCatalog();
+    showToast('✅ הרשימה שוחזרה');
+  } catch (e) { console.error('restore parts', e); showToast('שגיאה בשחזור'); }
+}
+window.bsmRestoreDefaultItems = bsmRestoreDefaultItems;
 
 async function bsmAddCatalogItem() {
   const el = document.getElementById('bsm-new-item');
