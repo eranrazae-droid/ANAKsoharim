@@ -287,37 +287,80 @@ function exportCSV(){
   var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='orit_leads.csv';a.click();
 }
 
-function getVidKey(cat,i){return 'v_'+cat+'_'+i;}
+function extractYoutubeId(url){
+  if(!url) return '';
+  var m = url.match(/(?:v=|youtu\.be\/|embed\/)([A-Za-z0-9_-]{11})/);
+  return m ? m[1] : '';
+}
+
 function buildVideos(){
   var container=document.getElementById('vid-cats');
-  container.innerHTML=VID_CATS.map(function(cat){
-    var items='';
-    for(var i=0;i<cat.count;i++){
-      var k=getVidKey(cat.id,i);
-      var saved=localStorage.getItem(k)||'';
-      items+='<div class="vid-item">'
-        +'<span class="vid-num">'+(i+1)+'</span>'
-        +'<input class="vid-inp" placeholder="https://youtube.com/watch?v=..." value="'+saved+'" data-cat="'+cat.id+'" data-idx="'+i+'"/>'
-        +'<button class="vid-save-btn" onclick="saveVid(\''+cat.id+'\','+i+')">שמור</button>'
-        +'</div>'
-        +'<div class="save-msg" id="sm-'+cat.id+'-'+i+'">✅ נשמר!</div>';
-    }
-    return'<div class="vid-cat-card">'
-      +'<div class="vid-cat-title">'+cat.icon+' '+cat.name+'</div>'
-      +items
-      +'</div>';
-  }).join('');
+  container.innerHTML='<div style="color:#ccc;text-align:center;padding:40px;grid-column:1/-1">טוען סרטונים...</div>';
+  fdb.collection('videos').get().then(function(snap){
+    var saved={};
+    snap.forEach(function(doc){saved[doc.id]=doc.data();});
+    container.innerHTML=VID_CATS.map(function(cat,catIdx){
+      var items='';
+      for(var i=0;i<cat.count;i++){
+        var docId=cat.id+'_'+i;
+        var data=saved[docId]||{};
+        var currentUrl=data.youtubeId?'https://www.youtube.com/watch?v='+data.youtubeId:'';
+        items+='<div class="vid-item">'
+          +'<span class="vid-num">'+(i+1)+'</span>'
+          +'<input class="vid-inp" placeholder="https://youtube.com/watch?v=..." value="'+currentUrl+'" data-cat="'+cat.id+'" data-catname="'+cat.name+'" data-icon="'+cat.icon+'" data-catidx="'+catIdx+'" data-idx="'+i+'"/>'
+          +'<button class="vid-save-btn" onclick="saveVid(\'' +cat.id+'\','+i+')">שמור</button>'
+          +'</div>'
+          +'<div class="save-msg" id="sm-'+cat.id+'-'+i+'">✅ נשמר!</div>';
+      }
+      return'<div class="vid-cat-card">'
+        +'<div class="vid-cat-title">'+cat.icon+' '+cat.name+'</div>'
+        +items
+        +'</div>';
+    }).join('');
+  }).catch(function(){
+    container.innerHTML=VID_CATS.map(function(cat,catIdx){
+      var items='';
+      for(var i=0;i<cat.count;i++){
+        items+='<div class="vid-item">'
+          +'<span class="vid-num">'+(i+1)+'</span>'
+          +'<input class="vid-inp" placeholder="https://youtube.com/watch?v=..." data-cat="'+cat.id+'" data-catname="'+cat.name+'" data-icon="'+cat.icon+'" data-catidx="'+catIdx+'" data-idx="'+i+'"/>'
+          +'<button class="vid-save-btn" onclick="saveVid(\'' +cat.id+'\','+i+')">שמור</button>'
+          +'</div>'
+          +'<div class="save-msg" id="sm-'+cat.id+'-'+i+'">✅ נשמר!</div>';
+      }
+      return'<div class="vid-cat-card">'
+        +'<div class="vid-cat-title">'+cat.icon+' '+cat.name+'</div>'
+        +items
+        +'</div>';
+    }).join('');
+  });
 }
 
 function saveVid(cat,i){
   var inp=document.querySelector('[data-cat="'+cat+'"][data-idx="'+i+'"]');
-  if(!inp)return;
-  localStorage.setItem(getVidKey(cat,i),inp.value.trim());
-  var sm=document.getElementById('sm-'+cat+'-'+i);
-  if(sm){sm.style.display='block';setTimeout(function(){sm.style.display='none';},2000);}
+  if(!inp) return;
+  var url=inp.value.trim();
+  var youtubeId=extractYoutubeId(url);
+  var catName=inp.getAttribute('data-catname')||'';
+  var catIcon=inp.getAttribute('data-icon')||'';
+  var catIdx=parseInt(inp.getAttribute('data-catidx')||'0');
+  var docId=cat+'_'+i;
+  var order=catIdx*10+i;
+  var data={
+    youtubeId: youtubeId,
+    title: catName,
+    subtitle: catIcon+' סרטון '+(i+1),
+    order: order,
+    cat: cat,
+    updatedAt: new Date().toISOString()
+  };
+  fdb.collection('videos').doc(docId).set(data).then(function(){
+    var sm=document.getElementById('sm-'+cat+'-'+i);
+    if(sm){sm.style.display='block';setTimeout(function(){sm.style.display='none';},2000);}
+  }).catch(function(e){alert('שגיאה בשמירה: '+e.message);});
 }
 
-if(sessionStorage.getItem('admin_auth')==='1'){renderLeads();buildVideos();syncFromFormspree();}
+if(sessionStorage.getItem('admin_auth')==='1'){renderLeads();syncFromFormspree();}
 </script>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -378,7 +421,7 @@ function loadMembers(){
         +'<td data-label="מחיר" style="font-weight:600;color:#5B3A7E">'+(m.amount?m.amount+' ₪':'-')+'</td>'
         +'<td data-label="סטטוס" style="color:'+(scolor[s]||'#888')+';font-weight:600">'+(smap[s]||s)+'</td>'
         +'<td data-label="הצטרפות" style="color:#ccc;font-size:11px">'+(m.joinDate||'-')+'</td>'
-        +'<td data-label=""><button class="btn btn-outline" style="font-size:11px;padding:4px 10px" onclick="markPaid(\''+m.phone+'\')">'+(m.status==='paid'?'✓ שולם':'סמן שולם')+'</button></td>'
+        +'<td data-label=""><button class="btn btn-outline" style="font-size:11px;padding:4px 10px" onclick="markPaid(\''+(m.phone||'')+'\')">'+(m.status==='paid'?'✓ שולם':'סמן שולם')+'</button></td>'
         +'</tr>';
     }).join('');
   }).catch(function(e){tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:#e24b4a;padding:24px">שגיאה: '+e.message+'</td></tr>';});
