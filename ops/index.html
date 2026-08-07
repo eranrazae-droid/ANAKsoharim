@@ -2635,7 +2635,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 164';
+const APP_BUILD = '2026-08-05 · 165';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -7674,7 +7674,9 @@ function _bshopListen(onChange) {
     // a catalogue saved before the current part list is ignored, so the new
     // walk-around list replaces the old part names instead of merging with them
     _bshopCats = (d.cats && typeof d.cats === 'object') ? d.cats : {};
-    const fresh = d.v === _BSHOP_CATALOG_VERSION && Array.isArray(d.items);
+    // an empty saved list is treated as no list at all, otherwise the form
+    // would offer nothing to pick
+    const fresh = d.v === _BSHOP_CATALOG_VERSION && Array.isArray(d.items) && d.items.length > 0;
     const raw = fresh ? d.items : _BSHOP_DEFAULT_ITEMS;
     // keep the walk-around order for known parts; anything you added yourself
     // stays at the end, in the order you added it
@@ -8559,9 +8561,11 @@ function _bsmRenderPicker() {
       style="background:${on ? 'var(--dark)' : 'var(--bg)'};color:${on ? '#fff' : 'var(--text)'};border:2px solid ${on ? 'var(--dark)' : 'var(--border)'};border-radius:999px;padding:7px 13px;font-family:'Heebo',sans-serif;font-size:13px;font-weight:700;cursor:pointer">${esc(name)}</button>`;
   };
   // a colour of its own for the form where a note is written
-  c.innerHTML = _bshopByGroup(all).map(([g, list]) =>
-    _bshopGroupTitle(g, '#0f766e') + `<div style="display:flex;flex-wrap:wrap;gap:6px">${list.map(btn).join('')}</div>`
-  ).join('');
+  c.innerHTML = all.length
+    ? _bshopByGroup(all).map(([g, list]) =>
+        _bshopGroupTitle(g, '#0f766e') + `<div style="display:flex;flex-wrap:wrap;gap:6px">${list.map(btn).join('')}</div>`
+      ).join('')
+    : `<div style="padding:14px;text-align:center;color:var(--muted);font-size:13px">רשימת החלקים עדיין נטענת — אם זה נמשך, פתח את "⚙️ רשימת חלקים"</div>`;
 }
 
 function bsmTogglePick(name) {
