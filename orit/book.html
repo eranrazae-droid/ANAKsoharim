@@ -46,6 +46,8 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#f5f0fb;m
 .succ-title{font-size:20px;font-weight:800;color:#5B3A7E;margin-bottom:8px}
 .succ-msg{font-size:14px;color:#666;line-height:1.6;margin-bottom:20px}
 .succ-close{background:#5B3A7E;color:#fff;border:none;border-radius:10px;padding:12px 28px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit}
+@media(max-width:500px){.grid{grid-template-columns:1fr 1fr;gap:8px}}
+@media(max-width:340px){.grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -100,7 +102,7 @@ function weekLabel(){var sun=new Date();sun.setDate(sun.getDate()-sun.getDay());
 document.getElementById('weekBar').textContent=weekLabel();
 function findSlot(id){for(var d of SCHEDULE)for(var s of d.slots)if(s.id===id)return s;return null;}
 function badgeHtml(count,cap){var left=cap-count;if(left<=0)return '<span class="badge badge-full">מלא</span>';if(left<=2)return '<span class="badge badge-few">נותרו '+left+'</span>';return '<span class="badge badge-ok">'+left+' מקומות</span>';}
-function renderGrid(){var html='';SCHEDULE.forEach(function(day){html+='<div class="day-col"><div class="day-head">'+day.day+'</div>';day.slots.forEach(function(s){var c=counts[s.id]||0,full=c>=s.cap;html+='<div class="slot'+(full?' full':'')+'"|'+(full?'':' onclick="openModal(\''+s.id+'\')"')+'>';html+='<div class="slot-time">'+s.time+'</div>';html+='<div class="slot-type">'+s.type+'</div>';html+=badgeHtml(c,s.cap);html+='</div>';});html+='</div>';});document.getElementById('grid').innerHTML=html;}
+function renderGrid(){var html='';SCHEDULE.forEach(function(day){html+='<div class="day-col"><div class="day-head">'+day.day+'</div>';day.slots.forEach(function(s){var c=counts[s.id]||0,full=c>=s.cap;html+='<div class="slot'+(full?' full':'')+' '+(full?'':' onclick="openModal(\''+s.id+'\')"')+'>';html+='<div class="slot-time">'+s.time+'</div>';html+='<div class="slot-type">'+s.type+'</div>';html+=badgeHtml(c,s.cap);html+='</div>';});html+='</div>';});document.getElementById('grid').innerHTML=html;}
 function loadBookings(){var ids=[];SCHEDULE.forEach(function(d){d.slots.forEach(function(s){ids.push(s.id);});});var ps=ids.map(function(id){return db.collection('bookings').doc(weekKey+'_'+id).get().then(function(doc){counts[id]=doc.exists?Object.keys(doc.data().registrations||{}).length:0;});});Promise.all(ps).then(renderGrid);}
 function openModal(slotId){var s=findSlot(slotId);if(!s)return;currentSlot=s;document.getElementById('modal-title').textContent=s.type+' · '+s.time;document.getElementById('modal-sub').textContent='מלאי פרטים ונרשמך לאימון';document.getElementById('b-name').value='';document.getElementById('b-phone').value='';document.getElementById('book-msg').textContent='';document.getElementById('book-btn').disabled=false;document.getElementById('overlay').classList.add('on');document.getElementById('b-name').focus();}
 function closeModal(){document.getElementById('overlay').classList.remove('on');}
