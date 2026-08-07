@@ -43,12 +43,6 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#f5f0fb;m
 .summary-row:last-child{border-bottom:none;font-weight:800;font-size:16px;color:#5B3A7E}
 .summary-label{color:#888}
 .payment-note{background:#f5f0fb;border-radius:10px;padding:14px;font-size:13px;color:#666;line-height:1.6;margin-bottom:20px;text-align:center}
-.lock-icon{font-size:14px}
-.success-card{text-align:center;padding:8px 0}
-.success-icon{font-size:64px;margin-bottom:16px}
-.success-title{font-size:22px;font-weight:800;color:#5B3A7E;margin-bottom:8px}
-.success-msg{font-size:14px;color:#666;line-height:1.7;margin-bottom:24px}
-.btn-home{background:#5B3A7E;color:#fff;border:none;border-radius:12px;padding:14px 32px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;text-decoration:none;display:inline-block}
 .health-checks{display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
 .hcheck{display:flex;align-items:center;gap:10px;font-size:14px;color:#444;cursor:pointer;padding:10px 12px;border:1.5px solid #e8e0f0;border-radius:10px;transition:.2s}
 .hcheck:hover{border-color:#a888cc;background:#faf7ff}
@@ -57,14 +51,11 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#f5f0fb;m
 </style>
 </head>
 <body>
-
 <div class="topbar">
   <h1>💜 הצטרפות לסטודיו</h1>
   <p>אורית רז — בוטיק כושר לנשים</p>
 </div>
-
 <div class="wrap">
-
   <div class="steps" id="stepsBar">
     <div class="step-dot active" id="dot1">1</div>
     <div class="step-line" id="line1"></div>
@@ -72,7 +63,6 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#f5f0fb;m
     <div class="step-line" id="line2"></div>
     <div class="step-dot" id="dot3">3</div>
   </div>
-
   <div id="step1">
     <div class="card">
       <h2>שאלון בריאות</h2>
@@ -99,170 +89,53 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#f5f0fb;m
       <button class="btn-back" onclick="window.location.href='index.html'">← חזרה לאתר</button>
     </div>
   </div>
-
   <div id="step2" style="display:none">
     <div class="card">
       <h2>בחרי מנוי</h2>
       <p class="card-sub">כל המנויים בהוראת קבע חודשית</p>
       <div class="plans" id="plansList"></div>
       <div class="err" id="err2"></div>
-      <button class="btn-next" onclick="goStep3()">המשך לתשלום ←</button>
+      <button class="btn-next" onclick="goStep3()">המשך לסיכום ←</button>
       <button class="btn-back" onclick="goToStep(1)">← חזרה</button>
     </div>
   </div>
-
   <div id="step3" style="display:none">
     <div class="card">
-      <h2>תשלום</h2>
+      <h2>סיכום והרשמה</h2>
       <p class="card-sub">בדקי שהכל נכון לפני התשלום</p>
       <div id="summaryRows"></div>
       <div class="payment-note">
-        <span class="lock-icon">🔒</span> התשלום מתבצע בצורה מאובטחת דרך PayMe — הקבלה תישלח אוטומטית
+        <span>🔒</span> התשלום מתבצע בצורה מאובטחת דרך PayMe — הקבלה תישלח אוטומטית
       </div>
       <div class="err" id="err3"></div>
       <button class="btn-next" id="payBtn" onclick="submitAndPay()">לתשלום מאובטח ←</button>
       <button class="btn-back" onclick="goToStep(2)">← חזרה</button>
     </div>
   </div>
-
-  <div id="step4" style="display:none">
-    <div class="card success-card">
-      <div class="success-icon">🎉</div>
-      <div class="success-title">ברוכה הבאה לסטודיו!</div>
-      <p class="success-msg">תודה על ההרשמה. אורית תיצור איתך קשר בקרוב.</p>
-      <a class="btn-home" href="book.html">הרשמי לאימון הראשון ←</a>
-    </div>
-  </div>
-
 </div>
-
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script>
-firebase.initializeApp({
-  apiKey:"AIzaSyD3H-2M1cYEupObbeeRtlcMPHyQtzEjP1Q",
-  authDomain:"orit-raz.firebaseapp.com",
-  projectId:"orit-raz",
-  storageBucket:"orit-raz.firebasestorage.app",
-  messagingSenderId:"1093566537569",
-  appId:"1:1093566537569:web:1123fc5926a543d9e1ef20"
-});
-var db = firebase.firestore();
-
-var PLANS = [
-  {id:'1x',  name:'פעם בשבוע',         note:'אימוני כוח',        price:280, icon:'💪'},
-  {id:'2x',  name:'פעמיים בשבוע',       note:'אימוני כוח',        price:400, icon:'💪💪'},
-  {id:'3x',  name:'שלוש פעמים בשבוע',   note:'אימוני כוח',        price:450, icon:'🔥'},
-  {id:'ul',  name:'ללא הגבלה',           note:'אימוני כוח',        price:480, icon:'⚡'},
-  {id:'pi',  name:'פילאטיס בלבד',        note:'פעם בשבוע · 90 ₪ לאימון', price:360, icon:'🧘'},
+firebase.initializeApp({apiKey:"AIzaSyD3H-2M1cYEupObbeeRtlcMPHyQtzEjP1Q",authDomain:"orit-raz.firebaseapp.com",projectId:"orit-raz",storageBucket:"orit-raz.firebasestorage.app",messagingSenderId:"1093566537569",appId:"1:1093566537569:web:1123fc5926a543d9e1ef20"});
+var db=firebase.firestore();
+var PLANS=[
+  {id:'1x',name:'פעם בשבוע',note:'אימוני כוח',price:280,icon:'💪'},
+  {id:'2x',name:'פעמיים בשבוע',note:'אימוני כוח',price:400,icon:'💪💪'},
+  {id:'3x',name:'שלוש פעמים בשבוע',note:'אימוני כוח',price:450,icon:'🔥'},
+  {id:'ul',name:'ללא הגבלה',note:'אימוני כוח',price:480,icon:'⚡'},
+  {id:'pi',name:'פילאטיס בלבד',note:'פעם בשבוע · 90 ₪ לאימון',price:360,icon:'🧘'},
 ];
-
-var selectedPlan = null;
-
-document.getElementById('plansList').innerHTML = PLANS.map(function(p){
+var selectedPlan=null;
+document.getElementById('plansList').innerHTML=PLANS.map(function(p){
   return '<div class="plan" id="pl-'+p.id+'" onclick="selectPlan(\''+p.id+'\')">'+'<div class="plan-left">'+'<div class="plan-radio" id="pr-'+p.id+'"></div>'+'<div><div class="plan-name">'+p.icon+' '+p.name+'</div><div class="plan-note">'+p.note+'</div></div>'+'</div>'+'<div class="plan-price">'+p.price+' <span>₪/חודש</span></div>'+'</div>';
 }).join('');
-
-function selectPlan(id){
-  PLANS.forEach(function(p){ document.getElementById('pl-'+p.id).classList.remove('sel'); });
-  document.getElementById('pl-'+id).classList.add('sel');
-  selectedPlan = PLANS.find(function(p){return p.id===id;});
-  document.getElementById('err2').textContent='';
-}
-
-function goToStep(n){
-  [1,2,3,4].forEach(function(i){ document.getElementById('step'+i).style.display=i===n?'block':'none'; });
-  updateDots(n);
-  window.scrollTo(0,0);
-}
-
-function updateDots(active){
-  for(var i=1;i<=3;i++){
-    var dot=document.getElementById('dot'+i);
-    dot.classList.remove('active','done');
-    if(i<active) dot.classList.add('done');
-    else if(i===active) dot.classList.add('active');
-    if(i<3){ document.getElementById('line'+i).classList.toggle('done', i<active); }
-  }
-}
-
-function goStep2(){
-  var name=document.getElementById('j-name').value.trim();
-  var phone=document.getElementById('j-phone').value.trim().replace(/[\s\-\(\)]/g,'');
-  var age=document.getElementById('j-age').value.trim();
-  var err=document.getElementById('err1');
-  if(!name){err.textContent='נא להכניס שם מלא';return;}
-  if(!phone||phone.length<9){err.textContent='נא להכניס מספר טלפון תקין';return;}
-  if(!age){err.textContent='נא להכניס גיל';return;}
-  var healthChecked=['hq-heart','hq-bp','hq-diabetes','hq-back','hq-pregnant','hq-none'].some(function(id){return document.getElementById(id).checked;});
-  if(!healthChecked){err.textContent='נא לסמן לפחות אפשרות אחת בשאלות הבריאות';return;}
-  err.textContent='';
-  goToStep(2);
-}
-
-function goStep3(){
-  if(!selectedPlan){document.getElementById('err2').textContent='נא לבחור מנוי';return;}
-  var name=document.getElementById('j-name').value.trim();
-  var phone=document.getElementById('j-phone').value.trim();
-  var p=selectedPlan;
-  document.getElementById('summaryRows').innerHTML=
-    row('שם',name)+row('טלפון',phone)+row('מנוי',p.icon+' '+p.name)+row('סכום חודשי',p.price+' ₪');
-  goToStep(3);
-}
-
-function row(l,v){
-  return '<div class="summary-row"><span class="summary-label">'+l+'</span><span>'+v+'</span></div>';
-}
-
-function submitAndPay(){
-  var btn=document.getElementById('payBtn');
-  var err=document.getElementById('err3');
-  btn.disabled=true; btn.textContent='שומר פרטים...'; err.textContent='';
-
-  var name=document.getElementById('j-name').value.trim();
-  var phone=document.getElementById('j-phone').value.trim().replace(/[\s\-\(\)]/g,'');
-  var email=document.getElementById('j-email').value.trim();
-  var age=document.getElementById('j-age').value.trim();
-  var p=selectedPlan;
-  var regId='reg_'+Date.now()+'_'+Math.random().toString(36).substr(2,6);
-
-  var healthMap={'hq-heart':'בעיות לב','hq-bp':'לחץ דם גבוה','hq-diabetes':'סוכרת','hq-back':'כאבי גב/פציעות','hq-pregnant':'הריון','hq-none':'ללא בעיות'};
-  var health=Object.keys(healthMap).filter(function(id){return document.getElementById(id).checked;}).map(function(id){return healthMap[id];});
-
-  db.collection('members').doc(phone).set({
-    name:name, phone:phone, email:email, age:age, health:health,
-    plan:p.id, planName:p.name, amount:p.price,
-    status:'pending_payment', regId:regId,
-    joinDate:new Date().toLocaleDateString('he-IL'),
-    createdAt:new Date().toISOString()
-  }).then(function(){
-    window.location.href = buildPayMeUrl(name, phone, p.price, p.name, regId);
-  }).catch(function(e){
-    btn.disabled=false; btn.textContent='לתשלום מאובטח ←';
-    err.textContent='שגיאה בשמירת הפרטים. נסי שוב.';
-    console.error(e);
-  });
-}
-
-function buildPayMeUrl(name, phone, amount, description, regId){
-  var SELLER_ID = 'MPL15660-34833WIN-ITZNDSDJ-KSOC9ETD';
-  var origin = window.location.origin;
-  var successUrl = origin+'/success.html?regId='+regId+'&name='+encodeURIComponent(name)+'&plan='+encodeURIComponent(description)+'&amount='+amount;
-  var failUrl = origin+'/join.html?error=payment_failed';
-
-  var params = [
-    'price='+(amount*100),
-    'currency=ILS',
-    'sale_description='+encodeURIComponent('מנוי סטודיו אורית רז — '+description),
-    'customer_fname='+encodeURIComponent(name.split(' ')[0]),
-    'customer_lname='+encodeURIComponent(name.split(' ').slice(1).join(' ')||''),
-    'customer_phone='+encodeURIComponent(phone),
-    'success_url='+encodeURIComponent(successUrl),
-    'fail_url='+encodeURIComponent(failUrl)
-  ].join('&');
-
-  return 'https://paymeservice.com/hmo/buy-now/item/'+SELLER_ID+'?'+params;
-}
+function selectPlan(id){PLANS.forEach(function(p){document.getElementById('pl-'+p.id).classList.remove('sel');});document.getElementById('pl-'+id).classList.add('sel');selectedPlan=PLANS.find(function(p){return p.id===id;});document.getElementById('err2').textContent='';}
+function goToStep(n){[1,2,3].forEach(function(i){document.getElementById('step'+i).style.display=i===n?'block':'none';});updateDots(n);window.scrollTo(0,0);}
+function updateDots(active){for(var i=1;i<=3;i++){var dot=document.getElementById('dot'+i);dot.classList.remove('active','done');if(i<active)dot.classList.add('done');else if(i===active)dot.classList.add('active');if(i<3){var line=document.getElementById('line'+i);line.classList.toggle('done',i<active);}}}
+function goStep2(){var name=document.getElementById('j-name').value.trim();var phone=document.getElementById('j-phone').value.trim().replace(/[\s\-\(\)]/g,'');var age=document.getElementById('j-age').value.trim();var err=document.getElementById('err1');if(!name){err.textContent='נא להכניס שם מלא';return;}if(!phone||phone.length<9){err.textContent='נא להכניס מספר טלפון תקין';return;}if(!age){err.textContent='נא להכניס גיל';return;}var healthChecked=['hq-heart','hq-bp','hq-diabetes','hq-back','hq-pregnant','hq-none'].some(function(id){return document.getElementById(id).checked;});if(!healthChecked){err.textContent='נא לסמן לפחות אפשרות אחת בשאלות הבריאות';return;}err.textContent='';goToStep(2);}
+function goStep3(){if(!selectedPlan){document.getElementById('err2').textContent='נא לבחור מנוי';return;}var name=document.getElementById('j-name').value.trim();var phone=document.getElementById('j-phone').value.trim();var p=selectedPlan;document.getElementById('summaryRows').innerHTML=row('שם',name)+row('טלפון',phone)+row('מנוי',p.icon+' '+p.name)+row('סכום חודשי',p.price+' ₪');goToStep(3);}
+function row(l,v){return '<div class="summary-row"><span class="summary-label">'+l+'</span><span>'+v+'</span></div>';}
+function submitAndPay(){var btn=document.getElementById('payBtn');var err=document.getElementById('err3');btn.disabled=true;btn.textContent='שומר פרטים...';err.textContent='';var name=document.getElementById('j-name').value.trim();var phone=document.getElementById('j-phone').value.trim().replace(/[\s\-\(\)]/g,'');var email=document.getElementById('j-email').value.trim();var p=selectedPlan;var regId='reg_'+Date.now()+'_'+Math.random().toString(36).substr(2,6);var age=document.getElementById('j-age').value.trim();var healthMap={'hq-heart':'בעיות לב','hq-bp':'לחץ דם גבוה','hq-diabetes':'סוכרת','hq-back':'כאבי גב/פציעות','hq-pregnant':'הריון','hq-none':'ללא בעיות'};var health=Object.keys(healthMap).filter(function(id){return document.getElementById(id).checked;}).map(function(id){return healthMap[id];});db.collection('members').doc(phone).set({name:name,phone:phone,email:email,age:age,health:health,plan:p.id,planName:p.name,amount:p.price,status:'pending_payment',regId:regId,joinDate:new Date().toLocaleDateString('he-IL'),createdAt:new Date().toISOString()}).then(function(){var PAYME_SELLER_ID='MPL15660-34833WIN-ITZNDSDJ-KSOC9ETD';var origin=window.location.origin;var successUrl=origin+'/success.html?regId='+regId+'&name='+encodeURIComponent(name)+'&plan='+encodeURIComponent(p.name)+'&amount='+p.price;var failUrl=origin+'/join.html?error=payment_failed';var params=['price='+(p.price*100),'currency=ILS','sale_description='+encodeURIComponent('מנוי סטודיו אורית רז — '+p.name),'customer_fname='+encodeURIComponent(name.split(' ')[0]),'customer_lname='+encodeURIComponent(name.split(' ').slice(1).join(' ')||''),'customer_phone='+encodeURIComponent(phone),'success_url='+encodeURIComponent(successUrl),'fail_url='+encodeURIComponent(failUrl)].join('&');window.location.href='https://paymeservice.com/hmo/buy-now/item/'+PAYME_SELLER_ID+'?'+params;}).catch(function(e){btn.disabled=false;btn.textContent='לתשלום מאובטח ←';err.textContent='שגיאה בשמירת הפרטים. נסי שוב.';console.error(e);});}
 </script>
 </body>
 </html>
