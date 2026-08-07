@@ -102,7 +102,7 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#f5f0fb;m
       <p class="card-sub">בדקי שהכל נכון לפני התשלום</p>
       <div id="summaryRows"></div>
       <div class="payment-note">
-        <span class="lock-icon">🔒</span> התשלום מתבצע בצורה מאובטחת דרך iCount
+        <span class="lock-icon">🔒</span> התשלום מתבצע בצורה מאובטחת דרך PayMe — הקבלה תישלח אוטומטית
       </div>
       <div class="err" id="err3"></div>
       <button class="btn-next" id="payBtn" onclick="submitAndPay()">לתשלום מאובטח ←</button>
@@ -145,19 +145,11 @@ var PLANS = [
 var selectedPlan = null;
 
 document.getElementById('plansList').innerHTML = PLANS.map(function(p){
-  return '<div class="plan" id="pl-'+p.id+'" onclick="selectPlan(\''+p.id+'\')">'  
-    +'<div class="plan-left">'
-    +'<div class="plan-radio" id="pr-'+p.id+'"></div>'
-    +'<div><div class="plan-name">'+p.icon+' '+p.name+'</div><div class="plan-note">'+p.note+'</div></div>'
-    +'</div>'
-    +'<div class="plan-price">'+p.price+' <span>₪/חודש</span></div>'
-    +'</div>';
+  return '<div class="plan" id="pl-'+p.id+'" onclick="selectPlan(\''+p.id+'\')">'    +'<div class="plan-left">'    +'<div class="plan-radio" id="pr-'+p.id+'"></div>'    +'<div><div class="plan-name">'+p.icon+' '+p.name+'</div><div class="plan-note">'+p.note+'</div></div>'    +'</div>'    +'<div class="plan-price">'+p.price+' <span>₪/חודש</span></div>'    +'</div>';
 }).join('');
 
 function selectPlan(id){
-  PLANS.forEach(function(p){
-    document.getElementById('pl-'+p.id).classList.remove('sel');
-  });
+  PLANS.forEach(function(p){ document.getElementById('pl-'+p.id).classList.remove('sel'); });
   document.getElementById('pl-'+id).classList.add('sel');
   selectedPlan = PLANS.find(function(p){return p.id===id;});
   document.getElementById('err2').textContent='';
@@ -224,8 +216,7 @@ function submitAndPay(){
     joinDate:new Date().toLocaleDateString('he-IL'),
     createdAt:new Date().toISOString()
   }).then(function(){
-    var iCountUrl = buildICountUrl(name, phone, p.price, p.name, regId);
-    window.location.href = iCountUrl;
+    window.location.href = buildPayMeUrl(name, phone, p.price, p.name, regId);
   }).catch(function(e){
     btn.disabled=false; btn.textContent='לתשלום מאובטח ←';
     err.textContent='שגיאה בשמירת הפרטים. נסי שוב.';
@@ -233,26 +224,24 @@ function submitAndPay(){
   });
 }
 
-function buildICountUrl(name, phone, amount, description, regId){
-  var successUrl = encodeURIComponent(window.location.origin+'/success.html?regId='+regId+'&name='+encodeURIComponent(name)+'&plan='+encodeURIComponent(description)+'&amount='+amount);
+function buildPayMeUrl(name, phone, amount, description, regId){
+  var SELLER_ID = 'MPL15660-34833WIN-ITZNDSDJ-KSOC9ETD';
+  var origin = window.location.origin;
+  var successUrl = origin+'/success.html?regId='+regId+'&name='+encodeURIComponent(name)+'&plan='+encodeURIComponent(description)+'&amount='+amount;
+  var failUrl = origin+'/join.html?error=payment_failed';
 
-  // עדכני את הערכים הבאים עם מזהי דפי התשלום מ-iCount
-  var pageMap = {
-    280: 'PAGE_ID_280',
-    360: 'PAGE_ID_360',
-    400: 'PAGE_ID_400',
-    450: 'PAGE_ID_450',
-    480: 'PAGE_ID_480'
-  };
+  var params = [
+    'price='+(amount*100),
+    'currency=ILS',
+    'sale_description='+encodeURIComponent('מנוי סטודיו אורית רז — '+description),
+    'customer_fname='+encodeURIComponent(name.split(' ')[0]),
+    'customer_lname='+encodeURIComponent(name.split(' ').slice(1).join(' ')||''),
+    'customer_phone='+encodeURIComponent(phone),
+    'success_url='+encodeURIComponent(successUrl),
+    'fail_url='+encodeURIComponent(failUrl)
+  ].join('&');
 
-  var pageId = pageMap[amount];
-  if(!pageId){
-    alert('נשמרת בהצלחה! 💜\nאורית תיצור איתך קשר לאישור התשלום.\nהיי '+name+'!');
-    goToStep(4);
-    return '#';
-  }
-
-  return 'https://icount.co.il/p/oritraz/' + pageId + '?name=' + encodeURIComponent(name) + '&phone=' + encodeURIComponent(phone) + '&success_url=' + successUrl;
+  return 'https://paymeservice.com/hmo/buy-now/item/'+SELLER_ID+'?'+params;
 }
 </script>
 </body>
