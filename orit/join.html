@@ -49,6 +49,10 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#f5f0fb;m
 .success-title{font-size:22px;font-weight:800;color:#5B3A7E;margin-bottom:8px}
 .success-msg{font-size:14px;color:#666;line-height:1.7;margin-bottom:24px}
 .btn-home{background:#5B3A7E;color:#fff;border:none;border-radius:12px;padding:14px 32px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;text-decoration:none;display:inline-block}
+.health-checks{display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
+.hcheck{display:flex;align-items:center;gap:10px;font-size:14px;color:#444;cursor:pointer;padding:10px 12px;border:1.5px solid #e8e0f0;border-radius:10px;transition:.2s}
+.hcheck:hover{border-color:#a888cc;background:#faf7ff}
+.hcheck input[type=checkbox]{width:18px;height:18px;accent-color:#5B3A7E;cursor:pointer;flex-shrink:0}
 .err{color:#e24b4a;font-size:13px;text-align:center;margin-top:8px;min-height:18px}
 </style>
 </head>
@@ -69,36 +73,50 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#f5f0fb;m
     <div class="step-dot" id="dot3">3</div>
   </div>
 
+  <!-- Step 1: Health questionnaire -->
   <div id="step1">
     <div class="card">
-      <h2>פרטים אישיים</h2>
-      <p class="card-sub">נשמח להכיר 🌸</p>
+      <h2>שאלון בריאות</h2>
+      <p class="card-sub">כמה פרטים לפני שמתחילים 🌸</p>
       <label class="flabel">שם מלא *</label>
       <input class="finp" id="j-name" placeholder="שם פרטי ומשפחה" autocomplete="name"/>
       <label class="flabel">טלפון *</label>
       <input class="finp" id="j-phone" placeholder="05X-XXXXXXX" type="tel" inputmode="numeric" autocomplete="tel"/>
       <label class="flabel">אימייל (אופציונלי)</label>
       <input class="finp" id="j-email" placeholder="your@email.com" type="email" autocomplete="email" style="direction:ltr;text-align:right"/>
+      <label class="flabel">גיל *</label>
+      <input class="finp" id="j-age" placeholder="גיל" type="number" inputmode="numeric" min="16" max="99"/>
+      <label class="flabel" style="margin-bottom:12px">שאלות בריאות — סמני כל מה שרלוונטי:</label>
+      <div class="health-checks">
+        <label class="hcheck"><input type="checkbox" id="hq-heart"> בעיות לב / כאבים בחזה</label>
+        <label class="hcheck"><input type="checkbox" id="hq-bp"> לחץ דם גבוה</label>
+        <label class="hcheck"><input type="checkbox" id="hq-diabetes"> סוכרת</label>
+        <label class="hcheck"><input type="checkbox" id="hq-back"> כאבי גב / פציעות</label>
+        <label class="hcheck"><input type="checkbox" id="hq-pregnant"> הריון</label>
+        <label class="hcheck"><input type="checkbox" id="hq-none"> אין בעיות בריאותיות</label>
+      </div>
       <div class="err" id="err1"></div>
       <button class="btn-next" onclick="goStep2()">המשך לבחירת מנוי ←</button>
       <button class="btn-back" onclick="window.location.href='index.html'">← חזרה לאתר</button>
     </div>
   </div>
 
+  <!-- Step 2: Plan selection -->
   <div id="step2" style="display:none">
     <div class="card">
       <h2>בחרי מנוי</h2>
       <p class="card-sub">כל המנויים בהוראת קבע חודשית</p>
       <div class="plans" id="plansList"></div>
       <div class="err" id="err2"></div>
-      <button class="btn-next" onclick="goStep3()">המשך לסיכום ←</button>
+      <button class="btn-next" onclick="goStep3()">המשך לתשלום ←</button>
       <button class="btn-back" onclick="goToStep(1)">← חזרה</button>
     </div>
   </div>
 
+  <!-- Step 3: Payment -->
   <div id="step3" style="display:none">
     <div class="card">
-      <h2>סיכום והרשמה</h2>
+      <h2>תשלום</h2>
       <p class="card-sub">בדקי שהכל נכון לפני התשלום</p>
       <div id="summaryRows"></div>
       <div class="payment-note">
@@ -110,12 +128,13 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#f5f0fb;m
     </div>
   </div>
 
+  <!-- Step 4: Success -->
   <div id="step4" style="display:none">
     <div class="card success-card">
       <div class="success-icon">🎉</div>
       <div class="success-title">ברוכה הבאה לסטודיו!</div>
-      <p class="success-msg" id="success-msg">תודה על ההרשמה. אורית תיצור איתך קשר בקרוב לאישור הפרטים ופרטי ההגעה.</p>
-      <a class="btn-home" href="book.html">הרשמה לאימון הראשון ←</a>
+      <p class="success-msg">תודה על ההרשמה. אורית תיצור איתך קשר בקרוב לאישור הפרטים ופרטי ההגעה.</p>
+      <a class="btn-home" href="book.html">הרשמי לאימון הראשון ←</a>
     </div>
   </div>
 
@@ -145,7 +164,7 @@ var PLANS = [
 var selectedPlan = null;
 
 document.getElementById('plansList').innerHTML = PLANS.map(function(p){
-  return '<div class="plan" id="pl-'+p.id+'" onclick="selectPlan(\''+p.id+'\')">'    +'<div class="plan-left">'    +'<div class="plan-radio" id="pr-'+p.id+'"></div>'    +'<div><div class="plan-name">'+p.icon+' '+p.name+'</div><div class="plan-note">'+p.note+'</div></div>'    +'</div>'    +'<div class="plan-price">'+p.price+' <span>₪/חודש</span></div>'    +'</div>';
+  return '<div class="plan" id="pl-'+p.id+'" onclick="selectPlan(\''+p.id+'\')">'+'<div class="plan-left">'+'<div class="plan-radio" id="pr-'+p.id+'"></div>'+'<div><div class="plan-name">'+p.icon+' '+p.name+'</div><div class="plan-note">'+p.note+'</div></div>'+'</div>'+'<div class="plan-price">'+p.price+' <span>₪/חודש</span></div>'+'</div>';
 }).join('');
 
 function selectPlan(id){
@@ -167,19 +186,20 @@ function updateDots(active){
     dot.classList.remove('active','done');
     if(i<active) dot.classList.add('done');
     else if(i===active) dot.classList.add('active');
-    if(i<3){
-      var line=document.getElementById('line'+i);
-      line.classList.toggle('done', i<active);
-    }
+    if(i<3){ document.getElementById('line'+i).classList.toggle('done', i<active); }
   }
 }
 
 function goStep2(){
   var name=document.getElementById('j-name').value.trim();
   var phone=document.getElementById('j-phone').value.trim().replace(/[\s\-\(\)]/g,'');
+  var age=document.getElementById('j-age').value.trim();
   var err=document.getElementById('err1');
   if(!name){err.textContent='נא להכניס שם מלא';return;}
   if(!phone||phone.length<9){err.textContent='נא להכניס מספר טלפון תקין';return;}
+  if(!age){err.textContent='נא להכניס גיל';return;}
+  var healthChecked=['hq-heart','hq-bp','hq-diabetes','hq-back','hq-pregnant','hq-none'].some(function(id){return document.getElementById(id).checked;});
+  if(!healthChecked){err.textContent='נא לסמן לפחות אפשרות אחת בשאלות הבריאות';return;}
   err.textContent='';
   goToStep(2);
 }
@@ -206,11 +226,15 @@ function submitAndPay(){
   var name=document.getElementById('j-name').value.trim();
   var phone=document.getElementById('j-phone').value.trim().replace(/[\s\-\(\)]/g,'');
   var email=document.getElementById('j-email').value.trim();
+  var age=document.getElementById('j-age').value.trim();
   var p=selectedPlan;
   var regId='reg_'+Date.now()+'_'+Math.random().toString(36).substr(2,6);
 
+  var healthMap={'hq-heart':'בעיות לב','hq-bp':'לחץ דם גבוה','hq-diabetes':'סוכרת','hq-back':'כאבי גב/פציעות','hq-pregnant':'הריון','hq-none':'ללא בעיות'};
+  var health=Object.keys(healthMap).filter(function(id){return document.getElementById(id).checked;}).map(function(id){return healthMap[id];});
+
   db.collection('members').doc(phone).set({
-    name:name, phone:phone, email:email,
+    name:name, phone:phone, email:email, age:age, health:health,
     plan:p.id, planName:p.name, amount:p.price,
     status:'pending_payment', regId:regId,
     joinDate:new Date().toLocaleDateString('he-IL'),
