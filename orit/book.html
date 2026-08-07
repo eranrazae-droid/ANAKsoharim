@@ -46,12 +46,9 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#f5f0fb;m
 .succ-title{font-size:20px;font-weight:800;color:#5B3A7E;margin-bottom:8px}
 .succ-msg{font-size:14px;color:#666;line-height:1.6;margin-bottom:20px}
 .succ-close{background:#5B3A7E;color:#fff;border:none;border-radius:10px;padding:12px 28px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit}
-@media(max-width:500px){.grid{grid-template-columns:1fr 1fr;gap:8px}}
-@media(max-width:340px){.grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
-
 <div class="topbar">
   <h1>🏋️ הרשמה לאימון</h1>
   <a href="index.html">← חזרה לאתר</a>
@@ -60,11 +57,9 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#f5f0fb;m
 <div class="join-bar">
   מתאמנת חדשה? <a href="join.html">הצטרפי לסטודיו ←</a>
 </div>
-
 <div class="grid" id="grid">
   <div style="grid-column:1/-1;text-align:center;padding:48px;color:#ccc;font-size:14px">טוען לוח שעות...</div>
 </div>
-
 <div class="overlay" id="overlay">
   <div class="modal">
     <div class="modal-icon">💜</div>
@@ -77,7 +72,6 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#f5f0fb;m
     <div class="fmsg" id="book-msg"></div>
   </div>
 </div>
-
 <div class="succ-overlay" id="succOverlay">
   <div class="succ-box">
     <div class="succ-icon">✅</div>
@@ -86,155 +80,32 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#f5f0fb;m
     <button class="succ-close" onclick="document.getElementById('succOverlay').classList.remove('on')">סגור</button>
   </div>
 </div>
-
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script>
-firebase.initializeApp({
-  apiKey:"AIzaSyD3H-2M1cYEupObbeeRtlcMPHyQtzEjP1Q",
-  authDomain:"orit-raz.firebaseapp.com",
-  projectId:"orit-raz",
-  storageBucket:"orit-raz.firebasestorage.app",
-  messagingSenderId:"1093566537569",
-  appId:"1:1093566537569:web:1123fc5926a543d9e1ef20"
-});
-var db = firebase.firestore();
-
-var SCHEDULE = [
-  {day:'ראשון', slots:[
-    {id:'sun-18',time:'18:00',type:'פונקציונלי',cap:7},
-    {id:'sun-19',time:'19:00',type:'פונקציונלי',cap:7},
-    {id:'sun-20',time:'20:00',type:'פונקציונלי',cap:7}
-  ]},
-  {day:'שני', slots:[
-    {id:'mon-18',time:'18:00',type:'פונקציונלי',cap:7},
-    {id:'mon-19',time:'19:00',type:'פונקציונלי',cap:7}
-  ]},
-  {day:'שלישי', slots:[
-    {id:'tue-18',time:'18:30',type:'פילאטיס',cap:7}
-  ]},
-  {day:'רביעי', slots:[
-    {id:'wed-18',time:'18:00',type:'פונקציונלי',cap:7},
-    {id:'wed-19',time:'19:00',type:'פונקציונלי',cap:7},
-    {id:'wed-20',time:'20:00',type:'פונקציונלי',cap:7}
-  ]},
-  {day:'חמישי', slots:[
-    {id:'thu-18',time:'18:00',type:'פונקציונלי',cap:7},
-    {id:'thu-19',time:'19:00',type:'פונקציונלי',cap:7}
-  ]},
-  {day:'שישי', slots:[
-    {id:'fri-08',time:'08:15',type:'נפח',cap:9}
-  ]}
+firebase.initializeApp({apiKey:"AIzaSyD3H-2M1cYEupObbeeRtlcMPHyQtzEjP1Q",authDomain:"orit-raz.firebaseapp.com",projectId:"orit-raz",storageBucket:"orit-raz.firebasestorage.app",messagingSenderId:"1093566537569",appId:"1:1093566537569:web:1123fc5926a543d9e1ef20"});
+var db=firebase.firestore();
+var SCHEDULE=[
+  {day:'ראשון',slots:[{id:'sun-18',time:'18:00',type:'פונקציונלי',cap:7},{id:'sun-19',time:'19:00',type:'פונקציונלי',cap:7},{id:'sun-20',time:'20:00',type:'פונקציונלי',cap:7}]},
+  {day:'שני',slots:[{id:'mon-18',time:'18:00',type:'פונקציונלי',cap:7},{id:'mon-19',time:'19:00',type:'פונקציונלי',cap:7}]},
+  {day:'שלישי',slots:[{id:'tue-18',time:'18:30',type:'פילאטיס',cap:7}]},
+  {day:'רביעי',slots:[{id:'wed-18',time:'18:00',type:'פונקציונלי',cap:7},{id:'wed-19',time:'19:00',type:'פונקציונלי',cap:7},{id:'wed-20',time:'20:00',type:'פונקציונלי',cap:7}]},
+  {day:'חמישי',slots:[{id:'thu-18',time:'18:00',type:'פונקציונלי',cap:7},{id:'thu-19',time:'19:00',type:'פונקציונלי',cap:7}]},
+  {day:'שישי',slots:[{id:'fri-08',time:'08:15',type:'נפח',cap:9}]}
 ];
-
-var counts = {}, currentSlot = null;
-
-function getWeekKey(){
-  var d = new Date(); d.setDate(d.getDate()-d.getDay()); d.setHours(0,0,0,0);
-  return d.toISOString().split('T')[0];
-}
-var weekKey = getWeekKey();
-
-function weekLabel(){
-  var sun = new Date(); sun.setDate(sun.getDate()-sun.getDay()); sun.setHours(0,0,0,0);
-  var sat = new Date(sun); sat.setDate(sun.getDate()+6);
-  var f = function(d){return d.toLocaleDateString('he-IL',{day:'numeric',month:'long'});};
-  return 'שבוע '+f(sun)+' – '+f(sat);
-}
-document.getElementById('weekBar').textContent = weekLabel();
-
-function findSlot(id){
-  for(var d of SCHEDULE) for(var s of d.slots) if(s.id===id) return s;
-  return null;
-}
-
-function badgeHtml(count, cap){
-  var left = cap - count;
-  if(left<=0) return '<span class="badge badge-full">מלא</span>';
-  if(left<=2) return '<span class="badge badge-few">נותרו '+left+'</span>';
-  return '<span class="badge badge-ok">'+left+' מקומות</span>';
-}
-
-function renderGrid(){
-  var html='';
-  SCHEDULE.forEach(function(day){
-    html+='<div class="day-col"><div class="day-head">'+day.day+'</div>';
-    day.slots.forEach(function(s){
-      var c=counts[s.id]||0, full=c>=s.cap;
-      html+='<div class="slot'+(full?' full':'')+' '+(full?'':' onclick="openModal(\''+s.id+'\')"')+'>';
-      html+='<div class="slot-time">'+s.time+'</div>';
-      html+='<div class="slot-type">'+s.type+'</div>';
-      html+=badgeHtml(c,s.cap);
-      html+='</div>';
-    });
-    html+='</div>';
-  });
-  document.getElementById('grid').innerHTML=html;
-}
-
-function loadBookings(){
-  var ids=[];
-  SCHEDULE.forEach(function(d){d.slots.forEach(function(s){ids.push(s.id);});});
-  var ps=ids.map(function(id){
-    return db.collection('bookings').doc(weekKey+'_'+id).get().then(function(doc){
-      counts[id]=doc.exists?Object.keys(doc.data().registrations||{}).length:0;
-    });
-  });
-  Promise.all(ps).then(renderGrid);
-}
-
-function openModal(slotId){
-  var s=findSlot(slotId); if(!s) return;
-  currentSlot=s;
-  document.getElementById('modal-title').textContent=s.type+' · '+s.time;
-  document.getElementById('modal-sub').textContent='מלאי פרטים ונרשמך לאימון';
-  document.getElementById('b-name').value='';
-  document.getElementById('b-phone').value='';
-  document.getElementById('book-msg').textContent='';
-  document.getElementById('book-btn').disabled=false;
-  document.getElementById('overlay').classList.add('on');
-  document.getElementById('b-name').focus();
-}
-
-function closeModal(){ document.getElementById('overlay').classList.remove('on'); }
-
+var counts={},currentSlot=null;
+function getWeekKey(){var d=new Date();d.setDate(d.getDate()-d.getDay());d.setHours(0,0,0,0);return d.toISOString().split('T')[0];}
+var weekKey=getWeekKey();
+function weekLabel(){var sun=new Date();sun.setDate(sun.getDate()-sun.getDay());sun.setHours(0,0,0,0);var sat=new Date(sun);sat.setDate(sun.getDate()+6);var f=function(d){return d.toLocaleDateString('he-IL',{day:'numeric',month:'long'});};return 'שבוע '+f(sun)+' – '+f(sat);}
+document.getElementById('weekBar').textContent=weekLabel();
+function findSlot(id){for(var d of SCHEDULE)for(var s of d.slots)if(s.id===id)return s;return null;}
+function badgeHtml(count,cap){var left=cap-count;if(left<=0)return '<span class="badge badge-full">מלא</span>';if(left<=2)return '<span class="badge badge-few">נותרו '+left+'</span>';return '<span class="badge badge-ok">'+left+' מקומות</span>';}
+function renderGrid(){var html='';SCHEDULE.forEach(function(day){html+='<div class="day-col"><div class="day-head">'+day.day+'</div>';day.slots.forEach(function(s){var c=counts[s.id]||0,full=c>=s.cap;html+='<div class="slot'+(full?' full':'')+'"|'+(full?'':' onclick="openModal(\''+s.id+'\')"')+'>';html+='<div class="slot-time">'+s.time+'</div>';html+='<div class="slot-type">'+s.type+'</div>';html+=badgeHtml(c,s.cap);html+='</div>';});html+='</div>';});document.getElementById('grid').innerHTML=html;}
+function loadBookings(){var ids=[];SCHEDULE.forEach(function(d){d.slots.forEach(function(s){ids.push(s.id);});});var ps=ids.map(function(id){return db.collection('bookings').doc(weekKey+'_'+id).get().then(function(doc){counts[id]=doc.exists?Object.keys(doc.data().registrations||{}).length:0;});});Promise.all(ps).then(renderGrid);}
+function openModal(slotId){var s=findSlot(slotId);if(!s)return;currentSlot=s;document.getElementById('modal-title').textContent=s.type+' · '+s.time;document.getElementById('modal-sub').textContent='מלאי פרטים ונרשמך לאימון';document.getElementById('b-name').value='';document.getElementById('b-phone').value='';document.getElementById('book-msg').textContent='';document.getElementById('book-btn').disabled=false;document.getElementById('overlay').classList.add('on');document.getElementById('b-name').focus();}
+function closeModal(){document.getElementById('overlay').classList.remove('on');}
 document.getElementById('overlay').addEventListener('click',function(e){if(e.target===this)closeModal();});
-
-function confirmBook(){
-  var name=document.getElementById('b-name').value.trim();
-  var phone=document.getElementById('b-phone').value.trim().replace(/[\s\-\(\)]/g,'');
-  var msg=document.getElementById('book-msg');
-  msg.style.color='#e24b4a';
-  if(!name){msg.textContent='נא להכניס שם';return;}
-  if(!phone||phone.length<9){msg.textContent='מספר טלפון לא תקין';return;}
-
-  var s=currentSlot;
-  document.getElementById('book-btn').disabled=true;
-  msg.style.color='#888'; msg.textContent='מעבד...';
-
-  var ref=db.collection('bookings').doc(weekKey+'_'+s.id);
-  db.runTransaction(function(t){
-    return t.get(ref).then(function(doc){
-      var regs=doc.exists?(doc.data().registrations||{}):{};  
-      if(Object.keys(regs).length>=s.cap) throw new Error('full');
-      if(regs[phone]) throw new Error('dup');
-      regs[phone]={name:name,phone:phone,at:new Date().toISOString()};
-      t.set(ref,{registrations:regs,slotId:s.id,weekKey:weekKey,type:s.type,time:s.time},{merge:true});
-    });
-  }).then(function(){
-    counts[s.id]=(counts[s.id]||0)+1;
-    closeModal(); renderGrid();
-    document.getElementById('succ-title').textContent='נרשמת! 💜';
-    document.getElementById('succ-msg').textContent=name+', נרשמת לאימון '+s.type+' בשעה '+s.time+'.\nנתראה בסטודיו!';
-    document.getElementById('succOverlay').classList.add('on');
-  }).catch(function(e){
-    document.getElementById('book-btn').disabled=false;
-    msg.style.color='#e24b4a';
-    if(e.message==='full') msg.textContent='😔 האימון הזה מלא';
-    else if(e.message==='dup') msg.textContent='מספר זה כבר רשום לאימון';
-    else msg.textContent='שגיאה, נסי שוב';
-  });
-}
+function confirmBook(){var name=document.getElementById('b-name').value.trim();var phone=document.getElementById('b-phone').value.trim().replace(/[\s\-\(\)]/g,'');var msg=document.getElementById('book-msg');msg.style.color='#e24b4a';if(!name){msg.textContent='נא להכניס שם';return;}if(!phone||phone.length<9){msg.textContent='מספר טלפון לא תקין';return;}var s=currentSlot;document.getElementById('book-btn').disabled=true;msg.style.color='#888';msg.textContent='מעבד...';var ref=db.collection('bookings').doc(weekKey+'_'+s.id);db.runTransaction(function(t){return t.get(ref).then(function(doc){var regs=doc.exists?(doc.data().registrations||{}):{};if(Object.keys(regs).length>=s.cap)throw new Error('full');if(regs[phone])throw new Error('dup');regs[phone]={name:name,phone:phone,at:new Date().toISOString()};t.set(ref,{registrations:regs,slotId:s.id,weekKey:weekKey,type:s.type,time:s.time},{merge:true});});}).then(function(){counts[s.id]=(counts[s.id]||0)+1;closeModal();renderGrid();document.getElementById('succ-title').textContent='נרשמת! 💜';document.getElementById('succ-msg').textContent=name+', נרשמת לאימון '+s.type+' בשעה '+s.time+'.\nנתראה בסטודיו!';document.getElementById('succOverlay').classList.add('on');}).catch(function(e){document.getElementById('book-btn').disabled=false;msg.style.color='#e24b4a';if(e.message==='full')msg.textContent='😔 האימון הזה מלא';else if(e.message==='dup')msg.textContent='מספר זה כבר רשום לאימון';else msg.textContent='שגיאה, נסי שוב';});}
 loadBookings();
 </script>
 </body>
