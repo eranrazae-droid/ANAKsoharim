@@ -58,6 +58,11 @@ tr:hover td{background:#faf7fa}
 .vid-save-btn{background:#7B3F7A;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:11px;cursor:pointer;font-family:"DM Sans",sans-serif;white-space:nowrap}
 .vid-save-btn:hover{background:#9B5A9A}
 .save-msg{font-size:11px;color:#2E7D32;margin-top:4px;display:none}
+.gal-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+.gal-card{background:#fff;border-radius:12px;border:1px solid #E8E0E8;padding:16px}
+.gal-preview{width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:8px;margin-bottom:10px;display:none;background:#f5f0fb}
+.gal-inp{width:100%;border:1px solid #E8E0E8;border-radius:6px;padding:8px 10px;font-size:12px;font-family:"DM Sans",sans-serif;outline:none;direction:ltr;color:#555;margin-bottom:8px}
+.gal-inp:focus{border-color:#7B3F7A}
 @media(max-width:640px){
   .panel{padding:10px}
   .header-title{font-size:17px}
@@ -80,6 +85,7 @@ tr:hover td{background:#faf7fa}
   .status-sel{font-size:12px}
   .btn{padding:9px 14px;font-size:13px}
   .vid-cats{grid-template-columns:1fr}
+  .gal-grid{grid-template-columns:1fr 1fr}
   .lock-box{padding:28px 20px}
 }
 </style>
@@ -107,6 +113,7 @@ tr:hover td{background:#faf7fa}
     <button class="tab on" onclick="showTab('leads',this)">📋 לידים</button>
     <button class="tab" onclick="showTab('members',this)">👩 מתאמנות</button>
     <button class="tab" onclick="showTab('classes',this)">🗓️ אימונים</button>
+    <button class="tab" onclick="showTab('gallery',this)">📸 גלריה</button>
     <button class="tab" onclick="showTab('videos',this)">🎤 סרטונים</button>
   </div>
 
@@ -162,6 +169,11 @@ tr:hover td{background:#faf7fa}
     <div id="classes-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px"></div>
   </div>
 
+  <div class="section" id="sec-gallery">
+    <p style="font-size:13px;color:#888;margin-bottom:20px">הדביקי קישור לכל תמונה (קישור ישיר לתמונה, לא לדף שיתוף). התמונות יופיעו בדף הבית מיד לאחר השמירה.</p>
+    <div class="gal-grid" id="gal-grid"></div>
+  </div>
+
   <div class="section" id="sec-videos">
     <p style="font-size:13px;color:#888;margin-bottom:20px">הדביקי קישור YouTube לכל סרטון. הסרטונים יופיעו באתר מיד לאחר השמירה.</p>
     <div class="vid-cats" id="vid-cats"></div>
@@ -172,6 +184,7 @@ tr:hover td{background:#faf7fa}
 var PW = 'orit2025';
 var LEADS_KEY = 'orit_v3';
 var cf = 'all';
+var GAL_COUNT = 12;
 
 var VID_CATS = [
   {id:'functional', name:'אימון פונקציונלי', icon:'💪', count:3},
@@ -188,7 +201,6 @@ function checkPw(){
     document.getElementById('lock').style.display='none';
     document.getElementById('panel').style.display='block';
     renderLeads();
-    buildVideos();
   } else {
     document.getElementById('pw-err').style.display='block';
   }
@@ -207,6 +219,7 @@ function showTab(id,el){
   el.classList.add('on');
   if(id==='leads') renderLeads();
   if(id==='videos') buildVideos();
+  if(id==='gallery') buildGallery();
   if(id==='members') loadMembers();
   if(id==='classes') loadClasses();
 }
@@ -287,6 +300,68 @@ function exportCSV(){
   var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='orit_leads.csv';a.click();
 }
 
+function buildGallery(){
+  var container=document.getElementById('gal-grid');
+  container.innerHTML='<div style="color:#ccc;text-align:center;padding:40px;grid-column:1/-1">טוען...</div>';
+  fdb.collection('gallery').orderBy('order').get().then(function(snap){
+    var saved={};
+    snap.forEach(function(doc){saved[doc.id]=doc.data();});
+    var html='';
+    for(var i=0;i<GAL_COUNT;i++){
+      var docId='img_'+i;
+      var data=saved[docId]||{};
+      var url=data.url||'';
+      html+='<div class="gal-card">'
+        +'<img class="gal-preview" id="gp-'+i+'" src="'+url+'" '+(url?'style="display:block"':'')+'/>'
+        +'<input class="gal-inp" id="gi-'+i+'" placeholder="https://..." value="'+url+'" oninput="previewGal('+i+')" direction="ltr"/>'
+        +'<div style="display:flex;gap:8px">'
+        +'<button class="vid-save-btn" style="flex:1" onclick="saveGalImg('+i+')">שמור</button>'
+        +(url?'<button class="btn btn-danger" style="font-size:11px;padding:5px 10px" onclick="delGalImg('+i+')">מחק</button>':'')
+        +'</div>'
+        +'<div class="save-msg" id="gsm-'+i+'">✅ נשמר!</div>'
+        +'</div>';
+    }
+    container.innerHTML=html;
+  }).catch(function(){
+    var html='';
+    for(var i=0;i<GAL_COUNT;i++){
+      html+='<div class="gal-card">'
+        +'<img class="gal-preview" id="gp-'+i+'" src="" />'
+        +'<input class="gal-inp" id="gi-'+i+'" placeholder="https://..." oninput="previewGal('+i+')"/>'
+        +'<button class="vid-save-btn" style="width:100%" onclick="saveGalImg('+i+')">שמור</button>'
+        +'<div class="save-msg" id="gsm-'+i+'">✅ נשמר!</div>'
+        +'</div>';
+    }
+    container.innerHTML=html;
+  });
+}
+
+function previewGal(i){
+  var inp=document.getElementById('gi-'+i);
+  var img=document.getElementById('gp-'+i);
+  if(!inp||!img) return;
+  var url=inp.value.trim();
+  if(url){img.src=url;img.style.display='block';}
+  else{img.style.display='none';}
+}
+
+function saveGalImg(i){
+  var inp=document.getElementById('gi-'+i);
+  if(!inp) return;
+  var url=inp.value.trim();
+  fdb.collection('gallery').doc('img_'+i).set({url:url,order:i,updatedAt:new Date().toISOString()}).then(function(){
+    var sm=document.getElementById('gsm-'+i);
+    if(sm){sm.style.display='block';setTimeout(function(){sm.style.display='none';},2000);}
+  }).catch(function(e){alert('שגיאה: '+e.message);});
+}
+
+function delGalImg(i){
+  if(!confirm('למחוק תמונה?'))return;
+  fdb.collection('gallery').doc('img_'+i).set({url:'',order:i,updatedAt:new Date().toISOString()}).then(function(){
+    buildGallery();
+  });
+}
+
 function extractYoutubeId(url){
   if(!url) return '';
   var m = url.match(/(?:v=|youtu\.be\/|embed\/)([A-Za-z0-9_-]{11})/);
@@ -308,7 +383,7 @@ function buildVideos(){
         items+='<div class="vid-item">'
           +'<span class="vid-num">'+(i+1)+'</span>'
           +'<input class="vid-inp" placeholder="https://youtube.com/watch?v=..." value="'+currentUrl+'" data-cat="'+cat.id+'" data-catname="'+cat.name+'" data-icon="'+cat.icon+'" data-catidx="'+catIdx+'" data-idx="'+i+'"/>'
-          +'<button class="vid-save-btn" onclick="saveVid(\'' +cat.id+'\','+i+')">שמור</button>'
+          +'<button class="vid-save-btn" onclick="saveVid(\''+cat.id+'\','+i+')">שמור</button>'
           +'</div>'
           +'<div class="save-msg" id="sm-'+cat.id+'-'+i+'">✅ נשמר!</div>';
       }
@@ -318,21 +393,7 @@ function buildVideos(){
         +'</div>';
     }).join('');
   }).catch(function(){
-    container.innerHTML=VID_CATS.map(function(cat,catIdx){
-      var items='';
-      for(var i=0;i<cat.count;i++){
-        items+='<div class="vid-item">'
-          +'<span class="vid-num">'+(i+1)+'</span>'
-          +'<input class="vid-inp" placeholder="https://youtube.com/watch?v=..." data-cat="'+cat.id+'" data-catname="'+cat.name+'" data-icon="'+cat.icon+'" data-catidx="'+catIdx+'" data-idx="'+i+'"/>'
-          +'<button class="vid-save-btn" onclick="saveVid(\'' +cat.id+'\','+i+')">שמור</button>'
-          +'</div>'
-          +'<div class="save-msg" id="sm-'+cat.id+'-'+i+'">✅ נשמר!</div>';
-      }
-      return'<div class="vid-cat-card">'
-        +'<div class="vid-cat-title">'+cat.icon+' '+cat.name+'</div>'
-        +items
-        +'</div>';
-    }).join('');
+    container.innerHTML='<div style="color:#e24b4a;text-align:center;padding:40px">שגיאה בטעינת סרטונים</div>';
   });
 }
 
@@ -346,15 +407,14 @@ function saveVid(cat,i){
   var catIdx=parseInt(inp.getAttribute('data-catidx')||'0');
   var docId=cat+'_'+i;
   var order=catIdx*10+i;
-  var data={
+  fdb.collection('videos').doc(docId).set({
     youtubeId: youtubeId,
     title: catName,
     subtitle: catIcon+' סרטון '+(i+1),
     order: order,
     cat: cat,
     updatedAt: new Date().toISOString()
-  };
-  fdb.collection('videos').doc(docId).set(data).then(function(){
+  }).then(function(){
     var sm=document.getElementById('sm-'+cat+'-'+i);
     if(sm){sm.style.display='block';setTimeout(function(){sm.style.display='none';},2000);}
   }).catch(function(e){alert('שגיאה בשמירה: '+e.message);});
