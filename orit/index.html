@@ -22,6 +22,9 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#fff;dire
 .hour-day{font-weight:600;color:#444}
 .hour-time{color:#5B3A7E;font-weight:700}
 .hour-closed{color:#ccc}
+.gallery-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.gallery-grid img{width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:12px;display:block}
+.no-gallery{text-align:center;color:#bbb;font-size:14px;padding:24px}
 .videos-grid{display:flex;flex-direction:column;gap:12px}
 .video-card{border-radius:12px;overflow:hidden;background:#f5f0fb}
 .video-thumb{width:100%;aspect-ratio:16/9}
@@ -57,6 +60,11 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#fff;dire
   <div class="hour-row"><span class="hour-day">שבת</span><span class="hour-closed">סגור</span></div>
 </div>
 <div class="divider"></div>
+<div class="section" style="max-width:600px">
+  <h2>📸 תמונות סטודיו</h2>
+  <div class="gallery-grid" id="galleryGrid"><div class="no-gallery">תמונות יופיעו כאן בקרוב 🌸</div></div>
+</div>
+<div class="divider"></div>
 <div class="section">
   <h2>🎥 סרטוני אימון</h2>
   <div class="videos-grid" id="videosList"><div class="no-videos">הסרטונים יופיעו כאן בקרוב 🌸</div></div>
@@ -70,6 +78,12 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#fff;dire
 <script>
 firebase.initializeApp({apiKey:"AIzaSyD3H-2M1cYEupObbeeRtlcMPHyQtzEjP1Q",authDomain:"orit-raz.firebaseapp.com",projectId:"orit-raz",storageBucket:"orit-raz.firebasestorage.app",messagingSenderId:"1093566537569",appId:"1:1093566537569:web:1123fc5926a543d9e1ef20"});
 var db=firebase.firestore();
+db.collection('gallery').orderBy('order').get().then(function(snap){
+  if(snap.empty)return;
+  var html='';
+  snap.forEach(function(doc){var g=doc.data();if(g.url)html+='<img src="'+g.url+'" alt="סטודיו אורית רז" loading="lazy" onerror="this.style.display=\'none\'">';});
+  if(html) document.getElementById('galleryGrid').innerHTML=html;
+});
 db.collection('videos').orderBy('order').get().then(function(snap){
   if(snap.empty)return;
   var html='';
