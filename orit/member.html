@@ -76,6 +76,25 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FAF5F5;m
 .weight-add-btn:hover{background:#A88484}
 /* default pw warning */
 .pw-warn{background:#fff8e1;border-radius:10px;padding:10px 14px;font-size:13px;color:#8a6000;margin-bottom:14px;line-height:1.5}
+/* עדכונים */
+.announce-item{padding:10px 0;border-bottom:1px solid #FAF5F5}
+.announce-item:last-child{border-bottom:none}
+.announce-title{font-weight:700;font-size:14px;color:#333}
+.announce-body{font-size:13px;color:#666;margin-top:3px;line-height:1.5}
+.announce-date{font-size:11px;color:#bbb;margin-top:3px}
+.announce-pin{display:inline-block;background:#fff8e1;color:#b07d00;border-radius:6px;font-size:10px;font-weight:700;padding:2px 7px;margin-left:6px}
+/* היסטוריית אימונים */
+.training-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #FAF5F5;font-size:13px}
+.training-item:last-child{border-bottom:none}
+.training-type{font-weight:700;color:#333}
+.training-time{color:#C4A0A0;font-size:12px;margin-top:2px}
+.training-date{color:#999;font-size:12px;text-align:left}
+/* היסטוריית תשלומים */
+.pay-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #FAF5F5;font-size:13px}
+.pay-item:last-child{border-bottom:none}
+.pay-desc{font-weight:700;color:#333}
+.pay-sub{color:#aaa;font-size:11px;margin-top:2px}
+.pay-amount{font-weight:900;color:#2e7d32;font-size:15px}
 </style>
 </head>
 <body>
@@ -101,6 +120,11 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FAF5F5;m
 
   <!-- דשבורד -->
   <div id="dashboard" style="display:none">
+    <!-- עדכונים -->
+    <div class="card" id="announcementsCard" style="display:none">
+      <h2>📢 עדכונים</h2>
+      <div id="announceList"></div>
+    </div>
     <!-- אזהרת סיסמה ברירת מחדל -->
     <div class="pw-warn" id="pwWarn" style="display:none">
       🔒 <strong>טיפ:</strong> את עדיין משתמשת בסיסמה הראשונית 1234. <a onclick="showScreen('changePassScreen')" style="color:#C4A0A0;cursor:pointer;font-weight:700">לחצי כאן לשינוי סיסמה ←</a>
@@ -177,8 +201,19 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FAF5F5;m
         </div>
       </div>
     </div>
+    <!-- היסטוריית אימונים -->
+    <div class="card">
+      <h2>🏋️ היסטוריית אימונים</h2>
+      <div id="trainingList"><p style="font-size:13px;color:#bbb;text-align:center;padding:8px 0">טוען...</p></div>
+    </div>
+    <!-- היסטוריית תשלומים -->
+    <div class="card">
+      <h2>💳 היסטוריית תשלומים</h2>
+      <div id="paymentList"><p style="font-size:13px;color:#bbb;text-align:center;padding:8px 0">טוען...</p></div>
+    </div>
+    <!-- פעולות חשבון -->
     <div class="card" id="historyCard">
-      <h2>היסטוריה</h2>
+      <h2>📋 פעולות חשבון</h2>
       <div id="historyList"><p style="font-size:13px;color:#bbb">אין פעולות קודמות</p></div>
     </div>
     <button class="btn btn-gray" onclick="doLogout()">יציאה</button>
@@ -348,6 +383,9 @@ function loadDashboard(){
   document.getElementById('btn-freeze').disabled=(m.status==='frozen');
   renderChangePlans();
   renderWeightTable();
+  loadAnnouncements();
+  renderTrainingHistory();
+  renderPaymentHistory();
 }
 function renderChangePlans(){document.getElementById('changePlansList').innerHTML=PLANS.filter(function(p){return p.id!==(currentMember&&currentMember.plan);}).map(function(p){return'<div class="plan-s" id="cpl-'+p.id+'" onclick="selectNewPlan(\''+p.id+'\')">'+'<div class="plan-s-left"><div class="plan-s-radio" id="cpr-'+p.id+'"></div>'+'<span class="plan-s-name">'+p.icon+' '+p.name+'</span></div>'+'<span class="plan-s-price">'+p.price+' ₪</span></div>';}).join('');}
 function selectNewPlan(id){PLANS.forEach(function(p){var el=document.getElementById('cpl-'+p.id);if(el)el.classList.remove('sel');});document.getElementById('cpl-'+id).classList.add('sel');selectedNewPlan=PLANS.find(function(p){return p.id===id;});document.getElementById('change-err').textContent='';}
@@ -446,6 +484,68 @@ function addWeight(){
   }).catch(function(){err.textContent='שגיאה, נסי שוב';});
 }
 function escHtml(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+
+/* עדכונים */
+function loadAnnouncements(){
+  db.collection('announcements').orderBy('date','desc').limit(10).get().then(function(snap){
+    var card=document.getElementById('announcementsCard');
+    var list=document.getElementById('announceList');
+    if(snap.empty){card.style.display='none';return;}
+    var html='';
+    snap.forEach(function(doc){
+      var a=doc.data();
+      var dateStr=a.date?new Date(a.date.toDate?a.date.toDate():a.date).toLocaleDateString('he-IL'):'';
+      html+='<div class="announce-item">'
+        +(a.pinned?'<span class="announce-pin">📌 מוצמד</span>':'')
+        +'<div class="announce-title">'+escHtml(a.title||'')+'</div>'
+        +(a.body?'<div class="announce-body">'+escHtml(a.body)+'</div>':'')
+        +'<div class="announce-date">'+dateStr+'</div>'
+        +'</div>';
+    });
+    list.innerHTML=html;
+    card.style.display='block';
+  }).catch(function(){document.getElementById('announcementsCard').style.display='none';});
+}
+
+/* היסטוריית אימונים */
+function renderTrainingHistory(){
+  var wrap=document.getElementById('trainingList');
+  var trainings=(currentMember.trainings||[]);
+  var now=new Date();
+  // רק אימונים שעברו וסטטוס 'booked'
+  var past=trainings.filter(function(t){
+    return t.status==='booked'&&t.classDate&&new Date(t.classDate)<now;
+  }).sort(function(a,b){return a.classDate<b.classDate?1:-1;});
+  if(past.length===0){wrap.innerHTML='<p style="font-size:13px;color:#bbb;text-align:center;padding:8px 0">עדיין אין אימונים</p>';return;}
+  var html='';
+  past.forEach(function(t){
+    var d=new Date(t.classDate);
+    var dateStr=d.toLocaleDateString('he-IL',{weekday:'short',day:'numeric',month:'numeric',year:'2-digit'});
+    html+='<div class="training-item">'
+      +'<div><div class="training-type">'+escHtml(t.type||'')+'</div>'
+      +'<div class="training-time">'+escHtml(t.time||'')+'</div></div>'
+      +'<div class="training-date">'+dateStr+'</div>'
+      +'</div>';
+  });
+  wrap.innerHTML=html;
+}
+
+/* היסטוריית תשלומים */
+function renderPaymentHistory(){
+  var wrap=document.getElementById('paymentList');
+  var payments=(currentMember.payments||[]).slice().sort(function(a,b){return(a.date||'')>(b.date||'')?-1:1;});
+  if(payments.length===0){wrap.innerHTML='<p style="font-size:13px;color:#bbb;text-align:center;padding:8px 0">אין תשלומים רשומים</p>';return;}
+  var html='';
+  payments.forEach(function(p){
+    var dateStr=p.date?new Date(p.date).toLocaleDateString('he-IL'):'';
+    html+='<div class="pay-item">'
+      +'<div><div class="pay-desc">'+escHtml(p.description||p.desc||'תשלום')+'</div>'
+      +'<div class="pay-sub">'+dateStr+'</div></div>'
+      +'<div class="pay-amount">'+escHtml(String(p.amount||''))+' ₪</div>'
+      +'</div>';
+  });
+  wrap.innerHTML=html;
+}
 </script>
 </body>
 </html>
