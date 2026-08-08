@@ -2664,9 +2664,17 @@ async function _enterAsAuthUser(user) {
   try {
     const snap = await window._getDoc(_docRef('users', user.uid));
     profile = snap.exists() ? snap.data() : null;
-  } catch (e) { /* the profile may not be readable yet */ }
-  const name = profile?.name || user.displayName || 'משתמש';
-  const role = profile?.role || 'driver';
+  } catch (e) { /* offline, or the profile is momentarily unreadable */ }
+  // the last known profile of this very account is the fallback, so a bad
+  // moment on the network never turns a manager into a driver
+  let cached = null;
+  try { cached = JSON.parse(localStorage.getItem('anak_profile_' + user.uid) || 'null'); } catch (e) {}
+  if (profile) {
+    try { localStorage.setItem('anak_profile_' + user.uid, JSON.stringify({ name: profile.name, role: profile.role })); } catch (e) {}
+  }
+  const src = profile || cached;
+  const name = src?.name || user.displayName || 'משתמש';
+  const role = src?.role || 'driver';
   currentUser = { role, name };
   _realUser = { ...currentUser, uid: user.uid };
   localStorage.setItem('anak_user', JSON.stringify(currentUser));
@@ -2678,11 +2686,18 @@ async function _enterAsAuthUser(user) {
 
 // the way back to the sign-in screen, for a device that entered before there
 // were accounts at all
-function goToLoginScreen() {
+async function goToLoginScreen() {
   closeModal('modal-switch-user');
   localStorage.removeItem('anak_user');
   localStorage.removeItem('anak_real_user');
   currentUser = null; _realUser = null;
+  window._signedInUser = null;
+  // without this the account is still signed in, and the next refresh walks
+  // straight back into the screen we just left
+  try {
+    const { signOut } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js");
+    await signOut(window._auth);
+  } catch (e) { console.error('signOut', e); }
   _applyUserBg();
   showScreen('login');
 }
@@ -2977,7 +2992,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 188';
+const APP_BUILD = '2026-08-05 · 189';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
