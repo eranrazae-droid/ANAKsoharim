@@ -85,6 +85,16 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FAF5F5;m
 .upcoming-cancel-btn{background:#fff;border:1.5px solid #e24b4a;color:#e24b4a;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
 .upcoming-change-btn{background:#C4A0A0;border:none;color:#fff;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
 .upcoming-late{font-size:11px;color:#bbb;margin-top:4px}
+/* בוט תזונה */
+.bot-msg{max-width:85%;padding:10px 14px;border-radius:14px;font-size:13px;line-height:1.6}
+.bot-msg.bot{background:#FAF5F5;color:#333;border-bottom-right-radius:4px;align-self:flex-end}
+.bot-msg.user{background:#C4A0A0;color:#fff;border-bottom-left-radius:4px;align-self:flex-start}
+.bot-choice{background:#fff;border:1.5px solid #C4A0A0;color:#C4A0A0;border-radius:20px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;transition:.15s}
+.bot-choice:hover{background:#C4A0A0;color:#fff}
+.menu-meal{padding:12px 0;border-bottom:1px solid #FAF5F5}
+.menu-meal:last-child{border-bottom:none}
+.menu-meal-title{font-weight:800;font-size:14px;color:#C4A0A0;margin-bottom:4px}
+.menu-meal-items{font-size:13px;color:#555;line-height:1.7}
 /* מדריך תזונה */
 .nutr-section{margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid #FAF5F5}
 .nutr-section:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
@@ -389,7 +399,22 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FAF5F5;m
       <h2 id="nutr-title">🥗 מדריך תזונה</h2>
       <div id="nutr-body"><p style="font-size:13px;color:#bbb;text-align:center;padding:16px 0">טוען...</p></div>
     </div>
+    <button class="btn btn-primary" onclick="showScreen('nutritionBotScreen');startNutrBot()" style="margin-bottom:10px">🤖 בני לי תפריט אישי</button>
     <button class="btn btn-gray" onclick="showScreen('dashboard')">← חזרה</button>
+  </div>
+
+  <!-- בוט תפריט תזונה -->
+  <div id="nutritionBotScreen" style="display:none">
+    <div class="card" style="padding-bottom:16px">
+      <h2>🤖 בוט תפריט אישי</h2>
+      <div id="bot-chat" style="min-height:160px;max-height:420px;overflow-y:auto;margin-bottom:14px;display:flex;flex-direction:column;gap:10px"></div>
+      <div id="bot-choices" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+    </div>
+    <div id="bot-result" style="display:none">
+      <div class="card" id="bot-menu-card"></div>
+      <button class="btn btn-outline" onclick="startNutrBot()" style="margin-bottom:10px">🔄 בנה תפריט חדש</button>
+    </div>
+    <button class="btn btn-gray" onclick="showScreen('nutritionScreen');openNutritionGuide()">← חזרה</button>
   </div>
 
   <!-- שכחתי סיסמה -->
@@ -512,7 +537,7 @@ function loadDashboard(){
 }
 function renderChangePlans(){document.getElementById('changePlansList').innerHTML=PLANS.filter(function(p){return p.id!==(currentMember&&currentMember.plan);}).map(function(p){return'<div class="plan-s" id="cpl-'+p.id+'" onclick="selectNewPlan(\''+p.id+'\')">'+'<div class="plan-s-left"><div class="plan-s-radio" id="cpr-'+p.id+'"></div>'+'<span class="plan-s-name">'+p.icon+' '+p.name+'</span></div>'+'<span class="plan-s-price">'+p.price+' ₪</span></div>';}).join('');}
 function selectNewPlan(id){PLANS.forEach(function(p){var el=document.getElementById('cpl-'+p.id);if(el)el.classList.remove('sel');});document.getElementById('cpl-'+id).classList.add('sel');selectedNewPlan=PLANS.find(function(p){return p.id===id;});document.getElementById('change-err').textContent='';}
-function showScreen(name){['loginScreen','dashboard','freezeScreen','changeScreen','detailsScreen','changePassScreen','cancelScreen','successScreen','forgotScreen','nutritionScreen','myBookingsScreen'].forEach(function(s){document.getElementById(s).style.display=s===name?'block':'none';});window.scrollTo(0,0);}
+function showScreen(name){['loginScreen','dashboard','freezeScreen','changeScreen','detailsScreen','changePassScreen','cancelScreen','successScreen','forgotScreen','nutritionScreen','myBookingsScreen','nutritionBotScreen'].forEach(function(s){document.getElementById(s).style.display=s===name?'block':'none';});window.scrollTo(0,0);}
 function toggleEye(id,btn){var inp=document.getElementById(id);if(!inp)return;var show=inp.type==='password';inp.type=show?'text':'password';btn.classList.toggle('open',show);}
 function addHistory(type,note){var h=currentMember.history||[];h.push({type:type,date:new Date().toISOString(),note:note||''});return h;}
 function submitFreeze(){var from=document.getElementById('freeze-from').value;var to=document.getElementById('freeze-to').value;var err=document.getElementById('freeze-err');if(!from||!to){err.textContent='נא לבחור תאריכים';return;}var days=Math.round((new Date(to)-new Date(from))/(1000*60*60*24));if(days<14){err.textContent='מינימום 14 יום הקפאה';return;}err.textContent='';var h=addHistory('❄️ הקפאה',from+' עד '+to+' ('+days+' ימים)');db.collection('members').doc(currentMember.id).update({status:'frozen',freezeFrom:from,freezeUntil:to,freezeDays:(currentMember.freezeDays||0)+days,history:h}).then(function(){currentMember.status='frozen';currentMember.freezeFrom=from;currentMember.freezeUntil=to;currentMember.history=h;showSuccess('הקפאה אושרה!','המנוי מוקפא מ-'+new Date(from).toLocaleDateString('he-IL')+' עד '+new Date(to).toLocaleDateString('he-IL')+'\n'+days+' ימים יקוזזו מהחיוב הבא 🩷');}).catch(function(){err.textContent='שגיאה, נסי שוב';});}
@@ -616,6 +641,299 @@ function changeUpcoming(i){
     currentMember.trainings=updated;
     return db.collection('members').doc(currentMember.phone).update({trainings:updated});
   }).then(function(){window.location.href='book.html';}).catch(function(e){alert('שגיאה: '+e.message);});
+}
+
+/* ===== בוט תפריט תזונה ===== */
+var botAnswers={};
+var BOT_QUESTIONS=[
+  {key:'goal',text:'מה המטרה התזונתית שלך?',choices:[{v:'lose',l:'🔥 ירידה במשקל'},{v:'keep',l:'⚖️ שמירה על המשקל'},{v:'gain',l:'💪 בניית שריר'}]},
+  {key:'restrict',text:'יש לך הגבלות תזונה?',choices:[{v:'none',l:'❌ אין הגבלות'},{v:'veg',l:'🌿 צמחוני'},{v:'vegan',l:'🌱 טבעוני'},{v:'gluten',l:'🌾 ללא גלוטן'},{v:'lactose',l:'🥛 ללא לקטוז'}]},
+  {key:'meals',text:'כמה ארוחות ביום את מעדיפה?',choices:[{v:'3',l:'3 ארוחות'},{v:'4',l:'4 ארוחות'},{v:'5',l:'5 ארוחות'}]},
+  {key:'activity',text:'מה רמת הפעילות הגופנית שלך?',choices:[{v:'low',l:'🚶 פעם בשבוע'},{v:'med',l:'🏃 2–3 פעמים'},{v:'high',l:'⚡ 4+ פעמים'}]}
+];
+var botStep=0;
+
+function startNutrBot(){
+  botAnswers={};botStep=0;
+  document.getElementById('bot-result').style.display='none';
+  document.getElementById('bot-chat').innerHTML='';
+  document.getElementById('bot-choices').innerHTML='';
+  setTimeout(function(){botAsk(0);},200);
+}
+
+function botMsg(text,who){
+  var chat=document.getElementById('bot-chat');
+  var d=document.createElement('div');
+  d.className='bot-msg '+who;d.textContent=text;
+  chat.appendChild(d);
+  chat.scrollTop=chat.scrollHeight;
+}
+
+function botAsk(step){
+  var q=BOT_QUESTIONS[step];if(!q)return;
+  setTimeout(function(){
+    botMsg(q.text,'bot');
+    var wrap=document.getElementById('bot-choices');
+    wrap.innerHTML='';
+    q.choices.forEach(function(c){
+      var btn=document.createElement('button');
+      btn.className='bot-choice';btn.textContent=c.l;
+      btn.onclick=function(){botAnswer(step,c.v,c.l);};
+      wrap.appendChild(btn);
+    });
+  },step===0?100:400);
+}
+
+function botAnswer(step,val,label){
+  document.getElementById('bot-choices').innerHTML='';
+  botAnswers[BOT_QUESTIONS[step].key]=val;
+  botMsg(label,'user');
+  var next=step+1;
+  if(next<BOT_QUESTIONS.length){
+    botStep=next;
+    botAsk(next);
+  } else {
+    setTimeout(function(){
+      botMsg('מעולה! בונה לך תפריט אישי...','bot');
+      setTimeout(function(){buildNutrMenu();},700);
+    },400);
+  }
+}
+
+var MENUS={
+  lose:{
+    3:{
+      none:['🌅 ארוחת בוקר: חביתה מ-2 ביצים + ירקות קצוצים, פרוסת לחם מחיטה מלאה, קפה/תה ללא סוכר',
+            '☀️ ארוחת צהריים: 150 גר\' חזה עוף צלוי, סלט ירקות גדול עם שמן זית + לימון, חצי כוס קינואה',
+            '🌙 ארוחת ערב: דג (סלמון / טונה) אפוי, ירקות מאודים, מרק ירקות'],
+      veg:['🌅 ארוחת בוקר: יוגורט יווני 0% + 2 כפות גרנולה + פירות יער',
+           '☀️ ארוחת צהריים: קציצות עדשים, סלט ירקות גדול, פרוסת לחם שיפון',
+           '🌙 ארוחת ערב: מרק עדשים, גבינת קוטג\' 5%, מלפפון'],
+      vegan:['🌅 ארוחת בוקר: שייק: חלב שקדים + בננה + כף זרעי צ\'יה',
+             '☀️ ארוחת צהריים: טופו מוקפץ עם ירקות וגריסי פנינה',
+             '🌙 ארוחת ערב: מרק עדשים כתומות + לחם שיפון'],
+      gluten:['🌅 ארוחת בוקר: חביתה + ירקות, כוס יוגורט, פרי',
+              '☀️ ארוחת צהריים: חזה עוף + אורז מלא + סלט',
+              '🌙 ארוחת ערב: דג אפוי + בטטה אפויה + ירקות'],
+      lactose:['🌅 ארוחת בוקר: שייק: חלב שקדים + בננה + כפית חמאת בוטנים',
+               '☀️ ארוחת צהריים: חזה עוף + קינואה + ירקות',
+               '🌙 ארוחת ערב: דג + ירקות מאודים']
+    },
+    4:{
+      none:['🌅 ארוחת בוקר: קוואקר עם חלב + פרי + אגוזים',
+            '🍎 ארוחת ביניים: תפוח + 10 שקדים',
+            '☀️ ארוחת צהריים: חזה עוף / דג + סלט גדול + חצי כוס אורז',
+            '🌙 ארוחת ערב: ביצה קשה + גבינת קוטג\' + ירקות חתוכים'],
+      veg:['🌅 ארוחת בוקר: לחם שיפון + אבוקדו + ביצה מקושקשת',
+           '🍎 ארוחת ביניים: קשיו + תמר',
+           '☀️ ארוחת צהריים: עדשים עם אורז + סלט',
+           '🌙 ארוחת ערב: יוגורט יווני + מלפפון + עגבנייה'],
+      vegan:['🌅 ארוחת בוקר: דייסת שיבולת שועל עם חלב שיבולת + פירות',
+             '🍎 ארוחת ביניים: בננה + כף חמאת בוטנים',
+             '☀️ ארוחת צהריים: מג\'דרה (עדשים ואורז) + סלט',
+             '🌙 ארוחת ערב: חומוס ביתי + ירקות חתוכים'],
+      gluten:['🌅 ארוחת בוקר: חביתה + אבוקדו + עגבנייה',
+              '🍎 ארוחת ביניים: פרי + אגוזים',
+              '☀️ ארוחת צהריים: עוף / דג + בטטה + סלט',
+              '🌙 ארוחת ערב: יוגורט + ירקות'],
+      lactose:['🌅 ארוחת בוקר: לחם + אבוקדו + ביצה',
+               '🍎 ארוחת ביניים: פרי + שקדים',
+               '☀️ ארוחת צהריים: עוף + קינואה + סלט',
+               '🌙 ארוחת ערב: ביצה קשה + ירקות']
+    },
+    5:{
+      none:['🌅 ארוחת בוקר: קוואקר + פרי + כף זרעי פשתן',
+            '🍏 ביניים 1: יוגורט 0% + תות / אוכמניות',
+            '☀️ צהריים: 150 גר\' עוף / דג + חצי כוס קינואה + סלט',
+            '🍎 ביניים 2: תפוח + 10 שקדים',
+            '🌙 ערב: ביצת חביתה + ירקות מאודים + גבינת קוטג\''],
+      veg:['🌅 בוקר: לחם + ביצה + עגבנייה + מלפפון',
+           '🍏 ביניים 1: יוגורט + אגוזים',
+           '☀️ צהריים: קציצות קטניות + אורז מלא + סלט',
+           '🍎 ביניים 2: תפוח + שקדים',
+           '🌙 ערב: גבינה בולגרית 5% + ירקות'],
+      vegan:['🌅 בוקר: שייק ירוק: תרד + בננה + חלב שיבולת + זרעי צ\'יה',
+             '🍏 ביניים 1: תמרים + אגוזי מלך',
+             '☀️ צהריים: בורגול + עדשים + סלט',
+             '🍎 ביניים 2: בננה + חמאת שקדים',
+             '🌙 ערב: מרק אפונה + לחם שיפון'],
+      gluten:['🌅 בוקר: שייק: חלב + בננה + פירות',
+              '🍏 ביניים 1: יוגורט + אגוזים',
+              '☀️ צהריים: עוף + אורז + סלט',
+              '🍎 ביניים 2: פרי + שקדים',
+              '🌙 ערב: דג + ירקות אפויים'],
+      lactose:['🌅 בוקר: לחם + ביצה + אבוקדו',
+               '🍏 ביניים 1: פרי',
+               '☀️ צהריים: עוף + קינואה + סלט',
+               '🍎 ביניים 2: בננה + שקדים',
+               '🌙 ערב: ביצה + ירקות מאודים']
+    }
+  },
+  keep:{
+    3:{
+      none:['🌅 בוקר: 2 ביצים + 2 פרוסות לחם מלא + גבינה + סלט',
+            '☀️ צהריים: 180 גר\' עוף / דג + כוס אורז / פסטה + ירקות',
+            '🌙 ערב: יוגורט + 2 פרוסות לחם + ירקות + ביצה'],
+      veg:['🌅 בוקר: גרנולה + יוגורט + פירות',
+           '☀️ צהריים: פסטה מחיטה מלאה + רוטב עגבניות + גבינה + סלט',
+           '🌙 ערב: שאקשוקה (ביצים ועגבניות) + לחם'],
+      vegan:['🌅 בוקר: טוסט עם אבוקדו + חלב שיבולת',
+             '☀️ צהריים: אורז + קטניות + ירקות מוקפצים',
+             '🌙 ערב: מרק ירקות + לחם שיפון'],
+      gluten:['🌅 בוקר: חביתה + אבוקדו + פרי',
+              '☀️ צהריים: עוף + אורז + ירקות',
+              '🌙 ערב: דג + בטטה + סלט'],
+      lactose:['🌅 בוקר: לחם + ביצה + אבוקדו',
+               '☀️ צהריים: עוף + פסטה + ירקות',
+               '🌙 ערב: דג + סלט + לחם']
+    },
+    4:{
+      none:['🌅 בוקר: קוואקר + חלב + בננה + אגוזים',
+            '🍎 ביניים: גבינת קוטג\' + פרי',
+            '☀️ צהריים: עוף / בשר רזה + אורז + ירקות',
+            '🌙 ערב: חביתה + לחם + סלט'],
+      veg:['🌅 בוקר: לחם + גבינה + עגבנייה',
+           '🍎 ביניים: פרי + יוגורט',
+           '☀️ צהריים: פיתה עם חומוס + ירקות + ביצה',
+           '🌙 ערב: מרק עדשים + לחם'],
+      vegan:['🌅 בוקר: שייק בננה + חמאת בוטנים',
+             '🍎 ביניים: תפוח + שקדים',
+             '☀️ צהריים: קינואה + גרגירי חומוס + ירקות',
+             '🌙 ערב: מרק מיסו + טופו + אורז'],
+      gluten:['🌅 בוקר: ביצים + ירקות + פרי',
+              '🍎 ביניים: יוגורט + אגוזים',
+              '☀️ צהריים: עוף + אורז + ירקות',
+              '🌙 ערב: דג + סלט'],
+      lactose:['🌅 בוקר: לחם + ביצה',
+               '🍎 ביניים: פרי',
+               '☀️ צהריים: עוף + פסטה',
+               '🌙 ערב: דג + ירקות']
+    },
+    5:{
+      none:['🌅 בוקר: לחם + ביצה + גבינה + עגבנייה',
+            '🍏 ביניים 1: יוגורט יווני + פרי',
+            '☀️ צהריים: 200 גר\' עוף + כוס אורז + סלט גדול',
+            '🍎 ביניים 2: תפוח + חופן שקדים',
+            '🌙 ערב: חביתה + פיתה מחיטה מלאה + ירקות'],
+      veg:['🌅 בוקר: שיבולת שועל + חלב + פירות',
+           '🍏 ביניים 1: גבינה + ירקות',
+           '☀️ צהריים: לזניה ירקות / פסטה',
+           '🍎 ביניים 2: פרי',
+           '🌙 ערב: סלט יווני + פיתה'],
+      vegan:['🌅 בוקר: טוסט עם טחינה + עגבנייה',
+             '🍏 ביניים 1: בננה',
+             '☀️ צהריים: אורז + עדשים + סלט',
+             '🍎 ביניים 2: תמרים + שקדים',
+             '🌙 ערב: פלאפל ביתי + סלט'],
+      gluten:['🌅 בוקר: ביצים + ירקות',
+              '🍏 ביניים 1: יוגורט',
+              '☀️ צהריים: עוף + קינואה',
+              '🍎 ביניים 2: פרי',
+              '🌙 ערב: דג + סלט'],
+      lactose:['🌅 בוקר: לחם + ביצה',
+               '🍏 ביניים 1: פרי + שקדים',
+               '☀️ צהריים: עוף + אורז',
+               '🍎 ביניים 2: בננה',
+               '🌙 ערב: דג + ירקות']
+    }
+  },
+  gain:{
+    3:{
+      none:['🌅 בוקר: 3 ביצים + 3 פרוסות לחם מלא + אבוקדו + כוס חלב',
+            '☀️ צהריים: 250 גר\' עוף / בשר + כוס וחצי אורז + ירקות + שמן זית',
+            '🌙 ערב: פסטה מחיטה מלאה + רוטב בשר + גבינה מגוררת'],
+      veg:['🌅 בוקר: 3 ביצים + גבינה + לחם + אבוקדו',
+           '☀️ צהריים: פסטה + גבינה + ירקות',
+           '🌙 ערב: מג\'דרה + גבינת קוטג\' + לחם'],
+      vegan:['🌅 בוקר: שייק: חלב שיבולת + 2 כפות חמאת בוטנים + בננה + זרעי צ\'יה',
+             '☀️ צהריים: טופו + אורז + קטניות + ירקות מוקפצים בשמן',
+             '🌙 ערב: עדשים + פסטה + אבוקדו'],
+      gluten:['🌅 בוקר: 3 ביצים + אבוקדו + כוס חלב',
+              '☀️ צהריים: עוף + אורז + ירקות + שמן',
+              '🌙 ערב: דג שמן (סלמון) + בטטה + אגוזים'],
+      lactose:['🌅 בוקר: 3 ביצים + לחם + אבוקדו',
+               '☀️ צהריים: עוף + אורז + ירקות',
+               '🌙 ערב: דג + פסטה + ירקות']
+    },
+    4:{
+      none:['🌅 בוקר: קוואקר + חלב מלא + בננה + אגוזים + ביצה',
+            '🍎 ביניים: גבינה + לחם + פרי',
+            '☀️ צהריים: 230 גר\' עוף + כוס אורז + ירקות',
+            '🌙 ערב: ביצים + לחם + אבוקדו + חלב'],
+      veg:['🌅 בוקר: לחם + גבינה + אבוקדו + ביצה',
+           '🍎 ביניים: יוגורט + גרנולה',
+           '☀️ צהריים: פסטה + ביצים + ירקות',
+           '🌙 ערב: מרק עדשים + גבינה + לחם'],
+      vegan:['🌅 בוקר: טוסט + חמאת בוטנים + בננה',
+             '🍎 ביניים: שייק חלב שיבולת + שקדים',
+             '☀️ צהריים: קינואה + עדשים + ירקות',
+             '🌙 ערב: טופו + אורז + שמן שומשום'],
+      gluten:['🌅 בוקר: 3 ביצים + אבוקדו',
+              '🍎 ביניים: אגוזים + פרי',
+              '☀️ צהריים: עוף + אורז + ירקות',
+              '🌙 ערב: דג + בטטה + שמן זית'],
+      lactose:['🌅 בוקר: לחם + ביצה + אבוקדו',
+               '🍎 ביניים: בננה + שקדים',
+               '☀️ צהריים: עוף + אורז + ירקות',
+               '🌙 ערב: דג + פסטה + שמן']
+    },
+    5:{
+      none:['🌅 בוקר: 3 ביצים + 3 פרוסות לחם + גבינה',
+            '🍏 ביניים 1: שייק: חלב + בננה + כף חמאת בוטנים',
+            '☀️ צהריים: 250 גר\' עוף + כוס אורז + סלט',
+            '🍎 ביניים 2: יוגורט יווני + גרנולה + פרי',
+            '🌙 ערב: פסטה + טונה / בשר טחון רזה + ירקות'],
+      veg:['🌅 בוקר: לחם + גבינה + ביצה',
+           '🍏 ביניים 1: יוגורט + אגוזים',
+           '☀️ צהריים: פסטה + גבינה',
+           '🍎 ביניים 2: פרי + גבינת קוטג\'',
+           '🌙 ערב: שאקשוקה + לחם'],
+      vegan:['🌅 בוקר: שייק חלב שיבולת + בננה + חמאת שקדים',
+             '🍏 ביניים 1: לחם + טחינה',
+             '☀️ צהריים: טופו + אורז + קטניות',
+             '🍎 ביניים 2: תמרים + אגוזי קשיו',
+             '🌙 ערב: מג\'דרה + סלט'],
+      gluten:['🌅 בוקר: 3 ביצים + ירקות + אבוקדו',
+              '🍏 ביניים 1: אגוזים',
+              '☀️ צהריים: עוף + אורז + ירקות',
+              '🍎 ביניים 2: יוגורט + פרי',
+              '🌙 ערב: דג + בטטה'],
+      lactose:['🌅 בוקר: לחם + ביצה + אבוקדו',
+               '🍏 ביניים 1: בננה + חמאת בוטנים',
+               '☀️ צהריים: עוף + אורז',
+               '🍎 ביניים 2: פרי + שקדים',
+               '🌙 ערב: דג + פסטה + ירקות']
+    }
+  }
+};
+
+var GOAL_LABELS={lose:'ירידה במשקל',keep:'שמירה על המשקל',gain:'בניית שריר'};
+var RESTRICT_LABELS={none:'ללא הגבלות',veg:'צמחוני',vegan:'טבעוני',gluten:'ללא גלוטן',lactose:'ללא לקטוז'};
+var ACTIVITY_TIPS={low:'באימון ✔ שתי לפחות 500 מ"ל לפני + אחרי.',med:'באימון ✔ שתי 1–1.5 ליטר לאורך האימון.',high:'באימון ✔ שתי 1.5–2 ליטר + אלקטרוליטים.'};
+
+function buildNutrMenu(){
+  var goal=botAnswers.goal||'keep';
+  var restrict=botAnswers.restrict||'none';
+  var meals=parseInt(botAnswers.meals)||3;
+  var activity=botAnswers.activity||'med';
+  var menuObj=MENUS[goal]&&MENUS[goal][meals]&&MENUS[goal][meals][restrict];
+  if(!menuObj)menuObj=MENUS[goal][meals]['none'];
+  botMsg('הנה התפריט האישי שלך 🥗','bot');
+  document.getElementById('bot-choices').innerHTML='';
+  var card=document.getElementById('bot-menu-card');
+  var html='<h2 style="font-size:16px;font-weight:800;color:#C4A0A0;margin-bottom:4px">🥗 תפריט יומי מומלץ</h2>'
+    +'<p style="font-size:12px;color:#bbb;margin-bottom:14px">'+GOAL_LABELS[goal]+' · '+RESTRICT_LABELS[restrict]+' · '+meals+' ארוחות</p>';
+  menuObj.forEach(function(item){
+    var split=item.indexOf(':');
+    var title=split>-1?item.slice(0,split+1):item;
+    var body=split>-1?item.slice(split+1).trim():'';
+    html+='<div class="menu-meal"><div class="menu-meal-title">'+escHtml(title)+'</div><div class="menu-meal-items">'+escHtml(body)+'</div></div>';
+  });
+  html+='<div style="margin-top:14px;background:#f0fdf4;border-radius:10px;padding:10px 13px;font-size:13px;color:#2e7d32">'
+    +'💧 <strong>שתיה:</strong> לפחות 8 כוסות מים ביום. '+ACTIVITY_TIPS[activity]+'</div>';
+  card.innerHTML=html;
+  document.getElementById('bot-result').style.display='block';
+  document.getElementById('bot-result').scrollIntoView({behavior:'smooth'});
 }
 
 function openNutritionGuide(){
