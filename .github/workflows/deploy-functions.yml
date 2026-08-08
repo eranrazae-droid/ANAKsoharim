@@ -1,0 +1,26 @@
+name: Deploy Functions
+
+# Functions are not part of the hosting deploy, so they get their own run:
+# whenever the functions folder changes, and on demand from the Actions tab.
+on:
+  push:
+    branches: [main, claude/charming-archimedes-nlfl58]
+    paths: ['functions/**', '.github/workflows/deploy-functions.yml']
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install functions dependencies
+        run: npm --prefix functions install
+      - name: Write service account
+        run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > "$RUNNER_TEMP/sa.json"
+      - name: Deploy functions
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
+        run: npx firebase-tools@13 deploy --only functions --project anak-soharim --non-interactive --force
