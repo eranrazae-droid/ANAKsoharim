@@ -112,6 +112,10 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FAF5F5;m
       <input class="finp" id="login-phone" placeholder="05X-XXXXXXX" type="tel" inputmode="numeric"/>
       <label class="flabel">סיסמה</label>
       <input class="finp" id="login-pass" placeholder="סיסמה" type="password"/>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <input type="checkbox" id="rememberMe" style="width:16px;height:16px;accent-color:#C4A0A0;cursor:pointer"/>
+        <label for="rememberMe" style="font-size:13px;color:#8A6868;cursor:pointer">זכור אותי</label>
+      </div>
       <div class="err" id="login-err"></div>
       <button class="btn btn-transparent" onclick="doLogin()">כניסה ←</button>
       <button class="btn btn-gray" onclick="window.location.href='index.html'">← חזרה לאתר</button>
@@ -317,6 +321,8 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FAF5F5;m
 <script>
 firebase.initializeApp({apiKey:"AIzaSyD3H-2M1cYEupObbeeRtlcMPHyQtzEjP1Q",authDomain:"orit-raz.firebaseapp.com",projectId:"orit-raz",storageBucket:"orit-raz.firebasestorage.app",messagingSenderId:"1093566537569",appId:"1:1093566537569:web:1123fc5926a543d9e1ef20"});
 var db=firebase.firestore();
+var REMEMBER_KEY='orit-member-remember';
+(function(){var saved=JSON.parse(localStorage.getItem(REMEMBER_KEY)||'null');if(saved){document.getElementById('login-phone').value=saved.phone||'';document.getElementById('login-pass').value=saved.pass||'';document.getElementById('rememberMe').checked=true;}})();
 var PLANS=[{id:'1x',name:'פעם בשבוע',price:280,icon:'💪'},{id:'2x',name:'פעמיים בשבוע',price:400,icon:'💪💪'},{id:'3x',name:'שלוש פעמים בשבוע',price:450,icon:'🔥'},{id:'ul',name:'ללא הגבלה',price:480,icon:'⚡'},{id:'pi',name:'פילאטיס בלבד',price:360,icon:'🧘'}];
 var DEFAULT_PASS='1234';
 var currentMember=null,selectedNewPlan=null;
@@ -345,6 +351,7 @@ function doLogin(){
     var storedPass=data.password||DEFAULT_PASS;
     if(pass!==storedPass){err.textContent='סיסמה שגויה';return;}
     currentMember={id:doc.id,...data};
+    if(document.getElementById('rememberMe').checked){localStorage.setItem(REMEMBER_KEY,JSON.stringify({phone:phone,pass:pass}));}else{localStorage.removeItem(REMEMBER_KEY);}
     loadDashboard();
     if((data.password||DEFAULT_PASS)===DEFAULT_PASS){
       document.getElementById('cp-force-note').style.display='block';
