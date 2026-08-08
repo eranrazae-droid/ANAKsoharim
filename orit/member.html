@@ -144,6 +144,31 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FEFCF4;m
       </div>
       <div class="err" id="weight-err" style="margin-bottom:8px"></div>
       <div id="weightTableWrap"></div>
+      <div id="bmiSection" style="display:none;margin-top:12px">
+        <div style="background:#FEFCF4;border-radius:12px;padding:14px 16px">
+          <div style="font-size:12px;color:#999;margin-bottom:6px">BMI נוכחי</div>
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+            <div style="font-size:32px;font-weight:900;color:#B09A7A" id="bmi-val"></div>
+            <div>
+              <div style="font-size:14px;font-weight:700" id="bmi-label"></div>
+              <div style="font-size:12px;color:#999" id="bmi-range"></div>
+            </div>
+          </div>
+          <div style="background:#e8e0d5;border-radius:8px;height:10px;position:relative;overflow:hidden;margin-bottom:8px">
+            <div id="bmi-bar" style="position:absolute;right:0;top:0;height:100%;border-radius:8px;transition:.4s"></div>
+          </div>
+          <table style="width:100%;font-size:11px;color:#888;border-collapse:collapse">
+            <tr>
+              <td style="padding:2px 4px">מתחת 18.5</td><td style="padding:2px 4px;color:#1565c0">תת משקל</td>
+              <td style="padding:2px 4px">18.5–24.9</td><td style="padding:2px 4px;color:#2e7d32">תקין</td>
+            </tr>
+            <tr>
+              <td style="padding:2px 4px">25–29.9</td><td style="padding:2px 4px;color:#e65100">עודף משקל</td>
+              <td style="padding:2px 4px">30+</td><td style="padding:2px 4px;color:#c62828">השמנה</td>
+            </tr>
+          </table>
+        </div>
+      </div>
     </div>
     <div class="card" id="historyCard">
       <h2>היסטוריה</h2>
@@ -188,6 +213,16 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FEFCF4;m
       <input class="finp" id="det-name" placeholder="שם מלא"/>
       <label class="flabel">אימייל</label>
       <input class="finp" id="det-email" placeholder="your@email.com" type="email" style="direction:ltr;text-align:right"/>
+      <div style="display:flex;gap:10px">
+        <div style="flex:1">
+          <label class="flabel">גובה (ס״מ)</label>
+          <input class="finp" id="det-height" type="number" min="100" max="220" placeholder="165"/>
+        </div>
+        <div style="flex:1">
+          <label class="flabel">גיל</label>
+          <input class="finp" id="det-age" type="number" min="10" max="99" placeholder="35"/>
+        </div>
+      </div>
       <div class="err" id="det-err"></div>
       <button class="btn btn-transparent" onclick="submitDetails()">שמירה ←</button>
       <button class="btn btn-gray" onclick="showScreen('dashboard')">← חזרה</button>
@@ -313,7 +348,7 @@ function showScreen(name){['loginScreen','dashboard','freezeScreen','changeScree
 function addHistory(type,note){var h=currentMember.history||[];h.push({type:type,date:new Date().toISOString(),note:note||''});return h;}
 function submitFreeze(){var from=document.getElementById('freeze-from').value;var to=document.getElementById('freeze-to').value;var err=document.getElementById('freeze-err');if(!from||!to){err.textContent='נא לבחור תאריכים';return;}var days=Math.round((new Date(to)-new Date(from))/(1000*60*60*24));if(days<14){err.textContent='מינימום 14 יום הקפאה';return;}err.textContent='';var h=addHistory('❄️ הקפאה',from+' עד '+to+' ('+days+' ימים)');db.collection('members').doc(currentMember.id).update({status:'frozen',freezeFrom:from,freezeUntil:to,freezeDays:(currentMember.freezeDays||0)+days,history:h}).then(function(){currentMember.status='frozen';currentMember.freezeFrom=from;currentMember.freezeUntil=to;currentMember.history=h;showSuccess('הקפאה אושרה!','המנוי מוקפא מ-'+new Date(from).toLocaleDateString('he-IL')+' עד '+new Date(to).toLocaleDateString('he-IL')+'\n'+days+' ימים יקוזזו מהחיוב הבא 💜');}).catch(function(){err.textContent='שגיאה, נסי שוב';});}
 function submitChange(){var err=document.getElementById('change-err');if(!selectedNewPlan){err.textContent='נא לבחור מנוי';return;}err.textContent='';var p=selectedNewPlan;var h=addHistory('🔄 שינוי מנוי','ל'+p.name+' ('+p.price+' ₪) — יכנס לתוקף בחיוב הבא');db.collection('members').doc(currentMember.id).update({pendingPlan:p.id,pendingPlanName:p.name,pendingAmount:p.price,history:h}).then(function(){currentMember.pendingPlan=p.id;currentMember.pendingPlanName=p.name;currentMember.pendingAmount=p.price;currentMember.history=h;showSuccess('השינוי נרשם!','המנוי ישתנה ל'+p.name+' ('+p.price+' ₪ לחודש)\nהשינוי ייכנס לתוקף בחיוב הבא 💜');}).catch(function(){err.textContent='שגיאה, נסי שוב';});}
-function submitDetails(){var name=document.getElementById('det-name').value.trim();var email=document.getElementById('det-email').value.trim();var err=document.getElementById('det-err');if(!name){err.textContent='נא להכניס שם';return;}err.textContent='';var h=addHistory('✏️ עדכון פרטים','');db.collection('members').doc(currentMember.id).update({name:name,email:email,history:h}).then(function(){currentMember.name=name;currentMember.email=email;currentMember.history=h;showSuccess('הפרטים עודכנו!','הפרטים שלך עודכנו בהצלחה 💜');}).catch(function(){err.textContent='שגיאה, נסי שוב';});}
+function submitDetails(){var name=document.getElementById('det-name').value.trim();var email=document.getElementById('det-email').value.trim();var height=parseInt(document.getElementById('det-height').value)||0;var age=parseInt(document.getElementById('det-age').value)||0;var err=document.getElementById('det-err');if(!name){err.textContent='נא להכניס שם';return;}if(height&&(height<100||height>220)){err.textContent='גובה לא תקין (100–220 ס״מ)';return;}if(age&&(age<10||age>99)){err.textContent='גיל לא תקין';return;}err.textContent='';var update={name:name,email:email,history:addHistory('✏️ עדכון פרטים','')};if(height)update.height=height;if(age)update.age=age;db.collection('members').doc(currentMember.id).update(update).then(function(){currentMember.name=name;currentMember.email=email;if(height)currentMember.height=height;if(age)currentMember.age=age;currentMember.history=update.history;renderWeightTable();showSuccess('הפרטים עודכנו!','הפרטים שלך עודכנו בהצלחה 💜');}).catch(function(){err.textContent='שגיאה, נסי שוב';});}
 function submitChangePass(){
   var oldPass=document.getElementById('cp-old').value;
   var newPass=document.getElementById('cp-new').value;
@@ -336,12 +371,32 @@ function submitChangePass(){
 }
 function submitCancel(){var err=document.getElementById('cancel-err');var cancelDate=new Date();cancelDate.setDate(cancelDate.getDate()+14);var cancelStr=cancelDate.toLocaleDateString('he-IL');var h=addHistory('❌ בקשת ביטול','ביטול יכנס לתוקף '+cancelStr);db.collection('members').doc(currentMember.id).update({status:'pending_cancel',cancelRequestDate:new Date().toISOString(),cancelEffectiveDate:cancelDate.toISOString(),history:h}).then(function(){currentMember.status='pending_cancel';currentMember.history=h;showSuccess('בקשת הביטול התקבלה','המנוי יבוטל בתאריך '+cancelStr+'.\nאם תרצי לחזור בך — צרי קשר עם אורית 💜');}).catch(function(){err.textContent='שגיאה, נסי שוב';});}
 function showSuccess(title,body){document.getElementById('success-title').textContent=title;document.getElementById('success-body').textContent=body;showScreen('successScreen');}
-function openDetailsScreen(){if(currentMember){document.getElementById('det-name').value=currentMember.name||'';document.getElementById('det-email').value=currentMember.email||'';}showScreen('detailsScreen');}
+function openDetailsScreen(){if(currentMember){document.getElementById('det-name').value=currentMember.name||'';document.getElementById('det-email').value=currentMember.email||'';document.getElementById('det-height').value=currentMember.height||'';document.getElementById('det-age').value=currentMember.age||'';}showScreen('detailsScreen');}
 /* מעקב משקל */
+function renderBMI(latestKg){
+  var height=currentMember.height;
+  var sec=document.getElementById('bmiSection');
+  if(!height||!latestKg){sec.style.display='none';return;}
+  var bmi=latestKg/Math.pow(height/100,2);
+  var bmiStr=bmi.toFixed(1);
+  var label,color,pct;
+  if(bmi<18.5){label='תת משקל';color='#1565c0';pct=Math.max(4,((bmi-10)/8.5)*20);}
+  else if(bmi<25){label='משקל תקין ✓';color='#2e7d32';pct=20+((bmi-18.5)/6.5)*35;}
+  else if(bmi<30){label='עודף משקל';color='#e65100';pct=55+((bmi-25)/5)*25;}
+  else{label='השמנה';color='#c62828';pct=Math.min(96,80+((bmi-30)/10)*16);}
+  document.getElementById('bmi-val').textContent=bmiStr;
+  document.getElementById('bmi-label').textContent=label;
+  document.getElementById('bmi-label').style.color=color;
+  document.getElementById('bmi-range').textContent='גובה: '+height+' ס״מ';
+  var bar=document.getElementById('bmi-bar');
+  bar.style.width=pct+'%';bar.style.background=color;bar.style.right='unset';bar.style.left='0';
+  sec.style.display='block';
+}
 function renderWeightTable(){
   var weights=(currentMember.weights||[]).slice().sort(function(a,b){return a.date<b.date?1:-1;});
   var wrap=document.getElementById('weightTableWrap');
-  if(weights.length===0){wrap.innerHTML='<p style="font-size:13px;color:#bbb;text-align:center;padding:8px 0">עדיין אין רשומות משקל</p>';return;}
+  if(weights.length===0){wrap.innerHTML='<p style="font-size:13px;color:#bbb;text-align:center;padding:8px 0">עדיין אין רשומות משקל</p>';renderBMI(null);return;}
+  renderBMI(parseFloat(weights[0].kg));
   var html='<table class="weight-table"><thead><tr><th>תאריך</th><th>משקל</th><th>שינוי</th></tr></thead><tbody>';
   weights.forEach(function(w,i){
     var diff='';
