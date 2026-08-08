@@ -368,6 +368,11 @@ function doCancel(slotId,timeStr,phone,wk){
       document.getElementById('succ-title').textContent='ההרשמה בוטלה 💪';
       document.getElementById('succ-msg').textContent='ההרשמה לאימון בשעה '+timeStr+' בוטלה.'+(promoted?'\n\n'+promoted.name+' הועברה מרשימת ההמתנה!':'');
       document.getElementById('succOverlay').classList.add('on');
+      if(promoted&&promoted.phone){
+        var waPhone=promoted.phone.replace(/^0/,'972');
+        var waMsg=encodeURIComponent('היי '+promoted.name+' 🩷\nמקום התפנה! את מועברת מרשימת ההמתנה לאימון בשעה '+timeStr+'.\nנתראה בסטודיו! 💪');
+        setTimeout(function(){window.open('https://wa.me/'+waPhone+'?text='+waMsg,'_blank');},500);
+      }
       db.collection('members').doc(phone).get().then(function(d){if(!d.exists)return;var tr=(d.data().trainings||[]).map(function(t){return(t.weekKey===wk&&t.slotId===slotId)?Object.assign({},t,{status:'cancelled'}):t;});db.collection('members').doc(phone).update({trainings:tr}).catch(function(){});}).catch(function(){});
     });
   }).catch(function(e){alert('שגיאה בביטול: '+(e.message||'נסי שוב'));});
