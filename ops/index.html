@@ -2520,20 +2520,14 @@ window.addEventListener('firebase-ready', async () => {
     _enterAsAuthUser(window._signedInUser);
     return;
   }
-  const saved = localStorage.getItem('anak_user');
-  if (saved) {
-    const parsed = JSON.parse(saved);
-    const validUsers = ['ליאל', 'גיל', 'עופר', 'איתי', 'משה', 'הילה', 'איברהים'];
-    if (!parsed || !validUsers.includes(parsed.name)) {
-      localStorage.removeItem('anak_user');
-      showScreen('login');
-    } else {
-      currentUser = parsed;
-      enterApp();
-    }
-  } else {
-    showScreen('login');
-  }
+  /* From here on a device must hold a real account. Sessions that only
+     remembered a name — the way the app worked before — are cleared, so every
+     person signs in once with the phone and password they were given. */
+  localStorage.removeItem('anak_user');
+  localStorage.removeItem('anak_real_user');
+  currentUser = null;
+  _realUser = null;
+  showScreen('login');
 });
 
 function showConfigWarning() {
@@ -2967,7 +2961,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 185';
+const APP_BUILD = '2026-08-05 · 186';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
