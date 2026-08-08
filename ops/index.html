@@ -2992,7 +2992,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 189';
+const APP_BUILD = '2026-08-05 · 190';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8551,7 +8551,13 @@ async function _bshopReportDone(j, id) {
     // finished with nobody holding a copy of it
     const contacts = await _loadDriverContacts();
     const chatId = contacts['איברהים']?.telegramId;
-    const ok = chatId ? await _sendTelegram(chatId, msg) : false;
+    let ok = chatId ? await _sendTelegram(chatId, msg) : false;
+    // the car's picture belongs in the backup too, so the record outside the
+    // app is the whole note and not only its words
+    if (ok && chatId) {
+      const photo = await _bshopFullPhoto(j.id).catch(() => '');
+      if (photo) await _sendTelegramPhoto(chatId, photo, `🚗 ${j.plate || ''}`).catch(() => {});
+    }
     if (id) {
       await _updateDoc(_docRef('bodyshop_jobs', id),
         ok ? { reportedAt: new Date().toISOString(), reportFailed: false }
@@ -13204,6 +13210,23 @@ async function _loadDriverContacts() {
 
 // Telegram Bot API is free/unlimited and supports CORS, so we can call it
 // directly from the browser — no Cloud Function needed.
+// a picture goes as a file, not as text — telegram wants it uploaded
+async function _sendTelegramPhoto(chatId, dataUrl, caption) {
+  const contacts = await _loadDriverContacts();
+  const token = (contacts['_telegramToken']?.value || '').trim();
+  if (!token || !dataUrl) return false;
+  try {
+    const blob = await (await fetch(dataUrl)).blob();
+    const form = new FormData();
+    form.append('chat_id', chatId);
+    form.append('caption', caption || '');
+    form.append('photo', blob, 'car.jpg');
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, { method: 'POST', body: form });
+    return res.ok;
+  } catch (e) { console.error('telegram photo', e); return false; }
+}
+window._sendTelegramPhoto = _sendTelegramPhoto;
+
 async function _sendTelegram(chatId, message) {
   if (!chatId) return false;
   const contacts = await _loadDriverContacts();

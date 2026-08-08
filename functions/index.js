@@ -914,3 +914,73 @@ exports.adminUsers = onCall({ region: USERS_REGION }, async (req) => {
 });
 
 // deploy trigger
+
+/* ═══════════════════════════════════════════════════════════════════
+   SETUP REMINDERS — a short list of things that were left open while the
+   sign-in work was done. Each one is sent once, on its morning, and then
+   marked so it never repeats. Delete this block when the list is done.
+═══════════════════════════════════════════════════════════════════ */
+const SETUP_REMINDERS = [
+  {
+    id: "2026-08-09-open-items",
+    date: "2026-08-09",
+    text: [
+      "☀️ בוקר טוב — מה שנשאר פתוח:",
+      "",
+      "1️⃣ טלגרם לאיברהים — שיפתח שיחה עם הבוט וישלח /start, ואז בהגדרות טלגרם: רענן צ׳אטים → שייך לשורה שלו → בדיקה → שמור",
+      "2️⃣ יומן גוגל — להפעיל Calendar API, לשתף את היומן עם anak-soharim@appspot.gserviceaccount.com בהרשאת עריכה, ואז לפתוח פעם אחת:",
+      "https://europe-west1-anak-soharim.cloudfunctions.net/startCalendarSync",
+      "3️⃣ לוודא שכל הנהגים התחברו עם הטלפון והסיסמה ורואים את המסך הנכון",
+      "",
+      "כשתסיים — תגיד לקלוד ונמשיך.",
+    ].join("\n"),
+  },
+  {
+    id: "2026-08-10-rules",
+    date: "2026-08-10",
+    text: [
+      "🔒 תזכורת — הידוק ההרשאות במסד",
+      "",
+      "אם כולם התחברו ועבדו יום שלם בלי תקלה, זה הזמן:",
+      "• להעתיק את firestore.rules.new אל firestore.rules ולפרוס",
+      "• מרגע זה איברהים נוגע רק בנתוני הפחחות, ומסך הסיסמאות נגיש רק לך",
+      "",
+      "עוד שני דברים שנשארו פתוחים:",
+      "• כפתור 'אפס פתקים' עדיין מוחק לתמיד בלחיצה אחת",
+      "• גיבוי הטלגרם מכסה רק פתקים שהסתיימו",
+    ].join("\n"),
+  },
+];
+
+exports.setupReminders = onSchedule(
+  { schedule: "0 8 * * *", timeZone: "Asia/Jerusalem", region: "europe-west1" },
+  async () => {
+    const today = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Jerusalem", year: "numeric", month: "2-digit", day: "2-digit",
+    }).format(new Date());
+    const due = SETUP_REMINDERS.filter((r) => r.date <= today);
+    if (!due.length) return;
+
+    const cfg = await db.collection("config").doc("driver_contacts").get();
+    const contacts = cfg.exists ? cfg.data() : {};
+    const token = contacts["_telegramToken"]?.value || "";
+    const chatId = contacts["ליאל"]?.telegramId || "";
+    if (!token || !chatId) return console.warn("setupReminders: telegram not configured");
+
+    const sentSnap = await db.collection("config").doc("setup_reminders").get();
+    const sent = sentSnap.exists ? (sentSnap.data().sent || []) : [];
+
+    for (const r of due) {
+      if (sent.includes(r.id)) continue;
+      try {
+        await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: chatId, text: r.text, disable_web_page_preview: true }),
+        });
+        sent.push(r.id);
+      } catch (e) { console.error("setupReminders send", r.id, e.message); }
+    }
+    await db.collection("config").doc("setup_reminders").set({ sent }, { merge: true });
+  }
+);
