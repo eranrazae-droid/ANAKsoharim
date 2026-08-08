@@ -961,53 +961,7 @@ function submitParq(){
       + '<p style="font-size:12px"><b>שם:</b> '+signName+' &nbsp;&nbsp; <b>תאריך:</b> '+signDate+'</p>'
       + '</div>'
       + '<script>window.onload=function(){window.print();}<\/script>'
-      + '
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script>
-if(!firebase.apps.length){
-  firebase.initializeApp({
-    apiKey:"AIzaSyD3H-2M1cYEupObbeeRtlcMPHyQtzEjP1Q",
-    authDomain:"orit-raz.firebaseapp.com",
-    projectId:"orit-raz",
-    storageBucket:"orit-raz.firebasestorage.app",
-    messagingSenderId:"1093566537569",
-    appId:"1:1093566537569:web:1123fc5926a543d9e1ef20"
-  });
-}
-var fdb=firebase.firestore();
-// Load gallery images
-fdb.collection('gallery').orderBy('order').get().then(function(snap){
-  if(snap.empty)return;
-  var imgs=[];
-  snap.forEach(function(doc){var g=doc.data();if(g.url)imgs.push(g.url);});
-  if(!imgs.length)return;
-  // inject gallery section before schedule section if not already there
-  var schedEl=document.getElementById('pg-schedule');
-  if(schedEl){
-    var galDiv=document.createElement('div');
-    galDiv.style.cssText='padding:52px 20px 0;max-width:600px;margin:0 auto';
-    galDiv.innerHTML='<h2 class="stitle">תמונות סטודיו</h2><div class="pline"></div><div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:20px">'+imgs.map(function(u){return'<img src="'+u+'" style="width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:12px" loading="lazy" onerror="this.style.display=\'none\'">';}).join('')+'</div>';
-    var homeEl=document.getElementById('pg-home');
-    if(homeEl) homeEl.appendChild(galDiv);
-  }
-});
-// Override buildVids to load from Firebase, fallback to hardcoded
-fdb.collection('videos').get().then(function(snap){
-  if(snap.empty){buildVids();return;}
-  var fbVids={};
-  snap.forEach(function(doc){var v=doc.data();if(v.cat&&v.youtubeId)fbVids[v.cat]=fbVids[v.cat]||[];if(v.cat&&v.youtubeId)fbVids[v.cat][parseInt(doc.id.split('_')[1])||0]={t:v.title,d:v.subtitle,url:'https://www.youtube.com/watch?v='+v.youtubeId};});
-  var hasFb=Object.keys(fbVids).length>0;
-  if(!hasFb){buildVids();return;}
-  // merge Firebase over hardcoded
-  Object.keys(fbVids).forEach(function(cat){
-    fbVids[cat].forEach(function(v,i){if(v&&vidD[cat])vidD[cat][i]=v;});
-  });
-  buildVids();
-}).catch(function(){buildVids();});
-</script>
-
-</body></html>';
+      + '</body></html>';
     var _pw=window.open('','_blank','width=780,height=900');
     if(_pw){_pw.document.write(printHtml);_pw.document.close();}
 
