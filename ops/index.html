@@ -414,6 +414,30 @@ if ('serviceWorker' in navigator) {
 <body>
 
 <!-- ====== SCREEN: LOGIN ====== -->
+<div class="modal-overlay" id="modal-users">
+  <div class="modal-box">
+    <div class="modal-title"><span>👥 משתמשים וסיסמאות</span> <button class="modal-close" onclick="closeModal('modal-users')">✕</button></div>
+    <div id="users-warning" style="display:none;background:#fef3c7;border-right:5px solid #d97706;border-radius:10px;padding:10px 12px;font-size:12px;font-weight:800;color:#92400e;margin-bottom:12px"></div>
+    <div class="form-group"><label>שם</label>
+      <input class="form-input" id="usr-name" placeholder="לדוגמה עופר"></div>
+    <div class="form-group"><label>טלפון</label>
+      <input class="form-input" id="usr-phone" inputmode="tel" placeholder="0521234567" style="direction:ltr;text-align:right" oninput="this.value=this.value.replace(/[^0-9]/g,'')"></div>
+    <div class="form-group"><label>סיסמה</label>
+      <input class="form-input" id="usr-pass" placeholder="לפחות 8 תווים" style="direction:ltr;text-align:right"></div>
+    <div class="form-group"><label>תפקיד</label>
+      <select class="form-input" id="usr-role">
+        <option value="driver">נהג</option>
+        <option value="manager">מנהל</option>
+        <option value="pickup_agent">אחראי איסוף</option>
+        <option value="pickup_driver">נהג איסוף</option>
+        <option value="bodyshop">פחח</option>
+      </select></div>
+    <button class="btn-submit" onclick="saveAppUser()">✅ שמור משתמש</button>
+    <div class="section-title" style="margin-top:18px">הרשימה</div>
+    <div id="users-list"></div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-switch-user">
   <div class="modal-box">
     <div class="modal-title"><span>👥 מעבר בין משתמשים</span> <button class="modal-close" onclick="closeModal('modal-switch-user')">✕</button></div>
@@ -457,6 +481,7 @@ if ('serviceWorker' in navigator) {
   <div id="task-notif-stack" style="position:fixed;top:0;left:0;right:0;z-index:9000;display:flex;flex-direction:column;align-items:center;pointer-events:none"></div>
   <div class="app-header">
     <div class="logo">ענק <span>הרכבים</span></div>
+    <button id="btn-users-settings" onclick="openUsersScreen()" style="display:none;background:rgba(255,255,255,0.15);border:none;border-radius:999px;color:#fff;font-size:13px;font-weight:700;padding:6px 14px;cursor:pointer;font-family:Heebo,sans-serif">👥 משתמשים</button>
     <button id="btn-whatsapp-settings" onclick="goToScreen('_notify')" style="display:none;background:rgba(255,255,255,0.15);border:none;border-radius:999px;color:#fff;font-size:13px;font-weight:700;padding:6px 14px;cursor:pointer;font-family:Heebo,sans-serif">✈️ טלגרם</button>
     <div class="user-badge" id="home-user-badge" onclick="logout()">יציאה</div>
   </div>
@@ -2574,6 +2599,125 @@ const _ALL_USERS = [
 
 function logout() { openSwitchUser(); }   // every badge in the app calls this
 
+/* ── people and their passwords ───────────────────────────────────────
+   The list itself lives in the users collection; the passwords the manager
+   wants to keep for his own reference live in one document that, once the
+   rules are tightened, only his account can read. Creating a person and
+   changing a password happen on the server — the app never touches the
+   sign-in mechanism directly. */
+let _appUsers = [];
+let _userSecrets = {};
+
+async function _callAdminUsers(payload) {
+  const { getFunctions, httpsCallable } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js");
+  const fns = getFunctions(window._app, 'europe-west1');
+  return (await httpsCallable(fns, 'adminUsers')(payload)).data;
+}
+
+async function openUsersScreen() {
+  if (currentUser?.role !== 'manager') return;
+  const warn = document.getElementById('users-warning');
+  if (warn) {
+    warn.style.display = 'block';
+    warn.textContent = 'עד שההרשאות במסד יהודקו, הסיסמאות שנשמרות כאן נגישות לכל מי שיש לו קישור לאפליקציה. עד אז — עדיף לא לשמור כאן סיסמאות אמיתיות.';
+  }
+  document.getElementById('users-list').innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted)">טוען…</div>';
+  openModal('modal-users');
+  try {
+    const secretsSnap = await window._getDoc(_docRef('config', 'user_secrets'));
+    _userSecrets = secretsSnap.exists() ? (secretsSnap.data() || {}) : {};
+  } catch (e) { _userSecrets = {}; }
+  try {
+    const res = await _callAdminUsers({ action: 'list' });
+    _appUsers = res.users || [];
+    _renderUsers();
+  } catch (e) {
+    document.getElementById('users-list').innerHTML =
+      `<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px">אי אפשר לטעון משתמשים עדיין.<br>צריך להפעיל התחברות בפרויקט ולפרוס את הפונקציות — ראה docs/users-and-login.md</div>`;
+  }
+}
+window.openUsersScreen = openUsersScreen;
+
+function _renderUsers() {
+  const c = document.getElementById('users-list');
+  const roleName = r => ({ manager: 'מנהל', driver: 'נהג', pickup_agent: 'אחראי איסוף', pickup_driver: 'נהג איסוף', bodyshop: 'פחח' }[r] || r);
+  c.innerHTML = _appUsers.length ? _appUsers.map(u => `
+    <div style="border:2px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px;background:var(--card)">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:900;font-size:15px">${esc(u.name || '')} <span style="font-size:12px;font-weight:600;color:var(--muted)">· ${roleName(u.role)}</span></div>
+          <div style="font-size:13px;color:var(--muted);font-weight:700;direction:ltr;text-align:right">${esc(u.phone || '')}</div>
+          ${_userSecrets[u.uid] ? `<div style="font-size:13px;font-weight:800;direction:ltr;text-align:right;color:var(--gold)">${esc(_userSecrets[u.uid])}</div>` : ''}
+        </div>
+        <button onclick="editAppUser('${u.uid}')" style="background:var(--surface2);border:none;border-radius:8px;width:32px;height:32px;cursor:pointer">✏️</button>
+        <button onclick="removeAppUser('${u.uid}')" style="background:#ef4444;color:#fff;border:none;border-radius:8px;width:32px;height:32px;cursor:pointer">🗑</button>
+      </div>
+    </div>`).join('')
+    : `<div style="padding:16px;text-align:center;color:var(--muted)">עדיין אין משתמשים. המשתמש הראשון חייב להיות המנהל.</div>`;
+}
+
+function editAppUser(uid) {
+  const u = _appUsers.find(x => x.uid === uid);
+  if (!u) return;
+  document.getElementById('usr-name').value = u.name || '';
+  document.getElementById('usr-phone').value = u.phone || '';
+  document.getElementById('usr-pass').value = '';
+  document.getElementById('usr-role').value = u.role || 'driver';
+  document.getElementById('usr-name').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  showToast(`✏️ עורך את ${u.name} — סיסמה ריקה תישאר כמו שהיא`);
+}
+window.editAppUser = editAppUser;
+
+async function saveAppUser() {
+  const name = document.getElementById('usr-name').value.trim();
+  const phone = document.getElementById('usr-phone').value.replace(/\D/g, '');
+  const password = document.getElementById('usr-pass').value.trim();
+  const role = document.getElementById('usr-role').value;
+  if (!name) return showToast('נא להזין שם');
+  if (phone.length < 9) return showToast('נא להזין מספר טלפון תקין');
+  const exists = _appUsers.find(u => u.phone === phone);
+  if (!exists && !password) return showToast('נא להזין סיסמה למשתמש חדש');
+  if (password && password.length < 8) return showToast('הסיסמה חייבת להיות 8 תווים לפחות');
+  try {
+    let uid = exists?.uid;
+    if (exists) {
+      if (password) await _callAdminUsers({ action: 'setPassword', uid, password });
+    } else {
+      const res = await _callAdminUsers({ action: 'create', name, phone, password, role });
+      uid = res.uid;
+    }
+    // keep the manager's own copy of the password, for his reference only
+    if (password && uid) {
+      const { setDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+      await setDoc(_docRef('config', 'user_secrets'), { [uid]: password }, { merge: true });
+      _userSecrets[uid] = password;
+    }
+    document.getElementById('usr-name').value = '';
+    document.getElementById('usr-phone').value = '';
+    document.getElementById('usr-pass').value = '';
+    showToast('✅ נשמר');
+    const res = await _callAdminUsers({ action: 'list' });
+    _appUsers = res.users || [];
+    _renderUsers();
+  } catch (e) {
+    console.error('saveAppUser', e);
+    showToast('שגיאה: ' + (e.message || ''), 6000);
+  }
+}
+window.saveAppUser = saveAppUser;
+
+async function removeAppUser(uid) {
+  const u = _appUsers.find(x => x.uid === uid);
+  if (!u || !confirm(`למחוק את ${u.name}? הוא לא יוכל להיכנס יותר.`)) return;
+  try {
+    await _callAdminUsers({ action: 'remove', uid });
+    _appUsers = _appUsers.filter(x => x.uid !== uid);
+    _renderUsers();
+    showToast('🗑 נמחק');
+  } catch (e) { showToast('שגיאה במחיקה'); }
+}
+window.removeAppUser = removeAppUser;
+
 function openSwitchUser() {
   // only the manager may look through somebody else's screen
   if (_realUser?.role !== 'manager') return;
@@ -2690,7 +2834,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 171';
+const APP_BUILD = '2026-08-05 · 172';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -2708,6 +2852,8 @@ function renderHome() {
     now.toLocaleDateString('he-IL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   document.getElementById('home-user-badge').textContent = currentUser.name;
   document.getElementById('stat-vehicles').parentElement.style.display = 'none';
+  const usersBtn = document.getElementById('btn-users-settings');
+  if (usersBtn) usersBtn.style.display = (currentUser?.role === 'manager') ? 'inline-flex' : 'none';
   const waBtn = document.getElementById('btn-whatsapp-settings');
   if (waBtn) waBtn.style.display = isManager ? 'inline-block' : 'none';
 
