@@ -414,6 +414,14 @@ if ('serviceWorker' in navigator) {
 <body>
 
 <!-- ====== SCREEN: LOGIN ====== -->
+<div class="modal-overlay" id="modal-switch-user">
+  <div class="modal-box">
+    <div class="modal-title"><span>👥 מעבר בין משתמשים</span> <button class="modal-close" onclick="closeModal('modal-switch-user')">✕</button></div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:12px">בחר את המסך שתרצה לראות. אתה נשאר מחובר בחשבון שלך.</div>
+    <div id="switch-user-list"></div>
+  </div>
+</div>
+
 <div id="screen-login" class="screen">
   <div class="login-box">
     <div class="login-logo" id="login-logo-tap" onclick="handleLogoTap()">
@@ -2454,6 +2462,11 @@ window.addEventListener('firebase-ready', async () => {
   }
 
   // check saved session
+  // devices that signed in before this existed keep working
+  if (!_realUser) {
+    const prev = localStorage.getItem('anak_user');
+    if (prev) { _realUser = JSON.parse(prev); localStorage.setItem('anak_real_user', prev); }
+  }
   const saved = localStorage.getItem('anak_user');
   if (saved) {
     const parsed = JSON.parse(saved);
@@ -2481,6 +2494,9 @@ function showConfigWarning() {
    LOGIN
 ═══════════════════════════════════════════════════════ */
 const MANAGER_PWD_B64 = btoa('0000');
+// the person this device belongs to — the view may change, this does not
+let _realUser = (() => { try { return JSON.parse(localStorage.getItem('anak_real_user') || 'null'); } catch (e) { return null; } })();
+
 const DRIVER_PINS = { 'גיל': btoa('9999'), 'עופר': btoa('7777'), 'איתי': btoa('5555') };
 const PICKUP_AGENTS = ['משה', 'הילה']; // pickup_agent role, no PIN
 
@@ -2538,19 +2554,52 @@ function doLogin() {
     currentUser = { role: 'driver', name: val };
   }
   localStorage.setItem('anak_user', JSON.stringify(currentUser));
+  localStorage.setItem('anak_real_user', JSON.stringify(currentUser));
+  _realUser = { ...currentUser };
   enterApp();
 }
 
-function logout() {
-  if (!confirm('לצאת מהמערכת?')) return;
-  localStorage.removeItem('anak_user');
-  if (taskUnsub) taskUnsub();
-  if (vehicleUnsub) vehicleUnsub();
-  if (partsUnsub) partsUnsub();
-  currentUser = null;
-  _applyUserBg();
-  showScreen('login');
+/* Nobody signs themselves out any more — a driver opens the app and is simply
+   inside it. The manager's badge switches which user's screen he is looking at,
+   without asking for anybody's password: he stays himself, only the view
+   changes. */
+const _ALL_USERS = [
+  { name: 'ליאל',  role: 'manager' },
+  { name: 'גיל',   role: 'driver' },
+  { name: 'עופר',  role: 'driver' },
+  { name: 'איתי',  role: 'driver' },
+  { name: 'משה',   role: 'pickup_agent' },
+  { name: 'הילה',  role: 'pickup_driver' },
+];
+
+function logout() { openSwitchUser(); }   // every badge in the app calls this
+
+function openSwitchUser() {
+  // only the manager may look through somebody else's screen
+  if (_realUser?.role !== 'manager') return;
+  const c = document.getElementById('switch-user-list');
+  if (!c) return;
+  c.innerHTML = _ALL_USERS.map(u => {
+    const active = currentUser?.name === u.name;
+    return `<button onclick="switchToUser('${u.name}')" style="display:block;width:100%;text-align:right;background:${active ? 'var(--dark)' : 'var(--surface2)'};color:${active ? '#fff' : 'var(--text)'};border:2px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:8px;font-family:'Heebo',sans-serif;font-size:16px;font-weight:800;cursor:pointer">
+      ${u.name} <span style="font-size:12px;font-weight:600;opacity:.7">· ${u.role === 'manager' ? 'מנהל' : u.role === 'driver' ? 'נהג' : 'איסוף'}</span>${active ? ' ✓' : ''}
+    </button>`;
+  }).join('');
+  openModal('modal-switch-user');
 }
+window.openSwitchUser = openSwitchUser;
+
+function switchToUser(name) {
+  const u = _ALL_USERS.find(x => x.name === name);
+  if (!u) return;
+  currentUser = { role: u.role, name: u.name };
+  localStorage.setItem('anak_user', JSON.stringify(currentUser));
+  closeModal('modal-switch-user');
+  _applyUserBg();
+  enterApp();
+  showToast(u.role === 'manager' ? 'חזרת למסך שלך' : `אתה רואה עכשיו את המסך של ${name}`);
+}
+window.switchToUser = switchToUser;
 
 /* ═══════════════════════════════════════════════════════
    SCREEN NAVIGATION
@@ -2641,7 +2690,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 170';
+const APP_BUILD = '2026-08-05 · 171';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
