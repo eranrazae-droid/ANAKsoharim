@@ -116,6 +116,7 @@ tr:hover td{background:#faf7fa}
     <button class="tab" onclick="showTab('gallery',this)">📸 גלריה</button>
     <button class="tab" onclick="showTab('videos',this)">🎤 סרטונים</button>
     <button class="tab" onclick="showTab('alerts',this)">🔔 התראות</button>
+    <button class="tab" onclick="showTab('nutrition',this)">🥗 תזונה</button>
   </div>
 
   <div class="section on" id="sec-leads">
@@ -173,6 +174,20 @@ tr:hover td{background:#faf7fa}
   <div class="section" id="sec-gallery">
     <p style="font-size:13px;color:#888;margin-bottom:20px">הדביקי קישור לכל תמונה (קישור ישיר לתמונה, לא לדף שיתוף). התמונות יופיעו בדף הבית מיד לאחר השמירה.</p>
     <div class="gal-grid" id="gal-grid"></div>
+  </div>
+
+  <div class="section" id="sec-nutrition">
+    <p style="font-size:13px;color:#888;margin-bottom:20px">כתבי את מדריך התזונה — כל קטע מופיע כפסקה נפרדת באזור האישי של המתאמנות.</p>
+    <div style="background:#fff;border-radius:12px;border:1px solid #EDD8D5;padding:20px;margin-bottom:16px">
+      <label style="font-size:12px;font-weight:500;color:#aaa;display:block;margin-bottom:6px">כותרת ראשית</label>
+      <input id="nutr-main-title" class="note-inp" style="width:100%;font-size:15px;font-weight:600;padding:10px 12px;border-radius:8px;border:1px solid #EDD8D5;font-family:'DM Sans',sans-serif;direction:rtl" placeholder="מדריך תזונה — אורית רז" value="🥗 מדריך תזונה"/>
+    </div>
+    <div id="nutr-sections-wrap"></div>
+    <button class="btn btn-outline" onclick="addNutrSection()" style="margin-bottom:16px">+ הוסיפי קטע</button>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary" onclick="saveNutrition()">💾 שמירה</button>
+      <span id="nutr-save-msg" style="font-size:13px;color:#2e7d32;align-self:center;display:none">✅ נשמר!</span>
+    </div>
   </div>
 
   <div class="section" id="sec-alerts">
@@ -233,6 +248,7 @@ function showTab(id,el){
   if(id==='members') loadMembers();
   if(id==='classes') loadClasses();
   if(id==='alerts') loadAlerts();
+  if(id==='nutrition') loadNutrition();
 }
 
 function getLeads(){try{return JSON.parse(localStorage.getItem(LEADS_KEY)||'[]');}catch(e){return [];}}
@@ -624,6 +640,47 @@ function loadAlerts(){
     }
     container.innerHTML=html;
   }).catch(function(e){container.innerHTML='<div class="empty" style="color:#e24b4a">שגיאה: '+e.message+'</div>';});
+}
+
+var nutrSections=[];
+
+function loadNutrition(){
+  fdb.collection('config').doc('nutrition_guide').get().then(function(doc){
+    var data=doc.exists?doc.data():{};
+    document.getElementById('nutr-main-title').value=data.title||'🥗 מדריך תזונה';
+    nutrSections=(data.sections||[]).map(function(s){return{title:s.title||'',body:s.body||''};});
+    if(!nutrSections.length) nutrSections=[{title:'',body:''}];
+    renderNutrSections();
+  }).catch(function(){nutrSections=[{title:'',body:''}];renderNutrSections();});
+}
+
+function renderNutrSections(){
+  var wrap=document.getElementById('nutr-sections-wrap');
+  wrap.innerHTML=nutrSections.map(function(s,i){
+    return'<div style="background:#fff;border-radius:12px;border:1px solid #EDD8D5;padding:16px 20px;margin-bottom:12px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
+      +'<span style="font-size:12px;font-weight:500;color:#aaa">קטע '+(i+1)+'</span>'
+      +(nutrSections.length>1?'<button onclick="removeNutrSection('+i+')" style="background:none;border:none;cursor:pointer;color:#ddd;font-size:16px" onmouseover="this.style.color=\'#e24b4a\'" onmouseout="this.style.color=\'#ddd\'">✕</button>':'')
+      +'</div>'
+      +'<input class="note-inp" style="width:100%;font-size:14px;font-weight:600;padding:9px 12px;border-radius:8px;border:1px solid #EDD8D5;font-family:\'DM Sans\',sans-serif;direction:rtl;margin-bottom:8px" placeholder="כותרת הקטע (אופציונלי)" value="'+escAdm(s.title)+'" oninput="nutrSections['+i+'].title=this.value"/>'
+      +'<textarea class="note-inp" rows="5" style="width:100%;resize:vertical;padding:9px 12px;border-radius:8px;border:1px solid #EDD8D5;font-family:\'DM Sans\',sans-serif;direction:rtl;font-size:13px;line-height:1.7" placeholder="תוכן הקטע..." oninput="nutrSections['+i+'].body=this.value">'+escAdm(s.body)+'</textarea>'
+      +'</div>';
+  }).join('');
+}
+
+function escAdm(str){return(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+function addNutrSection(){nutrSections.push({title:'',body:''});renderNutrSections();}
+function removeNutrSection(i){nutrSections.splice(i,1);renderNutrSections();}
+
+function saveNutrition(){
+  var title=document.getElementById('nutr-main-title').value.trim()||'🥗 מדריך תזונה';
+  var sections=nutrSections.filter(function(s){return s.title||s.body;});
+  fdb.collection('config').doc('nutrition_guide').set({title:title,sections:sections,updatedAt:new Date().toISOString()}).then(function(){
+    var msg=document.getElementById('nutr-save-msg');
+    msg.style.display='inline';
+    setTimeout(function(){msg.style.display='none';},2500);
+  }).catch(function(e){alert('שגיאה: '+e.message);});
 }
 
 function cancelBooking(docId, phone){

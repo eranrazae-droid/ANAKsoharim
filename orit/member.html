@@ -74,6 +74,11 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FAF5F5;m
 .weight-add-row .finp{margin-bottom:0;flex:1}
 .weight-add-btn{background:#C4A0A0;color:#fff;border:none;border-radius:10px;padding:13px 18px;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0}
 .weight-add-btn:hover{background:#A88484}
+/* מדריך תזונה */
+.nutr-section{margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid #FAF5F5}
+.nutr-section:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
+.nutr-section-title{font-size:15px;font-weight:800;color:#C4A0A0;margin-bottom:8px}
+.nutr-section-body{font-size:13px;color:#555;line-height:1.75;white-space:pre-wrap}
 /* eye toggle */
 .pw-field-wrap{position:relative;margin-bottom:12px}
 .pw-field-wrap .finp{margin-bottom:0;padding-left:44px}
@@ -178,6 +183,7 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FAF5F5;m
       <button class="btn btn-outline" onclick="showScreen('changeScreen')">🔄 שינוי מנוי</button>
       <button class="btn btn-outline" onclick="openDetailsScreen()">✏️ עדכון פרטים</button>
       <button class="btn btn-outline" onclick="showScreen('changePassScreen')">🔒 שינוי סיסמה</button>
+      <button class="btn btn-outline" onclick="openNutritionGuide()">🥗 מדריך תזונה</button>
       <button class="btn btn-red" onclick="showScreen('cancelScreen')">ביטול מנוי</button>
     </div>
     <!-- טבלת משקל -->
@@ -356,6 +362,15 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FAF5F5;m
     </div>
   </div>
 
+  <!-- מדריך תזונה -->
+  <div id="nutritionScreen" style="display:none">
+    <div class="card">
+      <h2 id="nutr-title">🥗 מדריך תזונה</h2>
+      <div id="nutr-body"><p style="font-size:13px;color:#bbb;text-align:center;padding:16px 0">טוען...</p></div>
+    </div>
+    <button class="btn btn-gray" onclick="showScreen('dashboard')">← חזרה</button>
+  </div>
+
   <!-- שכחתי סיסמה -->
   <div id="forgotScreen" style="display:none">
     <div class="card">
@@ -475,7 +490,7 @@ function loadDashboard(){
 }
 function renderChangePlans(){document.getElementById('changePlansList').innerHTML=PLANS.filter(function(p){return p.id!==(currentMember&&currentMember.plan);}).map(function(p){return'<div class="plan-s" id="cpl-'+p.id+'" onclick="selectNewPlan(\''+p.id+'\')">'+'<div class="plan-s-left"><div class="plan-s-radio" id="cpr-'+p.id+'"></div>'+'<span class="plan-s-name">'+p.icon+' '+p.name+'</span></div>'+'<span class="plan-s-price">'+p.price+' ₪</span></div>';}).join('');}
 function selectNewPlan(id){PLANS.forEach(function(p){var el=document.getElementById('cpl-'+p.id);if(el)el.classList.remove('sel');});document.getElementById('cpl-'+id).classList.add('sel');selectedNewPlan=PLANS.find(function(p){return p.id===id;});document.getElementById('change-err').textContent='';}
-function showScreen(name){['loginScreen','dashboard','freezeScreen','changeScreen','detailsScreen','changePassScreen','cancelScreen','successScreen','forgotScreen'].forEach(function(s){document.getElementById(s).style.display=s===name?'block':'none';});window.scrollTo(0,0);}
+function showScreen(name){['loginScreen','dashboard','freezeScreen','changeScreen','detailsScreen','changePassScreen','cancelScreen','successScreen','forgotScreen','nutritionScreen'].forEach(function(s){document.getElementById(s).style.display=s===name?'block':'none';});window.scrollTo(0,0);}
 function toggleEye(id,btn){var inp=document.getElementById(id);if(!inp)return;var show=inp.type==='password';inp.type=show?'text':'password';btn.classList.toggle('open',show);}
 function addHistory(type,note){var h=currentMember.history||[];h.push({type:type,date:new Date().toISOString(),note:note||''});return h;}
 function submitFreeze(){var from=document.getElementById('freeze-from').value;var to=document.getElementById('freeze-to').value;var err=document.getElementById('freeze-err');if(!from||!to){err.textContent='נא לבחור תאריכים';return;}var days=Math.round((new Date(to)-new Date(from))/(1000*60*60*24));if(days<14){err.textContent='מינימום 14 יום הקפאה';return;}err.textContent='';var h=addHistory('❄️ הקפאה',from+' עד '+to+' ('+days+' ימים)');db.collection('members').doc(currentMember.id).update({status:'frozen',freezeFrom:from,freezeUntil:to,freezeDays:(currentMember.freezeDays||0)+days,history:h}).then(function(){currentMember.status='frozen';currentMember.freezeFrom=from;currentMember.freezeUntil=to;currentMember.history=h;showSuccess('הקפאה אושרה!','המנוי מוקפא מ-'+new Date(from).toLocaleDateString('he-IL')+' עד '+new Date(to).toLocaleDateString('he-IL')+'\n'+days+' ימים יקוזזו מהחיוב הבא 🩷');}).catch(function(){err.textContent='שגיאה, נסי שוב';});}
@@ -503,6 +518,27 @@ function submitChangePass(){
 }
 function submitCancel(){var err=document.getElementById('cancel-err');var cancelDate=new Date();cancelDate.setDate(cancelDate.getDate()+14);var cancelStr=cancelDate.toLocaleDateString('he-IL');var h=addHistory('❌ בקשת ביטול','ביטול יכנס לתוקף '+cancelStr);db.collection('members').doc(currentMember.id).update({status:'pending_cancel',cancelRequestDate:new Date().toISOString(),cancelEffectiveDate:cancelDate.toISOString(),history:h}).then(function(){currentMember.status='pending_cancel';currentMember.history=h;showSuccess('בקשת הביטול התקבלה','המנוי יבוטל בתאריך '+cancelStr+'.\nאם תרצי לחזור בך — צרי קשר עם אורית 🩷');}).catch(function(){err.textContent='שגיאה, נסי שוב';});}
 function showSuccess(title,body){document.getElementById('success-title').textContent=title;document.getElementById('success-body').textContent=body;showScreen('successScreen');}
+function openNutritionGuide(){
+  showScreen('nutritionScreen');
+  db.collection('config').doc('nutrition_guide').get().then(function(doc){
+    var body=document.getElementById('nutr-body');
+    if(!doc.exists||!(doc.data().sections||[]).length){
+      body.innerHTML='<p style="font-size:13px;color:#bbb;text-align:center;padding:16px 0">המדריך עדיין לא הועלה. בקרוב! 🥗</p>';
+      return;
+    }
+    var d=doc.data();
+    if(d.title) document.getElementById('nutr-title').textContent=d.title;
+    body.innerHTML=(d.sections||[]).map(function(s){
+      return'<div class="nutr-section">'
+        +(s.title?'<div class="nutr-section-title">'+escHtml(s.title)+'</div>':'')
+        +'<div class="nutr-section-body">'+escHtml(s.body||'')+'</div>'
+        +'</div>';
+    }).join('');
+  }).catch(function(){
+    document.getElementById('nutr-body').innerHTML='<p style="font-size:13px;color:#e24b4a;text-align:center;padding:16px 0">שגיאה בטעינה, נסי שוב</p>';
+  });
+}
+
 function submitForgot(){
   var phone=document.getElementById('forgot-phone').value.replace(/\D/g,'');
   var err=document.getElementById('forgot-err');
