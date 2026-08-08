@@ -360,7 +360,7 @@ function doCancel(slotId,timeStr,phone,wk){
     delete regs[phone];
     var waitKeys=Object.keys(wl).sort(function(a,b){return(wl[a].at||'')>(wl[b].at||'')?1:-1;});
     if(waitKeys.length>0){var nextPhone=waitKeys[0];promoted=wl[nextPhone];regs[nextPhone]=promoted;delete wl[nextPhone];}
-    return ref.update({registrations:regs,waitlist:wl}).then(function(){
+    return ref.set({registrations:regs,waitlist:wl},{merge:true}).then(function(){
       myRegs.delete(wk+'_'+slotId);
       counts[wk+'_'+slotId]=Math.max(0,(counts[wk+'_'+slotId]||1)-(promoted?0:1));
       waits[wk+'_'+slotId]=Math.max(0,(waits[wk+'_'+slotId]||1)-(promoted?1:0));
