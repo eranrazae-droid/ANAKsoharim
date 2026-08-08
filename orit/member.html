@@ -408,6 +408,7 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FAF5F5;m
     <div class="card" style="padding-bottom:16px">
       <h2>🤖 בוט תפריט אישי</h2>
       <div id="bot-chat" style="min-height:160px;max-height:420px;overflow-y:auto;margin-bottom:14px;display:flex;flex-direction:column;gap:10px"></div>
+      <div id="bot-typing" style="display:none;font-size:13px;color:#bbb;padding:4px 0 8px 0">⏳ חושבת...</div>
       <div id="bot-choices" style="display:flex;flex-wrap:wrap;gap:8px"></div>
     </div>
     <div id="bot-result" style="display:none">
@@ -643,64 +644,99 @@ function changeUpcoming(i){
   }).then(function(){window.location.href='book.html';}).catch(function(e){alert('שגיאה: '+e.message);});
 }
 
-/* ===== בוט תפריט תזונה ===== */
+/* ===== בוט תפריט תזונה AI ===== */
 var botAnswers={};
-var BOT_QUESTIONS=[
-  {key:'goal',text:'מה המטרה התזונתית שלך?',choices:[{v:'lose',l:'🔥 ירידה במשקל'},{v:'keep',l:'⚖️ שמירה על המשקל'},{v:'gain',l:'💪 בניית שריר'}]},
-  {key:'restrict',text:'יש לך הגבלות תזונה?',choices:[{v:'none',l:'❌ אין הגבלות'},{v:'veg',l:'🌿 צמחוני'},{v:'vegan',l:'🌱 טבעוני'},{v:'gluten',l:'🌾 ללא גלוטן'},{v:'lactose',l:'🥛 ללא לקטוז'}]},
-  {key:'meals',text:'כמה ארוחות ביום את מעדיפה?',choices:[{v:'3',l:'3 ארוחות'},{v:'4',l:'4 ארוחות'},{v:'5',l:'5 ארוחות'}]},
-  {key:'activity',text:'מה רמת הפעילות הגופנית שלך?',choices:[{v:'low',l:'🚶 פעם בשבוע'},{v:'med',l:'🏃 2–3 פעמים'},{v:'high',l:'⚡ 4+ פעמים'}]}
-];
+var botQuestions=[];
 var botStep=0;
+var botLoading=false;
 
 function startNutrBot(){
-  botAnswers={};botStep=0;
+  botAnswers={};botStep=0;botQuestions=[];botLoading=false;
   document.getElementById('bot-result').style.display='none';
   document.getElementById('bot-chat').innerHTML='';
   document.getElementById('bot-choices').innerHTML='';
-  setTimeout(function(){botAsk(0);},200);
+  setTimeout(function(){loadBotQuestions();},200);
 }
 
 function botMsg(text,who){
   var chat=document.getElementById('bot-chat');
   var d=document.createElement('div');
-  d.className='bot-msg '+who;d.textContent=text;
+  d.className='bot-msg '+(who||'bot');
+  d.innerHTML=who==='html'?text:escHtml(text);
   chat.appendChild(d);
   chat.scrollTop=chat.scrollHeight;
 }
 
+function botTyping(show){
+  var el=document.getElementById('bot-typing');
+  if(el)el.style.display=show?'block':'none';
+}
+
+function callAI(messages,cb){
+  fetch('/.netlify/functions/ai-menu',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({messages:messages})
+  }).then(function(r){return r.json();}).then(function(data){
+    var text=(data.content&&data.content[0]&&data.content[0].text)||'';
+    cb(null,text);
+  }).catch(function(e){cb(e,null);});
+}
+
+function loadBotQuestions(){
+  botTyping(true);
+  var sys='את בוטית תזונה חכמה לסטודיו כושר לנשים. בני 4 שאלות תזונה קצרות בעברית לנשים פעילות. החזירי JSON בדיוק בפורמט:\n[{"text":"...","key":"q1","choices":[{"v":"a","l":"..."},{"v":"b","l":"..."},{"v":"c","l":"..."}]},...]';
+  callAI([{role:'user',content:sys}],function(err,text){
+    botTyping(false);
+    if(err||!text){
+      botMsg('שגיאה בטעינת השאלות. נסי שוב מאוחר יותר 😕','bot');
+      return;
+    }
+    try{
+      var json=text.match(/\[[\s\S]*\]/);
+      botQuestions=JSON.parse(json?json[0]:text);
+    }catch(e){
+      botMsg('שגיאה בפענוח השאלות. נסי שוב 😕','bot');
+      return;
+    }
+    botMsg('היי! אני כאן לבנות לך תפריט שבועי אישי 🥗','bot');
+    setTimeout(function(){botAsk(0);},400);
+  });
+}
+
 function botAsk(step){
-  var q=BOT_QUESTIONS[step];if(!q)return;
+  var q=botQuestions[step];if(!q)return;
   setTimeout(function(){
     botMsg(q.text,'bot');
     var wrap=document.getElementById('bot-choices');
     wrap.innerHTML='';
-    q.choices.forEach(function(c){
+    (q.choices||[]).forEach(function(c){
       var btn=document.createElement('button');
       btn.className='bot-choice';btn.textContent=c.l;
       btn.onclick=function(){botAnswer(step,c.v,c.l);};
       wrap.appendChild(btn);
     });
-  },step===0?100:400);
+  },300);
 }
 
 function botAnswer(step,val,label){
   document.getElementById('bot-choices').innerHTML='';
-  botAnswers[BOT_QUESTIONS[step].key]=val;
+  var q=botQuestions[step];
+  if(q)botAnswers[q.key]=val;
   botMsg(label,'user');
   var next=step+1;
-  if(next<BOT_QUESTIONS.length){
+  if(next<botQuestions.length){
     botStep=next;
     botAsk(next);
   } else {
     setTimeout(function(){
-      botMsg('מעולה! בונה לך תפריט אישי...','bot');
-      setTimeout(function(){buildNutrMenu();},700);
+      botMsg('מעולה! בונה לך תפריט שבועי אישי עם 5 אופציות לכל ארוחה... ✨','bot');
+      setTimeout(function(){buildNutrMenu();},600);
     },400);
   }
 }
 
-var MENUS={
+var MENUS_LEGACY={
   lose:{
     3:{
       none:['🌅 ארוחת בוקר: חביתה מ-2 ביצים + ירקות קצוצים, פרוסת לחם מחיטה מלאה, קפה/תה ללא סוכר',
@@ -907,33 +943,85 @@ var MENUS={
   }
 };
 
-var GOAL_LABELS={lose:'ירידה במשקל',keep:'שמירה על המשקל',gain:'בניית שריר'};
-var RESTRICT_LABELS={none:'ללא הגבלות',veg:'צמחוני',vegan:'טבעוני',gluten:'ללא גלוטן',lactose:'ללא לקטוז'};
-var ACTIVITY_TIPS={low:'באימון ✔ שתי לפחות 500 מ"ל לפני + אחרי.',med:'באימון ✔ שתי 1–1.5 ליטר לאורך האימון.',high:'באימון ✔ שתי 1.5–2 ליטר + אלקטרוליטים.'};
-
 function buildNutrMenu(){
-  var goal=botAnswers.goal||'keep';
-  var restrict=botAnswers.restrict||'none';
-  var meals=parseInt(botAnswers.meals)||3;
-  var activity=botAnswers.activity||'med';
-  var menuObj=MENUS[goal]&&MENUS[goal][meals]&&MENUS[goal][meals][restrict];
-  if(!menuObj)menuObj=MENUS[goal][meals]['none'];
-  botMsg('הנה התפריט האישי שלך 🥗','bot');
-  document.getElementById('bot-choices').innerHTML='';
-  var card=document.getElementById('bot-menu-card');
-  var html='<h2 style="font-size:16px;font-weight:800;color:#C4A0A0;margin-bottom:4px">🥗 תפריט יומי מומלץ</h2>'
-    +'<p style="font-size:12px;color:#bbb;margin-bottom:14px">'+GOAL_LABELS[goal]+' · '+RESTRICT_LABELS[restrict]+' · '+meals+' ארוחות</p>';
-  menuObj.forEach(function(item){
-    var split=item.indexOf(':');
-    var title=split>-1?item.slice(0,split+1):item;
-    var body=split>-1?item.slice(split+1).trim():'';
-    html+='<div class="menu-meal"><div class="menu-meal-title">'+escHtml(title)+'</div><div class="menu-meal-items">'+escHtml(body)+'</div></div>';
+  var answersText=Object.keys(botAnswers).map(function(k){return k+': '+botAnswers[k];}).join(', ');
+  var today=new Date();
+  var days=['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
+  var dayNames=[];
+  for(var i=0;i<7;i++){var d=new Date(today);d.setDate(today.getDate()+i);dayNames.push(days[d.getDay()]);}
+  var todayDay=days[today.getDay()];
+  var prompt='את מומחית תזונה. בהתבסס על תשובות המשתמשת: '+answersText+'\n\n'
+    +'בני תפריט שבועי בריא לשבוע הקרוב (7 ימים: '+dayNames.join(', ')+').\n'
+    +'כל יום יכיל 5 אפשרויות ארוחה. כל ארוחה 5 אפשרויות בריאות (מספרנו 1-5).\n'
+    +'הוסיפי גם המלצת היום המיוחדת ליום '+todayDay+'.\n'
+    +'החזירי JSON בדיוק בפורמט:\n'
+    +'{\n'
+    +'"daily_tip":"המלצת היום: ...",\n'
+    +'"days":[\n'
+    +'  {"name":"ראשון","meals":[\n'
+    +'    {"title":"🌅 ארוחת בוקר","options":["אפשרות 1","אפשרות 2","אפשרות 3","אפשרות 4","אפשרות 5"]},\n'
+    +'    {"title":"🍎 ביניים","options":[...]},\n'
+    +'    {"title":"☀️ ארוחת צהריים","options":[...]},\n'
+    +'    {"title":"🍊 ביניים שני","options":[...]},\n'
+    +'    {"title":"🌙 ארוחת ערב","options":[...]}\n'
+    +'  ]}\n'
+    +']}\n'
+    +'ענות בעברית בלבד. ללא טקסט נוסף מחוץ ל-JSON.';
+  botTyping(true);
+  callAI([{role:'user',content:prompt}],function(err,text){
+    botTyping(false);
+    if(err||!text){
+      botMsg('שגיאה בבניית התפריט. נסי שוב מאוחר יותר 😕','bot');
+      return;
+    }
+    var menu;
+    try{
+      var json=text.match(/\{[\s\S]*\}/);
+      menu=JSON.parse(json?json[0]:text);
+    }catch(e){
+      botMsg('שגיאה בעיבוד התפריט. נסי שוב 😕','bot');
+      return;
+    }
+    botMsg('הנה התפריט השבועי האישי שלך! 🥗','bot');
+    document.getElementById('bot-choices').innerHTML='';
+    var card=document.getElementById('bot-menu-card');
+    var todayIdx=0;
+    var html='<div style="background:linear-gradient(135deg,#C4A0A0,#A88484);border-radius:14px;padding:14px 16px;color:#fff;margin-bottom:16px;font-size:14px;line-height:1.5">'
+      +'<div style="font-weight:800;font-size:15px;margin-bottom:4px">✨ המלצת היום — '+escHtml(todayDay)+'</div>'
+      +escHtml(menu.daily_tip||'')+'</div>';
+    var tabBar='<div id="day-tabs" style="display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:12px">';
+    (menu.days||[]).forEach(function(day,i){
+      tabBar+='<button onclick="showDay('+i+')" id="dtab-'+i+'" style="flex-shrink:0;padding:6px 12px;border-radius:20px;border:none;cursor:pointer;font-size:13px;font-weight:700;'+(i===0?'background:#C4A0A0;color:#fff':'background:#f3e9e9;color:#C4A0A0')+'">'+escHtml(day.name)+'</button>';
+    });
+    tabBar+='</div>';
+    html+=tabBar;
+    (menu.days||[]).forEach(function(day,di){
+      html+='<div id="day-panel-'+di+'" style="display:'+(di===0?'block':'none')+'">';
+      (day.meals||[]).forEach(function(meal){
+        html+='<div class="menu-meal"><div class="menu-meal-title">'+escHtml(meal.title||'')+'</div>';
+        html+='<div class="menu-meal-items">';
+        (meal.options||[]).forEach(function(opt,oi){
+          html+='<div style="padding:3px 0;font-size:13px">'+escHtml((oi+1)+'. '+opt)+'</div>';
+        });
+        html+='</div></div>';
+      });
+      html+='</div>';
+    });
+    card.innerHTML=html;
+    document.getElementById('bot-result').style.display='block';
+    document.getElementById('bot-result').scrollIntoView({behavior:'smooth'});
   });
-  html+='<div style="margin-top:14px;background:#f0fdf4;border-radius:10px;padding:10px 13px;font-size:13px;color:#2e7d32">'
-    +'💧 <strong>שתיה:</strong> לפחות 8 כוסות מים ביום. '+ACTIVITY_TIPS[activity]+'</div>';
-  card.innerHTML=html;
-  document.getElementById('bot-result').style.display='block';
-  document.getElementById('bot-result').scrollIntoView({behavior:'smooth'});
+}
+
+function showDay(idx){
+  document.querySelectorAll('[id^="day-panel-"]').forEach(function(el){el.style.display='none';});
+  document.querySelectorAll('[id^="dtab-"]').forEach(function(el){
+    el.style.background='#f3e9e9';el.style.color='#C4A0A0';
+  });
+  var panel=document.getElementById('day-panel-'+idx);
+  var tab=document.getElementById('dtab-'+idx);
+  if(panel)panel.style.display='block';
+  if(tab){tab.style.background='#C4A0A0';tab.style.color='#fff';}
 }
 
 function openNutritionGuide(){
