@@ -644,99 +644,68 @@ function changeUpcoming(i){
   }).then(function(){window.location.href='book.html';}).catch(function(e){alert('שגיאה: '+e.message);});
 }
 
-/* ===== בוט תפריט תזונה AI ===== */
+/* ===== בוט תפריט תזונה ===== */
 var botAnswers={};
-var botQuestions=[];
 var botStep=0;
-var botLoading=false;
+var BOT_QUESTIONS=[
+  {key:'goal',text:'מה המטרה התזונתית שלך?',choices:[{v:'lose',l:'🔥 ירידה במשקל'},{v:'keep',l:'⚖️ שמירה על המשקל'},{v:'gain',l:'💪 בניית שריר'}]},
+  {key:'restrict',text:'יש לך הגבלות תזונה?',choices:[{v:'none',l:'❌ אין הגבלות'},{v:'veg',l:'🌿 צמחוני'},{v:'vegan',l:'🌱 טבעוני'},{v:'gluten',l:'🌾 ללא גלוטן'},{v:'lactose',l:'🥛 ללא לקטוז'}]},
+  {key:'meals',text:'כמה ארוחות ביום את מעדיפה?',choices:[{v:'3',l:'3 ארוחות'},{v:'4',l:'4 ארוחות'},{v:'5',l:'5 ארוחות'}]},
+  {key:'activity',text:'מה רמת הפעילות הגופנית שלך?',choices:[{v:'low',l:'🚶 פעם בשבוע'},{v:'med',l:'🏃 2–3 פעמים'},{v:'high',l:'⚡ 4+ פעמים'}]}
+];
 
 function startNutrBot(){
-  botAnswers={};botStep=0;botQuestions=[];botLoading=false;
+  botAnswers={};botStep=0;
   document.getElementById('bot-result').style.display='none';
   document.getElementById('bot-chat').innerHTML='';
   document.getElementById('bot-choices').innerHTML='';
-  setTimeout(function(){loadBotQuestions();},200);
+  setTimeout(function(){
+    botMsg('היי! אני כאן לבנות לך תפריט שבועי אישי 🥗','bot');
+    setTimeout(function(){botAsk(0);},400);
+  },200);
 }
 
 function botMsg(text,who){
   var chat=document.getElementById('bot-chat');
   var d=document.createElement('div');
-  d.className='bot-msg '+(who||'bot');
-  d.innerHTML=who==='html'?text:escHtml(text);
+  d.className='bot-msg '+(who||'bot');d.textContent=text;
   chat.appendChild(d);
   chat.scrollTop=chat.scrollHeight;
 }
 
-function botTyping(show){
-  var el=document.getElementById('bot-typing');
-  if(el)el.style.display=show?'block':'none';
-}
-
-function callAI(messages,cb){
-  fetch('/.netlify/functions/ai-menu',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({messages:messages})
-  }).then(function(r){return r.json();}).then(function(data){
-    var text=(data.content&&data.content[0]&&data.content[0].text)||'';
-    cb(null,text);
-  }).catch(function(e){cb(e,null);});
-}
-
-function loadBotQuestions(){
-  botTyping(true);
-  var sys='את בוטית תזונה חכמה לסטודיו כושר לנשים. בני 4 שאלות תזונה קצרות בעברית לנשים פעילות. החזירי JSON בדיוק בפורמט:\n[{"text":"...","key":"q1","choices":[{"v":"a","l":"..."},{"v":"b","l":"..."},{"v":"c","l":"..."}]},...]';
-  callAI([{role:'user',content:sys}],function(err,text){
-    botTyping(false);
-    if(err||!text){
-      botMsg('שגיאה בטעינת השאלות. נסי שוב מאוחר יותר 😕','bot');
-      return;
-    }
-    try{
-      var json=text.match(/\[[\s\S]*\]/);
-      botQuestions=JSON.parse(json?json[0]:text);
-    }catch(e){
-      botMsg('שגיאה בפענוח השאלות. נסי שוב 😕','bot');
-      return;
-    }
-    botMsg('היי! אני כאן לבנות לך תפריט שבועי אישי 🥗','bot');
-    setTimeout(function(){botAsk(0);},400);
-  });
-}
+function botTyping(){}
 
 function botAsk(step){
-  var q=botQuestions[step];if(!q)return;
+  var q=BOT_QUESTIONS[step];if(!q)return;
   setTimeout(function(){
     botMsg(q.text,'bot');
     var wrap=document.getElementById('bot-choices');
     wrap.innerHTML='';
-    (q.choices||[]).forEach(function(c){
+    q.choices.forEach(function(c){
       var btn=document.createElement('button');
       btn.className='bot-choice';btn.textContent=c.l;
       btn.onclick=function(){botAnswer(step,c.v,c.l);};
       wrap.appendChild(btn);
     });
-  },300);
+  },step===0?100:400);
 }
 
 function botAnswer(step,val,label){
   document.getElementById('bot-choices').innerHTML='';
-  var q=botQuestions[step];
-  if(q)botAnswers[q.key]=val;
+  botAnswers[BOT_QUESTIONS[step].key]=val;
   botMsg(label,'user');
   var next=step+1;
-  if(next<botQuestions.length){
-    botStep=next;
-    botAsk(next);
+  if(next<BOT_QUESTIONS.length){
+    botStep=next;botAsk(next);
   } else {
     setTimeout(function(){
-      botMsg('מעולה! בונה לך תפריט שבועי אישי עם 5 אופציות לכל ארוחה... ✨','bot');
+      botMsg('מעולה! בונה לך תפריט שבועי אישי... ✨','bot');
       setTimeout(function(){buildNutrMenu();},600);
     },400);
   }
 }
 
-var MENUS_LEGACY={
+var MENUS={
   lose:{
     3:{
       none:['🌅 ארוחת בוקר: חביתה מ-2 ביצים + ירקות קצוצים, פרוסת לחם מחיטה מלאה, קפה/תה ללא סוכר',
@@ -943,85 +912,187 @@ var MENUS_LEGACY={
   }
 };
 
+var DAILY_TIPS=[
+  'שתי כוס מים גדולה לפני כל ארוחה — מסייע לעיכול ולתחושת שובע.',
+  'אכלי לאט ובנחת, ללעוס היטב עוזר לעיכול ומפחית כמות.',
+  'הוסיפי ירוקים לכל ארוחה — תרד, רוקט, מלפפון — ללא הגבלה.',
+  'ארוחת בוקר חשובה — אל תוותרי עליה, היא קובעת את האנרגיה ליום.',
+  'נסי לאכול את הפחמימות בעיקר לפני האימון ופחות בערב.',
+  'פירות הם חטיף מעולה — עדיפי שלם על מיץ לסיבים ולשובע.',
+  'שמרי על שעות ארוחה קבועות — זה עוזר לגוף לווסת תיאבון.'
+];
+
+var WEEK_MENUS={
+  lose:{
+    none:[
+      ['חביתה 2 ביצים + ירקות קצוצים + פרוסת לחם מלא','יוגורט יווני 0% + פירות יער + כף גרנולה','קוואקר עם חלב דל שומן + פרי','שייק ירוק: תרד + בננה + חלב שקדים','לחם שיפון + אבוקדו + ביצה קשה'],
+      ['תפוח + 10 שקדים','גזר + 2 כפות חומוס','פרי עונתי','יוגורט 0% קטן','מלפפון + גבינה בולגרית 5%'],
+      ['150גר חזה עוף צלוי + סלט גדול + חצי כוס קינואה','דג אפוי + ירקות מאודים + מרק','עוף + בטטה קטנה + סלט','טונה + סלט ירקות + פרוסת לחם','חזה עוף + אספרגוס + מרק ירקות'],
+      ['פרי + כוס תה ירוק','חופן אגוזי מלך','סלרי + כפית חמאת בוטנים','עגבניות שרי','תמר אחד + שקדים'],
+      ['סלמון אפוי + ירקות מאודים','חביתה + ירקות + מרק ירקות','גבינת קוטג 5% + מלפפון + עגבנייה','דג לבן + בטטה + סלט','ביצה קשה + ירקות חתוכים + יוגורט']
+    ],
+    veg:[
+      ['יוגורט יווני + גרנולה + פירות יער','לחם + ביצה מקושקשת + עגבנייה','שייק: בננה + יוגורט + תות','קוואקר + חלב + פרי','לחם שיפון + גבינה 5% + מלפפון'],
+      ['גזר + חומוס','פרי + אגוזים','יוגורט קטן','תפוח','ירקות חתוכים'],
+      ['קציצות עדשים + סלט + פרוסת לחם שיפון','פסטה מחיטה מלאה + ירקות + גבינה','שאקשוקה + לחם','מג\'דרה + סלט','אורז מלא + גבינת קוטג + ירקות'],
+      ['פרי','אגוזים','יוגורט','תמר + שקדים','קשיו קטן'],
+      ['מרק עדשים + לחם','גבינת קוטג + ירקות','יוגורט יווני + פרי','ביצה + סלט','גבינה בולגרית 5% + ירקות']
+    ],
+    vegan:[
+      ['שייק: חלב שקדים + בננה + זרעי צ\'יה','טוסט עם אבוקדו + עגבנייה','קוואקר עם חלב שיבולת + פירות','שייק ירוק: תרד + בננה','דייסת שיבולת + פירות יער'],
+      ['תמרים + אגוזי מלך','בננה','שקדים + פרי','חופן גרעינים','תפוח + כפית חמאת שקדים'],
+      ['טופו מוקפץ + ירקות + גריסי פנינה','מג\'דרה + סלט','בורגול + עדשים + ירקות','אורז + חומוס + סלט','קינואה + ירקות מוקפצים'],
+      ['פרי','תמר','שקדים','בננה קטנה','גרעיני דלעת'],
+      ['מרק עדשים כתומות + לחם שיפון','חומוס + ירקות חתוכים','מרק ירקות + טופו','פלאפל ביתי קטן + סלט','אבוקדו + עגבנייה + לחם שיפון']
+    ],
+    gluten:[
+      ['חביתה + ירקות + פרי','יוגורט + פירות + אגוזים','שייק: חלב + בננה + פירות','ביצים קשות + ירקות','קוואקר ללא גלוטן + פרי'],
+      ['פרי + שקדים','גזר + חומוס','יוגורט','אגוזים','ירקות'],
+      ['עוף + אורז מלא + סלט','דג + בטטה + ירקות','עוף + קינואה + סלט','טונה + סלט + ביצה','עוף + ירקות אפויים'],
+      ['פרי','יוגורט','אגוזים','גזר','תמר'],
+      ['דג + ירקות מאודים','חביתה + ירקות','גבינת קוטג + ירקות','עוף + סלט','דג + בטטה']
+    ],
+    lactose:[
+      ['שייק: חלב שקדים + בננה + חמאת בוטנים','לחם + אבוקדו + ביצה','קוואקר + חלב שיבולת + פרי','שייק ירוק','ביצה + לחם + עגבנייה'],
+      ['פרי + שקדים','גזר','בננה','אגוזים','תמר'],
+      ['עוף + קינואה + סלט','דג + אורז + ירקות','עוף + בטטה + סלט','טונה + ירקות + לחם','עוף + ירקות מוקפצים'],
+      ['פרי','שקדים','בננה','גרעינים','ירקות'],
+      ['דג + ירקות','ביצה + סלט','עוף + ירקות מאודים','אבוקדו + ביצה + ירקות','טונה + סלט']
+    ]
+  },
+  keep:{
+    none:[
+      ['2 ביצים + 2 פרוסות לחם מלא + גבינה + סלט','קוואקר + חלב + בננה + אגוזים','לחם + ביצה + אבוקדו + עגבנייה','יוגורט יווני + גרנולה + פרי','שייק: חלב + בננה + גרעינים'],
+      ['גבינת קוטג + פרי','תפוח + שקדים','יוגורט','פרי + אגוזים','גזר + חומוס'],
+      ['180גר עוף + כוס אורז + ירקות','דג + פסטה מחיטה מלאה + סלט','עוף + קינואה + ירקות','בשר רזה + אורז + סלט','דג + בטטה + ירקות'],
+      ['פרי','חופן שקדים','יוגורט','אגוזים','גזר'],
+      ['חביתה + לחם מלא + סלט','יוגורט + לחם + ירקות','ביצה + גבינה + ירקות','דג + סלט','מרק ירקות + לחם + ביצה']
+    ],
+    veg:[
+      ['גרנולה + יוגורט + פירות','לחם + גבינה + עגבנייה','קוואקר + חלב + פרי','שייק: יוגורט + פרי','ביצה מקושקשת + לחם + ירק'],
+      ['פרי + יוגורט','אגוזים','גבינה + ירק','תפוח','יוגורט קטן'],
+      ['פסטה מחיטה מלאה + רוטב עגבניות + גבינה + סלט','שאקשוקה + לחם','מג\'דרה + סלט','לזניה ירקות','קציצות קטניות + אורז + סלט'],
+      ['פרי','יוגורט','גבינה','אגוזים','תמר'],
+      ['מרק עדשים + לחם','סלט יווני + פיתה','גבינת קוטג + ירקות','ביצה + סלט','שאקשוקה קטנה']
+    ],
+    vegan:[
+      ['טוסט עם אבוקדו + חלב שיבולת','שייק בננה + חמאת בוטנים','קוואקר + חלב שיבולת + פרי','טוסט + טחינה + עגבנייה','שייק ירוק + פרי'],
+      ['תפוח + שקדים','בננה','תמרים + אגוזים','פרי','גרעינים'],
+      ['אורז + קטניות + ירקות מוקפצים','קינואה + גרגירי חומוס + ירקות','מג\'דרה + סלט','טופו + אורז + ירקות','בורגול + עדשים + ירקות'],
+      ['פרי','תמר','שקדים','בננה','גרעיני דלעת'],
+      ['מרק מיסו + טופו + אורז','חומוס + ירקות + לחם שיפון','מרק ירקות + לחם','פלאפל + סלט','אורז + עדשים']
+    ],
+    gluten:[
+      ['חביתה + אבוקדו + פרי','יוגורט + אגוזים + פרי','ביצים + ירקות','שייק: חלב + בננה + גרעינים','קוואקר ללא גלוטן + חלב + פרי'],
+      ['יוגורט + אגוזים','פרי','גזר','שקדים','גבינה + ירק'],
+      ['עוף + אורז + ירקות','דג + בטטה + סלט','עוף + קינואה + ירקות','בשר רזה + אורז + סלט','דג + ירקות אפויים'],
+      ['פרי','יוגורט','אגוזים','גזר','תמר'],
+      ['דג + סלט','עוף + ירקות','חביתה + ירקות','יוגורט + פרי','דג + בטטה']
+    ],
+    lactose:[
+      ['לחם + ביצה + אבוקדו','שייק: חלב שקדים + בננה','קוואקר + חלב שיבולת + פרי','לחם + ביצה + עגבנייה','ביצה קשה + לחם + ירקות'],
+      ['פרי','שקדים','בננה','גזר','אגוזים'],
+      ['עוף + פסטה + ירקות','דג + אורז + סלט','עוף + קינואה + ירקות','טונה + לחם + סלט','עוף + בטטה + ירקות'],
+      ['פרי','שקדים','בננה','גרעינים','ירקות'],
+      ['דג + סלט + לחם','ביצה + ירקות','עוף + סלט','טונה + ירקות','ביצה + לחם + ירקות']
+    ]
+  },
+  gain:{
+    none:[
+      ['3 ביצים + 3 פרוסות לחם מלא + אבוקדו + כוס חלב','קוואקר + חלב מלא + בננה + אגוזים + ביצה','שייק: חלב + בננה + חמאת בוטנים + ביצה','לחם + גבינה + אבוקדו + ביצה','3 ביצים + לחם + גבינה'],
+      ['שייק: חלב + בננה + חמאת בוטנים','גבינה + לחם + פרי','יוגורט + גרנולה','אגוזים + תמרים','פרי + חמאת בוטנים'],
+      ['250גר עוף + כוס וחצי אורז + ירקות + שמן זית','בשר רזה + פסטה + ירקות','עוף + קינואה + ירקות + שמן','דג שמן + אורז + סלט','250גר עוף + בטטה + ירקות'],
+      ['יוגורט יווני + גרנולה + פרי','לחם + גבינה','פרי + אגוזים','שייק קטן','בננה + שקדים'],
+      ['פסטה מחיטה מלאה + רוטב בשר + גבינה','ביצים + לחם + אבוקדו + חלב','עוף + אורז + ירקות','פסטה + טונה + ירקות','דג שמן + בטטה + אגוזים']
+    ],
+    veg:[
+      ['3 ביצים + גבינה + לחם + אבוקדו','לחם + גבינה + אבוקדו + ביצה','קוואקר + חלב מלא + גרנולה','יוגורט + גרנולה + אגוזים','שייק: יוגורט + בננה + גרנולה'],
+      ['יוגורט + גרנולה','לחם + גבינה','אגוזים + תמרים','פרי + גבינת קוטג','גבינה + פרי'],
+      ['פסטה + גבינה + ירקות','מג\'דרה + גבינת קוטג + לחם','לזניה גבינות','שאקשוקה + לחם גדול','קציצות גבינה + אורז + סלט'],
+      ['יוגורט + פרי','גבינת קוטג','אגוזים','פרי + גבינה','שייק יוגורט'],
+      ['מרק עדשים + גבינה + לחם','שאקשוקה + לחם','ביצים + לחם + גבינה','פסטה + גבינה','מג\'דרה + יוגורט']
+    ],
+    vegan:[
+      ['שייק: חלב שיבולת + 2 כפות חמאת בוטנים + בננה + זרעי צ\'יה','טוסט + חמאת בוטנים + בננה','קוואקר + חלב שיבולת + שקדים + פרי','שייק: חלב שקדים + בננה + חמאת שקדים','לחם + טחינה + אבוקדו + בננה'],
+      ['שייק חלב שיבולת + שקדים','תמרים + אגוזי קשיו','לחם + טחינה','בננה + חמאת שקדים','גרעינים + פרי'],
+      ['טופו + אורז + קטניות + ירקות מוקפצים בשמן','קינואה + עדשים + ירקות + שמן זית','מג\'דרה + סלט + לחם','בורגול + חומוס + ירקות','אורז + טופו + שמן שומשום'],
+      ['תמרים + שקדים','בננה + חמאת בוטנים','אגוזי קשיו','שייק קטן','לחם + טחינה'],
+      ['עדשים + פסטה + אבוקדו','טופו + אורז + שמן שומשום','מג\'דרה + לחם','חומוס + פיתה + ירקות','אורז + קטניות + שמן']
+    ],
+    gluten:[
+      ['3 ביצים + אבוקדו + כוס חלב','שייק: חלב + בננה + חמאת בוטנים + ביצה','יוגורט + אגוזים + פרי + ביצה','3 ביצים + אבוקדו + יוגורט','ביצים + גבינה + ירקות + חלב'],
+      ['אגוזים + פרי','יוגורט + שקדים','שייק קטן','בננה + חמאת בוטנים','גבינה + פרי'],
+      ['עוף + אורז + ירקות + שמן','דג שמן (סלמון) + בטטה + אגוזים','עוף + קינואה + ירקות','בשר רזה + אורז + סלט','עוף + בטטה + שמן זית'],
+      ['יוגורט + פרי','אגוזים','בננה + שקדים','גבינה','פרי + גרעינים'],
+      ['דג שמן + בטטה + אגוזים','עוף + אורז','דג + ירקות + שמן זית','ביצים + אבוקדו','עוף + בטטה']
+    ],
+    lactose:[
+      ['3 ביצים + לחם + אבוקדו','שייק: חלב שיבולת + בננה + חמאת בוטנים','קוואקר + חלב שיבולת + שקדים','לחם + ביצה + אבוקדו + בננה','3 ביצים + לחם + שמן זית'],
+      ['בננה + שקדים','לחם + חמאת בוטנים','פרי + אגוזים','תמרים + קשיו','שייק חלב שיבולת'],
+      ['עוף + אורז + ירקות','דג + פסטה + ירקות','עוף + קינואה + ירקות + שמן','בשר רזה + אורז + סלט','עוף + בטטה + ירקות'],
+      ['בננה + חמאת בוטנים','פרי + שקדים','תמרים','שייק קטן','אגוזים'],
+      ['דג + פסטה + ירקות','עוף + אורז','ביצה + לחם + אבוקדו','דג + בטטה','עוף + ירקות + שמן']
+    ]
+  }
+};
+
+var MEAL_TITLES_3=['🌅 ארוחת בוקר','☀️ ארוחת צהריים','🌙 ארוחת ערב'];
+var MEAL_TITLES_4=['🌅 ארוחת בוקר','🍎 ארוחת ביניים','☀️ ארוחת צהריים','🌙 ארוחת ערב'];
+var MEAL_TITLES_5=['🌅 ארוחת בוקר','🍎 ארוחת ביניים','☀️ ארוחת צהריים','🍊 ארוחת ביניים שנייה','🌙 ארוחת ערב'];
+var MEAL_INDICES_3=[0,2,4];
+var MEAL_INDICES_4=[0,1,2,4];
+var DAY_NAMES=['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
+var GOAL_LABELS={lose:'ירידה במשקל',keep:'שמירה על המשקל',gain:'בניית שריר'};
+
 function buildNutrMenu(){
-  var answersText=Object.keys(botAnswers).map(function(k){return k+': '+botAnswers[k];}).join(', ');
+  var goal=botAnswers.goal||'keep';
+  var restrict=botAnswers.restrict||'none';
+  var meals=parseInt(botAnswers.meals)||3;
+  var menuData=(WEEK_MENUS[goal]&&WEEK_MENUS[goal][restrict])||WEEK_MENUS[goal]['none'];
+  var mealTitles=meals===3?MEAL_TITLES_3:meals===4?MEAL_TITLES_4:MEAL_TITLES_5;
+  var mealIdx=meals===3?MEAL_INDICES_3:meals===4?MEAL_INDICES_4:null;
   var today=new Date();
-  var days=['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
-  var dayNames=[];
-  for(var i=0;i<7;i++){var d=new Date(today);d.setDate(today.getDate()+i);dayNames.push(days[d.getDay()]);}
-  var todayDay=days[today.getDay()];
-  var prompt='את מומחית תזונה. בהתבסס על תשובות המשתמשת: '+answersText+'\n\n'
-    +'בני תפריט שבועי בריא לשבוע הקרוב (7 ימים: '+dayNames.join(', ')+').\n'
-    +'כל יום יכיל 5 אפשרויות ארוחה. כל ארוחה 5 אפשרויות בריאות (מספרנו 1-5).\n'
-    +'הוסיפי גם המלצת היום המיוחדת ליום '+todayDay+'.\n'
-    +'החזירי JSON בדיוק בפורמט:\n'
-    +'{\n'
-    +'"daily_tip":"המלצת היום: ...",\n'
-    +'"days":[\n'
-    +'  {"name":"ראשון","meals":[\n'
-    +'    {"title":"🌅 ארוחת בוקר","options":["אפשרות 1","אפשרות 2","אפשרות 3","אפשרות 4","אפשרות 5"]},\n'
-    +'    {"title":"🍎 ביניים","options":[...]},\n'
-    +'    {"title":"☀️ ארוחת צהריים","options":[...]},\n'
-    +'    {"title":"🍊 ביניים שני","options":[...]},\n'
-    +'    {"title":"🌙 ארוחת ערב","options":[...]}\n'
-    +'  ]}\n'
-    +']}\n'
-    +'ענות בעברית בלבד. ללא טקסט נוסף מחוץ ל-JSON.';
-  botTyping(true);
-  callAI([{role:'user',content:prompt}],function(err,text){
-    botTyping(false);
-    if(err||!text){
-      botMsg('שגיאה בבניית התפריט. נסי שוב מאוחר יותר 😕','bot');
-      return;
+  var todayDayIdx=today.getDay();
+  var tip=DAILY_TIPS[todayDayIdx%DAILY_TIPS.length];
+  var todayName=DAY_NAMES[todayDayIdx];
+  botMsg('הנה התפריט השבועי האישי שלך! 🥗','bot');
+  document.getElementById('bot-choices').innerHTML='';
+  var card=document.getElementById('bot-menu-card');
+  var html='<div style="background:linear-gradient(135deg,#C4A0A0,#A88484);border-radius:14px;padding:14px 16px;color:#fff;margin-bottom:16px;font-size:14px;line-height:1.6">'
+    +'<div style="font-weight:800;font-size:15px;margin-bottom:4px">✨ המלצת היום — '+escHtml(todayName)+'</div>'
+    +escHtml(tip)+'</div>';
+  var tabBar='<div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:12px;-webkit-overflow-scrolling:touch">';
+  for(var wi=0;wi<7;wi++){
+    var wd=new Date(today);wd.setDate(today.getDate()+wi);
+    var wdName=DAY_NAMES[wd.getDay()];
+    tabBar+='<button onclick="showDay('+wi+')" id="dtab-'+wi+'" style="flex-shrink:0;padding:6px 12px;border-radius:20px;border:none;cursor:pointer;font-size:13px;font-weight:700;'+(wi===0?'background:#C4A0A0;color:#fff':'background:#f3e9e9;color:#C4A0A0')+'">'+escHtml(wdName)+'</button>';
+  }
+  tabBar+='</div>';
+  html+=tabBar;
+  for(var di=0;di<7;di++){
+    var dayMeals=menuData[di%menuData.length];
+    html+='<div id="day-panel-'+di+'" style="display:'+(di===0?'block':'none')+'">';
+    for(var mi=0;mi<mealTitles.length;mi++){
+      var srcIdx=mealIdx?mealIdx[mi]:mi;
+      var opts=dayMeals[srcIdx]||dayMeals[mi]||'';
+      html+='<div class="menu-meal"><div class="menu-meal-title">'+escHtml(mealTitles[mi])+'</div><div class="menu-meal-items">';
+      opts.split('|').forEach(function(o,oi){html+='<div style="padding:2px 0;font-size:13px">'+escHtml((oi+1)+'. '+o.trim())+'</div>';});
+      html+='</div></div>';
     }
-    var menu;
-    try{
-      var json=text.match(/\{[\s\S]*\}/);
-      menu=JSON.parse(json?json[0]:text);
-    }catch(e){
-      botMsg('שגיאה בעיבוד התפריט. נסי שוב 😕','bot');
-      return;
-    }
-    botMsg('הנה התפריט השבועי האישי שלך! 🥗','bot');
-    document.getElementById('bot-choices').innerHTML='';
-    var card=document.getElementById('bot-menu-card');
-    var todayIdx=0;
-    var html='<div style="background:linear-gradient(135deg,#C4A0A0,#A88484);border-radius:14px;padding:14px 16px;color:#fff;margin-bottom:16px;font-size:14px;line-height:1.5">'
-      +'<div style="font-weight:800;font-size:15px;margin-bottom:4px">✨ המלצת היום — '+escHtml(todayDay)+'</div>'
-      +escHtml(menu.daily_tip||'')+'</div>';
-    var tabBar='<div id="day-tabs" style="display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:12px">';
-    (menu.days||[]).forEach(function(day,i){
-      tabBar+='<button onclick="showDay('+i+')" id="dtab-'+i+'" style="flex-shrink:0;padding:6px 12px;border-radius:20px;border:none;cursor:pointer;font-size:13px;font-weight:700;'+(i===0?'background:#C4A0A0;color:#fff':'background:#f3e9e9;color:#C4A0A0')+'">'+escHtml(day.name)+'</button>';
-    });
-    tabBar+='</div>';
-    html+=tabBar;
-    (menu.days||[]).forEach(function(day,di){
-      html+='<div id="day-panel-'+di+'" style="display:'+(di===0?'block':'none')+'">';
-      (day.meals||[]).forEach(function(meal){
-        html+='<div class="menu-meal"><div class="menu-meal-title">'+escHtml(meal.title||'')+'</div>';
-        html+='<div class="menu-meal-items">';
-        (meal.options||[]).forEach(function(opt,oi){
-          html+='<div style="padding:3px 0;font-size:13px">'+escHtml((oi+1)+'. '+opt)+'</div>';
-        });
-        html+='</div></div>';
-      });
-      html+='</div>';
-    });
-    card.innerHTML=html;
-    document.getElementById('bot-result').style.display='block';
-    document.getElementById('bot-result').scrollIntoView({behavior:'smooth'});
-  });
+    html+='</div>';
+  }
+  card.innerHTML=html;
+  document.getElementById('bot-result').style.display='block';
+  document.getElementById('bot-result').scrollIntoView({behavior:'smooth'});
 }
 
 function showDay(idx){
-  document.querySelectorAll('[id^="day-panel-"]').forEach(function(el){el.style.display='none';});
-  document.querySelectorAll('[id^="dtab-"]').forEach(function(el){
-    el.style.background='#f3e9e9';el.style.color='#C4A0A0';
-  });
-  var panel=document.getElementById('day-panel-'+idx);
-  var tab=document.getElementById('dtab-'+idx);
-  if(panel)panel.style.display='block';
-  if(tab){tab.style.background='#C4A0A0';tab.style.color='#fff';}
+  for(var i=0;i<7;i++){
+    var p=document.getElementById('day-panel-'+i);
+    var t=document.getElementById('dtab-'+i);
+    if(p)p.style.display=i===idx?'block':'none';
+    if(t){t.style.background=i===idx?'#C4A0A0':'#f3e9e9';t.style.color=i===idx?'#fff':'#C4A0A0';}
+  }
 }
 
 function openNutritionGuide(){
