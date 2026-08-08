@@ -389,6 +389,12 @@ body.modal-open{overflow:hidden}
    new version on load and whenever the app is brought back to the foreground,
    and reloads once a newer one takes over. */
 if ('serviceWorker' in navigator) {
+  /* Asks the phone to keep this app's storage for good. Without it a browser
+     may clear the site by itself after a long stretch of not being opened, and
+     clearing the site means being asked to sign in again. */
+  if (navigator.storage?.persist) {
+    navigator.storage.persisted?.().then(already => { if (!already) navigator.storage.persist(); }).catch(() => {});
+  }
   navigator.serviceWorker.register('/ops/sw.js', { updateViaCache: 'none' }).then(reg => {
     reg.update();
     document.addEventListener('visibilitychange', () => {
@@ -2635,7 +2641,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 169';
+const APP_BUILD = '2026-08-05 · 170';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
