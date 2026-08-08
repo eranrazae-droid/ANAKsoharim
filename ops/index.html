@@ -420,11 +420,11 @@ if ('serviceWorker' in navigator) {
     <div class="modal-title"><span>👥 משתמשים וסיסמאות</span> <button class="modal-close" onclick="closeModal('modal-users')">✕</button></div>
     <div id="users-warning" style="display:none;background:#fef3c7;border-right:5px solid #d97706;border-radius:10px;padding:10px 12px;font-size:12px;font-weight:800;color:#92400e;margin-bottom:12px"></div>
     <div class="form-group"><label>שם</label>
-      <input class="form-input" id="usr-name" placeholder="לדוגמה עופר"></div>
+      <input class="form-input" id="usr-name" placeholder="לדוגמה עופר" autocomplete="off" name="anak-user-name"></div>
     <div class="form-group"><label>טלפון</label>
-      <input class="form-input" id="usr-phone" inputmode="tel" placeholder="0521234567" style="direction:ltr;text-align:right" oninput="this.value=this.value.replace(/[^0-9]/g,'')"></div>
+      <input class="form-input" id="usr-phone" inputmode="tel" placeholder="0521234567" autocomplete="off" name="anak-user-phone" style="direction:ltr;text-align:right" oninput="this.value=this.value.replace(/[^0-9]/g,'')"></div>
     <div class="form-group"><label>סיסמה</label>
-      <input class="form-input" id="usr-pass" placeholder="לפחות 8 תווים" style="direction:ltr;text-align:right"></div>
+      <input class="form-input" id="usr-pass" placeholder="לפחות 8 תווים" type="text" autocomplete="new-password" name="anak-user-pass" data-lpignore="true" style="direction:ltr;text-align:right"></div>
     <div style="font-size:12px;color:var(--muted);margin:-6px 0 12px">התפקיד נקבע לפי השם — ליאל מנהל · גיל, עופר, איתי נהגים · משה והילה איסוף · איברהים פחח.</div>
     <button class="btn-submit" onclick="saveAppUser()">✅ שמור משתמש</button>
     <div class="section-title" style="margin-top:18px">הרשימה</div>
@@ -2713,7 +2713,10 @@ const _roleForName = name => _ROLE_BY_NAME[String(name || '').trim()] || 'driver
 async function _callAdminUsers(payload) {
   const { getFunctions, httpsCallable } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js");
   const fns = getFunctions(window._app, 'europe-west1');
-  return (await httpsCallable(fns, 'adminUsers')(payload)).data;
+  // a call that never answers must not leave the screen saying "loading" for ever
+  const call = httpsCallable(fns, 'adminUsers')(payload).then(r => r.data);
+  const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('אין תשובה מהשרת')), 15000));
+  return Promise.race([call, timeout]);
 }
 
 async function openUsersScreen() {
@@ -2739,7 +2742,10 @@ async function openUsersScreen() {
   document.getElementById('users-list').innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted)">טוען…</div>';
   openModal('modal-users');
   try {
-    const secretsSnap = await window._getDoc(_docRef('config', 'user_secrets'));
+    const secretsSnap = await Promise.race([
+      window._getDoc(_docRef('config', 'user_secrets')),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000)),
+    ]);
     _userSecrets = secretsSnap.exists() ? (secretsSnap.data() || {}) : {};
   } catch (e) { _userSecrets = {}; }
   try {
@@ -2747,8 +2753,11 @@ async function openUsersScreen() {
     _appUsers = res.users || [];
     _renderUsers();
   } catch (e) {
+    console.error('openUsersScreen', e);
     document.getElementById('users-list').innerHTML =
-      `<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px">אי אפשר לטעון משתמשים עדיין.<br>צריך להפעיל התחברות בפרויקט ולפרוס את הפונקציות — ראה docs/users-and-login.md</div>`;
+      `<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px">לא הצלחנו לטעון את רשימת המשתמשים.<br>${esc(e.message || '')}
+        <div style="margin-top:10px"><button onclick="openUsersScreen()" class="btn-submit" style="margin-top:0;background:var(--dark);color:#fff">🔄 נסה שוב</button></div>
+      </div>`;
   }
 }
 window.openUsersScreen = openUsersScreen;
@@ -2948,7 +2957,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 182';
+const APP_BUILD = '2026-08-05 · 183';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
