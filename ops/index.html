@@ -2504,8 +2504,10 @@ window.addEventListener('firebase-ready', async () => {
   // his own address (/ops/pahach/) is a separate app as far as the phone is
   // concerned, so its home-screen shortcut opens his screen and not ours
   if (/[?&]pahach\b/.test(location.search) || /\/pahach\/?$/.test(location.pathname)) {
-    currentUser = { role: 'bodyshop', name: 'פחח' };
-    openBodyShopScreen();
+    // his own address no longer walks straight in: it asks for the account
+    // once, and from then on the phone remembers it
+    if (window._signedInUser) { _enterAsAuthUser(window._signedInUser); return; }
+    showScreen('login');
     return;
   }
 
@@ -2975,7 +2977,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 187';
+const APP_BUILD = '2026-08-05 · 188';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
