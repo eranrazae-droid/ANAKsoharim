@@ -15,7 +15,7 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#f5f0fb;m
 .step-dot{width:32px;height:32px;border-radius:50%;border:2px solid #d4c3ed;color:#c4b0e0;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;background:#fff;transition:.3s}
 .step-dot.done{background:#5B3A7E;border-color:#5B3A7E;color:#fff}
 .step-dot.active{border-color:#5B3A7E;color:#5B3A7E}
-.step-line{flex:1;max-width:60px;height:2px;background:#e8e0f0}
+.step-line{flex:1;max-width:80px;height:2px;background:#e8e0f0}
 .step-line.done{background:#5B3A7E}
 .card{background:#fff;border-radius:16px;padding:28px;border:1px solid #e8e0f0;box-shadow:0 2px 12px rgba(91,58,126,.07)}
 .card h2{font-size:20px;font-weight:800;color:#5B3A7E;margin-bottom:6px}
@@ -43,11 +43,8 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#f5f0fb;m
 .summary-row:last-child{border-bottom:none;font-weight:800;font-size:16px;color:#5B3A7E}
 .summary-label{color:#888}
 .payment-note{background:#f5f0fb;border-radius:10px;padding:14px;font-size:13px;color:#666;line-height:1.6;margin-bottom:20px;text-align:center}
-.health-checks{display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
-.hcheck{display:flex;align-items:center;gap:10px;font-size:14px;color:#444;cursor:pointer;padding:10px 12px;border:1.5px solid #e8e0f0;border-radius:10px;transition:.2s}
-.hcheck:hover{border-color:#a888cc;background:#faf7ff}
-.hcheck input[type=checkbox]{width:18px;height:18px;accent-color:#5B3A7E;cursor:pointer;flex-shrink:0}
 .err{color:#e24b4a;font-size:13px;text-align:center;margin-top:8px;min-height:18px}
+.divider{height:1px;background:#f0eaf7;margin:20px 0}
 </style>
 </head>
 <body>
@@ -60,56 +57,40 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#f5f0fb;m
     <div class="step-dot active" id="dot1">1</div>
     <div class="step-line" id="line1"></div>
     <div class="step-dot" id="dot2">2</div>
-    <div class="step-line" id="line2"></div>
-    <div class="step-dot" id="dot3">3</div>
   </div>
+
+  <!-- שלב 1: פרטים אישיים + בחירת מנוי -->
   <div id="step1">
     <div class="card">
-      <h2>שאלון בריאות</h2>
-      <p class="card-sub">כמה פרטים לפני שמתחילים 🌸</p>
+      <h2>פרטים ובחירת מנוי</h2>
+      <p class="card-sub">כמה פרטים קצרים ונבחר יחד את המסלול המתאים 🌸</p>
       <label class="flabel">שם מלא *</label>
       <input class="finp" id="j-name" placeholder="שם פרטי ומשפחה" autocomplete="name"/>
       <label class="flabel">טלפון *</label>
       <input class="finp" id="j-phone" placeholder="05X-XXXXXXX" type="tel" inputmode="numeric" autocomplete="tel"/>
       <label class="flabel">אימייל (אופציונלי)</label>
       <input class="finp" id="j-email" placeholder="your@email.com" type="email" autocomplete="email" style="direction:ltr;text-align:right"/>
-      <label class="flabel">גיל *</label>
-      <input class="finp" id="j-age" placeholder="גיל" type="number" inputmode="numeric" min="16" max="99"/>
-      <label class="flabel" style="margin-bottom:12px">שאלות בריאות — סמני כל מה שרלוונטי:</label>
-      <div class="health-checks">
-        <label class="hcheck"><input type="checkbox" id="hq-heart"> בעיות לב / כאבים בחזה</label>
-        <label class="hcheck"><input type="checkbox" id="hq-bp"> לחץ דם גבוה</label>
-        <label class="hcheck"><input type="checkbox" id="hq-diabetes"> סוכרת</label>
-        <label class="hcheck"><input type="checkbox" id="hq-back"> כאבי גב / פציעות</label>
-        <label class="hcheck"><input type="checkbox" id="hq-pregnant"> הריון</label>
-        <label class="hcheck"><input type="checkbox" id="hq-none"> אין בעיות בריאותיות</label>
-      </div>
+      <div class="divider"></div>
+      <label class="flabel" style="font-size:14px;margin-bottom:12px">בחרי מנוי:</label>
+      <div class="plans" id="plansList"></div>
       <div class="err" id="err1"></div>
-      <button class="btn-next" onclick="goStep2()">המשך לבחירת מנוי ←</button>
+      <button class="btn-next" onclick="goStep2()">המשך לסיכום ←</button>
       <button class="btn-back" onclick="window.location.href='index.html'">← חזרה לאתר</button>
     </div>
   </div>
+
+  <!-- שלב 2: סיכום ותשלום -->
   <div id="step2" style="display:none">
-    <div class="card">
-      <h2>בחרי מנוי</h2>
-      <p class="card-sub">כל המנויים בהוראת קבע חודשית</p>
-      <div class="plans" id="plansList"></div>
-      <div class="err" id="err2"></div>
-      <button class="btn-next" onclick="goStep3()">המשך לסיכום ←</button>
-      <button class="btn-back" onclick="goToStep(1)">← חזרה</button>
-    </div>
-  </div>
-  <div id="step3" style="display:none">
     <div class="card">
       <h2>סיכום והרשמה</h2>
       <p class="card-sub">בדקי שהכל נכון לפני התשלום</p>
       <div id="summaryRows"></div>
       <div class="payment-note">
-        <span>🔒</span> התשלום מתבצע בצורה מאובטחת דרך PayMe — הקבלה תישלח אוטומטית
+        🔒 התשלום מתבצע בצורה מאובטחת דרך PayMe — הקבלה תישלח אוטומטית
       </div>
-      <div class="err" id="err3"></div>
+      <div class="err" id="err2"></div>
       <button class="btn-next" id="payBtn" onclick="submitAndPay()">לתשלום מאובטח ←</button>
-      <button class="btn-back" onclick="goToStep(2)">← חזרה</button>
+      <button class="btn-back" onclick="goToStep(1)">← חזרה</button>
     </div>
   </div>
 </div>
@@ -127,15 +108,72 @@ var PLANS=[
 ];
 var selectedPlan=null;
 document.getElementById('plansList').innerHTML=PLANS.map(function(p){
-  return '<div class="plan" id="pl-'+p.id+'" onclick="selectPlan(\''+p.id+'\')">'+'<div class="plan-left">'+'<div class="plan-radio" id="pr-'+p.id+'"></div>'+'<div><div class="plan-name">'+p.icon+' '+p.name+'</div><div class="plan-note">'+p.note+'</div></div>'+'</div>'+'<div class="plan-price">'+p.price+' <span>₪/חודש</span></div>'+'</div>';
+  return '<div class="plan" id="pl-'+p.id+'" onclick="selectPlan(\''+p.id+'\')">'
+    +'<div class="plan-left"><div class="plan-radio" id="pr-'+p.id+'"></div>'
+    +'<div><div class="plan-name">'+p.icon+' '+p.name+'</div><div class="plan-note">'+p.note+'</div></div></div>'
+    +'<div class="plan-price">'+p.price+' <span>₪/חודש</span></div></div>';
 }).join('');
-function selectPlan(id){PLANS.forEach(function(p){document.getElementById('pl-'+p.id).classList.remove('sel');});document.getElementById('pl-'+id).classList.add('sel');selectedPlan=PLANS.find(function(p){return p.id===id;});document.getElementById('err2').textContent='';}
-function goToStep(n){[1,2,3].forEach(function(i){document.getElementById('step'+i).style.display=i===n?'block':'none';});updateDots(n);window.scrollTo(0,0);}
-function updateDots(active){for(var i=1;i<=3;i++){var dot=document.getElementById('dot'+i);dot.classList.remove('active','done');if(i<active)dot.classList.add('done');else if(i===active)dot.classList.add('active');if(i<3){var line=document.getElementById('line'+i);line.classList.toggle('done',i<active);}}}
-function goStep2(){var name=document.getElementById('j-name').value.trim();var phone=document.getElementById('j-phone').value.trim().replace(/[\s\-\(\)]/g,'');var age=document.getElementById('j-age').value.trim();var err=document.getElementById('err1');if(!name){err.textContent='נא להכניס שם מלא';return;}if(!phone||phone.length<9){err.textContent='נא להכניס מספר טלפון תקין';return;}if(!age){err.textContent='נא להכניס גיל';return;}var healthChecked=['hq-heart','hq-bp','hq-diabetes','hq-back','hq-pregnant','hq-none'].some(function(id){return document.getElementById(id).checked;});if(!healthChecked){err.textContent='נא לסמן לפחות אפשרות אחת בשאלות הבריאות';return;}err.textContent='';goToStep(2);}
-function goStep3(){if(!selectedPlan){document.getElementById('err2').textContent='נא לבחור מנוי';return;}var name=document.getElementById('j-name').value.trim();var phone=document.getElementById('j-phone').value.trim();var p=selectedPlan;document.getElementById('summaryRows').innerHTML=row('שם',name)+row('טלפון',phone)+row('מנוי',p.icon+' '+p.name)+row('סכום חודשי',p.price+' ₪');goToStep(3);}
+function selectPlan(id){
+  PLANS.forEach(function(p){document.getElementById('pl-'+p.id).classList.remove('sel');});
+  document.getElementById('pl-'+id).classList.add('sel');
+  selectedPlan=PLANS.find(function(p){return p.id===id;});
+  document.getElementById('err1').textContent='';
+}
+function goToStep(n){
+  [1,2].forEach(function(i){document.getElementById('step'+i).style.display=i===n?'block':'none';});
+  var dot1=document.getElementById('dot1'),dot2=document.getElementById('dot2'),line1=document.getElementById('line1');
+  if(n===1){dot1.className='step-dot active';dot2.className='step-dot';line1.className='step-line';}
+  else{dot1.className='step-dot done';dot2.className='step-dot active';line1.className='step-line done';}
+  window.scrollTo(0,0);
+}
+function goStep2(){
+  var name=document.getElementById('j-name').value.trim();
+  var phone=document.getElementById('j-phone').value.trim().replace(/[\s\-\(\)]/g,'');
+  var err=document.getElementById('err1');
+  if(!name){err.textContent='נא להכניס שם מלא';return;}
+  if(!phone||phone.length<9){err.textContent='נא להכניס מספר טלפון תקין';return;}
+  if(!selectedPlan){err.textContent='נא לבחור מנוי';return;}
+  err.textContent='';
+  var p=selectedPlan;
+  document.getElementById('summaryRows').innerHTML=
+    row('שם',name)+row('טלפון',phone)+row('מנוי',p.icon+' '+p.name)+row('סכום חודשי',p.price+' ₪');
+  goToStep(2);
+}
 function row(l,v){return '<div class="summary-row"><span class="summary-label">'+l+'</span><span>'+v+'</span></div>';}
-function submitAndPay(){var btn=document.getElementById('payBtn');var err=document.getElementById('err3');btn.disabled=true;btn.textContent='שומר פרטים...';err.textContent='';var name=document.getElementById('j-name').value.trim();var phone=document.getElementById('j-phone').value.trim().replace(/[\s\-\(\)]/g,'');var email=document.getElementById('j-email').value.trim();var p=selectedPlan;var regId='reg_'+Date.now()+'_'+Math.random().toString(36).substr(2,6);var age=document.getElementById('j-age').value.trim();var healthMap={'hq-heart':'בעיות לב','hq-bp':'לחץ דם גבוה','hq-diabetes':'סוכרת','hq-back':'כאבי גב/פציעות','hq-pregnant':'הריון','hq-none':'ללא בעיות'};var health=Object.keys(healthMap).filter(function(id){return document.getElementById(id).checked;}).map(function(id){return healthMap[id];});db.collection('members').doc(phone).set({name:name,phone:phone,email:email,age:age,health:health,plan:p.id,planName:p.name,amount:p.price,status:'pending_payment',regId:regId,joinDate:new Date().toLocaleDateString('he-IL'),createdAt:new Date().toISOString()}).then(function(){var PAYME_SELLER_ID='MPL15660-34833WIN-ITZNDSDJ-KSOC9ETD';var origin=window.location.origin;var successUrl=origin+'/success.html?regId='+regId+'&name='+encodeURIComponent(name)+'&plan='+encodeURIComponent(p.name)+'&amount='+p.price;var failUrl=origin+'/join.html?error=payment_failed';var params=['price='+(p.price*100),'currency=ILS','sale_description='+encodeURIComponent('מנוי סטודיו אורית רז — '+p.name),'customer_fname='+encodeURIComponent(name.split(' ')[0]),'customer_lname='+encodeURIComponent(name.split(' ').slice(1).join(' ')||''),'customer_phone='+encodeURIComponent(phone),'success_url='+encodeURIComponent(successUrl),'fail_url='+encodeURIComponent(failUrl)].join('&');window.location.href='https://paymeservice.com/hmo/buy-now/item/'+PAYME_SELLER_ID+'?'+params;}).catch(function(e){btn.disabled=false;btn.textContent='לתשלום מאובטח ←';err.textContent='שגיאה בשמירת הפרטים. נסי שוב.';console.error(e);});}
+function submitAndPay(){
+  var btn=document.getElementById('payBtn');
+  var err=document.getElementById('err2');
+  btn.disabled=true;btn.textContent='שומר פרטים...';err.textContent='';
+  var name=document.getElementById('j-name').value.trim();
+  var phone=document.getElementById('j-phone').value.trim().replace(/[\s\-\(\)]/g,'');
+  var email=document.getElementById('j-email').value.trim();
+  var p=selectedPlan;
+  var regId='reg_'+Date.now()+'_'+Math.random().toString(36).substr(2,6);
+  db.collection('members').doc(phone).set({
+    name:name,phone:phone,email:email,plan:p.id,planName:p.name,amount:p.price,
+    status:'pending_payment',regId:regId,
+    joinDate:new Date().toLocaleDateString('he-IL'),createdAt:new Date().toISOString()
+  }).then(function(){
+    var PAYME_SELLER_ID='MPL15660-34833WIN-ITZNDSDJ-KSOC9ETD';
+    var origin=window.location.origin;
+    var successUrl=origin+'/success.html?regId='+regId+'&name='+encodeURIComponent(name)+'&plan='+encodeURIComponent(p.name)+'&amount='+p.price;
+    var failUrl=origin+'/join.html?error=payment_failed';
+    var params=[
+      'price='+(p.price*100),'currency=ILS',
+      'sale_description='+encodeURIComponent('מנוי סטודיו אורית רז — '+p.name),
+      'customer_fname='+encodeURIComponent(name.split(' ')[0]),
+      'customer_lname='+encodeURIComponent(name.split(' ').slice(1).join(' ')||''),
+      'customer_phone='+encodeURIComponent(phone),
+      'success_url='+encodeURIComponent(successUrl),
+      'fail_url='+encodeURIComponent(failUrl)
+    ].join('&');
+    window.location.href='https://paymeservice.com/hmo/buy-now/item/'+PAYME_SELLER_ID+'?'+params;
+  }).catch(function(e){
+    btn.disabled=false;btn.textContent='לתשלום מאובטח ←';
+    err.textContent='שגיאה בשמירת הפרטים. נסי שוב.';
+    console.error(e);
+  });
+}
 </script>
 </body>
 </html>
