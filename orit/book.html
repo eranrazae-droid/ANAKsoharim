@@ -118,7 +118,20 @@ var weekKey=getWeekKey();
 function weekLabel(){var sun=new Date();sun.setDate(sun.getDate()-sun.getDay());sun.setHours(0,0,0,0);var sat=new Date(sun);sat.setDate(sun.getDate()+6);var f=function(d){return d.toLocaleDateString('he-IL',{day:'numeric',month:'long'});};return 'שבוע '+f(sun)+' – '+f(sat);}
 document.getElementById('weekBar').textContent=weekLabel();
 function findSlot(id){for(var d of SCHEDULE)for(var s of d.slots)if(s.id===id)return s;return null;}
-function badgeHtml(count,cap,waitCount){var left=cap-count;if(left<=0)return '<span class="badge badge-full">מלא'+(waitCount?' · '+waitCount+' ממתינות':'')+'</span>';if(left<=2)return '<span class="badge badge-few">נותרו '+left+'</span>';return '<span class="badge badge-ok">'+left+' מקומות</span>';}
+function badgeHtml(count,cap,waitCount){
+  var left=cap-count;
+  var pct=Math.round((count/cap)*100);
+  var barColor=left<=0?'#c62828':left<=2?'#e65100':'#2e7d32';
+  var bar='<div style="margin-top:6px;background:#eee;border-radius:4px;height:5px;overflow:hidden">'
+    +'<div style="width:'+Math.min(100,pct)+'%;height:100%;background:'+barColor+';border-radius:4px;transition:.3s"></div></div>';
+  var label='<div style="font-size:11px;color:#999;margin-top:3px">'+count+' תפוס · '+left+' פנוי</div>';
+  if(left<=0){
+    var wt=waitCount?'<div style="font-size:10px;color:#C4A0A0;margin-top:2px">'+waitCount+' ממתינות</div>':'';
+    return '<span class="badge badge-full">מלא</span>'+wt+bar;
+  }
+  var badge=left<=2?'<span class="badge badge-few">נותרו '+left+'</span>':'<span class="badge badge-ok">'+left+' מקומות</span>';
+  return badge+label+bar;
+}
 function renderGrid(){var html='';SCHEDULE.forEach(function(day){html+='<div class="day-col"><div class="day-head">'+day.day+'</div>';day.slots.forEach(function(s){var c=counts[s.id]||0,w=waits[s.id]||0,full=c>=s.cap;var click=full?' onclick="openWaitlist(\''+s.id+'\')"':' onclick="openModal(\''+s.id+'\')"';html+='<div class="slot'+( full?' full':'')+'"'+click+'>';html+='<div class="slot-time">'+s.time+'</div>';html+='<div class="slot-type">'+s.type+'</div>';html+=badgeHtml(c,s.cap,w);if(full)html+='<div style="font-size:10px;color:#C4A0A0;margin-top:4px">לרשימת המתנה ←</div>';html+='</div>';});html+='</div>';});document.getElementById('grid').innerHTML=html;}
 function loadBookings(){var ids=[];SCHEDULE.forEach(function(d){d.slots.forEach(function(s){ids.push(s.id);});});var ps=ids.map(function(id){return db.collection('bookings').doc(weekKey+'_'+id).get().then(function(doc){counts[id]=doc.exists?Object.keys(doc.data().registrations||{}).length:0;waits[id]=doc.exists?Object.keys(doc.data().waitlist||{}).length:0;});});Promise.all(ps).then(renderGrid);}
 /* רשימת המתנה */
