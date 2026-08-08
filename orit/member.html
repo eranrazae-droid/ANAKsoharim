@@ -445,6 +445,7 @@ function doLogin(){
     if(pass!==storedPass){err.textContent='סיסמה שגויה';return;}
     currentMember={id:doc.id,...data};
     if(document.getElementById('rememberMe').checked){localStorage.setItem(REMEMBER_KEY,JSON.stringify({phone:phone,pass:pass}));}else{localStorage.removeItem(REMEMBER_KEY);}
+    localStorage.setItem('orit-member-session',JSON.stringify({phone:phone,name:data.name||''}));
     loadDashboard();
     if((data.password||DEFAULT_PASS)===DEFAULT_PASS){
       document.getElementById('cp-force-note').style.display='block';
@@ -459,7 +460,7 @@ function doLogin(){
     }
   }).catch(function(){err.textContent='שגיאת חיבור, נסי שוב';});
 }
-function doLogout(){currentMember=null;document.getElementById('login-phone').value='';document.getElementById('login-pass').value='';showScreen('loginScreen');}
+function doLogout(){currentMember=null;localStorage.removeItem('orit-member-session');document.getElementById('login-phone').value='';document.getElementById('login-pass').value='';showScreen('loginScreen');}
 function loadDashboard(){
   if(!currentMember)return;
   var m=currentMember;

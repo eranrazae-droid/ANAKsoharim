@@ -93,6 +93,7 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FAF5F5;m
     <div class="modal-icon">🩷</div>
     <h2 id="modal-title"></h2>
     <p class="modal-sub" id="modal-sub"></p>
+    <div id="logged-as" style="display:none;background:#f0fdf4;border-radius:10px;padding:10px 14px;font-size:14px;color:#2e7d32;font-weight:700;margin-bottom:12px;text-align:center"></div>
     <input class="finp" id="b-name" placeholder="שם מלא *" autocomplete="name"/>
     <input class="finp" id="b-phone" placeholder="טלפון *" type="tel" autocomplete="tel" inputmode="numeric"/>
     <button class="fbtn" id="book-btn" onclick="confirmBook()">אני רוצה להירשם 🩷</button>
@@ -142,6 +143,9 @@ function wkLabel(wk){var sun=new Date(wk+'T00:00:00');var sat=new Date(sun);sat.
 document.getElementById('weekBar').textContent='השבוע '+wkLabel(weekKey);
 function findSlot(id){for(var i=0;i<SCHEDULE.length;i++)for(var j=0;j<SCHEDULE[i].slots.length;j++)if(SCHEDULE[i].slots[j].id===id)return SCHEDULE[i].slots[j];return null;}
 var counts={},waits={},currentSlot=null,filterAvail=false,filterFavs=false,myPhone='',myRegs=new Set();
+var loggedMember=null;
+try{var _s=localStorage.getItem('orit-member-session');if(_s){loggedMember=JSON.parse(_s);}}catch(e){}
+
 var FAVS_KEY='orit-favs';
 function getFavs(){try{return JSON.parse(localStorage.getItem(FAVS_KEY)||'[]');}catch(e){return[];}}
 function toggleFav(slotId,e){e.stopPropagation();var favs=getFavs();var i=favs.indexOf(slotId);if(i>=0)favs.splice(i,1);else favs.push(slotId);localStorage.setItem(FAVS_KEY,JSON.stringify(favs));renderGrid();}
@@ -201,6 +205,19 @@ function lookupMyBookings(){
   var keys=[];[weekKey,nextWeekKey].forEach(function(wk){SCHEDULE.forEach(function(d){d.slots.forEach(function(s){keys.push(wk+'_'+s.id);});});});
   Promise.all(keys.map(function(k){return db.collection('bookings').doc(k).get().then(function(doc){if(doc.exists&&(doc.data().registrations||{})[ph])myRegs.add(k);});})).then(function(){renderGrid();document.getElementById('logoutBtn').style.display=myRegs.size?'inline-block':'none';});
 }
+function setModalMemberMode(){
+  var loggedEl=document.getElementById('logged-as');
+  if(loggedMember){
+    loggedEl.textContent='✓ נרשמת בשם: '+loggedMember.name;
+    loggedEl.style.display='block';
+    document.getElementById('b-name').style.display='none';
+    document.getElementById('b-phone').style.display='none';
+  } else {
+    loggedEl.style.display='none';
+    document.getElementById('b-name').style.display='block';
+    document.getElementById('b-phone').style.display='block';
+  }
+}
 function openWaitlist(slotId,wk){
   var s=findSlot(slotId);if(!s)return;
   currentSlot=Object.assign({},s,{wkey:wk||weekKey});
@@ -211,11 +228,12 @@ function openWaitlist(slotId,wk){
   document.getElementById('book-btn').textContent='הצטרפי לרשימת המתנה ⏳';
   document.getElementById('book-btn').disabled=false;
   document.getElementById('book-btn').onclick=confirmWaitlist;
+  setModalMemberMode();
   document.getElementById('overlay').classList.add('on');
 }
 function confirmWaitlist(){
-  var name=document.getElementById('b-name').value.trim();
-  var phone=document.getElementById('b-phone').value.trim().replace(/[\s\-\(\)]/g,'');
+  var name=loggedMember?loggedMember.name:document.getElementById('b-name').value.trim();
+  var phone=loggedMember?loggedMember.phone:document.getElementById('b-phone').value.trim().replace(/[\s\-\(\)]/g,'');
   var msg=document.getElementById('book-msg');msg.style.color='#e24b4a';
   if(!name){msg.textContent='נא להכניס שם';return;}
   if(!phone||phone.length<9){msg.textContent='מספר טלפון לא תקין';return;}
@@ -238,15 +256,20 @@ function openModal(slotId,wk){
   var s=findSlot(slotId);if(!s)return;
   currentSlot=Object.assign({},s,{wkey:wk||weekKey});
   document.getElementById('modal-title').textContent=s.type+' · '+s.time;
-  document.getElementById('modal-sub').textContent='מלאי פרטים ונרשמך לאימון';
+  document.getElementById('modal-sub').textContent=loggedMember?'אישורי הרשמה לאימון':'מלאי פרטים ונרשמך לאימון';
   document.getElementById('b-name').value='';document.getElementById('b-phone').value='';
   document.getElementById('book-msg').textContent='';document.getElementById('book-btn').disabled=false;
-  document.getElementById('overlay').classList.add('on');document.getElementById('b-name').focus();
+  document.getElementById('book-btn').textContent='אני רוצה להירשם 🩷';
+  document.getElementById('book-btn').onclick=confirmBook;
+  setModalMemberMode();
+  document.getElementById('overlay').classList.add('on');
+  if(!loggedMember)document.getElementById('b-name').focus();
 }
 function closeModal(){document.getElementById('overlay').classList.remove('on');document.getElementById('book-btn').textContent='אני רוצה להירשם 🩷';document.getElementById('book-btn').onclick=confirmBook;}
 document.getElementById('overlay').addEventListener('click',function(e){if(e.target===this)closeModal();});
 function confirmBook(){
-  var name=document.getElementById('b-name').value.trim();var phone=document.getElementById('b-phone').value.trim().replace(/[\s\-\(\)]/g,'');
+  var name=loggedMember?loggedMember.name:document.getElementById('b-name').value.trim();
+  var phone=loggedMember?loggedMember.phone:document.getElementById('b-phone').value.trim().replace(/[\s\-\(\)]/g,'');
   var msg=document.getElementById('book-msg');msg.style.color='#e24b4a';
   if(!name){msg.textContent='נא להכניס שם';return;}if(!phone||phone.length<9){msg.textContent='מספר טלפון לא תקין';return;}
   var s=currentSlot,wk=s.wkey||weekKey;
@@ -336,6 +359,12 @@ function doCancel(slotId,timeStr,phone,wk){
   }).catch(function(){document.getElementById('cancel-msg').textContent='שגיאה, נסי שוב';});
 }
 loadBookings();
+if(loggedMember){
+  myPhone=loggedMember.phone;
+  document.getElementById('my-phone').value=loggedMember.phone;
+  var keys2=[];[weekKey,nextWeekKey].forEach(function(wk){SCHEDULE.forEach(function(d){d.slots.forEach(function(s){keys2.push(wk+'_'+s.id);});});});
+  Promise.all(keys2.map(function(k){return db.collection('bookings').doc(k).get().then(function(doc){if(doc.exists&&(doc.data().registrations||{})[loggedMember.phone])myRegs.add(k);});})).then(function(){renderGrid();document.getElementById('logoutBtn').style.display=myRegs.size?'inline-block':'none';});
+}
 </script>
 </body>
 </html>
