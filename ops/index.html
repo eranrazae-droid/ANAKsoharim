@@ -444,6 +444,7 @@ if ('serviceWorker' in navigator) {
     <div class="modal-title"><span>👥 מעבר בין משתמשים</span> <button class="modal-close" onclick="closeModal('modal-switch-user')">✕</button></div>
     <div style="font-size:13px;color:var(--muted);margin-bottom:12px">בחר את המסך שתרצה לראות. אתה נשאר מחובר בחשבון שלך.</div>
     <div id="switch-user-list"></div>
+    <button onclick="goToLoginScreen()" style="width:100%;margin-top:10px;background:var(--dark);color:#fff;border:none;border-radius:12px;padding:13px;font-family:'Heebo',sans-serif;font-size:15px;font-weight:800;cursor:pointer">🔐 התחברות עם טלפון וסיסמה</button>
   </div>
 </div>
 
@@ -2651,6 +2652,18 @@ async function _enterAsAuthUser(user) {
   enterApp();
 }
 
+// the way back to the sign-in screen, for a device that entered before there
+// were accounts at all
+function goToLoginScreen() {
+  closeModal('modal-switch-user');
+  localStorage.removeItem('anak_user');
+  localStorage.removeItem('anak_real_user');
+  currentUser = null; _realUser = null;
+  _applyUserBg();
+  showScreen('login');
+}
+window.goToLoginScreen = goToLoginScreen;
+
 function logout() { openSwitchUser(); }   // every badge in the app calls this
 
 /* ── people and their passwords ───────────────────────────────────────
@@ -2888,7 +2901,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 174';
+const APP_BUILD = '2026-08-05 · 175';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
