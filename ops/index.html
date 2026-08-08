@@ -2635,7 +2635,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 168';
+const APP_BUILD = '2026-08-05 · 169';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -7863,6 +7863,7 @@ function _bshopJobCard(j, forWorker) {
       ${_bshopDaysHtml(j)}
     </div>
     ${j.note ? `<div class="bs-note" style="margin-top:6px;font-size:13px">📝 ${esc(j.note)}</div>` : ''}
+    ${j.photoFailed ? `<div class="bs-note" style="margin-top:6px;background:#fef3c7;color:#92400e;border-right:5px solid #d97706;border-radius:8px;padding:6px 9px;font-size:12px;font-weight:900">⚠️ התמונה לא נשמרה</div>` : ''}
     ${j.reportFailed ? `<div class="bs-note" style="margin-top:6px;background:#fee2e2;color:#991b1b;border-right:5px solid #dc2626;border-radius:8px;padding:6px 9px;font-size:12px;font-weight:900">⚠️ הגיבוי לטלגרם לא נשלח</div>` : ''}
     ${(() => {
       // a price of 0 is a real answer — only an empty field is missing
@@ -7924,7 +7925,7 @@ function bshopOpenFill(id) {
   _bshopFillMgr = currentUser?.role === 'manager';
   const _set = (elId, txt) => { const e = document.getElementById(elId); if (e) e.textContent = txt; };
   _set('bshop-fill-hint', _bshopFillMgr
-    ? 'אפשר להוסיף חלקים, להוריד חלקים ולתקן מחירים. הכל נשמר לבד.'
+    ? 'אפשר להוסיף ולהוריד חלקים. המחירים נרשמים על ידי איברהים בלבד.'
     : 'רשום מחיר ליד כל חלק שצבעת. חלק שלא עשית — השאר ריק.');
   _set('bshop-fill-add', _bshopFillMgr ? '➕ הוסף חלק' : '➕ צבעתי עוד חלק');
   const prn = document.getElementById('bshop-fill-print');
@@ -7958,10 +7959,12 @@ function bshopOpenFill(id) {
         <div style="font-size:15px;font-weight:700">${esc(it.name)}</div>
         ${it.addedByShop ? `<div style="font-size:12px;font-weight:800;color:#b45309">➕ איברהים הוסיף</div>` : ''}
       </div>
-      <input type="text" inputmode="numeric" class="form-input bshop-price" data-i="${i}"
+      ${_bshopFillMgr
+        ? `<div style="width:110px;text-align:center;font-size:17px;font-weight:800;color:${it.price == null || it.price === '' ? 'var(--muted)' : 'var(--text)'}">${it.price == null || it.price === '' ? '—' : Number(it.price).toLocaleString('he-IL')}</div>`
+        : `<input type="text" inputmode="numeric" class="form-input bshop-price" data-i="${i}"
              value="${it.price != null && it.price !== '' ? it.price : ''}" placeholder="מחיר"
              onfocus="_bshopCaretEnd(this)" oninput="this.value=this.value.replace(/[^0-9]/g,'');_bshopRecalc();_bshopAutoSave()"
-             onblur="_bshopAutoSave(true)" style="width:110px;text-align:center;font-size:17px;font-weight:800">
+             onblur="_bshopAutoSave(true)" style="width:110px;text-align:center;font-size:17px;font-weight:800">`}
       <span style="font-size:15px;font-weight:800;color:var(--muted)">₪</span>
     </div>`;
   // the index stays the one from j.items, so grouping does not disturb saving
@@ -8123,7 +8126,13 @@ window._bshopCaretEnd = _bshopCaretEnd;
 
 function _bshopRecalc() {
   let t = 0;
-  document.querySelectorAll('.bshop-price').forEach(el => { t += Number(el.value) || 0; });
+  const fields = document.querySelectorAll('.bshop-price');
+  if (fields.length) fields.forEach(el => { t += Number(el.value) || 0; });
+  else {
+    // the manager sees the prices as text, so the total comes from the note
+    const j = _bshopJobs.find(x => x.id === _bshopFillId);
+    t = _bshopTotal(j || {});
+  }
   const el = document.getElementById('bshop-fill-total');
   if (el) el.textContent = t.toLocaleString('he-IL') + ' ₪';
 }
@@ -8729,7 +8738,13 @@ async function submitBsmSend() {
     if (_bsmPhoto && ref?.id) {
       const { setDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
       try { await setDoc(_docRef('bodyshop_photos', ref.id), { photo: _bsmPhoto }); }
-      catch (e) { console.error('bodyshop photo save', e); }
+      catch (e) {
+        // the note is already saved; the picture is what is missing, and that
+        // must not pass in silence
+        console.error('bodyshop photo save', e);
+        await _updateDoc(_docRef('bodyshop_jobs', ref.id), { photoFailed: true }).catch(() => {});
+        showToast('⚠️ הפתק נשמר אבל התמונה לא נשמרה — אפשר לצרף שוב', 7000);
+      }
     }
     closeModal('modal-bsm-send');
     showToast('📝 הפתק נוצר — נשאר אצלך עד ששולחים');
