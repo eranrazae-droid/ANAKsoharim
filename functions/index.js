@@ -912,3 +912,5 @@ exports.adminUsers = onCall({ region: USERS_REGION }, async (req) => {
 
   throw new HttpsError("invalid-argument", "פעולה לא מוכרת");
 });
+
+// deploy trigger
