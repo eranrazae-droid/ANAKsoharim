@@ -453,6 +453,18 @@ if ('serviceWorker' in navigator) {
       <h1>ענק <span>הרכבים</span></h1>
       <p>מערכת ניהול תפעול</p>
     </div>
+    <div id="login-auth-box" style="margin-bottom:22px">
+      <div class="login-role-title">התחברות</div>
+      <input id="login-phone" inputmode="tel" placeholder="מספר טלפון" dir="ltr"
+        oninput="this.value=this.value.replace(/[^0-9]/g,'')"
+        onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()"
+        style="width:100%;background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.15);border-radius:12px;padding:14px 16px;font-family:Heebo,sans-serif;font-size:16px;color:#fff;outline:none;box-sizing:border-box;margin-bottom:8px">
+      <input id="login-pass" type="password" placeholder="סיסמה" dir="ltr"
+        onkeydown="if(event.key==='Enter')doPhoneLogin()"
+        style="width:100%;background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.15);border-radius:12px;padding:14px 16px;font-family:Heebo,sans-serif;font-size:16px;color:#fff;outline:none;box-sizing:border-box">
+      <button onclick="doPhoneLogin()" style="width:100%;margin-top:10px;background:var(--gold);color:#000;border:none;border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:16px;font-weight:900;cursor:pointer">כניסה</button>
+      <div id="login-auth-msg" style="margin-top:8px;font-size:13px;color:#fca5a5;text-align:center"></div>
+    </div>
     <div class="login-role-title">בחר את שמך</div>
     <div class="driver-select">
       <select id="driver-name-select" onchange="selectDriver(this.value)">
@@ -2385,6 +2397,7 @@ if (CONFIG_DONE) {
   db      = getFirestore(app, 'default');
   storage = getStorage(app);
   auth    = getAuth(app);
+  window._auth = auth;
 }
 
 /* Anonymous sign-in.
@@ -2597,6 +2610,46 @@ const _ALL_USERS = [
   { name: 'משה',   role: 'pickup_agent' },
   { name: 'הילה',  role: 'pickup_driver' },
 ];
+
+/* Signing in for real: the phone number is the user name, and the sign-in is
+   remembered on the device until the password is changed. */
+async function doPhoneLogin() {
+  const phone = document.getElementById('login-phone').value.replace(/\D/g, '');
+  const pass = document.getElementById('login-pass').value;
+  const msg = document.getElementById('login-auth-msg');
+  const say = t => { if (msg) msg.textContent = t || ''; };
+  if (phone.length < 9 || !pass) return say('נא להזין טלפון וסיסמה');
+  say('מתחבר…');
+  try {
+    const { signInWithEmailAndPassword, setPersistence, browserLocalPersistence } =
+      await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js");
+    await setPersistence(window._auth, browserLocalPersistence);
+    const cred = await signInWithEmailAndPassword(window._auth, `${phone}@anak.local`, pass);
+    await _enterAsAuthUser(cred.user);
+    say('');
+  } catch (e) {
+    console.error('login', e);
+    say(e.code === 'auth/invalid-credential' || e.code === 'auth/wrong-password' || e.code === 'auth/user-not-found'
+      ? 'טלפון או סיסמה שגויים' : 'שגיאה בהתחברות');
+  }
+}
+window.doPhoneLogin = doPhoneLogin;
+
+// turns a signed-in account into the user the app works with
+async function _enterAsAuthUser(user) {
+  let profile = null;
+  try {
+    const snap = await window._getDoc(_docRef('users', user.uid));
+    profile = snap.exists() ? snap.data() : null;
+  } catch (e) { /* the profile may not be readable yet */ }
+  const name = profile?.name || user.displayName || 'משתמש';
+  const role = profile?.role || 'driver';
+  currentUser = { role, name };
+  _realUser = { ...currentUser, uid: user.uid };
+  localStorage.setItem('anak_user', JSON.stringify(currentUser));
+  localStorage.setItem('anak_real_user', JSON.stringify(_realUser));
+  enterApp();
+}
 
 function logout() { openSwitchUser(); }   // every badge in the app calls this
 
@@ -2835,7 +2888,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 173';
+const APP_BUILD = '2026-08-05 · 174';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
