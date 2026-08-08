@@ -93,6 +93,19 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FAF5F5;m
 .star{font-size:18px;cursor:pointer;opacity:.35;transition:.15s;line-height:1}
 .star.lit{opacity:1}
 .star:hover{opacity:.75}
+/* תזכורות */
+.remind-row{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid #FAF5F5}
+.remind-row:last-child{border-bottom:none}
+.remind-label{font-size:14px;font-weight:700;color:#333}
+.remind-sub{font-size:12px;color:#999;margin-top:2px}
+.remind-right{display:flex;align-items:center;gap:10px}
+.toggle-wrap{position:relative;width:44px;height:24px;flex-shrink:0}
+.toggle-wrap input{opacity:0;width:0;height:0;position:absolute}
+.toggle-slider{position:absolute;inset:0;background:#EDD8D5;border-radius:24px;cursor:pointer;transition:.2s}
+.toggle-slider:before{content:'';position:absolute;width:18px;height:18px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}
+.toggle-wrap input:checked+.toggle-slider{background:#C4A0A0}
+.toggle-wrap input:checked+.toggle-slider:before{transform:translateX(20px)}
+.remind-select{border:1px solid #EDD8D5;border-radius:8px;padding:5px 9px;font-size:12px;font-family:inherit;color:#666;background:#fff;cursor:pointer}
 /* היסטוריית תשלומים */
 .pay-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #FAF5F5;font-size:13px}
 .pay-item:last-child{border-bottom:none}
@@ -208,6 +221,46 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FAF5F5;m
           </table>
         </div>
       </div>
+    </div>
+    <!-- תזכורות -->
+    <div class="card" id="remindersCard" style="display:none">
+      <h2>🔔 תזכורות</h2>
+      <div class="remind-row">
+        <div>
+          <div class="remind-label">💧 תזכורת שתייה</div>
+          <div class="remind-sub">אקבל תזכורת לשתות מים במהלך היום</div>
+        </div>
+        <div class="remind-right">
+          <select class="remind-select" id="water-interval" onchange="saveReminders()">
+            <option value="20">כל 20 דקות</option>
+            <option value="30" selected>כל 30 דקות</option>
+            <option value="45">כל 45 דקות</option>
+            <option value="60">כל שעה</option>
+          </select>
+          <label class="toggle-wrap">
+            <input type="checkbox" id="tog-water" onchange="toggleWaterReminder()"/>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+      <div class="remind-row">
+        <div>
+          <div class="remind-label">🏋️ תזכורת לאימון</div>
+          <div class="remind-sub">התראה לפני כל אימון שנרשמתי אליו</div>
+        </div>
+        <div class="remind-right">
+          <select class="remind-select" id="training-before" onchange="saveReminders()">
+            <option value="60">שעה לפני</option>
+            <option value="120" selected>שעתיים לפני</option>
+            <option value="180">3 שעות לפני</option>
+          </select>
+          <label class="toggle-wrap">
+            <input type="checkbox" id="tog-training" onchange="toggleTrainingReminder()"/>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+      <p id="notif-blocked" style="display:none;font-size:12px;color:#e65100;margin-top:10px">⚠️ לא ניתנה הרשאה להתראות. אפשרי בהגדרות הדפדפן.</p>
     </div>
     <!-- היסטוריית אימונים -->
     <div class="card">
@@ -397,6 +450,7 @@ function loadDashboard(){
   loadAnnouncements();
   renderTrainingHistory();
   renderPaymentHistory();
+  loadReminders();
 }
 function renderChangePlans(){document.getElementById('changePlansList').innerHTML=PLANS.filter(function(p){return p.id!==(currentMember&&currentMember.plan);}).map(function(p){return'<div class="plan-s" id="cpl-'+p.id+'" onclick="selectNewPlan(\''+p.id+'\')">'+'<div class="plan-s-left"><div class="plan-s-radio" id="cpr-'+p.id+'"></div>'+'<span class="plan-s-name">'+p.icon+' '+p.name+'</span></div>'+'<span class="plan-s-price">'+p.price+' ₪</span></div>';}).join('');}
 function selectNewPlan(id){PLANS.forEach(function(p){var el=document.getElementById('cpl-'+p.id);if(el)el.classList.remove('sel');});document.getElementById('cpl-'+id).classList.add('sel');selectedNewPlan=PLANS.find(function(p){return p.id===id;});document.getElementById('change-err').textContent='';}
@@ -566,6 +620,124 @@ function rateTrain(ratingKey, rating, idx){
   });
   currentMember.trainings=updated;
   db.collection('members').doc(currentMember.phone).update({trainings:updated}).catch(function(e){console.warn('rating save:',e);});
+}
+
+/* תזכורות */
+var waterTimer=null;
+var trainingTimers=[];
+
+function loadReminders(){
+  document.getElementById('remindersCard').style.display='block';
+  var rem=(currentMember.reminders)||{};
+  var togW=document.getElementById('tog-water');
+  var togT=document.getElementById('tog-training');
+  var selW=document.getElementById('water-interval');
+  var selT=document.getElementById('training-before');
+  if(rem.waterInterval) selW.value=rem.waterInterval;
+  if(rem.trainingHoursBefore) selT.value=rem.trainingHoursBefore;
+  if(rem.water){togW.checked=true;startWaterTimer();}
+  if(rem.training){togT.checked=true;scheduleTrainingReminders();}
+}
+
+function askNotifPermission(cb){
+  if(!('Notification' in window)){cb(false);return;}
+  if(Notification.permission==='granted'){cb(true);return;}
+  if(Notification.permission==='denied'){
+    document.getElementById('notif-blocked').style.display='block';
+    cb(false);return;
+  }
+  Notification.requestPermission().then(function(perm){
+    document.getElementById('notif-blocked').style.display=(perm==='denied'?'block':'none');
+    cb(perm==='granted');
+  });
+}
+
+function sendNotif(title, body, icon){
+  if(Notification.permission==='granted'){
+    new Notification(title,{body:body,icon:icon||''});
+  }
+}
+
+function startWaterTimer(){
+  clearInterval(waterTimer);
+  var mins=parseInt(document.getElementById('water-interval').value)||30;
+  waterTimer=setInterval(function(){
+    sendNotif('💧 שתי מים!','זמן לשתות כוס מים — הגוף שלך יודה לך 🙏');
+  }, mins*60*1000);
+}
+
+function stopWaterTimer(){
+  clearInterval(waterTimer);
+  waterTimer=null;
+}
+
+function scheduleTrainingReminders(){
+  trainingTimers.forEach(function(t){clearTimeout(t);});
+  trainingTimers=[];
+  if(!currentMember) return;
+  var minsBefore=parseInt(document.getElementById('training-before').value)||120;
+  var now=Date.now();
+  var upcoming=(currentMember.trainings||[]).filter(function(t){
+    return t.status==='booked'&&t.classDate&&new Date(t.classDate)>new Date();
+  });
+  upcoming.forEach(function(t){
+    var fireAt=new Date(t.classDate).getTime()-(minsBefore*60*1000);
+    var delay=fireAt-now;
+    if(delay>0&&delay<48*60*60*1000){
+      var tid=setTimeout(function(){
+        var label=minsBefore===60?'שעה':minsBefore===120?'שעתיים':minsBefore/60+' שעות';
+        sendNotif('🏋️ אימון בעוד '+label+'!','זכרי — '+t.type+' בשעה '+(t.time||'')+'.\nנסי להגיע מוכנה ושתויה 💪');
+      }, delay);
+      trainingTimers.push(tid);
+    }
+  });
+}
+
+function clearTrainingReminders(){
+  trainingTimers.forEach(function(t){clearTimeout(t);});
+  trainingTimers=[];
+}
+
+function toggleWaterReminder(){
+  var on=document.getElementById('tog-water').checked;
+  if(on){
+    askNotifPermission(function(ok){
+      if(!ok){document.getElementById('tog-water').checked=false;return;}
+      startWaterTimer();
+      saveReminders();
+    });
+  } else {
+    stopWaterTimer();
+    saveReminders();
+  }
+}
+
+function toggleTrainingReminder(){
+  var on=document.getElementById('tog-training').checked;
+  if(on){
+    askNotifPermission(function(ok){
+      if(!ok){document.getElementById('tog-training').checked=false;return;}
+      scheduleTrainingReminders();
+      saveReminders();
+    });
+  } else {
+    clearTrainingReminders();
+    saveReminders();
+  }
+}
+
+function saveReminders(){
+  if(!currentMember) return;
+  var rem={
+    water:document.getElementById('tog-water').checked,
+    waterInterval:parseInt(document.getElementById('water-interval').value)||30,
+    training:document.getElementById('tog-training').checked,
+    trainingHoursBefore:parseInt(document.getElementById('training-before').value)||120
+  };
+  currentMember.reminders=rem;
+  db.collection('members').doc(currentMember.phone).update({reminders:rem}).catch(function(e){console.warn('reminders save:',e);});
+  if(rem.water) startWaterTimer();
+  if(rem.training) scheduleTrainingReminders();
 }
 
 /* היסטוריית תשלומים */
