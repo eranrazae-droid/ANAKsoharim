@@ -823,3 +823,92 @@ exports.renewCalendarWatch = onSchedule(
     } catch (e) { console.error("renewCalendarWatch", e.message); }
   }
 );
+
+/* ═══════════════════════════════════════════════════════════════════
+   USERS — one identity per person, managed from the manager's screen
+
+   Everyone signs in with a phone number and a password. The phone is
+   turned into an internal address (0521234567 → 0521234567@anak.local)
+   because that is what the sign-in mechanism understands; nothing about
+   it is visible to the person signing in.
+
+   The manager's screen calls this function to list people, add one,
+   change a phone or set a new password. Passwords are never read back
+   from here — they cannot be. A password that the manager wants kept for
+   his own reference is stored by the app, in a document only his own
+   account is allowed to read.
+═══════════════════════════════════════════════════════════════════ */
+
+const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { getAuth } = require("firebase-admin/auth");
+
+const USERS_REGION = "europe-west1";
+const phoneToEmail = (phone) => `${String(phone).replace(/\D/g, "")}@anak.local`;
+
+// only the manager may manage people
+async function assertManager(uid) {
+  if (!uid) throw new HttpsError("unauthenticated", "נדרשת התחברות");
+  const snap = await db.collection("users").doc(uid).get();
+  if (!snap.exists || snap.data().role !== "manager") {
+    throw new HttpsError("permission-denied", "רק המנהל יכול לנהל משתמשים");
+  }
+}
+
+exports.adminUsers = onCall({ region: USERS_REGION }, async (req) => {
+  const { action, name, phone, password, role, uid } = req.data || {};
+
+  // the very first manager can be created while there is still nobody:
+  // without it there would be no way in at all
+  const usersSnap = await db.collection("users").limit(1).get();
+  const firstRun = usersSnap.empty;
+  if (!firstRun) await assertManager(req.auth?.uid);
+
+  const auth = getAuth();
+
+  if (action === "list") {
+    const snap = await db.collection("users").get();
+    return { users: snap.docs.map((d) => ({ uid: d.id, ...d.data() })) };
+  }
+
+  if (action === "create") {
+    if (!name || !phone || !password) throw new HttpsError("invalid-argument", "חסר שם, טלפון או סיסמה");
+    const email = phoneToEmail(phone);
+    let user;
+    try {
+      user = await auth.createUser({ email, password, displayName: name });
+    } catch (e) {
+      if (e.code === "auth/email-already-exists") {
+        user = await auth.getUserByEmail(email);
+        await auth.updateUser(user.uid, { password, displayName: name });
+      } else throw new HttpsError("internal", e.message);
+    }
+    await db.collection("users").doc(user.uid).set({
+      name, phone: String(phone).replace(/\D/g, ""), role: role || "driver",
+      updatedAt: new Date().toISOString(),
+    }, { merge: true });
+    return { uid: user.uid };
+  }
+
+  if (action === "setPassword") {
+    if (!uid || !password) throw new HttpsError("invalid-argument", "חסר משתמש או סיסמה");
+    await auth.updateUser(uid, { password });   // this also signs him out everywhere
+    await db.collection("users").doc(uid).set({ passwordChangedAt: new Date().toISOString() }, { merge: true });
+    return { ok: true };
+  }
+
+  if (action === "setPhone") {
+    if (!uid || !phone) throw new HttpsError("invalid-argument", "חסר משתמש או טלפון");
+    await auth.updateUser(uid, { email: phoneToEmail(phone) });
+    await db.collection("users").doc(uid).set({ phone: String(phone).replace(/\D/g, ""), updatedAt: new Date().toISOString() }, { merge: true });
+    return { ok: true };
+  }
+
+  if (action === "remove") {
+    if (!uid) throw new HttpsError("invalid-argument", "חסר משתמש");
+    await auth.deleteUser(uid).catch(() => {});
+    await db.collection("users").doc(uid).delete().catch(() => {});
+    return { ok: true };
+  }
+
+  throw new HttpsError("invalid-argument", "פעולה לא מוכרת");
+});

@@ -1,0 +1,43 @@
+rules_version = '2';
+
+/* Rules for after every person has an identity of their own.
+   Deploy these ONLY once sign-in is switched on and everybody has been
+   created in the users screen — before that they would lock the app out.
+
+   Deploy with:  firebase deploy --only firestore:rules
+*/
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn()   { return request.auth != null; }
+    function me()         { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data; }
+    function isManager()  { return signedIn() && me().role == 'manager'; }
+    function isBodyshop() { return signedIn() && me().role == 'bodyshop'; }
+    function isStaff()    { return signedIn() && me().role in ['manager', 'driver', 'pickup_agent', 'pickup_driver']; }
+
+    // everyone reads their own row; only the manager sees and edits the list
+    match /users/{uid} {
+      allow read:  if signedIn() && (request.auth.uid == uid || isManager());
+      allow write: if isManager();
+    }
+
+    // the passwords the manager keeps for his own reference — his eyes only
+    match /config/user_secrets {
+      allow read, write: if isManager();
+    }
+
+    // the panel beater's world: his notes, their photos and the payment
+    // folders. Nothing else in the system is reachable from his account.
+    match /bodyshop_jobs/{doc}    { allow read, write: if isManager() || isBodyshop(); }
+    match /bodyshop_photos/{doc}  { allow read, write: if isManager() || isBodyshop(); }
+    match /bodyshop_archive/{doc} { allow read: if isManager() || isBodyshop();
+                                    allow write: if isManager(); }
+    match /config/bodyshop        { allow read: if isManager() || isBodyshop();
+                                    allow write: if isManager(); }
+
+    // the rest of the system is for the yard staff
+    match /{document=**} {
+      allow read, write: if isStaff();
+    }
+  }
+}
