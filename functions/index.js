@@ -569,3 +569,257 @@ exports.sendDueReminders = onSchedule(
     }
   }
 );
+
+/* ═══════════════════════════════════════════════════════════════════
+   GOOGLE CALENDAR — two-way sync
+
+   Both directions are immediate:
+   · app → google  : a write to calendar_events fires syncCalendarToGoogle
+   · google → app  : google pushes to calendarPush, which pulls only what
+                     changed and writes it back here
+
+   Nothing runs until the one-time setup is done:
+   1. enable the Google Calendar API on the firebase project
+   2. share the calendar with the function's service account, with
+      permission to make changes to events
+   3. write the calendar's address into config/google_calendar as
+      { calendarId: "…@group.calendar.google.com" }  (or "primary")
+   4. call startCalendarSync once — it registers the push channel
+
+   The loop is broken by two things: an event written here from google is
+   marked with syncedFrom:"google" and the trigger ignores that write, and
+   every google event we create carries our own document id in its private
+   properties, so it is never taken for a new event coming back.
+═══════════════════════════════════════════════════════════════════ */
+
+const { onDocumentWritten } = require("firebase-functions/v2/firestore");
+const { google } = require("googleapis");
+
+const GCAL_REGION = "europe-west1";
+const GCAL_CFG = () => db.collection("config").doc("google_calendar");
+const GCAL_TAG = "anak_event_id";   // our id, kept on the google event
+
+async function gcal() {
+  const auth = new google.auth.GoogleAuth({
+    scopes: ["https://www.googleapis.com/auth/calendar.events"],
+  });
+  return google.calendar({ version: "v3", auth: await auth.getClient() });
+}
+
+async function gcalConfig() {
+  const snap = await GCAL_CFG().get();
+  const d = snap.exists ? snap.data() : {};
+  return { calendarId: d.calendarId || "", channelId: d.channelId || "", resourceId: d.resourceId || "", syncToken: d.syncToken || "" };
+}
+
+// our events carry a date and, usually, a start time; google wants either a
+// timed range or a whole day
+function toGoogleEvent(id, e) {
+  const date = String(e.date || "").slice(0, 10);
+  const body = {
+    summary: e.title || "משימה",
+    description: e.notes || "",
+    extendedProperties: { private: { [GCAL_TAG]: id } },
+  };
+  if (e.startTime) {
+    const start = `${date}T${e.startTime}:00`;
+    const endT = e.endTime || addHour(e.startTime);
+    body.start = { dateTime: start, timeZone: "Asia/Jerusalem" };
+    body.end = { dateTime: `${date}T${endT}:00`, timeZone: "Asia/Jerusalem" };
+  } else {
+    body.start = { date };
+    body.end = { date: nextDay(date) };
+  }
+  return body;
+}
+
+function addHour(hhmm) {
+  const [h, m] = String(hhmm).split(":").map(Number);
+  return `${String((h + 1) % 24).padStart(2, "0")}:${String(m || 0).padStart(2, "0")}`;
+}
+
+function nextDay(ymd) {
+  const d = new Date(`${ymd}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+// google → our shape
+function fromGoogleEvent(ev) {
+  const startDateTime = ev.start?.dateTime || "";
+  const endDateTime = ev.end?.dateTime || "";
+  const date = (ev.start?.date || startDateTime).slice(0, 10);
+  const hm = (s) => (s ? s.slice(11, 16) : "");
+  return {
+    title: ev.summary || "ללא כותרת",
+    date,
+    startTime: hm(startDateTime),
+    endTime: hm(endDateTime),
+    notes: ev.description || "",
+    gcalId: ev.id,
+    syncedFrom: "google",
+    syncedAt: new Date().toISOString(),
+  };
+}
+
+/* ── app → google ─────────────────────────────────────────────────── */
+exports.syncCalendarToGoogle = onDocumentWritten(
+  { document: "calendar_events/{id}", region: GCAL_REGION, database: "default" },
+  async (event) => {
+    const { calendarId } = await gcalConfig();
+    if (!calendarId) return;                       // setup not done yet
+
+    const id = event.params.id;
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+
+    // a write that came from google must not be sent back to it
+    if (after?.syncedFrom === "google" && before?.syncedFrom !== "google") return;
+    if (after && before && JSON.stringify({ ...before, syncedAt: 0 }) === JSON.stringify({ ...after, syncedAt: 0 })) return;
+
+    const cal = await gcal();
+    try {
+      if (!after) {
+        if (before?.gcalId) await cal.events.delete({ calendarId, eventId: before.gcalId }).catch(() => {});
+        return;
+      }
+      const body = toGoogleEvent(id, after);
+      if (after.gcalId) {
+        await cal.events.patch({ calendarId, eventId: after.gcalId, requestBody: body });
+      } else {
+        const res = await cal.events.insert({ calendarId, requestBody: body });
+        await event.data.after.ref.update({ gcalId: res.data.id });
+      }
+    } catch (e) {
+      console.error("syncCalendarToGoogle", id, e.message);
+    }
+  }
+);
+
+/* ── google → app ─────────────────────────────────────────────────── */
+// pulls only what changed since the last time, using google's sync token
+async function pullGoogleChanges() {
+  const { calendarId, syncToken } = await gcalConfig();
+  if (!calendarId) return { skipped: "no calendarId" };
+  const cal = await gcal();
+
+  let pageToken = null, token = syncToken, changed = 0;
+  do {
+    let res;
+    try {
+      res = await cal.events.list({
+        calendarId, singleEvents: true, showDeleted: true, maxResults: 250,
+        ...(token ? { syncToken: token } : { timeMin: new Date(Date.now() - 30 * 86400000).toISOString() }),
+        ...(pageToken ? { pageToken } : {}),
+      });
+    } catch (e) {
+      // an expired token means a full read is needed once
+      if (e.code === 410) { await GCAL_CFG().set({ syncToken: "" }, { merge: true }); return pullGoogleChanges(); }
+      throw e;
+    }
+
+    for (const ev of res.data.items || []) {
+      const ourId = ev.extendedProperties?.private?.[GCAL_TAG];
+      if (ev.status === "cancelled") {
+        if (ourId) await db.collection("calendar_events").doc(ourId).delete().catch(() => {});
+        else {
+          const q = await db.collection("calendar_events").where("gcalId", "==", ev.id).limit(1).get();
+          if (!q.empty) await q.docs[0].ref.delete();
+        }
+        changed++;
+        continue;
+      }
+      const data = fromGoogleEvent(ev);
+      if (ourId) {
+        await db.collection("calendar_events").doc(ourId).set(data, { merge: true });
+      } else {
+        const q = await db.collection("calendar_events").where("gcalId", "==", ev.id).limit(1).get();
+        if (!q.empty) await q.docs[0].ref.set(data, { merge: true });
+        else {
+          const ref = await db.collection("calendar_events").add({
+            ...data, repeat: "none", reminderMinutes: 0, reminderTo: "", reminderSent: true,
+            createdAt: new Date(),
+          });
+          // tie the two together, so the pair is never duplicated
+          await cal.events.patch({
+            calendarId, eventId: ev.id,
+            requestBody: { extendedProperties: { private: { [GCAL_TAG]: ref.id } } },
+          }).catch(() => {});
+        }
+      }
+      changed++;
+    }
+    pageToken = res.data.nextPageToken || null;
+    if (res.data.nextSyncToken) await GCAL_CFG().set({ syncToken: res.data.nextSyncToken }, { merge: true });
+  } while (pageToken);
+
+  return { changed };
+}
+
+// google calls this the moment anything changes in the calendar
+exports.calendarPush = onRequest({ region: GCAL_REGION, cors: false }, async (req, res) => {
+  res.status(200).send("ok");   // google wants an immediate answer
+  try {
+    if (req.get("X-Goog-Resource-State") === "sync") return;   // the handshake
+    await pullGoogleChanges();
+  } catch (e) { console.error("calendarPush", e.message); }
+});
+
+/* ── setup and upkeep ─────────────────────────────────────────────── */
+// called once by hand: registers the push channel and reads the calendar in
+// full for the first time. Safe to call again — it replaces the channel.
+exports.startCalendarSync = onRequest({ region: GCAL_REGION, cors: true }, async (req, res) => {
+  try {
+    const { calendarId, channelId, resourceId } = await gcalConfig();
+    if (!calendarId) return res.status(400).send('חסר calendarId במסמך config/google_calendar');
+    const cal = await gcal();
+
+    if (channelId && resourceId) {
+      await cal.channels.stop({ requestBody: { id: channelId, resourceId } }).catch(() => {});
+    }
+    const id = `anak-${Date.now()}`;
+    const address = `https://${GCAL_REGION}-${process.env.GCLOUD_PROJECT}.cloudfunctions.net/calendarPush`;
+    const watch = await cal.events.watch({
+      calendarId,
+      requestBody: { id, type: "web_hook", address, ttl: "2592000" },   // 30 days
+    });
+    await GCAL_CFG().set({
+      channelId: id, resourceId: watch.data.resourceId,
+      watchExpires: watch.data.expiration || "", updatedAt: new Date().toISOString(),
+    }, { merge: true });
+
+    const pulled = await pullGoogleChanges();
+    res.json({ ok: true, address, channel: id, ...pulled });
+  } catch (e) {
+    console.error("startCalendarSync", e);
+    res.status(500).send(e.message);
+  }
+});
+
+// the channel google gives us expires; this keeps it alive, and also acts as a
+// safety net in case a push was ever missed
+exports.renewCalendarWatch = onSchedule(
+  { schedule: "0 3 * * *", timeZone: "Asia/Jerusalem", region: GCAL_REGION },
+  async () => {
+    const { calendarId, channelId, resourceId, watchExpires } = await gcalConfig();
+    if (!calendarId) return;
+    try {
+      await pullGoogleChanges();
+      const daysLeft = watchExpires ? (Number(watchExpires) - Date.now()) / 86400000 : -1;
+      if (daysLeft > 3) return;   // still good
+      const cal = await gcal();
+      if (channelId && resourceId) {
+        await cal.channels.stop({ requestBody: { id: channelId, resourceId } }).catch(() => {});
+      }
+      const id = `anak-${Date.now()}`;
+      const address = `https://${GCAL_REGION}-${process.env.GCLOUD_PROJECT}.cloudfunctions.net/calendarPush`;
+      const watch = await cal.events.watch({
+        calendarId, requestBody: { id, type: "web_hook", address, ttl: "2592000" },
+      });
+      await GCAL_CFG().set({
+        channelId: id, resourceId: watch.data.resourceId,
+        watchExpires: watch.data.expiration || "", updatedAt: new Date().toISOString(),
+      }, { merge: true });
+    } catch (e) { console.error("renewCalendarWatch", e.message); }
+  }
+);
