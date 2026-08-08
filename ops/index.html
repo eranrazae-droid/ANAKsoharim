@@ -2700,6 +2700,7 @@ function logout() { openSwitchUser(); }   // every badge in the app calls this
    sign-in mechanism directly. */
 let _appUsers = [];
 let _userSecrets = {};
+let _usersUnsub = null;
 
 // the job each person does is already known from the name, so it is not asked
 const _ROLE_BY_NAME = {
@@ -2749,9 +2750,21 @@ async function openUsersScreen() {
     _userSecrets = secretsSnap.exists() ? (secretsSnap.data() || {}) : {};
   } catch (e) { _userSecrets = {}; }
   try {
-    const res = await _callAdminUsers({ action: 'list' });
-    _appUsers = res.users || [];
-    _renderUsers();
+    // the list itself is read straight from the database — it is already there,
+    // and it keeps itself up to date without asking the server anything
+    if (!_usersUnsub) {
+      _usersUnsub = _onSnap(_colRef('users'), snap => {
+        _appUsers = snap.docs.map(d => ({ uid: d.id, ...d.data() }))
+          .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'he'));
+        _renderUsers();
+      }, err => {
+        console.error('users listen', err);
+        document.getElementById('users-list').innerHTML =
+          `<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px">אין הרשאה לקרוא את רשימת המשתמשים</div>`;
+      });
+    } else {
+      _renderUsers();
+    }
   } catch (e) {
     console.error('openUsersScreen', e);
     document.getElementById('users-list').innerHTML =
@@ -2819,9 +2832,6 @@ async function saveAppUser() {
     document.getElementById('usr-phone').value = '';
     document.getElementById('usr-pass').value = '';
     showToast('✅ נשמר');
-    const res = await _callAdminUsers({ action: 'list' });
-    _appUsers = res.users || [];
-    _renderUsers();
   } catch (e) {
     console.error('saveAppUser', e);
     showToast('שגיאה: ' + (e.message || ''), 6000);
@@ -2834,8 +2844,6 @@ async function removeAppUser(uid) {
   if (!u || !confirm(`למחוק את ${u.name}? הוא לא יוכל להיכנס יותר.`)) return;
   try {
     await _callAdminUsers({ action: 'remove', uid });
-    _appUsers = _appUsers.filter(x => x.uid !== uid);
-    _renderUsers();
     showToast('🗑 נמחק');
   } catch (e) { showToast('שגיאה במחיקה'); }
 }
@@ -2957,7 +2965,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 183';
+const APP_BUILD = '2026-08-05 · 184';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
