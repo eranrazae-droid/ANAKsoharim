@@ -2635,7 +2635,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 167';
+const APP_BUILD = '2026-08-05 · 168';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -7863,6 +7863,7 @@ function _bshopJobCard(j, forWorker) {
       ${_bshopDaysHtml(j)}
     </div>
     ${j.note ? `<div class="bs-note" style="margin-top:6px;font-size:13px">📝 ${esc(j.note)}</div>` : ''}
+    ${j.reportFailed ? `<div class="bs-note" style="margin-top:6px;background:#fee2e2;color:#991b1b;border-right:5px solid #dc2626;border-radius:8px;padding:6px 9px;font-size:12px;font-weight:900">⚠️ הגיבוי לטלגרם לא נשלח</div>` : ''}
     ${(() => {
       // a price of 0 is a real answer — only an empty field is missing
       const empty = (j.items || []).filter(it => it.price == null || it.price === '').length;
@@ -8144,7 +8145,7 @@ function _bshopAutoSave(now) {
 window._bshopAutoSave = _bshopAutoSave;
 
 // the whole note in one message: the car, what was painted, and the money
-async function _bshopReportDone(j) {
+async function _bshopReportDone(j, id) {
   try {
     const ils = n => Math.round(n).toLocaleString('he-IL') + ' ₪';
     const sum = (j.items || []).reduce((t, it) => t + (Number(it.price) || 0), 0);
@@ -8164,8 +8165,26 @@ async function _bshopReportDone(j) {
       `מע״מ ${Math.round(_VAT_RATE * 100)}%: ${ils(vat)}`,
       `סה״כ כולל מע״מ: ${ils(sum + vat)}`,
     ].filter(Boolean).join('\n');
-    await _notifyDriver('איברהים', msg);
-  } catch (e) { console.error('bodyshop telegram report', e); }
+    // the backup either arrived or it did not — silence would let a note be
+    // finished with nobody holding a copy of it
+    const contacts = await _loadDriverContacts();
+    const chatId = contacts['איברהים']?.telegramId;
+    const ok = chatId ? await _sendTelegram(chatId, msg) : false;
+    if (id) {
+      await _updateDoc(_docRef('bodyshop_jobs', id),
+        ok ? { reportedAt: new Date().toISOString(), reportFailed: false }
+           : { reportFailed: true }).catch(() => {});
+    }
+    if (!ok) {
+      showToast(chatId ? '⚠️ הגיבוי לטלגרם לא נשלח — הפתק נשמר' : '⚠️ טלגרם לא מוגדר לאיברהים — לא נשלח גיבוי', 7000);
+      // the manager must know too, even if the panel beater misses the toast
+      _notifyDriver('ליאל', `⚠️ גיבוי טלגרם נכשל לרכב ${j.plate || ''} — הפתק נשמר במערכת בלבד`).catch(() => {});
+    }
+  } catch (e) {
+    console.error('bodyshop telegram report', e);
+    showToast('⚠️ הגיבוי לטלגרם נכשל — הפתק נשמר', 7000);
+    if (id) await _updateDoc(_docRef('bodyshop_jobs', id), { reportFailed: true }).catch(() => {});
+  }
 }
 
 async function bshopSave(markDone, silent) {
@@ -8199,7 +8218,9 @@ async function bshopSave(markDone, silent) {
     await _updateDoc(_docRef('bodyshop_jobs', _bshopFillId), payload);
     // a finished car is reported to Telegram, so the note also lives outside
     // the app and nothing is lost if a phone is
-    if (markDone && !wasDone) _bshopReportDone({ ...j, items });
+    if (markDone && !wasDone) _bshopReportDone({ ...j, items }, _bshopFillId);
+    // a backup that failed earlier is retried on the next save
+    else if (j.reportFailed && j.status === 'returned') _bshopReportDone({ ...j, items }, _bshopFillId);
     if (silent) { _bshopSetSaved('✓ נשמר'); return; }
     closeModal('modal-bshop-fill');
     showToast(markDone ? '✅ הרכב סומן כמוכן' : '💾 נשמר');
