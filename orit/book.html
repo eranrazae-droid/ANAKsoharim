@@ -349,13 +349,27 @@ function doMove(fromId,toId,toTime,phone,wk){
   }).catch(function(e){document.getElementById('cancel-msg').style.color='#e24b4a';document.getElementById('cancel-msg').textContent=e.message==='full'?'האימון הזה מלא':'שגיאה, נסי שוב';});
 }
 function doCancel(slotId,timeStr,phone,wk){
-  wk=wk||weekKey;if(!canCancel(slotId,timeStr,wk)){document.getElementById('cancel-msg').textContent='לא ניתן לבטל פחות משעתיים לפני האימון';return;}
-  var ref=db.collection('bookings').doc(wk+'_'+slotId);var promoted=null;
-  db.runTransaction(function(t){return t.get(ref).then(function(doc){var regs=doc.exists?(doc.data().registrations||{}):{};var wl=doc.exists?(doc.data().waitlist||{}):{};delete regs[phone];var waitKeys=Object.keys(wl).sort(function(a,b){return(wl[a].at||'')>(wl[b].at||'')?1:-1;});if(waitKeys.length>0){var nextPhone=waitKeys[0];promoted=wl[nextPhone];regs[nextPhone]=promoted;delete wl[nextPhone];}t.set(ref,{registrations:regs,waitlist:wl},{merge:true});});}).then(function(){
-    counts[wk+'_'+slotId]=Math.max(0,(counts[wk+'_'+slotId]||1)-(promoted?0:1));waits[wk+'_'+slotId]=Math.max(0,(waits[wk+'_'+slotId]||1)-(promoted?1:0));renderGrid();closeCancelOverlay();
-    document.getElementById('succ-title').textContent='ההרשמה בוטלה';document.getElementById('succ-msg').textContent='ההרשמה לאימון בשעה '+timeStr+' בוטלה.'+(promoted?'\n\n'+promoted.name+' הועברה אוטומטית מרשימת ההמתנה!':'');document.getElementById('succOverlay').classList.add('on');
-    db.collection('members').doc(phone).get().then(function(d){if(!d.exists)return;var tr=(d.data().trainings||[]).map(function(t){return(t.weekKey===wk&&t.slotId===slotId)?Object.assign({},t,{status:'cancelled'}):t;});db.collection('members').doc(phone).update({trainings:tr}).catch(function(){});}).catch(function(){});
-  }).catch(function(){document.getElementById('cancel-msg').textContent='שגיאה, נסי שוב';});
+  wk=wk||weekKey;
+  if(!canCancel(slotId,timeStr,wk)){alert('לא ניתן לבטל פחות משעתיים לפני האימון');return;}
+  var ref=db.collection('bookings').doc(wk+'_'+slotId);
+  ref.get().then(function(doc){
+    var regs=doc.exists?(doc.data().registrations||{}):{};
+    var wl=doc.exists?(doc.data().waitlist||{}):{};
+    var promoted=null;
+    delete regs[phone];
+    var waitKeys=Object.keys(wl).sort(function(a,b){return(wl[a].at||'')>(wl[b].at||'')?1:-1;});
+    if(waitKeys.length>0){var nextPhone=waitKeys[0];promoted=wl[nextPhone];regs[nextPhone]=promoted;delete wl[nextPhone];}
+    return ref.update({registrations:regs,waitlist:wl}).then(function(){
+      myRegs.delete(wk+'_'+slotId);
+      counts[wk+'_'+slotId]=Math.max(0,(counts[wk+'_'+slotId]||1)-(promoted?0:1));
+      waits[wk+'_'+slotId]=Math.max(0,(waits[wk+'_'+slotId]||1)-(promoted?1:0));
+      renderGrid();closeCancelOverlay();
+      document.getElementById('succ-title').textContent='ההרשמה בוטלה 💪';
+      document.getElementById('succ-msg').textContent='ההרשמה לאימון בשעה '+timeStr+' בוטלה.'+(promoted?'\n\n'+promoted.name+' הועברה מרשימת ההמתנה!':'');
+      document.getElementById('succOverlay').classList.add('on');
+      db.collection('members').doc(phone).get().then(function(d){if(!d.exists)return;var tr=(d.data().trainings||[]).map(function(t){return(t.weekKey===wk&&t.slotId===slotId)?Object.assign({},t,{status:'cancelled'}):t;});db.collection('members').doc(phone).update({trainings:tr}).catch(function(){});}).catch(function(){});
+    });
+  }).catch(function(e){alert('שגיאה בביטול: '+(e.message||'נסי שוב'));});
 }
 loadBookings();
 if(loggedMember){
