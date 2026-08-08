@@ -2716,8 +2716,23 @@ async function _callAdminUsers(payload) {
   return Promise.race([call, timeout]);
 }
 
+/* Chrome fills anything that looks like a login form, and it was dropping the
+   manager's own phone number into these fields. A field that starts read-only
+   is not offered anything; it becomes writable the moment it is tapped. */
+function _armUserForm() {
+  for (const id of ['usr-name', 'usr-phone', 'usr-pass']) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    el.value = '';
+    el.readOnly = true;
+    el.setAttribute('name', id + '-' + Math.random().toString(36).slice(2, 8));
+    el.onfocus = () => { el.readOnly = false; };
+  }
+}
+
 async function openUsersScreen() {
   if (currentUser?.role !== 'manager') return;
+  _armUserForm();
   // managing people requires being signed in as yourself, not just showing
   // your screen — say so instead of letting the server refuse in silence
   const au = window._auth?.currentUser;
@@ -2792,6 +2807,7 @@ function _renderUsers() {
 function editAppUser(uid) {
   const u = _appUsers.find(x => x.uid === uid);
   if (!u) return;
+  ['usr-name', 'usr-phone', 'usr-pass'].forEach(id => { const e = document.getElementById(id); if (e) e.readOnly = false; });
   document.getElementById('usr-name').value = u.name || '';
   document.getElementById('usr-phone').value = u.phone || '';
   document.getElementById('usr-pass').value = '';
@@ -2824,9 +2840,7 @@ async function saveAppUser() {
       await setDoc(_docRef('config', 'user_secrets'), { [uid]: password }, { merge: true });
       _userSecrets[uid] = password;
     }
-    document.getElementById('usr-name').value = '';
-    document.getElementById('usr-phone').value = '';
-    document.getElementById('usr-pass').value = '';
+    _armUserForm();
     showToast('✅ נשמר');
   } catch (e) {
     console.error('saveAppUser', e);
@@ -2961,7 +2975,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 186';
+const APP_BUILD = '2026-08-05 · 187';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
