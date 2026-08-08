@@ -115,6 +115,7 @@ tr:hover td{background:#faf7fa}
     <button class="tab" onclick="showTab('classes',this)">🗓️ אימונים</button>
     <button class="tab" onclick="showTab('gallery',this)">📸 גלריה</button>
     <button class="tab" onclick="showTab('videos',this)">🎤 סרטונים</button>
+    <button class="tab" onclick="showTab('alerts',this)">🔔 התראות</button>
   </div>
 
   <div class="section on" id="sec-leads">
@@ -174,6 +175,15 @@ tr:hover td{background:#faf7fa}
     <div class="gal-grid" id="gal-grid"></div>
   </div>
 
+  <div class="section" id="sec-alerts">
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:20px">
+      <span style="font-size:13px;color:#888">סף ימים ללא אימון:</span>
+      <input id="alert-threshold" type="number" value="14" min="3" max="60" style="width:60px;border:1px solid #EDD8D5;border-radius:8px;padding:6px 10px;font-size:14px;font-family:'DM Sans',sans-serif;text-align:center"/>
+      <button class="btn btn-primary" onclick="loadAlerts()">בדיקה</button>
+    </div>
+    <div id="alerts-container"><div class="empty">לחצי על "בדיקה" להצגת התראות</div></div>
+  </div>
+
   <div class="section" id="sec-videos">
     <p style="font-size:13px;color:#888;margin-bottom:20px">הדביקי קישור YouTube לכל סרטון. הסרטונים יופיעו באתר מיד לאחר השמירה.</p>
     <div class="vid-cats" id="vid-cats"></div>
@@ -222,6 +232,7 @@ function showTab(id,el){
   if(id==='gallery') buildGallery();
   if(id==='members') loadMembers();
   if(id==='classes') loadClasses();
+  if(id==='alerts') loadAlerts();
 }
 
 function getLeads(){try{return JSON.parse(localStorage.getItem(LEADS_KEY)||'[]');}catch(e){return [];}}
@@ -547,6 +558,72 @@ function loadClasses(){
         +'</div>';
     }).join('');
   });
+}
+
+function loadAlerts(){
+  var threshold=parseInt(document.getElementById('alert-threshold').value)||14;
+  var container=document.getElementById('alerts-container');
+  container.innerHTML='<div class="empty">טוענת מתאמנות...</div>';
+  fdb.collection('members').get().then(function(snap){
+    var now=new Date();
+    var ms14=threshold*24*60*60*1000;
+    var prev14Start=new Date(now-28*24*60*60*1000);
+    var prev14End=new Date(now-14*24*60*60*1000);
+    var rec14Start=new Date(now-14*24*60*60*1000);
+    var absentList=[];
+    var droppedList=[];
+    snap.forEach(function(doc){
+      var m=doc.data();
+      if(!m.name||m.status==='cancelled') return;
+      var trainings=(m.trainings||[]).filter(function(t){
+        return t.status==='booked'&&t.classDate&&new Date(t.classDate)<now;
+      });
+      // Last training date
+      var lastDate=null;
+      trainings.forEach(function(t){var d=new Date(t.classDate);if(!lastDate||d>lastDate)lastDate=d;});
+      var daysSince=lastDate?Math.floor((now-lastDate)/(24*60*60*1000)):999;
+      if(daysSince>=threshold){
+        absentList.push({m:m,daysSince:daysSince,lastDate:lastDate});
+      }
+      // Frequency drop: count in prev 14 vs recent 14
+      var countPrev=trainings.filter(function(t){var d=new Date(t.classDate);return d>=prev14Start&&d<prev14End;}).length;
+      var countRecent=trainings.filter(function(t){var d=new Date(t.classDate);return d>=rec14Start;}).length;
+      if(countPrev>=2&&countRecent<countPrev*0.5){
+        droppedList.push({m:m,countPrev:countPrev,countRecent:countRecent,lastDate:lastDate});
+      }
+    });
+    absentList.sort(function(a,b){return b.daysSince-a.daysSince;});
+    var html='';
+    if(absentList.length===0&&droppedList.length===0){
+      html='<div class="empty">✅ אין התראות — כולן מגיעות בסדר!</div>';
+    } else {
+      if(absentList.length){
+        html+='<div style="font-weight:600;font-size:14px;color:#c62828;margin-bottom:10px">⚠️ לא הגיעו '+threshold+'+ ימים ('+absentList.length+')</div>';
+        html+=absentList.map(function(item){
+          var wa='https://wa.me/972'+item.m.phone.replace(/^0/,'').replace(/-/g,'');
+          var lastStr=item.lastDate?item.lastDate.toLocaleDateString('he-IL'):'מעולם לא';
+          return'<div style="background:#fff;border:1px solid #EDD8D5;border-radius:12px;padding:14px 16px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">'
+            +'<div><div style="font-weight:600;font-size:14px">'+item.m.name+'</div>'
+            +'<div style="font-size:12px;color:#888;margin-top:2px">אחרון: '+lastStr+' · לפני '+item.daysSince+' ימים</div></div>'
+            +'<a href="'+wa+'" target="_blank" style="background:#25D366;color:#fff;border-radius:8px;padding:7px 14px;font-size:12px;text-decoration:none;font-weight:600;white-space:nowrap">💬 WhatsApp</a>'
+            +'</div>';
+        }).join('');
+      }
+      if(droppedList.length){
+        html+='<div style="font-weight:600;font-size:14px;color:#E65100;margin-bottom:10px;margin-top:'+(absentList.length?'18px':'0')+'">📉 ירדו בתדירות ('+droppedList.length+')</div>';
+        html+=droppedList.map(function(item){
+          var wa='https://wa.me/972'+item.m.phone.replace(/^0/,'').replace(/-/g,'');
+          var lastStr=item.lastDate?item.lastDate.toLocaleDateString('he-IL'):'-';
+          return'<div style="background:#fff;border:1px solid #EDD8D5;border-radius:12px;padding:14px 16px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">'
+            +'<div><div style="font-weight:600;font-size:14px">'+item.m.name+'</div>'
+            +'<div style="font-size:12px;color:#888;margin-top:2px">14 הימים הקודמים: '+item.countPrev+' · 14 הימים האחרונים: '+item.countRecent+' · אחרון: '+lastStr+'</div></div>'
+            +'<a href="'+wa+'" target="_blank" style="background:#25D366;color:#fff;border-radius:8px;padding:7px 14px;font-size:12px;text-decoration:none;font-weight:600;white-space:nowrap">💬 WhatsApp</a>'
+            +'</div>';
+        }).join('');
+      }
+    }
+    container.innerHTML=html;
+  }).catch(function(e){container.innerHTML='<div class="empty" style="color:#e24b4a">שגיאה: '+e.message+'</div>';});
 }
 
 function cancelBooking(docId, phone){
