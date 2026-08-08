@@ -172,7 +172,10 @@ function lookupCancels(){
         +'<div><div style="font-weight:700;font-size:14px">'+s.type+' · '+s.time+'</div>'
         +'<div style="font-size:12px;color:#999">'+dayStr+'</div></div>';
       if(ok){
-        html+='<button onclick="doCancel(\''+s.id+'\',\''+s.time+'\',\''+phone+'\')" style="background:#fce4ec;color:#c62828;border:none;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer">ביטול</button>';
+        html+='<div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end">'
+          +'<button onclick="doCancel(\''+s.id+'\',\''+s.time+'\',\''+phone+'\')" style="background:#fce4ec;color:#c62828;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer">ביטול</button>'
+          +'<button onclick="openMove(\''+s.id+'\',\''+s.time+'\',\''+phone+'\')" style="background:#e8f5e9;color:#2e7d32;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer">הזזה ←</button>'
+          +'</div>';
       } else {
         html+='<span style="font-size:12px;color:#e24b4a;font-weight:700">מאוחר מדי<br><span style="font-weight:400">פחות משעתיים</span></span>';
       }
@@ -182,6 +185,69 @@ function lookupCancels(){
     document.getElementById('cancelList').style.display='block';
     document.getElementById('cancelList')._phone=phone;
   }).catch(function(){msg.style.color='#e24b4a';msg.textContent='שגיאה, נסי שוב';});
+}
+function slotDayPrefix(slotId){return slotId.split('-')[0];}
+function openMove(fromSlotId,fromTime,phone){
+  var dayPrefix=slotDayPrefix(fromSlotId);
+  // מצא שעות אחרות באותו יום
+  var sameDay=[];
+  SCHEDULE.forEach(function(d){d.slots.forEach(function(s){
+    if(slotDayPrefix(s.id)===dayPrefix && s.id!==fromSlotId){
+      var left=s.cap-(counts[s.id]||0);
+      if(left>0 && canCancel(s.id,s.time)) sameDay.push(s);
+    }
+  });});
+  var list=document.getElementById('cancelList');
+  if(sameDay.length===0){
+    document.getElementById('cancel-msg').style.color='#e24b4a';
+    document.getElementById('cancel-msg').textContent='אין שעות פנויות אחרות באותו יום';
+    return;
+  }
+  document.getElementById('cancel-msg').textContent='';
+  var html='<div style="font-size:13px;font-weight:700;color:#888;margin-bottom:8px">בחרי שעה חדשה:</div>';
+  sameDay.forEach(function(s){
+    html+='<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #FAF5F5">'
+      +'<div><div style="font-weight:700;font-size:14px">'+s.type+' · '+s.time+'</div>'
+      +'<div style="font-size:12px;color:#aaa">נותרו '+(s.cap-(counts[s.id]||0))+' מקומות</div></div>'
+      +'<button onclick="doMove(\''+fromSlotId+'\',\''+s.id+'\',\''+s.time+'\',\''+phone+'\')" '
+      +'style="background:#C4A0A0;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer">הזזה ←</button>'
+      +'</div>';
+  });
+  html+='<button onclick="lookupCancels()" style="background:none;border:none;color:#aaa;font-size:13px;cursor:pointer;margin-top:10px;padding:4px">← חזרה</button>';
+  list.innerHTML=html;
+}
+function doMove(fromId,toId,toTime,phone){
+  if(!canCancel(fromId,SCHEDULE.flatMap(function(d){return d.slots;}).find(function(s){return s.id===fromId;}).time)){
+    document.getElementById('cancel-msg').textContent='מאוחר מדי לשינוי';return;
+  }
+  var name=(counts[fromId]||'');
+  var fromRef=db.collection('bookings').doc(weekKey+'_'+fromId);
+  var toRef=db.collection('bookings').doc(weekKey+'_'+toId);
+  var toSlot=SCHEDULE.flatMap(function(d){return d.slots;}).find(function(s){return s.id===toId;});
+  db.runTransaction(function(t){
+    return Promise.all([t.get(fromRef),t.get(toRef)]).then(function(docs){
+      var fromRegs=docs[0].exists?(docs[0].data().registrations||{}):{};
+      var toRegs=docs[1].exists?(docs[1].data().registrations||{}):{};
+      var reg=fromRegs[phone];
+      if(!reg)throw new Error('notfound');
+      if(Object.keys(toRegs).length>=toSlot.cap)throw new Error('full');
+      delete fromRegs[phone];
+      toRegs[phone]=reg;
+      t.set(fromRef,{registrations:fromRegs},{merge:true});
+      t.set(toRef,{registrations:toRegs,slotId:toId,weekKey:weekKey,type:toSlot.type,time:toSlot.time},{merge:true});
+    });
+  }).then(function(){
+    counts[fromId]=Math.max(0,(counts[fromId]||1)-1);
+    counts[toId]=(counts[toId]||0)+1;
+    renderGrid();
+    closeCancelOverlay();
+    document.getElementById('succ-title').textContent='ההרשמה הוזזה! 🩷';
+    document.getElementById('succ-msg').textContent='הועברת לאימון בשעה '+toTime+'. נתראה בסטודיו!';
+    document.getElementById('succOverlay').classList.add('on');
+  }).catch(function(e){
+    document.getElementById('cancel-msg').style.color='#e24b4a';
+    document.getElementById('cancel-msg').textContent=e.message==='full'?'האימון הזה מלא':'שגיאה, נסי שוב';
+  });
 }
 function doCancel(slotId,timeStr,phone){
   if(!canCancel(slotId,timeStr)){document.getElementById('cancel-msg').textContent='לא ניתן לבטל פחות משעתיים לפני האימון';return;}
