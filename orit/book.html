@@ -64,12 +64,12 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FAF5F5;m
 </div>
 <div class="overlay" id="overlay">
   <div class="modal">
-    <div class="modal-icon">💜</div>
+    <div class="modal-icon">🩷</div>
     <h2 id="modal-title"></h2>
     <p class="modal-sub" id="modal-sub"></p>
     <input class="finp" id="b-name" placeholder="שם מלא *" autocomplete="name"/>
     <input class="finp" id="b-phone" placeholder="טלפון *" type="tel" autocomplete="tel" inputmode="numeric"/>
-    <button class="fbtn" id="book-btn" onclick="confirmBook()">אני רוצה להירשם 💜</button>
+    <button class="fbtn" id="book-btn" onclick="confirmBook()">אני רוצה להירשם 🩷</button>
     <button class="cancel" onclick="closeModal()">ביטול</button>
     <div class="fmsg" id="book-msg"></div>
   </div>
@@ -107,7 +107,7 @@ function loadBookings(){var ids=[];SCHEDULE.forEach(function(d){d.slots.forEach(
 function openModal(slotId){var s=findSlot(slotId);if(!s)return;currentSlot=s;document.getElementById('modal-title').textContent=s.type+' · '+s.time;document.getElementById('modal-sub').textContent='מלאי פרטים ונרשמך לאימון';document.getElementById('b-name').value='';document.getElementById('b-phone').value='';document.getElementById('book-msg').textContent='';document.getElementById('book-btn').disabled=false;document.getElementById('overlay').classList.add('on');document.getElementById('b-name').focus();}
 function closeModal(){document.getElementById('overlay').classList.remove('on');}
 document.getElementById('overlay').addEventListener('click',function(e){if(e.target===this)closeModal();});
-function confirmBook(){var name=document.getElementById('b-name').value.trim();var phone=document.getElementById('b-phone').value.trim().replace(/[\s\-\(\)]/g,'');var msg=document.getElementById('book-msg');msg.style.color='#e24b4a';if(!name){msg.textContent='נא להכניס שם';return;}if(!phone||phone.length<9){msg.textContent='מספר טלפון לא תקין';return;}var s=currentSlot;document.getElementById('book-btn').disabled=true;msg.style.color='#888';msg.textContent='מעבד...';var ref=db.collection('bookings').doc(weekKey+'_'+s.id);db.runTransaction(function(t){return t.get(ref).then(function(doc){var regs=doc.exists?(doc.data().registrations||{}):{};if(Object.keys(regs).length>=s.cap)throw new Error('full');if(regs[phone])throw new Error('dup');regs[phone]={name:name,phone:phone,at:new Date().toISOString()};t.set(ref,{registrations:regs,slotId:s.id,weekKey:weekKey,type:s.type,time:s.time},{merge:true});});}).then(function(){counts[s.id]=(counts[s.id]||0)+1;closeModal();renderGrid();document.getElementById('succ-title').textContent='נרשמת! 💜';document.getElementById('succ-msg').textContent=name+', נרשמת לאימון '+s.type+' בשעה '+s.time+'.\nנתראה בסטודיו!';document.getElementById('succOverlay').classList.add('on');}).catch(function(e){document.getElementById('book-btn').disabled=false;msg.style.color='#e24b4a';if(e.message==='full')msg.textContent='😔 האימון הזה מלא';else if(e.message==='dup')msg.textContent='מספר זה כבר רשום לאימון';else msg.textContent='שגיאה, נסי שוב';});}
+function confirmBook(){var name=document.getElementById('b-name').value.trim();var phone=document.getElementById('b-phone').value.trim().replace(/[\s\-\(\)]/g,'');var msg=document.getElementById('book-msg');msg.style.color='#e24b4a';if(!name){msg.textContent='נא להכניס שם';return;}if(!phone||phone.length<9){msg.textContent='מספר טלפון לא תקין';return;}var s=currentSlot;document.getElementById('book-btn').disabled=true;msg.style.color='#888';msg.textContent='מעבד...';var ref=db.collection('bookings').doc(weekKey+'_'+s.id);db.runTransaction(function(t){return t.get(ref).then(function(doc){var regs=doc.exists?(doc.data().registrations||{}):{};if(Object.keys(regs).length>=s.cap)throw new Error('full');if(regs[phone])throw new Error('dup');regs[phone]={name:name,phone:phone,at:new Date().toISOString()};t.set(ref,{registrations:regs,slotId:s.id,weekKey:weekKey,type:s.type,time:s.time},{merge:true});});}).then(function(){counts[s.id]=(counts[s.id]||0)+1;closeModal();renderGrid();document.getElementById('succ-title').textContent='נרשמת! 🩷';document.getElementById('succ-msg').textContent=name+', נרשמת לאימון '+s.type+' בשעה '+s.time+'.\nנתראה בסטודיו!';document.getElementById('succOverlay').classList.add('on');}).catch(function(e){document.getElementById('book-btn').disabled=false;msg.style.color='#e24b4a';if(e.message==='full')msg.textContent='😔 האימון הזה מלא';else if(e.message==='dup')msg.textContent='מספר זה כבר רשום לאימון';else msg.textContent='שגיאה, נסי שוב';});}
 loadBookings();
 </script>
 </body>
