@@ -1498,9 +1498,10 @@ if ('serviceWorker' in navigator) {
 <!-- ====== SCREEN: BODY SHOP — the panel beater's own view ====== -->
 <div id="screen-bodyshop" class="screen">
   <div class="app-header" style="position:relative">
+    <button id="bshop-back-mgr" onclick="switchToUser('ליאל')" style="display:none;background:rgba(255,255,255,.14);border:none;border-radius:12px;height:46px;padding:0 14px;color:#fff;font-size:14px;font-weight:800;cursor:pointer;flex-shrink:0;margin-left:8px">← חזרה</button>
     <button onclick="toggleBshopMenu()" aria-label="תפריט" style="background:rgba(255,255,255,.14);border:none;border-radius:12px;width:46px;height:46px;color:#fff;font-size:22px;font-weight:900;cursor:pointer;line-height:1;flex-shrink:0">☰</button>
     <div class="logo" style="display:flex;align-items:center;gap:10px">
-      <img src="logo.svg" alt="ענק הרכבים" style="height:44px;display:block">
+      <img src="logo.svg" alt="ענק הרכבים" style="height:44px;display:block" onpointerdown="_bshopLogoHold(true)" onpointerup="_bshopLogoHold(false)" onpointerleave="_bshopLogoHold(false)">
       <span id="bshop-view-title">פחחות</span>
       <img src="painter.jpg" alt="" style="height:76px;border-radius:12px;display:block">
     </div>
@@ -2622,6 +2623,7 @@ const _ALL_USERS = [
   { name: 'איתי',  role: 'driver' },
   { name: 'משה',   role: 'pickup_agent' },
   { name: 'הילה',  role: 'pickup_driver' },
+  { name: 'איברהים', role: 'bodyshop' },
 ];
 
 /* Signing in for real: the phone number is the user name, and the sign-in is
@@ -2871,7 +2873,7 @@ function switchToUser(name) {
   localStorage.setItem('anak_user', JSON.stringify(currentUser));
   closeModal('modal-switch-user');
   _applyUserBg();
-  enterApp();
+  if (u.role === 'bodyshop') openBodyShopScreen(); else enterApp();
   showToast(u.role === 'manager' ? 'חזרת למסך שלך' : `אתה רואה עכשיו את המסך של ${name}`);
 }
 window.switchToUser = switchToUser;
@@ -2965,7 +2967,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 184';
+const APP_BUILD = '2026-08-05 · 185';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8145,8 +8147,22 @@ document.addEventListener('click', e => {
   if (!e.target.closest('#bshop-menu') && !e.target.closest('[aria-label="תפריט"]')) toggleBshopMenu(false);
 });
 
+/* Holding the logo for two seconds returns to the sign-in screen. It is the
+   only way off this screen, deliberately hidden so it is not found by accident. */
+let _bshopHoldTimer = null;
+function _bshopLogoHold(down) {
+  clearTimeout(_bshopHoldTimer);
+  if (down) _bshopHoldTimer = setTimeout(() => {
+    if (confirm('לצאת ולעבור למסך ההתחברות?')) goToLoginScreen();
+  }, 2000);
+}
+window._bshopLogoHold = _bshopLogoHold;
+
 function openBodyShopScreen() {
   showScreen('bodyshop');
+  // the manager may be looking at this screen — he gets a way back
+  const back = document.getElementById('bshop-back-mgr');
+  if (back) back.style.display = (_realUser?.role === 'manager') ? '' : 'none';
   bshopShowView('open');   // always opens on the cars in the shop
   _bshopListen(_bshopRenderWorker);
 }
