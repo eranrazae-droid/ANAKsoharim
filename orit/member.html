@@ -130,7 +130,14 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FEFCF4;m
     </div>
     <!-- טבלת משקל -->
     <div class="card" id="weightCard">
-      <h2>⚖️ מעקב משקל</h2>
+      <h2>⚖️ מעקב משקל ו-BMI</h2>
+      <div id="height-missing-note" style="display:none;margin-bottom:12px">
+        <div style="background:#fff8e1;border-radius:10px;padding:10px 14px;font-size:13px;color:#7a5800;display:flex;align-items:center;gap:10px">
+          <span>📏 הכניסי גובה לחישוב BMI:</span>
+          <input id="w-height-inline" type="number" min="100" max="220" placeholder="165 ס״מ" style="width:90px;border:1.5px solid #EAE4D8;border-radius:8px;padding:6px 10px;font-size:14px;font-family:inherit;outline:none"/>
+          <button onclick="saveHeightInline()" style="background:#B09A7A;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:700;cursor:pointer">שמור</button>
+        </div>
+      </div>
       <div class="weight-add-row">
         <div style="flex:1">
           <label class="flabel">משקל (ק״ג)</label>
@@ -392,9 +399,19 @@ function renderBMI(latestKg){
   bar.style.width=pct+'%';bar.style.background=color;bar.style.right='unset';bar.style.left='0';
   sec.style.display='block';
 }
+function saveHeightInline(){
+  var h=parseInt(document.getElementById('w-height-inline').value)||0;
+  if(h<100||h>220){alert('גובה לא תקין');return;}
+  db.collection('members').doc(currentMember.id).update({height:h}).then(function(){
+    currentMember.height=h;
+    renderWeightTable();
+  });
+}
 function renderWeightTable(){
   var weights=(currentMember.weights||[]).slice().sort(function(a,b){return a.date<b.date?1:-1;});
   var wrap=document.getElementById('weightTableWrap');
+  var missingNote=document.getElementById('height-missing-note');
+  missingNote.style.display=currentMember.height?'none':'block';
   if(weights.length===0){wrap.innerHTML='<p style="font-size:13px;color:#bbb;text-align:center;padding:8px 0">עדיין אין רשומות משקל</p>';renderBMI(null);return;}
   renderBMI(parseFloat(weights[0].kg));
   var html='<table class="weight-table"><thead><tr><th>תאריך</th><th>משקל</th><th>שינוי</th></tr></thead><tbody>';
