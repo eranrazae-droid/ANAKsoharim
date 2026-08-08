@@ -100,11 +100,11 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#f5f0fb;m
 firebase.initializeApp({apiKey:"AIzaSyD3H-2M1cYEupObbeeRtlcMPHyQtzEjP1Q",authDomain:"orit-raz.firebaseapp.com",projectId:"orit-raz",storageBucket:"orit-raz.firebasestorage.app",messagingSenderId:"1093566537569",appId:"1:1093566537569:web:1123fc5926a543d9e1ef20"});
 var db=firebase.firestore();
 var PLANS=[
-  {id:'1x',name:'פעם בשבוע',note:'אימוני כוח',price:280,icon:'💪'},
-  {id:'2x',name:'פעמיים בשבוע',note:'אימוני כוח',price:400,icon:'💪💪'},
-  {id:'3x',name:'שלוש פעמים בשבוע',note:'אימוני כוח',price:450,icon:'🔥'},
-  {id:'ul',name:'ללא הגבלה',note:'אימוני כוח',price:480,icon:'⚡'},
-  {id:'pi',name:'פילאטיס בלבד',note:'פעם בשבוע · 90 ₪ לאימון',price:360,icon:'🧘'},
+  {id:'1x',name:'פעם בשבוע',note:'אימוני כוח',price:280,icon:'💪',payUrl:'https://live.payme.io/subscription/template/SUB17861-72480KNK-APDQASBE-JTH2VHLY'},
+  {id:'2x',name:'פעמיים בשבוע',note:'אימוני כוח',price:400,icon:'💪💪',payUrl:'https://live.payme.io/subscription/template/SUB17861-72641DOQ-ZRURNXAA-W8GL2YUC'},
+  {id:'3x',name:'שלוש פעמים בשבוע',note:'אימוני כוח',price:450,icon:'🔥',payUrl:'https://live.payme.io/subscription/template/SUB17861-72735ZZQ-ERAB1U32-ANAZMIET'},
+  {id:'ul',name:'ללא הגבלה',note:'אימוני כוח',price:480,icon:'⚡',payUrl:'https://live.payme.io/subscription/template/SUB17861-72792BQR-NC5IULYM-PLZAKUHR'},
+  {id:'pi',name:'פילאטיס בלבד',note:'פעם בשבוע · 90 ₪ לאימון',price:360,icon:'🧘',payUrl:'https://live.payme.io/subscription/template/SUB17861-72876MED-RH6AZQGM-XOB85ATU'},
 ];
 var selectedPlan=null;
 document.getElementById('plansList').innerHTML=PLANS.map(function(p){
@@ -154,20 +154,7 @@ function submitAndPay(){
     status:'pending_payment',regId:regId,
     joinDate:new Date().toLocaleDateString('he-IL'),createdAt:new Date().toISOString()
   }).then(function(){
-    var PAYME_SELLER_ID='MPL15660-34833WIN-ITZNDSDJ-KSOC9ETD';
-    var origin=window.location.origin;
-    var successUrl=origin+'/success.html?regId='+regId+'&name='+encodeURIComponent(name)+'&plan='+encodeURIComponent(p.name)+'&amount='+p.price;
-    var failUrl=origin+'/join.html?error=payment_failed';
-    var params=[
-      'price='+(p.price*100),'currency=ILS',
-      'sale_description='+encodeURIComponent('מנוי סטודיו אורית רז — '+p.name),
-      'customer_fname='+encodeURIComponent(name.split(' ')[0]),
-      'customer_lname='+encodeURIComponent(name.split(' ').slice(1).join(' ')||''),
-      'customer_phone='+encodeURIComponent(phone),
-      'success_url='+encodeURIComponent(successUrl),
-      'fail_url='+encodeURIComponent(failUrl)
-    ].join('&');
-    window.location.href='https://paymeservice.com/hmo/buy-now/item/'+PAYME_SELLER_ID+'?'+params;
+    window.location.href=p.payUrl;
   }).catch(function(e){
     btn.disabled=false;btn.textContent='לתשלום מאובטח ←';
     err.textContent='שגיאה בשמירת הפרטים. נסי שוב.';
