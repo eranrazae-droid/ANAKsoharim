@@ -16,12 +16,19 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FAF5F5;m
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:12px;padding:16px;max-width:960px;margin:0 auto}
 .day-col{background:#fff;border-radius:14px;overflow:hidden;border:1px solid #EDD8D5;box-shadow:0 2px 8px rgba(184,133,90,.06)}
 .day-head{background:#C4A0A0;color:#fff;padding:10px 14px;font-size:14px;font-weight:700;text-align:center}
-.slot{padding:13px 14px;border-bottom:1px solid #FAF5F5;cursor:pointer;transition:background .15s}
+.filter-bar{background:#fff;padding:10px 16px;border-bottom:1px solid #EDD8D5;display:flex;gap:8px;flex-wrap:wrap}
+.filter-chip{background:#FAF5F5;border:1.5px solid #EDD8D5;border-radius:20px;padding:6px 16px;font-size:13px;font-weight:700;cursor:pointer;color:#888;font-family:inherit;transition:.2s;white-space:nowrap}
+.filter-chip.active{background:#C4A0A0;border-color:#C4A0A0;color:#fff}
+.slot{padding:13px 14px;border-bottom:1px solid #FAF5F5;cursor:pointer;transition:background .15s;position:relative}
 .slot:last-child{border-bottom:none}
 .slot:hover:not(.full){background:#FAF5F5}
 .slot.full{cursor:default}
+.slot.fav{background:linear-gradient(135deg,#fff 85%,#fde8e8 100%)}
 .slot-time{font-size:17px;font-weight:800;color:#C4A0A0;margin-bottom:3px}
-.slot-type{font-size:12px;color:#999;margin-bottom:8px}
+.slot-type{font-size:12px;color:#999;margin-bottom:2px}
+.slot-instructor{font-size:11px;color:#C4A0A0;font-weight:600;margin-bottom:8px}
+.fav-btn{position:absolute;top:8px;left:10px;background:none;border:none;cursor:pointer;font-size:17px;padding:2px;line-height:1;transition:transform .15s;z-index:1}
+.fav-btn:active{transform:scale(1.4)}
 .badge{font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;display:inline-block}
 .badge-ok{background:#f0fdf4;color:#166534}
 .badge-few{background:#fffbeb;color:#92400e}
@@ -59,6 +66,10 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FAF5F5;m
 <div class="join-bar">
   מתאמנת חדשה? <a href="join.html">הצטרפי לסטודיו ←</a>
   &nbsp;·&nbsp; <a onclick="openCancelLookup()" style="cursor:pointer">ביטול הרשמה</a>
+</div>
+<div class="filter-bar">
+  <button class="filter-chip" id="filterAvail" onclick="toggleFilterAvail()">🟢 פנויים בלבד</button>
+  <button class="filter-chip" id="filterFavs" onclick="toggleFilterFavs()">🩷 מועדפים</button>
 </div>
 <div class="grid" id="grid">
   <div style="grid-column:1/-1;text-align:center;padding:48px;color:#ccc;font-size:14px">טוען לוח שעות...</div>
@@ -105,14 +116,19 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FAF5F5;m
 firebase.initializeApp({apiKey:"AIzaSyD3H-2M1cYEupObbeeRtlcMPHyQtzEjP1Q",authDomain:"orit-raz.firebaseapp.com",projectId:"orit-raz",storageBucket:"orit-raz.firebasestorage.app",messagingSenderId:"1093566537569",appId:"1:1093566537569:web:1123fc5926a543d9e1ef20"});
 var db=firebase.firestore();
 var SCHEDULE=[
-  {day:'ראשון',slots:[{id:'sun-18',time:'18:00',type:'פונקציונלי',cap:7},{id:'sun-19',time:'19:00',type:'פונקציונלי',cap:7},{id:'sun-20',time:'20:00',type:'פונקציונלי',cap:7}]},
-  {day:'שני',slots:[{id:'mon-18',time:'18:00',type:'פונקציונלי',cap:7},{id:'mon-19',time:'19:00',type:'פונקציונלי',cap:7}]},
-  {day:'שלישי',slots:[{id:'tue-18',time:'18:30',type:'פילאטיס',cap:7}]},
-  {day:'רביעי',slots:[{id:'wed-18',time:'18:00',type:'פונקציונלי',cap:7},{id:'wed-19',time:'19:00',type:'פונקציונלי',cap:7},{id:'wed-20',time:'20:00',type:'פונקציונלי',cap:7}]},
-  {day:'חמישי',slots:[{id:'thu-18',time:'18:00',type:'פונקציונלי',cap:7},{id:'thu-19',time:'19:00',type:'פונקציונלי',cap:7}]},
-  {day:'שישי',slots:[{id:'fri-08',time:'08:15',type:'נפח',cap:9}]}
+  {day:'ראשון',slots:[{id:'sun-18',time:'18:00',type:'פונקציונלי',cap:7,instructor:'אורית רז'},{id:'sun-19',time:'19:00',type:'פונקציונלי',cap:7,instructor:'אורית רז'},{id:'sun-20',time:'20:00',type:'פונקציונלי',cap:7,instructor:'אורית רז'}]},
+  {day:'שני',slots:[{id:'mon-18',time:'18:00',type:'פונקציונלי',cap:7,instructor:'אורית רז'},{id:'mon-19',time:'19:00',type:'פונקציונלי',cap:7,instructor:'אורית רז'}]},
+  {day:'שלישי',slots:[{id:'tue-18',time:'18:30',type:'פילאטיס',cap:7,instructor:'נעה כהן'}]},
+  {day:'רביעי',slots:[{id:'wed-18',time:'18:00',type:'פונקציונלי',cap:7,instructor:'אורית רז'},{id:'wed-19',time:'19:00',type:'פונקציונלי',cap:7,instructor:'אורית רז'},{id:'wed-20',time:'20:00',type:'פונקציונלי',cap:7,instructor:'אורית רז'}]},
+  {day:'חמישי',slots:[{id:'thu-18',time:'18:00',type:'פונקציונלי',cap:7,instructor:'אורית רז'},{id:'thu-19',time:'19:00',type:'פונקציונלי',cap:7,instructor:'אורית רז'}]},
+  {day:'שישי',slots:[{id:'fri-08',time:'08:15',type:'נפח',cap:9,instructor:'אורית רז'}]}
 ];
-var counts={},waits={},currentSlot=null;
+var counts={},waits={},currentSlot=null,filterAvail=false,filterFavs=false;
+var FAVS_KEY='orit-favs';
+function getFavs(){try{return JSON.parse(localStorage.getItem(FAVS_KEY)||'[]');}catch(e){return[];}}
+function toggleFav(slotId,e){e.stopPropagation();var favs=getFavs();var i=favs.indexOf(slotId);if(i>=0)favs.splice(i,1);else favs.push(slotId);localStorage.setItem(FAVS_KEY,JSON.stringify(favs));renderGrid();}
+function toggleFilterAvail(){filterAvail=!filterAvail;document.getElementById('filterAvail').classList.toggle('active',filterAvail);renderGrid();}
+function toggleFilterFavs(){filterFavs=!filterFavs;document.getElementById('filterFavs').classList.toggle('active',filterFavs);renderGrid();}
 function getWeekKey(){var d=new Date();d.setDate(d.getDate()-d.getDay());d.setHours(0,0,0,0);return d.toISOString().split('T')[0];}
 var weekKey=getWeekKey();
 function weekLabel(){var sun=new Date();sun.setDate(sun.getDate()-sun.getDay());sun.setHours(0,0,0,0);var sat=new Date(sun);sat.setDate(sun.getDate()+6);var f=function(d){return d.toLocaleDateString('he-IL',{day:'numeric',month:'long'});};return 'שבוע '+f(sun)+' – '+f(sat);}
@@ -132,7 +148,31 @@ function badgeHtml(count,cap,waitCount){
   var badge=left<=2?'<span class="badge badge-few">נותרו '+left+'</span>':'<span class="badge badge-ok">'+left+' מקומות</span>';
   return badge+label+bar;
 }
-function renderGrid(){var html='';SCHEDULE.forEach(function(day){html+='<div class="day-col"><div class="day-head">'+day.day+'</div>';day.slots.forEach(function(s){var c=counts[s.id]||0,w=waits[s.id]||0,full=c>=s.cap;var click=full?' onclick="openWaitlist(\''+s.id+'\')"':' onclick="openModal(\''+s.id+'\')"';html+='<div class="slot'+( full?' full':'')+'"'+click+'>';html+='<div class="slot-time">'+s.time+'</div>';html+='<div class="slot-type">'+s.type+'</div>';html+=badgeHtml(c,s.cap,w);if(full)html+='<div style="font-size:10px;color:#C4A0A0;margin-top:4px">לרשימת המתנה ←</div>';html+='</div>';});html+='</div>';});document.getElementById('grid').innerHTML=html;}
+function renderGrid(){
+  var favs=getFavs();
+  var html='';
+  SCHEDULE.forEach(function(day){
+    var slotsHtml='';
+    day.slots.forEach(function(s){
+      var c=counts[s.id]||0,w=waits[s.id]||0,full=c>=s.cap;
+      var isFav=favs.indexOf(s.id)>=0;
+      if(filterAvail&&full)return;
+      if(filterFavs&&!isFav)return;
+      var click=full?' onclick="openWaitlist(\''+s.id+'\')"':' onclick="openModal(\''+s.id+'\')"';
+      slotsHtml+='<div class="slot'+(full?' full':'')+(isFav?' fav':'')+'"'+click+'>';
+      slotsHtml+='<button class="fav-btn'+(isFav?' active':'')+'" onclick="toggleFav(\''+s.id+'\',event)">'+(isFav?'🩷':'🤍')+'</button>';
+      slotsHtml+='<div class="slot-time">'+s.time+'</div>';
+      slotsHtml+='<div class="slot-type">'+s.type+'</div>';
+      slotsHtml+='<div class="slot-instructor">'+s.instructor+'</div>';
+      slotsHtml+=badgeHtml(c,s.cap,w);
+      if(full)slotsHtml+='<div style="font-size:10px;color:#C4A0A0;margin-top:4px">לרשימת המתנה ←</div>';
+      slotsHtml+='</div>';
+    });
+    if(!slotsHtml)return;
+    html+='<div class="day-col"><div class="day-head">'+day.day+'</div>'+slotsHtml+'</div>';
+  });
+  document.getElementById('grid').innerHTML=html||'<div style="grid-column:1/-1;text-align:center;padding:48px;color:#ccc;font-size:14px">אין אימונים להצגה</div>';
+}
 function loadBookings(){var ids=[];SCHEDULE.forEach(function(d){d.slots.forEach(function(s){ids.push(s.id);});});var ps=ids.map(function(id){return db.collection('bookings').doc(weekKey+'_'+id).get().then(function(doc){counts[id]=doc.exists?Object.keys(doc.data().registrations||{}).length:0;waits[id]=doc.exists?Object.keys(doc.data().waitlist||{}).length:0;});});Promise.all(ps).then(renderGrid);}
 /* רשימת המתנה */
 function openWaitlist(slotId){
