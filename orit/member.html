@@ -15,7 +15,11 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FAF4EE;m
 .card h2{font-size:17px;font-weight:800;color:#B8855A;margin-bottom:16px}
 .finp{width:100%;border:1.5px solid #EDE0D4;border-radius:10px;padding:13px 14px;font-size:16px;font-family:inherit;outline:none;direction:rtl;color:#222;background:#fff;margin-bottom:12px}
 .finp:focus{border-color:#B8855A}
+.flabel{font-size:12px;font-weight:700;color:#8A6A50;display:block;margin-bottom:5px}
 .btn{width:100%;border:none;border-radius:12px;padding:14px;font-size:16px;font-weight:800;cursor:pointer;font-family:inherit;transition:.2s;margin-bottom:8px}
+.btn-primary{background:#B8855A;color:#fff}
+.btn-primary:hover{background:#A07050}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed}
 .btn-transparent{background:#B8855A;color:#fff}
 .btn-transparent:hover{background:#A07050}
 .btn-transparent:disabled{opacity:.5;cursor:not-allowed}
@@ -58,6 +62,20 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FAF4EE;m
 .success-msg .icon{font-size:48px;margin-bottom:12px}
 .success-msg h3{font-size:18px;font-weight:800;color:#B8855A;margin-bottom:8px}
 .success-msg p{font-size:14px;color:#666;line-height:1.6}
+/* weight table */
+.weight-table{width:100%;border-collapse:collapse;font-size:14px;margin-bottom:14px}
+.weight-table th{background:#FAF4EE;color:#B8855A;font-weight:700;padding:9px 10px;text-align:right;border-bottom:2px solid #EDE0D4}
+.weight-table td{padding:9px 10px;border-bottom:1px solid #FAF4EE;color:#333}
+.weight-table tr:last-child td{border-bottom:none}
+.weight-diff-plus{color:#e24b4a;font-size:12px}
+.weight-diff-minus{color:#2e7d32;font-size:12px}
+.weight-diff-zero{color:#aaa;font-size:12px}
+.weight-add-row{display:flex;gap:8px;align-items:flex-end;margin-bottom:6px}
+.weight-add-row .finp{margin-bottom:0;flex:1}
+.weight-add-btn{background:#B8855A;color:#fff;border:none;border-radius:10px;padding:13px 18px;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0}
+.weight-add-btn:hover{background:#A07050}
+/* default pw warning */
+.pw-warn{background:#fff8e1;border-radius:10px;padding:10px 14px;font-size:13px;color:#8a6000;margin-bottom:14px;line-height:1.5}
 </style>
 </head>
 <body>
@@ -66,17 +84,27 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FAF4EE;m
   <p>אורית רז — בוטיק כושר לנשים</p>
 </div>
 <div class="wrap">
+  <!-- כניסה -->
   <div id="loginScreen">
     <div class="card">
       <h2>כניסה למנויה</h2>
-      <p style="font-size:13px;color:#999;margin-bottom:16px">הכניסי את מספר הטלפון שנרשמת איתו</p>
+      <p style="font-size:13px;color:#999;margin-bottom:16px">הכניסי את מספר הטלפון והסיסמה שלך</p>
+      <label class="flabel">טלפון</label>
       <input class="finp" id="login-phone" placeholder="05X-XXXXXXX" type="tel" inputmode="numeric"/>
+      <label class="flabel">סיסמה</label>
+      <input class="finp" id="login-pass" placeholder="סיסמה" type="password"/>
       <div class="err" id="login-err"></div>
       <button class="btn btn-transparent" onclick="doLogin()">כניסה ←</button>
       <button class="btn btn-gray" onclick="window.location.href='index.html'">← חזרה לאתר</button>
     </div>
   </div>
+
+  <!-- דשבורד -->
   <div id="dashboard" style="display:none">
+    <!-- אזהרת סיסמה ברירת מחדל -->
+    <div class="pw-warn" id="pwWarn" style="display:none">
+      🔒 <strong>טיפ:</strong> את עדיין משתמשת בסיסמה הראשונית 1234. <a onclick="showScreen('changePassScreen')" style="color:#B8855A;cursor:pointer;font-weight:700">לחצי כאן לשינוי סיסמה ←</a>
+    </div>
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
         <div>
@@ -92,10 +120,29 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FAF4EE;m
     </div>
     <div class="card">
       <h2>פעולות</h2>
+      <a class="btn btn-primary" href="book.html" style="display:block;text-align:center;text-decoration:none;line-height:1.3;padding:14px">📅 הזמני אימון</a>
       <button class="btn btn-outline" onclick="showScreen('freezeScreen')" id="btn-freeze">❄️ הקפאת מנוי</button>
       <button class="btn btn-outline" onclick="showScreen('changeScreen')">🔄 שינוי מנוי</button>
       <button class="btn btn-outline" onclick="openDetailsScreen()">✏️ עדכון פרטים</button>
+      <button class="btn btn-outline" onclick="showScreen('changePassScreen')">🔒 שינוי סיסמה</button>
       <button class="btn btn-red" onclick="showScreen('cancelScreen')">ביטול מנוי</button>
+    </div>
+    <!-- טבלת משקל -->
+    <div class="card" id="weightCard">
+      <h2>⚖️ מעקב משקל</h2>
+      <div class="weight-add-row">
+        <div style="flex:1">
+          <label class="flabel">משקל (ק״ג)</label>
+          <input class="finp" id="w-kg" type="number" step="0.1" min="30" max="200" placeholder="65.5" style="margin-bottom:0"/>
+        </div>
+        <div style="flex:1">
+          <label class="flabel">תאריך</label>
+          <input class="finp" id="w-date" type="date" style="margin-bottom:0"/>
+        </div>
+        <button class="weight-add-btn" onclick="addWeight()">הוסיפי +</button>
+      </div>
+      <div class="err" id="weight-err" style="margin-bottom:8px"></div>
+      <div id="weightTableWrap"></div>
     </div>
     <div class="card" id="historyCard">
       <h2>היסטוריה</h2>
@@ -103,6 +150,8 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FAF4EE;m
     </div>
     <button class="btn btn-gray" onclick="doLogout()">יציאה</button>
   </div>
+
+  <!-- הקפאה -->
   <div id="freezeScreen" style="display:none">
     <div class="card">
       <h2>❄️ הקפאת מנוי</h2>
@@ -117,6 +166,8 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FAF4EE;m
       <button class="btn btn-gray" onclick="showScreen('dashboard')">← חזרה</button>
     </div>
   </div>
+
+  <!-- שינוי מנוי -->
   <div id="changeScreen" style="display:none">
     <div class="card">
       <h2>🔄 שינוי מנוי</h2>
@@ -127,18 +178,38 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FAF4EE;m
       <button class="btn btn-gray" onclick="showScreen('dashboard')">← חזרה</button>
     </div>
   </div>
+
+  <!-- עדכון פרטים -->
   <div id="detailsScreen" style="display:none">
     <div class="card">
       <h2>✏️ עדכון פרטים</h2>
-      <label style="font-size:12px;font-weight:700;color:#8A6A50;display:block;margin-bottom:5px">שם מלא</label>
+      <label class="flabel">שם מלא</label>
       <input class="finp" id="det-name" placeholder="שם מלא"/>
-      <label style="font-size:12px;font-weight:700;color:#8A6A50;display:block;margin-bottom:5px">אימייל</label>
+      <label class="flabel">אימייל</label>
       <input class="finp" id="det-email" placeholder="your@email.com" type="email" style="direction:ltr;text-align:right"/>
       <div class="err" id="det-err"></div>
       <button class="btn btn-transparent" onclick="submitDetails()">שמירה ←</button>
       <button class="btn btn-gray" onclick="showScreen('dashboard')">← חזרה</button>
     </div>
   </div>
+
+  <!-- שינוי סיסמה -->
+  <div id="changePassScreen" style="display:none">
+    <div class="card">
+      <h2>🔒 שינוי סיסמה</h2>
+      <label class="flabel">סיסמה נוכחית</label>
+      <input class="finp" id="cp-old" type="password" placeholder="סיסמה נוכחית"/>
+      <label class="flabel">סיסמה חדשה</label>
+      <input class="finp" id="cp-new" type="password" placeholder="לפחות 4 תווים"/>
+      <label class="flabel">אימות סיסמה חדשה</label>
+      <input class="finp" id="cp-confirm" type="password" placeholder="חזרי על הסיסמה החדשה"/>
+      <div class="err" id="cp-err"></div>
+      <button class="btn btn-transparent" onclick="submitChangePass()">שמירה ←</button>
+      <button class="btn btn-gray" onclick="showScreen('dashboard')">← חזרה</button>
+    </div>
+  </div>
+
+  <!-- ביטול מנוי -->
   <div id="cancelScreen" style="display:none">
     <div class="card">
       <h2>ביטול מנוי</h2>
@@ -149,6 +220,8 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FAF4EE;m
       <button class="btn btn-gray" onclick="showScreen('dashboard')">← חזרה, לא לבטל</button>
     </div>
   </div>
+
+  <!-- הצלחה -->
   <div id="successScreen" style="display:none">
     <div class="card">
       <div class="success-msg">
@@ -166,27 +239,126 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FAF4EE;m
 firebase.initializeApp({apiKey:"AIzaSyD3H-2M1cYEupObbeeRtlcMPHyQtzEjP1Q",authDomain:"orit-raz.firebaseapp.com",projectId:"orit-raz",storageBucket:"orit-raz.firebasestorage.app",messagingSenderId:"1093566537569",appId:"1:1093566537569:web:1123fc5926a543d9e1ef20"});
 var db=firebase.firestore();
 var PLANS=[{id:'1x',name:'פעם בשבוע',price:280,icon:'💪'},{id:'2x',name:'פעמיים בשבוע',price:400,icon:'💪💪'},{id:'3x',name:'שלוש פעמים בשבוע',price:450,icon:'🔥'},{id:'ul',name:'ללא הגבלה',price:480,icon:'⚡'},{id:'pi',name:'פילאטיס בלבד',price:360,icon:'🧘'}];
+var DEFAULT_PASS='1234';
 var currentMember=null,selectedNewPlan=null;
-(function(){var today=new Date().toISOString().split('T')[0];document.getElementById('freeze-from').min=today;document.getElementById('freeze-from').value=today;document.getElementById('freeze-to').min=today;var cancel=new Date();cancel.setDate(cancel.getDate()+14);document.getElementById('cancel-date-note').textContent='תאריך ביטול בפועל: '+cancel.toLocaleDateString('he-IL');})();
+(function(){
+  var today=new Date().toISOString().split('T')[0];
+  document.getElementById('freeze-from').min=today;
+  document.getElementById('freeze-from').value=today;
+  document.getElementById('freeze-to').min=today;
+  document.getElementById('w-date').value=today;
+  var cancel=new Date();cancel.setDate(cancel.getDate()+14);
+  document.getElementById('cancel-date-note').textContent='תאריך ביטול בפועל: '+cancel.toLocaleDateString('he-IL');
+})();
 document.getElementById('freeze-from').addEventListener('change',calcFreeze);
 document.getElementById('freeze-to').addEventListener('change',calcFreeze);
 function calcFreeze(){var from=document.getElementById('freeze-from').value;var to=document.getElementById('freeze-to').value;if(!from||!to)return;var days=Math.round((new Date(to)-new Date(from))/(1000*60*60*24));var calc=document.getElementById('freeze-calc');if(days<14){calc.style.display='block';calc.style.color='#e24b4a';calc.style.fontWeight='400';calc.textContent='מינימום 14 יום (בחרת '+days+' ימים)';}else{calc.style.display='block';calc.style.color='#B8855A';calc.style.fontWeight='700';calc.textContent='✓ '+days+' ימי הקפאה — יקוזזו מהחיוב הבא';}}
-function doLogin(){var phone=document.getElementById('login-phone').value.trim().replace(/[\s\-\(\)]/g,'');var err=document.getElementById('login-err');if(!phone||phone.length<9){err.textContent='נא להכניס מספר טלפון תקין';return;}err.textContent='';db.collection('members').doc(phone).get().then(function(doc){if(!doc.exists){err.textContent='לא נמצא מנוי עם מספר זה';return;}currentMember={id:doc.id,...doc.data()};loadDashboard();showScreen('dashboard');}).catch(function(){err.textContent='שגיאת חיבור, נסי שוב';});}
-function doLogout(){currentMember=null;document.getElementById('login-phone').value='';showScreen('loginScreen');}
-function loadDashboard(){if(!currentMember)return;var m=currentMember;document.getElementById('d-name').textContent=m.name||'';document.getElementById('d-phone').textContent=m.phone||'';var statusMap={paid:'פעיל',active:'פעיל',frozen:'מוקפא',pending_payment:'ממתין לתשלום',cancelled:'מבוטל',pending_cancel:'ביטול ממתין'};var statusClass={paid:'status-active',active:'status-active',frozen:'status-frozen',pending_payment:'status-pending',cancelled:'status-cancelled',pending_cancel:'status-pending'};var s=m.status||'';var badge=document.getElementById('d-status-badge');badge.textContent=statusMap[s]||s;badge.className='status-badge '+(statusClass[s]||'status-pending');document.getElementById('d-plan').textContent=(m.icon||'')+' '+(m.planName||m.plan||'');document.getElementById('d-amount').textContent=(m.amount||'')+' ₪ לחודש';if(m.freezeUntil&&m.status==='frozen'){document.getElementById('d-freeze-row').style.display='flex';document.getElementById('d-freeze-until').textContent=new Date(m.freezeUntil).toLocaleDateString('he-IL');}if(m.pendingPlan){document.getElementById('d-change-row').style.display='flex';document.getElementById('d-pending-change').textContent=m.pendingPlanName+' ('+m.pendingAmount+' ₪)';}var history=m.history||[];if(history.length>0){document.getElementById('historyList').innerHTML=history.slice().reverse().map(function(h){return'<div class="history-item"><div class="history-type">'+h.type+'</div><div class="history-date">'+new Date(h.date).toLocaleDateString('he-IL')+'</div>'+(h.note?'<div style="color:#888;font-size:12px">'+escHtml(h.note)+'</div>':'')+'</div>';}).join('');}document.getElementById('btn-freeze').disabled=(m.status==='frozen');renderChangePlans();}
+function doLogin(){
+  var phone=document.getElementById('login-phone').value.trim().replace(/[\s\-\(\)]/g,'');
+  var pass=document.getElementById('login-pass').value;
+  var err=document.getElementById('login-err');
+  if(!phone||phone.length<9){err.textContent='נא להכניס מספר טלפון תקין';return;}
+  if(!pass){err.textContent='נא להכניס סיסמה';return;}
+  err.textContent='';
+  db.collection('members').doc(phone).get().then(function(doc){
+    if(!doc.exists){err.textContent='לא נמצא מנוי עם מספר זה';return;}
+    var data=doc.data();
+    var storedPass=data.password||DEFAULT_PASS;
+    if(pass!==storedPass){err.textContent='סיסמה שגויה';return;}
+    currentMember={id:doc.id,...data};
+    loadDashboard();
+    showScreen('dashboard');
+  }).catch(function(){err.textContent='שגיאת חיבור, נסי שוב';});
+}
+function doLogout(){currentMember=null;document.getElementById('login-phone').value='';document.getElementById('login-pass').value='';showScreen('loginScreen');}
+function loadDashboard(){
+  if(!currentMember)return;
+  var m=currentMember;
+  document.getElementById('d-name').textContent=m.name||'';
+  document.getElementById('d-phone').textContent=m.phone||'';
+  var statusMap={paid:'פעיל',active:'פעיל',frozen:'מוקפא',pending_payment:'ממתין לתשלום',cancelled:'מבוטל',pending_cancel:'ביטול ממתין'};
+  var statusClass={paid:'status-active',active:'status-active',frozen:'status-frozen',pending_payment:'status-pending',cancelled:'status-cancelled',pending_cancel:'status-pending'};
+  var s=m.status||'';
+  var badge=document.getElementById('d-status-badge');
+  badge.textContent=statusMap[s]||s;
+  badge.className='status-badge '+(statusClass[s]||'status-pending');
+  document.getElementById('d-plan').textContent=(m.icon||'')+' '+(m.planName||m.plan||'');
+  document.getElementById('d-amount').textContent=(m.amount||'')+' ₪ לחודש';
+  if(m.freezeUntil&&m.status==='frozen'){document.getElementById('d-freeze-row').style.display='flex';document.getElementById('d-freeze-until').textContent=new Date(m.freezeUntil).toLocaleDateString('he-IL');}
+  if(m.pendingPlan){document.getElementById('d-change-row').style.display='flex';document.getElementById('d-pending-change').textContent=m.pendingPlanName+' ('+m.pendingAmount+' ₪)';}
+  // אזהרת סיסמה ברירת מחדל
+  var pw=m.password||DEFAULT_PASS;
+  document.getElementById('pwWarn').style.display=(pw===DEFAULT_PASS)?'block':'none';
+  var history=m.history||[];
+  if(history.length>0){document.getElementById('historyList').innerHTML=history.slice().reverse().map(function(h){return'<div class="history-item"><div class="history-type">'+h.type+'</div><div class="history-date">'+new Date(h.date).toLocaleDateString('he-IL')+'</div>'+(h.note?'<div style="color:#888;font-size:12px">'+escHtml(h.note)+'</div>':'')+'</div>';}).join('');}
+  document.getElementById('btn-freeze').disabled=(m.status==='frozen');
+  renderChangePlans();
+  renderWeightTable();
+}
 function renderChangePlans(){document.getElementById('changePlansList').innerHTML=PLANS.filter(function(p){return p.id!==(currentMember&&currentMember.plan);}).map(function(p){return'<div class="plan-s" id="cpl-'+p.id+'" onclick="selectNewPlan(\''+p.id+'\')">'+'<div class="plan-s-left"><div class="plan-s-radio" id="cpr-'+p.id+'"></div>'+'<span class="plan-s-name">'+p.icon+' '+p.name+'</span></div>'+'<span class="plan-s-price">'+p.price+' ₪</span></div>';}).join('');}
 function selectNewPlan(id){PLANS.forEach(function(p){var el=document.getElementById('cpl-'+p.id);if(el)el.classList.remove('sel');});document.getElementById('cpl-'+id).classList.add('sel');selectedNewPlan=PLANS.find(function(p){return p.id===id;});document.getElementById('change-err').textContent='';}
-function showScreen(name){['loginScreen','dashboard','freezeScreen','changeScreen','detailsScreen','cancelScreen','successScreen'].forEach(function(s){document.getElementById(s).style.display=s===name?'block':'none';});window.scrollTo(0,0);}
+function showScreen(name){['loginScreen','dashboard','freezeScreen','changeScreen','detailsScreen','changePassScreen','cancelScreen','successScreen'].forEach(function(s){document.getElementById(s).style.display=s===name?'block':'none';});window.scrollTo(0,0);}
 function addHistory(type,note){var h=currentMember.history||[];h.push({type:type,date:new Date().toISOString(),note:note||''});return h;}
-function submitFreeze(){var from=document.getElementById('freeze-from').value;var to=document.getElementById('freeze-to').value;var err=document.getElementById('freeze-err');if(!from||!to){err.textContent='נא לבחור תאריכים';return;}var days=Math.round((new Date(to)-new Date(from))/(1000*60*60*24));if(days<14){err.textContent='מינימום 14 יום הקפאה';return;}err.textContent='';var h=addHistory('❄️ הקפאה',from+' עד '+to+' ('+days+' ימים)');db.collection('members').doc(currentMember.id).update({status:'frozen',freezeFrom:from,freezeUntil:to,freezeDays:(currentMember.freezeDays||0)+days,history:h}).then(function(){currentMember.status='frozen';currentMember.freezeFrom=from;currentMember.freezeUntil=to;currentMember.history=h;showSuccess('הקפאה אושרה!','המנוי מוקפא מ-'+new Date(from).toLocaleDateString('he-IL')+' עד '+new Date(to).toLocaleDateString('he-IL')+'
-'+days+' ימים יקוזזו מהחיוב הבא 💜');}).catch(function(){err.textContent='שגיאה, נסי שוב';});}
-function submitChange(){var err=document.getElementById('change-err');if(!selectedNewPlan){err.textContent='נא לבחור מנוי';return;}err.textContent='';var p=selectedNewPlan;var h=addHistory('🔄 שינוי מנוי','ל'+p.name+' ('+p.price+' ₪) — יכנס לתוקף בחיוב הבא');db.collection('members').doc(currentMember.id).update({pendingPlan:p.id,pendingPlanName:p.name,pendingAmount:p.price,history:h}).then(function(){currentMember.pendingPlan=p.id;currentMember.pendingPlanName=p.name;currentMember.pendingAmount=p.price;currentMember.history=h;showSuccess('השינוי נרשם!','המנוי ישתנה ל'+p.name+' ('+p.price+' ₪ לחודש)
-השינוי ייכנס לתוקף בחיוב הבא 💜');}).catch(function(){err.textContent='שגיאה, נסי שוב';});}
+function submitFreeze(){var from=document.getElementById('freeze-from').value;var to=document.getElementById('freeze-to').value;var err=document.getElementById('freeze-err');if(!from||!to){err.textContent='נא לבחור תאריכים';return;}var days=Math.round((new Date(to)-new Date(from))/(1000*60*60*24));if(days<14){err.textContent='מינימום 14 יום הקפאה';return;}err.textContent='';var h=addHistory('❄️ הקפאה',from+' עד '+to+' ('+days+' ימים)');db.collection('members').doc(currentMember.id).update({status:'frozen',freezeFrom:from,freezeUntil:to,freezeDays:(currentMember.freezeDays||0)+days,history:h}).then(function(){currentMember.status='frozen';currentMember.freezeFrom=from;currentMember.freezeUntil=to;currentMember.history=h;showSuccess('הקפאה אושרה!','המנוי מוקפא מ-'+new Date(from).toLocaleDateString('he-IL')+' עד '+new Date(to).toLocaleDateString('he-IL')+'\n'+days+' ימים יקוזזו מהחיוב הבא 💜');}).catch(function(){err.textContent='שגיאה, נסי שוב';});}
+function submitChange(){var err=document.getElementById('change-err');if(!selectedNewPlan){err.textContent='נא לבחור מנוי';return;}err.textContent='';var p=selectedNewPlan;var h=addHistory('🔄 שינוי מנוי','ל'+p.name+' ('+p.price+' ₪) — יכנס לתוקף בחיוב הבא');db.collection('members').doc(currentMember.id).update({pendingPlan:p.id,pendingPlanName:p.name,pendingAmount:p.price,history:h}).then(function(){currentMember.pendingPlan=p.id;currentMember.pendingPlanName=p.name;currentMember.pendingAmount=p.price;currentMember.history=h;showSuccess('השינוי נרשם!','המנוי ישתנה ל'+p.name+' ('+p.price+' ₪ לחודש)\nהשינוי ייכנס לתוקף בחיוב הבא 💜');}).catch(function(){err.textContent='שגיאה, נסי שוב';});}
 function submitDetails(){var name=document.getElementById('det-name').value.trim();var email=document.getElementById('det-email').value.trim();var err=document.getElementById('det-err');if(!name){err.textContent='נא להכניס שם';return;}err.textContent='';var h=addHistory('✏️ עדכון פרטים','');db.collection('members').doc(currentMember.id).update({name:name,email:email,history:h}).then(function(){currentMember.name=name;currentMember.email=email;currentMember.history=h;showSuccess('הפרטים עודכנו!','הפרטים שלך עודכנו בהצלחה 💜');}).catch(function(){err.textContent='שגיאה, נסי שוב';});}
-function submitCancel(){var err=document.getElementById('cancel-err');var cancelDate=new Date();cancelDate.setDate(cancelDate.getDate()+14);var cancelStr=cancelDate.toLocaleDateString('he-IL');var h=addHistory('❌ בקשת ביטול','ביטול יכנס לתוקף '+cancelStr);db.collection('members').doc(currentMember.id).update({status:'pending_cancel',cancelRequestDate:new Date().toISOString(),cancelEffectiveDate:cancelDate.toISOString(),history:h}).then(function(){currentMember.status='pending_cancel';currentMember.history=h;showSuccess('בקשת הביטול התקבלה','המנוי יבוטל בתאריך '+cancelStr+'.
-אם תרצי לחזור בך — צרי קשר עם אורית 💜');}).catch(function(){err.textContent='שגיאה, נסי שוב';});}
+function submitChangePass(){
+  var oldPass=document.getElementById('cp-old').value;
+  var newPass=document.getElementById('cp-new').value;
+  var confirm=document.getElementById('cp-confirm').value;
+  var err=document.getElementById('cp-err');
+  var stored=currentMember.password||DEFAULT_PASS;
+  if(oldPass!==stored){err.textContent='הסיסמה הנוכחית שגויה';return;}
+  if(newPass.length<4){err.textContent='הסיסמה החדשה חייבת להיות לפחות 4 תווים';return;}
+  if(newPass!==confirm){err.textContent='הסיסמאות אינן תואמות';return;}
+  err.textContent='';
+  db.collection('members').doc(currentMember.id).update({password:newPass}).then(function(){
+    currentMember.password=newPass;
+    document.getElementById('cp-old').value='';
+    document.getElementById('cp-new').value='';
+    document.getElementById('cp-confirm').value='';
+    showSuccess('הסיסמה שונתה!','הסיסמה שלך עודכנה בהצלחה 🔒');
+  }).catch(function(){err.textContent='שגיאה, נסי שוב';});
+}
+function submitCancel(){var err=document.getElementById('cancel-err');var cancelDate=new Date();cancelDate.setDate(cancelDate.getDate()+14);var cancelStr=cancelDate.toLocaleDateString('he-IL');var h=addHistory('❌ בקשת ביטול','ביטול יכנס לתוקף '+cancelStr);db.collection('members').doc(currentMember.id).update({status:'pending_cancel',cancelRequestDate:new Date().toISOString(),cancelEffectiveDate:cancelDate.toISOString(),history:h}).then(function(){currentMember.status='pending_cancel';currentMember.history=h;showSuccess('בקשת הביטול התקבלה','המנוי יבוטל בתאריך '+cancelStr+'.\nאם תרצי לחזור בך — צרי קשר עם אורית 💜');}).catch(function(){err.textContent='שגיאה, נסי שוב';});}
 function showSuccess(title,body){document.getElementById('success-title').textContent=title;document.getElementById('success-body').textContent=body;showScreen('successScreen');}
 function openDetailsScreen(){if(currentMember){document.getElementById('det-name').value=currentMember.name||'';document.getElementById('det-email').value=currentMember.email||'';}showScreen('detailsScreen');}
+/* מעקב משקל */
+function renderWeightTable(){
+  var weights=(currentMember.weights||[]).slice().sort(function(a,b){return a.date<b.date?1:-1;});
+  var wrap=document.getElementById('weightTableWrap');
+  if(weights.length===0){wrap.innerHTML='<p style="font-size:13px;color:#bbb;text-align:center;padding:8px 0">עדיין אין רשומות משקל</p>';return;}
+  var html='<table class="weight-table"><thead><tr><th>תאריך</th><th>משקל</th><th>שינוי</th></tr></thead><tbody>';
+  weights.forEach(function(w,i){
+    var diff='';
+    if(i<weights.length-1){
+      var d=parseFloat(w.kg)-parseFloat(weights[i+1].kg);
+      if(d>0)diff='<span class="weight-diff-plus">+'+d.toFixed(1)+'</span>';
+      else if(d<0)diff='<span class="weight-diff-minus">'+d.toFixed(1)+'</span>';
+      else diff='<span class="weight-diff-zero">—</span>';
+    }
+    var dateStr=w.date?new Date(w.date+'T12:00:00').toLocaleDateString('he-IL'):'';
+    html+='<tr><td>'+dateStr+'</td><td><strong>'+parseFloat(w.kg).toFixed(1)+' ק״ג</strong></td><td>'+diff+'</td></tr>';
+  });
+  html+='</tbody></table>';
+  wrap.innerHTML=html;
+}
+function addWeight(){
+  var kg=parseFloat(document.getElementById('w-kg').value);
+  var date=document.getElementById('w-date').value;
+  var err=document.getElementById('weight-err');
+  if(!kg||kg<30||kg>300){err.textContent='נא להכניס משקל תקין';return;}
+  if(!date){err.textContent='נא לבחור תאריך';return;}
+  err.textContent='';
+  var weights=currentMember.weights||[];
+  weights=weights.filter(function(w){return w.date!==date;});
+  weights.push({kg:kg,date:date});
+  db.collection('members').doc(currentMember.id).update({weights:weights}).then(function(){
+    currentMember.weights=weights;
+    document.getElementById('w-kg').value='';
+    renderWeightTable();
+  }).catch(function(){err.textContent='שגיאה, נסי שוב';});
+}
 function escHtml(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML;}
 </script>
 </body>
