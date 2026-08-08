@@ -74,6 +74,12 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FAF5F5;m
 .weight-add-row .finp{margin-bottom:0;flex:1}
 .weight-add-btn{background:#C4A0A0;color:#fff;border:none;border-radius:10px;padding:13px 18px;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0}
 .weight-add-btn:hover{background:#A88484}
+/* eye toggle */
+.pw-field-wrap{position:relative;margin-bottom:12px}
+.pw-field-wrap .finp{margin-bottom:0;padding-left:44px}
+.eye-btn{position:absolute;left:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:18px;padding:4px;line-height:1;opacity:.5;transition:.15s}
+.eye-btn:hover{opacity:.9}
+.eye-btn.open{opacity:.85}
 /* default pw warning */
 .pw-warn{background:#fff8e1;border-radius:10px;padding:10px 14px;font-size:13px;color:#8a6000;margin-bottom:14px;line-height:1.5}
 /* עדכונים */
@@ -128,7 +134,8 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FAF5F5;m
       <label class="flabel">טלפון</label>
       <input class="finp" id="login-phone" placeholder="05X-XXXXXXX" type="tel" inputmode="numeric"/>
       <label class="flabel">סיסמה</label>
-      <input class="finp" id="login-pass" placeholder="סיסמה" type="password"/>
+      <div class="pw-field-wrap"><input class="finp" id="login-pass" placeholder="סיסמה" type="password"/><button type="button" class="eye-btn" onclick="toggleEye('login-pass',this)">👁</button></div>
+      <div style="text-align:left;margin-bottom:8px"><a onclick="showScreen('forgotScreen')" style="font-size:12px;color:#C4A0A0;cursor:pointer;text-decoration:underline">שכחתי סיסמה</a></div>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
         <input type="checkbox" id="rememberMe" style="width:16px;height:16px;accent-color:#C4A0A0;cursor:pointer"/>
         <label for="rememberMe" style="font-size:13px;color:#8A6868;cursor:pointer">זכור אותי</label>
@@ -338,14 +345,28 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FAF5F5;m
       <h2>🔒 שינוי סיסמה</h2>
       <div class="note-box" id="cp-force-note" style="display:none;background:#fff8e1;color:#7a5800">⚠️ חובה לשנות סיסמה לפני הכניסה לאזור האישי.</div>
       <label class="flabel">סיסמה נוכחית</label>
-      <input class="finp" id="cp-old" type="password" placeholder="סיסמה נוכחית"/>
+      <div class="pw-field-wrap"><input class="finp" id="cp-old" type="password" placeholder="סיסמה נוכחית"/><button type="button" class="eye-btn" onclick="toggleEye('cp-old',this)">👁</button></div>
       <label class="flabel">סיסמה חדשה</label>
-      <input class="finp" id="cp-new" type="password" placeholder="לפחות 4 תווים"/>
+      <div class="pw-field-wrap"><input class="finp" id="cp-new" type="password" placeholder="סיסמה חדשה (מספרים / אותיות)"/><button type="button" class="eye-btn" onclick="toggleEye('cp-new',this)">👁</button></div>
       <label class="flabel">אימות סיסמה חדשה</label>
-      <input class="finp" id="cp-confirm" type="password" placeholder="חזרי על הסיסמה החדשה"/>
+      <div class="pw-field-wrap"><input class="finp" id="cp-confirm" type="password" placeholder="חזרי על הסיסמה החדשה"/><button type="button" class="eye-btn" onclick="toggleEye('cp-confirm',this)">👁</button></div>
       <div class="err" id="cp-err"></div>
       <button class="btn btn-transparent" onclick="submitChangePass()">שמירה ←</button>
       <button class="btn btn-gray" id="cp-back-btn" onclick="showScreen('dashboard')">← חזרה</button>
+    </div>
+  </div>
+
+  <!-- שכחתי סיסמה -->
+  <div id="forgotScreen" style="display:none">
+    <div class="card">
+      <h2>🔑 שכחתי סיסמה</h2>
+      <p style="font-size:13px;color:#888;margin-bottom:16px">הכניסי את מספר הטלפון שלך ואורית תיצור איתך קשר להחזרת הגישה.</p>
+      <label class="flabel">טלפון</label>
+      <input class="finp" id="forgot-phone" placeholder="05X-XXXXXXX" type="tel" inputmode="numeric"/>
+      <div class="err" id="forgot-err"></div>
+      <div id="forgot-ok" style="display:none;text-align:center;padding:12px 0;font-size:14px;color:#2e7d32;font-weight:700">✅ הבקשה נשלחה! אורית תחזור אלייך בהקדם 🩷</div>
+      <button class="btn btn-transparent" id="forgot-btn" onclick="submitForgot()">שלחי בקשה ←</button>
+      <button class="btn btn-gray" onclick="showScreen('loginScreen')">← חזרה</button>
     </div>
   </div>
 
@@ -454,7 +475,8 @@ function loadDashboard(){
 }
 function renderChangePlans(){document.getElementById('changePlansList').innerHTML=PLANS.filter(function(p){return p.id!==(currentMember&&currentMember.plan);}).map(function(p){return'<div class="plan-s" id="cpl-'+p.id+'" onclick="selectNewPlan(\''+p.id+'\')">'+'<div class="plan-s-left"><div class="plan-s-radio" id="cpr-'+p.id+'"></div>'+'<span class="plan-s-name">'+p.icon+' '+p.name+'</span></div>'+'<span class="plan-s-price">'+p.price+' ₪</span></div>';}).join('');}
 function selectNewPlan(id){PLANS.forEach(function(p){var el=document.getElementById('cpl-'+p.id);if(el)el.classList.remove('sel');});document.getElementById('cpl-'+id).classList.add('sel');selectedNewPlan=PLANS.find(function(p){return p.id===id;});document.getElementById('change-err').textContent='';}
-function showScreen(name){['loginScreen','dashboard','freezeScreen','changeScreen','detailsScreen','changePassScreen','cancelScreen','successScreen'].forEach(function(s){document.getElementById(s).style.display=s===name?'block':'none';});window.scrollTo(0,0);}
+function showScreen(name){['loginScreen','dashboard','freezeScreen','changeScreen','detailsScreen','changePassScreen','cancelScreen','successScreen','forgotScreen'].forEach(function(s){document.getElementById(s).style.display=s===name?'block':'none';});window.scrollTo(0,0);}
+function toggleEye(id,btn){var inp=document.getElementById(id);if(!inp)return;var show=inp.type==='password';inp.type=show?'text':'password';btn.classList.toggle('open',show);}
 function addHistory(type,note){var h=currentMember.history||[];h.push({type:type,date:new Date().toISOString(),note:note||''});return h;}
 function submitFreeze(){var from=document.getElementById('freeze-from').value;var to=document.getElementById('freeze-to').value;var err=document.getElementById('freeze-err');if(!from||!to){err.textContent='נא לבחור תאריכים';return;}var days=Math.round((new Date(to)-new Date(from))/(1000*60*60*24));if(days<14){err.textContent='מינימום 14 יום הקפאה';return;}err.textContent='';var h=addHistory('❄️ הקפאה',from+' עד '+to+' ('+days+' ימים)');db.collection('members').doc(currentMember.id).update({status:'frozen',freezeFrom:from,freezeUntil:to,freezeDays:(currentMember.freezeDays||0)+days,history:h}).then(function(){currentMember.status='frozen';currentMember.freezeFrom=from;currentMember.freezeUntil=to;currentMember.history=h;showSuccess('הקפאה אושרה!','המנוי מוקפא מ-'+new Date(from).toLocaleDateString('he-IL')+' עד '+new Date(to).toLocaleDateString('he-IL')+'\n'+days+' ימים יקוזזו מהחיוב הבא 🩷');}).catch(function(){err.textContent='שגיאה, נסי שוב';});}
 function submitChange(){var err=document.getElementById('change-err');if(!selectedNewPlan){err.textContent='נא לבחור מנוי';return;}err.textContent='';var p=selectedNewPlan;var h=addHistory('🔄 שינוי מנוי','ל'+p.name+' ('+p.price+' ₪) — יכנס לתוקף בחיוב הבא');db.collection('members').doc(currentMember.id).update({pendingPlan:p.id,pendingPlanName:p.name,pendingAmount:p.price,history:h}).then(function(){currentMember.pendingPlan=p.id;currentMember.pendingPlanName=p.name;currentMember.pendingAmount=p.price;currentMember.history=h;showSuccess('השינוי נרשם!','המנוי ישתנה ל'+p.name+' ('+p.price+' ₪ לחודש)\nהשינוי ייכנס לתוקף בחיוב הבא 🩷');}).catch(function(){err.textContent='שגיאה, נסי שוב';});}
@@ -466,7 +488,7 @@ function submitChangePass(){
   var err=document.getElementById('cp-err');
   var stored=currentMember.password||DEFAULT_PASS;
   if(oldPass!==stored){err.textContent='הסיסמה הנוכחית שגויה';return;}
-  if(newPass.length<4){err.textContent='הסיסמה החדשה חייבת להיות לפחות 4 תווים';return;}
+  if(!newPass){err.textContent='נא להכניס סיסמה חדשה';return;}
   if(newPass!==confirm){err.textContent='הסיסמאות אינן תואמות';return;}
   err.textContent='';
   db.collection('members').doc(currentMember.id).update({password:newPass}).then(function(){
@@ -481,6 +503,22 @@ function submitChangePass(){
 }
 function submitCancel(){var err=document.getElementById('cancel-err');var cancelDate=new Date();cancelDate.setDate(cancelDate.getDate()+14);var cancelStr=cancelDate.toLocaleDateString('he-IL');var h=addHistory('❌ בקשת ביטול','ביטול יכנס לתוקף '+cancelStr);db.collection('members').doc(currentMember.id).update({status:'pending_cancel',cancelRequestDate:new Date().toISOString(),cancelEffectiveDate:cancelDate.toISOString(),history:h}).then(function(){currentMember.status='pending_cancel';currentMember.history=h;showSuccess('בקשת הביטול התקבלה','המנוי יבוטל בתאריך '+cancelStr+'.\nאם תרצי לחזור בך — צרי קשר עם אורית 🩷');}).catch(function(){err.textContent='שגיאה, נסי שוב';});}
 function showSuccess(title,body){document.getElementById('success-title').textContent=title;document.getElementById('success-body').textContent=body;showScreen('successScreen');}
+function submitForgot(){
+  var phone=document.getElementById('forgot-phone').value.replace(/\D/g,'');
+  var err=document.getElementById('forgot-err');
+  var btn=document.getElementById('forgot-btn');
+  if(phone.length<9){err.textContent='נא להכניס מספר טלפון תקין';return;}
+  err.textContent='';
+  db.collection('members').doc(phone).get().then(function(doc){
+    if(!doc.exists){err.textContent='לא נמצא מנוי עם מספר זה';return;}
+    var name=doc.data().name||phone;
+    var msg='היי אורית, המתאמנת '+name+' ('+phone+') ביקשה לאפס סיסמה באזור האישי.';
+    var waUrl='https://wa.me/972542284092?text='+encodeURIComponent(msg);
+    document.getElementById('forgot-ok').style.display='block';
+    btn.style.display='none';
+    window.open(waUrl,'_blank');
+  }).catch(function(){err.textContent='שגיאה, נסי שוב';});
+}
 function openDetailsScreen(){if(currentMember){document.getElementById('det-name').value=currentMember.name||'';document.getElementById('det-email').value=currentMember.email||'';document.getElementById('det-height').value=currentMember.height||'';document.getElementById('det-age').value=currentMember.age||'';}showScreen('detailsScreen');}
 /* מעקב משקל */
 function renderBMI(latestKg){
