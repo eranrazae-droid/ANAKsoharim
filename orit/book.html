@@ -58,6 +58,7 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FAF5F5;m
 <div class="week-bar" id="weekBar">טוען...</div>
 <div class="join-bar">
   מתאמנת חדשה? <a href="join.html">הצטרפי לסטודיו ←</a>
+  &nbsp;·&nbsp; <a onclick="openCancelLookup()" style="cursor:pointer">ביטול הרשמה</a>
 </div>
 <div class="grid" id="grid">
   <div style="grid-column:1/-1;text-align:center;padding:48px;color:#ccc;font-size:14px">טוען לוח שעות...</div>
@@ -74,6 +75,22 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FAF5F5;m
     <div class="fmsg" id="book-msg"></div>
   </div>
 </div>
+<!-- מודל ביטול הרשמה -->
+<div class="overlay" id="cancelOverlay">
+  <div class="modal">
+    <div class="modal-icon">🗓️</div>
+    <h2>ביטול הרשמה</h2>
+    <p class="modal-sub">הכניסי טלפון לחיפוש האימונים שלך</p>
+    <div id="cancelLookup">
+      <input class="finp" id="c-phone" placeholder="טלפון *" type="tel" inputmode="numeric"/>
+      <button class="fbtn" onclick="lookupCancels()">חפשי את האימונים שלי</button>
+    </div>
+    <div id="cancelList" style="display:none;margin-top:12px"></div>
+    <div class="fmsg" id="cancel-msg"></div>
+    <button class="cancel" onclick="closeCancelOverlay()">סגור</button>
+  </div>
+</div>
+
 <div class="succ-overlay" id="succOverlay">
   <div class="succ-box">
     <div class="succ-icon">✅</div>
@@ -108,6 +125,76 @@ function openModal(slotId){var s=findSlot(slotId);if(!s)return;currentSlot=s;doc
 function closeModal(){document.getElementById('overlay').classList.remove('on');}
 document.getElementById('overlay').addEventListener('click',function(e){if(e.target===this)closeModal();});
 function confirmBook(){var name=document.getElementById('b-name').value.trim();var phone=document.getElementById('b-phone').value.trim().replace(/[\s\-\(\)]/g,'');var msg=document.getElementById('book-msg');msg.style.color='#e24b4a';if(!name){msg.textContent='נא להכניס שם';return;}if(!phone||phone.length<9){msg.textContent='מספר טלפון לא תקין';return;}var s=currentSlot;document.getElementById('book-btn').disabled=true;msg.style.color='#888';msg.textContent='מעבד...';var ref=db.collection('bookings').doc(weekKey+'_'+s.id);db.runTransaction(function(t){return t.get(ref).then(function(doc){var regs=doc.exists?(doc.data().registrations||{}):{};if(Object.keys(regs).length>=s.cap)throw new Error('full');if(regs[phone])throw new Error('dup');regs[phone]={name:name,phone:phone,at:new Date().toISOString()};t.set(ref,{registrations:regs,slotId:s.id,weekKey:weekKey,type:s.type,time:s.time},{merge:true});});}).then(function(){counts[s.id]=(counts[s.id]||0)+1;closeModal();renderGrid();document.getElementById('succ-title').textContent='נרשמת! 🩷';document.getElementById('succ-msg').textContent=name+', נרשמת לאימון '+s.type+' בשעה '+s.time+'.\nנתראה בסטודיו!';document.getElementById('succOverlay').classList.add('on');}).catch(function(e){document.getElementById('book-btn').disabled=false;msg.style.color='#e24b4a';if(e.message==='full')msg.textContent='😔 האימון הזה מלא';else if(e.message==='dup')msg.textContent='מספר זה כבר רשום לאימון';else msg.textContent='שגיאה, נסי שוב';});}
+/* ביטול הרשמה */
+var DAY_OFFSET={sun:0,mon:1,tue:2,wed:3,thu:4,fri:5};
+function slotDatetime(slotId,timeStr){
+  var prefix=slotId.split('-')[0];
+  var offset=DAY_OFFSET[prefix]||0;
+  var parts=timeStr.split(':');
+  var sun=new Date(weekKey+'T00:00:00');
+  sun.setDate(sun.getDate()+offset);
+  sun.setHours(parseInt(parts[0]),parseInt(parts[1]),0,0);
+  return sun;
+}
+function canCancel(slotId,timeStr){
+  var dt=slotDatetime(slotId,timeStr);
+  return (dt.getTime()-Date.now())>2*60*60*1000;
+}
+function openCancelLookup(){
+  document.getElementById('c-phone').value='';
+  document.getElementById('cancelList').style.display='none';
+  document.getElementById('cancel-msg').textContent='';
+  document.getElementById('cancelLookup').style.display='block';
+  document.getElementById('cancelOverlay').classList.add('on');
+}
+function closeCancelOverlay(){document.getElementById('cancelOverlay').classList.remove('on');}
+document.getElementById('cancelOverlay').addEventListener('click',function(e){if(e.target===this)closeCancelOverlay();});
+function lookupCancels(){
+  var phone=document.getElementById('c-phone').value.trim().replace(/[\s\-\(\)]/g,'');
+  var msg=document.getElementById('cancel-msg');
+  if(!phone||phone.length<9){msg.style.color='#e24b4a';msg.textContent='מספר לא תקין';return;}
+  msg.style.color='#888';msg.textContent='מחפש...';
+  var allSlots=[];
+  SCHEDULE.forEach(function(d){d.slots.forEach(function(s){allSlots.push(s);});});
+  var ps=allSlots.map(function(s){return db.collection('bookings').doc(weekKey+'_'+s.id).get().then(function(doc){return{slot:s,doc:doc};});});
+  Promise.all(ps).then(function(results){
+    msg.textContent='';
+    var mine=results.filter(function(r){return r.doc.exists&&(r.doc.data().registrations||{})[phone];});
+    if(mine.length===0){msg.style.color='#e24b4a';msg.textContent='לא נמצאו הרשמות לטלפון זה השבוע';return;}
+    document.getElementById('cancelLookup').style.display='none';
+    var html='<div style="font-size:13px;font-weight:700;color:#888;margin-bottom:10px">האימונים שלך השבוע:</div>';
+    mine.forEach(function(r){
+      var s=r.slot;
+      var ok=canCancel(s.id,s.time);
+      var dt=slotDatetime(s.id,s.time);
+      var dayStr=dt.toLocaleDateString('he-IL',{weekday:'short',day:'numeric',month:'numeric'});
+      html+='<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #FAF5F5">'
+        +'<div><div style="font-weight:700;font-size:14px">'+s.type+' · '+s.time+'</div>'
+        +'<div style="font-size:12px;color:#999">'+dayStr+'</div></div>';
+      if(ok){
+        html+='<button onclick="doCancel(\''+s.id+'\',\''+s.time+'\',\''+phone+'\')" style="background:#fce4ec;color:#c62828;border:none;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer">ביטול</button>';
+      } else {
+        html+='<span style="font-size:12px;color:#e24b4a;font-weight:700">מאוחר מדי<br><span style="font-weight:400">פחות משעתיים</span></span>';
+      }
+      html+='</div>';
+    });
+    document.getElementById('cancelList').innerHTML=html;
+    document.getElementById('cancelList').style.display='block';
+    document.getElementById('cancelList')._phone=phone;
+  }).catch(function(){msg.style.color='#e24b4a';msg.textContent='שגיאה, נסי שוב';});
+}
+function doCancel(slotId,timeStr,phone){
+  if(!canCancel(slotId,timeStr)){document.getElementById('cancel-msg').textContent='לא ניתן לבטל פחות משעתיים לפני האימון';return;}
+  var ref=db.collection('bookings').doc(weekKey+'_'+slotId);
+  db.runTransaction(function(t){return t.get(ref).then(function(doc){var regs=doc.exists?(doc.data().registrations||{}):{};delete regs[phone];t.set(ref,{registrations:regs},{merge:true});});}).then(function(){
+    counts[slotId]=Math.max(0,(counts[slotId]||1)-1);
+    renderGrid();
+    closeCancelOverlay();
+    document.getElementById('succ-title').textContent='ההרשמה בוטלה';
+    document.getElementById('succ-msg').textContent='ההרשמה לאימון בשעה '+timeStr+' בוטלה בהצלחה.';
+    document.getElementById('succOverlay').classList.add('on');
+  }).catch(function(){document.getElementById('cancel-msg').textContent='שגיאה, נסי שוב';});
+}
 loadBookings();
 </script>
 </body>
