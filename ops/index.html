@@ -2635,7 +2635,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 166';
+const APP_BUILD = '2026-08-05 · 167';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8171,6 +8171,21 @@ async function _bshopReportDone(j) {
 async function bshopSave(markDone, silent) {
   const j = _bshopJobs.find(x => x.id === _bshopFillId);
   if (!j) return;
+  // a car is only finished once every part carries a price — 0 is an answer,
+  // an empty field is not. This is what makes the Telegram backup complete.
+  if (markDone) {
+    const empty = [...document.querySelectorAll('.bshop-price')].filter(el => el.value.trim() === '');
+    if (empty.length) {
+      empty.forEach(el => {
+        el.style.borderColor = '#dc2626';
+        el.style.background = '#fee2e2';
+        setTimeout(() => { el.style.borderColor = ''; el.style.background = ''; }, 2500);
+      });
+      empty[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+      empty[0].focus();
+      return showToast(`נא למלא מחיר לכל החלקים — חסרים ${empty.length}. חלק שלא עשית — רשום 0`, 5000);
+    }
+  }
   if (markDone) clearTimeout(_bshopSaveTimer);
   const items = (j.items || []).map(it => ({ ...it }));
   document.querySelectorAll('.bshop-price').forEach(el => {
