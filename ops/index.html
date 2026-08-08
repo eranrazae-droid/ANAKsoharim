@@ -2707,6 +2707,19 @@ async function _callAdminUsers(payload) {
 
 async function openUsersScreen() {
   if (currentUser?.role !== 'manager') return;
+  // managing people requires being signed in as yourself, not just showing
+  // your screen — say so instead of letting the server refuse in silence
+  const au = window._auth?.currentUser;
+  if (!au || au.isAnonymous) {
+    document.getElementById('users-list').innerHTML =
+      `<div style="padding:18px;text-align:center">
+        <div style="color:var(--muted);font-size:14px;font-weight:700;margin-bottom:12px">כדי לנהל משתמשים צריך להתחבר עם הטלפון והסיסמה שלך</div>
+        <button onclick="closeModal('modal-users');goToLoginScreen()" class="btn-submit" style="margin-top:0;background:var(--dark);color:#fff">🔐 מעבר להתחברות</button>
+      </div>`;
+    const w = document.getElementById('users-warning');
+    if (w) w.style.display = 'none';
+    return openModal('modal-users');
+  }
   const warn = document.getElementById('users-warning');
   if (warn) {
     warn.style.display = 'block';
@@ -2924,7 +2937,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 179';
+const APP_BUILD = '2026-08-05 · 180';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
