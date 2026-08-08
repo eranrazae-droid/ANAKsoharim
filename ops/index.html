@@ -2413,11 +2413,17 @@ window._authReady = CONFIG_DONE
   ? new Promise(resolve => {
       let settled = false;
       const done = ok => { if (!settled) { settled = true; window._authOk = ok; resolve(ok); } };
-      onAuthStateChanged(auth, user => { if (user) done(true); });
-      signInAnonymously(auth).catch(err => {
-        // Most likely cause: Anonymous sign-in is not enabled for the project.
-        console.error('anonymous sign-in failed', err);
-        done(false);
+      // The first thing to know is whether somebody is already signed in on
+      // this device. Signing in anonymously before checking would replace a
+      // real account with a fresh anonymous one on every single load — which
+      // is exactly what made the sign-in seem not to stick.
+      onAuthStateChanged(auth, user => {
+        if (user) { window._signedInUser = user.isAnonymous ? null : user; return done(true); }
+        signInAnonymously(auth).catch(err => {
+          // Most likely cause: Anonymous sign-in is not enabled for the project.
+          console.error('anonymous sign-in failed', err);
+          done(false);
+        });
       });
       // never hang the app on a slow or blocked auth call
       setTimeout(() => done(!!auth?.currentUser), 8000);
@@ -2508,10 +2514,15 @@ window.addEventListener('firebase-ready', async () => {
     const prev = localStorage.getItem('anak_user');
     if (prev) { _realUser = JSON.parse(prev); localStorage.setItem('anak_real_user', prev); }
   }
+  // an account signed in on this device wins over anything remembered before it
+  if (window._signedInUser) {
+    _enterAsAuthUser(window._signedInUser);
+    return;
+  }
   const saved = localStorage.getItem('anak_user');
   if (saved) {
     const parsed = JSON.parse(saved);
-    const validUsers = ['ליאל', 'גיל', 'עופר', 'איתי'];
+    const validUsers = ['ליאל', 'גיל', 'עופר', 'איתי', 'משה', 'הילה', 'איברהים'];
     if (!parsed || !validUsers.includes(parsed.name)) {
       localStorage.removeItem('anak_user');
       showScreen('login');
@@ -2937,7 +2948,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 181';
+const APP_BUILD = '2026-08-05 · 182';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
