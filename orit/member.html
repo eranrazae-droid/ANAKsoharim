@@ -74,6 +74,17 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FAF5F5;m
 .weight-add-row .finp{margin-bottom:0;flex:1}
 .weight-add-btn{background:#C4A0A0;color:#fff;border:none;border-radius:10px;padding:13px 18px;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0}
 .weight-add-btn:hover{background:#A88484}
+/* האימונים שלי */
+.upcoming-item{background:#FAF5F5;border-radius:12px;padding:14px 16px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.upcoming-item:last-child{margin-bottom:0}
+.upcoming-left{}
+.upcoming-type{font-size:15px;font-weight:800;color:#333}
+.upcoming-time{font-size:13px;color:#C4A0A0;margin-top:2px;font-weight:600}
+.upcoming-date{font-size:12px;color:#999;margin-top:2px}
+.upcoming-actions{display:flex;gap:6px;flex-shrink:0}
+.upcoming-cancel-btn{background:#fff;border:1.5px solid #e24b4a;color:#e24b4a;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
+.upcoming-change-btn{background:#C4A0A0;border:none;color:#fff;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
+.upcoming-late{font-size:11px;color:#bbb;margin-top:4px}
 /* מדריך תזונה */
 .nutr-section{margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid #FAF5F5}
 .nutr-section:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
@@ -178,6 +189,7 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FAF5F5;m
     <div class="card">
       <h2>פעולות</h2>
       <a class="btn btn-primary" href="book.html" style="display:block;text-align:center;text-decoration:none;line-height:1.3;padding:14px">📅 הזמני אימון</a>
+      <button class="btn btn-outline" onclick="openMyBookings()">🗓️ האימונים שלי</button>
       <a class="btn btn-outline" href="https://live.payme.io/sale/template/SALE1786-17649143-YDLQK2TX-8KO0BALI" target="_blank" style="display:block;text-align:center;text-decoration:none;line-height:1.3;padding:14px">➕ אימון בודד — 50 ₪</a>
       <button class="btn btn-outline" onclick="showScreen('freezeScreen')" id="btn-freeze">❄️ הקפאת מנוי</button>
       <button class="btn btn-outline" onclick="showScreen('changeScreen')">🔄 שינוי מנוי</button>
@@ -362,6 +374,15 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FAF5F5;m
     </div>
   </div>
 
+  <!-- האימונים שלי -->
+  <div id="myBookingsScreen" style="display:none">
+    <div class="card">
+      <h2>🗓️ האימונים שלי</h2>
+      <div id="my-bookings-list"><p style="font-size:13px;color:#bbb;text-align:center;padding:16px 0">טוען...</p></div>
+    </div>
+    <button class="btn btn-gray" onclick="showScreen('dashboard')">← חזרה</button>
+  </div>
+
   <!-- מדריך תזונה -->
   <div id="nutritionScreen" style="display:none">
     <div class="card">
@@ -491,7 +512,7 @@ function loadDashboard(){
 }
 function renderChangePlans(){document.getElementById('changePlansList').innerHTML=PLANS.filter(function(p){return p.id!==(currentMember&&currentMember.plan);}).map(function(p){return'<div class="plan-s" id="cpl-'+p.id+'" onclick="selectNewPlan(\''+p.id+'\')">'+'<div class="plan-s-left"><div class="plan-s-radio" id="cpr-'+p.id+'"></div>'+'<span class="plan-s-name">'+p.icon+' '+p.name+'</span></div>'+'<span class="plan-s-price">'+p.price+' ₪</span></div>';}).join('');}
 function selectNewPlan(id){PLANS.forEach(function(p){var el=document.getElementById('cpl-'+p.id);if(el)el.classList.remove('sel');});document.getElementById('cpl-'+id).classList.add('sel');selectedNewPlan=PLANS.find(function(p){return p.id===id;});document.getElementById('change-err').textContent='';}
-function showScreen(name){['loginScreen','dashboard','freezeScreen','changeScreen','detailsScreen','changePassScreen','cancelScreen','successScreen','forgotScreen','nutritionScreen'].forEach(function(s){document.getElementById(s).style.display=s===name?'block':'none';});window.scrollTo(0,0);}
+function showScreen(name){['loginScreen','dashboard','freezeScreen','changeScreen','detailsScreen','changePassScreen','cancelScreen','successScreen','forgotScreen','nutritionScreen','myBookingsScreen'].forEach(function(s){document.getElementById(s).style.display=s===name?'block':'none';});window.scrollTo(0,0);}
 function toggleEye(id,btn){var inp=document.getElementById(id);if(!inp)return;var show=inp.type==='password';inp.type=show?'text':'password';btn.classList.toggle('open',show);}
 function addHistory(type,note){var h=currentMember.history||[];h.push({type:type,date:new Date().toISOString(),note:note||''});return h;}
 function submitFreeze(){var from=document.getElementById('freeze-from').value;var to=document.getElementById('freeze-to').value;var err=document.getElementById('freeze-err');if(!from||!to){err.textContent='נא לבחור תאריכים';return;}var days=Math.round((new Date(to)-new Date(from))/(1000*60*60*24));if(days<14){err.textContent='מינימום 14 יום הקפאה';return;}err.textContent='';var h=addHistory('❄️ הקפאה',from+' עד '+to+' ('+days+' ימים)');db.collection('members').doc(currentMember.id).update({status:'frozen',freezeFrom:from,freezeUntil:to,freezeDays:(currentMember.freezeDays||0)+days,history:h}).then(function(){currentMember.status='frozen';currentMember.freezeFrom=from;currentMember.freezeUntil=to;currentMember.history=h;showSuccess('הקפאה אושרה!','המנוי מוקפא מ-'+new Date(from).toLocaleDateString('he-IL')+' עד '+new Date(to).toLocaleDateString('he-IL')+'\n'+days+' ימים יקוזזו מהחיוב הבא 🩷');}).catch(function(){err.textContent='שגיאה, נסי שוב';});}
@@ -519,6 +540,84 @@ function submitChangePass(){
 }
 function submitCancel(){var err=document.getElementById('cancel-err');var cancelDate=new Date();cancelDate.setDate(cancelDate.getDate()+14);var cancelStr=cancelDate.toLocaleDateString('he-IL');var h=addHistory('❌ בקשת ביטול','ביטול יכנס לתוקף '+cancelStr);db.collection('members').doc(currentMember.id).update({status:'pending_cancel',cancelRequestDate:new Date().toISOString(),cancelEffectiveDate:cancelDate.toISOString(),history:h}).then(function(){currentMember.status='pending_cancel';currentMember.history=h;showSuccess('בקשת הביטול התקבלה','המנוי יבוטל בתאריך '+cancelStr+'.\nאם תרצי לחזור בך — צרי קשר עם אורית 🩷');}).catch(function(){err.textContent='שגיאה, נסי שוב';});}
 function showSuccess(title,body){document.getElementById('success-title').textContent=title;document.getElementById('success-body').textContent=body;showScreen('successScreen');}
+/* האימונים שלי */
+function openMyBookings(){
+  showScreen('myBookingsScreen');
+  renderMyBookings();
+}
+
+function renderMyBookings(){
+  var wrap=document.getElementById('my-bookings-list');
+  var now=new Date();
+  var upcoming=(currentMember.trainings||[]).filter(function(t){
+    return t.status==='booked'&&t.classDate&&new Date(t.classDate)>now;
+  }).sort(function(a,b){return a.classDate>b.classDate?1:-1;});
+  if(!upcoming.length){wrap.innerHTML='<p style="font-size:13px;color:#bbb;text-align:center;padding:16px 0">אין אימונים קרובים רשומים</p>';return;}
+  var html='';
+  upcoming.forEach(function(t,i){
+    var d=new Date(t.classDate);
+    var dateStr=d.toLocaleDateString('he-IL',{weekday:'long',day:'numeric',month:'numeric'});
+    var timeStr=d.toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'});
+    var canCxl=(d.getTime()-now.getTime())>2*60*60*1000;
+    html+='<div class="upcoming-item">'
+      +'<div class="upcoming-left">'
+      +'<div class="upcoming-type">'+escHtml(t.type||'')+'</div>'
+      +'<div class="upcoming-time">'+timeStr+'</div>'
+      +'<div class="upcoming-date">'+dateStr+'</div>'
+      +(!canCxl?'<div class="upcoming-late">פחות משעתיים — לא ניתן לבטל</div>':'')
+      +'</div>'
+      +'<div class="upcoming-actions">'
+      +(canCxl?'<button class="upcoming-cancel-btn" onclick="cancelUpcoming('+i+')">ביטול</button>':'')
+      +'<button class="upcoming-change-btn" onclick="changeUpcoming('+i+')">שינוי שעה</button>'
+      +'</div>'
+      +'</div>';
+  });
+  wrap.innerHTML=html;
+  wrap._upcoming=upcoming;
+}
+
+function cancelUpcoming(i){
+  var wrap=document.getElementById('my-bookings-list');
+  var upcoming=wrap._upcoming;
+  var t=upcoming[i];
+  if(!t)return;
+  if(!confirm('לבטל את האימון '+t.type+' ב-'+new Date(t.classDate).toLocaleDateString('he-IL')+'?'))return;
+  var ref=db.collection('bookings').doc(t.weekKey+'_'+t.slotId);
+  db.runTransaction(function(tx){return tx.get(ref).then(function(doc){
+    var regs=doc.exists?(doc.data().registrations||{}):{};
+    delete regs[currentMember.phone];
+    tx.set(ref,{registrations:regs},{merge:true});
+  });}).then(function(){
+    var updated=(currentMember.trainings||[]).map(function(tr){
+      if(tr.slotId===t.slotId&&tr.weekKey===t.weekKey&&tr.status==='booked')return Object.assign({},tr,{status:'cancelled'});
+      return tr;
+    });
+    currentMember.trainings=updated;
+    return db.collection('members').doc(currentMember.phone).update({trainings:updated});
+  }).then(function(){renderMyBookings();}).catch(function(e){alert('שגיאה: '+e.message);});
+}
+
+function changeUpcoming(i){
+  var wrap=document.getElementById('my-bookings-list');
+  var upcoming=wrap._upcoming;
+  var t=upcoming[i];
+  if(!t)return;
+  if(!confirm('לבטל את האימון הנוכחי ולעבור לבחירת שעה חדשה?'))return;
+  var ref=db.collection('bookings').doc(t.weekKey+'_'+t.slotId);
+  db.runTransaction(function(tx){return tx.get(ref).then(function(doc){
+    var regs=doc.exists?(doc.data().registrations||{}):{};
+    delete regs[currentMember.phone];
+    tx.set(ref,{registrations:regs},{merge:true});
+  });}).then(function(){
+    var updated=(currentMember.trainings||[]).map(function(tr){
+      if(tr.slotId===t.slotId&&tr.weekKey===t.weekKey&&tr.status==='booked')return Object.assign({},tr,{status:'moved'});
+      return tr;
+    });
+    currentMember.trainings=updated;
+    return db.collection('members').doc(currentMember.phone).update({trainings:updated});
+  }).then(function(){window.location.href='book.html';}).catch(function(e){alert('שגיאה: '+e.message);});
+}
+
 function openNutritionGuide(){
   showScreen('nutritionScreen');
   db.collection('config').doc('nutrition_guide').get().then(function(doc){
