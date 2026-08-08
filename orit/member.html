@@ -198,6 +198,7 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FEFCF4;m
   <div id="changePassScreen" style="display:none">
     <div class="card">
       <h2>🔒 שינוי סיסמה</h2>
+      <div class="note-box" id="cp-force-note" style="display:none;background:#fff8e1;color:#7a5800">⚠️ חובה לשנות סיסמה לפני הכניסה לאזור האישי.</div>
       <label class="flabel">סיסמה נוכחית</label>
       <input class="finp" id="cp-old" type="password" placeholder="סיסמה נוכחית"/>
       <label class="flabel">סיסמה חדשה</label>
@@ -206,7 +207,7 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FEFCF4;m
       <input class="finp" id="cp-confirm" type="password" placeholder="חזרי על הסיסמה החדשה"/>
       <div class="err" id="cp-err"></div>
       <button class="btn btn-transparent" onclick="submitChangePass()">שמירה ←</button>
-      <button class="btn btn-gray" onclick="showScreen('dashboard')">← חזרה</button>
+      <button class="btn btn-gray" id="cp-back-btn" onclick="showScreen('dashboard')">← חזרה</button>
     </div>
   </div>
 
@@ -268,7 +269,17 @@ function doLogin(){
     if(pass!==storedPass){err.textContent='סיסמה שגויה';return;}
     currentMember={id:doc.id,...data};
     loadDashboard();
-    showScreen('dashboard');
+    if((data.password||DEFAULT_PASS)===DEFAULT_PASS){
+      document.getElementById('cp-force-note').style.display='block';
+      document.getElementById('cp-back-btn').style.display='none';
+      document.getElementById('cp-old').value='';
+      document.getElementById('cp-new').value='';
+      document.getElementById('cp-confirm').value='';
+      document.getElementById('cp-err').textContent='';
+      showScreen('changePassScreen');
+    } else {
+      showScreen('dashboard');
+    }
   }).catch(function(){err.textContent='שגיאת חיבור, נסי שוב';});
 }
 function doLogout(){currentMember=null;document.getElementById('login-phone').value='';document.getElementById('login-pass').value='';showScreen('loginScreen');}
@@ -318,6 +329,8 @@ function submitChangePass(){
     document.getElementById('cp-old').value='';
     document.getElementById('cp-new').value='';
     document.getElementById('cp-confirm').value='';
+    document.getElementById('cp-force-note').style.display='none';
+    document.getElementById('cp-back-btn').style.display='block';
     showSuccess('הסיסמה שונתה!','הסיסמה שלך עודכנה בהצלחה 🔒');
   }).catch(function(){err.textContent='שגיאה, נסי שוב';});
 }
