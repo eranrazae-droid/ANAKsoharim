@@ -3025,7 +3025,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 197';
+const APP_BUILD = '2026-08-05 · 198';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -5577,9 +5577,12 @@ async function submitDriverIntake() {
   // accessories checklist — the jack row must carry a photo either way, so the
   // manager can see what is actually in the boot
   const safetyChecks = _sfRead();
-  // an unmarked accessory is a missing one — that is what opens the task
+  // an unmarked accessory is a missing one — that is what opens the task.
+  // A missing spare wheel is not one of them: it is written on the intake for
+  // the record, but it does not become a job for anybody.
   const _sfMissing = Object.keys(_SF_ITEMS).filter(id => !safetyChecks[id]);
-  checklist['c-safety'] = _sfMissing.length ? 'x' : 'v';
+  const _sfForTask = _sfMissing.filter(id => id !== 'sf-spare');
+  checklist['c-safety'] = _sfForTask.length ? 'x' : 'v';
   if (_sfMissing.length) checklist['c-safety_note'] = 'חסר: ' + _sfMissing.map(id => _SF_ITEMS[id]).join(', ');
 
   const notes     = document.getElementById('di-notes').value.trim();
