@@ -606,6 +606,15 @@ async function gcal() {
   return google.calendar({ version: "v3", auth: await auth.getClient() });
 }
 
+// which service account this function actually runs as
+async function runtimeAccount() {
+  try {
+    const auth = new google.auth.GoogleAuth({ scopes: ["https://www.googleapis.com/auth/calendar.events"] });
+    const c = await auth.getCredentials();
+    return c.client_email || "(unknown)";
+  } catch (e) { return "(unknown)"; }
+}
+
 async function gcalConfig() {
   const snap = await GCAL_CFG().get();
   const d = snap.exists ? snap.data() : {};
@@ -789,10 +798,12 @@ exports.startCalendarSync = onRequest({ region: GCAL_REGION, cors: true }, async
     }, { merge: true });
 
     const pulled = await pullGoogleChanges();
-    res.json({ ok: true, address, channel: id, ...pulled });
+    res.json({ ok: true, address, channel: id, sharedWith: await runtimeAccount(), ...pulled });
   } catch (e) {
     console.error("startCalendarSync", e);
-    res.status(500).send(e.message);
+    // the usual cause is the calendar not being shared with THIS account, so
+    // the answer says which one it is
+    res.status(500).send(`${e.message} — יש לשתף את היומן עם ${await runtimeAccount()}`);
   }
 });
 
