@@ -452,9 +452,9 @@ if ('serviceWorker' in navigator) {
       1. להפעיל <b>Google Calendar API</b> בפרויקט<br>
       2. לשתף את היומן עם <b style="direction:ltr;display:inline-block">anak-soharim@appspot.gserviceaccount.com</b> בהרשאת <b>עריכת אירועים</b>
     </div>
-    <div class="form-group"><label>איזה יומן לסנכרן</label>
-      <input class="form-input" id="gcal-id" placeholder="primary" style="direction:ltr;text-align:right">
-      <div style="font-size:12px;color:var(--muted);margin-top:5px">"primary" = היומן הראשי שלך. ליומן נפרד — להדביק את כתובת היומן מהגדרות היומן בגוגל.</div>
+    <div class="form-group"><label>מזהה היומן</label>
+      <input class="form-input" id="gcal-id" placeholder="example@gmail.com" style="direction:ltr;text-align:right">
+      <div style="font-size:12px;color:var(--muted);margin-top:5px">ביומן גוגל: הגדרות היומן → "שילוב היומן" → <b>מזהה היומן</b>. ביומן ראשי זו כתובת המייל של החשבון; ביומן נפרד כתובת שמסתיימת ב-group.calendar.google.com. היומן יכול להיות מכל חשבון גוגל.</div>
     </div>
     <button class="btn-submit" onclick="startGcalSync()">🔗 הפעל סנכרון</button>
     <div id="gcal-status" style="margin-top:12px;font-size:13px;font-weight:700;text-align:center"></div>
@@ -2777,7 +2777,8 @@ async function openGcalScreen() {
 window.openGcalScreen = openGcalScreen;
 
 async function startGcalSync() {
-  const calendarId = (document.getElementById('gcal-id').value || '').trim() || 'primary';
+  const calendarId = (document.getElementById('gcal-id').value || '').trim();
+  if (!calendarId) return showToast('נא להדביק את מזהה היומן מהגדרות יומן גוגל');
   const st = document.getElementById('gcal-status');
   const say = (t, ok) => { if (st) { st.textContent = t; st.style.color = ok ? 'var(--success)' : '#b91c1c'; } };
   say('⏳ מפעיל…', true);
@@ -3087,7 +3088,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 201';
+const APP_BUILD = '2026-08-05 · 202';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
