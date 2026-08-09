@@ -3112,7 +3112,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-09 · 204';
+const APP_BUILD = '2026-08-09 · 205';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8414,7 +8414,7 @@ function _bshopJobCard(j, forWorker) {
     </div>
     ${j.note ? `<div class="bs-note" style="margin-top:6px;font-size:13px">📝 ${esc(j.note)}</div>` : ''}
     ${j.photoFailed ? `<div class="bs-note" style="margin-top:6px;background:#fef3c7;color:#92400e;border-right:5px solid #d97706;border-radius:8px;padding:6px 9px;font-size:12px;font-weight:900">⚠️ התמונה לא נשמרה</div>` : ''}
-    ${j.reportFailed ? `<div class="bs-note" style="margin-top:6px;background:#fee2e2;color:#991b1b;border-right:5px solid #dc2626;border-radius:8px;padding:6px 9px;font-size:12px;font-weight:900">⚠️ הגיבוי לטלגרם לא נשלח</div>` : ''}
+    ${j.reportFailed && _BSHOP_TG_BACKUP ? `<div class="bs-note" style="margin-top:6px;background:#fee2e2;color:#991b1b;border-right:5px solid #dc2626;border-radius:8px;padding:6px 9px;font-size:12px;font-weight:900">⚠️ הגיבוי לטלגרם לא נשלח</div>` : ''}
     ${(() => {
       // a price of 0 is a real answer — only an empty field is missing
       const empty = (j.items || []).filter(it => it.price == null || it.price === '').length;
@@ -8732,8 +8732,14 @@ function _bshopAutoSave(now) {
 }
 window._bshopAutoSave = _bshopAutoSave;
 
+// הגיבוי בטלגרם לאיברהים מוקפא עד שיהיה לו חשבון מקושר. כל הקוד למטה
+// שלם ומוכן — להחזרה מספיק להפוך את הדגל הזה ל-true ולקשר אותו במסך
+// הגדרות טלגרם בשורה "איברהים".
+const _BSHOP_TG_BACKUP = false;
+
 // the whole note in one message: the car, what was painted, and the money
 async function _bshopReportDone(j, id) {
+  if (!_BSHOP_TG_BACKUP) return;   // מוקפא — בלי שליחה ובלי התראות כישלון
   try {
     const ils = n => Math.round(n).toLocaleString('he-IL') + ' ₪';
     const sum = (j.items || []).reduce((t, it) => t + (Number(it.price) || 0), 0);
