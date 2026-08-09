@@ -397,6 +397,19 @@ if ('serviceWorker' in navigator) {
   if (navigator.storage?.persist) {
     navigator.storage.persisted?.().then(already => { if (!already) navigator.storage.persist(); }).catch(() => {});
   }
+  /* Keeps every phone on the current version by itself. The page is asked for
+     once a minute; if the build number on the server is not the one running
+     here, the app reloads. A phone left on a home-screen shortcut for days can
+     otherwise keep showing an old screen without anybody realising. */
+  setInterval(async () => {
+    try {
+      const res = await fetch('/ops/index.html?v=' + Date.now(), { cache: 'no-store' });
+      const txt = await res.text();
+      const m = txt.match(/APP_BUILD = '([^']+)'/);
+      if (m && m[1] !== APP_BUILD) location.reload();
+    } catch (e) { /* offline — try again next minute */ }
+  }, 60000);
+
   navigator.serviceWorker.register('/ops/sw.js', { updateViaCache: 'none' }).then(reg => {
     reg.update();
     document.addEventListener('visibilitychange', () => {
@@ -3001,7 +3014,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 195';
+const APP_BUILD = '2026-08-05 · 196';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8036,6 +8049,8 @@ function _bshopListen(onChange) {
   }, err => {
     console.error('bodyshop jobs listen error:', err);
     showToast('⚠️ בעיה בטעינת הרכבים — רענן את הדף');
+    const c = document.getElementById('bshop-open');
+    if (c) c.innerHTML = `<div class="bshop-span" style="padding:20px;text-align:center;color:#b91c1c;font-weight:800">⚠️ בעיה בטעינת הרכבים<br><span style="font-size:12px;font-weight:600">${esc(err.code || err.message || '')}</span></div>`;
   });
   _bshopUnsubCfg = _onSnap(_docRef('config', 'bodyshop'), snap => {
     const d = snap.exists() ? snap.data() : {};
