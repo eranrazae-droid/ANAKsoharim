@@ -3029,7 +3029,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 199';
+const APP_BUILD = '2026-08-05 · 200';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -9270,10 +9270,12 @@ function bsmExportPdf() {
         <td>${esc(it.name)}${it.addedByShop ? ' <span class="add">(הוסיף איברהים)</span>' : ''}</td>
         <td class="p">${it.price == null || it.price === '' ? '—' : ils(Number(it.price))}</td>
       </tr>`).join('');
+    // the parts first, the car's total under them — the way the page is read
     return `<div class="car">
-      <div class="ch"><span>${esc(j.plate || '')}${j.desc ? ' · ' + esc(j.desc) : ''}</span><span>${ils(_bshopTotal(j))}</span></div>
+      <div class="ch"><span>${esc(j.plate || '')}${j.desc ? ' · ' + esc(j.desc) : ''}</span></div>
       ${j.note ? `<div class="note">📝 ${esc(j.note)}</div>` : ''}
       <table>${rows}</table>
+      <div class="csum"><span>סה״כ לרכב</span><span>${ils(_bshopTotal(j))}</span></div>
     </div>`;
   }).join('');
 
@@ -9295,6 +9297,7 @@ function bsmExportPdf() {
   td { font-size:13px; padding:3px 0; border-bottom:1px solid #ddd; }
   td.p { text-align:left; white-space:nowrap; font-weight:bold; width:90px; }
   .add { font-size:11px; color:#92400e; }
+  .csum { display:flex; justify-content:space-between; font-weight:bold; font-size:15px; margin-top:6px; padding-top:5px; border-top:1.5px solid #000; }
   .tot { margin-top:14px; border-top:2px solid #000; padding-top:8px; page-break-inside:avoid; }
   .tot div { display:flex; justify-content:space-between; font-size:14px; padding:2px 0; }
   .tot .big { font-size:18px; font-weight:bold; border-top:1px solid #000; margin-top:6px; padding-top:6px; }
