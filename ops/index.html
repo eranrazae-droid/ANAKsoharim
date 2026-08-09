@@ -2992,7 +2992,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 192';
+const APP_BUILD = '2026-08-05 · 193';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -10605,6 +10605,17 @@ async function submitBsIssue() {
   const row = _bsStock.find(r => r.id === id);
   if (!row) return showToast('נא לבחור מצבר');
   if (!plate) return showToast('נא להזין מספר רישוי');
+  // the car's details are what make the record worth anything later — the
+  // driver pulls them from the ministry before the fitting can be saved
+  if (!car) {
+    const el = document.getElementById('bs-issue-car');
+    if (el) {
+      el.style.borderColor = '#dc2626';
+      setTimeout(() => { el.style.borderColor = ''; }, 2500);
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    return showToast('לחץ על 🔎 משוך פרטים כדי להביא את נתוני הרכב', 5000);
+  }
   if ((row.qty || 0) < 1) return showToast('אין יחידות מהדגם הזה במלאי');
   try {
     // log first — a battery that left the cabinet must be recorded even if the
