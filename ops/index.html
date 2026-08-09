@@ -411,7 +411,11 @@ if ('serviceWorker' in navigator) {
     if (!_busyNow()) return location.reload();
     setTimeout(_reloadWhenIdle, 5000);
   };
-  setInterval(async () => {
+  // only the panel beater's app keeps itself current: his phone lives on a
+  // home-screen shortcut for weeks, while everybody else opens the app from a
+  // browser and gets the new version anyway
+  const _isPahach = /[?&]pahach\b/.test(location.search) || /\/pahach\/?$/.test(location.pathname);
+  if (_isPahach) setInterval(async () => {
     if (_updateWaiting) return;
     try {
       const res = await fetch('/ops/index.html?v=' + Date.now(), { cache: 'no-store' });
@@ -3025,7 +3029,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 198';
+const APP_BUILD = '2026-08-05 · 199';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
