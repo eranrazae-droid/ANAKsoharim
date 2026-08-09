@@ -444,6 +444,23 @@ if ('serviceWorker' in navigator) {
 <body>
 
 <!-- ====== SCREEN: LOGIN ====== -->
+<div class="modal-overlay" id="modal-gcal">
+  <div class="modal-box">
+    <div class="modal-title"><span>📅 סנכרון יומן גוגל</span> <button class="modal-close" onclick="closeModal('modal-gcal')">✕</button></div>
+    <div style="font-size:13px;color:var(--muted);line-height:1.8;margin-bottom:12px">
+      לפני ההפעלה, פעם אחת בלבד:<br>
+      1. להפעיל <b>Google Calendar API</b> בפרויקט<br>
+      2. לשתף את היומן עם <b style="direction:ltr;display:inline-block">anak-soharim@appspot.gserviceaccount.com</b> בהרשאת <b>עריכת אירועים</b>
+    </div>
+    <div class="form-group"><label>איזה יומן לסנכרן</label>
+      <input class="form-input" id="gcal-id" placeholder="primary" style="direction:ltr;text-align:right">
+      <div style="font-size:12px;color:var(--muted);margin-top:5px">"primary" = היומן הראשי שלך. ליומן נפרד — להדביק את כתובת היומן מהגדרות היומן בגוגל.</div>
+    </div>
+    <button class="btn-submit" onclick="startGcalSync()">🔗 הפעל סנכרון</button>
+    <div id="gcal-status" style="margin-top:12px;font-size:13px;font-weight:700;text-align:center"></div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-users">
   <div class="modal-box">
     <div class="modal-title"><span>👥 משתמשים וסיסמאות</span> <button class="modal-close" onclick="closeModal('modal-users')">✕</button></div>
@@ -525,6 +542,7 @@ if ('serviceWorker' in navigator) {
   <div id="task-notif-stack" style="position:fixed;top:0;left:0;right:0;z-index:9000;display:flex;flex-direction:column;align-items:center;pointer-events:none"></div>
   <div class="app-header">
     <div class="logo">ענק <span>הרכבים</span></div>
+    <button id="btn-gcal-settings" onclick="openGcalScreen()" style="display:none;background:rgba(255,255,255,0.15);border:none;border-radius:999px;color:#fff;font-size:13px;font-weight:700;padding:6px 14px;cursor:pointer;font-family:Heebo,sans-serif">📅 יומן גוגל</button>
     <button id="btn-users-settings" onclick="openUsersScreen()" style="display:none;background:rgba(255,255,255,0.15);border:none;border-radius:999px;color:#fff;font-size:13px;font-weight:700;padding:6px 14px;cursor:pointer;font-family:Heebo,sans-serif">👥 משתמשים</button>
     <button id="btn-whatsapp-settings" onclick="goToScreen('_notify')" style="display:none;background:rgba(255,255,255,0.15);border:none;border-radius:999px;color:#fff;font-size:13px;font-weight:700;padding:6px 14px;cursor:pointer;font-family:Heebo,sans-serif">✈️ טלגרם</button>
     <div class="user-badge" id="home-user-badge" onclick="logout()">יציאה</div>
@@ -2740,6 +2758,46 @@ async function goToLoginScreen() {
 }
 window.goToLoginScreen = goToLoginScreen;
 
+/* ── google calendar: the whole setup from one window ────────────────── */
+async function openGcalScreen() {
+  if (currentUser?.role !== 'manager') return;
+  const st = document.getElementById('gcal-status');
+  if (st) st.textContent = '';
+  try {
+    const snap = await window._getDoc(_docRef('config', 'google_calendar'));
+    const d = snap.exists() ? snap.data() : {};
+    document.getElementById('gcal-id').value = d.calendarId || '';
+    if (st && d.channelId) {
+      st.style.color = 'var(--success)';
+      st.textContent = '✅ הסנכרון פעיל' + (d.watchExpires ? ` · מתחדש עד ${new Date(Number(d.watchExpires)).toLocaleDateString('he-IL')}` : '');
+    }
+  } catch (e) { /* nothing saved yet */ }
+  openModal('modal-gcal');
+}
+window.openGcalScreen = openGcalScreen;
+
+async function startGcalSync() {
+  const calendarId = (document.getElementById('gcal-id').value || '').trim() || 'primary';
+  const st = document.getElementById('gcal-status');
+  const say = (t, ok) => { if (st) { st.textContent = t; st.style.color = ok ? 'var(--success)' : '#b91c1c'; } };
+  say('⏳ מפעיל…', true);
+  try {
+    const { setDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    await setDoc(_docRef('config', 'google_calendar'), { calendarId }, { merge: true });
+    // the server registers with google and reads the calendar for the first time
+    const res = await fetch('https://europe-west1-anak-soharim.cloudfunctions.net/startCalendarSync');
+    const txt = await res.text();
+    if (!res.ok) return say('❌ ' + txt.slice(0, 200), false);
+    let info = {};
+    try { info = JSON.parse(txt); } catch (e) {}
+    say(`✅ הסנכרון הופעל${info.changed != null ? ` · נקראו ${info.changed} אירועים` : ''}`, true);
+  } catch (e) {
+    console.error('startGcalSync', e);
+    say('❌ ' + (e.message || 'שגיאה בהפעלה'), false);
+  }
+}
+window.startGcalSync = startGcalSync;
+
 function logout() { openSwitchUser(); }   // every badge in the app calls this
 
 /* ── people and their passwords ───────────────────────────────────────
@@ -3029,7 +3087,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 200';
+const APP_BUILD = '2026-08-05 · 201';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -3049,6 +3107,8 @@ function renderHome() {
   document.getElementById('stat-vehicles').parentElement.style.display = 'none';
   const usersBtn = document.getElementById('btn-users-settings');
   if (usersBtn) usersBtn.style.display = (currentUser?.role === 'manager') ? 'inline-flex' : 'none';
+  const gcalBtn = document.getElementById('btn-gcal-settings');
+  if (gcalBtn) gcalBtn.style.display = (currentUser?.role === 'manager') ? 'inline-flex' : 'none';
   const waBtn = document.getElementById('btn-whatsapp-settings');
   if (waBtn) waBtn.style.display = isManager ? 'inline-block' : 'none';
 
