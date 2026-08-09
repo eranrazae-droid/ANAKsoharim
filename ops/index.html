@@ -2992,7 +2992,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 191';
+const APP_BUILD = '2026-08-05 · 192';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8314,7 +8314,7 @@ function bshopOpenFill(id) {
   const small = j.photo || j.photoThumb || '';
   if (fp) fp.innerHTML = small
     ? `<img id="bshop-fill-img" src="${small}" alt="" onclick="openLightbox(this.src)" style="width:100%;max-height:220px;object-fit:cover;object-position:${_bshopFocusCss(j)};border-radius:12px;margin-bottom:12px;cursor:zoom-in;display:block">` : '';
-  if (small) _bshopLoadFullPhoto(id);   // swaps in the full photo when it is not in memory yet
+  if (small) _bshopLoadFullPhoto(id).then(() => _bshopFixFocus(_bshopJobs.find(x => x.id === id)));
   // the manager's note is the first thing that must be read, so it sits above
   // the parts, in large type, marked in yellow
   const noteEl = document.getElementById('bshop-fill-note');
@@ -8483,11 +8483,33 @@ async function _bshopLoadFullPhoto(id) {
 function _bshopUpgradeCardPhotos() {
   for (const j of _bshopJobs) {
     const img = document.getElementById('bshop-card-img-' + j.id);
-    if (!img || j.photo) continue;
+    if (!img) continue;
+    if (j.photo) { _bshopFixFocus(j); continue; }
     _bshopFullPhoto(j.id).then(url => {
       const el = document.getElementById('bshop-card-img-' + j.id);
       if (url && el) el.src = url;
+      _bshopFixFocus(j);
     });
+  }
+}
+
+/* Notes written before the plate was looked for keep no focus point, so their
+   picture is cropped through the middle and the plate falls out of view. The
+   point is worked out here from the photo itself, once per note. */
+async function _bshopFixFocus(j) {
+  if (!j || j.photoFocus || j._focusTried || !j.photo) return;
+  j._focusTried = true;
+  const focus = await _bsmPlateFocus(j.photo).catch(() => null);
+  if (!focus) return;
+  j.photoFocus = focus;
+  const css = _bshopFocusCss(j);
+  const card = document.getElementById('bshop-card-img-' + j.id);
+  if (card) card.style.objectPosition = css;
+  const open = document.getElementById('bshop-fill-img');
+  if (open && _bshopFillId === j.id) open.style.objectPosition = css;
+  // kept on the note, so it is only worked out once and everybody sees it
+  if (currentUser?.role === 'manager') {
+    await _updateDoc(_docRef('bodyshop_jobs', j.id), { photoFocus: focus }).catch(() => {});
   }
 }
 
