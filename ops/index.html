@@ -225,6 +225,7 @@ body.modal-open{overflow:hidden}
 .bsm-fab{width:190px;text-align:center;border:none;border-radius:14px;padding:13px 12px;font-family:'Heebo',sans-serif;font-size:15px;font-weight:900;cursor:pointer;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.3)}
 .bsm-fab-gold{background:var(--gold);color:#000}
 .bsm-fab-dark{background:var(--dark);color:#fff}
+.bsm-fab-red{background:#ef4444;color:#fff}
 @media(max-width:600px){
   #bsm-top-actions{bottom:14px;left:10px;gap:8px}
   .bsm-fab{width:168px;padding:11px 10px;font-size:14px;border-radius:12px}
@@ -1580,6 +1581,7 @@ if ('serviceWorker' in navigator) {
     <div id="bsm-top-actions">
       <button class="bsm-fab bsm-fab-gold" onclick="openBsmSendModal()">➕ יצירת פתק</button>
       <button class="bsm-fab bsm-fab-dark" onclick="openBsmItemsModal()">⚙️ רשימת חלקים</button>
+      <button class="bsm-fab bsm-fab-red" onclick="openBsmDelete()">🗑 מחק פתק</button>
     </div>
     <div id="bsm-summary" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px;align-items:stretch">
       <div id="bsm-summary-tile"></div>
@@ -1593,9 +1595,6 @@ if ('serviceWorker' in navigator) {
     <div id="bsm-view-open">
       <div class="section-title">אצל הפחח</div>
       <div id="bsm-open" class="bshop-grid"></div>
-      <div style="margin-top:22px;text-align:center">
-        <button onclick="bshopResetJobs()" style="background:var(--surface2);color:var(--muted);border:2px solid var(--border);border-radius:10px;padding:8px 18px;font-family:'Heebo',sans-serif;font-size:13px;font-weight:800;cursor:pointer">🧹 אפס פתקים</button>
-      </div>
     </div>
     <div id="bsm-view-done" style="display:none">
       <div class="section-title">✅ מכוניות שסיימנו</div>
@@ -1655,6 +1654,15 @@ if ('serviceWorker' in navigator) {
   <div class="modal-box">
     <div class="modal-title"><span id="bsm-arccar-title">🚗</span> <button class="modal-close" onclick="closeModal('modal-bsm-arccar')">✕</button></div>
     <div id="bsm-arccar-body"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-bsm-delete">
+  <div class="modal-box">
+    <div class="modal-title"><span>🗑 מחיקת פתק</span> <button class="modal-close" onclick="closeModal('modal-bsm-delete')">✕</button></div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:10px">כל הפתקים במערכת — ממתינים לשליחה, אצל הפחח, שסיימנו ומהארכיון. מחיקה היא לתמיד.</div>
+    <input class="form-input" id="bsm-del-search" placeholder="🔎 חפש מספר רכב" inputmode="numeric" oninput="_bsmRenderDelete()" style="margin-bottom:12px">
+    <div id="bsm-del-list"></div>
   </div>
 </div>
 
@@ -2992,7 +3000,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 193';
+const APP_BUILD = '2026-08-05 · 194';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -8193,27 +8201,77 @@ function openBodyShopScreen() {
 }
 window.openBodyShopScreen = openBodyShopScreen;
 
-// Clears every note in the open cycle — the cars in progress and the finished
-// ones. Notes that were already paid for sit in the archive and are not touched.
-async function bshopResetJobs() {
-  const jobs = [..._bshopJobs];
-  if (!jobs.length) return showToast('אין פתקים לאיפוס');
-  const sum = jobs.reduce((s, j) => s + _bshopTotal(j), 0);
-  if (!confirm(`לאפס את כל הפתקים?\n\n${jobs.length} פתקים (${sum.toLocaleString('he-IL')} ₪) יימחקו לתמיד.\nגם המנהל לא יראה אותם יותר.\nחשבונות שכבר נסגרו לא ייפגעו.`)) return;
-  try {
-    const { writeBatch } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-    for (let i = 0; i < jobs.length; i += 200) {
-      const batch = writeBatch(window._db);
-      for (const j of jobs.slice(i, i + 200)) {
-        batch.delete(_docRef('bodyshop_jobs', j.id));
-        batch.delete(_docRef('bodyshop_photos', j.id)); // deleting a photo that was never saved is harmless
-      }
-      await batch.commit();
-    }
-    showToast('🧹 הפתקים אופסו');
-  } catch (e) { showToast('שגיאה: ' + (e.code || e.message)); }
+/* Deleting one note at a time, from anywhere it may live: waiting to be sent,
+   at the shop, finished, or inside a payment folder. A folder that loses a car
+   has its total corrected, so the archive keeps adding up. */
+function openBsmDelete() {
+  const el = document.getElementById('bsm-del-search');
+  if (el) el.value = '';
+  _bsmRenderDelete();
+  openModal('modal-bsm-delete');
 }
-window.bshopResetJobs = bshopResetJobs;
+window.openBsmDelete = openBsmDelete;
+
+function _bsmDeleteRows() {
+  const label = { draft: 'ממתין לשליחה', at_shop: 'אצל הפחח', returned: 'סיימנו' };
+  const rows = _bshopJobs.map(j => ({
+    key: 'job:' + j.id, plate: j.plate || '', desc: j.desc || '',
+    where: label[j.status] || j.status, total: _bshopTotal(j),
+  }));
+  for (const a of _bshopArchive) {
+    (a.cars || []).forEach((c, i) => rows.push({
+      key: `arc:${a.id}:${i}`, plate: c.plate || '', desc: c.desc || '',
+      where: 'ארכיון · ' + (a.title || ''), total: Number(c.total || 0),
+    }));
+  }
+  return rows;
+}
+
+function _bsmRenderDelete() {
+  const c = document.getElementById('bsm-del-list');
+  if (!c) return;
+  const term = (document.getElementById('bsm-del-search')?.value || '').replace(/\D/g, '');
+  let rows = _bsmDeleteRows();
+  if (term) rows = rows.filter(r => String(r.plate).replace(/\D/g, '').startsWith(term));
+  c.innerHTML = rows.length ? rows.map(r => `
+    <div style="display:flex;align-items:center;gap:10px;border:2px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:8px;background:var(--card)">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:900;font-size:15px">${esc(r.plate)}</div>
+        <div style="font-size:12px;color:var(--muted);font-weight:700">${esc(r.where)}${r.desc ? ' · ' + esc(r.desc) : ''}${r.total ? ' · ' + r.total.toLocaleString('he-IL') + ' ₪' : ''}</div>
+      </div>
+      <button onclick="bsmDeleteOne('${r.key}')" style="background:#ef4444;color:#fff;border:none;border-radius:8px;width:34px;height:34px;font-size:15px;cursor:pointer">🗑</button>
+    </div>`).join('')
+    : `<div style="padding:16px;text-align:center;color:var(--muted)">${term ? 'לא נמצא פתק במספר הזה' : 'אין פתקים'}</div>`;
+}
+
+async function bsmDeleteOne(key) {
+  const [kind, a1, a2] = key.split(':');
+  try {
+    const { deleteDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    if (kind === 'job') {
+      const j = _bshopJobs.find(x => x.id === a1);
+      if (!j || !confirm(`למחוק לתמיד את הפתק של ${j.plate}?`)) return;
+      await deleteDoc(_docRef('bodyshop_jobs', j.id));
+      await deleteDoc(_docRef('bodyshop_photos', j.id)).catch(() => {});
+    } else {
+      const a = _bshopArchive.find(x => x.id === a1);
+      const idx = Number(a2);
+      const car = a?.cars?.[idx];
+      if (!a || !car || !confirm(`למחוק את ${car.plate} מהתיקייה "${a.title || ''}"?\nסכום התיקייה יעודכן בהתאם.`)) return;
+      const cars = a.cars.filter((_, i) => i !== idx);
+      const total = cars.reduce((t, c) => t + Number(c.total || 0), 0);
+      await _updateDoc(_docRef('bodyshop_archive', a.id), { cars, total });
+      // the paid note behind it goes too, so it cannot come back in a report
+      if (car.id) {
+        await deleteDoc(_docRef('bodyshop_jobs', car.id)).catch(() => {});
+        await deleteDoc(_docRef('bodyshop_photos', car.id)).catch(() => {});
+      }
+    }
+    showToast('🗑 נמחק');
+    setTimeout(_bsmRenderDelete, 400);
+  } catch (e) { showToast('שגיאה במחיקה: ' + (e.code || e.message)); }
+}
+window.bsmDeleteOne = bsmDeleteOne;
 
 function _bshopJobCard(j, forWorker) {
   const total = _bshopTotal(j);
