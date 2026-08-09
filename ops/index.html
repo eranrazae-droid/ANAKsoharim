@@ -401,12 +401,23 @@ if ('serviceWorker' in navigator) {
      once a minute; if the build number on the server is not the one running
      here, the app reloads. A phone left on a home-screen shortcut for days can
      otherwise keep showing an old screen without anybody realising. */
+  let _updateWaiting = false;
+  // never reload on top of somebody's hands: not while a window is open, not
+  // while a field is being typed in, and not while a save is still in flight
+  const _busyNow = () => !!document.querySelector('.modal-overlay.open')
+    || ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)
+    || document.body.classList.contains('modal-open');
+  const _reloadWhenIdle = () => {
+    if (!_busyNow()) return location.reload();
+    setTimeout(_reloadWhenIdle, 5000);
+  };
   setInterval(async () => {
+    if (_updateWaiting) return;
     try {
       const res = await fetch('/ops/index.html?v=' + Date.now(), { cache: 'no-store' });
       const txt = await res.text();
       const m = txt.match(/APP_BUILD = '([^']+)'/);
-      if (m && m[1] !== APP_BUILD) location.reload();
+      if (m && m[1] !== APP_BUILD) { _updateWaiting = true; _reloadWhenIdle(); }
     } catch (e) { /* offline — try again next minute */ }
   }, 60000);
 
@@ -3014,7 +3025,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 196';
+const APP_BUILD = '2026-08-05 · 197';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
