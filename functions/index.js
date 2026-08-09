@@ -598,6 +598,7 @@ const { google } = require("googleapis");
 const GCAL_REGION = "europe-west1";
 const GCAL_CFG = () => db.collection("config").doc("google_calendar");
 const GCAL_TAG = "anak_event_id";   // our id, kept on the google event
+const GCAL_SPAN = 2 * 365 * 86400000;   // how far a full read reaches, each way
 
 async function gcal() {
   const auth = new google.auth.GoogleAuth({
@@ -718,7 +719,13 @@ async function pullGoogleChanges() {
     try {
       res = await cal.events.list({
         calendarId, singleEvents: true, showDeleted: true, maxResults: 250,
-        ...(token ? { syncToken: token } : { timeMin: new Date(Date.now() - 30 * 86400000).toISOString() }),
+        // the first read takes the whole calendar — two years back and two
+        // years forward. A repeating event has to be given an end for google
+        // to expand it, so both bounds are needed here.
+        ...(token ? { syncToken: token } : {
+          timeMin: new Date(Date.now() - GCAL_SPAN).toISOString(),
+          timeMax: new Date(Date.now() + GCAL_SPAN).toISOString(),
+        }),
         ...(pageToken ? { pageToken } : {}),
       });
     } catch (e) {
@@ -765,6 +772,27 @@ async function pullGoogleChanges() {
   return { changed };
 }
 
+// the trigger above only fires when a document is written, so events that
+// were already in the app when the sync was switched on would never reach
+// google on their own. This sends them once.
+async function pushAllToGoogle() {
+  const { calendarId } = await gcalConfig();
+  if (!calendarId) return { pushed: 0 };
+  const cal = await gcal();
+  const snap = await db.collection("calendar_events").get();
+  let pushed = 0;
+  for (const doc of snap.docs) {
+    const e = doc.data();
+    if (e.gcalId) continue;                 // already over there
+    try {
+      const res = await cal.events.insert({ calendarId, requestBody: toGoogleEvent(doc.id, e) });
+      await doc.ref.update({ gcalId: res.data.id });
+      pushed++;
+    } catch (err) { console.error("pushAllToGoogle", doc.id, err.message); }
+  }
+  return { pushed };
+}
+
 // google calls this the moment anything changes in the calendar
 exports.calendarPush = onRequest({ region: GCAL_REGION, cors: false }, async (req, res) => {
   res.status(200).send("ok");   // google wants an immediate answer
@@ -795,15 +823,68 @@ exports.startCalendarSync = onRequest({ region: GCAL_REGION, cors: true }, async
     await GCAL_CFG().set({
       channelId: id, resourceId: watch.data.resourceId,
       watchExpires: watch.data.expiration || "", updatedAt: new Date().toISOString(),
+      syncToken: "",   // pressing the button means: read everything again
     }, { merge: true });
 
     const pulled = await pullGoogleChanges();
-    res.json({ ok: true, address, channel: id, sharedWith: await runtimeAccount(), ...pulled });
+    const sent = await pushAllToGoogle();
+    res.json({ ok: true, address, channel: id, sharedWith: await runtimeAccount(), ...pulled, ...sent });
   } catch (e) {
     console.error("startCalendarSync", e);
     // the usual cause is the calendar not being shared with THIS account, so
     // the answer says which one it is
     res.status(500).send(`${e.message} — יש לשתף את היומן עם ${await runtimeAccount()}`);
+  }
+});
+
+// reads nothing and changes nothing — it only answers "what does each side
+// actually hold right now", so a sync problem can be located instead of guessed
+exports.calendarDiag = onRequest({ region: GCAL_REGION, cors: true }, async (req, res) => {
+  const out = { account: await runtimeAccount() };
+  try {
+    const cfg = await gcalConfig();
+    out.config = {
+      calendarId: cfg.calendarId || "(חסר)",
+      hasChannel: !!cfg.channelId,
+      hasSyncToken: !!cfg.syncToken,
+    };
+
+    const snap = await db.collection("calendar_events").get();
+    out.app = {
+      total: snap.size,
+      withGcalId: snap.docs.filter((d) => d.data().gcalId).length,
+      sample: snap.docs.slice(0, 5).map((d) => ({
+        id: d.id, title: d.data().title, date: d.data().date, gcalId: d.data().gcalId || null,
+      })),
+    };
+
+    if (!cfg.calendarId) { out.google = "אין מזהה יומן"; return res.json(out); }
+    const cal = await gcal();
+    try {
+      const list = await cal.calendarList.list();
+      out.visibleCalendars = (list.data.items || []).map((c) => c.id);
+    } catch (e) { out.visibleCalendars = `שגיאה: ${e.message}`; }
+
+    try {
+      const ev = await cal.events.list({
+        calendarId: cfg.calendarId, singleEvents: true, maxResults: 250,
+        timeMin: new Date(Date.now() - GCAL_SPAN).toISOString(),
+        timeMax: new Date(Date.now() + GCAL_SPAN).toISOString(),
+      });
+      const items = ev.data.items || [];
+      out.google = {
+        total: items.length,
+        tagged: items.filter((e) => e.extendedProperties?.private?.[GCAL_TAG]).length,
+        sample: items.slice(0, 5).map((e) => ({
+          id: e.id, summary: e.summary, start: e.start?.dateTime || e.start?.date,
+        })),
+      };
+    } catch (e) { out.google = `שגיאה בקריאת היומן: ${e.message}`; }
+
+    res.json(out);
+  } catch (e) {
+    out.error = e.message;
+    res.status(500).json(out);
   }
 });
 

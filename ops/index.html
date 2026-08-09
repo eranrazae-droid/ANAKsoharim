@@ -457,7 +457,8 @@ if ('serviceWorker' in navigator) {
       <div style="font-size:12px;color:var(--muted);margin-top:5px">ביומן גוגל: הגדרות היומן → "שילוב היומן" → <b>מזהה היומן</b>. ביומן ראשי זו כתובת המייל של החשבון; ביומן נפרד כתובת שמסתיימת ב-group.calendar.google.com. היומן יכול להיות מכל חשבון גוגל.</div>
     </div>
     <button class="btn-submit" onclick="startGcalSync()">🔗 הפעל סנכרון</button>
-    <div id="gcal-status" style="margin-top:12px;font-size:13px;font-weight:700;text-align:center"></div>
+    <button class="btn-submit" onclick="checkGcalSync()" style="margin-top:8px;background:#334155">🔍 בדיקת סנכרון</button>
+    <div id="gcal-status" style="margin-top:12px;font-size:13px;font-weight:700;text-align:center;white-space:pre-line"></div>
   </div>
 </div>
 
@@ -2791,13 +2792,36 @@ async function startGcalSync() {
     if (!res.ok) return say('❌ ' + txt.slice(0, 200), false);
     let info = {};
     try { info = JSON.parse(txt); } catch (e) {}
-    say(`✅ הסנכרון הופעל${info.changed != null ? ` · נקראו ${info.changed} אירועים` : ''}`, true);
+    say(`✅ הסנכרון הופעל · נקראו ${info.changed ?? 0} אירועים מגוגל · נשלחו ${info.pushed ?? 0} אירועים לגוגל`, true);
   } catch (e) {
     console.error('startGcalSync', e);
     say('❌ ' + (e.message || 'שגיאה בהפעלה'), false);
   }
 }
 window.startGcalSync = startGcalSync;
+
+// shows what each side actually holds, so a sync problem can be seen and not guessed
+async function checkGcalSync() {
+  const st = document.getElementById('gcal-status');
+  const say = (t, ok) => { if (st) { st.textContent = t; st.style.color = ok ? 'var(--success)' : '#b91c1c'; } };
+  say('⏳ בודק…', true);
+  try {
+    const res = await fetch('https://europe-west1-anak-soharim.cloudfunctions.net/calendarDiag');
+    const d = await res.json();
+    const g = d.google;
+    const lines = [
+      `חשבון השירות: ${d.account}`,
+      `יומן מוגדר: ${d.config?.calendarId}`,
+      `ביומן שלנו באפליקציה: ${d.app?.total} אירועים · ${d.app?.withGcalId} מהם כבר בגוגל`,
+      typeof g === 'string' ? `גוגל: ${g}` : `ביומן גוגל: ${g?.total} אירועים · ${g?.tagged} מהם משויכים לאפליקציה`,
+    ];
+    say(lines.join('\n'), true);
+    console.log('calendarDiag', d);
+  } catch (e) {
+    say('❌ ' + (e.message || 'שגיאה בבדיקה'), false);
+  }
+}
+window.checkGcalSync = checkGcalSync;
 
 function logout() { openSwitchUser(); }   // every badge in the app calls this
 
@@ -3088,7 +3112,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-05 · 203';
+const APP_BUILD = '2026-08-09 · 204';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
