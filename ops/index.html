@@ -3134,7 +3134,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-09 · 206';
+const APP_BUILD = '2026-08-09 · 207';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -7012,6 +7012,24 @@ function _renderInvResultFiltered(filter) {
   document.getElementById('inv-list').innerHTML = html;
 }
 
+// הטבלה תמיד מסודרת לפי א-ב של היצרן, ובתוך כל יצרן לפי הדגם — לא משנה
+// אם השורות הגיעו מקובץ אקסל או מהדבקת מלל
+function sortInventoryRows() {
+  const mfrIdx = inventoryHeaders.findIndex(h => String(h).includes('יצרן'));
+  // "דגם" בלבד, כדי שלא ייתפס "תת דגם" במקומו
+  const mdlIdx = inventoryHeaders.findIndex(h => {
+    const s = String(h).trim();
+    return s.includes('דגם') && !s.includes('תת');
+  });
+  if (mfrIdx < 0 && mdlIdx < 0) return;
+  inventoryRows.sort((a, b) => {
+    const get = (r, i) => (i >= 0 ? (r.cells[i] || '') : '');
+    const cmp = get(a, mfrIdx).localeCompare(get(b, mfrIdx), 'he');
+    if (cmp !== 0) return cmp;
+    return get(a, mdlIdx).localeCompare(get(b, mdlIdx), 'he');
+  });
+}
+
 function handleInventoryFile(input) {
   const file = input.files[0];
   if (!file) return;
@@ -7039,20 +7057,7 @@ function handleInventoryFile(input) {
         inventoryRows = nonEmpty.slice(1).map(r => ({ cells: r, status: null }));
       }
       if (!inventoryRows.length) { showToast('לא נמצאו שורות בקובץ'); return; }
-      // sort by יצרן then דגם
-      const mfrIdx = inventoryHeaders.findIndex(h => h.includes('יצרן'));
-      const mdlIdx = inventoryHeaders.findIndex(h => h.includes('דגם'));
-      if (mfrIdx >= 0 || mdlIdx >= 0) {
-        inventoryRows.sort((a, b) => {
-          const mfrA = mfrIdx >= 0 ? (a.cells[mfrIdx] || '') : '';
-          const mfrB = mfrIdx >= 0 ? (b.cells[mfrIdx] || '') : '';
-          const cmp = mfrA.localeCompare(mfrB, 'he');
-          if (cmp !== 0) return cmp;
-          const mdlA = mdlIdx >= 0 ? (a.cells[mdlIdx] || '') : '';
-          const mdlB = mdlIdx >= 0 ? (b.cells[mdlIdx] || '') : '';
-          return mdlA.localeCompare(mdlB, 'he');
-        });
-      }
+      sortInventoryRows();
       renderInventoryList();
     } catch(err) {
       console.error('handleInventoryFile error', err);
@@ -7156,6 +7161,7 @@ function applyInvPaste() {
     && inventoryHeaders.every((h, i) => _invNorm(h) === _INV_COLS[i]);
   if (!same) { inventoryHeaders = [..._INV_COLS]; inventoryRows = []; }
   rows.forEach(cells => inventoryRows.push({ cells, status: null }));
+  sortInventoryRows();
 
   closeModal('modal-inv-paste');
   renderInventoryList();
