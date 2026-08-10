@@ -463,17 +463,20 @@ if ('serviceWorker' in navigator) {
 </div>
 
 <div class="modal-overlay" id="modal-inv-paste">
-  <div class="modal">
-    <div class="modal-header">
-      <div class="modal-title">📝 הוספת מלאי לפי מלל</div>
-      <button class="modal-close" onclick="closeModal('modal-inv-paste')">✕</button>
-    </div>
-    <div class="modal-body">
-      <div style="font-size:13px;color:var(--muted);margin-bottom:8px">להעתיק את השורות מהטבלה ולהדביק כאן. המערכת תשלוף לבד את העמודות: רישוי, יצרן, דגם, תת דגם, שנה, צבע. שורת כותרות אינה חובה.</div>
-      <textarea id="inv-paste-text" rows="10" placeholder="67790503&#9;מזדה&#9;MAZDA CX-5&#9;EXECUTIVE&#9;2024&#9;שנהב לבן" style="width:100%;background:#fff;border:2px solid var(--border);border-radius:12px;padding:10px;font-family:Heebo,sans-serif;font-size:14px;direction:rtl"></textarea>
-      <button class="btn-submit" onclick="applyInvPaste()">➕ הוסף לטבלה</button>
-      <div id="inv-paste-status" style="margin-top:10px;font-size:13px;font-weight:700;text-align:center;white-space:pre-line"></div>
-    </div>
+  <div class="modal-box">
+    <div class="modal-title"><span>📝 הוספת מלאי לפי מלל</span> <button class="modal-close" onclick="closeModal('modal-inv-paste')">✕</button></div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:10px;line-height:1.7">להעתיק את השורות מהטבלה ולהדביק כאן. המערכת תשלוף לבד את העמודות: רישוי, יצרן, דגם, תת דגם, שנה, צבע. שורת כותרות אינה חובה.</div>
+    <textarea id="inv-paste-text" rows="10" placeholder="67790503&#9;מזדה&#9;MAZDA CX-5&#9;EXECUTIVE&#9;2024&#9;שנהב לבן" style="width:100%;background:#fff;border:2px solid var(--border);border-radius:12px;padding:10px;font-family:Heebo,sans-serif;font-size:14px;direction:rtl"></textarea>
+    <button class="btn-submit" onclick="applyInvPaste()">➕ הוסף לטבלה</button>
+    <div id="inv-paste-status" style="margin-top:10px;font-size:13px;font-weight:700;text-align:center;white-space:pre-line"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-pickup-map">
+  <div class="modal-box" style="max-width:100%;height:92vh;max-height:92vh;padding:14px 12px;display:flex;flex-direction:column">
+    <div class="modal-title" style="margin-bottom:10px"><span>🗺️ מפת איסוף</span> <button class="modal-close" onclick="closeModal('modal-pickup-map')">✕</button></div>
+    <div id="pickup-map-status" style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px;text-align:center"></div>
+    <div id="pickup-map" style="flex:1;min-height:0;border-radius:14px;overflow:hidden;background:#e5e7eb"></div>
   </div>
 </div>
 
@@ -2079,6 +2082,7 @@ if ('serviceWorker' in navigator) {
     </select>
     <button id="pickup-sort-btn" onclick="cyclePickupSort()" style="flex:1;min-width:160px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;text-align:center">סינון לפי זמן המתנה מהגבוה לנמוך</button>
     <button id="pickup-dist-btn" onclick="togglePickupDistSort()" style="flex:1;min-width:150px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;text-align:center">📍 מיון לפי מרחק</button>
+    <button onclick="openPickupMap()" style="flex:1;min-width:110px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;text-align:center">🗺️ מפה</button>
     <button onclick="openPickupContacts()" style="flex:1;min-width:130px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;text-align:center">👥 אנשי קשר</button>
     <button id="pickup-select-btn" onclick="toggleSelectAllPickup()" style="flex:1;min-width:120px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;text-align:center">☑️ סמן הכל</button>
   </div>
@@ -3134,7 +3138,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-09 · 208';
+const APP_BUILD = '2026-08-09 · 209';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -14621,6 +14625,136 @@ function _pickupCity(c) {
     if (a.alias && n.includes(_normCityName(a.alias))) return a.city;
   }
   return c.city || '';
+}
+
+/* ── מפת האיסוף ──────────────────────────────────────────────────────
+   המפה נטענת רק כשנכנסים אליה, כדי שהיא לא תכביד על שאר המערכת.
+   כל כתובת מומרת לנקודה פעם אחת בלבד והנקודה נשמרת על הרכב עצמו, כך
+   שפתיחה חוזרת של המפה לא פונה שוב לשירות הכתובות.
+   על המפה מסומנות רק נקודות האיסוף — אין סימון של המגרש ואין סיכות אחרות.
+─────────────────────────────────────────────────────────────────────── */
+let _leafletP = null;
+function _loadLeaflet() {
+  if (_leafletP) return _leafletP;
+  _leafletP = new Promise((resolve, reject) => {
+    const css = document.createElement('link');
+    css.rel = 'stylesheet';
+    css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+    document.head.appendChild(css);
+    const js = document.createElement('script');
+    js.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+    js.onload = () => resolve(window.L);
+    js.onerror = () => reject(new Error('טעינת המפה נכשלה'));
+    document.head.appendChild(js);
+  });
+  return _leafletP;
+}
+
+// הכתובת כפי שהיא מזוהה — משמשת גם כמפתח של הנקודה השמורה, כדי שכתובת
+// שהשתנתה תומר מחדש וכתובת שלא השתנתה לא תיגע בשירות
+const _geoKeyOf = car => `${(car.address || '').trim()}|${_pickupCity(car).trim()}`;
+
+let _geoLast = 0;
+async function _geocodeAddress(street, city) {
+  // שירות הכתובות מבקש לא להעמיס — פנייה אחת בשנייה
+  const wait = Math.max(0, 1100 - (Date.now() - _geoLast));
+  if (wait) await new Promise(r => setTimeout(r, wait));
+  _geoLast = Date.now();
+  const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=il'
+    + `&street=${encodeURIComponent(street || '')}&city=${encodeURIComponent(city || '')}`;
+  const res = await fetch(url, { headers: { 'Accept-Language': 'he' } });
+  if (!res.ok) throw new Error('geocode ' + res.status);
+  const j = await res.json();
+  if (!j.length) return null;
+  return [Number(j[0].lat), Number(j[0].lon)];
+}
+
+let _pickupMap = null, _pickupMapLayer = null;
+
+async function openPickupMap() {
+  openModal('modal-pickup-map');
+  const st = document.getElementById('pickup-map-status');
+  const say = t => { if (st) st.textContent = t; };
+  say('⏳ טוען מפה…');
+  let L;
+  try { L = await _loadLeaflet(); } catch (e) { return say('❌ ' + e.message); }
+
+  if (!_pickupMap) {
+    _pickupMap = L.map('pickup-map', { zoomControl: true }).setView([32.0, 34.85], 9);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19, attribution: '© OpenStreetMap',
+    }).addTo(_pickupMap);
+    _pickupMapLayer = L.layerGroup().addTo(_pickupMap);
+  }
+  // המודאל נפתח אחרי שהמפה נבנתה, אז צריך למדוד את הגודל מחדש
+  setTimeout(() => _pickupMap.invalidateSize(), 250);
+
+  const cars = _pickupMapCars();
+  if (!cars.length) { _pickupMapLayer.clearLayers(); return say('אין רכבים לאיסוף'); }
+
+  await _pickupDrawMarkers(L, cars, say);
+}
+window.openPickupMap = openPickupMap;
+
+// אותם רכבים שמוצגים ברשימה כרגע — אותו חיפוש ואותו סינון עיר
+function _pickupMapCars() {
+  const cityFilter = document.getElementById('pickup-filter-city')?.value || '';
+  const term = (document.getElementById('pickup-search-plate')?.value || '').replace(/\D/g, '');
+  let cars = [..._pickupAllCars];
+  if (cityFilter) cars = cars.filter(c => _pickupCity(c).trim() === cityFilter);
+  if (term) cars = cars.filter(c => String(c.plate || '').replace(/\D/g, '').startsWith(term));
+  return cars;
+}
+
+async function _pickupDrawMarkers(L, cars, say) {
+  _pickupMapLayer.clearLayers();
+  const pts = [];
+  let exact = 0, rough = 0, pending = 0;
+
+  const place = (car, latlng, isExact) => {
+    const color = isExact ? '#dc2626' : '#f59e0b';
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="background:${color};color:#fff;border:2px solid #fff;border-radius:999px;padding:3px 8px;font-family:Heebo,sans-serif;font-size:12px;font-weight:900;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.4)">${esc(car.plate || '')}</div>`,
+      iconSize: null, iconAnchor: [0, 0],
+    });
+    const addr = [car.address, _pickupCity(car)].filter(Boolean).join(', ');
+    L.marker(latlng, { icon }).addTo(_pickupMapLayer).bindPopup(
+      `<div style="font-family:Heebo,sans-serif;direction:rtl;text-align:right;font-size:13px">
+         <b style="font-size:15px">${esc(car.plate || '')}</b><br>
+         ${esc(car.type || '')}<br>${esc(addr)}
+         ${car.contact ? '<br>☎ ' + esc(car.contact) : ''}
+         ${isExact ? '' : '<br><span style="color:#b45309;font-weight:800">מיקום משוער — לפי העיר</span>'}
+         <br><a href="https://www.google.com/maps/dir/?api=1&destination=${latlng[0]},${latlng[1]}" target="_blank">ניווט</a>
+       </div>`);
+    pts.push(latlng);
+  };
+
+  // קודם כל מה שכבר ידוע, כדי שהמפה תהיה שימושית מיד
+  const missing = [];
+  for (const car of cars) {
+    if (car.lat && car.lng && car.geoKey === _geoKeyOf(car)) { place(car, [car.lat, car.lng], !car.geoApprox); car.geoApprox ? rough++ : exact++; }
+    else missing.push(car);
+  }
+  if (pts.length) _pickupMap.fitBounds(pts, { padding: [30, 30] });
+  pending = missing.length;
+  say(pending ? `📍 ${exact + rough} נקודות · ממיר ${pending} כתובות…` : `📍 ${exact} מדויקות · ${rough} לפי עיר`);
+
+  for (const car of missing) {
+    let latlng = null, approx = false;
+    try { latlng = await _geocodeAddress(car.address, _pickupCity(car)); } catch (e) {}
+    if (!latlng) { latlng = _coordOfCity(_pickupCity(car)); approx = true; }
+    if (!latlng) { pending--; continue; }
+    place(car, latlng, !approx);
+    approx ? rough++ : exact++;
+    pending--;
+    // נשמר על הרכב, כך שבפעם הבאה אין צורך להמיר שוב
+    _updateDoc(_docRef('pickup_cars', car.id), {
+      lat: latlng[0], lng: latlng[1], geoKey: _geoKeyOf(car), geoApprox: approx,
+    }).catch(() => {});
+    _pickupMap.fitBounds(pts, { padding: [30, 30] });
+    say(pending ? `📍 ${exact + rough} נקודות · ממיר ${pending} כתובות…` : `📍 ${exact} מדויקות · ${rough} לפי עיר`);
+  }
 }
 
 function _haversineKm(a, b) {
