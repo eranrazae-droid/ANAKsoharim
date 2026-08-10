@@ -3134,7 +3134,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-09 · 207';
+const APP_BUILD = '2026-08-09 · 208';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -7082,7 +7082,9 @@ const _INV_SYN = [
   ['צבע',    ['צבע']],
 ];
 
-const _invNorm = s => String(s == null ? '' : s).replace(/["'׳״]/g, '').trim();
+// גרשיים עוטפות מגיעות מהעתקה של קובץ; גרש בתוך מילה הוא חלק מהשם
+// עצמו (ג'יפ, סח'נין) ואסור למחוק אותו
+const _invNorm = s => String(s == null ? '' : s).trim().replace(/^["']+|["']+$/g, '').trim();
 const _invIsPlate = s => /^\d[\d-]{4,10}$/.test(_invNorm(s));
 const _invIsYear  = s => /^(19|20)\d{2}$/.test(_invNorm(s));
 const _invJunk    = s => /^(פתח כרטיס|כרטיס|צפייה|עריכה)$/.test(_invNorm(s));
@@ -7129,7 +7131,12 @@ function parseInventoryText(text) {
   const rows = [];
   for (const line of body) {
     const cells = _invSplitRow(line).map(_invNorm);
-    if (!cells.some(c => c !== '')) continue;
+    const clean = cells.filter(c => c !== '' && !_invJunk(c));
+    if (!clean.length) continue;
+    // בהעתקה מטבלה נגררות שורות שהן לא רכב — סטטוס כמו "במגרש", כותרת
+    // ביניים וכדומה. שורת רכב אמיתית נושאת מספר רישוי, או לפחות שלושה
+    // שדות. שורה בודדת בלי מספר רישוי אינה רכב.
+    if (!clean.some(_invIsPlate) && clean.length < 3) continue;
     const got = map
       ? Object.fromEntries(_INV_COLS.map(c => [c, map[c] != null ? (cells[map[c]] || '') : '']))
       : _invRowByShape(cells);
