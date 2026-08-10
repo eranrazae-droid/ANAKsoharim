@@ -3152,7 +3152,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-09 · 211';
+const APP_BUILD = '2026-08-09 · 212';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -14677,22 +14677,52 @@ function _loadLeaflet() {
 // שהשתנתה תומר מחדש וכתובת שלא השתנתה לא תיגע בשירות
 const _geoKeyOf = car => `${(car.address || '').trim()}|${_pickupCity(car).trim()}`;
 
+// הכתובת נכתבת בשדה חופשי, ולכן נגררות אליה הערות כמו "קומה 2" או
+// "ליד הדואר". השירות מוצא רחוב ומספר, לא הערות — אז הן יורדות לפני החיפוש
+function _cleanStreet(addr) {
+  let s = String(addr || '').trim();
+  s = s.replace(/\(.*?\)/g, ' ');
+  // גבול־מילה של JS לא עובד על עברית, ולכן ההפרדה נעשית לפי רווחים
+  s = s.replace(/(^|\s)(קומה|דירה|כניסה|ליד|מול|בניין|חניון|מרתף)(\s|$)[\s\S]*$/u, ' ');
+  s = s.split(/[,;]/)[0];
+  return s.replace(/\s+/g, ' ').trim();
+}
+
 let _geoLast = 0;
-async function _geocodeAddress(street, city) {
+async function _geoFetch(params) {
   // שירות הכתובות מבקש לא להעמיס — פנייה אחת בשנייה
   const wait = Math.max(0, 1100 - (Date.now() - _geoLast));
   if (wait) await new Promise(r => setTimeout(r, wait));
   _geoLast = Date.now();
-  const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=il'
-    + `&street=${encodeURIComponent(street || '')}&city=${encodeURIComponent(city || '')}`;
+  const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&addressdetails=1&countrycodes=il&' + params;
   const res = await fetch(url, { headers: { 'Accept-Language': 'he' } });
   if (!res.ok) throw new Error('geocode ' + res.status);
   const j = await res.json();
-  if (!j.length) return null;
-  return [Number(j[0].lat), Number(j[0].lon)];
+  return j.length ? j[0] : null;
+}
+
+// מחזיר נקודה מדויקת לפי הרחוב, או null אם הרחוב לא נמצא. נפילה למרכז
+// העיר נעשית בחוץ, כדי שיהיה ברור מתי המיקום מדויק ומתי משוער.
+async function _geocodeAddress(address, city) {
+  const street = _cleanStreet(address);
+  if (!street) return null;
+  const tries = [
+    `street=${encodeURIComponent(street)}&city=${encodeURIComponent(city || '')}`,
+    `q=${encodeURIComponent(`${street}, ${city || ''}, ישראל`)}`,
+  ];
+  for (const t of tries) {
+    let hit = null;
+    try { hit = await _geoFetch(t); } catch (e) { continue; }
+    if (!hit) continue;
+    // תוצאה שהיא עיר או אזור שלם אינה כתובת — עדיף לסמן אותה כמשוערת
+    if (['city', 'town', 'village', 'municipality', 'state', 'county'].includes(hit.addresstype)) continue;
+    return [Number(hit.lat), Number(hit.lon)];
+  }
+  return null;
 }
 
 let _pickupMap = null, _pickupMapLayer = null;
+let _pickupMapSig = '', _pickupMapIds = '', _pickupMapBusy = false;
 
 // הכפתור מסתיר ומראה את עמודת המפה. במסך רחב היא פתוחה מלכתחילה.
 function togglePickupMap() {
@@ -14717,8 +14747,10 @@ async function drawPickupMap() {
 
   if (!_pickupMap) {
     _pickupMap = L.map('pickup-map', { zoomControl: true }).setView([32.0, 34.85], 9);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19, attribution: '© OpenStreetMap',
+    // רקע בהיר ושקט במקום מפת הצבעים המלאה — שמות הערים והרחובות
+    // בולטים עליו, וגם הסיכות האדומות נקראות טוב יותר
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+      maxZoom: 19, subdomains: 'abcd', attribution: '© OpenStreetMap · © CARTO',
     }).addTo(_pickupMap);
     _pickupMapLayer = L.layerGroup().addTo(_pickupMap);
   }
@@ -14726,9 +14758,20 @@ async function drawPickupMap() {
   setTimeout(() => _pickupMap.invalidateSize(), 250);
 
   const cars = _pickupMapCars();
-  if (!cars.length) { _pickupMapLayer.clearLayers(); return say('אין רכבים לאיסוף'); }
+  if (!cars.length) { _pickupMapLayer.clearLayers(); _pickupMapSig = ''; return say('אין רכבים לאיסוף'); }
 
-  await _pickupDrawMarkers(L, cars, say);
+  // ציור מחדש רק כשבאמת השתנה משהו. בלי זה כל עדכון של הרשימה היה
+  // מצייר מחדש ומחזיר את המפה לתצוגה הכללית, ומבטל את הזום של המשתמש.
+  const sig = cars.map(c => `${c.id}:${c.lat || ''},${c.lng || ''}`).join('|');
+  if (_pickupMapBusy || sig === _pickupMapSig) return;
+  // התכווננות אוטומטית רק כשמערך הרכבים המוצג התחלף (סינון, חיפוש,
+  // פתיחה ראשונה) — לא בכל ציור
+  const idsSig = cars.map(c => c.id).sort().join(',');
+  const refit = idsSig !== _pickupMapIds;
+  _pickupMapIds = idsSig;
+  _pickupMapSig = sig;
+
+  await _pickupDrawMarkers(L, cars, say, refit);
 }
 window.drawPickupMap = drawPickupMap;
 
@@ -14742,7 +14785,8 @@ function _pickupMapCars() {
   return cars;
 }
 
-async function _pickupDrawMarkers(L, cars, say) {
+async function _pickupDrawMarkers(L, cars, say, refit) {
+  _pickupMapBusy = true;
   _pickupMapLayer.clearLayers();
   const pts = [];
   let exact = 0, rough = 0, pending = 0;
@@ -14772,13 +14816,17 @@ async function _pickupDrawMarkers(L, cars, say) {
     if (car.lat && car.lng && car.geoKey === _geoKeyOf(car)) { place(car, [car.lat, car.lng], !car.geoApprox); car.geoApprox ? rough++ : exact++; }
     else missing.push(car);
   }
-  if (pts.length) _pickupMap.fitBounds(pts, { padding: [30, 30] });
+  if (pts.length && refit) _pickupMap.fitBounds(pts, { padding: [30, 30] });
   pending = missing.length;
   say(pending ? `📍 ${exact + rough} נקודות · ממיר ${pending} כתובות…` : `📍 ${exact} מדויקות · ${rough} לפי עיר`);
 
   for (const car of missing) {
     let latlng = null, approx = false;
-    try { latlng = await _geocodeAddress(car.address, _pickupCity(car)); } catch (e) {}
+    // יש כתובת — מחפשים אותה במדויק. אין כתובת, או שלא נמצאה — נופלים
+    // למרכז העיר והנקודה מסומנת ככתומה, כדי שיהיה ברור שהיא משוערת.
+    if (_cleanStreet(car.address)) {
+      try { latlng = await _geocodeAddress(car.address, _pickupCity(car)); } catch (e) {}
+    }
     if (!latlng) { latlng = _coordOfCity(_pickupCity(car)); approx = true; }
     if (!latlng) { pending--; continue; }
     place(car, latlng, !approx);
@@ -14788,9 +14836,13 @@ async function _pickupDrawMarkers(L, cars, say) {
     _updateDoc(_docRef('pickup_cars', car.id), {
       lat: latlng[0], lng: latlng[1], geoKey: _geoKeyOf(car), geoApprox: approx,
     }).catch(() => {});
-    _pickupMap.fitBounds(pts, { padding: [30, 30] });
+    // התכווננות רק אם המשתמש עוד לא הזיז את המפה בעצמו
+    if (refit) _pickupMap.fitBounds(pts, { padding: [30, 30] });
     say(pending ? `📍 ${exact + rough} נקודות · ממיר ${pending} כתובות…` : `📍 ${exact} מדויקות · ${rough} לפי עיר`);
   }
+  // הנקודות שנשמרו כרגע יחזרו מהמאזין — הן כבר על המפה, אין לצייר שוב
+  _pickupMapSig = _pickupMapCars().map(c => `${c.id}:${c.lat || ''},${c.lng || ''}`).join('|');
+  _pickupMapBusy = false;
 }
 
 function _haversineKm(a, b) {
