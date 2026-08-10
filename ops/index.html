@@ -2190,15 +2190,16 @@ if ('serviceWorker' in navigator) {
       <label>איש קשר</label>
       <select id="pickup-contact-pick" onchange="pickupUseContact(this.value)" style="width:100%;margin-bottom:6px;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:14px;box-sizing:border-box"></select>
       <input type="text" id="pickup-contact" placeholder="שם + טלפון..." style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:14px;box-sizing:border-box">
+      <div id="pickup-contact-hint"></div>
     </div>
     <div class="form-group" style="position:relative">
       <label>עיר</label>
-      <input type="text" id="pickup-city" autocomplete="off" placeholder="התחל להקליד עיר..." oninput="_cityAutocomplete('pickup-city','pickup-city-dd')" onblur="_cityBlur('pickup-city-dd','pickup-city')" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:14px;box-sizing:border-box">
+      <input type="text" id="pickup-city" autocomplete="off" placeholder="התחל להקליד עיר..." oninput="_cityAutocomplete('pickup-city','pickup-city-dd')" onblur="_cityBlur('pickup-city-dd','pickup-city');setTimeout(pickupAddrContactHint,180)" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:14px;box-sizing:border-box">
       <div id="pickup-city-dd" style="display:none;position:absolute;left:0;right:0;top:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;max-height:220px;overflow-y:auto;z-index:1000;box-shadow:0 6px 20px rgba(0,0,0,0.15)"></div>
     </div>
     <div class="form-group">
       <label>כתובת לאיסוף</label>
-      <input type="text" id="pickup-address" placeholder="רחוב ומספר..." style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:14px;box-sizing:border-box">
+      <input type="text" id="pickup-address" onblur="pickupAddrContactHint()" placeholder="רחוב ומספר..." style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:14px;box-sizing:border-box">
     </div>
     <div class="form-group">
       <label>הערה לאיסוף</label>
@@ -15229,6 +15230,8 @@ function loadPickupCars() {
     _pickupAllCars = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     _rebuildPickupCityFilter();
     renderPickupCars();
+    _listenAddrContacts();
+    _syncAddrContacts();
     if (!_pickupTestBackfillDone) {
       _pickupTestBackfillDone = true;
       _backfillPickupTestDates();
@@ -15372,6 +15375,109 @@ async function deletePickupContact(id) {
   } catch (e) { showToast('שגיאה במחיקה'); }
 }
 window.deletePickupContact = deletePickupContact;
+
+/* ── שיוך אנשי קשר לכתובות ───────────────────────────────────────────
+   כל כתובת מלאה (עיר + רחוב ומספר) זוכרת את אנשי הקשר שכבר נרשמו בה.
+   הזיכרון נבנה מעצמו מהרכבים הקיימים, ומתעדכן בכל שמירה של רכב.
+   כשמזינים כתובת מוכרת בטופס, איש הקשר מתמלא לבד; אם כבר רשום שם
+   מישהו אחר — שניהם נשארים, מופרדים בנקודה.
+─────────────────────────────────────────────────────────────────────── */
+let _addrContacts = {};            // מפתח כתובת → { city, address, contacts: [] }
+let _addrContactsUnsub = null;
+
+// מפתח הכתובת. מתעלם מ"רחוב", מסימני פיסוק ומרווחים כפולים, כך ש
+// "רח' העמל 1, באר שבע" ו"העמל 1 באר שבע" הם אותה כתובת.
+function _addrKey(city, address) {
+  const norm = s => String(s || '')
+    .replace(/["'׳״]/g, '')
+    .replace(/^\s*(רחוב|רח)\s+/, '')
+    .replace(/[^֐-׿a-zA-Z0-9]+/g, ' ')
+    .trim().toLowerCase();
+  const a = norm(_cleanStreet(address)), c = norm(city);
+  // כתובת בלי מספר בית אינה "כתובת ברורה" — לא שומרים עליה איש קשר
+  if (!a || !c || !/\d/.test(a)) return '';
+  return `${c}|${a}`;
+}
+
+// שני אנשי קשר נחשבים לאותו אדם אם הטלפון זהה, ובלי טלפון — אם השם זהה
+const _contactDigits = s => String(s || '').replace(/\D/g, '');
+function _sameContact(a, b) {
+  const da = _contactDigits(a), db = _contactDigits(b);
+  if (da && db) return da === db;
+  const clean = s => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  return clean(a) === clean(b);
+}
+// האם המחרוזת שעל הרכב כבר מכילה את איש הקשר הזה
+function _contactIncluded(existing, one) {
+  return String(existing || '').split('·').some(p => _sameContact(p, one));
+}
+
+function _listenAddrContacts() {
+  if (_addrContactsUnsub) return;
+  _addrContactsUnsub = _onSnap(_colRef('pickup_addr_contacts'), snap => {
+    _addrContacts = {};
+    snap.docs.forEach(d => { _addrContacts[d.id] = d.data(); });
+    _syncAddrContacts();
+  }, () => {});
+}
+
+// כל אנשי הקשר הידועים לכתובת של הרכב
+function _knownContactsFor(car) {
+  const key = _addrKey(_pickupCity(car), car.address);
+  return key && _addrContacts[key] ? (_addrContacts[key].contacts || []) : [];
+}
+
+// לומד כתובת ואיש קשר. נכתב רק כשבאמת התווסף מישהו חדש.
+async function _learnAddrContact(city, address, contact) {
+  const key = _addrKey(city, address);
+  if (!key || !String(contact || '').trim()) return;
+  const cur = _addrContacts[key] || { city, address: _cleanStreet(address), contacts: [] };
+  const list = cur.contacts || [];
+  const parts = String(contact).split('·').map(s => s.trim()).filter(Boolean);
+  const add = parts.filter(p => !list.some(x => _sameContact(x, p)));
+  if (!add.length) return;
+  const next = { city: cur.city || city, address: cur.address || _cleanStreet(address), contacts: [...list, ...add] };
+  _addrContacts[key] = next;       // מיידית, כדי שלא נכתוב פעמיים באותו סבב
+  try { await window._setDoc(_docRef('pickup_addr_contacts', key.replace(/\//g, '-')), next, { merge: true }); } catch (e) {}
+}
+
+// מעבר על הרכבים הקיימים: לומד מהם כתובות ואנשי קשר, ומשלים איש קשר
+// לרכב שיושב בכתובת מוכרת. כשכבר רשום מישהו אחר — שניהם נכתבים.
+let _addrSyncBusy = false;
+async function _syncAddrContacts() {
+  if (_addrSyncBusy || !window._setDoc) return;
+  _addrSyncBusy = true;
+  try {
+    for (const car of _pickupAllCars) {
+      const key = _addrKey(_pickupCity(car), car.address);
+      if (!key) continue;
+      if (car.contact) await _learnAddrContact(_pickupCity(car), car.address, car.contact);
+      const known = _knownContactsFor(car);
+      const missing = known.filter(k => !_contactIncluded(car.contact, k));
+      if (!missing.length) continue;
+      const merged = [car.contact, ...missing].map(s => String(s || '').trim()).filter(Boolean).join(' · ');
+      car.contact = merged;
+      try { await _updateDoc(_docRef('pickup_cars', car.id), { contact: merged }); } catch (e) {}
+    }
+  } finally { _addrSyncBusy = false; }
+  renderPickupCars();
+}
+
+// בטופס: כשהכתובת או העיר מסתיימות, איש הקשר מושלם מהזיכרון
+function pickupAddrContactHint() {
+  const city = document.getElementById('pickup-city')?.value || '';
+  const addr = document.getElementById('pickup-address')?.value || '';
+  const el = document.getElementById('pickup-contact');
+  const hint = document.getElementById('pickup-contact-hint');
+  const key = _addrKey(city, addr);
+  const known = key && _addrContacts[key] ? (_addrContacts[key].contacts || []) : [];
+  if (hint) hint.innerHTML = '';
+  if (!known.length || !el) return;
+  const missing = known.filter(k => !_contactIncluded(el.value, k));
+  if (missing.length) el.value = [el.value, ...missing].map(s => s.trim()).filter(Boolean).join(' · ');
+  if (hint) hint.innerHTML = `<div style="margin-top:4px;font-size:12px;font-weight:800;color:#1d4ed8">👤 מולא לפי הכתובת: ${esc(known.join(' · '))}</div>`;
+}
+window.pickupAddrContactHint = pickupAddrContactHint;
 
 function renderPickupCars() {
   const list = document.getElementById('pickup-list');
@@ -15549,6 +15655,7 @@ function _pickupFillForm(c) {
   document.getElementById('pickup-address').value = c.address || '';
   document.getElementById('pickup-note').value = c.note || '';
   document.getElementById('pickup-lookup-status').textContent = '';
+  const _ch = document.getElementById('pickup-contact-hint'); if (_ch) _ch.innerHTML = '';
   document.getElementById('pickup-doc-file').value = '';
   document.getElementById('pickup-doc-name').textContent = c.docName || '';
   document.getElementById('pickup-doc-preview').innerHTML = c.doc ? _pickupDocThumb(c.doc, c.docMime, c.docName) : '';
@@ -15677,6 +15784,8 @@ async function submitPickupCar() {
       closeModal('modal-add-pickup');
       showToast('✅ הרכב נוסף');
     }
+    // הכתובת ואיש הקשר נשמרים יחד, כדי שהרכב הבא באותה כתובת יתמלא לבד
+    _learnAddrContact(data.city, data.address, data.contact);
   } catch(e) { showToast('שגיאה בשמירה'); }
   btn.disabled = false;
 }
