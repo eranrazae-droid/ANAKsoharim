@@ -3152,7 +3152,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-09 · 212';
+const APP_BUILD = '2026-08-09 · 213';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -14721,8 +14721,40 @@ async function _geocodeAddress(address, city) {
   return null;
 }
 
-let _pickupMap = null, _pickupMapLayer = null;
+let _pickupMap = null, _pickupMapLayer = null, _pickupCityLayer = null;
 let _pickupMapSig = '', _pickupMapIds = '', _pickupMapBusy = false;
+
+// הערים שתמיד מוצגות ובולטות. השאר מופיעות רק כשמתקרבים, כדי שהמפה
+// לא תתמלא בשמות במבט הכללי.
+const _MAJOR_CITIES = ['תל אביב–יפו','ירושלים','חיפה','ראשון לציון','פתח תקווה','אשדוד','נתניה','באר שבע','חולון','בני ברק','רמת גן','אשקלון','רחובות','הרצליה','כפר סבא','נצרת','עכו','טבריה','אילת','מודיעין־מכבים־רעות'];
+
+function _drawCityLabels(L) {
+  if (!_pickupCityLayer) return;
+  const z = _pickupMap.getZoom();
+  _pickupCityLayer.clearLayers();
+  const seen = new Set();
+  for (const name in _CITY_COORD) {
+    const [lat, lng] = _CITY_COORD[name];
+    const key = `${lat},${lng}`;
+    if (seen.has(key)) continue;            // "טירת כרמל" ו"טירת הכרמל" הן אותה עיר
+    const major = _MAJOR_CITIES.includes(name);
+    if (!major && z < 10) continue;         // ערים קטנות רק כשמתקרבים
+    if (major && z < 8 && !['תל אביב–יפו','ירושלים','חיפה','באר שבע'].includes(name)) continue;
+    seen.add(key);
+    const size = major ? (z < 10 ? 13 : 15) : 11;
+    const weight = major ? 900 : 700;
+    const color = major ? '#1f2937' : '#6b7280';
+    L.marker([lat, lng], {
+      interactive: false,
+      zIndexOffset: -1000,                  // תמיד מתחת לסיכות האיסוף
+      icon: L.divIcon({
+        className: '',
+        html: `<div style="font-family:Heebo,sans-serif;font-size:${size}px;font-weight:${weight};color:${color};white-space:nowrap;transform:translate(-50%,-50%);text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff,0 0 3px #fff">${esc(name)}</div>`,
+        iconSize: null,
+      }),
+    }).addTo(_pickupCityLayer);
+  }
+}
 
 // הכפתור מסתיר ומראה את עמודת המפה. במסך רחב היא פתוחה מלכתחילה.
 function togglePickupMap() {
@@ -14747,12 +14779,16 @@ async function drawPickupMap() {
 
   if (!_pickupMap) {
     _pickupMap = L.map('pickup-map', { zoomControl: true }).setView([32.0, 34.85], 9);
-    // רקע בהיר ושקט במקום מפת הצבעים המלאה — שמות הערים והרחובות
-    // בולטים עליו, וגם הסיכות האדומות נקראות טוב יותר
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    // רקע בסגנון גוגל מפות — יבשה בז', ים כחול, פארקים ירוקים וכבישים
+    // צבעוניים — אבל בלי השמות של ספק המפה, שמגיעים גם באנגלית ובערבית.
+    // את שמות הערים אנחנו כותבים בעצמנו, בעברית בלבד.
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png', {
       maxZoom: 19, subdomains: 'abcd', attribution: '© OpenStreetMap · © CARTO',
     }).addTo(_pickupMap);
+    _pickupCityLayer = L.layerGroup().addTo(_pickupMap);
     _pickupMapLayer = L.layerGroup().addTo(_pickupMap);
+    _drawCityLabels(L);
+    _pickupMap.on('zoomend', () => _drawCityLabels(L));
   }
   // המודאל נפתח אחרי שהמפה נבנתה, אז צריך למדוד את הגודל מחדש
   setTimeout(() => _pickupMap.invalidateSize(), 250);
