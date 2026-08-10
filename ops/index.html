@@ -356,6 +356,18 @@ body.modal-open{overflow:hidden}
 .bshop-wrap{max-width:1180px;margin:0 auto}
 /* The panel beater works on a phone only: two cards to a row there, and the
    cards are short enough that three rows fit on one screen. */
+/* מסך איסוף: בטלפון הכל אחד מתחת לשני והמפה מוסתרת עד שלוחצים עליה.
+   במסך רחב — הרשימה תופסת שני שלישים מימין והמפה שליש משמאל. */
+.pickup-split{display:block}
+.pickup-col-map{display:none;padding:12px 16px 0}
+.pickup-col-map.open{display:block}
+#pickup-map{height:420px;border-radius:14px;overflow:hidden;background:#e5e7eb;z-index:0}
+@media(min-width:1000px){
+  .pickup-split{display:grid;grid-template-columns:2fr 1fr;gap:16px;align-items:start}
+  .pickup-col-map{display:block;position:sticky;top:12px}
+  .pickup-col-map.closed{display:none}
+  #pickup-map{height:calc(100vh - 190px)}
+}
 .bshop-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .bshop-grid>*{margin-bottom:0 !important}
 .bshop-grid .bshop-span{grid-column:1/-1}
@@ -472,13 +484,6 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
-<div class="modal-overlay" id="modal-pickup-map">
-  <div class="modal-box" style="max-width:100%;height:92vh;max-height:92vh;padding:14px 12px;display:flex;flex-direction:column">
-    <div class="modal-title" style="margin-bottom:10px"><span>🗺️ מפת איסוף</span> <button class="modal-close" onclick="closeModal('modal-pickup-map')">✕</button></div>
-    <div id="pickup-map-status" style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px;text-align:center"></div>
-    <div id="pickup-map" style="flex:1;min-height:0;border-radius:14px;overflow:hidden;background:#e5e7eb"></div>
-  </div>
-</div>
 
 <div class="modal-overlay" id="modal-users">
   <div class="modal-box">
@@ -2082,12 +2087,21 @@ if ('serviceWorker' in navigator) {
     </select>
     <button id="pickup-sort-btn" onclick="cyclePickupSort()" style="flex:1;min-width:160px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;text-align:center">סינון לפי זמן המתנה מהגבוה לנמוך</button>
     <button id="pickup-dist-btn" onclick="togglePickupDistSort()" style="flex:1;min-width:150px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;text-align:center">📍 מיון לפי מרחק</button>
-    <button onclick="openPickupMap()" style="flex:1;min-width:110px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;text-align:center">🗺️ מפה</button>
+    <button onclick="togglePickupMap()" style="flex:1;min-width:110px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;text-align:center">🗺️ מפה</button>
     <button onclick="openPickupContacts()" style="flex:1;min-width:130px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;text-align:center">👥 אנשי קשר</button>
     <button id="pickup-select-btn" onclick="toggleSelectAllPickup()" style="flex:1;min-width:120px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;text-align:center">☑️ סמן הכל</button>
   </div>
-  <div style="padding:12px 16px 0" id="pickup-list">
-    <div class="loading"><div class="spinner"></div> טוען...</div>
+  <!-- שני שלישים ימניים לרשימה, שליש שמאלי למפה (במסך רחב בלבד) -->
+  <div class="pickup-split">
+    <div class="pickup-col-list">
+      <div style="padding:12px 16px 0" id="pickup-list">
+        <div class="loading"><div class="spinner"></div> טוען...</div>
+      </div>
+    </div>
+    <div class="pickup-col-map">
+      <div id="pickup-map-status" style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;text-align:center"></div>
+      <div id="pickup-map"></div>
+    </div>
   </div>
   <!-- batch action bar (shown in select mode) -->
   <div id="pickup-batch-bar" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:2px solid var(--border);padding:12px 16px;gap:10px;align-items:center;z-index:60;box-shadow:0 -4px 16px rgba(0,0,0,0.12)">
@@ -3138,7 +3152,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-09 · 209';
+const APP_BUILD = '2026-08-09 · 210';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -14671,8 +14685,21 @@ async function _geocodeAddress(street, city) {
 
 let _pickupMap = null, _pickupMapLayer = null;
 
-async function openPickupMap() {
-  openModal('modal-pickup-map');
+// הכפתור מסתיר ומראה את עמודת המפה. במסך רחב היא פתוחה מלכתחילה.
+function togglePickupMap() {
+  const col = document.querySelector('.pickup-col-map');
+  if (!col) return;
+  const wide = window.matchMedia('(min-width:1000px)').matches;
+  const shown = wide ? !col.classList.contains('closed') : col.classList.contains('open');
+  if (shown) { col.classList.toggle('closed', wide); col.classList.remove('open'); return; }
+  col.classList.remove('closed'); col.classList.add('open');
+  drawPickupMap();
+}
+window.togglePickupMap = togglePickupMap;
+
+async function drawPickupMap() {
+  const col = document.querySelector('.pickup-col-map');
+  if (!col || !col.offsetParent) return;   // מוסתרת — אין מה לצייר
   const st = document.getElementById('pickup-map-status');
   const say = t => { if (st) st.textContent = t; };
   say('⏳ טוען מפה…');
@@ -14694,7 +14721,7 @@ async function openPickupMap() {
 
   await _pickupDrawMarkers(L, cars, say);
 }
-window.openPickupMap = openPickupMap;
+window.drawPickupMap = drawPickupMap;
 
 // אותם רכבים שמוצגים ברשימה כרגע — אותו חיפוש ואותו סינון עיר
 function _pickupMapCars() {
@@ -15165,6 +15192,14 @@ function renderPickupCars() {
   }
   list.innerHTML = cars.map(_pickupCardHtml).join('');
   _syncSelectAllLabel();
+  _schedulePickupMap();
+}
+
+// המפה עוקבת אחרי מה שמוצג ברשימה, אבל לא מצטיירת מחדש על כל הקלדה
+let _pickupMapT = null;
+function _schedulePickupMap() {
+  clearTimeout(_pickupMapT);
+  _pickupMapT = setTimeout(() => { drawPickupMap().catch(() => {}); }, 500);
 }
 
 // "סמן הכל" — select every visible car (or clear if all already selected)
