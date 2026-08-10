@@ -604,6 +604,21 @@ function openMyBookings(){
   renderMyBookings();
 }
 
+function canCancelByDate(classDate,slotId){
+  // classDate = Date object of the class
+  // שישי: ביטול עד 19:00 של יום חמישי
+  var now=Date.now();
+  var prefix=slotId?slotId.split('-')[0]:'';
+  if(prefix==='fri'){
+    var thu=new Date(classDate.getFullYear(),classDate.getMonth(),classDate.getDate()-1);
+    thu.setHours(19,0,0,0);
+    return now<thu.getTime();
+  }
+  // א׳-ה׳: ביטול עד 12:00 של אותו יום
+  var cutoff=new Date(classDate.getFullYear(),classDate.getMonth(),classDate.getDate(),12,0,0,0);
+  return now<cutoff.getTime();
+}
+
 function renderMyBookings(){
   var wrap=document.getElementById('my-bookings-list');
   var now=new Date();
@@ -616,13 +631,13 @@ function renderMyBookings(){
     var d=new Date(t.classDate);
     var dateStr=d.toLocaleDateString('he-IL',{weekday:'long',day:'numeric',month:'numeric'});
     var timeStr=d.toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'});
-    var canCxl=(d.getTime()-now.getTime())>2*60*60*1000;
+    var canCxl=canCancelByDate(d,t.slotId);
     html+='<div class="upcoming-item">'
       +'<div class="upcoming-left">'
       +'<div class="upcoming-type">'+escHtml(t.type||'')+'</div>'
       +'<div class="upcoming-time">'+timeStr+'</div>'
       +'<div class="upcoming-date">'+dateStr+'</div>'
-      +(!canCxl?'<div class="upcoming-late">פחות משעתיים — לא ניתן לבטל</div>':'')
+      +(!canCxl?'<div class="upcoming-late">פג המועד לביטול</div>':'')
       +'</div>'
       +'<div class="upcoming-actions">'
       +(canCxl?'<button class="upcoming-cancel-btn" onclick="cancelUpcoming('+i+')">ביטול</button>':'')

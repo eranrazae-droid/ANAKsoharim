@@ -153,7 +153,21 @@ function toggleFilterAvail(){filterAvail=!filterAvail;document.getElementById('f
 function toggleFilterFavs(){filterFavs=!filterFavs;document.getElementById('filterFavs').classList.toggle('active',filterFavs);renderGrid();}
 function getDayDate(slotId,wk){var prefix=slotId.split('-')[0];var offset=DAY_OFFSET[prefix]||0;var d=new Date((wk||weekKey)+'T00:00:00');d.setDate(d.getDate()+offset);return d.toLocaleDateString('he-IL',{day:'numeric',month:'numeric'});}
 function slotDatetime(slotId,timeStr,wk){var prefix=slotId.split('-')[0];var offset=DAY_OFFSET[prefix]||0;var parts=timeStr.split(':');var sun=new Date((wk||weekKey)+'T00:00:00');sun.setDate(sun.getDate()+offset);sun.setHours(parseInt(parts[0]),parseInt(parts[1]),0,0);return sun;}
-function canCancel(slotId,timeStr,wk){return(slotDatetime(slotId,timeStr,wk).getTime()-Date.now())>2*60*60*1000;}
+function canCancel(slotId,timeStr,wk){
+  var prefix=slotId.split('-')[0];
+  var now=Date.now();
+  if(prefix==='fri'){
+    // שישי: ביטול עד 19:00 של יום חמישי
+    var sun=new Date((wk||weekKey)+'T00:00:00');
+    var thu=new Date(sun.getFullYear(),sun.getMonth(),sun.getDate()+4);
+    thu.setHours(19,0,0,0);
+    return now<thu.getTime();
+  }
+  // א׳-ה׳: ביטול עד 12:00 של אותו יום
+  var day=slotDatetime(slotId,timeStr,wk);
+  day.setHours(12,0,0,0);
+  return now<day.getTime();
+}
 function isLocked(slotId,timeStr,wk){return(slotDatetime(slotId,timeStr,wk).getTime()-Date.now())>7*24*60*60*1000;}
 function isPast(slotId,timeStr,wk){return slotDatetime(slotId,timeStr,wk).getTime()<Date.now();}
 function badgeHtml(count,cap,waitCount){var left=cap-count;var pct=Math.round((count/cap)*100);var barColor=left<=0?'#c62828':left<=2?'#e65100':'#2e7d32';var bar='<div style="margin-top:6px;background:#eee;border-radius:4px;height:5px;overflow:hidden"><div style="width:'+Math.min(100,pct)+'%;height:100%;background:'+barColor+';border-radius:4px;transition:.3s"></div></div>';var label='<div style="font-size:11px;color:#999;margin-top:3px">'+count+' תפוס · '+left+' פנוי</div>';if(left<=0){var wt=waitCount?'<div style="font-size:10px;color:#C4A0A0;margin-top:2px">'+waitCount+' ממתינות</div>':'';return'<span class="badge badge-full">מלא</span>'+wt+bar;}return(left<=2?'<span class="badge badge-few">נותרו '+left+'</span>':'<span class="badge badge-ok">'+left+' מקומות</span>')+label+bar;}
@@ -322,7 +336,7 @@ function lookupCancels(){
       var dayStr=dt.toLocaleDateString('he-IL',{weekday:'short',day:'numeric',month:'numeric'});
       html+='<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #FAF5F5"><div><div style="font-weight:700;font-size:14px">'+s.type+' · '+s.time+'</div><div style="font-size:12px;color:#999">'+dayStr+'</div></div>';
       if(ok){html+='<div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end"><button onclick="doCancel(\''+s.id+'\',\''+s.time+'\',\''+phone+'\',\''+wk+'\')" style="background:#fce4ec;color:#c62828;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer">ביטול</button><button onclick="openMove(\''+s.id+'\',\''+s.time+'\',\''+phone+'\',\''+wk+'\')" style="background:#e8f5e9;color:#2e7d32;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer">הזזה ←</button></div>';}
-      else{html+='<span style="font-size:12px;color:#e24b4a;font-weight:700">מאוחר מדי<br><span style="font-weight:400">פחות משעתיים</span></span>';}
+      else{html+='<span style="font-size:12px;color:#e24b4a;font-weight:700">מאוחר מדי לביטול</span>';}
       html+='</div>';
     });
     document.getElementById('cancelList').innerHTML=html;document.getElementById('cancelList').style.display='block';
@@ -351,7 +365,7 @@ function doMove(fromId,toId,toTime,phone,wk){
 }
 function doCancel(slotId,timeStr,phone,wk){
   wk=wk||weekKey;
-  if(!canCancel(slotId,timeStr,wk)){alert('לא ניתן לבטל פחות משעתיים לפני האימון');return;}
+  if(!canCancel(slotId,timeStr,wk)){alert('לא ניתן לבטל — פג המועד לביטול');return;}
   var ref=db.collection('bookings').doc(wk+'_'+slotId);
   ref.get().then(function(doc){
     var regs=doc.exists?(doc.data().registrations||{}):{};
