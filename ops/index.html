@@ -15385,14 +15385,15 @@ window.deletePickupContact = deletePickupContact;
 let _addrContacts = {};            // מפתח כתובת → { city, address, contacts: [] }
 let _addrContactsUnsub = null;
 
-// מפתח הכתובת. מתעלם מ"רחוב", מסימני פיסוק ומרווחים כפולים, כך ש
-// "רח' העמל 1, באר שבע" ו"העמל 1 באר שבע" הם אותה כתובת.
+// מפתח הכתובת. מתעלם לגמרי מרווחים, מגרשיים ומכל סימני הפיסוק, ומוריד
+// את המילה "רחוב". כך "רח' העמל 1, באר שבע", "העמל1 בארשבע" ו־"העמל  1,
+// באר־שבע" הם אותה כתובת בדיוק.
 function _addrKey(city, address) {
   const norm = s => String(s || '')
-    .replace(/["'׳״]/g, '')
+    .replace(/["'`׳״’‘“”]/g, '')
     .replace(/^\s*(רחוב|רח)\s+/, '')
-    .replace(/[^֐-׿a-zA-Z0-9]+/g, ' ')
-    .trim().toLowerCase();
+    .replace(/[^א-תa-zA-Z0-9]+/g, '')   // כולל רווחים, מקפים ופסיקים
+    .toLowerCase();
   const a = norm(_cleanStreet(address)), c = norm(city);
   // כתובת בלי מספר בית אינה "כתובת ברורה" — לא שומרים עליה איש קשר
   if (!a || !c || !/\d/.test(a)) return '';
@@ -15404,7 +15405,8 @@ const _contactDigits = s => String(s || '').replace(/\D/g, '');
 function _sameContact(a, b) {
   const da = _contactDigits(a), db = _contactDigits(b);
   if (da && db) return da === db;
-  const clean = s => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  // בלי טלפון משווים לפי השם בלבד — בלי רווחים, גרשיים וסימני פיסוק
+  const clean = s => String(s || '').replace(/["'`׳״’‘“”]/g, '').replace(/[^א-תa-zA-Z0-9]+/g, '').toLowerCase();
   return clean(a) === clean(b);
 }
 // האם המחרוזת שעל הרכב כבר מכילה את איש הקשר הזה
