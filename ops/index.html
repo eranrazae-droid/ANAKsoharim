@@ -14708,6 +14708,16 @@ function _driveMinutes(km) {
   return Math.max(1, Math.round(road / speed * 60));
 }
 
+// זמן הליכה משוער. מקדם דרך קטן יותר מהנסיעה — מדרכות מקיפות פחות
+// מכבישים — ומהירות הליכה ממוצעת של מבוגר.
+function _walkMinutes(km) {
+  return Math.max(1, Math.round(km * 1.25 / 4.5 * 60));
+}
+// הליכה ארוכה מזה כבר אינה אפשרות מעשית, ואין טעם להציג אותה
+const _WALK_MAX_KM = 3;
+// מרחק קצר מוצג עם ספרה אחרי הנקודה — "0 ק\"מ" לא אומר כלום
+const _stKm = km => km < 10 ? km.toFixed(1) : Math.round(km);
+
 // התחנה הקרובה ביותר לנקודה, עם המרחק וזמן הנסיעה המשוער
 function _nearestStation(latlng) {
   if (!latlng) return null;
@@ -14718,6 +14728,7 @@ function _nearestStation(latlng) {
   }
   if (!best) return null;
   best.min = _driveMinutes(best.km);
+  best.walkMin = best.km <= _WALK_MAX_KM ? _walkMinutes(best.km) : null;
   return best;
 }
 
@@ -14937,7 +14948,7 @@ async function _pickupDrawMarkers(L, cars, say, refit) {
          <b style="font-size:15px">${esc(car.plate || '')}</b><br>
          ${esc(car.type || '')}<br>${esc(addr)}
          ${car.contact ? '<br>☎ ' + esc(car.contact) : ''}
-         ${st ? `<br><span style="color:#1d4ed8;font-weight:800">🚆 ${esc(st.name)} — כ־${st.min} דק׳ (${Math.round(st.km)} ק"מ)</span>` : ''}
+         ${st ? `<br><span style="color:#1d4ed8;font-weight:800">🚆 ${esc(st.name)} — כ־${st.min} דק׳ נסיעה${st.walkMin ? ` · 🚶 כ־${st.walkMin} דק׳ הליכה` : ''} (${_stKm(st.km)} ק"מ)</span>` : ''}
          ${isExact ? '' : '<br><span style="color:#b45309;font-weight:800">מיקום משוער — לפי העיר</span>'}
          <br><a href="https://www.google.com/maps/dir/?api=1&destination=${latlng[0]},${latlng[1]}" target="_blank">ניווט</a>
        </div>`);
@@ -15588,7 +15599,7 @@ function _pickupStationHtml(c, e) {
   const s = _nearestStation(_pickupLatLng(c));
   if (!s) return '';
   return `<div style="margin-top:6px;background:#eff6ff;border:1px solid #bfdbfe;border-right:5px solid #1d4ed8;border-radius:8px;padding:7px 10px;font-size:13px;font-weight:800;color:#1e3a8a">
-    🚆 תחנה קרובה: ${e(s.name)} — כ־${s.min} דק׳ נסיעה <span style="color:#3b82f6;font-weight:700">(${Math.round(s.km)} ק"מ)</span>
+    🚆 תחנה קרובה: ${e(s.name)} — כ־${s.min} דק׳ נסיעה${s.walkMin ? ` · 🚶 כ־${s.walkMin} דק׳ הליכה` : ''} <span style="color:#3b82f6;font-weight:700">(${_stKm(s.km)} ק"מ)</span>
   </div>`;
 }
 
