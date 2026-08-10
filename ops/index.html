@@ -15000,6 +15000,24 @@ function _computeTaskClosest() {
   }
 }
 
+// נעיצה של רכב בראש הרשימה. נשמרת על הרכב עצמו, כך שהיא נשארת גם אחרי
+// רענון הדף. לחיצה נוספת מבטלת ומחזירה את הרכב לסדר הרגיל.
+async function togglePickupPin(id) {
+  const car = _pickupAllCars.find(c => c.id === id);
+  if (!car) return;
+  const next = !car.pinned;
+  car.pinned = next;                 // תגובה מיידית — המאזין יעדכן אחר כך
+  renderPickupCars();
+  try {
+    await _updateDoc(_docRef('pickup_cars', id), { pinned: next });
+  } catch (e) {
+    car.pinned = !next;              // לא נשמר — חוזרים למצב הקודם
+    renderPickupCars();
+    showToast('❌ שמירת הנעיצה נכשלה');
+  }
+}
+window.togglePickupPin = togglePickupPin;
+
 function togglePickupSelect(id) {
   if (_pickupSelected.has(id)) _pickupSelected.delete(id);
   else _pickupSelected.add(id);
@@ -15377,6 +15395,8 @@ function renderPickupCars() {
   if (_pickupDistSort) cars.sort((a, b) => _pickupDistKm(a) - _pickupDistKm(b));
   // assigned cars always float to top (stable)
   cars.sort((a, b) => (b.assignedDriver ? 1 : 0) - (a.assignedDriver ? 1 : 0));
+  // נעיצה גוברת על כל מיון — הרכב הנעוץ נשאר בראש עד שמורידים את הנעץ
+  cars.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
   _computeTaskClosest();
   _pickupShownIds = cars.map(c => c.id);
   if (!cars.length) {
@@ -15471,12 +15491,16 @@ function _pickupCardHtml(c) {
   const waitLabel = days === null ? '' : `${days} ימי המתנה`;
   const waitColor = days === null ? '#6b7280' : days > 14 ? '#dc2626' : days > 7 ? '#f59e0b' : '#16a34a';
   const checked = _pickupSelected.has(c.id);
+  const pinned = !!c.pinned;
   // sent to a driver but not collected yet → highlight the whole card in yellow
   // (an explicit selection still wins, so the manager can see what he picked)
   const sentStyle = (!checked && c.assignedDriver) ? 'background:#fef9c3;border:2px solid #eab308;' : '';
   return `<div class="vehicle-card" style="border-right:5px solid ${waitColor};margin-bottom:8px;cursor:pointer;${sentStyle}${checked?'background:#dcfce7;border:2px solid #059669':''}" onclick="openEditPickupModal('${e(c.id)}')">
    <div style="display:flex;align-items:center;gap:10px">
-    <div onclick="event.stopPropagation();togglePickupSelect('${e(c.id)}')" title="סימון" style="flex-shrink:0;cursor:pointer;width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:900;${checked?'background:#16a34a;color:#fff;border:2px solid #16a34a':'background:#fff;color:transparent;border:2px solid #cbd5e1'}">✓</div>
+    <div style="flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:6px">
+     <div onclick="event.stopPropagation();togglePickupPin('${e(c.id)}')" title="${pinned?'ביטול נעיצה':'נעיצה בראש הרשימה'}" style="cursor:pointer;width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:15px;${pinned?'background:#f59e0b;border:2px solid #f59e0b':'background:#fff;border:2px solid #cbd5e1;opacity:.55'}">📌</div>
+     <div onclick="event.stopPropagation();togglePickupSelect('${e(c.id)}')" title="סימון" style="cursor:pointer;width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:900;${checked?'background:#16a34a;color:#fff;border:2px solid #16a34a':'background:#fff;color:transparent;border:2px solid #cbd5e1'}">✓</div>
+    </div>
     <div style="flex:1;min-width:0;display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
       <div style="flex:1;min-width:0">
         <div class="vehicle-plate">${e(c.plate||'')}</div>
