@@ -14929,11 +14929,14 @@ async function _pickupDrawMarkers(L, cars, say, refit) {
       iconSize: null, iconAnchor: [0, 0],
     });
     const addr = [car.address, _pickupCity(car)].filter(Boolean).join(', ');
+    // התחנה מחושבת מהנקודה שהרכב סומן בה בפועל, גם כשהיא משוערת
+    const st = _nearestStation(latlng);
     L.marker(latlng, { icon }).addTo(_pickupMapLayer).bindPopup(
       `<div style="font-family:Heebo,sans-serif;direction:rtl;text-align:right;font-size:13px">
          <b style="font-size:15px">${esc(car.plate || '')}</b><br>
          ${esc(car.type || '')}<br>${esc(addr)}
          ${car.contact ? '<br>☎ ' + esc(car.contact) : ''}
+         ${st ? `<br><span style="color:#1d4ed8;font-weight:800">🚆 ${esc(st.name)} — כ־${st.min} דק׳ (${Math.round(st.km)} ק"מ)</span>` : ''}
          ${isExact ? '' : '<br><span style="color:#b45309;font-weight:800">מיקום משוער — לפי העיר</span>'}
          <br><a href="https://www.google.com/maps/dir/?api=1&destination=${latlng[0]},${latlng[1]}" target="_blank">ניווט</a>
        </div>`);
