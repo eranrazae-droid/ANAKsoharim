@@ -3152,7 +3152,7 @@ function goHome() {
 ═══════════════════════════════════════════════════════ */
 /* Bump on every deploy. A stale cached page keeps showing its own older stamp,
    which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-09 · 210';
+const APP_BUILD = '2026-08-09 · 211';
 
 function renderHome() {
   const isManager = currentUser.role === 'manager';
@@ -7089,7 +7089,7 @@ function handleInventoryFile(input) {
 /* ── הוספת מלאי לפי מלל ─────────────────────────────────────────── */
 // העמודות שהמערכת עובדת איתן. כל מה שמודבק מתורגם אליהן, ומה שלא מתאים
 // (למשל עמודת "פתח כרטיס") פשוט נזרק.
-const _INV_COLS = ['רישוי', 'יצרן', 'דגם', 'תת דגם', 'שנה', 'צבע'];
+const _INV_COLS = ['רישוי', 'יצרן', 'דגם', 'תת דגם', 'שנה', 'צבע', 'סטטוס'];
 // סדר החיפוש חשוב: "תת דגם" נבדק לפני "דגם", אחרת הוא ייתפס בטעות
 const _INV_SYN = [
   ['תת דגם', ['תת דגם', 'תת-דגם', 'רמת גימור', 'גימור']],
@@ -7098,6 +7098,7 @@ const _INV_SYN = [
   ['דגם',    ['דגם', 'מודל']],
   ['שנה',    ['שנה', 'שנת ייצור', 'שנתון']],
   ['צבע',    ['צבע']],
+  ['סטטוס',  ['סטטוס', 'מיקום', 'מצב']],
 ];
 
 // גרשיים עוטפות מגיעות מהעתקה של קובץ; גרש בתוך מילה הוא חלק מהשם
@@ -7147,17 +7148,20 @@ function parseInventoryText(text) {
   const body = map ? lines.slice(1) : lines;
 
   const rows = [];
+  let pendingStatus = '';
   for (const line of body) {
     const cells = _invSplitRow(line).map(_invNorm);
     const clean = cells.filter(c => c !== '' && !_invJunk(c));
     if (!clean.length) continue;
-    // בהעתקה מטבלה נגררות שורות שהן לא רכב — סטטוס כמו "במגרש", כותרת
-    // ביניים וכדומה. שורת רכב אמיתית נושאת מספר רישוי, או לפחות שלושה
-    // שדות. שורה בודדת בלי מספר רישוי אינה רכב.
-    if (!clean.some(_invIsPlate) && clean.length < 3) continue;
+    // בהעתקה מטבלה הסטטוס ("במגרש" וכדומה) נופל לשורה נפרדת מעל הרכב.
+    // שורת רכב אמיתית נושאת מספר רישוי, או לפחות שלושה שדות; שורה בודדת
+    // בלי מספר רישוי היא הסטטוס של הרכב שמופיע אחריה.
+    if (!clean.some(_invIsPlate) && clean.length < 3) { pendingStatus = clean.join(' '); continue; }
     const got = map
       ? Object.fromEntries(_INV_COLS.map(c => [c, map[c] != null ? (cells[map[c]] || '') : '']))
       : _invRowByShape(cells);
+    if (!got['סטטוס'] && pendingStatus) got['סטטוס'] = pendingStatus;
+    pendingStatus = '';
     // שורה בלי שום זיהוי אינה שורת רכב
     if (!_INV_COLS.some(c => got[c])) continue;
     rows.push(_INV_COLS.map(c => got[c] || ''));
@@ -7347,24 +7351,28 @@ window.cycleDinvSort = cycleDinvSort;
 
 function renderDriverInvModal(headers) {
   // Reorder columns: buttons | plate | vehicle-status | rest
-  const plateIdx  = headers.findIndex(h => h.includes('מספר'));
-  const statusIdx = headers.findIndex(h => h.includes('סטטוס'));
+  // הטבלה מגיעה גם מקובץ אקסל ("מספר רכב") וגם מהדבקת מלל ("רישוי"),
+  // ושני השמות צריכים להיתפס — אחרת עמודת הרישוי נשארת צרה ונחתכת
+  const plateIdx  = headers.findIndex(h => /מספר|רישוי|לוחית/.test(String(h)));
+  const statusIdx = headers.findIndex(h => /סטטוס|מיקום/.test(String(h)));
   const order = [];
   if (plateIdx  >= 0) order.push(plateIdx);
   if (statusIdx >= 0) order.push(statusIdx);
   headers.forEach((_, i) => { if (i !== plateIdx && i !== statusIdx) order.push(i); });
+  // עמודה שכל תאיה ריקים רק מצרה את השורה בטלפון — היא לא מוצגת
+  const keep = i => i === plateIdx || i === statusIdx
+    || _driverInvRows.some(r => String(r.cells[i] ?? '').trim() !== '');
+  const shown = order.filter(keep);
+  order.length = 0; order.push(...shown);
 
   const reorder = arr => order.map(i => arr[i] ?? '');
   const orderedHeaders = reorder(headers);
   const colCount = orderedHeaders.length || (_driverInvRows[0]?.cells.length || 1);
   // give wide columns to דגם and צבע, narrow to the rest
-  const colWidths = ['80px', ...orderedHeaders.map(h => {
-    if (h.includes('דגם') || h.includes('צבע')) return 'minmax(100px,1.6fr)';
-    if (h.includes('מספר')) return 'minmax(85px,1.2fr)';
-    return 'minmax(48px,1fr)';
-  })];
+  const _cw = h => (/דגם|צבע/.test(h) ? 100 : /מספר|רישוי|לוחית/.test(h) ? 90 : 48);
+  const colWidths = ['80px', ...orderedHeaders.map(h => `minmax(${_cw(h)}px,${_cw(h) >= 90 ? 1.4 : 1}fr)`)];
   const colW = colWidths.join(' ');
-  const minW = (80 + orderedHeaders.reduce((s,h) => s + (h.includes('דגם')||h.includes('צבע') ? 100 : h.includes('מספר') ? 85 : 48), 0)) + 'px';
+  const minW = (80 + orderedHeaders.reduce((s, h) => s + _cw(h), 0)) + 'px';
   let html = '';
   if (orderedHeaders.length) {
     html += `<div style="display:grid;grid-template-columns:${colW};min-width:${minW};gap:2px;background:var(--dark);color:#fff;border-radius:10px 10px 0 0;padding:5px 6px;font-size:10px;font-weight:700;direction:rtl">
@@ -7377,8 +7385,9 @@ function renderDriverInvModal(headers) {
     const item = _driverInvRows[i];
     const orderedCells = reorder(item.cells);
     // highlight non-מגרש rows (check original statusIdx cell)
-    const vehicleStatus = statusIdx >= 0 ? (item.cells[statusIdx] || '') : '';
-    const notInLot = vehicleStatus && vehicleStatus !== 'מגרש';
+    const vehicleStatus = statusIdx >= 0 ? String(item.cells[statusIdx] || '').trim() : '';
+    // "מגרש" ו-"במגרש" הם אותו דבר — רק רכב שאיננו במגרש נצבע בכתום
+    const notInLot = vehicleStatus && !/^ב?מגרש$/.test(vehicleStatus);
     const border = item.status ? (item.status==='v'?'#22c55e':'#ef4444') : (notInLot ? '#f59e0b' : 'var(--border)');
     const bg = item.status==='v' ? '#f0fff4' : item.status==='x' ? '#fff0f0' : (notInLot ? '#fffbeb' : '#fff');
     return `<div id="dinv-row-${i}" style="display:grid;grid-template-columns:${colW};min-width:${minW};gap:2px;align-items:center;background:${bg};border:2px solid ${border};border-radius:8px;padding:4px 5px;margin-bottom:2px;direction:rtl">
