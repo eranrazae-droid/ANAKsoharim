@@ -134,6 +134,7 @@
       <div class="nav-item" onclick="showTab('pay')"><span class="nav-icon">💰</span><span>שכר</span></div>
       <div class="nav-item" onclick="showTab('vouchers')"><span class="nav-icon">🎟</span><span>קופונים</span></div>
       <div class="nav-item" onclick="showTab('meta')"><span class="nav-icon">🔗</span><span>מזהי Meta</span></div>
+      <div class="nav-item" onclick="showTab('ads')"><span class="nav-icon">📢</span><span>מרכז פרסום</span></div>
     </nav>
     <div class="sidebar-footer">
       <button class="btn btn-line btn-sm" style="width:100%;margin-bottom:8px;background:#0369a1;color:#fff;border:none" onclick="openCloudinarySettings()">☁️ הגדרות Cloudinary</button>
@@ -424,7 +425,28 @@
         </div>
       </div>
 
+      <div id="tab-ads" class="hidden">
+        <div class="section-hd" style="margin-bottom:12px">
+          <div><div class="eyebrow">שיווק</div><h2>📢 מרכז פרסום</h2></div>
+          <input id="adsSearch" oninput="renderAdsCenter()" placeholder="חיפוש רכב..." style="width:220px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;font-size:14px">
+        </div>
+        <div class="card panel" style="margin-bottom:16px">
+          <p style="color:var(--muted);font-size:14px;line-height:1.7">לכל רכב - לחיצה על "✨ צור פרסום" מייצרת מיד 3 טקסטים מוכנים להעתקה: <b>מודעת Marketplace</b>, <b>סקריפט טיקטוק</b>, ו<b>מודעת Meta</b> - כולל קישור לרכב, טלפון ווואטסאפ.</p>
+        </div>
+        <div id="adsList"></div>
+      </div>
+
     </div>
+  </div>
+</div>
+
+<div id="adsModal" class="hidden" onclick="if(event.target===this)this.classList.add('hidden')" style="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:100;display:flex;align-items:center;justify-content:center;padding:16px">
+  <div style="background:#fff;border-radius:20px;padding:24px;width:100%;max-width:720px;max-height:90vh;overflow-y:auto;direction:rtl">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h2 id="adsModalTitle" style="font-size:20px;font-weight:900">פרסום</h2>
+      <button onclick="document.getElementById('adsModal').classList.add('hidden')" style="background:#f1f5f9;border:none;border-radius:50%;width:36px;height:36px;font-size:18px;cursor:pointer">✕</button>
+    </div>
+    <div id="adsModalBody"></div>
   </div>
 </div>
 
@@ -771,8 +793,8 @@
   let leads = JSON.parse(localStorage.getItem('autodealer_leads')||'[]');
   let vouchers = JSON.parse(localStorage.getItem('autodealer_vouchers')||'[]');
 
-  const tabTitles={dashboard:'דשבורד',inventory:'מלאי רכבים',addcar:'הוספת רכב',leads:'לידים',tasks:'משימות',pay:'שכר',vouchers:'קופונים',meta:'מיגרציית מזהי Meta'};
-  const tabOrder=['dashboard','inventory','addcar','leads','tasks','pay','vouchers','meta'];
+  const tabTitles={dashboard:'דשבורד',inventory:'מלאי רכבים',addcar:'הוספת רכב',leads:'לידים',tasks:'משימות',pay:'שכר',vouchers:'קופונים',meta:'מיגרציית מזהי Meta',ads:'מרכז פרסום'};
+  const tabOrder=['dashboard','inventory','addcar','leads','tasks','pay','vouchers','meta','ads'];
 
   function login(){
     if(document.getElementById('pwInput').value===PASS){
@@ -865,6 +887,7 @@
     if(id==='tasks') loadTasks();
     if(id==='pay') loadPay();
     if(id==='meta') renderMissingCatalogImages();
+    if(id==='ads') renderAdsCenter();
     document.querySelectorAll('[id^="tab-"]').forEach(el=>el.classList.add('hidden'));
     document.getElementById('tab-'+id).classList.remove('hidden');
     document.querySelectorAll('.nav-item').forEach((el,i)=>el.classList.toggle('active',tabOrder[i]===id));
@@ -1563,6 +1586,72 @@
     </div>`;
     }).join('');
   }
+
+  // ===== מרכז פרסום =====
+  function _adSpec(c,g,k){ try{ return (c.specData && c.specData[g] && c.specData[g][k]) || ''; }catch(e){ return ''; } }
+  function _adClean(v){ v=(v==null?'':String(v)).trim(); return (v==='--'||v==='-')?'':v; }
+  function _adHi(c){
+    var h=[];
+    var power=_adClean(_adSpec(c,'מנוע גיר וביצועים','הספק מרבי (כ"ס)')); if(power) h.push(power+' כ"ס');
+    var range=_adClean(_adSpec(c,'מנוע גיר וביצועים','טווח נסיעה חשמלי (ק"מ)'))||_adClean(c.range); if(range) h.push(range+' ק"מ טווח חשמלי');
+    var seats=_adClean(_adSpec(c,'פרטי הרכב ואחריות','מקומות ישיבה')); if(seats && Number(seats)>=7) h.push(seats+' מקומות');
+    var stars=_adClean(_adSpec(c,'בטיחות','מבחן ריסוק')); var sn=(String(stars).match(/\d+/)||[])[0]; if(sn) h.push(sn+' כוכבי בטיחות');
+    return h;
+  }
+  function _adLink(c){ return 'https://autodealer.co.il/?car='+c.id; }
+  function _adWa(name){ return 'https://wa.me/972508396030?text='+encodeURIComponent('היי, מעוניין ב-'+name); }
+  function _adName(c){ return ((c.brand||'')+' '+(c.model||'')+(c.year?(' '+c.year):'')).trim(); }
+  function genMarketplace(c){
+    var name=_adName(c), hi=_adHi(c);
+    return name+' 🔥 חדש 0 ק"מ\n\n'+
+      (c.summary && c.summary.trim()? c.summary.trim()+'\n\n':'')+
+      (hi.length? '🔹 '+hi.join(' · ')+'\n':'')+
+      '🔹 0 ק"מ מהיבואן הרשמי + אחריות מלאה\n'+
+      '🔹 מחיר דיל - הרבה מתחת לסוכנות\n'+
+      '🔹 מימון עד 100% ללא מקדמה (בכפוף לאישור)\n'+
+      '🔹 טרייד-אין לרכב הישן שלכם\n'+
+      '🔹 מסירה מהירה בכל הארץ\n\n'+
+      '📍 כל המפרט והתמונות: '+_adLink(c)+'\n'+
+      '📞 לחיוג ישיר: 050-839-6030\n'+
+      '📲 וואטסאפ: '+_adWa(name);
+  }
+  function genMeta(c){
+    var name=_adName(c);
+    return name+' חדש 0 ק"מ במחיר דיל 🚗\nמימון ללא מקדמה · טרייד-אין · אחריות יבואן רשמי.\nהשאירו פרטים ונחזור אליכם עם ההצעה הכי טובה 👇\n'+_adLink(c);
+  }
+  function genTikTok(c){
+    var name=_adName(c), hi=_adHi(c);
+    return '🎬 סקריפט טיקטוק - '+name+'\n\n'+
+      '0-3 שנ׳ (הוק): "אל תקנו '+(c.brand||'רכב')+' בסוכנות לפני שתראו את זה 🛑"\n'+
+      '3-12 שנ׳: "'+name+' חדש 0 ק"מ'+(hi.length? (' - '+hi.join(', ')):'')+', במחיר דיל שלא תמצאו בסוכנות."\n'+
+      '12-40 שנ׳: להראות את הרכב (חוץ + פנים), להדגיש: 0 ק"מ, אחריות יבואן, מימון ללא מקדמה, טרייד-אין.\n'+
+      '40-55 שנ׳: "המחיר שאתם רואים - זה המחיר שאתם משלמים. בלי הפתעות."\n'+
+      '55-60 שנ׳ (CTA): "הלינק בביו 👆 או שלחו לנו וואטסאפ."\n\n'+
+      '📱 כתובית קבועה: '+name+' | 0 ק"מ | אוטודילר\n'+
+      '🔗 '+_adLink(c);
+  }
+  function renderAdsCenter(){
+    var el=document.getElementById('adsList'); if(!el) return;
+    var q=((document.getElementById('adsSearch')||{}).value||'').toLowerCase();
+    var list=cars.filter(function(c){ return c && !c.hidden && (((c.brand||'')+' '+(c.model||'')).toLowerCase().indexOf(q)>=0); })
+      .sort(function(a,b){ return ((a.brand||'')+(a.model||'')).localeCompare((b.brand||'')+(b.model||''),'he'); });
+    el.innerHTML = list.map(function(c){
+      return '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid var(--line)">'+
+        '<div style="font-weight:800;flex:1;min-width:150px">'+_esc(c.brand+' '+c.model)+' <span style="color:var(--muted);font-weight:400;font-size:13px">'+(c.year||'')+'</span></div>'+
+        '<button onclick="openAds('+c.id+')" style="border:none;background:#D4A017;color:#000;border-radius:10px;padding:8px 16px;font-size:13px;font-weight:900;cursor:pointer">✨ צור פרסום</button>'+
+        '<a href="'+_adLink(c)+'" target="_blank" rel="noreferrer" style="border:1.5px solid #16a34a;background:#f0fdf4;color:#15803d;border-radius:10px;padding:8px 14px;font-size:13px;font-weight:800;text-decoration:none">🔗 באתר</a>'+
+      '</div>';
+    }).join('') || '<div style="text-align:center;padding:30px;color:var(--muted)">אין רכבים</div>';
+  }
+  function openAds(id){
+    var c=cars.find(function(x){return x.id===id;}); if(!c) return;
+    window._adsTexts={ mp:genMarketplace(c), tt:genTikTok(c), meta:genMeta(c) };
+    document.getElementById('adsModalTitle').textContent='פרסום - '+(c.brand+' '+c.model);
+    var block=function(key,label){ return '<div style="margin-bottom:16px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><b>'+label+'</b><button onclick="copyAds(\''+key+'\',this)" style="background:#0d0d0d;color:#fff;border:none;border-radius:8px;padding:5px 14px;font-size:12px;font-weight:800;cursor:pointer">📋 העתק</button></div><textarea readonly style="width:100%;height:160px;font-size:12.5px;border:1px solid #e5e7eb;border-radius:10px;padding:10px;direction:rtl;font-family:inherit">'+_esc(window._adsTexts[key])+'</textarea></div>'; };
+    document.getElementById('adsModalBody').innerHTML = block('mp','🛒 מודעת Marketplace') + block('tt','🎬 סקריפט טיקטוק') + block('meta','📣 מודעת Meta');
+    document.getElementById('adsModal').classList.remove('hidden');
+  }
+  function copyAds(key,btn){ var t=(window._adsTexts||{})[key]||''; try{ if(navigator.clipboard){ navigator.clipboard.writeText(t).then(function(){ btn.textContent='✅ הועתק'; setTimeout(function(){btn.textContent='📋 העתק';},1500); }); } }catch(e){} }
 
   // ===== שכר =====
   let payData = [];
