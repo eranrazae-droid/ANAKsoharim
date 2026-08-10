@@ -194,7 +194,11 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FFF0F6;m
       <div class="info-row"><span class="info-label">מנוי</span><span class="info-val" id="d-plan"></span></div>
       <div class="info-row"><span class="info-label">תשלום חודשי</span><span class="info-val" id="d-amount"></span></div>
       <div class="info-row" id="d-freeze-row" style="display:none"><span class="info-label">מוקפא עד</span><span class="info-val" id="d-freeze-until"></span></div>
-      <div class="info-row" id="d-change-row" style="display:none"><span class="info-label">שינוי ממתין</span><span class="info-val" id="d-pending-change"></span></div>
+      <div class="info-row" id="d-change-row" style="display:none"><span class="info-label">שדרוג ממתין</span><span class="info-val" id="d-pending-change"></span></div>
+      <div id="d-upgrade-nudge" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid #FFF0F6">
+        <span style="font-size:13px;color:#aaa">רוצה להתאמן יותר?</span>
+        <button onclick="openUpgrade()" style="background:none;border:none;color:#D63878;font-size:13px;font-weight:700;cursor:pointer;padding:0 4px;font-family:inherit;text-decoration:underline">שדרגי את המנוי ←</button>
+      </div>
     </div>
     <div class="card">
       <h2>פעולות</h2>
@@ -341,6 +345,29 @@ body{font-family:'Segoe UI','Arial Hebrew',Arial,sans-serif;background:#FFF0F6;m
       <button class="btn btn-transparent" onclick="submitChange()">אישור שינוי ←</button>
       <button class="btn btn-gray" onclick="showScreen('dashboard')">← חזרה</button>
     </div>
+  </div>
+
+  <!-- שדרוג מנוי -->
+  <div id="upgradeScreen" style="display:none">
+    <div class="card">
+      <h2>⬆️ שדרוג המנוי</h2>
+      <div class="note-box" id="upgrade-current-note"></div>
+      <div class="plans-small" id="upgradePlansList"></div>
+      <div class="err" id="upgrade-err"></div>
+    </div>
+    <!-- אישור שדרוג -->
+    <div class="card" id="upgrade-confirm-card" style="display:none">
+      <h2>✅ אישור שדרוג</h2>
+      <div class="info-row"><span class="info-label">מנוי נוכחי</span><span class="info-val" id="uc-from"></span></div>
+      <div class="info-row"><span class="info-label">מנוי חדש</span><span class="info-val" id="uc-to"></span></div>
+      <div class="info-row"><span class="info-label">מחיר חדש</span><span class="info-val" id="uc-price"></span></div>
+      <div class="info-row"><span class="info-label">כניסה לתוקף</span><span class="info-val" id="uc-date"></span></div>
+      <div class="note-box" style="margin-top:14px">השדרוג ייכנס לתוקף ממחזור החיוב הבא. אורית תעדכן את פרטי החיוב בהתאם 🩷</div>
+      <div class="err" id="uc-err"></div>
+      <button class="btn btn-primary" onclick="submitUpgrade()">אישור סופי — שדרגי את המנוי ←</button>
+      <button class="btn btn-gray" onclick="document.getElementById('upgrade-confirm-card').style.display='none'">← חזרה לבחירה</button>
+    </div>
+    <button class="btn btn-gray" onclick="showScreen('dashboard')">← חזרה לדשבורד</button>
   </div>
 
   <!-- עדכון פרטים -->
@@ -494,7 +521,13 @@ firebase.initializeApp({apiKey:"AIzaSyD3H-2M1cYEupObbeeRtlcMPHyQtzEjP1Q",authDom
 var db=firebase.firestore();
 var REMEMBER_KEY='orit-member-remember';
 (function(){var saved=JSON.parse(localStorage.getItem(REMEMBER_KEY)||'null');if(saved){document.getElementById('login-phone').value=saved.phone||'';document.getElementById('login-pass').value=saved.pass||'';document.getElementById('rememberMe').checked=true;}})();
-var PLANS=[{id:'1x',name:'פעם בשבוע',price:280,icon:'💪'},{id:'2x',name:'פעמיים בשבוע',price:400,icon:'💪💪'},{id:'3x',name:'שלוש פעמים בשבוע',price:450,icon:'🔥'},{id:'ul',name:'ללא הגבלה',price:480,icon:'⚡'},{id:'pi',name:'פילאטיס בלבד',price:360,icon:'🧘'}];
+var PLANS=[
+  {id:'1x',name:'פעם בשבוע',price:280,icon:'💪',payUrl:'https://live.payme.io/subscription/template/SUB17861-72480KNK-APDQASBE-JTH2VHLY'},
+  {id:'2x',name:'פעמיים בשבוע',price:400,icon:'💪💪',payUrl:'https://live.payme.io/subscription/template/SUB17861-72641DOQ-ZRURNXAA-W8GL2YUC'},
+  {id:'3x',name:'שלוש פעמים בשבוע',price:450,icon:'🔥',payUrl:'https://live.payme.io/subscription/template/SUB17861-72735ZZQ-ERAB1U32-ANAZMIET'},
+  {id:'ul',name:'ללא הגבלה',price:480,icon:'⚡',payUrl:'https://live.payme.io/subscription/template/SUB17861-72792BQR-NC5IULYM-PLZAKUHR'},
+  {id:'pi',name:'פילאטיס בלבד',price:360,icon:'🧘',payUrl:'https://live.payme.io/subscription/template/SUB17861-72876MED-RH6AZQGM-XOB85ATU'}
+];
 var DEFAULT_PASS='1234';
 var currentMember=null,selectedNewPlan=null;
 (function(){
@@ -561,6 +594,7 @@ function loadDashboard(){
   if(history.length>0){document.getElementById('historyList').innerHTML=history.slice().reverse().map(function(h){return'<div class="history-item"><div class="history-type">'+h.type+'</div><div class="history-date">'+new Date(h.date).toLocaleDateString('he-IL')+'</div>'+(h.note?'<div style="color:#888;font-size:12px">'+escHtml(h.note)+'</div>':'')+'</div>';}).join('');}
   document.getElementById('btn-freeze').disabled=(m.status==='frozen');
   renderChangePlans();
+  renderUpgradeNudge();
   renderWeightTable();
   loadAnnouncements();
   renderTrainingHistory();
@@ -579,7 +613,7 @@ function renderChangePlans(){
   document.getElementById('changePlansList').innerHTML=html;
 }
 function selectNewPlan(id){PLANS.forEach(function(p){var el=document.getElementById('cpl-'+p.id);if(el)el.classList.remove('sel');});document.getElementById('cpl-'+id).classList.add('sel');selectedNewPlan=PLANS.find(function(p){return p.id===id;});document.getElementById('change-err').textContent='';}
-function showScreen(name){['loginScreen','dashboard','freezeScreen','changeScreen','detailsScreen','changePassScreen','cancelScreen','successScreen','forgotScreen','nutritionScreen','myBookingsScreen','nutritionBotScreen','weightChallengeScreen'].forEach(function(s){document.getElementById(s).style.display=s===name?'block':'none';});window.scrollTo(0,0);}
+function showScreen(name){['loginScreen','dashboard','freezeScreen','changeScreen','upgradeScreen','detailsScreen','changePassScreen','cancelScreen','successScreen','forgotScreen','nutritionScreen','myBookingsScreen','nutritionBotScreen','weightChallengeScreen'].forEach(function(s){document.getElementById(s).style.display=s===name?'block':'none';});window.scrollTo(0,0);}
 function toggleEye(id,btn){var inp=document.getElementById(id);if(!inp)return;var show=inp.type==='password';inp.type=show?'text':'password';btn.classList.toggle('open',show);}
 function addHistory(type,note){var h=currentMember.history||[];h.push({type:type,date:new Date().toISOString(),note:note||''});return h;}
 function submitFreeze(){var from=document.getElementById('freeze-from').value;var to=document.getElementById('freeze-to').value;var err=document.getElementById('freeze-err');if(!from||!to){err.textContent='נא לבחור תאריכים';return;}var days=Math.round((new Date(to)-new Date(from))/(1000*60*60*24));if(days<14){err.textContent='מינימום 14 יום הקפאה';return;}err.textContent='';var h=addHistory('❄️ הקפאה',from+' עד '+to+' ('+days+' ימים)');db.collection('members').doc(currentMember.id).update({status:'frozen',freezeFrom:from,freezeUntil:to,freezeDays:(currentMember.freezeDays||0)+days,history:h}).then(function(){currentMember.status='frozen';currentMember.freezeFrom=from;currentMember.freezeUntil=to;currentMember.history=h;showSuccess('הקפאה אושרה!','המנוי מוקפא מ-'+new Date(from).toLocaleDateString('he-IL')+' עד '+new Date(to).toLocaleDateString('he-IL')+'\n'+days+' ימים יקוזזו מהחיוב הבא 🩷');}).catch(function(){err.textContent='שגיאה, נסי שוב';});}
@@ -1445,6 +1479,89 @@ function saveReminders(){
   db.collection('members').doc(currentMember.phone).update({reminders:rem}).catch(function(e){console.warn('reminders save:',e);});
   if(rem.water) startWaterTimer();
   if(rem.training) scheduleTrainingReminders();
+}
+
+/* ===== שדרוג מנוי ===== */
+var selectedUpgradePlan=null;
+
+function openUpgrade(){
+  selectedUpgradePlan=null;
+  document.getElementById('upgrade-confirm-card').style.display='none';
+  document.getElementById('upgrade-err').textContent='';
+  var cur=currentMember.amount||0;
+  var curName=(currentMember.icon||'')+' '+(currentMember.planName||currentMember.plan||'');
+  document.getElementById('upgrade-current-note').textContent='המנוי הנוכחי שלך: '+curName.trim()+' — '+cur+' ₪ לחודש';
+  var upgrades=PLANS.filter(function(p){return p.id!==currentMember.plan&&p.price>cur;});
+  if(!upgrades.length){
+    document.getElementById('upgradePlansList').innerHTML='<div style="font-size:13px;color:#bbb;text-align:center;padding:16px 0">את כבר במנוי הגבוה ביותר 🏆</div>';
+  } else {
+    document.getElementById('upgradePlansList').innerHTML=upgrades.map(function(p){
+      return '<div class="plan-s" id="upl-'+p.id+'" onclick="selectUpgradePlan(\''+p.id+'\')">'
+        +'<div class="plan-s-left"><div class="plan-s-radio" id="upr-'+p.id+'"></div>'
+        +'<div><div class="plan-s-name">'+p.icon+' '+p.name+'</div>'
+        +'<div style="font-size:11px;color:#aaa">+'+(p.price-cur)+' ₪ לחודש</div></div></div>'
+        +'<span class="plan-s-price">'+p.price+' ₪</span></div>';
+    }).join('');
+  }
+  showScreen('upgradeScreen');
+}
+
+function selectUpgradePlan(id){
+  var cur=currentMember.amount||0;
+  var p=PLANS.find(function(x){return x.id===id;});
+  if(!p||p.price<=cur){document.getElementById('upgrade-err').textContent='לא ניתן לעבור למנוי זול יותר';return;}
+  selectedUpgradePlan=p;
+  PLANS.forEach(function(x){var el=document.getElementById('upl-'+x.id);if(el)el.classList.remove('sel');});
+  var el=document.getElementById('upl-'+id);if(el)el.classList.add('sel');
+  document.getElementById('upgrade-err').textContent='';
+  // מילוי מסך אישור
+  var curName=(currentMember.icon||'')+' '+(currentMember.planName||currentMember.plan||'');
+  document.getElementById('uc-from').textContent=curName.trim()+' ('+cur+' ₪)';
+  document.getElementById('uc-to').textContent=p.icon+' '+p.name;
+  document.getElementById('uc-price').textContent=p.price+' ₪ לחודש';
+  var nextCycle=new Date();nextCycle.setMonth(nextCycle.getMonth()+1);nextCycle.setDate(1);
+  document.getElementById('uc-date').textContent='מחזור החיוב הבא (כ-'+nextCycle.toLocaleDateString('he-IL',{month:'long',year:'numeric'})+')';
+  document.getElementById('uc-err').textContent='';
+  document.getElementById('upgrade-confirm-card').style.display='block';
+  document.getElementById('upgrade-confirm-card').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function submitUpgrade(){
+  var p=selectedUpgradePlan;
+  var cur=currentMember.amount||0;
+  if(!p){document.getElementById('uc-err').textContent='נא לבחור מנוי';return;}
+  if(p.price<=cur){document.getElementById('uc-err').textContent='לא ניתן לעבור למנוי זול יותר';return;}
+  document.getElementById('uc-err').textContent='';
+  var nextCycle=new Date();nextCycle.setMonth(nextCycle.getMonth()+1);nextCycle.setDate(1);
+  var effectiveDate=nextCycle.toISOString();
+  var h=addHistory('⬆️ בקשת שדרוג מנוי',
+    'מ-'+(currentMember.planName||currentMember.plan)+' ('+cur+' ₪) ל-'+p.name+' ('+p.price+' ₪) — כניסה לתוקף '+nextCycle.toLocaleDateString('he-IL'));
+  db.collection('members').doc(currentMember.id).update({
+    pendingPlan:p.id,
+    pendingPlanName:p.name,
+    pendingPlanIcon:p.icon,
+    pendingAmount:p.price,
+    pendingEffectiveDate:effectiveDate,
+    pendingFrom:currentMember.plan,
+    pendingFromName:currentMember.planName||currentMember.plan,
+    pendingFromAmount:cur,
+    pendingRequestDate:new Date().toISOString(),
+    history:h
+  }).then(function(){
+    currentMember.pendingPlan=p.id;
+    currentMember.pendingPlanName=p.name;
+    currentMember.pendingAmount=p.price;
+    currentMember.history=h;
+    showSuccess('בקשת השדרוג התקבלה! 🩷',
+      'המנוי ישודרג ל'+p.name+' ('+p.price+' ₪ לחודש)\nאורית תעדכן את פרטי החיוב ב-PayMe לפני החיוב הבא 🩷');
+  }).catch(function(){document.getElementById('uc-err').textContent='שגיאה, נסי שוב';});
+}
+
+function renderUpgradeNudge(){
+  var cur=currentMember&&currentMember.amount||0;
+  var hasUpgrades=PLANS.some(function(p){return p.id!==currentMember.plan&&p.price>cur;});
+  var nudge=document.getElementById('d-upgrade-nudge');
+  if(nudge)nudge.style.display=(hasUpgrades&&!currentMember.pendingPlan)?'block':'none';
 }
 
 /* ===== כוכבת השבוע ===== */
