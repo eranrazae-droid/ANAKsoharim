@@ -707,6 +707,13 @@ exports.syncCalendarToGoogle = onDocumentWritten(
 );
 
 /* ── google → app ─────────────────────────────────────────────────── */
+// מזהה המסמך אצלנו נגזר ממזהה האירוע בגוגל, כדי שאותו אירוע ייכתב תמיד
+// לאותו מסמך. מזהה מסמך ב-Firestore לא יכול להכיל "/" ולא להיות ארוך מדי.
+function gcalDocId(googleId) {
+  const safe = String(googleId).replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 90);
+  return `g_${safe}`;
+}
+
 // pulls only what changed since the last time, using google's sync token
 async function pullGoogleChanges() {
   const { calendarId, syncToken } = await gcalConfig();
@@ -739,8 +746,9 @@ async function pullGoogleChanges() {
       if (ev.status === "cancelled") {
         if (ourId) await db.collection("calendar_events").doc(ourId).delete().catch(() => {});
         else {
-          const q = await db.collection("calendar_events").where("gcalId", "==", ev.id).limit(1).get();
-          if (!q.empty) await q.docs[0].ref.delete();
+          // נמחקים כל העותקים, אם נוצרו כפילויות בעבר
+          const q = await db.collection("calendar_events").where("gcalId", "==", ev.id).get();
+          for (const d of q.docs) await d.ref.delete().catch(() => {});
         }
         changed++;
         continue;
@@ -749,13 +757,19 @@ async function pullGoogleChanges() {
       if (ourId) {
         await db.collection("calendar_events").doc(ourId).set(data, { merge: true });
       } else {
-        const q = await db.collection("calendar_events").where("gcalId", "==", ev.id).limit(1).get();
-        if (!q.empty) await q.docs[0].ref.set(data, { merge: true });
-        else {
-          const ref = await db.collection("calendar_events").add({
+        const q = await db.collection("calendar_events").where("gcalId", "==", ev.id).get();
+        if (!q.empty) {
+          await q.docs[0].ref.set(data, { merge: true });
+          // ניקוי כפילויות שנוצרו לפני התיקון
+          for (const extra of q.docs.slice(1)) await extra.ref.delete().catch(() => {});
+        } else {
+          // מזהה קבוע הנגזר מהאירוע בגוגל: שתי הרצאות במקביל של הפונקציה
+          // כותבות לאותו מסמך, ולכן אירוע אחד לא יכול להיווצר פעמיים
+          const ref = db.collection("calendar_events").doc(gcalDocId(ev.id));
+          await ref.set({
             ...data, repeat: "none", reminderMinutes: 0, reminderTo: "", reminderSent: true,
             createdAt: new Date(),
-          });
+          }, { merge: true });
           // tie the two together, so the pair is never duplicated
           await cal.events.patch({
             calendarId, eventId: ev.id,
