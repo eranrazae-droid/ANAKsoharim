@@ -1,12 +1,25 @@
+// חלונית שנפתחת מעל חלונית אחרת חייבת לשבת מעליה. לכל החלוניות אותו
+// z-index, ולכן בלי זה הסדר נקבע לפי המיקום בקובץ — וחלונית אישור שנפתחת
+// מתוך כרטיס הסתתרה מאחורי הכרטיס עצמו, כאילו הכפתור לא עשה כלום.
+let _modalZ = 200;
 function openModal(id) {
-  document.getElementById(id).classList.add('open');
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (document.querySelector('.modal-overlay.open')) el.style.zIndex = ++_modalZ;
+  el.classList.add('open');
   // the page behind a modal must not scroll under the wheel
   document.body.classList.add('modal-open');
 }
 function closeModal(id) {
-  document.getElementById(id).classList.remove('open');
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove('open');
+  el.style.zIndex = '';
   // one modal may sit on top of another — release only when the last one goes
-  if (!document.querySelector('.modal-overlay.open')) document.body.classList.remove('modal-open');
+  if (!document.querySelector('.modal-overlay.open')) {
+    document.body.classList.remove('modal-open');
+    _modalZ = 200;
+  }
 }
 document.querySelectorAll('.modal-overlay').forEach(o => {
   o.addEventListener('click', e => {
