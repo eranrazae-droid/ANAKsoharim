@@ -17987,6 +17987,8 @@ function openTestDriveScreen() {
     : _query(_colRef('test_drives'), _where('assignedTo','==',currentUser.name));
   _onSnap(q, snap => {
     _tdAllForms = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      // נסיעות שנמחקו בעבר סומנו כ-cancelled ונשארו במסד — הן לא מוצגות
+      .filter(f => f.status !== 'cancelled')
       .sort((a,b) => (b.createdAt?.seconds||0) - (a.createdAt?.seconds||0));
     if (!_tdAllForms.length) { list.innerHTML = '<div style="text-align:center;padding:60px 20px;color:var(--muted);font-size:15px">אין טפסים</div>'; return; }
     list.innerHTML = _tdAllForms.map(f => {
@@ -18611,7 +18613,10 @@ async function deleteTdLivePanel() {
   if (!_updateDoc || !_docRef) { showToast('⚠️ Firebase לא מחובר'); return; }
   const id = _tdLivePanelId;
   try {
-    await _updateDoc(_docRef('test_drives', id), { status: 'cancelled' });
+    // מחיקה אמיתית. קודם רק סומן "cancelled", והנסיעה המשיכה להופיע
+    // ברשימה כאילו היא ממתינה למילוי — כלומר המחיקה לא נראתה כלל.
+    const { deleteDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    await deleteDoc(_docRef('test_drives', id));
   } catch(e) { console.error('deleteTdLivePanel', e); showToast('⚠️ שגיאה במחיקה'); return; }
   if (_tdLivePanelUnsub) { _tdLivePanelUnsub(); _tdLivePanelUnsub = null; }
   _tdLivePanelId = null;
@@ -18619,7 +18624,7 @@ async function deleteTdLivePanel() {
   localStorage.removeItem('anak_td_mgr_panel');
   document.getElementById('td-live-panel').style.display = 'none';
   document.body.classList.remove('td-panel-open');
-  showToast('נסיעת המבחן בוטלה');
+  showToast('🗑 נסיעת המבחן נמחקה');
 }
 window.deleteTdLivePanel = deleteTdLivePanel;
 
