@@ -1750,6 +1750,8 @@ if ('serviceWorker' in navigator) {
       <button onclick="washSumRange('all')" style="flex:1;padding:8px;border-radius:9px;border:2px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer">הכל</button>
     </div>
     <div id="wash-sum-body"></div>
+    <div style="font-size:12px;font-weight:800;color:var(--muted);margin-bottom:5px">סדר הפירוט בהדפסה</div>
+    <div id="wash-sum-sort" style="display:flex;gap:6px;margin-bottom:12px"></div>
     <button class="btn-submit" onclick="washPrintSummary()" style="background:var(--dark);color:#fff;width:100%">🖨️ הדפס סיכום</button>
   </div>
 </div>
@@ -9722,8 +9724,27 @@ function washPrintNote(f) {
 ─────────────────────────────────────────────────────────────────────── */
 const _washYmd = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 
+// סדר הפירוט המודפס: לפי תאריך הביצוע או לפי מספר הרישוי
+let _washSort = 'date';
+const _WASH_SORTS = [['date', 'לפי תאריך'], ['plate', 'לפי מספר רישוי']];
+
+function _washRenderSortBtns() {
+  const c = document.getElementById('wash-sum-sort');
+  if (!c) return;
+  c.innerHTML = _WASH_SORTS.map(([k, label]) => {
+    const on = _washSort === k;
+    return `<button onclick="washSetSort('${k}')" style="flex:1;padding:9px;border-radius:9px;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer;${on
+      ? 'background:#0d9488;color:#fff;border:2px solid #0d9488'
+      : 'background:var(--surface2);color:var(--text);border:2px solid var(--border)'}">${label}</button>`;
+  }).join('');
+}
+
+function washSetSort(k) { _washSort = k; _washRenderSortBtns(); }
+window.washSetSort = washSetSort;
+
 function openWashSummary() {
   washSumRange('month');
+  _washRenderSortBtns();
   openModal('modal-wash-summary');
 }
 window.openWashSummary = openWashSummary;
@@ -9766,8 +9787,13 @@ function _washSummaryData() {
     const t = n.type || 'ללא סוג';
     counts[t] = (counts[t] || 0) + 1;
   }
-  // ישן→חדש בפירוט, כדי שהקריאה תהיה לפי סדר הביצוע
-  rows.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
+  if (_washSort === 'plate') {
+    // מהקטן לגדול, לפי הספרות בלבד
+    rows.sort((a, b) => (Number(String(a.plate).replace(/\D/g, '')) || 0) - (Number(String(b.plate).replace(/\D/g, '')) || 0));
+  } else {
+    // ישן→חדש, כלומר לפי סדר הביצוע
+    rows.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
+  }
   return { counts, total: rows.length, fromV, toV, rows };
 }
 
@@ -9852,7 +9878,7 @@ function washPrintSummary() {
     ${Object.entries(counts).map(([t, n]) => `<tr><td>${esc(t)}</td><td class="n">${n}</td></tr>`).join('')}
     <tr class="tot"><td>סה״כ שטיפות</td><td class="n">${total}</td></tr>
   </table>
-  <div class="det-l">פירוט הרכבים</div>
+  <div class="det-l">פירוט הרכבים · ${_washSort === 'plate' ? 'לפי מספר רישוי' : 'לפי תאריך'}</div>
   ${detail[0] || ''}
   <div class="foot">${esc(currentUser.name)} · ${esc(new Date().toLocaleDateString('he-IL'))}</div>
  </div>
