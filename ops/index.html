@@ -3739,12 +3739,15 @@ function _setTdHomeCount(n) {
   el.style.display = n ? 'inline-block' : 'none';
 }
 
+// צבע הסימון של קוביות מסך הבית — טורקיז
+const _HOME_CARD_HL = '#0d9488';
+
 function _setCardBadge(screen, count, color) {
   const card = document.getElementById('menu-card-' + screen);
   const badge = document.getElementById('badge-' + screen);
   if (!card || !badge) return;
   if (count > 0) {
-    card.style.background = color || '#1e40af';
+    card.style.background = color || _HOME_CARD_HL;
     card.style.color = '#fff';
     card.querySelectorAll('.mc-title,.mc-sub').forEach(el => el.style.color = '#fff');
     badge.style.display = 'inline-block';
@@ -3757,6 +3760,20 @@ function _setCardBadge(screen, count, color) {
     card.querySelectorAll('.mc-title,.mc-sub').forEach(el => el.style.color = '');
     badge.style.display = 'none';
   }
+}
+
+// קוביית ארון המצברים: המספר תמיד מופיע מתחת לכותרת, והצבע נדלק רק
+// כשיש מעל שלושה מצברים — כלומר כשבאמת יש ממה להרכיב.
+const _BS_CARD_MIN = 3;
+function _setBatteryStockCard(units) {
+  const card = document.getElementById('menu-card-battery-stock');
+  const sub  = document.getElementById('sub-battery-stock');
+  if (!card || !sub) return;
+  sub.textContent = units === 1 ? 'מצבר אחד זמין בארון' : `${units} מצברים זמינים בארון`;
+  const on = units > _BS_CARD_MIN;
+  card.style.background = on ? _HOME_CARD_HL : '';
+  card.style.color = on ? '#fff' : '';
+  card.querySelectorAll('.mc-title,.mc-sub').forEach(el => el.style.color = on ? '#fff' : '');
 }
 
 // badge קובייה מאוחדת (נהג): קליטות ממתינות + רענונים ממתינים
@@ -3833,7 +3850,7 @@ function loadDriverBadges() {
         // יש משימות טעינה פעילות
         if (card) { card.style.background = ''; card.style.color = ''; card.querySelectorAll('.mc-title,.mc-sub').forEach(el => el.style.color = ''); card.classList.remove('driver-battery-awaiting'); card.dataset.unifiedMode = 'charging'; }
         if (sub) sub.textContent = 'רכבים לטעינה';
-        _setCardBadge('driver-battery', chargingPending, '#1d4ed8');
+        _setCardBadge('driver-battery', chargingPending, _HOME_CARD_HL);
       } else {
         // מצב רגיל — אין בדיקות ואין טעינה
         if (card) { card.style.background = ''; card.style.color = ''; card.querySelectorAll('.mc-title,.mc-sub').forEach(el => el.style.color = ''); card.classList.remove('driver-battery-awaiting'); card.dataset.unifiedMode = 'battery'; }
@@ -3995,6 +4012,12 @@ function loadManagerBadges() {
     _onSnap(_query(_colRef('inventory_assignments'), _where('status','==','done')), snap => {
       _setCardBadge('inventory', snap.size);
     });
+    // ארון המצברים: כמה יחידות זמינות עכשיו. המספר מוצג תמיד, והקובייה
+    // נצבעת רק כשיש יותר משלושה מצברים בארון.
+    _onSnap(_colRef('battery_stock'), snap => {
+      const units = snap.docs.reduce((t, d) => t + (d.data().qty || 0), 0);
+      _setBatteryStockCard(units);
+    });
     _onSnap(_docRef('recall_status', 'current'), snap => {
       const cars = snap.exists() ? (snap.data().cars || []) : [];
       const openRecalls = cars.filter(c => !c.resolved).length;
@@ -4053,7 +4076,7 @@ function loadManagerBadges() {
     });
     if (currentUser.role === 'manager') _listenTaskRequests();
     _onSnap(_colRef('pickup_cars'), snap => {
-      _setCardBadge('pickup', snap.size, snap.size > 0 ? '#1e40af' : null);
+      _setCardBadge('pickup', snap.size, snap.size > 0 ? _HOME_CARD_HL : null);
     });
     // test drive badge — red badge = still being filled, button count = every
     // drive that still needs the manager (being filled OR awaiting his decision)
