@@ -1939,18 +1939,21 @@ if ('serviceWorker' in navigator) {
       <button onclick="washLookupPlate()" style="background:var(--dark);color:#fff;border:none;border-radius:10px;padding:0 16px;font-family:'Heebo',sans-serif;font-weight:800;font-size:14px;cursor:pointer">🔎</button>
     </div>
     <div id="wash-lookup-msg" style="font-size:12px;font-weight:800;min-height:18px;margin-bottom:8px"></div>
-    <input class="form-input" id="wash-desc" placeholder="דגם וצבע" style="margin-bottom:10px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+      <input class="form-input" id="wash-maker" placeholder="יצרן" style="margin:0">
+      <input class="form-input" id="wash-model" placeholder="דגם" style="margin:0">
+      <input class="form-input" id="wash-submodel" placeholder="תת דגם" style="margin:0">
+      <input class="form-input" id="wash-color" placeholder="צבע" style="margin:0">
+      <input class="form-input" id="wash-year" placeholder="שנה" inputmode="numeric" style="margin:0">
+    </div>
 
-    <div class="section-title">סוג שטיפה</div>
+    <div class="section-title">סוג שטיפה — בחירה אחת</div>
     <div id="wash-types" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px"></div>
 
     <div class="section-title">הערה</div>
     <textarea class="form-input" id="wash-note" rows="2" placeholder="הערה לשוטף (לא חובה)" style="margin-bottom:14px"></textarea>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-      <button class="btn-submit" id="wash-print-btn" onclick="washSaveAndPrint()" style="background:var(--dark);color:#fff;margin:0">🖨️ שמור והדפס</button>
-      <button class="btn-submit" onclick="washSave()" style="background:var(--success,#16a34a);color:#fff;margin:0">💾 שמור בלבד</button>
-    </div>
+    <button class="btn-submit" id="wash-print-btn" onclick="washSaveAndPrint()" style="background:var(--dark);color:#fff;margin:0;width:100%">🖨️ שמור והדפס</button>
 
     <div class="section-title">פתקי שטיפה אחרונים</div>
     <div id="wash-list"></div>
@@ -4753,6 +4756,79 @@ function _cleanMaker(raw) {
   return s.trim();
 }
 
+/* ── משיכת פרטי רכב לפי מספר רישוי ───────────────────────────────────
+   נקודה אחת לכל המערכת. שני דברים עושים אותה מהירה:
+   • תשובה נשמרת בדפדפן — לוחית שכבר נמשכה חוזרת מיידית, בלי רשת
+   • שאילתה מדויקת אחת בלבד, עם גבול זמן, בלי חיפוש חופשי איטי אחריה
+   בקשה שכבר רצה על אותה לוחית לא נשלחת פעמיים.
+─────────────────────────────────────────────────────────────────────── */
+const _PLATE_DS = '053cea08-09bc-40ec-8f7a-156f0677aff3';
+const _PLATE_TTL = 90 * 86400000;          // פרטי רישוי כמעט לא משתנים
+const _plateMem = new Map();               // מטמון לפעילות הנוכחית
+const _plateInflight = new Map();           // בקשות שרצות ברגע זה
+
+function _plateCacheGet(plate) {
+  if (_plateMem.has(plate)) return _plateMem.get(plate);
+  try {
+    const raw = localStorage.getItem('plate:' + plate);
+    if (!raw) return undefined;
+    const o = JSON.parse(raw);
+    if (!o || Date.now() - (o.t || 0) > _PLATE_TTL) return undefined;
+    _plateMem.set(plate, o.v);
+    return o.v;
+  } catch (e) { return undefined; }
+}
+function _plateCacheSet(plate, v) {
+  _plateMem.set(plate, v);
+  try { localStorage.setItem('plate:' + plate, JSON.stringify({ t: Date.now(), v })); } catch (e) {}
+}
+
+// null = לא נמצא. זריקת שגיאה = תקלת רשת, כדי שאפשר יהיה להבדיל ביניהן.
+async function _plateLookup(plateRaw) {
+  const plate = String(plateRaw || '').replace(/\D/g, '');
+  if (!plate) return null;
+  const hit = _plateCacheGet(plate);
+  if (hit !== undefined) return hit;
+  if (_plateInflight.has(plate)) return _plateInflight.get(plate);
+
+  const p = (async () => {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
+    try {
+      const filters = encodeURIComponent(JSON.stringify({ mispar_rechev: plate }));
+      const res = await fetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=${_PLATE_DS}&filters=${filters}&limit=1`, { signal: ctrl.signal });
+      if (!res.ok) throw new Error('network');
+      const rec = (await res.json())?.result?.records?.[0];
+      if (!rec) { _plateCacheSet(plate, null); return null; }
+      const v = {
+        plate,
+        maker: _cleanMaker(rec.tozeret_nm || ''),
+        model: rec.kinuy_mishari || rec.degem_nm || '',
+        subModel: rec.ramat_gimur || rec.degem_cd_nm || '',
+        color: rec.tzeva_rechev || '',
+        year: rec.shnat_yitzur || '',
+        testDate: rec.tokef_dt || '',
+      };
+      _plateCacheSet(plate, v);
+      return v;
+    } finally {
+      clearTimeout(timer);
+      _plateInflight.delete(plate);
+    }
+  })();
+  _plateInflight.set(plate, p);
+  return p;
+}
+window._plateLookup = _plateLookup;
+
+// תאריך טסט בפורמט שהמערכת משתמשת בו
+function _plateTestDate(v) {
+  if (!v?.testDate) return '';
+  const d = new Date(v.testDate);
+  if (isNaN(d)) return '';
+  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+}
+
 async function lookupPlate() {
   const plate = document.getElementById('req-task-plate').value.trim();
   if (!plate) return;
@@ -4761,14 +4837,9 @@ async function lookupPlate() {
   el.style.color = 'var(--muted)';
   _reqVehicleInfo = null;
   try {
-    const url = `https://data.gov.il/api/3/action/datastore_search?resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3&q=${plate}&limit=1`;
-    const res = await fetch(url);
-    const json = await res.json();
-    const rec = json?.result?.records?.[0];
+    const rec = await _plateLookup(plate);
     if (rec) {
-      const year = rec['shnat_yitzur'] || '';
-      const maker = _cleanMaker(rec['tozeret_nm']);
-      const model = rec['kinuy_mishari'] || '';
+      const year = rec.year, maker = rec.maker, model = rec.model;
       _reqVehicleInfo = { plate, maker, model, year };
       el.innerHTML = `✅ <b>${maker} ${model}</b> — שנת ${year}`;
       el.style.color = 'var(--success, #16a34a)';
@@ -6688,17 +6759,12 @@ async function fetchVehicleData() {
   status.textContent = '⏳ מחפש...';
   btn.disabled = true;
   try {
-    const filters = encodeURIComponent(JSON.stringify({ mispar_rechev: raw }));
-    const url = `https://data.gov.il/api/3/action/datastore_search?resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3&filters=${filters}&limit=1`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('network');
-    const json = await res.json();
-    const rec = json?.result?.records?.[0];
+    const rec = await _plateLookup(raw);
     if (!rec) { status.style.color='var(--danger)'; status.textContent = '❌ לא נמצא רכב עם מספר זה'; return; }
-    document.getElementById('v-brand').value = _cleanMaker(rec.tozeret_nm || '');
-    document.getElementById('v-model').value = rec.kinuy_mishari || rec.degem_nm || '';
-    document.getElementById('v-color').value = rec.tzeva_rechev  || '';
-    document.getElementById('v-year').value  = rec.shnat_yitzur  || '';
+    document.getElementById('v-brand').value = rec.maker;
+    document.getElementById('v-model').value = rec.model;
+    document.getElementById('v-color').value = rec.color;
+    document.getElementById('v-year').value  = rec.year;
     status.style.color = 'var(--success)';
     status.textContent = '✅ פרטים נטענו בהצלחה';
   } catch(e) {
@@ -9448,12 +9514,7 @@ let _washUnsub = null;
 function openWashScreen() {
   document.getElementById('wash-user-badge').textContent = currentUser.name;
   showScreen('wash');
-  _washType = '';
-  document.getElementById('wash-plate').value = '';
-  document.getElementById('wash-desc').value = '';
-  document.getElementById('wash-note').value = '';
-  document.getElementById('wash-lookup-msg').textContent = '';
-  _washRenderTypes();
+  _washClear();
   if (!_washUnsub) {
     _washUnsub = _onSnap(_colRef('wash_notes'), snap => {
       _washNotes = snap.docs.map(d => ({ id: d.id, ...d.data() }))
@@ -9476,6 +9537,7 @@ function _washRenderTypes() {
   }).join('');
 }
 
+// בחירה אחת בלבד — סוג חדש מחליף את הקודם, ולחיצה חוזרת מבטלת
 function washPickType(t) { _washType = (_washType === t ? '' : t); _washRenderTypes(); }
 window.washPickType = washPickType;
 
@@ -9485,7 +9547,7 @@ function washLookupPlateSoon() {
   clearTimeout(_washLookupT);
   const p = (document.getElementById('wash-plate').value || '').replace(/\D/g, '');
   if (p.length < 7) return;
-  _washLookupT = setTimeout(washLookupPlate, 400);
+  _washLookupT = setTimeout(washLookupPlate, 150);
 }
 window.washLookupPlateSoon = washLookupPlateSoon;
 
@@ -9495,13 +9557,13 @@ async function washLookupPlate() {
   if (!plate) return;
   msg.textContent = '⏳ מחפש...'; msg.style.color = 'var(--muted)';
   try {
-    const filters = encodeURIComponent(JSON.stringify({ mispar_rechev: plate }));
-    const res = await fetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3&filters=${filters}&limit=1`);
-    const rec = (await res.json())?.result?.records?.[0];
+    const rec = await _plateLookup(plate);
     if (!rec) { msg.textContent = '❌ לא נמצא — אפשר למלא ידנית'; msg.style.color = 'var(--danger,#ef4444)'; return; }
-    const maker = _cleanMaker(rec.tozeret_nm || '');
-    const model = rec.kinuy_mishari || rec.degem_nm || '';
-    document.getElementById('wash-desc').value = [maker, model, rec.tzeva_rechev].filter(Boolean).join(' ');
+    document.getElementById('wash-maker').value = rec.maker;
+    document.getElementById('wash-model').value = rec.model;
+    document.getElementById('wash-submodel').value = rec.subModel;
+    document.getElementById('wash-color').value = rec.color;
+    document.getElementById('wash-year').value = rec.year;
     msg.textContent = '✅ פרטים נטענו'; msg.style.color = 'var(--success,#16a34a)';
   } catch (e) {
     msg.textContent = '⚠️ שגיאה בחיבור — אפשר למלא ידנית'; msg.style.color = 'var(--danger,#ef4444)';
@@ -9513,25 +9575,23 @@ function _washForm() {
   const plate = (document.getElementById('wash-plate').value || '').trim();
   if (!plate) { showToast('נא להזין מספר רישוי'); return null; }
   if (!_washType) { showToast('נא לבחור סוג שטיפה'); return null; }
-  return {
+  const val = id => (document.getElementById(id).value || '').trim();
+  const f = {
     plate,
-    desc: (document.getElementById('wash-desc').value || '').trim(),
+    maker: val('wash-maker'), model: val('wash-model'), subModel: val('wash-submodel'),
+    color: val('wash-color'), year: val('wash-year'),
     type: _washType,
-    note: (document.getElementById('wash-note').value || '').trim(),
+    note: val('wash-note'),
   };
+  // שורה אחת לתצוגה ברשימה ובפתקים ישנים
+  f.desc = [f.maker, f.model, f.subModel, f.color, f.year].filter(Boolean).join(' ');
+  return f;
 }
 
 // השמירה נעשית לפני ההדפסה, כך שפתק שיצא למדפסת תמיד מתועד
 async function _washStore(f) {
   await _addDoc(_colRef('wash_notes'), { ...f, createdBy: currentUser.name, createdAt: _serverTs() });
 }
-
-async function washSave() {
-  const f = _washForm(); if (!f) return;
-  try { await _washStore(f); showToast('✅ הפתק נשמר'); _washClear(); }
-  catch (e) { showToast('שגיאה בשמירה'); }
-}
-window.washSave = washSave;
 
 async function washSaveAndPrint() {
   const f = _washForm(); if (!f) return;
@@ -9547,9 +9607,8 @@ async function washSaveAndPrint() {
 window.washSaveAndPrint = washSaveAndPrint;
 
 function _washClear() {
-  document.getElementById('wash-plate').value = '';
-  document.getElementById('wash-desc').value = '';
-  document.getElementById('wash-note').value = '';
+  ['wash-plate','wash-maker','wash-model','wash-submodel','wash-color','wash-year','wash-note']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   document.getElementById('wash-lookup-msg').textContent = '';
   _washType = '';
   _washRenderTypes();
@@ -9557,8 +9616,14 @@ function _washClear() {
 
 // הפתק נתלה על הרכב, ולכן הכל גדול: מספר הרישוי ענק וסוג השטיפה מתחתיו
 function washPrintNote(f) {
-  const now = new Date();
+  // בהדפסה חוזרת מוצג התאריך שבו הפתק נוצר, לא תאריך ההדפסה
+  const now = f.createdAt?.toDate ? f.createdAt.toDate() : new Date();
   const when = now.toLocaleDateString('he-IL') + ' · ' + now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+  const row = (label, v) => v ? `<tr><td class="l">${label}</td><td class="v">${esc(v)}</td></tr>` : '';
+  // פתקים ישנים נשמרו כשורה אחת בלבד — עדיין צריכים להידפס כמו שצריך
+  const details = [f.maker, f.model, f.subModel, f.color, f.year].some(Boolean)
+    ? `${row('יצרן', f.maker)}${row('דגם', f.model)}${row('תת דגם', f.subModel)}${row('צבע', f.color)}${row('שנה', f.year)}`
+    : row('רכב', f.desc);
   const fr = document.createElement('iframe');
   fr.style.cssText = 'position:fixed;left:-9999px;top:0;width:210mm;height:297mm;border:0';
   document.body.appendChild(fr);
@@ -9569,20 +9634,27 @@ function washPrintNote(f) {
   @page { size: A4; margin: 14mm; }
   body { font-family: Arial, "Segoe UI", sans-serif; color:#000; text-align:center; }
   h1 { font-size:34px; margin:0 0 10px; letter-spacing:2px; }
-  .plate { font-size:104px; font-weight:bold; letter-spacing:6px; border:5px solid #000;
-           border-radius:16px; padding:14px 10px; margin:10px 0 18px; }
-  .desc { font-size:30px; font-weight:bold; margin-bottom:22px; }
-  .type { font-size:52px; font-weight:bold; border:4px solid #000; border-radius:14px; padding:16px 10px; }
-  .note { font-size:30px; font-weight:bold; border:3px dashed #000; border-radius:12px;
-          padding:14px 12px; margin-top:20px; text-align:right; }
-  .foot { margin-top:34px; font-size:20px; border-top:2px solid #000; padding-top:10px; }
+  .plate { font-size:96px; font-weight:bold; letter-spacing:6px; border:5px solid #000;
+           border-radius:16px; padding:12px 10px; margin:8px 0 16px; }
+  table.info { border-collapse:collapse; width:100%; margin-bottom:16px; }
+  table.info td { border:2px solid #000; padding:8px 12px; text-align:right; font-size:22px; }
+  table.info td.l { width:34%; font-size:18px; }
+  table.info td.v { font-weight:bold; }
+  .type { font-size:46px; font-weight:bold; border:4px solid #000; border-radius:14px; padding:14px 10px; }
+  .note { font-size:26px; font-weight:bold; border:3px dashed #000; border-radius:12px;
+          padding:12px 12px; margin-top:16px; text-align:right; }
+  .stamp { border:3px solid #000; border-radius:12px; height:150px; margin-top:18px;
+           position:relative; }
+  .stamp span { position:absolute; top:8px; right:14px; font-size:18px; }
+  .foot { margin-top:20px; font-size:19px; border-top:2px solid #000; padding-top:8px; }
 </style></head><body>
   <h1>פתק שטיפה</h1>
   <div class="plate">${esc(f.plate)}</div>
-  ${f.desc ? `<div class="desc">${esc(f.desc)}</div>` : ''}
+  ${details ? `<table class="info">${details}</table>` : ''}
   <div class="type">${esc(f.type)}</div>
   ${f.note ? `<div class="note">הערה: ${esc(f.note)}</div>` : ''}
-  <div class="foot">${esc(currentUser.name)} · ${esc(when)}</div>
+  <div class="stamp"><span>חותמת ואישור ביצוע:</span></div>
+  <div class="foot">${esc(f.createdBy || currentUser.name)} · ${esc(when)}</div>
 </body></html>`);
   w.document.close();
   setTimeout(() => {
@@ -13438,17 +13510,12 @@ async function fetchPitVehicle() {
   status.style.color = 'var(--muted)'; status.textContent = '⏳ מחפש...';
   btn.disabled = true; info.style.display = 'none';
   try {
-    const filters = encodeURIComponent(JSON.stringify({ mispar_rechev: raw }));
-    const url = `https://data.gov.il/api/3/action/datastore_search?resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3&filters=${filters}&limit=1`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('network');
-    const json = await res.json();
-    const rec = json?.result?.records?.[0];
+    const rec = await _plateLookup(raw);
     if (!rec) { status.style.color='var(--danger)'; status.textContent='❌ לא נמצא רכב עם מספר זה'; return; }
-    window._pitVehicleData = { brand: _cleanMaker(rec.tozeret_nm||''), model: rec.kinuy_mishari||rec.degem_nm||'', color: rec.tzeva_rechev||'', year: rec.shnat_yitzur||'' };
+    window._pitVehicleData = { brand: rec.maker, model: rec.model, color: rec.color, year: rec.year };
     status.style.color='var(--success)'; status.textContent='✅ פרטים נטענו';
     info.style.display='block';
-    info.textContent = [_cleanMaker(rec.tozeret_nm||''), rec.kinuy_mishari||rec.degem_nm, rec.tzeva_rechev, rec.shnat_yitzur].filter(Boolean).join(' · ');
+    info.textContent = [rec.maker, rec.model, rec.color, rec.year].filter(Boolean).join(' · ');
   } catch(e) {
     status.style.color='var(--danger)'; status.textContent='❌ שגיאה בחיבור לשרת';
   } finally { btn.disabled=false; }
@@ -14600,18 +14667,11 @@ async function rfFetchVehicle() {
   const btn = document.getElementById('btn-rf-fetch');
   status.style.color = 'var(--muted)'; status.textContent = '⏳ מחפש...'; btn.disabled = true;
   try {
-    const filters = encodeURIComponent(JSON.stringify({ mispar_rechev: raw }));
-    const url = `https://data.gov.il/api/3/action/datastore_search?resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3&filters=${filters}&limit=1`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('network');
-    const json = await res.json();
-    const rec = json?.result?.records?.[0];
+    const rec = await _plateLookup(raw);
     if (!rec) { status.style.color='var(--danger)'; status.textContent='❌ לא נמצא רכב עם מספר זה'; return; }
-    const brand = _cleanMaker(rec.tozeret_nm || '');
-    const model = rec.kinuy_mishari || rec.degem_nm || '';
-    document.getElementById('ra-type').value = [brand, model].filter(Boolean).join(' ');
-    document.getElementById('ra-year').value  = rec.shnat_yitzur  || '';
-    document.getElementById('ra-color').value = rec.tzeva_rechev  || '';
+    document.getElementById('ra-type').value = [rec.maker, rec.model].filter(Boolean).join(' ');
+    document.getElementById('ra-year').value  = rec.year;
+    document.getElementById('ra-color').value = rec.color;
     status.style.color = 'var(--success)'; status.textContent = '✅ פרטים נטענו בהצלחה';
   } catch(e) {
     status.style.color = 'var(--danger)'; status.textContent = '❌ שגיאה בחיבור לשרת';
@@ -15561,17 +15621,9 @@ async function _backfillPickupTestDates() {
   const { updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
   for (const car of targets) {
     try {
-      const filters = encodeURIComponent(JSON.stringify({ mispar_rechev: car.plate }));
-      const res = await fetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3&filters=${filters}&limit=1`);
-      const json = await res.json();
-      const rec = json?.result?.records?.[0];
-      if (rec?.tokef_dt) {
-        const d = new Date(rec.tokef_dt);
-        if (!isNaN(d)) {
-          const test = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
-          await updateDoc(doc(window._db, 'pickup_cars', car.id), { test });
-        }
-      }
+      const rec = await _plateLookup(car.plate);
+      const test = _plateTestDate(rec);
+      if (test) await updateDoc(doc(window._db, 'pickup_cars', car.id), { test });
     } catch(e) { /* skip this car, continue with the rest */ }
   }
 }
@@ -16042,21 +16094,13 @@ async function pickupLookupPlate() {
   const status = document.getElementById('pickup-lookup-status');
   status.textContent = '⏳ מחפש...'; status.style.color = 'var(--muted)';
   try {
-    const filters = encodeURIComponent(JSON.stringify({ mispar_rechev: plate }));
-    const url = `https://data.gov.il/api/3/action/datastore_search?resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3&filters=${filters}&limit=1`;
-    const res = await fetch(url);
-    const json = await res.json();
-    const rec = json?.result?.records?.[0];
+    const rec = await _plateLookup(plate);
     if (!rec) { status.textContent = '❌ לא נמצא'; status.style.color = 'var(--danger,#ef4444)'; return; }
-    const maker = _cleanMaker(rec.tozeret_nm || '');
-    const model = rec.kinuy_mishari || rec.degem_nm || '';
-    document.getElementById('pickup-type').value = [maker, model].filter(Boolean).join(' ');
-    document.getElementById('pickup-year').value = rec.shnat_yitzur || '';
-    document.getElementById('pickup-color').value = rec.tzeva_rechev || '';
-    if (rec.tokef_dt) {
-      const d = new Date(rec.tokef_dt);
-      if (!isNaN(d)) document.getElementById('pickup-test').value = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
-    }
+    document.getElementById('pickup-type').value = [rec.maker, rec.model].filter(Boolean).join(' ');
+    document.getElementById('pickup-year').value = rec.year;
+    document.getElementById('pickup-color').value = rec.color;
+    const td = _plateTestDate(rec);
+    if (td) document.getElementById('pickup-test').value = td;
     status.textContent = '✅ פרטים נטענו'; status.style.color = 'var(--success,#16a34a)';
   } catch(e) {
     status.textContent = '⚠️ שגיאה בחיבור'; status.style.color = 'var(--danger,#ef4444)';
@@ -16510,19 +16554,12 @@ async function _fetchGovDataForAll(onProgress) {
   // fetch all plates in parallel (much faster than one-by-one)
   await Promise.all(cars.map(async car => {
     try {
-      const filters = encodeURIComponent(JSON.stringify({ mispar_rechev: car.plate }));
-      const res = await fetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3&filters=${filters}&limit=1`);
-      const json = await res.json();
-      const rec = json?.result?.records?.[0];
+      const rec = await _plateLookup(car.plate);
       if (rec) {
-        car.type  = [_cleanMaker(rec.tozeret_nm||''), rec.kinuy_mishari||rec.degem_nm||''].filter(Boolean).join(' ');
-        car.year  = String(rec.shnat_yitzur || car.year);
-        car.color = String(rec.tzeva_rechev || car.color || '');
-        // tokef_dt = test/registration validity date, format: "2025-01-31T00:00:00"
-        if (rec.tokef_dt) {
-          const d = new Date(rec.tokef_dt);
-          if (!isNaN(d)) car.test = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
-        }
+        car.type  = [rec.maker, rec.model].filter(Boolean).join(' ');
+        car.year  = String(rec.year || car.year);
+        car.color = String(rec.color || car.color || '');
+        car.test  = _plateTestDate(rec) || car.test;
         car._fetched = true;
       }
     } catch(e) {}
@@ -16996,18 +17033,12 @@ async function parseFreeTextPickup() {
     car._fetching = true;
     _renderFreetextPreview();
     try {
-      const filters = encodeURIComponent(JSON.stringify({ mispar_rechev: car.plate }));
-      const res = await fetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3&filters=${filters}&limit=1`);
-      const json = await res.json();
-      const rec = json?.result?.records?.[0];
+      const rec = await _plateLookup(car.plate);
       if (rec) {
-        car.type = [_cleanMaker(rec.tozeret_nm||''), rec.kinuy_mishari||rec.degem_nm||''].filter(Boolean).join(' ');
-        car.year = String(rec.shnat_yitzur || car.year);
-        car.color = String(rec.tzeva_rechev || car.color || '');
-        if (rec.tokef_dt) {
-          const d = new Date(rec.tokef_dt);
-          if (!isNaN(d)) car.test = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
-        }
+        car.type  = [rec.maker, rec.model].filter(Boolean).join(' ');
+        car.year  = String(rec.year || car.year);
+        car.color = String(rec.color || car.color || '');
+        car.test  = _plateTestDate(rec) || car.test;
         car._fetched = true;
       }
     } catch(e) {}
@@ -17151,15 +17182,12 @@ async function sendPickupCarIntake(id) {
     // auto-pull vehicle details from the gov.il registry (same source used elsewhere)
     let brand = '', model = '', color = car.color || '', year = car.year || '';
     try {
-      const filters = encodeURIComponent(JSON.stringify({ mispar_rechev: plate }));
-      const res = await fetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3&filters=${filters}&limit=1`);
-      const json = await res.json();
-      const rec = json?.result?.records?.[0];
+      const rec = await _plateLookup(plate);
       if (rec) {
-        brand = _cleanMaker(rec.tozeret_nm || '');
-        model = rec.kinuy_mishari || rec.degem_nm || '';
-        color = rec.tzeva_rechev || color;
-        year  = rec.shnat_yitzur || year;
+        brand = rec.maker;
+        model = rec.model;
+        color = rec.color || color;
+        year  = rec.year || year;
       }
     } catch (e) { console.error('gov.il lookup for intake', e); }
     if (!brand && !model && car.type) { const parts = car.type.split(' '); brand = parts[0] || ''; model = parts.slice(1).join(' '); }
