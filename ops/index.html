@@ -394,6 +394,7 @@ body.modal-open{overflow:hidden}
 .hs-td{background:linear-gradient(135deg,#7c3aed,#4f46e5)}
 .hs-yard{background:linear-gradient(135deg,#b45309,#92400e)}
 .hs-wash{background:linear-gradient(135deg,#0d9488,#0f766e)}
+.hs-search{background:linear-gradient(135deg,#334155,#0f172a)}
 /* כפתור שתופס את כל רוחב האזור — שורה שלמה לעצמו */
 .hs-wide{grid-column:1/-1}
 
@@ -607,6 +608,7 @@ if ('serviceWorker' in navigator) {
         </div>
         <div id="cal-agenda" style="margin-top:10px"></div>
       <div id="home-side-actions">
+        <button class="hs-btn hs-search hs-wide" id="menu-card-plate-search" onclick="goToScreen('plate-search')">🔎 חיפוש רכב לפי לוחית</button>
         <button class="hs-btn hs-wash hs-wide" id="menu-card-wash" onclick="goToScreen('wash')">🧽 פתק שטיפה</button>
         <button id="menu-card-recall" onclick="goToScreen('recall')" class="hs-btn hs-recall" style="display:none"><span id="recall-home-warn" style="display:none">⚠️ </span>בדיקת ריקול<span id="recall-home-count" style="display:none;margin-right:8px;background:rgba(255,255,255,.35);border-radius:999px;padding:2px 10px;font-size:15px;font-weight:900"></span></button>
         <button class="hs-btn hs-inventory" id="menu-card-inventory" onclick="goToScreen('inventory')">📦 בדיקת מלאי<span id="badge-inventory" style="display:none;margin-right:8px;background:rgba(255,255,255,.32);color:inherit;border-radius:999px;padding:2px 11px;font-size:15px;font-weight:900"></span></button>
@@ -1950,6 +1952,24 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
+<!-- ====== SCREEN: PLATE SEARCH ====== -->
+<div id="screen-plate-search" class="screen">
+  <div class="app-header">
+    <button class="back-btn" onclick="goHome()">→</button>
+    <div class="logo">🔎 חיפוש רכב</div>
+    <div class="user-badge" id="ps-user-badge" onclick="logout()"></div>
+  </div>
+  <div style="padding:16px 16px 100px">
+    <div style="display:flex;gap:8px;margin-bottom:6px">
+      <input class="form-input" id="ps-plate" inputmode="numeric" placeholder="מספר רישוי" oninput="psSearchSoon()" style="flex:1;margin:0">
+      <button onclick="psSearch()" style="background:var(--dark);color:#fff;border:none;border-radius:10px;padding:0 18px;font-family:'Heebo',sans-serif;font-weight:800;font-size:15px;cursor:pointer">🔎</button>
+    </div>
+    <div id="ps-msg" style="font-size:12px;font-weight:800;min-height:18px;margin-bottom:10px;color:var(--muted)"></div>
+    <div id="ps-card"></div>
+    <div id="ps-results"></div>
+  </div>
+</div>
+
 <!-- ====== SCREEN: WASH NOTE ====== -->
 <div id="screen-wash" class="screen">
   <div class="app-header">
@@ -3163,7 +3183,7 @@ function enterApp() {
   renderHome();
   const savedScreen = sessionStorage.getItem('anak_screen');
   if (savedScreen && savedScreen !== 'home' && savedScreen !== 'login') {
-    const screenFns = { vehicles: openVehiclesScreen, tasks: openTasksScreen, parts: openPartsScreen, inventory: openInventoryScreen, pits: openPitsScreen, yard: openYardScreen, 'driver-inventory': openDriverInventoryScreen, battery: openBatteryScreen, 'driver-battery': openDriverBatteryScreen, 'driver-charging': openDriverChargingScreen, 'battery-stats': openBatteryStatsScreen, refresh: openVehiclesScreen, recall: openRecallScreen, wash: openWashScreen };
+    const screenFns = { vehicles: openVehiclesScreen, tasks: openTasksScreen, parts: openPartsScreen, inventory: openInventoryScreen, pits: openPitsScreen, yard: openYardScreen, 'driver-inventory': openDriverInventoryScreen, battery: openBatteryScreen, 'driver-battery': openDriverBatteryScreen, 'driver-charging': openDriverChargingScreen, 'battery-stats': openBatteryStatsScreen, refresh: openVehiclesScreen, recall: openRecallScreen, wash: openWashScreen, 'plate-search': openPlateSearch };
     if (screenFns[savedScreen]) { screenFns[savedScreen](); }
     else { showScreen('home'); }
   } else {
@@ -3373,6 +3393,8 @@ function renderHome() {
   // אצל הנהג השטיפה היא קובייה במסך הבית, ולכן הכפתור הרחב מוסתר
   const washBtn = document.getElementById('menu-card-wash');
   if (washBtn) washBtn.style.display = isManager ? '' : 'none';
+  const psBtn = document.getElementById('menu-card-plate-search');
+  if (psBtn) psBtn.style.display = isManager ? '' : 'none';
   // The parts catalogue is parked, not removed — the screen and everything in it
   // stay exactly as they are. To bring the button back, put the manager check
   // back in place of the 'none' below.
@@ -3752,6 +3774,7 @@ function goToScreen(name) {
   else if (name === 'test-drive') openTestDriveScreen();
   else if (name === 'recall') openRecallScreen();
   else if (name === 'wash') openWashScreen();
+  else if (name === 'plate-search') openPlateSearch();
   else if (name === 'parts-catalog') { if (currentUser.role !== 'manager') return; openPartsCatalogScreen(); }
   else if (name === 'battery-stock') { if (currentUser.role !== 'manager') return; openBatteryStockScreen(); }
   else if (name === 'driver-battery-stock') openDriverBatteryStockScreen();
@@ -9541,6 +9564,151 @@ function bsmPrint(id) {
   }, 250); // give the layout a moment before printing
 }
 window.bsmPrint = bsmPrint;
+
+/* ── חיפוש רכב לפי לוחית ─────────────────────────────────────────────
+   מסך אחד שעונה על "מה קורה עם הרכב הזה": כל מה שהמערכת יודעת עליו,
+   מכל המודולים, לפי מספר הרישוי בלבד.
+   ההשוואה נעשית על הספרות בלבד, כי בשדות חופשיים נכתבו לוחיות עם
+   מקפים ורווחים. משימות אינן נושאות שדה לוחית — שם מחפשים בכותרת.
+─────────────────────────────────────────────────────────────────────── */
+const _PS_SOURCES = [
+  { col: 'intake_assignments', icon: '🚗', label: 'קליטת רכב',      when: d => d.createdAt, desc: d => `סטטוס: ${d.status === 'pending' ? 'ממתינה' : d.status === 'done' ? 'בוצעה' : d.status || ''}${d.assignedTo ? ' · ' + d.assignedTo : ''}` },
+  { col: 'intake_archive',     icon: '🗄️', label: 'קליטה בארכיון',  when: d => d.archivedAt || d.createdAt, desc: d => d.assignedTo || '' },
+  { col: 'refreshes',          icon: '✨', label: 'רענון',           when: d => d.createdAt, desc: d => `${d.status === 'pending' ? 'ממתין' : 'בוצע'}${d.assignedTo ? ' · ' + d.assignedTo : ''}` },
+  { col: 'tasks',              icon: '📋', label: 'משימה',           when: d => d.createdAt, desc: d => `${d.title || ''} · ${d.label || ''}${d.assignedTo ? ' · ' + d.assignedTo : ''}`, inTitle: true },
+  { col: 'pickup_cars',        icon: '🚙', label: 'ממתין לאיסוף',    when: d => d.createdAt, desc: d => [d.city, d.address, d.assignedDriver].filter(Boolean).join(' · ') },
+  { col: 'pickup_archive',     icon: '✅', label: 'נאסף',            when: d => d.collectedAt, desc: d => [d.city, d.collectedBy].filter(Boolean).join(' · ') },
+  { col: 'bodyshop_jobs',      icon: '🔨', label: 'פחחות',           when: d => d.createdAt, desc: d => `${d.status === 'draft' ? 'ממתין לשליחה' : d.status === 'at_shop' ? 'אצל הפחח' : 'סיימנו'}${d.desc ? ' · ' + d.desc : ''}` },
+  { col: 'pit_checks',         icon: '🕳️', label: 'בור / בדיקה',     when: d => d.createdAt, desc: d => [d.checkType, d.vDesc, d.status === 'pending' ? 'ממתין' : 'בוצע'].filter(Boolean).join(' · ') },
+  { col: 'test_drives',        icon: '🏎️', label: 'נסיעת מבחן',      when: d => d.createdAt, desc: d => [d.assignedTo, d.status === 'pending' ? 'ממתין' : 'בוצע'].filter(Boolean).join(' · ') },
+  { col: 'wash_notes',         icon: '🧽', label: 'שטיפה',           when: d => d.createdAt, desc: d => [d.type, d.createdBy].filter(Boolean).join(' · ') },
+  { col: 'battery_installs',   icon: '🔋', label: 'הרכבת מצבר',      when: d => d.createdAt, desc: d => [d.model, d.createdBy].filter(Boolean).join(' · ') },
+  { col: 'charging_tasks',     icon: '⚡', label: 'טעינה',           when: d => d.createdAt, desc: d => [d.status === 'active' ? 'בטעינה' : 'הסתיימה', d.assignedTo].filter(Boolean).join(' · ') },
+  { col: 'parts',              icon: '🔧', label: 'בקשת חלק',        when: d => d.requestedAt, desc: d => [d.qty ? d.qty + ' יח׳' : '', d.supplier, d.requestedBy].filter(Boolean).join(' · ') },
+];
+
+const _psDigits = v => String(v == null ? '' : v).replace(/\D/g, '');
+let _psCache = {};           // collection → { at, docs }
+let _psBusy = false;
+
+async function openPlateSearch() {
+  document.getElementById('ps-user-badge').textContent = currentUser.name;
+  showScreen('plate-search');
+  document.getElementById('ps-plate').value = '';
+  document.getElementById('ps-msg').textContent = '';
+  document.getElementById('ps-card').innerHTML = '';
+  document.getElementById('ps-results').innerHTML = '';
+}
+window.openPlateSearch = openPlateSearch;
+
+let _psT = null;
+function psSearchSoon() {
+  clearTimeout(_psT);
+  const p = _psDigits(document.getElementById('ps-plate').value);
+  if (p.length < 6) {
+    document.getElementById('ps-card').innerHTML = '';
+    document.getElementById('ps-results').innerHTML = '';
+    document.getElementById('ps-msg').textContent = '';
+    return;
+  }
+  _psT = setTimeout(psSearch, 350);
+}
+window.psSearchSoon = psSearchSoon;
+
+// קריאה אחת לכל collection, עם מטמון קצר — חיפוש שני של אותו רכב או
+// של רכב אחר בתוך דקות לא פונה שוב לשרת
+async function _psDocs(col) {
+  const c = _psCache[col];
+  if (c && Date.now() - c.at < 5 * 60000) return c.docs;
+  const { getDocs } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  const snap = await getDocs(_colRef(col));
+  const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  _psCache[col] = { at: Date.now(), docs };
+  return docs;
+}
+
+async function psSearch() {
+  const plate = _psDigits(document.getElementById('ps-plate').value);
+  const msg = document.getElementById('ps-msg');
+  if (plate.length < 6) return msg.textContent = 'נא להזין מספר רישוי מלא';
+  if (_psBusy) return;
+  _psBusy = true;
+  msg.textContent = '⏳ מחפש בכל המערכת…';
+  document.getElementById('ps-results').innerHTML = '';
+
+  // פרטי הרכב מוצגים מיד, בלי להמתין לסריקה
+  _plateLookup(plate).then(v => _psRenderCard(plate, v)).catch(() => _psRenderCard(plate, null));
+
+  const hits = [];
+  await Promise.all(_PS_SOURCES.map(async src => {
+    let docs = [];
+    try { docs = await _psDocs(src.col); } catch (e) { return; }
+    for (const d of docs) {
+      const match = src.inTitle
+        ? _psDigits(d.title).includes(plate)
+        : _psDigits(d.plate) === plate;
+      if (match) hits.push({ src, d });
+    }
+  }));
+
+  // הפחחות שומרת רכבים גם בתוך תיקיות ארכיון, כמערך בתוך מסמך אחד
+  try {
+    for (const a of await _psDocs('bodyshop_archive')) {
+      (a.cars || []).forEach(c => {
+        if (_psDigits(c.plate) === plate) {
+          hits.push({ src: { icon: '🧾', label: 'פחחות · שולם', when: () => a.paidAt, desc: () => [a.title, c.total ? Number(c.total).toLocaleString('he-IL') + ' ₪' : ''].filter(Boolean).join(' · ') }, d: c });
+        }
+      });
+    }
+  } catch (e) {}
+
+  // ריקול פתוח יושב במסמך אחד עם מערך רכבים
+  try {
+    const snap = await window._getDoc(_docRef('recall_status', 'current'));
+    const cars = snap.exists() ? (snap.data().cars || []) : [];
+    const car = cars.find(c => _psDigits(c.plate) === plate);
+    if (car) hits.push({ src: { icon: '⚠️', label: 'ריקול פתוח', when: () => null, desc: () => car.resolved ? 'טופל — ממתין להסרה' : 'דורש טיפול', warn: true }, d: car });
+  } catch (e) {}
+
+  _psRenderResults(hits);
+  msg.textContent = hits.length ? `נמצאו ${hits.length} רשומות` : 'לא נמצאה שום רשומה לרכב הזה';
+  _psBusy = false;
+}
+window.psSearch = psSearch;
+
+function _psRenderCard(plate, v) {
+  const box = document.getElementById('ps-card');
+  if (!box) return;
+  const line = v ? [v.maker, v.model, v.subModel, v.color, v.year].filter(Boolean).join(' · ') : 'לא נמצא במשרד התחבורה';
+  box.innerHTML = `<div style="border:2px solid var(--border);border-radius:14px;padding:13px 15px;margin-bottom:12px;background:var(--surface2)">
+      <div style="font-size:22px;font-weight:900;letter-spacing:1px">${esc(plate)}</div>
+      <div style="font-size:13px;color:var(--muted);font-weight:700;margin-top:3px">${esc(line)}</div>
+      ${v && _plateTestDate(v) ? `<div style="font-size:13px;font-weight:800;margin-top:4px">🔧 טסט: ${esc(_plateTestDate(v))}</div>` : ''}
+    </div>`;
+}
+
+const _psWhen = t => {
+  const d = t?.toDate ? t.toDate() : (t ? new Date(t) : null);
+  return d && !isNaN(d) ? d.toLocaleDateString('he-IL') : '';
+};
+
+function _psRenderResults(hits) {
+  const box = document.getElementById('ps-results');
+  if (!box) return;
+  if (!hits.length) { box.innerHTML = ''; return; }
+  // החדש למעלה; רשומה בלי תאריך יורדת לסוף
+  const key = h => { const t = h.src.when(h.d); const d = t?.toDate ? t.toDate() : (t ? new Date(t) : null); return d && !isNaN(d) ? d.getTime() : 0; };
+  hits.sort((a, b) => key(b) - key(a));
+  box.innerHTML = hits.map(({ src, d }) => `
+    <div style="display:flex;align-items:flex-start;gap:10px;border:2px solid ${src.warn ? '#ef4444' : 'var(--border)'};border-radius:12px;padding:11px 13px;margin-bottom:8px;background:${src.warn ? '#fee2e2' : 'var(--card)'}">
+      <div style="font-size:20px;flex-shrink:0">${src.icon}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:900;font-size:14px;${src.warn ? 'color:#991b1b' : ''}">${esc(src.label)}</div>
+        <div style="font-size:12.5px;color:${src.warn ? '#991b1b' : 'var(--muted)'};font-weight:700;margin-top:2px">${esc(src.desc(d) || '')}</div>
+      </div>
+      <div style="font-size:11.5px;color:var(--muted);font-weight:700;white-space:nowrap">${esc(_psWhen(src.when(d)))}</div>
+    </div>`).join('');
+}
 
 /* ── פתק שטיפה ───────────────────────────────────────────────────────
    הנהג בוחר רכב וסוג שטיפה, ומדפיס פתק גדול שנתלה על הרכב. ההדפסה
