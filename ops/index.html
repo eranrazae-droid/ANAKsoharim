@@ -1925,6 +1925,38 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
+<!-- ====== SCREEN: WASH NOTE ====== -->
+<div id="screen-wash" class="screen">
+  <div class="app-header">
+    <button class="back-btn" onclick="goHome()">→</button>
+    <div class="logo">🧽 פתק שטיפה</div>
+    <div class="user-badge" id="wash-user-badge" onclick="logout()"></div>
+  </div>
+  <div style="padding:16px 16px 100px">
+    <div class="section-title" style="margin-top:0">רכב לשטיפה</div>
+    <div style="display:flex;gap:8px;margin-bottom:4px">
+      <input class="form-input" id="wash-plate" inputmode="numeric" placeholder="מספר רישוי" oninput="washLookupPlateSoon()" style="flex:1;margin:0">
+      <button onclick="washLookupPlate()" style="background:var(--dark);color:#fff;border:none;border-radius:10px;padding:0 16px;font-family:'Heebo',sans-serif;font-weight:800;font-size:14px;cursor:pointer">🔎</button>
+    </div>
+    <div id="wash-lookup-msg" style="font-size:12px;font-weight:800;min-height:18px;margin-bottom:8px"></div>
+    <input class="form-input" id="wash-desc" placeholder="דגם וצבע" style="margin-bottom:10px">
+
+    <div class="section-title">סוג שטיפה</div>
+    <div id="wash-types" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px"></div>
+
+    <div class="section-title">הערה</div>
+    <textarea class="form-input" id="wash-note" rows="2" placeholder="הערה לשוטף (לא חובה)" style="margin-bottom:14px"></textarea>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <button class="btn-submit" id="wash-print-btn" onclick="washSaveAndPrint()" style="background:var(--dark);color:#fff;margin:0">🖨️ שמור והדפס</button>
+      <button class="btn-submit" onclick="washSave()" style="background:var(--success,#16a34a);color:#fff;margin:0">💾 שמור בלבד</button>
+    </div>
+
+    <div class="section-title">פתקי שטיפה אחרונים</div>
+    <div id="wash-list"></div>
+  </div>
+</div>
+
 <!-- ====== SCREEN: PARTS CATALOG (MANAGER) ====== -->
 <div id="screen-parts-catalog" class="screen">
   <div class="app-header">
@@ -3102,7 +3134,7 @@ function enterApp() {
   renderHome();
   const savedScreen = sessionStorage.getItem('anak_screen');
   if (savedScreen && savedScreen !== 'home' && savedScreen !== 'login') {
-    const screenFns = { vehicles: openVehiclesScreen, tasks: openTasksScreen, parts: openPartsScreen, inventory: openInventoryScreen, pits: openPitsScreen, yard: openYardScreen, 'driver-inventory': openDriverInventoryScreen, battery: openBatteryScreen, 'driver-battery': openDriverBatteryScreen, 'driver-charging': openDriverChargingScreen, 'battery-stats': openBatteryStatsScreen, refresh: openVehiclesScreen, recall: openRecallScreen };
+    const screenFns = { vehicles: openVehiclesScreen, tasks: openTasksScreen, parts: openPartsScreen, inventory: openInventoryScreen, pits: openPitsScreen, yard: openYardScreen, 'driver-inventory': openDriverInventoryScreen, battery: openBatteryScreen, 'driver-battery': openDriverBatteryScreen, 'driver-charging': openDriverChargingScreen, 'battery-stats': openBatteryStatsScreen, refresh: openVehiclesScreen, recall: openRecallScreen, wash: openWashScreen };
     if (screenFns[savedScreen]) { screenFns[savedScreen](); }
     else { showScreen('home'); }
   } else {
@@ -3263,11 +3295,13 @@ function renderHome() {
         // row 3 — recall is not here, it lives on the floating home button
         { icon: '🚙', title: 'מכוניות לאיסוף', sub: 'ניהול רכבים לאיסוף', screen: 'pickup' },
         { icon: '🔨', title: 'פחחות', sub: 'עבודות, מחירים וחשבון חודשי', screen: 'bodyshop-mgr' },
+        { icon: '🧽', title: 'פתק שטיפה', sub: 'הכנה והדפסה של פתק לרכב', screen: 'wash' },
       ]
     : [
         { icon: '📋', title: 'המשימות שלי', sub: 'משימות שהוקצו לך', screen: 'tasks' },
         { icon: '🔋', title: 'בדיקת סוללה והטענת רכבים חשמליים', sub: 'מילוי אחוזי טעינה וטווח', screen: 'driver-battery' },
         { icon: _ICON_CAR_BATTERY, title: 'מצברים', sub: 'רישום מצבר שהורכב לרכב', screen: 'driver-battery-install' },
+        { icon: '🧽', title: 'פתק שטיפה', sub: 'הכנה והדפסה של פתק לרכב', screen: 'wash' },
       ];
 
   function _cardHtml(m) {
@@ -3685,6 +3719,7 @@ function goToScreen(name) {
   else if (name === 'pickup') { if (currentUser.role === 'pickup_driver') openMyPickupScreen(); else openPickupScreen(); }
   else if (name === 'test-drive') openTestDriveScreen();
   else if (name === 'recall') openRecallScreen();
+  else if (name === 'wash') openWashScreen();
   else if (name === 'parts-catalog') { if (currentUser.role !== 'manager') return; openPartsCatalogScreen(); }
   else if (name === 'battery-stock') { if (currentUser.role !== 'manager') return; openBatteryStockScreen(); }
   else if (name === 'driver-battery-stock') openDriverBatteryStockScreen();
@@ -9399,6 +9434,203 @@ function bsmPrint(id) {
   }, 250); // give the layout a moment before printing
 }
 window.bsmPrint = bsmPrint;
+
+/* ── פתק שטיפה ───────────────────────────────────────────────────────
+   הנהג בוחר רכב וסוג שטיפה, ומדפיס פתק גדול שנתלה על הרכב. ההדפסה
+   נעשית מאותה מסגרת נסתרת של פתק הפחחות, כדי שחלון ההדפסה ייפתח מיד
+   ולא ייפתח דף חדש. כל פתק גם נשמר, כדי שיהיה תיעוד מה נשלח לשטיפה.
+─────────────────────────────────────────────────────────────────────── */
+const _WASH_TYPES = ['חיצוני', 'חיצוני ידני', 'פנימי', 'חיצוני + פנימי'];
+let _washType = '';
+let _washNotes = [];
+let _washUnsub = null;
+
+function openWashScreen() {
+  document.getElementById('wash-user-badge').textContent = currentUser.name;
+  showScreen('wash');
+  _washType = '';
+  document.getElementById('wash-plate').value = '';
+  document.getElementById('wash-desc').value = '';
+  document.getElementById('wash-note').value = '';
+  document.getElementById('wash-lookup-msg').textContent = '';
+  _washRenderTypes();
+  if (!_washUnsub) {
+    _washUnsub = _onSnap(_colRef('wash_notes'), snap => {
+      _washNotes = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      _washRenderList();
+    }, () => {});
+  }
+  _washRenderList();
+}
+window.openWashScreen = openWashScreen;
+
+function _washRenderTypes() {
+  const c = document.getElementById('wash-types');
+  if (!c) return;
+  c.innerHTML = _WASH_TYPES.map(t => {
+    const on = t === _washType;
+    return `<button onclick="washPickType('${esc(t)}')" style="padding:12px 8px;border-radius:12px;font-family:'Heebo',sans-serif;font-size:15px;font-weight:900;cursor:pointer;${on
+      ? 'background:#0d9488;color:#fff;border:2px solid #0d9488'
+      : 'background:var(--surface2);color:var(--text);border:2px solid var(--border)'}">${esc(t)}</button>`;
+  }).join('');
+}
+
+function washPickType(t) { _washType = (_washType === t ? '' : t); _washRenderTypes(); }
+window.washPickType = washPickType;
+
+// חיפוש אוטומטי ברגע שהוקלד מספר רישוי שלם, בלי ללחוץ על הזכוכית
+let _washLookupT = null;
+function washLookupPlateSoon() {
+  clearTimeout(_washLookupT);
+  const p = (document.getElementById('wash-plate').value || '').replace(/\D/g, '');
+  if (p.length < 7) return;
+  _washLookupT = setTimeout(washLookupPlate, 400);
+}
+window.washLookupPlateSoon = washLookupPlateSoon;
+
+async function washLookupPlate() {
+  const plate = (document.getElementById('wash-plate').value || '').replace(/\D/g, '');
+  const msg = document.getElementById('wash-lookup-msg');
+  if (!plate) return;
+  msg.textContent = '⏳ מחפש...'; msg.style.color = 'var(--muted)';
+  try {
+    const filters = encodeURIComponent(JSON.stringify({ mispar_rechev: plate }));
+    const res = await fetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3&filters=${filters}&limit=1`);
+    const rec = (await res.json())?.result?.records?.[0];
+    if (!rec) { msg.textContent = '❌ לא נמצא — אפשר למלא ידנית'; msg.style.color = 'var(--danger,#ef4444)'; return; }
+    const maker = _cleanMaker(rec.tozeret_nm || '');
+    const model = rec.kinuy_mishari || rec.degem_nm || '';
+    document.getElementById('wash-desc').value = [maker, model, rec.tzeva_rechev].filter(Boolean).join(' ');
+    msg.textContent = '✅ פרטים נטענו'; msg.style.color = 'var(--success,#16a34a)';
+  } catch (e) {
+    msg.textContent = '⚠️ שגיאה בחיבור — אפשר למלא ידנית'; msg.style.color = 'var(--danger,#ef4444)';
+  }
+}
+window.washLookupPlate = washLookupPlate;
+
+function _washForm() {
+  const plate = (document.getElementById('wash-plate').value || '').trim();
+  if (!plate) { showToast('נא להזין מספר רישוי'); return null; }
+  if (!_washType) { showToast('נא לבחור סוג שטיפה'); return null; }
+  return {
+    plate,
+    desc: (document.getElementById('wash-desc').value || '').trim(),
+    type: _washType,
+    note: (document.getElementById('wash-note').value || '').trim(),
+  };
+}
+
+// השמירה נעשית לפני ההדפסה, כך שפתק שיצא למדפסת תמיד מתועד
+async function _washStore(f) {
+  await _addDoc(_colRef('wash_notes'), { ...f, createdBy: currentUser.name, createdAt: _serverTs() });
+}
+
+async function washSave() {
+  const f = _washForm(); if (!f) return;
+  try { await _washStore(f); showToast('✅ הפתק נשמר'); _washClear(); }
+  catch (e) { showToast('שגיאה בשמירה'); }
+}
+window.washSave = washSave;
+
+async function washSaveAndPrint() {
+  const f = _washForm(); if (!f) return;
+  const btn = document.getElementById('wash-print-btn');
+  if (btn) btn.disabled = true;
+  try {
+    await _washStore(f);
+    washPrintNote(f);
+    _washClear();
+  } catch (e) { showToast('שגיאה בשמירה — הפתק לא הודפס'); }
+  finally { if (btn) btn.disabled = false; }
+}
+window.washSaveAndPrint = washSaveAndPrint;
+
+function _washClear() {
+  document.getElementById('wash-plate').value = '';
+  document.getElementById('wash-desc').value = '';
+  document.getElementById('wash-note').value = '';
+  document.getElementById('wash-lookup-msg').textContent = '';
+  _washType = '';
+  _washRenderTypes();
+}
+
+// הפתק נתלה על הרכב, ולכן הכל גדול: מספר הרישוי ענק וסוג השטיפה מתחתיו
+function washPrintNote(f) {
+  const now = new Date();
+  const when = now.toLocaleDateString('he-IL') + ' · ' + now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+  const fr = document.createElement('iframe');
+  fr.style.cssText = 'position:fixed;left:-9999px;top:0;width:210mm;height:297mm;border:0';
+  document.body.appendChild(fr);
+  const w = fr.contentWindow;
+  w.document.write(`<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8">
+<title>פתק שטיפה ${esc(f.plate)}</title>
+<style>
+  @page { size: A4; margin: 14mm; }
+  body { font-family: Arial, "Segoe UI", sans-serif; color:#000; text-align:center; }
+  h1 { font-size:34px; margin:0 0 10px; letter-spacing:2px; }
+  .plate { font-size:104px; font-weight:bold; letter-spacing:6px; border:5px solid #000;
+           border-radius:16px; padding:14px 10px; margin:10px 0 18px; }
+  .desc { font-size:30px; font-weight:bold; margin-bottom:22px; }
+  .type { font-size:52px; font-weight:bold; border:4px solid #000; border-radius:14px; padding:16px 10px; }
+  .note { font-size:30px; font-weight:bold; border:3px dashed #000; border-radius:12px;
+          padding:14px 12px; margin-top:20px; text-align:right; }
+  .foot { margin-top:34px; font-size:20px; border-top:2px solid #000; padding-top:10px; }
+</style></head><body>
+  <h1>פתק שטיפה</h1>
+  <div class="plate">${esc(f.plate)}</div>
+  ${f.desc ? `<div class="desc">${esc(f.desc)}</div>` : ''}
+  <div class="type">${esc(f.type)}</div>
+  ${f.note ? `<div class="note">הערה: ${esc(f.note)}</div>` : ''}
+  <div class="foot">${esc(currentUser.name)} · ${esc(when)}</div>
+</body></html>`);
+  w.document.close();
+  setTimeout(() => {
+    try { w.focus(); w.print(); }
+    catch (e) { console.error('wash print', e); showToast('שגיאה בהדפסה'); }
+    setTimeout(() => fr.remove(), 1000);
+  }, 250);
+}
+
+function _washRenderList() {
+  const c = document.getElementById('wash-list');
+  if (!c) return;
+  // נהג רואה את הפתקים שהוא הכין; המנהל רואה הכל
+  const rows = (currentUser.role === 'manager' ? _washNotes : _washNotes.filter(n => n.createdBy === currentUser.name)).slice(0, 30);
+  if (!rows.length) {
+    c.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted)">עדיין לא נשלחו רכבים לשטיפה</div>`;
+    return;
+  }
+  c.innerHTML = rows.map(n => {
+    const d = n.createdAt?.toDate ? n.createdAt.toDate() : null;
+    const when = d ? d.toLocaleDateString('he-IL') + ' ' + d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : '';
+    return `<div style="display:flex;align-items:center;gap:10px;border:2px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:8px;background:var(--card)">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:900;font-size:16px">${esc(n.plate || '')} <span style="font-size:13px;color:#0d9488">· ${esc(n.type || '')}</span></div>
+        <div style="font-size:12px;color:var(--muted);font-weight:700">${esc(n.desc || '')}${when ? ' · ' + esc(when) : ''}${n.createdBy ? ' · ' + esc(n.createdBy) : ''}</div>
+        ${n.note ? `<div style="font-size:13px;font-weight:800;margin-top:4px">📝 ${esc(n.note)}</div>` : ''}
+      </div>
+      <button onclick="washReprint('${esc(n.id)}')" title="הדפס שוב" style="background:var(--dark);color:#fff;border:none;border-radius:8px;width:34px;height:34px;font-size:15px;cursor:pointer">🖨️</button>
+      <button onclick="washDelete('${esc(n.id)}')" title="מחק" style="background:#ef4444;color:#fff;border:none;border-radius:8px;width:34px;height:34px;font-size:15px;cursor:pointer">🗑</button>
+    </div>`;
+  }).join('');
+}
+
+function washReprint(id) {
+  const n = _washNotes.find(x => x.id === id);
+  if (n) washPrintNote(n);
+}
+window.washReprint = washReprint;
+
+async function washDelete(id) {
+  const n = _washNotes.find(x => x.id === id);
+  if (!n || !confirm(`למחוק את פתק השטיפה של ${n.plate}?`)) return;
+  try {
+    const { deleteDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    await deleteDoc(_docRef('wash_notes', id));
+  } catch (e) { showToast('שגיאה במחיקה'); }
+}
+window.washDelete = washDelete;
 
 function openBsmSendModal() {
   _bsmPicked = [];
