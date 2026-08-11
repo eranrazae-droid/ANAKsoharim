@@ -8557,16 +8557,22 @@ window.openBsmDelete = openBsmDelete;
 
 function _bsmDeleteRows() {
   const label = { draft: 'ממתין לשליחה', at_shop: 'אצל הפחח', returned: 'סיימנו' };
+  // סדר הרשימה לפי מצב הפתק: קודם מה שממתין לשליחה, אחר כך מה שאצל
+  // הפחח, אחר כך מה שסיימנו, ובסוף הארכיון
+  const order = { draft: 0, at_shop: 1, returned: 2 };
   const rows = _bshopJobs.map(j => ({
     key: 'job:' + j.id, plate: j.plate || '', desc: j.desc || '',
     where: label[j.status] || j.status, total: _bshopTotal(j),
+    rank: order[j.status] ?? 3,
   }));
   for (const a of _bshopArchive) {
     (a.cars || []).forEach((c, i) => rows.push({
       key: `arc:${a.id}:${i}`, plate: c.plate || '', desc: c.desc || '',
       where: 'ארכיון · ' + (a.title || ''), total: Number(c.total || 0),
+      rank: 4,
     }));
   }
+  rows.sort((a, b) => a.rank - b.rank);
   return rows;
 }
 
