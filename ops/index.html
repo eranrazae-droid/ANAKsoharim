@@ -3763,13 +3763,14 @@ function _setCardBadge(screen, count, color) {
 }
 
 // קוביית ארון המצברים: המספר תמיד מופיע מתחת לכותרת, והצבע נדלק רק
-// כשיש מעל שלושה מצברים — כלומר כשבאמת יש ממה להרכיב.
+// כשמצטברו מעל שלושה מצברים להזמנה — כלומר כשכבר שווה להזמין.
 const _BS_CARD_MIN = 3;
 function _setBatteryStockCard(units) {
   const card = document.getElementById('menu-card-battery-stock');
   const sub  = document.getElementById('sub-battery-stock');
   if (!card || !sub) return;
-  sub.textContent = units === 1 ? 'מצבר אחד זמין בארון' : `${units} מצברים זמינים בארון`;
+  sub.textContent = !units ? 'אין מה להזמין'
+    : units === 1 ? 'מצבר אחד להזמנה' : `${units} מצברים להזמנה`;
   const on = units > _BS_CARD_MIN;
   card.style.background = on ? _HOME_CARD_HL : '';
   card.style.color = on ? '#fff' : '';
@@ -4012,11 +4013,10 @@ function loadManagerBadges() {
     _onSnap(_query(_colRef('inventory_assignments'), _where('status','==','done')), snap => {
       _setCardBadge('inventory', snap.size);
     });
-    // ארון המצברים: כמה יחידות זמינות עכשיו. המספר מוצג תמיד, והקובייה
-    // נצבעת רק כשיש יותר משלושה מצברים בארון.
-    _onSnap(_colRef('battery_stock'), snap => {
-      const units = snap.docs.reduce((t, d) => t + (d.data().qty || 0), 0);
-      _setBatteryStockCard(units);
+    // ארון המצברים: כמה מצברים ממתינים להזמנה — כל מצבר שיצא מהארון ועדיין
+    // לא הוזמן חזרה. אותו חישוב בדיוק כמו רשימת ההזמנה שבמסך המצברים.
+    _onSnap(_colRef('battery_installs'), snap => {
+      _setBatteryStockCard(snap.docs.filter(d => !d.data().ordered).length);
     });
     _onSnap(_docRef('recall_status', 'current'), snap => {
       const cars = snap.exists() ? (snap.data().cars || []) : [];
