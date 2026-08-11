@@ -9223,7 +9223,15 @@ function _bsmRenderStats() {
     months.push({ key: `${yr}-${String(m).padStart(2, '0')}`, label: `${m}/${String(yr).slice(2)}` });
   }
   const maxMonth = Math.max(1, ...months.map(m => byMonth[m.key] || 0));
-  const avgPerCar = paidCars ? paidTotal / paidCars : 0;
+  // הממוצע לרכב כולל גם רכבים שסיימנו וטרם שולמו — העבודה עליהם כבר
+  // נגמרה והסכום שלהם ידוע, אז הם חלק מהתמונה בדיוק כמו רכב ששולם
+  const doneJobs = _bshopJobs.filter(j => j.status === 'returned');
+  const doneSum = doneJobs.reduce((t, j) => t + _bshopTotal(j), 0);
+  const avgCars = paidCars + doneJobs.length;
+  const avgPerCar = avgCars ? (paidTotal + doneSum) / avgCars : 0;
+  const avgSub = doneJobs.length
+    ? `${avgCars} רכבים · ${paidCars} ששולמו ו-${doneJobs.length} שסיימנו`
+    : `${paidCars} רכבים ששולמו`;
 
   // ── parts: every note we can still read, paid or open ──
   const partStat = {};
@@ -9261,7 +9269,7 @@ function _bsmRenderStats() {
     <div id="bsm-stat-tiles" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px">
       ${tile('שולם מאז ומעולם', ils(paidTotal), `${paidCars} רכבים`)}
       ${tile('פתוח כרגע', ils(openSum), 'אצל הפחח ומחכה לתשלום')}
-      ${tile('ממוצע לרכב', ils(avgPerCar), `${paidCars} רכבים ששולמו`)}
+      ${tile('ממוצע לרכב', ils(avgPerCar), avgSub)}
       ${tile('ממוצע ימים אצל הפחח', avgDays == null ? '—' : Math.round(avgDays), 'מהמחזור הפתוח')}
       ${tile('חלקים שאיברהים הוסיף', addedN, ils(addedSum))}
       ${(() => {
