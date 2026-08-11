@@ -247,11 +247,22 @@ async function _recallReportRun(result, trigger) {
   } catch (err) { console.error("recall failure alert failed", err); }
 }
 
+// The scan runs on the server and can take minutes, so it reports how far it
+// got after every batch. The recall screen listens to this doc and draws a
+// percentage — for the manual run and for the 07:00 one alike.
+async function _recallProgress(done, total, running) {
+  try {
+    await db.collection("recall_status").doc("progress")
+      .set({ done, total, running, at: new Date() });
+  } catch (err) { console.error("recall progress write failed", err); }
+}
+
 async function _runRecallScan(trigger) {
   const res = await _runRecallScanInner().catch((err) => {
     console.error("recall scan crashed", err);
     return { ok: false, reason: "crashed", error: String(err && err.message || err) };
   });
+  await _recallProgress(0, 0, false);   // הפס נעלם מהמסך בסיום, גם בכישלון
   await _recallReportRun(res, trigger);
   return res;
 }
@@ -318,6 +329,7 @@ async function _runRecallScanInner() {
     const openCars = [];
     let useQ = false;
     let failedPlates = 0;
+    await _recallProgress(0, cars.length, true);
     for (let i = 0; i < cars.length; i += BATCH) {
       const chunk = cars.slice(i, i + BATCH);
       let batchOk = false;
@@ -340,16 +352,20 @@ async function _runRecallScanInner() {
         }
       }
       if (!batchOk) {
+        // המסלול האיטי — רכב אחרי רכב. מדווח כל עשרה, כדי לא להציף בכתיבות
+        let n = 0;
         for (const c of chunk) {
           try {
             const recs = await _recallQueryQ(c.plate);
             if (recs.length) openCars.push(c);
           } catch (err) { failedPlates++; }
+          if (++n % 10 === 0) await _recallProgress(i + n, cars.length, true);
           await _sleep2(250);
         }
       } else if (i + BATCH < cars.length) {
         await _sleep2(400);
       }
+      await _recallProgress(Math.min(i + BATCH, cars.length), cars.length, true);
     }
 
     // Never let a broken run masquerade as "no recalls": if we found nothing,

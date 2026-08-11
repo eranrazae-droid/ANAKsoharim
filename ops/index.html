@@ -1912,6 +1912,12 @@ if ('serviceWorker' in navigator) {
     <div id="recall-status-banner" style="display:none;border-radius:14px;padding:14px 16px;margin-bottom:14px;font-size:14px;font-weight:700"></div>
     <div id="recall-run-banner" style="display:none;border-radius:14px;padding:12px 16px;margin-bottom:12px;font-size:14px;font-weight:800;line-height:1.7"></div>
     <div id="recall-scan-info" style="border:2px solid var(--border);border-radius:16px;padding:14px 16px;margin-bottom:16px;background:var(--surface2);font-size:14px;line-height:1.9"></div>
+    <div id="recall-progress" style="display:none;border:2px solid #0d6ab0;border-radius:16px;padding:14px 16px;margin-bottom:16px;background:var(--surface2)">
+      <div id="recall-progress-text" style="font-size:14px;font-weight:900;margin-bottom:8px;color:#0d6ab0"></div>
+      <div style="height:14px;border-radius:999px;background:var(--border);overflow:hidden">
+        <div id="recall-progress-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#0d6ab0,#38bdf8);transition:width .4s"></div>
+      </div>
+    </div>
     <div id="recall-list" style="overflow-x:auto"></div>
     <div style="display:flex;justify-content:center;margin-top:24px">
       <button id="recall-scan-btn" onclick="runRecallScanNow()" style="background:#0d6ab0;color:#fff;border:none;border-radius:10px;padding:7px 16px;font-family:Heebo,sans-serif;font-weight:700;font-size:12px;cursor:pointer">🔄 הרץ סריקה עכשיו</button>
@@ -7621,6 +7627,7 @@ function openRecallScreen() {
   // report of the last run — success or failure — so a morning without a scan
   // can never look like a morning without recalls
   if (_recallRunUnsub) _recallRunUnsub();
+  _listenRecallProgress();          // גם סריקת הבוקר תראה אחוזים, אם המסך פתוח
   _recallRunUnsub = _onSnap(_docRef('recall_status', 'lastRun'), snap => {
     _renderRecallLastRun(snap.exists() ? snap.data() : null);
   }, () => _renderRecallLastRun(null));
@@ -7638,10 +7645,40 @@ function openRecallScreen() {
   });
 }
 
+/* ── התקדמות הסריקה ─────────────────────────────────────────────────
+   הסריקה רצה בשרת, ולכן היא מדווחת על עצמה: אחרי כל מנת רכבים היא כותבת
+   כמה נסרקו מתוך כמה. המסך מקשיב לדיווח הזה ומצייר אחוזים.
+   זה עובד גם לסריקה האוטומטית של הבוקר, אם המסך פתוח בזמן שהיא רצה.
+─────────────────────────────────────────────────────────────────────── */
+let _recallProgUnsub = null;
+function _listenRecallProgress() {
+  if (_recallProgUnsub) return;
+  _recallProgUnsub = _onSnap(_docRef('recall_status', 'progress'), snap => {
+    _renderRecallProgress(snap.exists() ? snap.data() : null);
+  }, () => {});
+}
+
+function _renderRecallProgress(p) {
+  const box = document.getElementById('recall-progress');
+  const txt = document.getElementById('recall-progress-text');
+  const bar = document.getElementById('recall-progress-bar');
+  if (!box || !txt || !bar) return;
+  // דיווח ישן נחשב לסריקה שנעצרה — לא משאירים פס תקוע על המסך
+  const at = p?.at?.toDate ? p.at.toDate() : (p?.at ? new Date(p.at) : null);
+  const fresh = at && (Date.now() - at.getTime()) < 3 * 60000;
+  if (!p || !p.running || !fresh) { box.style.display = 'none'; return; }
+  const total = p.total || 0, done = Math.min(p.done || 0, total);
+  const pct = total ? Math.round(done / total * 100) : 0;
+  box.style.display = 'block';
+  bar.style.width = pct + '%';
+  txt.textContent = `⏳ סורק… ${pct}% · ${done} מתוך ${total} רכבים`;
+}
+
 // run the same server-side scan on demand instead of waiting for 07:00
 async function runRecallScanNow() {
   const btn = document.getElementById('recall-scan-btn');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ סורק את כל המלאי... (עד כמה דקות)'; }
+  _listenRecallProgress();
   try {
     const res = await fetch('https://europe-west1-anak-soharim.cloudfunctions.net/runRecallScanNow');
     const r = await res.json().catch(() => ({}));
@@ -7656,6 +7693,7 @@ async function runRecallScanNow() {
     showToast('⚠️ שגיאת חיבור לשרת: ' + e.message, 7000);
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = '🔄 הרץ סריקה עכשיו'; }
+    _renderRecallProgress(null);
   }
 }
 window.runRecallScanNow = runRecallScanNow;
