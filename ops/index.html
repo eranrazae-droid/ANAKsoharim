@@ -9788,8 +9788,10 @@ function _washSummaryData() {
     counts[t] = (counts[t] || 0) + 1;
   }
   if (_washSort === 'plate') {
-    // מהקטן לגדול, לפי הספרות בלבד
-    rows.sort((a, b) => (Number(String(a.plate).replace(/\D/g, '')) || 0) - (Number(String(b.plate).replace(/\D/g, '')) || 0));
+    // השוואה ספרה אחרי ספרה, כמו רשימה שמית — לא לפי גודל המספר.
+    // לכן 12345678 בא לפני 1243567: הספרה השלישית 3 קטנה מ-4.
+    const d = n => String(n || '').replace(/\D/g, '');
+    rows.sort((a, b) => d(a.plate) < d(b.plate) ? -1 : d(a.plate) > d(b.plate) ? 1 : 0);
   } else {
     // ישן→חדש, כלומר לפי סדר הביצוע
     rows.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
