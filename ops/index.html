@@ -9523,11 +9523,7 @@ function bsmPrint(id) {
 
   // printed from a hidden frame, so the print dialog opens straight away
   // instead of a tab with the form in it
-  const fr = document.createElement('iframe');
-  fr.style.cssText = 'position:fixed;left:-9999px;top:0;width:210mm;height:297mm;border:0';
-  document.body.appendChild(fr);
-  const w = fr.contentWindow;
-  w.document.write(`<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8">
+  _printHtml(`<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8">
 <title>טופס הזמנת תיקון ${esc(j.plate)}</title>
 <style>
   @page { size: A4; margin: 18mm 16mm; }
@@ -9554,16 +9550,29 @@ function bsmPrint(id) {
     <tr><td class="title" colspan="2">תיאור העבודה הדרושה :</td></tr>
     ${rows}
   </table>
-</body></html>`);
+</body></html>`, 'bodyshop print', 'שגיאה בהדפסה');
+}
+window.bsmPrint = bsmPrint;
+
+/* ── הדפסה ──────────────────────────────────────────────────────────
+   מנגנון אחד לכל הטפסים: הדף נכתב למסגרת נסתרת, כך שחלון ההדפסה נפתח
+   מיד ולא נפתח דף חדש. התוכן והעיצוב של כל טופס נשארים אצל הטופס עצמו —
+   כאן יושבת רק הדרך להוציא אותו למדפסת.
+─────────────────────────────────────────────────────────────────────── */
+function _printHtml(html, tag, errMsg) {
+  const fr = document.createElement('iframe');
+  fr.style.cssText = 'position:fixed;left:-9999px;top:0;width:210mm;height:297mm;border:0';
+  document.body.appendChild(fr);
+  const w = fr.contentWindow;
+  w.document.write(html);
   w.document.close();
   setTimeout(() => {
     try { w.focus(); w.print(); }
-    catch (e) { console.error('bodyshop print', e); showToast('שגיאה בהדפסה'); }
-    // the frame is only removed once the dialog is closed
+    catch (e) { console.error(tag, e); showToast(errMsg || 'שגיאה בהדפסה'); }
+    // המסגרת יורדת רק אחרי שחלון ההדפסה נסגר
     setTimeout(() => fr.remove(), 1000);
-  }, 250); // give the layout a moment before printing
+  }, 250); // רגע לפריסת העמוד לפני ההדפסה
 }
-window.bsmPrint = bsmPrint;
 
 /* ── חיפוש רכב לפי לוחית ─────────────────────────────────────────────
    מסך אחד שעונה על "מה קורה עם הרכב הזה": כל מה שהמערכת יודעת עליו,
@@ -9889,13 +9898,7 @@ function washPrintNote(f) {
   <div class="stamp"><span>חותמת ואישור ביצוע</span></div>
   <div class="foot">${esc(f.createdBy || currentUser.name)} · ${esc(when)}</div>
  </div>
-</body></html>`);
-  w.document.close();
-  setTimeout(() => {
-    try { w.focus(); w.print(); }
-    catch (e) { console.error('wash print', e); showToast('שגיאה בהדפסה'); }
-    setTimeout(() => fr.remove(), 1000);
-  }, 250);
+</body></html>`, 'wash print', 'שגיאה בהדפסה');
 }
 
 /* ── סיכום שטיפות ───────────────────────────────────────────────────
@@ -10040,11 +10043,7 @@ function washPrintSummary() {
   if (!total) return showToast('אין שטיפות בטווח שנבחר');
   const he = v => v ? new Date(v + 'T00:00:00').toLocaleDateString('he-IL') : '';
   const detail = _washDetailPages(rows);
-  const fr = document.createElement('iframe');
-  fr.style.cssText = 'position:fixed;left:-9999px;top:0;width:210mm;height:297mm;border:0';
-  document.body.appendChild(fr);
-  const w = fr.contentWindow;
-  w.document.write(`<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8">
+  _printHtml(`<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8">
 <title>סיכום שטיפות</title>
 <style>
   @page { size: A4; margin: 12mm; }
@@ -10091,13 +10090,7 @@ function washPrintSummary() {
    <div class="det-l" style="border-top:0;margin-top:0">פירוט הרכבים · המשך (${i + 2})</div>
    ${d}
  </div>`).join('')}
-</body></html>`);
-  w.document.close();
-  setTimeout(() => {
-    try { w.focus(); w.print(); }
-    catch (e) { console.error('wash summary print', e); showToast('שגיאה בהדפסה'); }
-    setTimeout(() => fr.remove(), 1000);
-  }, 250);
+</body></html>`, 'wash summary print', 'שגיאה בהדפסה');
 }
 window.washPrintSummary = washPrintSummary;
 
@@ -10341,11 +10334,7 @@ function bsmExportPdf() {
     </div>`;
   }).join('');
 
-  const fr = document.createElement('iframe');
-  fr.style.cssText = 'position:fixed;left:-9999px;top:0;width:210mm;height:297mm;border:0';
-  document.body.appendChild(fr);
-  const w = fr.contentWindow;
-  w.document.write(`<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8">
+  _printHtml(`<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8">
 <title>חשבון פחחות ${today}</title>
 <style>
   @page { size: A4; margin: 15mm; }
@@ -10372,13 +10361,7 @@ function bsmExportPdf() {
     <div><span>מע״מ ${Math.round(_VAT_RATE * 100)}%</span><span>${ils(vat)}</span></div>
     <div class="big"><span>סה״כ כולל מע״מ</span><span>${ils(sum + vat)}</span></div>
   </div>
-</body></html>`);
-  w.document.close();
-  setTimeout(() => {
-    try { w.focus(); w.print(); }
-    catch (e) { console.error('bodyshop pdf', e); showToast('שגיאה בייצוא'); }
-    setTimeout(() => fr.remove(), 1000);
-  }, 250);
+</body></html>`, 'bodyshop pdf', 'שגיאה בייצוא');
 }
 window.bsmExportPdf = bsmExportPdf;
 
