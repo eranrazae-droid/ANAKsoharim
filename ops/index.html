@@ -9827,7 +9827,11 @@ function _washDetailPages(rows) {
   };
   const pages = [];
   for (let i = 0; i < rows.length; i += per) {
-    pages.push(`<div class="det">${rows.slice(i, i + per).map(line).join('')}</div>`);
+    const chunk = rows.slice(i, i + per);
+    // גובה האזור נקבע לפי כמות הרכבים בפועל — עשרה רכבים תופסים שלוש
+    // שורות בעמודה, לא שלושים, ואין חור ריק בתחתית הדף
+    const perCol = Math.min(_WASH_ROWS, Math.ceil(chunk.length / _WASH_COLS));
+    pages.push(`<div class="det" style="height:${(perCol * 5.4).toFixed(1)}mm">${chunk.map(line).join('')}</div>`);
   }
   return pages;
 }
@@ -9860,8 +9864,8 @@ function washPrintSummary() {
   /* פירוט הרכבים — שלוש עמודות, שלושים שורות בכל אחת */
   .det-l { font-size:11px; letter-spacing:3px; color:#888; margin:12px 0 5px;
            border-top:1px solid #e2e2e2; padding-top:9px; }
-  .det { column-count:${_WASH_COLS}; column-gap:5mm; column-fill:auto;
-         height:${_WASH_ROWS * 5.4}mm; }
+  /* הגובה נקבע לכל אזור בנפרד, לפי כמות הרכבים שבו */
+  .det { column-count:${_WASH_COLS}; column-gap:5mm; column-fill:auto; }
   .det .ln { display:flex; gap:3px; align-items:baseline; height:5.4mm;
              border-bottom:1px solid #eee; font-size:7.4pt; overflow:hidden;
              white-space:nowrap; break-inside:avoid; }
