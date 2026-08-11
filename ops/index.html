@@ -9815,23 +9815,43 @@ function _washRenderSummary() {
 }
 window._washRenderSummary = _washRenderSummary;
 
-// הפירוט בתחתית הדף: שלוש עמודות, שלושים שורות בכל עמודה — תשעים
-// רכבים בעמוד. יש יותר? נפתח עמוד נוסף באותו מבנה.
-const _WASH_COLS = 3, _WASH_ROWS = 30;
+/* פירוט הרכבים בתחתית הסיכום.
+   הכלל: קודם ממלאים שורות, ורק כשנגמר המקום לגובה פותחים עמודה נוספת.
+   ככל שיש פחות רכבים, השורות גבוהות והכתב גדול יותר — עשרה רכבים
+   נראים כמו רשימה מסודרת, לא כמו טבלה זעירה. שלוש עמודות נפתחות רק
+   כשבאמת יש הרבה רכבים.
+   העמודות נבנות כאן ולא ע"י הדפדפן, כדי שאף שורה לא תיפול מחוץ לדף. */
+const _WASH_LAYOUTS = [
+  { cols: 1, rows: 24, h: 7.5, font: 11,  sub: 9.5 },
+  { cols: 2, rows: 27, h: 6.5, font: 9.5, sub: 8.5 },
+  { cols: 3, rows: 30, h: 5.4, font: 7.4, sub: 6.8 },
+];
+const _WASH_PER_PAGE = 90;   // המבנה הצפוף ביותר — 3 עמודות של 30
+
+function _washLayoutFor(n) {
+  for (const l of _WASH_LAYOUTS) if (n <= l.cols * l.rows) return l;
+  return _WASH_LAYOUTS[_WASH_LAYOUTS.length - 1];
+}
 
 function _washDetailPages(rows) {
-  const per = _WASH_COLS * _WASH_ROWS;
-  const line = n => {
-    const car = [n.maker, n.model, n.color].filter(Boolean).join(' ') || n.desc || '';
-    return `<div class="ln"><span class="p">${esc(n.plate || '')}</span><span class="c">${esc(car)}</span><span class="w">${esc(n.type || '')}</span></div>`;
-  };
   const pages = [];
-  for (let i = 0; i < rows.length; i += per) {
-    const chunk = rows.slice(i, i + per);
-    // גובה האזור נקבע לפי כמות הרכבים בפועל — עשרה רכבים תופסים שלוש
-    // שורות בעמודה, לא שלושים, ואין חור ריק בתחתית הדף
-    const perCol = Math.min(_WASH_ROWS, Math.ceil(chunk.length / _WASH_COLS));
-    pages.push(`<div class="det" style="height:${(perCol * 5.4).toFixed(1)}mm">${chunk.map(line).join('')}</div>`);
+  for (let i = 0; i < rows.length; i += _WASH_PER_PAGE) {
+    const chunk = rows.slice(i, i + _WASH_PER_PAGE);
+    const L = _washLayoutFor(chunk.length);
+    // חלוקה שווה בין העמודות שנפתחו, מימין לשמאל
+    const perCol = Math.ceil(chunk.length / L.cols);
+    const line = n => {
+      const car = [n.maker, n.model, n.color].filter(Boolean).join(' ') || n.desc || '';
+      return `<div class="ln" style="height:${L.h}mm;font-size:${L.font}pt">
+        <span class="p">${esc(n.plate || '')}</span><span class="c">${esc(car)}</span><span class="w" style="font-size:${L.sub}pt">${esc(n.type || '')}</span></div>`;
+    };
+    let cols = '';
+    for (let c = 0; c < L.cols; c++) {
+      const part = chunk.slice(c * perCol, (c + 1) * perCol);
+      if (!part.length) continue;
+      cols += `<div class="col">${part.map(line).join('')}</div>`;
+    }
+    pages.push(`<div class="det">${cols}</div>`);
   }
   return pages;
 }
@@ -9864,14 +9884,14 @@ function washPrintSummary() {
   /* פירוט הרכבים — שלוש עמודות, שלושים שורות בכל אחת */
   .det-l { font-size:11px; letter-spacing:3px; color:#888; margin:12px 0 5px;
            border-top:1px solid #e2e2e2; padding-top:9px; }
-  /* הגובה נקבע לכל אזור בנפרד, לפי כמות הרכבים שבו */
-  .det { column-count:${_WASH_COLS}; column-gap:5mm; column-fill:auto; }
-  .det .ln { display:flex; gap:3px; align-items:baseline; height:5.4mm;
-             border-bottom:1px solid #eee; font-size:7.4pt; overflow:hidden;
-             white-space:nowrap; break-inside:avoid; }
+  /* העמודות והגבהים נקבעים בקוד לפי כמות הרכבים */
+  .det { display:flex; gap:5mm; align-items:flex-start; }
+  .det .col { flex:1 1 0; min-width:0; }
+  .det .ln { display:flex; gap:4px; align-items:center;
+             border-bottom:1px solid #eee; overflow:hidden; white-space:nowrap; }
   .det .p { font-weight:bold; color:#111; flex:0 0 auto; }
   .det .c { color:#666; flex:1 1 auto; overflow:hidden; text-overflow:ellipsis; }
-  .det .w { color:#0d6a63; flex:0 0 auto; font-size:6.8pt; }
+  .det .w { color:#0d6a63; flex:0 0 auto; }
   .page { page-break-after:always; }
   .page:last-child { page-break-after:auto; }
 </style></head><body>
