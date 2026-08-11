@@ -1973,7 +1973,7 @@ if ('serviceWorker' in navigator) {
     <textarea class="form-input" id="wash-note" rows="2" placeholder="הערה לשוטף (לא חובה)" style="margin-bottom:14px"></textarea>
 
     <button class="btn-submit" id="wash-print-btn" onclick="washSaveAndPrint()" style="background:var(--dark);color:#fff;margin:0;width:100%">🖨️ שמור והדפס</button>
-    <button class="btn-submit" onclick="openWashSummary()" style="background:#0d9488;color:#fff;margin:8px 0 0;width:100%">📊 הוצאת סיכום</button>
+    <button class="btn-submit" id="wash-summary-btn" onclick="openWashSummary()" style="display:none;background:#0d9488;color:#fff;margin:8px 0 0;width:100%">📊 הוצאת סיכום</button>
 
     <div class="section-title">פתקי שטיפה אחרונים</div>
     <div id="wash-list"></div>
@@ -9534,6 +9534,9 @@ let _washUnsub = null;
 function openWashScreen() {
   document.getElementById('wash-user-badge').textContent = currentUser.name;
   showScreen('wash');
+  // הסיכום הוא כלי ניהולי — הנהג מכין ומדפיס פתקים בלבד
+  const sumBtn = document.getElementById('wash-summary-btn');
+  if (sumBtn) sumBtn.style.display = currentUser.role === 'manager' ? '' : 'none';
   _washClear();
   if (!_washUnsub) {
     _washUnsub = _onSnap(_colRef('wash_notes'), snap => {
@@ -9640,11 +9643,13 @@ function washPrintNote(f) {
   // בהדפסה חוזרת מוצג התאריך שבו הפתק נוצר, לא תאריך ההדפסה
   const now = f.createdAt?.toDate ? f.createdAt.toDate() : new Date();
   const when = now.toLocaleDateString('he-IL') + ' · ' + now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
-  const row = (label, v) => v ? `<tr><td class="l">${label}</td><td class="v">${esc(v)}</td></tr>` : '';
-  // פתקים ישנים נשמרו כשורה אחת בלבד — עדיין צריכים להידפס כמו שצריך
-  const details = [f.maker, f.model, f.subModel, f.color, f.year].some(Boolean)
-    ? `${row('יצרן', f.maker)}${row('דגם', f.model)}${row('תת דגם', f.subModel)}${row('צבע', f.color)}${row('שנה', f.year)}`
-    : row('רכב', f.desc);
+  const row = (label, v, cls) => v ? `<tr${cls ? ` class="${cls}"` : ''}><td class="l">${label}</td><td class="v">${esc(v)}</td></tr>` : '';
+  // מספר הרישוי הוא השורה הראשונה בטבלה. פתקים ישנים נשמרו כשורה אחת
+  // בלבד — עדיין צריכים להידפס כמו שצריך.
+  const details = row('מספר רישוי', f.plate, 'plate') +
+    ([f.maker, f.model, f.subModel, f.color, f.year].some(Boolean)
+      ? `${row('יצרן', f.maker)}${row('דגם', f.model)}${row('תת דגם', f.subModel)}${row('צבע', f.color)}${row('שנה', f.year)}`
+      : row('רכב', f.desc));
   const fr = document.createElement('iframe');
   fr.style.cssText = 'position:fixed;left:-9999px;top:0;width:210mm;height:297mm;border:0';
   document.body.appendChild(fr);
@@ -9652,43 +9657,49 @@ function washPrintNote(f) {
   w.document.write(`<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8">
 <title>פתק שטיפה ${esc(f.plate)}</title>
 <style>
-  /* עיצוב עדין: קווים דקים ואפורים, הרבה אוויר, וכהות רק במה שחשוב —
-     מספר הרישוי וסוג השטיפה. */
-  @page { size: A4; margin: 16mm; }
-  body { font-family: Arial, "Segoe UI", sans-serif; color:#222; text-align:center; }
-  h1 { font-size:23px; font-weight:normal; letter-spacing:4px; color:#444; margin:0; }
-  .sub { font-size:14px; letter-spacing:3px; color:#888; margin:6px 0 0; }
-  .rule { border:0; border-top:1px solid #d5d5d5; margin:14px 0 22px; }
-  .plate { font-size:84px; font-weight:bold; letter-spacing:6px; color:#111;
-           border:1px solid #bbb; border-radius:10px; padding:16px 10px; margin:0 0 22px; }
-  table.info { border-collapse:collapse; width:100%; margin-bottom:22px; }
-  table.info td { border-bottom:1px solid #e2e2e2; padding:9px 4px; text-align:right; font-size:17px; }
+  /* עיצוב עדין: קווים דקים ואפורים, וכהות רק במה שחשוב — מספר הרישוי
+     וסוג השטיפה. הכל בעמוד אחד: המידות ביחידות עמוד (mm/vh) והתוכן
+     כולו בגוש שאסור לפצל, כך שגם הדפסה מהטלפון לא תגלוש לעמוד שני. */
+  @page { size: A4; margin: 10mm; }
+  html, body { height:auto; }
+  body { font-family: Arial, "Segoe UI", sans-serif; color:#222; text-align:center;
+         margin:0; -webkit-print-color-adjust:exact; }
+  .sheet { page-break-inside:avoid; break-inside:avoid; page-break-after:avoid; }
+  h1 { font-size:19px; font-weight:normal; letter-spacing:4px; color:#444; margin:0; }
+  .sub { font-size:12px; letter-spacing:3px; color:#888; margin:4px 0 0; }
+  .rule { border:0; border-top:1px solid #d5d5d5; margin:9px 0 12px; }
+  table.info { border-collapse:collapse; width:100%; margin-bottom:14px; }
+  table.info td { border-bottom:1px solid #e2e2e2; padding:7px 4px; text-align:right; font-size:16px; }
   table.info tr:last-child td { border-bottom:0; }
-  table.info td.l { width:32%; color:#888; font-size:14px; letter-spacing:1px; }
+  table.info td.l { width:32%; color:#888; font-size:13px; letter-spacing:1px; }
   table.info td.v { font-weight:bold; color:#111; }
-  .type-l { font-size:13px; letter-spacing:3px; color:#888; margin-bottom:6px; }
-  .type { font-size:40px; font-weight:bold; color:#111; border:1px solid #bbb;
-          border-radius:10px; padding:16px 10px; }
-  .note { font-size:19px; border:1px solid #ddd; border-radius:10px;
-          padding:14px 16px; margin-top:20px; text-align:right; color:#333; line-height:1.6; }
-  .note b { color:#888; font-weight:normal; font-size:14px; letter-spacing:1px; }
-  .stamp { border:1px solid #ccc; border-radius:10px; height:155px; margin-top:24px;
+  /* מספר הרישוי — השורה הראשונה, והבולטת ביותר בטבלה */
+  table.info tr.plate td { border-bottom:2px solid #999; padding:9px 4px 12px; }
+  table.info tr.plate td.v { font-size:46px; letter-spacing:4px; line-height:1.1; }
+  .type-l { font-size:12px; letter-spacing:3px; color:#888; margin-bottom:5px; }
+  .type { font-size:32px; font-weight:bold; color:#111; border:1px solid #bbb;
+          border-radius:10px; padding:11px 10px; }
+  .note { font-size:16px; border:1px solid #ddd; border-radius:10px;
+          padding:10px 14px; margin-top:12px; text-align:right; color:#333; line-height:1.5; }
+  .note b { color:#888; font-weight:normal; font-size:13px; letter-spacing:1px; }
+  .stamp { border:1px solid #ccc; border-radius:10px; height:38mm; margin-top:14px;
            position:relative; }
-  .stamp span { position:absolute; top:10px; right:16px; font-size:13px;
+  .stamp span { position:absolute; top:8px; right:14px; font-size:12px;
                 letter-spacing:2px; color:#999; }
-  .foot { margin-top:22px; font-size:13px; letter-spacing:1px; color:#999;
-          border-top:1px solid #e2e2e2; padding-top:10px; }
+  .foot { margin-top:12px; font-size:12px; letter-spacing:1px; color:#999;
+          border-top:1px solid #e2e2e2; padding-top:8px; }
 </style></head><body>
+ <div class="sheet">
   <h1>פתק לשטיפה</h1>
   <div class="sub">ענק הרכבים · מאסטר קלין</div>
   <hr class="rule">
-  <div class="plate">${esc(f.plate)}</div>
-  ${details ? `<table class="info">${details}</table>` : ''}
+  <table class="info">${details}</table>
   <div class="type-l">סוג שטיפה</div>
   <div class="type">${esc(f.type)}</div>
   ${f.note ? `<div class="note"><b>הערה</b><br>${esc(f.note)}</div>` : ''}
   <div class="stamp"><span>חותמת ואישור ביצוע</span></div>
   <div class="foot">${esc(f.createdBy || currentUser.name)} · ${esc(when)}</div>
+ </div>
 </body></html>`);
   w.document.close();
   setTimeout(() => {
@@ -9777,11 +9788,13 @@ function washPrintSummary() {
   w.document.write(`<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8">
 <title>סיכום שטיפות</title>
 <style>
-  @page { size: A4; margin: 16mm; }
-  body { font-family: Arial, "Segoe UI", sans-serif; color:#222; text-align:center; }
-  h1 { font-size:23px; font-weight:normal; letter-spacing:4px; color:#444; margin:0; }
-  .sub { font-size:14px; letter-spacing:3px; color:#888; margin:6px 0 0; }
-  .range { font-size:15px; color:#555; margin-top:10px; }
+  @page { size: A4; margin: 12mm; }
+  html, body { height:auto; }
+  body { font-family: Arial, "Segoe UI", sans-serif; color:#222; text-align:center; margin:0; }
+  .sheet { page-break-inside:avoid; break-inside:avoid; page-break-after:avoid; }
+  h1 { font-size:21px; font-weight:normal; letter-spacing:4px; color:#444; margin:0; }
+  .sub { font-size:13px; letter-spacing:3px; color:#888; margin:5px 0 0; }
+  .range { font-size:14px; color:#555; margin-top:9px; }
   hr { border:0; border-top:1px solid #d5d5d5; margin:14px 0 22px; }
   table { border-collapse:collapse; width:100%; }
   td { border-bottom:1px solid #e2e2e2; padding:13px 6px; text-align:right; font-size:19px; }
@@ -9790,6 +9803,7 @@ function washPrintSummary() {
   .foot { margin-top:26px; font-size:13px; letter-spacing:1px; color:#999;
           border-top:1px solid #e2e2e2; padding-top:10px; }
 </style></head><body>
+ <div class="sheet">
   <h1>סיכום שטיפות</h1>
   <div class="sub">ענק הרכבים · מאסטר קלין</div>
   <div class="range">${esc(he(fromV))} — ${esc(he(toV))}</div>
@@ -9799,6 +9813,7 @@ function washPrintSummary() {
     <tr class="tot"><td>סה״כ שטיפות</td><td class="n">${total}</td></tr>
   </table>
   <div class="foot">${esc(currentUser.name)} · ${esc(new Date().toLocaleDateString('he-IL'))}</div>
+ </div>
 </body></html>`);
   w.document.close();
   setTimeout(() => {
