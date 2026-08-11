@@ -393,6 +393,9 @@ body.modal-open{overflow:hidden}
 .hs-battery{background:linear-gradient(135deg,#0ea5e9,#0369a1)}
 .hs-td{background:linear-gradient(135deg,#7c3aed,#4f46e5)}
 .hs-yard{background:linear-gradient(135deg,#b45309,#92400e)}
+.hs-wash{background:linear-gradient(135deg,#0d9488,#0f766e)}
+/* כפתור שתופס את כל רוחב האזור — שורה שלמה לעצמו */
+.hs-wide{grid-column:1/-1}
 
 /* ===== FIREBASE CONFIG WARNING ===== */
 .config-warning{background:#fef3c7;border:2px solid var(--warning);border-radius:12px;padding:14px 16px;margin:16px;font-size:13px;color:#92400e;font-weight:600}
@@ -604,6 +607,7 @@ if ('serviceWorker' in navigator) {
         </div>
         <div id="cal-agenda" style="margin-top:10px"></div>
       <div id="home-side-actions">
+        <button class="hs-btn hs-wash hs-wide" id="menu-card-wash" onclick="goToScreen('wash')">🧽 פתק שטיפה</button>
         <button id="menu-card-recall" onclick="goToScreen('recall')" class="hs-btn hs-recall" style="display:none"><span id="recall-home-warn" style="display:none">⚠️ </span>בדיקת ריקול<span id="recall-home-count" style="display:none;margin-right:8px;background:rgba(255,255,255,.35);border-radius:999px;padding:2px 10px;font-size:15px;font-weight:900"></span></button>
         <button class="hs-btn hs-inventory" id="menu-card-inventory" onclick="goToScreen('inventory')">📦 בדיקת מלאי<span id="badge-inventory" style="display:none;margin-right:8px;background:rgba(255,255,255,.32);color:inherit;border-radius:999px;padding:2px 11px;font-size:15px;font-weight:900"></span></button>
         <button class="hs-btn hs-pits" id="menu-card-pits" onclick="goToScreen('pits')">🕳️ בורות<span id="badge-pits" style="display:none;margin-right:8px;background:rgba(255,255,255,.32);color:inherit;border-radius:999px;padding:2px 11px;font-size:15px;font-weight:900"></span></button>
@@ -3319,8 +3323,8 @@ function renderHome() {
         { icon: _ICON_CAR_BATTERY, title: 'ארון מצברים', sub: 'מלאי, הרכבות וסטטיסטיקה', screen: 'battery-stock' },
         // row 3 — recall is not here, it lives on the floating home button
         { icon: '🚙', title: 'מכוניות לאיסוף', sub: 'ניהול רכבים לאיסוף', screen: 'pickup' },
+        // השטיפה אינה קובייה אצל המנהל — היא כפתור רחב באזור הצדדי
         { icon: '🔨', title: 'פחחות', sub: 'עבודות, מחירים וחשבון חודשי', screen: 'bodyshop-mgr' },
-        { icon: '🧽', title: 'פתק שטיפה', sub: 'הכנה והדפסה של פתק לרכב', screen: 'wash' },
       ]
     : [
         { icon: '📋', title: 'המשימות שלי', sub: 'משימות שהוקצו לך', screen: 'tasks' },
@@ -3366,6 +3370,9 @@ function renderHome() {
   if (tdBtn) tdBtn.style.display = isManager ? '' : 'none';
   const rcBtn = document.getElementById('menu-card-recall');
   if (rcBtn) rcBtn.style.display = isManager ? '' : 'none';
+  // אצל הנהג השטיפה היא קובייה במסך הבית, ולכן הכפתור הרחב מוסתר
+  const washBtn = document.getElementById('menu-card-wash');
+  if (washBtn) washBtn.style.display = isManager ? '' : 'none';
   // The parts catalogue is parked, not removed — the screen and everything in it
   // stay exactly as they are. To bring the button back, put the manager check
   // back in place of the 'none' below.
@@ -4802,6 +4809,10 @@ function _plateCacheGet(plate) {
 }
 function _plateCacheSet(plate, v) {
   _plateMem.set(plate, v);
+  // "לא נמצא" נשמר רק לזיכרון הפעילות הנוכחית. לוחית עשויה להיכנס למאגר
+  // מאוחר יותר, ולוחית חלקית שהוקלדה תוך כדי הקלדה אינה תשובה אמיתית —
+  // חבל לנעול אותה כלא־נמצאת לתשעים יום.
+  if (!v) return;
   try { localStorage.setItem('plate:' + plate, JSON.stringify({ t: Date.now(), v })); } catch (e) {}
 }
 
