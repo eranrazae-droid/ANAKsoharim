@@ -1995,7 +1995,17 @@ if ('serviceWorker' in navigator) {
     </div>
     <button class="btn-submit" onclick="ownSaveIds()" style="background:var(--success,#16a34a);color:#fff;margin:0 0 14px;width:100%">💾 שמור מספרים</button>
 
-    <button class="btn-submit" id="own-scan-btn" onclick="runOwnershipScan()" style="background:#0d6ab0;color:#fff;margin:0;width:100%">🔄 טען את רשימת המלאי</button>
+    <div class="section-title">רשימת בעלויות (למילוי אוטומטי)</div>
+    <div style="font-size:12px;color:var(--muted);font-weight:700;margin-bottom:6px;line-height:1.6">
+      שורה לכל רכב: מספר רישוי ואחריו הח.פ/ת.ז הרשום. אפשר רווח, פסיק או טאב.<br>
+      דוגמה: <b dir="ltr">43549303 515814887</b><br>
+      אחרי השמירה — כל רכב שרשום על אחד מהמספרים שלמעלה יסומן ✅ לבד,
+      וכל השאר ❌. הסריקה היומית תתריע על אלה שלא שלך.
+    </div>
+    <textarea class="form-input" id="own-paste" rows="4" placeholder="43549303 515814887&#10;66672501 022961684" style="margin-bottom:8px"></textarea>
+    <button class="btn-submit" onclick="ownSaveOwners()" style="background:var(--dark);color:#fff;margin:0 0 14px;width:100%">💾 שמור רשימה</button>
+
+    <button class="btn-submit" id="own-scan-btn" onclick="runOwnershipScan()" style="background:#0d6ab0;color:#fff;margin:0;width:100%">🔄 טען מלאי והצלב</button>
 
     <div id="own-summary" style="margin-top:14px"></div>
 
@@ -9743,6 +9753,26 @@ async function ownSaveIds() {
 }
 window.ownSaveIds = ownSaveIds;
 
+// רשימת בעלויות: שורה לכל רכב — מספר רישוי ואחריו הח.פ/ת.ז הרשום.
+async function ownSaveOwners() {
+  const txt = document.getElementById('own-paste').value || '';
+  const owners = {};
+  let bad = 0;
+  for (const raw of txt.split('\n')) {
+    const nums = (raw.trim().match(/\d+/g) || []);
+    if (nums.length < 2) { if (raw.trim()) bad++; continue; }
+    const plate = nums[0], id = nums[1];
+    if (plate.length < 6 || id.length < 8) { bad++; continue; }
+    owners[plate] = id;
+  }
+  try {
+    await window._setDoc(_docRef('config', 'ownership'), { owners }, { merge: true });
+    showToast(bad ? `✅ נשמרו ${Object.keys(owners).length} · ${bad} שורות לא הובנו` : `✅ נשמרו ${Object.keys(owners).length} בעלויות`, 5000);
+    runOwnershipScan();   // מיד מצליב את המלאי מול הרשימה החדשה
+  } catch (e) { showToast('שגיאה בשמירה'); }
+}
+window.ownSaveOwners = ownSaveOwners;
+
 async function runOwnershipScan() {
   const btn = document.getElementById('own-scan-btn');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ טוען מלאי…'; }
@@ -9788,12 +9818,14 @@ function _ownRender() {
     if (filt) filt.style.display = 'none';
     return;
   }
+  // הסטטוס האפקטיבי: סימון ידני גובר, אחרת ההצלבה האוטומטית מהרשימה
+  const eff = c => _ownMarks[c.plate] || c.status || 'unknown';
   const total = _ownCars.length;
-  const ours = _ownCars.filter(c => _ownMarks[c.plate] === 'ours').length;
-  const not  = _ownCars.filter(c => _ownMarks[c.plate] === 'not').length;
-  const skip = _ownCars.filter(c => _ownMarks[c.plate] === 'skip').length;
+  const ours = _ownCars.filter(c => eff(c) === 'ours').length;
+  const not  = _ownCars.filter(c => eff(c) === 'not').length;
+  const skip = _ownCars.filter(c => eff(c) === 'skip').length;
   const done = ours + not + skip;
-  const pct = Math.round(done / total * 100);
+  const pct = total ? Math.round(done / total * 100) : 0;
   sum.innerHTML = `<div style="border:2px solid var(--border);border-radius:14px;padding:13px 15px;background:var(--surface2)">
       <div style="font-weight:900;font-size:15px;margin-bottom:8px">נבדקו ${done} מתוך ${total} (${pct}%)</div>
       <div style="height:12px;border-radius:999px;background:var(--border);overflow:hidden;margin-bottom:10px"><div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#0d9488,#38bdf8)"></div></div>
@@ -9809,12 +9841,14 @@ function _ownRender() {
     if (b) { const on = _ownFilter === f; b.style.background = on ? '#0d9488' : 'var(--surface2)'; b.style.color = on ? '#fff' : 'var(--text)'; b.style.borderColor = on ? '#0d9488' : 'var(--border)'; }
   });
   let cars = _ownCars;
-  if (_ownFilter === 'todo') cars = cars.filter(c => !_ownMarks[c.plate]);
-  else if (_ownFilter === 'not') cars = cars.filter(c => _ownMarks[c.plate] === 'not');
+  if (_ownFilter === 'todo') cars = cars.filter(c => eff(c) === 'unknown');
+  else if (_ownFilter === 'not') cars = cars.filter(c => eff(c) === 'not');
   if (!cars.length) { list.innerHTML = `<div style="color:var(--muted);padding:20px;text-align:center">אין רכבים בקטגוריה הזו</div>`; return; }
   const e = s => esc(s);
   list.innerHTML = cars.map(c => {
-    const mk = _ownMarks[c.plate];
+    const mk = eff(c);
+    // סימון ידני מסומן בטבעת מלאה; סטטוס אוטומטי מהרשימה — צבע רקע בלבד
+    const auto = !_ownMarks[c.plate];
     const border = mk === 'ours' ? '#16a34a' : mk === 'not' ? '#dc2626' : mk === 'skip' ? '#9ca3af' : 'var(--border)';
     const bg = mk === 'ours' ? '#dcfce7' : mk === 'not' ? '#fee2e2' : 'var(--card)';
     const mbtn = (val, icon, col) => `<button onclick="ownMark('${e(c.plate)}','${val}')" style="flex:1;padding:8px 4px;border-radius:9px;border:2px solid ${mk===val?col:'var(--border)'};background:${mk===val?col:'#fff'};color:${mk===val?'#fff':'var(--text)'};font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer">${icon}</button>`;
@@ -9823,6 +9857,7 @@ function _ownRender() {
         <div style="min-width:0">
           <div style="font-weight:900;font-size:17px;letter-spacing:1px">${e(c.plate)}</div>
           <div style="font-size:12px;color:var(--muted);font-weight:700">${e([c.tozeret,c.degem,c.shnat].filter(Boolean).join(' · '))}</div>
+          ${c.ownerId ? `<div style="font-size:12px;font-weight:800;margin-top:2px;color:${mk==='not'?'#dc2626':'#16a34a'}">רשום על ${e(c.ownerId)}${auto?' · מהרשימה':''}</div>` : ''}
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
           <button onclick="_ownCopy('${e(c.plate)}','מספר הרכב')" title="העתק מספר רכב" style="background:var(--surface2);border:2px solid var(--border);border-radius:9px;width:38px;height:38px;font-size:16px;cursor:pointer">📋</button>
