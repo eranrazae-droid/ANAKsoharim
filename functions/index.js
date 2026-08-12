@@ -1114,10 +1114,10 @@ exports.setupReminders = onSchedule(
    עם שמירת התוצאות.
 ─────────────────────────────────────────────────────────────────────── */
 
-// טוענת את רשימת המלאי המלאה לתוך ownership_status/current. הבדיקה מול
-// משרד התחבורה עצמה נעשית ידנית מול אתר gov (מוגן ב-reCAPTCHA ולא ניתן
-// לאוטומציה), והמסך רק מנהל אותה כצ'קליסט — לכן כאן נשמרת רשימת הרכבים,
-// ולא שום נתון בעלות שנמשך אוטומטית.
+// מושכת את המלאי הנוכחי ומצליבה אותו מול רשימת הבעלויות השמורה
+// (config/ownership): לכל רכב נקבע status — 'ours' אם הח.פ הרשום שלו
+// הוא אחד משל החברה, 'not' אם הוא רשום על מישהו אחר, 'unknown' אם עדיין
+// אין לו רשומה ברשימה. סימון ידני מהצ'קליסט גובר על ההצלבה האוטומטית.
 async function _runOwnershipScan() {
   let vehicles;
   try {
@@ -1128,18 +1128,56 @@ async function _runOwnershipScan() {
   }
   if (!Array.isArray(vehicles) || !vehicles.length) return { ok: false, reason: "empty-inventory" };
 
-  const cars = vehicles.map((v) => ({
-    plate: String(v.ank_s_car_number || "").replace(/\D/g, ""),
-    tozeret: v.ank_id_manufacturer || "",
-    degem: [v.ank_id_model, v.ank_id_sub_model].filter(Boolean).join(" "),
-    shnat: v.ank_id_year_of_manufacture || "",
-  })).filter((c) => c.plate.length === 7 || c.plate.length === 8);
+  let owners = {}, ourIds = [], marks = {};
+  try {
+    const cfg = await db.collection("config").doc("ownership").get();
+    if (cfg.exists) {
+      owners = cfg.data().owners || {};
+      ourIds = (cfg.data().ourIds || []).map((s) => String(s).replace(/\D/g, ""));
+      marks = cfg.data().marks || {};
+    }
+  } catch (err) { /* בלי רשימה — הכל 'unknown' */ }
+
+  const cars = vehicles.map((v) => {
+    const plate = String(v.ank_s_car_number || "").replace(/\D/g, "");
+    const ownerId = String(owners[plate] || "").replace(/\D/g, "");
+    let status = "unknown";
+    if (marks[plate] === "ours" || marks[plate] === "not") status = marks[plate];  // סימון ידני קודם
+    else if (ownerId) status = ourIds.includes(ownerId) ? "ours" : "not";
+    return {
+      plate,
+      tozeret: v.ank_id_manufacturer || "",
+      degem: [v.ank_id_model, v.ank_id_sub_model].filter(Boolean).join(" "),
+      shnat: v.ank_id_year_of_manufacture || "",
+      ownerId: ownerId || null, status,
+    };
+  }).filter((c) => c.plate.length === 7 || c.plate.length === 8);
   if (!cars.length) return { ok: false, reason: "no-valid-plates" };
 
+  // רכבים חדשים = לוחיות שלא היו במלאי בסריקה הקודמת. כך הסריקה היומית
+  // יודעת על מה להתריע — מה שנכנס היום וטרם נבדק.
+  let prevSeen = [];
+  try {
+    const prev = await db.collection("ownership_status").doc("current").get();
+    if (prev.exists) prevSeen = prev.data().seenPlates || [];
+  } catch (err) { /* ignore */ }
+  const prevSet = new Set(prevSeen);
+
+  const notOurs = cars.filter((c) => c.status === "not");
+  const unknown = cars.filter((c) => c.status === "unknown");
+  // חדשים וטרם נבדקו: נכנסו מאז הסריקה הקודמת ואין להם עדיין תשובה
+  const newUnchecked = cars.filter((c) => c.status === "unknown" && !prevSet.has(c.plate));
+
   await db.collection("ownership_status").doc("current").set({
-    cars, checkedCount: cars.length, updatedAt: new Date(),
+    cars, checkedCount: cars.length,
+    notOursCount: notOurs.length, unknownCount: unknown.length,
+    seenPlates: cars.map((c) => c.plate),
+    updatedAt: new Date(),
   });
-  return { ok: true, checked: cars.length };
+  return {
+    ok: true, checked: cars.length, notOurs: notOurs.length, unknown: unknown.length,
+    notOursCars: notOurs, newUnchecked,
+  };
 }
 
 exports.runOwnershipScanNow = onRequest(
@@ -1149,5 +1187,40 @@ exports.runOwnershipScanNow = onRequest(
     try { out = await _runOwnershipScan(); }
     catch (err) { out = { ok: false, reason: "crashed", error: err.message }; }
     res.status(out.ok ? 200 : 500).json(out);
+  }
+);
+
+// סריקה יומית: כל בוקר מרעננת את המלאי ומתריעה בטלגרם על שני דברים —
+// רכבים שכבר סומנו כלא־שלנו, ורכבים חדשים שנכנסו וטרם נבדקו ידנית.
+exports.dailyOwnershipCheck = onSchedule(
+  { schedule: "15 7 * * 0-5", region: "europe-west1", timeZone: "Asia/Jerusalem", timeoutSeconds: 120, memory: "256MiB" },
+  async () => {
+    const r = await _runOwnershipScan().catch((e) => ({ ok: false, reason: "crashed", error: String(e && e.message || e) }));
+    if (!r.ok) return;
+    const newN = (r.newUnchecked || []).length;
+    if (!r.notOurs && !newN) return;   // אין על מה להתריע
+    try {
+      const cs = await db.collection("config").doc("driver_contacts").get();
+      const contacts = cs.exists ? cs.data() : {};
+      const token = contacts["_telegramToken"]?.value || "";
+      const chatId = contacts["ליאל"]?.telegramId || "";
+      if (!token || !chatId) return;
+      const parts = [];
+      if (r.notOurs) {
+        const list = (r.notOursCars || []).slice(0, 15).map((c) => `• ${c.plate}${c.ownerId ? " — רשום על " + c.ownerId : ""}`).join("\n");
+        parts.push(`⚠️ ${r.notOurs} רכבים מסומנים כלא רשומים על החברה:\n${list}${r.notOurs > 15 ? `\n…ועוד ${r.notOurs - 15}` : ""}`);
+      }
+      if (newN) {
+        const list = (r.newUnchecked || []).slice(0, 15).map((c) => `• ${c.plate} ${c.tozeret} ${c.degem}`.trim()).join("\n");
+        parts.push(`🆕 ${newN} רכבים חדשים נכנסו למלאי וטרם נבדקה בעלותם:\n${list}${newN > 15 ? `\n…ועוד ${newN - 15}` : ""}`);
+      }
+      await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: `בדיקת בעלויות — סריקת בוקר\n\n${parts.join("\n\n")}\n\nכנס לאפליקציה → בדיקת בעלויות.`,
+        }),
+      });
+    } catch (err) { console.error("ownership daily alert failed", err); }
   }
 );
