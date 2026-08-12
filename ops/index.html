@@ -1983,36 +1983,28 @@ if ('serviceWorker' in navigator) {
   </div>
   <div style="padding:16px 16px 100px">
     <div style="background:#fef3c7;border:2px solid #f59e0b;border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:13px;font-weight:700;color:#92400e;line-height:1.7">
-      ⚠️ משרד התחבורה <b>אינו מפרסם</b> את הח.פ או הת.ז של בעל הרכב — זה מידע פרטי שאינו זמין ב-API.<br>
-      מה שכן נבדק מול משרד התחבורה: <b>סוג הבעלות</b> של כל רכב במלאי. כל רכב שאינו רשום כ״חברה״ מסומן.<br>
-      השוואה מול המספרים שלך תתבצע על כל רכב שיש לו ח.פ/ת.ז ברשימה שתדביק למטה.
+      אתר משרד התחבורה מוגן ב-reCAPTCHA ולכן <b>לא ניתן לבדוק אוטומטית</b>.<br>
+      במקום זה — צ'קליסט: לכל רכב יש כפתור שפותח את אתר גוב, מעתיק את מספר הרכב, ומאפשר לסמן אם הוא רשום עלינו. ההתקדמות נשמרת.<br>
+      אם אתר גוב מציג סכום לתשלום או ״פטור״ → הרכב שלנו. אם ״ת.ז אינו רשום״ → לא שלנו.
     </div>
 
-    <div class="section-title" style="margin-top:0">המספרים של החברה</div>
+    <div class="section-title" style="margin-top:0">המספרים של החברה (להעתקה מהירה)</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
       <input class="form-input" id="own-id1" inputmode="numeric" placeholder="ח.פ" style="margin:0">
       <input class="form-input" id="own-id2" inputmode="numeric" placeholder="ת.ז" style="margin:0">
     </div>
     <button class="btn-submit" onclick="ownSaveIds()" style="background:var(--success,#16a34a);color:#fff;margin:0 0 14px;width:100%">💾 שמור מספרים</button>
 
-    <button class="btn-submit" id="own-scan-btn" onclick="runOwnershipScan()" style="background:#0d6ab0;color:#fff;margin:0;width:100%">🔍 סרוק את כל המלאי</button>
-    <div id="own-progress" style="display:none;border:2px solid #0d6ab0;border-radius:14px;padding:12px 14px;margin-top:12px;background:var(--surface2)">
-      <div id="own-progress-text" style="font-size:14px;font-weight:900;margin-bottom:8px;color:#0d6ab0"></div>
-      <div style="height:14px;border-radius:999px;background:var(--border);overflow:hidden">
-        <div id="own-progress-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#0d6ab0,#38bdf8);transition:width .4s"></div>
-      </div>
-    </div>
+    <button class="btn-submit" id="own-scan-btn" onclick="runOwnershipScan()" style="background:#0d6ab0;color:#fff;margin:0;width:100%">🔄 טען את רשימת המלאי</button>
 
     <div id="own-summary" style="margin-top:14px"></div>
-    <div id="own-list"></div>
 
-    <div class="section-title">רשימת בעלויות ידנית</div>
-    <div style="font-size:12px;color:var(--muted);font-weight:700;margin-bottom:6px;line-height:1.6">
-      שורה לכל רכב: מספר רישוי ואחריו הח.פ/ת.ז הרשום. אפשר להפריד ברווח, פסיק או טאב.<br>
-      דוגמה: <b dir="ltr">43549303 515814887</b>
+    <div id="own-filter" style="display:none;gap:6px;margin:12px 0 4px">
+      <button onclick="ownFilter('all')" id="own-f-all" style="flex:1;padding:8px;border-radius:9px;border:2px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer">הכל</button>
+      <button onclick="ownFilter('todo')" id="own-f-todo" style="flex:1;padding:8px;border-radius:9px;border:2px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer">לא נבדקו</button>
+      <button onclick="ownFilter('not')" id="own-f-not" style="flex:1;padding:8px;border-radius:9px;border:2px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer">לא שלנו</button>
     </div>
-    <textarea class="form-input" id="own-paste" rows="4" placeholder="43549303 515814887&#10;66672501 022961684" style="margin-bottom:8px"></textarea>
-    <button class="btn-submit" onclick="ownSaveOwners()" style="background:var(--dark);color:#fff;margin:0;width:100%">💾 שמור רשימה והצלב</button>
+    <div id="own-list"></div>
   </div>
 </div>
 
@@ -9699,24 +9691,28 @@ function _printHtml(html, tag, errMsg) {
 }
 
 /* ── בדיקת בעלויות ──────────────────────────────────────────────────
-   סורקת את כל המלאי מול משרד התחבורה. המאגר הפתוח אינו כולל את זהות
-   הבעלים, ולכן מולו נבדק סוג הבעלות בלבד. ההצלבה מול הח.פ והת.ז של
-   החברה נעשית מול רשימת בעלויות שמוזנת כאן ידנית.
+   הבדיקה בפועל נעשית ידנית מול אתר משרד התחבורה (מוגן ב-reCAPTCHA).
+   המסך טוען את כל המלאי מהשרת ומנהל צ'קליסט: לכל רכב אפשר לפתוח את
+   אתר גוב, להעתיק את מספר הרכב, ולסמן אם הוא רשום על החברה. הסימונים
+   נשמרים ב-config/ownership כדי שאפשר יהיה לעצור ולהמשיך.
 ─────────────────────────────────────────────────────────────────────── */
 const _OWN_FN = 'https://europe-west1-anak-soharim.cloudfunctions.net/runOwnershipScanNow';
-let _ownUnsub = null, _ownProgUnsub = null;
+// אתר התשלומים של משרד התחבורה — משם בודקים ידנית אם הרכב רשום עלינו
+const _OWN_GOV_URL = 'https://ecom.gov.il/voucherspa/input/260?clear=true';
+let _ownUnsub = null;
+let _ownCars = [];            // רשימת המלאי מהשרת
+let _ownMarks = {};           // לוחית → 'ours' | 'not' | 'skip'
+let _ownIds = [];             // הח.פ/ת.ז של החברה
+let _ownFilter = 'all';
 
 function openOwnershipScreen() {
   document.getElementById('own-user-badge').textContent = currentUser.name;
   showScreen('ownership');
   if (!_ownUnsub) {
     _ownUnsub = _onSnap(_docRef('ownership_status', 'current'), snap => {
-      _ownRender(snap.exists() ? snap.data() : null);
-    }, () => {});
-  }
-  if (!_ownProgUnsub) {
-    _ownProgUnsub = _onSnap(_docRef('ownership_status', 'progress'), snap => {
-      _ownRenderProgress(snap.exists() ? snap.data() : null);
+      const d = snap.exists() ? snap.data() : null;
+      _ownCars = (d && d.cars) || [];
+      _ownRender();
     }, () => {});
   }
   _ownLoadConfig();
@@ -9727,19 +9723,19 @@ async function _ownLoadConfig() {
   try {
     const s = await window._getDoc(_docRef('config', 'ownership'));
     const d = s.exists() ? s.data() : {};
-    const ids = d.ourIds || [];
-    document.getElementById('own-id1').value = ids[0] || '';
-    document.getElementById('own-id2').value = ids[1] || '';
-    const owners = d.owners || {};
-    const lines = Object.entries(owners).map(([p, id]) => `${p} ${id}`).join('\n');
-    if (lines) document.getElementById('own-paste').value = lines;
+    _ownIds = d.ourIds || [];
+    _ownMarks = d.marks || {};
+    document.getElementById('own-id1').value = _ownIds[0] || '';
+    document.getElementById('own-id2').value = _ownIds[1] || '';
   } catch (e) {}
+  _ownRender();
 }
 
 async function ownSaveIds() {
   const ids = ['own-id1', 'own-id2']
     .map(id => (document.getElementById(id).value || '').replace(/\D/g, ''))
     .filter(Boolean);
+  _ownIds = ids;
   try {
     await window._setDoc(_docRef('config', 'ownership'), { ourIds: ids }, { merge: true });
     showToast('✅ המספרים נשמרו');
@@ -9747,93 +9743,101 @@ async function ownSaveIds() {
 }
 window.ownSaveIds = ownSaveIds;
 
-// כל שורה: מספר רישוי ואחריו ח.פ/ת.ז. שאר התווים בשורה מתעלמים מהם.
-async function ownSaveOwners() {
-  const txt = document.getElementById('own-paste').value || '';
-  const owners = {};
-  let bad = 0;
-  for (const raw of txt.split('\n')) {
-    const line = raw.trim();
-    if (!line) continue;
-    const nums = line.match(/\d+/g) || [];
-    if (nums.length < 2) { bad++; continue; }
-    const plate = nums[0].replace(/\D/g, '');
-    const id = nums[1].replace(/\D/g, '');
-    if (plate.length < 6 || id.length < 8) { bad++; continue; }
-    owners[plate] = id;
-  }
-  try {
-    await window._setDoc(_docRef('config', 'ownership'), { owners }, { merge: true });
-    showToast(bad ? `✅ נשמרו ${Object.keys(owners).length} · ${bad} שורות לא הובנו` : `✅ נשמרו ${Object.keys(owners).length} בעלויות`, 5000);
-  } catch (e) { showToast('שגיאה בשמירה'); }
-}
-window.ownSaveOwners = ownSaveOwners;
-
-function _ownRenderProgress(p) {
-  const box = document.getElementById('own-progress');
-  const txt = document.getElementById('own-progress-text');
-  const bar = document.getElementById('own-progress-bar');
-  if (!box) return;
-  const at = p?.at?.toDate ? p.at.toDate() : (p?.at ? new Date(p.at) : null);
-  const fresh = at && (Date.now() - at.getTime()) < 3 * 60000;
-  if (!p || !p.running || !fresh) { box.style.display = 'none'; return; }
-  const total = p.total || 0, done = Math.min(p.done || 0, total);
-  const pct = total ? Math.round(done / total * 100) : 0;
-  box.style.display = 'block';
-  bar.style.width = pct + '%';
-  txt.textContent = `⏳ סורק… ${pct}% · ${done} מתוך ${total} רכבים`;
-}
-
 async function runOwnershipScan() {
   const btn = document.getElementById('own-scan-btn');
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ סורק את כל המלאי… (עד כמה דקות)'; }
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ טוען מלאי…'; }
   try {
     const res = await fetch(_OWN_FN);
     const r = await res.json().catch(() => ({}));
-    if (r.ok) showToast(`✅ נסרקו ${r.checked} רכבים · ${r.flagged} דורשים בדיקה`, 6000);
-    else showToast('⚠️ הסריקה נכשלה: ' + (r.reason || r.error || res.status), 7000);
+    if (r.ok) showToast(`✅ נטענו ${r.checked} רכבים`, 5000);
+    else showToast('⚠️ הטעינה נכשלה: ' + (r.reason || r.error || res.status), 7000);
   } catch (e) { showToast('⚠️ שגיאת חיבור לשרת: ' + e.message, 7000); }
-  finally {
-    if (btn) { btn.disabled = false; btn.textContent = '🔍 סרוק את כל המלאי'; }
-    _ownRenderProgress(null);
-  }
+  finally { if (btn) { btn.disabled = false; btn.textContent = '🔄 טען את רשימת המלאי'; } }
 }
 window.runOwnershipScan = runOwnershipScan;
 
-function _ownRender(d) {
+function ownFilter(f) { _ownFilter = f; _ownRender(); }
+window.ownFilter = ownFilter;
+
+// סימון רכב. נשמר גם מיידית בזיכרון וגם ב-Firestore, כדי שהעבודה לא
+// תאבד גם אם עוברים מכשיר.
+async function ownMark(plate, val) {
+  if (_ownMarks[plate] === val) delete _ownMarks[plate];   // לחיצה חוזרת מבטלת
+  else _ownMarks[plate] = val;
+  _ownRender();
+  try { await window._setDoc(_docRef('config', 'ownership'), { marks: _ownMarks }, { merge: true }); }
+  catch (e) { showToast('שמירת הסימון נכשלה'); }
+}
+window.ownMark = ownMark;
+
+function _ownCopy(txt, label) {
+  const done = () => showToast('📋 ' + label + ' הועתק');
+  if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(txt).then(done).catch(() => _pcCopyFallback(txt, done));
+  else _pcCopyFallback(txt, done);
+}
+window._ownCopy = _ownCopy;
+
+function _ownRender() {
   const sum = document.getElementById('own-summary');
   const list = document.getElementById('own-list');
+  const filt = document.getElementById('own-filter');
   if (!sum || !list) return;
-  if (!d || !d.updatedAt) {
-    sum.innerHTML = `<div style="color:var(--muted);padding:16px;text-align:center">עדיין לא בוצעה סריקה</div>`;
+  if (!_ownCars.length) {
+    sum.innerHTML = `<div style="color:var(--muted);padding:16px;text-align:center">עדיין לא נטענה רשימת מלאי — לחץ ״טען את רשימת המלאי״</div>`;
     list.innerHTML = '';
+    if (filt) filt.style.display = 'none';
     return;
   }
-  const ts = d.updatedAt?.toDate ? d.updatedAt.toDate() : new Date(d.updatedAt);
-  const cars = d.cars || [];
-  const byType = d.byType || {};
-  sum.innerHTML = `<div style="border:2px solid var(--border);border-radius:14px;padding:13px 15px;background:var(--surface2);font-size:14px;line-height:1.9">
-      <div style="font-weight:900;margin-bottom:4px">🔍 סריקה אחרונה · ${esc(ts.toLocaleDateString('he-IL'))} ${esc(ts.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }))}</div>
-      <div>נסרקו <b>${d.checkedCount || 0}</b> רכבים</div>
-      ${Object.entries(byType).map(([k, n]) => `<div style="color:${k === 'חברה' ? '#166534' : '#92400e'}">${k === 'חברה' ? '✅' : '⚠️'} <b>${n}</b> ${esc(k)}</div>`).join('')}
-      ${d.notFound ? `<div style="color:#991b1b">❌ <b>${d.notFound}</b> לא נמצאו במשרד התחבורה</div>` : ''}
-      <div style="font-weight:900;margin-top:4px;color:${cars.length ? '#991b1b' : '#166534'}">${cars.length ? `⚠️ ${cars.length} רכבים דורשים בדיקה` : '✅ הכל תקין'}</div>
+  const total = _ownCars.length;
+  const ours = _ownCars.filter(c => _ownMarks[c.plate] === 'ours').length;
+  const not  = _ownCars.filter(c => _ownMarks[c.plate] === 'not').length;
+  const skip = _ownCars.filter(c => _ownMarks[c.plate] === 'skip').length;
+  const done = ours + not + skip;
+  const pct = Math.round(done / total * 100);
+  sum.innerHTML = `<div style="border:2px solid var(--border);border-radius:14px;padding:13px 15px;background:var(--surface2)">
+      <div style="font-weight:900;font-size:15px;margin-bottom:8px">נבדקו ${done} מתוך ${total} (${pct}%)</div>
+      <div style="height:12px;border-radius:999px;background:var(--border);overflow:hidden;margin-bottom:10px"><div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#0d9488,#38bdf8)"></div></div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:13px;font-weight:800">
+        <span style="color:#16a34a">✅ שלנו: ${ours}</span>
+        <span style="color:#dc2626">❌ לא שלנו: ${not}</span>
+        <span style="color:#6b7280">⏭️ דילוג: ${skip}</span>
+      </div>
     </div>`;
-  list.innerHTML = !cars.length ? '' :
-    `<div class="section-title">רכבים לבדיקה</div>` + cars.map(c => {
-      const why = [];
-      if (!c.found) why.push('לא נמצא במשרד התחבורה');
-      else if (!c.typeOk) why.push(`בעלות: ${c.baalut || 'לא ידוע'}`);
-      if (c.idOurs === false) why.push(`רשום על ${c.ownerId} — לא שלנו`);
-      return `<div style="display:flex;align-items:flex-start;gap:10px;border:2px solid #ef4444;border-radius:12px;padding:11px 13px;margin-bottom:8px;background:#fee2e2">
-        <div style="flex:1;min-width:0">
-          <div style="font-weight:900;font-size:16px;color:#991b1b">${esc(c.plate)}</div>
-          <div style="font-size:12.5px;color:#991b1b;font-weight:700;margin-top:2px">${esc([c.tozeret, c.degem, c.shnat].filter(Boolean).join(' · '))}</div>
-          <div style="font-size:13px;color:#991b1b;font-weight:800;margin-top:4px">⚠️ ${esc(why.join(' · '))}</div>
+  if (filt) filt.style.display = 'flex';
+  ['all','todo','not'].forEach(f => {
+    const b = document.getElementById('own-f-' + f);
+    if (b) { const on = _ownFilter === f; b.style.background = on ? '#0d9488' : 'var(--surface2)'; b.style.color = on ? '#fff' : 'var(--text)'; b.style.borderColor = on ? '#0d9488' : 'var(--border)'; }
+  });
+  let cars = _ownCars;
+  if (_ownFilter === 'todo') cars = cars.filter(c => !_ownMarks[c.plate]);
+  else if (_ownFilter === 'not') cars = cars.filter(c => _ownMarks[c.plate] === 'not');
+  if (!cars.length) { list.innerHTML = `<div style="color:var(--muted);padding:20px;text-align:center">אין רכבים בקטגוריה הזו</div>`; return; }
+  const e = s => esc(s);
+  list.innerHTML = cars.map(c => {
+    const mk = _ownMarks[c.plate];
+    const border = mk === 'ours' ? '#16a34a' : mk === 'not' ? '#dc2626' : mk === 'skip' ? '#9ca3af' : 'var(--border)';
+    const bg = mk === 'ours' ? '#dcfce7' : mk === 'not' ? '#fee2e2' : 'var(--card)';
+    const mbtn = (val, icon, col) => `<button onclick="ownMark('${e(c.plate)}','${val}')" style="flex:1;padding:8px 4px;border-radius:9px;border:2px solid ${mk===val?col:'var(--border)'};background:${mk===val?col:'#fff'};color:${mk===val?'#fff':'var(--text)'};font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer">${icon}</button>`;
+    return `<div style="border:2px solid ${border};border-radius:12px;padding:11px 13px;margin-bottom:8px;background:${bg}">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <div style="min-width:0">
+          <div style="font-weight:900;font-size:17px;letter-spacing:1px">${e(c.plate)}</div>
+          <div style="font-size:12px;color:var(--muted);font-weight:700">${e([c.tozeret,c.degem,c.shnat].filter(Boolean).join(' · '))}</div>
         </div>
-      </div>`;
-    }).join('');
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button onclick="_ownCopy('${e(c.plate)}','מספר הרכב')" title="העתק מספר רכב" style="background:var(--surface2);border:2px solid var(--border);border-radius:9px;width:38px;height:38px;font-size:16px;cursor:pointer">📋</button>
+          <a href="${_OWN_GOV_URL}" target="_blank" rel="noopener" title="פתח אתר גוב" style="display:flex;align-items:center;justify-content:center;background:#0d6ab0;color:#fff;border-radius:9px;width:38px;height:38px;font-size:16px;text-decoration:none">🌐</a>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:9px">
+        ${mbtn('ours','✅ שלנו','#16a34a')}
+        ${mbtn('not','❌ לא שלנו','#dc2626')}
+        ${mbtn('skip','⏭️ דלג','#6b7280')}
+      </div>
+    </div>`;
+  }).join('');
 }
+
 
 /* ── חיפוש רכב לפי לוחית ─────────────────────────────────────────────
    מסך אחד שעונה על "מה קורה עם הרכב הזה": כל מה שהמערכת יודעת עליו,

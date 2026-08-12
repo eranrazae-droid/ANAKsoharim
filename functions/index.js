@@ -1108,40 +1108,16 @@ exports.setupReminders = onSchedule(
 );
 
 /* ── בדיקת בעלויות ───────────────────────────────────────────────────
-   סורקת את כל המלאי מול מאגר הרכב של משרד התחבורה ומחזירה את סוג
-   הבעלות הרשום לכל רכב.
-
-   חשוב: המאגר הפתוח אינו כולל את מספר הזהות או הח.פ של הבעלים — זה
-   מידע פרטי שאינו מתפרסם. לכן הבדיקה מול המספרים של החברה נעשית מול
-   רשימת בעלויות שהמשתמש מזין (config/ownership.owners), והסריקה מול
-   משרד התחבורה מוסיפה את מה שכן זמין: סוג הבעלות.
+   הבדיקה בפועל — האם הרכב רשום על הח.פ/ת.ז של החברה — נעשית מול אתר
+   התשלומים של משרד התחבורה, שמוגן ב-reCAPTCHA ולכן לא ניתן לאוטומציה.
+   כאן רק נטענת רשימת המלאי המלאה, והמסך מנהל את הבדיקה הידנית כצ'קליסט
+   עם שמירת התוצאות.
 ─────────────────────────────────────────────────────────────────────── */
-const _VEHICLE_RESOURCE = "053cea08-09bc-40ec-8f7a-156f0677aff3";
-const _OWNER_EXPECTED_TYPE = "חברה";
 
-async function _ownProgress(done, total, running) {
-  try {
-    await db.collection("ownership_status").doc("progress")
-      .set({ done, total, running, at: new Date() });
-  } catch (err) { console.error("ownership progress write failed", err); }
-}
-
-// שאילתה אחת לקבוצת לוחיות. אותו דפוס כמו סריקת הריקול: קודם כמספרים,
-// ואם המאגר שומר אותן כטקסט — שוב כמחרוזות.
-async function _ownQueryBatch(plates) {
-  for (const vals of [plates.map(Number), plates.map(String)]) {
-    const filters = encodeURIComponent(JSON.stringify({ mispar_rechev: vals }));
-    const url = `https://data.gov.il/api/3/action/datastore_search?resource_id=${_VEHICLE_RESOURCE}&filters=${filters}&limit=${plates.length}`;
-    let res;
-    try { res = await fetch(url); } catch (err) { continue; }
-    if (!res.ok) continue;
-    const json = await res.json().catch(() => null);
-    const recs = json?.result?.records || [];
-    if (recs.length) return recs;
-  }
-  return [];
-}
-
+// טוענת את רשימת המלאי המלאה לתוך ownership_status/current. הבדיקה מול
+// משרד התחבורה עצמה נעשית ידנית מול אתר gov (מוגן ב-reCAPTCHA ולא ניתן
+// לאוטומציה), והמסך רק מנהל אותה כצ'קליסט — לכן כאן נשמרת רשימת הרכבים,
+// ולא שום נתון בעלות שנמשך אוטומטית.
 async function _runOwnershipScan() {
   let vehicles;
   try {
@@ -1160,51 +1136,10 @@ async function _runOwnershipScan() {
   })).filter((c) => c.plate.length === 7 || c.plate.length === 8);
   if (!cars.length) return { ok: false, reason: "no-valid-plates" };
 
-  // רשימת הבעלויות שהוזנה ידנית: לוחית → ח.פ/ת.ז, ולצידה המספרים שלנו
-  let owners = {}, ourIds = [];
-  try {
-    const cfg = await db.collection("config").doc("ownership").get();
-    if (cfg.exists) {
-      owners = cfg.data().owners || {};
-      ourIds = (cfg.data().ourIds || []).map((s) => String(s).replace(/\D/g, ""));
-    }
-  } catch (err) { /* בלי רשימה עדיין אפשר לבדוק סוג בעלות */ }
-
-  const BATCH = 40;
-  const rows = [];
-  let missing = 0;
-  await _ownProgress(0, cars.length, true);
-  for (let i = 0; i < cars.length; i += BATCH) {
-    const chunk = cars.slice(i, i + BATCH);
-    let recs = [];
-    try { recs = await _ownQueryBatch(chunk.map((c) => c.plate)); } catch (err) { recs = []; }
-    const byPlate = {};
-    for (const r of recs) byPlate[String(r.mispar_rechev).replace(/\D/g, "")] = r;
-    for (const c of chunk) {
-      const r = byPlate[c.plate];
-      if (!r) { missing++; }
-      const baalut = r ? String(r.baalut || "").trim() : "";
-      const ownerId = String(owners[c.plate] || "").replace(/\D/g, "");
-      // "לא שלנו" נקבע רק כשיש ח.פ/ת.ז ידוע לרכב והוא אינו אחד משלנו
-      const idKnown = !!ownerId;
-      const idOurs = idKnown && ourIds.length ? ourIds.includes(ownerId) : null;
-      rows.push({
-        plate: c.plate, tozeret: c.tozeret, degem: c.degem, shnat: c.shnat,
-        baalut, found: !!r, ownerId: ownerId || null, idOurs,
-        typeOk: baalut === _OWNER_EXPECTED_TYPE,
-      });
-    }
-    await _ownProgress(Math.min(i + BATCH, cars.length), cars.length, true);
-    if (i + BATCH < cars.length) await _sleep2(400);
-  }
-
-  const flagged = rows.filter((r) => !r.typeOk || r.idOurs === false);
   await db.collection("ownership_status").doc("current").set({
-    cars: flagged, checkedCount: rows.length, notFound: missing,
-    byType: rows.reduce((acc, r) => { const k = r.baalut || "לא נמצא"; acc[k] = (acc[k] || 0) + 1; return acc; }, {}),
-    updatedAt: new Date(),
+    cars, checkedCount: cars.length, updatedAt: new Date(),
   });
-  return { ok: true, checked: rows.length, flagged: flagged.length, notFound: missing };
+  return { ok: true, checked: cars.length };
 }
 
 exports.runOwnershipScanNow = onRequest(
@@ -1213,7 +1148,6 @@ exports.runOwnershipScanNow = onRequest(
     let out;
     try { out = await _runOwnershipScan(); }
     catch (err) { out = { ok: false, reason: "crashed", error: err.message }; }
-    await _ownProgress(0, 0, false);
     res.status(out.ok ? 200 : 500).json(out);
   }
 );
