@@ -2222,6 +2222,11 @@ if ('serviceWorker' in navigator) {
     <button class="btn-submit" onclick="savePickupContact()">✅ שמור איש קשר</button>
     <div class="section-title" style="margin-top:18px">הרשימה</div>
     <div id="pc-list"></div>
+
+    <div class="section-title" style="margin-top:20px">📍 שיוך אנשי קשר לכתובות</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:8px">נלמד אוטומטית מהרכבים — כל כתובת עם אנשי הקשר שנרשמו בה.</div>
+    <input class="form-input" id="pc-addr-search" placeholder="🔎 חפש כתובת או איש קשר" oninput="_renderAddrContacts()" style="margin-bottom:10px">
+    <div id="pc-addr-list"></div>
   </div>
 </div>
 
@@ -16404,8 +16409,35 @@ function _listenPickupContacts() {
   });
 }
 
-function openPickupContacts() { _listenPickupContacts(); _renderPickupContacts(); openModal('modal-pickup-contacts'); }
+function openPickupContacts() {
+  _listenPickupContacts();
+  _listenAddrContacts();          // מוודא שהשיוכים לכתובות נטענו
+  _renderPickupContacts();
+  _renderAddrContacts();
+  openModal('modal-pickup-contacts');
+}
 window.openPickupContacts = openPickupContacts;
+
+// כל השיוכים של אנשי קשר לכתובות, ממוינים לפי עיר ורחוב
+function _renderAddrContacts() {
+  const c = document.getElementById('pc-addr-list');
+  if (!c) return;
+  const term = (document.getElementById('pc-addr-search')?.value || '').trim().toLowerCase();
+  let rows = Object.values(_addrContacts || {})
+    .filter(a => a && (a.contacts || []).length)
+    .sort((a, b) => `${a.city} ${a.address}`.localeCompare(`${b.city} ${b.address}`, 'he'));
+  if (term) rows = rows.filter(a =>
+    `${a.city || ''} ${a.address || ''} ${(a.contacts || []).join(' ')}`.toLowerCase().includes(term));
+  if (!rows.length) {
+    c.innerHTML = `<div style="padding:16px;text-align:center;color:var(--muted)">${term ? 'לא נמצא' : 'עדיין אין שיוכים — הם נלמדים מרכבים עם כתובת ואיש קשר'}</div>`;
+    return;
+  }
+  c.innerHTML = rows.map(a => `<div style="border:2px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:6px">
+      <div style="font-weight:900;font-size:14px">📍 ${esc([a.address, a.city].filter(Boolean).join(', '))}</div>
+      <div style="font-size:13px;color:var(--muted);font-weight:700;direction:ltr;text-align:right;margin-top:3px">${esc((a.contacts || []).join(' · '))}</div>
+    </div>`).join('');
+}
+window._renderAddrContacts = _renderAddrContacts;
 
 function _fillPickupContactPicker() {
   const sel = document.getElementById('pickup-contact-pick');
@@ -16503,6 +16535,7 @@ function _listenAddrContacts() {
     _addrContacts = {};
     snap.docs.forEach(d => { _addrContacts[d.id] = d.data(); });
     _syncAddrContacts();
+    if (document.getElementById('modal-pickup-contacts')?.classList.contains('open')) _renderAddrContacts();
   }, () => {});
 }
 
