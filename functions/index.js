@@ -1114,10 +1114,40 @@ exports.setupReminders = onSchedule(
    עם שמירת התוצאות.
 ─────────────────────────────────────────────────────────────────────── */
 
-// מושכת את המלאי הנוכחי ומצליבה אותו מול רשימת הבעלויות השמורה
-// (config/ownership): לכל רכב נקבע status — 'ours' אם הח.פ הרשום שלו
-// הוא אחד משל החברה, 'not' אם הוא רשום על מישהו אחר, 'unknown' אם עדיין
-// אין לו רשומה ברשימה. סימון ידני מהצ'קליסט גובר על ההצלבה האוטומטית.
+const _VEHICLE_RESOURCE = "053cea08-09bc-40ec-8f7a-156f0677aff3";
+
+// סוג הבעלות (baalut) של קבוצת לוחיות מהמאגר הפתוח. הפונקציה רצה בענן,
+// שם data.gov.il נגיש (בניגוד לדפדפן). מחזיר { plate: "פרטי"|"חברה"|... }.
+async function _ownRegistryBaalut(plates) {
+  const out = {};
+  const BATCH = 40;
+  for (let i = 0; i < plates.length; i += BATCH) {
+    const chunk = plates.slice(i, i + BATCH);
+    let recs = [];
+    // קודם כמספרים, ואם המאגר שומר לוחיות כטקסט — שוב כמחרוזות
+    for (const vals of [chunk.map(Number), chunk.map(String)]) {
+      const filters = encodeURIComponent(JSON.stringify({ mispar_rechev: vals }));
+      const url = `https://data.gov.il/api/3/action/datastore_search?resource_id=${_VEHICLE_RESOURCE}&filters=${filters}&limit=${chunk.length}`;
+      try {
+        const res = await fetch(url);
+        if (!res.ok) continue;
+        const json = await res.json().catch(() => null);
+        recs = json?.result?.records || [];
+        if (recs.length) break;
+      } catch (err) { /* try next form */ }
+    }
+    for (const r of recs) {
+      const p = String(r.mispar_rechev).replace(/\D/g, "");
+      out[p] = String(r.baalut || "").trim();
+    }
+    await _sleep2(300);
+  }
+  return out;
+}
+
+// מושכת את המלאי הנוכחי, קוראת את סוג הבעלות של כל רכב מהמאגר הפתוח,
+// ומצליבה מול רשימת הבעלויות השמורה. לכל רכב נקבע status: 'ours' /
+// 'not' (עדיין פרטי או רשום על מישהו אחר) / 'unknown'. סימון ידני גובר.
 async function _runOwnershipScan() {
   let vehicles;
   try {
@@ -1136,20 +1166,32 @@ async function _runOwnershipScan() {
       ourIds = (cfg.data().ourIds || []).map((s) => String(s).replace(/\D/g, ""));
       marks = cfg.data().marks || {};
     }
-  } catch (err) { /* בלי רשימה — הכל 'unknown' */ }
+  } catch (err) { /* בלי רשימה — הכל לפי המאגר */ }
+
+  const plates = vehicles
+    .map((v) => String(v.ank_s_car_number || "").replace(/\D/g, ""))
+    .filter((p) => p.length === 7 || p.length === 8);
+  // סוג הבעלות מהמאגר הפתוח — האות האוטומטי שמתעדכן אחרי העברת בעלות
+  const baalutByPlate = await _ownRegistryBaalut(plates);
 
   const cars = vehicles.map((v) => {
     const plate = String(v.ank_s_car_number || "").replace(/\D/g, "");
     const ownerId = String(owners[plate] || "").replace(/\D/g, "");
-    let status = "unknown";
-    if (marks[plate] === "ours" || marks[plate] === "not") status = marks[plate];  // סימון ידני קודם
-    else if (ownerId) status = ourIds.includes(ownerId) ? "ours" : "not";
+    const baalut = baalutByPlate[plate] || "";
+    // רכב "פרטי" = עדיין רשום על אדם פרטי, כלומר העברת הבעלות לחברה
+    // עוד לא בוצעה. זה מה שהסריקה מחפשת.
+    const stillPrivate = baalut.includes("פרטי");
+    let status;
+    if (marks[plate] === "ours" || marks[plate] === "not") status = marks[plate];   // סימון ידני קודם לכל
+    else if (ownerId) status = ourIds.includes(ownerId) ? "ours" : "not";           // רשימה מפורשת אם יש
+    else if (!baalut) status = "unknown";                                            // לא נמצא במאגר
+    else status = stillPrivate ? "not" : "ours";                                     // לפי סוג הבעלות
     return {
       plate,
       tozeret: v.ank_id_manufacturer || "",
       degem: [v.ank_id_model, v.ank_id_sub_model].filter(Boolean).join(" "),
       shnat: v.ank_id_year_of_manufacture || "",
-      ownerId: ownerId || null, status,
+      ownerId: ownerId || null, baalut: baalut || null, status,
     };
   }).filter((c) => c.plate.length === 7 || c.plate.length === 8);
   if (!cars.length) return { ok: false, reason: "no-valid-plates" };
@@ -1193,7 +1235,7 @@ exports.runOwnershipScanNow = onRequest(
 // סריקה יומית: כל בוקר מרעננת את המלאי ומתריעה בטלגרם על שני דברים —
 // רכבים שכבר סומנו כלא־שלנו, ורכבים חדשים שנכנסו וטרם נבדקו ידנית.
 exports.dailyOwnershipCheck = onSchedule(
-  { schedule: "15 7 * * 0-5", region: "europe-west1", timeZone: "Asia/Jerusalem", timeoutSeconds: 120, memory: "256MiB" },
+  { schedule: "15 7 * * 0-5", region: "europe-west1", timeZone: "Asia/Jerusalem", timeoutSeconds: 300, memory: "256MiB" },
   async () => {
     const r = await _runOwnershipScan().catch((e) => ({ ok: false, reason: "crashed", error: String(e && e.message || e) }));
     if (!r.ok) return;
