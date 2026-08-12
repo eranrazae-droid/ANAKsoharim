@@ -711,7 +711,6 @@ tbody td{padding:14px 16px;font-size:14px;vertical-align:middle}
         <th onclick="sortBy('dealer')" data-col="dealer">מחיר לסוחר כולל רישוי ↕</th>
         <th onclick="sortBy('discount')" data-col="discount">הנחה ↕</th>
         <th onclick="sortBy('monthly')" data-col="monthly">החזר חודשי ↕</th>
-        <th colspan="2">צבעים במלאי (חיצוני – פנימי)</th>
         <th>פעולות</th>
         <th></th>
       </tr></thead>
@@ -2613,8 +2612,8 @@ function filterAndRender() {
     for (var i = 0; i < data.length; i++) {
       var c = data[i];
       var baseMsg = buildWaMsg(c.brand, c.model, fmt(c.dealer), '', '', false);
-      var disabled = hasPairs(c) ? ' disabled' : '';
-      var btnTxt = hasPairs(c) ? ' בחר צבע תחילה' : ' להזמנה';
+      var disabled = '';
+      var btnTxt = ' להזמנה';
       var isChecked = compareList.some(function(x) { return (x.brand+'||'+x.model) === (c.brand+'||'+c.model); });
       rows += '<tr>';
       rows += '<td><input type="checkbox" class="compare-chk" ' + (isChecked?'checked':'') + ' onchange="toggleCompare(' + i + ',this)" style="width:16px;height:16px;accent-color:#c9a227;cursor:pointer"></td>';
@@ -2627,7 +2626,6 @@ function filterAndRender() {
       rows += '<td class="col-dealer"><div style="display:flex;align-items:center;gap:6px"><span class="price-val">' + dealerFmt + '</span>' + (window.isAdmin ? '<button onclick="openEditPrice(event,\'' + carKey + '\','+c.dealer+')" title="עריכת מחיר" style="background:none;border:none;cursor:pointer;font-size:13px;opacity:0.6;padding:0;line-height:1">✏️</button>' : '') + '</div></td>';
       rows += '<td class="col-discount"><span class="discount-pill">−' + fmt(c.discount) + '</span></td>';
       rows += '<td><div class="col-monthly">' + fmt(pmt(c.catalog)) + '<small>100 תשלומים</small></div></td>';
-      rows += '<td colspan="2"><div class="color-pairs">' + makePairsHtml(c, false) + '</div></td>';
       rows += '<td><div class="actions-col">';
       rows += '<a class="wa-btn' + disabled + '" data-brand="' + c.brand + '" data-model="' + c.model + '" data-price="' + fmt(c.dealer) + '" href="https://wa.me/972544214850?text=' + baseMsg + '" target="_blank">' + WA + btnTxt + '</a>';
       rows += '<div class="finance-check"><input type="checkbox" id="fin' + i + '" onchange="updateFinance(this)"><label for="fin' + i + '">🏦 אני רוצה גם מימון</label></div>';
@@ -2645,8 +2643,8 @@ function filterAndRender() {
   for (var j = 0; j < data.length; j++) {
     var c = data[j];
     var baseMsg = buildWaMsg(c.brand, c.model, fmt(c.dealer), '', '', false);
-    var disabled = hasPairs(c) ? ' disabled' : '';
-    var btnTxt = hasPairs(c) ? ' בחר צבע תחילה' : ' להזמנה';
+    var disabled = '';
+    var btnTxt = ' להזמנה';
     cards += '<div class="mc">';
     cards += '<div class="mc-top"><div><div class="mc-brand">' + c.brand + '</div><div class="mc-model">' + getModelName(c) + '</div></div>';
     cards += '<span class="fuel-badge ' + fuelClass(c.fuel) + '">' + c.fuel + '</span></div>';
@@ -2656,8 +2654,6 @@ function filterAndRender() {
     cards += '</div>';
     cards += '<div class="mc-monthly-box"><div><div class="mc-monthly-label">החזר חודשי משוער</div><div class="mc-monthly-sub">100 תשלומים</div></div>';
     cards += '<div class="mc-monthly-val" style="white-space:nowrap">' + fmt(pmt(c.catalog)) + '</div></div>';
-    cards += '<div><div class="mc-colors-title">🎨 צבעים במלאי</div>';
-    cards += '<div class="color-pairs">' + makePairsHtml(c, true) + '</div></div>';
     cards += '<div class="mc-actions">';
     cards += '<label class="mc-finance"><input type="checkbox" onchange="updateFinance(this)"> 🏦 אני רוצה גם מימון</label>';
     cards += '<a class="wa-btn' + disabled + '" data-brand="' + c.brand + '" data-model="' + c.model + '" data-price="' + fmt(c.dealer) + '" href="https://wa.me/972544214850?text=' + baseMsg + '" target="_blank">' + WA + btnTxt + '</a>';
