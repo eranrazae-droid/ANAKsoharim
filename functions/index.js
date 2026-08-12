@@ -1140,6 +1140,15 @@ async function _ownRegistryBaalut(plates) {
       const p = String(r.mispar_rechev).replace(/\D/g, "");
       out[p] = String(r.baalut || "").trim();
     }
+    // אבחון חד-פעמי: רושם אילו שדות בכלל קיימים במאגר, כדי לדעת אם יש
+    // שדה של תאריך העברה / מספר בעלים שיאפשר לזהות כל העברת בעלות.
+    if (i === 0 && recs[0]) {
+      db.collection("ownership_status").doc("registry_fields").set({
+        at: new Date(),
+        fields: Object.keys(recs[0]).filter((k) => !k.startsWith("_")),
+        sample: JSON.stringify(recs[0]).slice(0, 2000),
+      }).catch(() => {});
+    }
     await _sleep2(300);
   }
   return out;
