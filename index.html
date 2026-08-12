@@ -3977,33 +3977,6 @@ function generateToken() {
   return token;
 }
 
-function sendTokenLink(phone) {
-  if (!phone) return;
-  var docId = phone.replace(/[.#$[\]@]/g, '_');
-  // Check if token already exists
-  db.collection('dealers').doc(phone).get().then(function(doc) {
-    var existingToken = doc.exists && doc.data().token;
-    var token = existingToken || generateToken();
-    if (!existingToken) {
-      // Save new token to dealer doc — needs write permission
-      // Save to settings instead
-      var update = {};
-      update['token_' + phone.replace(/[^0-9]/g,'')] = token;
-      db.collection('settings').doc('tokens').set(update, { merge: true });
-    }
-    var link = 'https://anak-s.netlify.app/?t=' + token;
-    var msg = encodeURIComponent('שלום, הנה הלינק האישי שלך לאתר ענק הרכבים:\n' + link + '\n\nלחץ על הלינק והכנס את מספר הטלפון שלך לכניסה.');
-    window.open('https://wa.me/' + phone.replace(/[^0-9]/g,'') + '?text=' + msg, '_blank');
-  }).catch(function() {
-    var token = generateToken();
-    var update = {};
-    update['token_' + phone.replace(/[^0-9]/g,'')] = token;
-    db.collection('settings').doc('tokens').set(update, { merge: true });
-    var link = 'https://anak-s.netlify.app/?t=' + token;
-    var msg = encodeURIComponent('שלום, הנה הלינק האישי שלך לאתר ענק הרכבים:\n' + link + '\n\nלחץ על הלינק והכנס את מספר הטלפון שלך לכניסה.');
-    window.open('https://wa.me/' + phone.replace(/[^0-9]/g,'') + '?text=' + msg, '_blank');
-  });
-}
 
 function resetDevice(phone) {
   if (!confirm('לאפס את המכשיר הרשום של ' + phone + '?')) return;
@@ -4504,169 +4477,1480 @@ function resetAllStock() {
   });
 }
 
-var _broadcastDealers = [];
-var _broadcastFilter = 'all';
 
-function loadBroadcastList() {
-  var listEl = document.getElementById('broadcastList');
-  listEl.innerHTML = '<div style="font-size:13px;color:#777;padding:8px 0;">טוען...</div>';
-  var dealers = {};
-  var p1 = window.db.collection('dealers').get().then(function(snap) {
-    snap.forEach(function(doc) {
-      var d = doc.data();
-      var phone = doc.id.replace(/\D/g, '');
-      if (phone.length < 9) return;
-      dealers[phone] = { name: d.name || d.dealerName || doc.id, blocked: !!d.blocked };
+function openAdmin() {
+  var panel = document.getElementById('adminPanel');
+  if (panel) { panel.style.display = 'block'; loadAdmin(); }
+}
+
+function closeAdmin() {
+  var panel = document.getElementById('adminPanel');
+  if (panel) panel.style.display = 'none';
+}
+
+function loadAdmin() { /* overridden by admin script */ }
+
+function blockUser(p) { /* overridden */ }
+function unblockUser(p) { /* overridden */ }
+function exportExcel() { /* overridden */ }
+function setPeriod(p,b) { /* overridden */ }
+
+function saveEmail(phone, email) {
+  if (!phone || !window.db) return;
+  var emailVal = email.trim().toLowerCase();
+  window.db.collection('dealers').doc(phone).set({ email: emailVal }, { merge: true })
+    .then(function() { console.log('Email saved:', emailVal); })
+    .catch(function(err) { console.error('saveEmail error:', err.message); });
+}
+
+function saveNickname(p,n) { /* overridden */ }
+function addDealer() { /* overridden */ }
+
+
+function getModelName(car) {
+  var keyFull = car.brand + '||' + car.model + '||' + car.dealer;
+  var keyShort = car.brand + '||' + car.model;
+  return carOverrides[keyFull] || carOverrides[keyShort] || car.model;
+}
+
+function showError(id, msg) {
+  document.getElementById(id).textContent = msg;
+}
+</script>
+
+
+<div id="adminPanel">
+
+<!-- Add Car Modal -->
+<div class="add-car-modal" id="addCarModal">
+  <div class="add-car-box">
+    <h3>➕ הוספת רכב ידנית</h3>
+    <div class="add-car-row">
+      <div class="add-car-field">
+        <label>יצרן</label>
+        <input id="ac_brand" placeholder="לדוג׳ BYD" />
+      </div>
+      <div class="add-car-field">
+        <label>דגם</label>
+        <input id="ac_model" placeholder="לדוג׳ SEAL U" />
+      </div>
+    </div>
+    <div class="add-car-row">
+      <div class="add-car-field">
+        <label>סוג דלק</label>
+        <select id="ac_fuel">
+          <option value="PHEV">PHEV</option>
+          <option value="HEV">HEV (היברידי)</option>
+          <option value="EV">EV (חשמלי)</option>
+          <option value="בנזין">בנזין</option>
+          <option value="דיזל">דיזל</option>
+        </select>
+      </div>
+      <div class="add-car-field">
+        <label>מחירון כולל רישוי (₪)</label>
+        <input id="ac_catalog" type="number" placeholder="200000" />
+      </div>
+    </div>
+    <div class="add-car-row">
+      <div class="add-car-field">
+        <label>מחיר לסוחר (₪)</label>
+        <input id="ac_dealer" type="number" placeholder="185000" />
+      </div>
+      <div class="add-car-field">
+        <label>הנחה (₪)</label>
+        <input id="ac_discount" type="number" placeholder="15000" />
+      </div>
+    </div>
+    <div id="ac_error" style="color:#e24b4a;font-size:13px;margin-top:4px;display:none"></div>
+    <div class="add-car-actions">
+      <button class="btn-save-car" onclick="saveManualCar()">שמור רכב</button>
+      <button class="btn-cancel-car" onclick="closeAddCar()">ביטול</button>
+    </div>
+  </div>
+</div>
+
+  <div class="admin-header">
+    <div class="admin-title">🛡️ פאנל ניהול</div>
+  </div>
+  <div class="admin-body">
+    <div class="admin-stats">
+      <div class="admin-stat"><div class="admin-stat-val" id="statTotal">—</div><div class="admin-stat-label">סוחרים רשומים</div></div>
+      <div class="admin-stat"><div class="admin-stat-val" id="statToday">—</div><div class="admin-stat-label">כניסות היום</div></div>
+      <div class="admin-stat"><div class="admin-stat-val" id="statActive">—</div><div class="admin-stat-label">פעילים השבוע</div></div>
+      <div class="admin-stat"><div class="admin-stat-val" id="statSuspect" style="color:#e24b4a">—</div><div class="admin-stat-label">חשודים בשיתוף</div></div>
+    </div>
+    <div style="margin-bottom:12px;">
+      <button onclick="openAddCar()" style="background:#1a1a2e;color:#c9a227;border:1.5px solid #c9a227;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;font-family:Heebo,sans-serif;cursor:pointer;">➕ הוסף רכב ידנית</button>
+    </div>
+    <div class="add-dealer-box">
+      <div class="add-dealer-label">הוספת סוחר חדש</div>
+      <input type="tel" id="newDealerPhone" placeholder="05X-XXX-XXXX" oninput="this.value=this.value.replace(/[^0-9\-\+]/g,'')" style="margin-bottom:8px;">
+      <input type="text" id="newDealerName" placeholder="שם הסוחר" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;margin-bottom:8px;direction:rtl;">
+      <input type="email" id="newDealerEmail" placeholder="מייל (אופציונלי)" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;margin-bottom:8px;direction:ltr;text-align:left;">
+      <button class="add-btn" onclick="addDealer()">+ הוסף סוחר</button>
+      <div class="add-msg" id="addMsg"></div>
+    </div>
+    <div class="admin-period-bar">
+      <span style="font-size:13px;font-weight:700;color:#7a839a">תקופה:</span>
+      <button class="period-btn active" onclick="setPeriod('all',this)">הכל</button>
+      <button class="period-btn" onclick="setPeriod('today',this)">היום</button>
+      <button class="period-btn" onclick="setPeriod('week',this)">שבוע</button>
+      <button class="period-btn" onclick="setPeriod('month',this)">חודש</button>
+    </div>
+    
+    <button class="admin-btn" onclick="loadAdmin()">🔄 רענן נתונים</button>
+    <button class="admin-btn" onclick="activateAll()" style="background:#27ae60;color:#fff;">✅ הפעל הכל</button>
+    <button class="admin-btn" onclick="exportExcel()" style="margin-right:8px;background:#1a7a4a">📥 ייצוא לאקסל</button>
+    <button class="admin-btn" onclick="closeAdmin()" style="margin-right:8px;background:#1a3a7a">← חזור למלאי</button>
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead><tr>
+          <th>כינוי / שם</th>
+          <th>טלפון</th>
+          <th>כניסה אחרונה</th>
+          <th>כניסות היום</th>
+          <th>סה"כ כניסות</th>
+          <th>מכשירים</th>
+          <th>סטטוס</th>
+          <th>לינק</th>
+          <th>פעולה</th>
+        </tr></thead>
+        <tbody id="adminTbody"><tr><td colspan="7" style="text-align:center;color:#999;padding:24px">לוחץ רענן לטעינת נתונים...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+
+// Session timeout - 30 minutes of inactivity
+var inactivityTimer;
+var SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+
+function resetTimer() {
+  clearTimeout(inactivityTimer);
+  inactivityTimer = setTimeout(function() {
+    auth.signOut().then(function() {
+      document.getElementById('appContent').style.display = 'none';
+      document.getElementById('authScreen').style.display = 'flex';
+      document.getElementById('error1').textContent = 'פג תוקף החיבור לאחר חוסר פעילות. התחבר שוב.';
     });
-  });
-  var p2 = window.db.collection('settings').doc('newDealers').get().then(function(doc) {
-    if (!doc.exists) return;
-    var nd = doc.data();
-    Object.keys(nd).forEach(function(phone) {
-      var clean = phone.replace(/\D/g, '');
-      if (clean.length < 9) return;
-      if (!dealers[clean]) dealers[clean] = { name: nd[clean] && (nd[clean].name || nd[clean].dealerName) || clean, blocked: false };
-    });
-  });
-  Promise.all([p1, p2]).then(function() {
-    _broadcastDealers = Object.keys(dealers).map(function(p) {
-      return { phone: p, name: dealers[p].name, blocked: dealers[p].blocked, selected: true };
-    });
-    _broadcastDealers.sort(function(a,b) { return a.name.localeCompare(b.name, 'he'); });
-    var badge = document.getElementById('broadcastCountBadge');
-    if (badge) { badge.style.display = 'inline-block'; badge.textContent = _broadcastDealers.length + ' סוחרים'; }
-    renderBroadcastList();
-  }).catch(function(err) {
-    listEl.innerHTML = '<div style="color:#e24b4a;font-size:13px;">שגיאה בטעינה: ' + err.message + '</div>';
-  });
+  }, SESSION_TIMEOUT);
 }
 
-function setBroadcastFilter(f) {
-  _broadcastFilter = f;
-  ['all','active','blocked'].forEach(function(k) {
-    var btn = document.getElementById('bf' + k.charAt(0).toUpperCase() + k.slice(1));
-    if (btn) btn.style.background = k === f ? '#1a1a2e' : '#f0f0f0';
-    if (btn) btn.style.color = k === f ? '#fff' : '#555';
+function startInactivityWatch() {
+  ['mousemove','keydown','click','scroll','touchstart'].forEach(function(evt) {
+    document.addEventListener(evt, resetTimer, true);
   });
-  renderBroadcastList();
+  resetTimer();
 }
 
-function toggleSelectAll(checked) {
-  var filtered = getFilteredDealers();
-  filtered.forEach(function(d) { d.selected = checked; });
-  renderBroadcastList();
-}
+var ADMIN_PHONE = '+972544214850';
 
-function getFilteredDealers() {
-  return _broadcastDealers.filter(function(d) {
-    if (_broadcastFilter === 'active') return !d.blocked;
-    if (_broadcastFilter === 'blocked') return d.blocked;
-    return true;
-  });
-}
 
-function renderBroadcastList() {
-  var listEl = document.getElementById('broadcastList');
-  var msg = (document.getElementById('broadcastMsg').value || '').trim();
-  var filtered = getFilteredDealers();
-  if (!_broadcastDealers.length) {
-    listEl.innerHTML = '<div style="font-size:13px;color:#777;padding:8px 0;">לא נמצאו סוחרים.</div>';
-    return;
+
+function exportExcel() {
+  var now = new Date();
+  var periodStart = null;
+  if (currentPeriod === 'today') {
+    periodStart = now.toISOString().split('T')[0];
+  } else if (currentPeriod === 'week') {
+    periodStart = new Date(now - 7*24*60*60*1000).toISOString();
+  } else if (currentPeriod === 'month') {
+    periodStart = new Date(now - 30*24*60*60*1000).toISOString();
   }
-  var html = '';
-  filtered.forEach(function(d) {
-    var intl = '972' + d.phone.replace(/^0/, '');
-    var waLink = 'https://wa.me/' + intl + (msg ? '?text=' + encodeURIComponent(msg) : '');
-    var rowBg = d.blocked ? '#fff5f5' : '#fff';
-    var border = d.blocked ? '#fecaca' : '#d4edda';
-    html += '<div style="display:flex;align-items:center;gap:8px;background:'+rowBg+';border-radius:8px;padding:8px 12px;border:1px solid '+border+';">';
-    html += '<input type="checkbox" ' + (d.selected ? 'checked' : '') + ' onchange="toggleDealer(\''+d.phone+'\',this.checked)" style="width:15px;height:15px;cursor:pointer;flex-shrink:0;">';
-    html += '<div style="flex:1;min-width:0;">';
-    html += '<div style="font-size:13px;font-weight:700;color:#1a1a2e;">' + d.name + '</div>';
-    html += '<div style="font-size:11px;color:#999;direction:ltr;">' + d.phone + '</div>';
-    html += '</div>';
-    if (d.blocked) html += '<span style="font-size:10px;background:#fee2e2;color:#dc2626;padding:2px 7px;border-radius:10px;font-weight:700;">חסום</span>';
-    html += '<a href="' + waLink + '" target="_blank" style="background:#25d366;color:#fff;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;white-space:nowrap;flex-shrink:0;">שלח</a>';
-    html += '</div>';
+  
+  db.collection('logins').get().then(function(snapshot) {
+    var rows = [['טלפון', 'כניסה ראשונה', 'כניסה אחרונה', 'כניסות היום', 'סה"כ כניסות', 'מספר מכשירים', 'סטטוס']];
+    var today = new Date().toISOString().split('T')[0];
+    var weekAgo = new Date(Date.now() - 7*24*60*60*1000).toISOString();
+    
+    snapshot.forEach(function(doc) {
+      var d = doc.data();
+      var isSuspect = (d.deviceCount >= 4) || (d.todayCount >= 20);
+      var isBlocked = d.blocked === true;
+      var isActive = d.lastLogin > weekAgo;
+      var status = isSuspect ? 'חשוד' : isActive ? 'פעיל' : 'לא פעיל';
+      rows.push([
+        d.phone || '',
+        d.firstLogin ? new Date(d.firstLogin).toLocaleString('he-IL') : '',
+        d.lastLogin ? new Date(d.lastLogin).toLocaleString('he-IL') : '',
+        d.todayCount || 0,
+        d.totalCount || 0,
+        d.deviceCount || 1,
+        status
+      ]);
+    });
+    
+    // Build CSV with BOM for Hebrew Excel support
+    var bom = '\uFEFF';
+    var csv = bom + rows.map(function(row) {
+      return row.map(function(cell) {
+        var str = String(cell);
+        if (str.indexOf(',') >= 0 || str.indexOf('"') >= 0 || str.indexOf('\n') >= 0) {
+          str = '"' + str.replace(/"/g, '""') + '"';
+        }
+        return str;
+      }).join(',');
+    }).join('\n');
+    
+    var blob = new Blob([csv], {type: 'text/csv;charset=utf-8'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'soharim_' + new Date().toISOString().split('T')[0] + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }).catch(function(err) {
+    alert('שגיאה: ' + err.message);
   });
-  listEl.innerHTML = html;
-  var sel = filtered.filter(function(d){ return d.selected; }).length;
-  var selEl = document.getElementById('selectedCount');
-  if (selEl) selEl.textContent = sel > 0 ? sel + ' נבחרו' : '';
-  var cb = document.getElementById('selectAllDealers');
-  if (cb) cb.checked = filtered.length > 0 && sel === filtered.length;
 }
 
-function toggleDealer(phone, checked) {
-  var d = _broadcastDealers.find(function(x){ return x.phone === phone; });
-  if (d) d.selected = checked;
-  var filtered = getFilteredDealers();
-  var sel = filtered.filter(function(d){ return d.selected; }).length;
-  var selEl = document.getElementById('selectedCount');
-  if (selEl) selEl.textContent = sel > 0 ? sel + ' נבחרו' : '';
-  var cb = document.getElementById('selectAllDealers');
-  if (cb) cb.checked = filtered.length > 0 && sel === filtered.length;
+function showDevices(el) {
+  var list = el.nextElementSibling;
+  if (list) {
+    list.style.display = list.style.display === 'none' ? 'block' : 'none';
+    el.textContent = list.style.display === 'block' 
+      ? el.textContent.replace('▼','▲') 
+      : el.textContent.replace('▲','▼');
+  }
 }
 
-function copyAllPhones() {
-  var filtered = getFilteredDealers();
-  if (!filtered.length) { alert('אין סוחרים ברשימה.'); return; }
-  var nums = filtered.map(function(d) { return d.phone; }).join('\n');
-  navigator.clipboard.writeText(nums).then(function() {
-    alert('הועתקו ' + filtered.length + ' מספרים ללוח.');
-  }).catch(function() { prompt('העתק ידנית:', nums); });
+
+function openLookup() {
+  document.body.classList.add('lookup-open');
+  var ls = document.getElementById('lookupScreen');
+  ls.style.display = 'block';
+  ls.scrollTop = 0;
+  setTimeout(function() {
+    var inp = document.getElementById('plateInput');
+    if (inp) inp.focus();
+  }, 100);
 }
 
-function copySelectedPhones() {
-  var sel = _broadcastDealers.filter(function(d){ return d.selected; });
-  if (!sel.length) { alert('לא נבחרו סוחרים.'); return; }
-  var nums = sel.map(function(d) { return d.phone; }).join('\n');
-  navigator.clipboard.writeText(nums).then(function() {
-    alert('הועתקו ' + sel.length + ' מספרים נבחרים ללוח.');
-  }).catch(function() { prompt('העתק ידנית:', nums); });
+function closeLookup() {
+  document.body.classList.remove('lookup-open');
+  var ls = document.getElementById('lookupScreen'); if(ls) ls.style.display = 'none';
 }
 
-document.addEventListener('input', function(e) {
-  if (e.target && e.target.id === 'broadcastMsg' && _broadcastDealers.length) {
-    renderBroadcastList();
+document.addEventListener('keydown', function(e) {
+  var ls = document.getElementById('lookupScreen');
+  if (e.key === 'Enter' && ls && ls.style.display === 'block') {
+    lookupPlate();
   }
 });
 
+function lookupPlate() {
+  var plate = document.getElementById('plateInput').value.trim().replace(/[-\s]/g, '');
+  if (!plate || plate.length < 5) { alert('הכנס מספר רישוי תקין'); return; }
+  
+  var result = document.getElementById('lookupResult');
+  result.innerHTML = '<div class="lookup-loading">⏳ שולף נתונים ממשרד התחבורה...</div>';
+  
+  var baseUrl = 'https://data.gov.il/api/3/action/datastore_search?';
+  
+  // Fetch from 3 sources simultaneously
+  var carUrl = baseUrl + 'resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3&filters=%7B%22mispar_rechev%22%3A%22' + plate + '%22%7D&limit=1';
+  var testUrl = baseUrl + 'resource_id=7d99a60d-cb04-4b57-8ad3-a53e2e0eba69&filters=%7B%22mispar_rechev%22%3A%22' + plate + '%22%7D&limit=1&sort=test_date%20desc';
+  var ownerUrl = baseUrl + 'resource_id=bf9df4e2-d90d-4c0a-a400-19e15af8e95f&filters=%7B%22mispar_rechev%22%3A%22' + plate + '%22%7D&limit=10&sort=shnat_yitzur%20desc';
 
-function generateToken() {
-  var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  var token = '';
-  for (var i = 0; i < 16; i++) token += chars[Math.floor(Math.random() * chars.length)];
-  return token;
-}
-
-function sendTokenLink(phone) {
-  if (!phone) return;
-  var docId = phone.replace(/[.#$[\]@]/g, '_');
-  // Check if token already exists
-  db.collection('dealers').doc(phone).get().then(function(doc) {
-    var existingToken = doc.exists && doc.data().token;
-    var token = existingToken || generateToken();
-    if (!existingToken) {
-      // Save new token to dealer doc — needs write permission
-      // Save to settings instead
-      var update = {};
-      update['token_' + phone.replace(/[^0-9]/g,'')] = token;
-      db.collection('settings').doc('tokens').set(update, { merge: true });
+  Promise.all([
+    fetch(carUrl).then(function(r){return r.json();}).catch(function(){return null;}),
+    Promise.resolve(null),
+    Promise.resolve(null)
+  ]).then(function(results) {
+    var carData = results[0];
+    var testData = results[1];
+    var ownerData = results[2];
+    
+    if (!carData || !carData.success || !carData.result.records || carData.result.records.length === 0) {
+      result.innerHTML = '<div class="lookup-empty"><span class="lookup-empty-icon">❌</span>לא נמצא רכב עם מספר רישוי זה</div>';
+      return;
     }
-    var link = 'https://anak-s.netlify.app/?t=' + token;
-    var msg = encodeURIComponent('שלום, הנה הלינק האישי שלך לאתר ענק הרכבים:\n' + link + '\n\nלחץ על הלינק והכנס את מספר הטלפון שלך לכניסה.');
-    window.open('https://wa.me/' + phone.replace(/[^0-9]/g,'') + '?text=' + msg, '_blank');
-  }).catch(function() {
-    var token = generateToken();
-    var update = {};
-    update['token_' + phone.replace(/[^0-9]/g,'')] = token;
-    db.collection('settings').doc('tokens').set(update, { merge: true });
-    var link = 'https://anak-s.netlify.app/?t=' + token;
-    var msg = encodeURIComponent('שלום, הנה הלינק האישי שלך לאתר ענק הרכבים:\n' + link + '\n\nלחץ על הלינק והכנס את מספר הטלפון שלך לכניסה.');
-    window.open('https://wa.me/' + phone.replace(/[^0-9]/g,'') + '?text=' + msg, '_blank');
+    
+    var c = carData.result.records[0];
+    var t = (testData && testData.success && testData.result.records.length > 0) ? testData.result.records[0] : null;
+    var owners = (ownerData && ownerData.success) ? ownerData.result.records : [];
+    
+    function v(val) { return val && val !== 'None' && val !== '' && val !== null ? val : '—'; }
+    
+    // Determine test validity
+    var testValidClass = '';
+    var tokef = v(c.tokef_dt);
+    if (tokef !== '—') {
+      testValidClass = new Date(tokef) < new Date() ? 'red' : 'green';
+    }
+    
+    // Build ownership history
+    var ownerHistory = '';
+    if (owners.length > 0) {
+      ownerHistory = owners.map(function(o) {
+        return '<div style="font-size:12px;padding:4px 0;border-bottom:1px solid #f0f2fa">' +
+          '<span style="color:#7a839a">' + v(o.moed_aliya_lakvish || o.shnat_yitzur) + '</span> — ' +
+          v(o.baalut || o.sug_baalut) + '</div>';
+      }).join('');
+    }
+    
+    // km from test
+    var km = t ? v(t.test_km) : '—';
+    var testDate = t ? v(t.test_date) : '—';
+    
+    result.innerHTML = 
+      '<div class="lookup-result">' +
+      '<div class="lookup-result-header">' +
+        '<div class="lookup-plate">' + plate + '</div>' +
+        '<div class="lookup-car-name">' + v(c.tozeret_nm) + ' ' + v(c.kinuy_mishari) + ' ' + v(c.shnat_yitzur) + '</div>' +
+      '</div>' +
+      
+      '<div style="padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:0">' +
+        field('יצרן', v(c.tozeret_nm)) +
+        field('דגם מסחרי', v(c.kinuy_mishari)) +
+        field('שנת ייצור', v(c.shnat_yitzur)) +
+        field('ארץ ייצור', v(c.eretz_yitzur_nm)) +
+        field('צבע', v(c.tzeva_rechev)) +
+        field('סוג דלק', v(c.sug_delek_nm)) +
+        field('נפח מנוע (סמ"ק)', v(c.nefach_manoa)) +
+        field('הספק (כ"ס)', v(c.kosher_neto)) +
+        field('סוג גוף', v(c.mivchan_nm || c.sug_degem_nm)) +
+        field('תיבת הילוכים', v(c.kvuzat_agra_nm || c.automatic_ind)) +
+        field('משקל כולל (ק"ג)', v(c.mishkal_kolel)) +
+        field('מספר מושבים', v(c.mispar_moshavim)) +
+        field('תוקף רישיון', tokef, testValidClass) +
+        field('טסט אחרון', testDate) +
+        field('ק"מ בטסט', km !== '—' ? Number(km).toLocaleString('he-IL') + ' ק"מ' : '—') +
+        field('מספר בעלים', v(c.mispar_baalim)) +
+      '</div>' +
+      
+      (ownerHistory ? '<div style="padding:0 16px 16px"><div style="font-size:12px;font-weight:700;color:#7a839a;margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em">היסטוריית בעלויות</div>' + ownerHistory + '</div>' : '') +
+      
+      '</div>';
+      
+  }).catch(function(err) {
+    result.innerHTML = '<div class="lookup-empty"><span class="lookup-empty-icon">⚠️</span>שגיאה בחיבור למאגר. נסה שוב.</div>';
   });
 }
+
+function field(label, value, cls) {
+  return '<div class="lookup-field">' +
+    '<div class="lookup-field-label">' + label + '</div>' +
+    '<div class="lookup-field-val ' + (cls||'') + '">' + value + '</div>' +
+    '</div>';
+}
+
+
+
+function addDealer() {
+  var msg = document.getElementById('addMsg');
+  var name = (document.getElementById('newDealerName') || {}).value || '';
+  var email = (document.getElementById('newDealerEmail') || {}).value.trim().toLowerCase() || '';
+  var raw = document.getElementById('newDealerPhone').value.trim();
+  var phone = raw ? ('+972' + raw.replace(/[\s\-]/g, '').replace(/^0/, '').replace(/^\+972/, '')) : '';
+
+  if (!phone && !email) {
+    msg.style.color = '#e24b4a';
+    msg.textContent = 'חובה להכניס טלפון או מייל';
+    return;
+  }
+
+  // Use phone as doc ID if available, else email
+  var docId = (phone && phone.length >= 12) ? phone : email;
+  var data = { active: true, blocked: false, addedAt: new Date().toISOString() };
+  if (name.trim()) data.name = name.trim();
+  if (email) data.email = email;
+  if (phone && phone.length >= 12) data.phone = phone;
+
+  // Save to settings/dealers (writable) instead of dealers collection (read-only)
+  var safeKey = docId.replace(/[.#$[\]@+]/g, '_');
+  var settingsData = {};
+  settingsData[safeKey] = Object.assign({}, data, { docId: docId });
+  db.collection('settings').doc('newDealers').set(settingsData, { merge: true }).then(function() {
+    msg.style.color = '#059669';
+    msg.textContent = '✓ ' + (name || phone || email) + ' נוסף בהצלחה';
+    document.getElementById('newDealerPhone').value = '';
+    if (document.getElementById('newDealerName')) document.getElementById('newDealerName').value = '';
+    if (document.getElementById('newDealerEmail')) document.getElementById('newDealerEmail').value = '';
+    setTimeout(function() { msg.textContent = ''; }, 3000);
+    loadAdmin();
+  }).catch(function(err) {
+    msg.style.color = '#e24b4a';
+    msg.textContent = 'שגיאה: ' + err.message;
+  });
+}
+
+function blockUser(phone) {
+  if (!confirm('לחסום את ' + phone + '?')) return;
+  Promise.all([
+    db.collection('logins').doc(phone).set({ blocked: true }, { merge: true }),
+    db.collection('dealers').doc(phone).set({ blocked: true, active: false }, { merge: true })
+  ]).then(function() {
+    // Remove from in-memory list
+    ALLOWED_PHONES = ALLOWED_PHONES.filter(function(p) { return p !== phone; });
+    alert('הסוחר נחסם בהצלחה.');
+    loadAdmin();
+  }).catch(function(err) { alert('שגיאה: ' + err.message); });
+}
+
+function activateAll() {
+  if (!confirm('להפעיל את כל הסוחרים?')) return;
+  var phones = ['+972502014228', '+972502222010', '+972503033408', '+972503370701', '+972504128656', '+972505870052', '+972505977522', '+972506706096', '+972507197766', '+972507545404', '+972508396030', '+972509737771', '+972522122074', '+972522222317', '+972522331777', '+972523232883', '+972523332978', '+972526011539', '+972526055755', '+972527005587', '+972527125685', '+972527272333', '+972528222588', '+972528744019', '+972528744107', '+972528885585', '+972528897778', '+972532454518', '+972535269255', '+972535415791', '+972536224967', '+972537153235', '+972537778098', '+972542213632', '+972542284092', '+972542323429', '+972542561800', '+972542607104', '+972542971325', '+972543037883', '+972543055532', '+972543063114', '+972544214850', '+972544555365', '+972544579878', '+972544771021', '+972545547120', '+972546747922', '+972549261090', '+972549539200', '+972559400231', '+972586005535'];
+  var db = window.db;
+  var batch = db.batch();
+  phones.forEach(function(phone) {
+    var ref = db.collection('dealers').doc(phone);
+    batch.set(ref, { active: true, blocked: false }, { merge: true });
+  });
+  batch.commit().then(function() {
+    alert('כל הסוחרים הופעלו!');
+    loadAdmin();
+  }).catch(function(err) {
+    alert('שגיאה: ' + err.message);
+  });
+}
+
+function unblockUser(phone) {
+  if (!confirm('לבטל חסימה של ' + phone + '?')) return;
+  Promise.all([
+    db.collection('logins').doc(phone).set({ blocked: false }, { merge: true }),
+    db.collection('dealers').doc(phone).set({ blocked: false, active: true }, { merge: true })
+  ]).then(function() {
+    if (ALLOWED_PHONES.indexOf(phone) < 0) ALLOWED_PHONES.push(phone);
+    alert('הסוחר שוחרר.');
+    loadAdmin();
+  });
+}
+
+
+var currentPeriod = 'all';
+
+function setPeriod(period, btn) {
+  currentPeriod = period;
+  document.querySelectorAll('.period-btn').forEach(function(b) { b.classList.remove('active'); });
+  btn.classList.add('active');
+  loadAdmin();
+}
+
+function saveNickname(phone, name) {
+  if (!phone) return;
+  db.collection('logins').doc(phone).set({ nickname: name }, { merge: true })
+    .catch(function(err) { console.error('nickname error:', err); });
+}
+
+
+var currentPeriod = 'all';
+
+function setPeriod(period, btn) {
+  currentPeriod = period;
+  document.querySelectorAll('.period-btn').forEach(function(b) { b.classList.remove('active'); });
+  btn.classList.add('active');
+  loadAdmin();
+}
+
+function saveNickname(phone, name) {
+  if (!phone) return;
+  db.collection('logins').doc(phone).set({ nickname: name }, { merge: true })
+    .then(function() { console.log('Saved nickname for', phone); })
+    .catch(function(err) { console.error(err); });
+}
+
+
+function resetAllStock() {
+  if (!confirm('לאפס את כל סטטוסי אזל/זמין?')) return;
+  stockStatus = {};
+  window.db.collection('settings').doc('stockStatus').set({}).then(function() {
+    alert('אופס! כל הסטטוסים אופסו.');
+    renderTable();
+  });
+}
+
+
+function resetDevice(phone) {
+  if (!confirm('לאפס את המכשיר הרשום של ' + phone + '?')) return;
+  var phoneKey = phone.replace(/[+]/g,'');
+  var update = {};
+  update[phoneKey + '_mobile'] = firebase.firestore.FieldValue.delete();
+  update[phoneKey + '_desktop'] = firebase.firestore.FieldValue.delete();
+  db.collection('settings').doc('devices').update(update).then(function() {
+    alert('המכשיר אופס. הסוחר יוכל להיכנס ממכשיר חדש.');
+  }).catch(function(err) {
+    alert('שגיאה: ' + err.message);
+  });
+}
+
+function openAdmin() {
+  var panel = document.getElementById('adminPanel');
+  if (panel) { panel.style.display = 'block'; loadAdmin(); }
+}
+
+function closeAdmin() {
+  var panel = document.getElementById('adminPanel');
+  if (panel) panel.style.display = 'none';
+}
+
+function loadAdmin() { /* overridden by admin script */ }
+
+function blockUser(p) { /* overridden */ }
+function unblockUser(p) { /* overridden */ }
+function exportExcel() { /* overridden */ }
+function setPeriod(p,b) { /* overridden */ }
+
+function saveEmail(phone, email) {
+  if (!phone || !window.db) return;
+  var emailVal = email.trim().toLowerCase();
+  window.db.collection('dealers').doc(phone).set({ email: emailVal }, { merge: true })
+    .then(function() { console.log('Email saved:', emailVal); })
+    .catch(function(err) { console.error('saveEmail error:', err.message); });
+}
+
+function saveNickname(p,n) { /* overridden */ }
+function addDealer() { /* overridden */ }
+
+
+function getModelName(car) {
+  var keyFull = car.brand + '||' + car.model + '||' + car.dealer;
+  var keyShort = car.brand + '||' + car.model;
+  return carOverrides[keyFull] || carOverrides[keyShort] || car.model;
+}
+
+function showError(id, msg) {
+  document.getElementById(id).textContent = msg;
+}
+</script>
+
+
+<div id="adminPanel">
+
+<!-- Add Car Modal -->
+<div class="add-car-modal" id="addCarModal">
+  <div class="add-car-box">
+    <h3>➕ הוספת רכב ידנית</h3>
+    <div class="add-car-row">
+      <div class="add-car-field">
+        <label>יצרן</label>
+        <input id="ac_brand" placeholder="לדוג׳ BYD" />
+      </div>
+      <div class="add-car-field">
+        <label>דגם</label>
+        <input id="ac_model" placeholder="לדוג׳ SEAL U" />
+      </div>
+    </div>
+    <div class="add-car-row">
+      <div class="add-car-field">
+        <label>סוג דלק</label>
+        <select id="ac_fuel">
+          <option value="PHEV">PHEV</option>
+          <option value="HEV">HEV (היברידי)</option>
+          <option value="EV">EV (חשמלי)</option>
+          <option value="בנזין">בנזין</option>
+          <option value="דיזל">דיזל</option>
+        </select>
+      </div>
+      <div class="add-car-field">
+        <label>מחירון כולל רישוי (₪)</label>
+        <input id="ac_catalog" type="number" placeholder="200000" />
+      </div>
+    </div>
+    <div class="add-car-row">
+      <div class="add-car-field">
+        <label>מחיר לסוחר (₪)</label>
+        <input id="ac_dealer" type="number" placeholder="185000" />
+      </div>
+      <div class="add-car-field">
+        <label>הנחה (₪)</label>
+        <input id="ac_discount" type="number" placeholder="15000" />
+      </div>
+    </div>
+    <div id="ac_error" style="color:#e24b4a;font-size:13px;margin-top:4px;display:none"></div>
+    <div class="add-car-actions">
+      <button class="btn-save-car" onclick="saveManualCar()">שמור רכב</button>
+      <button class="btn-cancel-car" onclick="closeAddCar()">ביטול</button>
+    </div>
+  </div>
+</div>
+
+  <div class="admin-header">
+    <div class="admin-title">🛡️ פאנל ניהול</div>
+  </div>
+  <div class="admin-body">
+    <div class="admin-stats">
+      <div class="admin-stat"><div class="admin-stat-val" id="statTotal">—</div><div class="admin-stat-label">סוחרים רשומים</div></div>
+      <div class="admin-stat"><div class="admin-stat-val" id="statToday">—</div><div class="admin-stat-label">כניסות היום</div></div>
+      <div class="admin-stat"><div class="admin-stat-val" id="statActive">—</div><div class="admin-stat-label">פעילים השבוע</div></div>
+      <div class="admin-stat"><div class="admin-stat-val" id="statSuspect" style="color:#e24b4a">—</div><div class="admin-stat-label">חשודים בשיתוף</div></div>
+    </div>
+    <div style="margin-bottom:12px;">
+      <button onclick="openAddCar()" style="background:#1a1a2e;color:#c9a227;border:1.5px solid #c9a227;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;font-family:Heebo,sans-serif;cursor:pointer;">➕ הוסף רכב ידנית</button>
+    </div>
+    <div class="add-dealer-box">
+      <div class="add-dealer-label">הוספת סוחר חדש</div>
+      <input type="tel" id="newDealerPhone" placeholder="05X-XXX-XXXX" oninput="this.value=this.value.replace(/[^0-9\-\+]/g,'')" style="margin-bottom:8px;">
+      <input type="text" id="newDealerName" placeholder="שם הסוחר" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;margin-bottom:8px;direction:rtl;">
+      <input type="email" id="newDealerEmail" placeholder="מייל (אופציונלי)" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;margin-bottom:8px;direction:ltr;text-align:left;">
+      <button class="add-btn" onclick="addDealer()">+ הוסף סוחר</button>
+      <div class="add-msg" id="addMsg"></div>
+    </div>
+    <div class="admin-period-bar">
+      <span style="font-size:13px;font-weight:700;color:#7a839a">תקופה:</span>
+      <button class="period-btn active" onclick="setPeriod('all',this)">הכל</button>
+      <button class="period-btn" onclick="setPeriod('today',this)">היום</button>
+      <button class="period-btn" onclick="setPeriod('week',this)">שבוע</button>
+      <button class="period-btn" onclick="setPeriod('month',this)">חודש</button>
+    </div>
+    
+    <button class="admin-btn" onclick="loadAdmin()">🔄 רענן נתונים</button>
+    <button class="admin-btn" onclick="activateAll()" style="background:#27ae60;color:#fff;">✅ הפעל הכל</button>
+    <button class="admin-btn" onclick="exportExcel()" style="margin-right:8px;background:#1a7a4a">📥 ייצוא לאקסל</button>
+    <button class="admin-btn" onclick="closeAdmin()" style="margin-right:8px;background:#1a3a7a">← חזור למלאי</button>
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead><tr>
+          <th>כינוי / שם</th>
+          <th>טלפון</th>
+          <th>כניסה אחרונה</th>
+          <th>כניסות היום</th>
+          <th>סה"כ כניסות</th>
+          <th>מכשירים</th>
+          <th>סטטוס</th>
+          <th>לינק</th>
+          <th>פעולה</th>
+        </tr></thead>
+        <tbody id="adminTbody"><tr><td colspan="7" style="text-align:center;color:#999;padding:24px">לוחץ רענן לטעינת נתונים...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+
+// Session timeout - 30 minutes of inactivity
+var inactivityTimer;
+var SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+
+function resetTimer() {
+  clearTimeout(inactivityTimer);
+  inactivityTimer = setTimeout(function() {
+    auth.signOut().then(function() {
+      document.getElementById('appContent').style.display = 'none';
+      document.getElementById('authScreen').style.display = 'flex';
+      document.getElementById('error1').textContent = 'פג תוקף החיבור לאחר חוסר פעילות. התחבר שוב.';
+    });
+  }, SESSION_TIMEOUT);
+}
+
+function startInactivityWatch() {
+  ['mousemove','keydown','click','scroll','touchstart'].forEach(function(evt) {
+    document.addEventListener(evt, resetTimer, true);
+  });
+  resetTimer();
+}
+
+var ADMIN_PHONE = '+972544214850';
+
+
+
+function exportExcel() {
+  var now = new Date();
+  var periodStart = null;
+  if (currentPeriod === 'today') {
+    periodStart = now.toISOString().split('T')[0];
+  } else if (currentPeriod === 'week') {
+    periodStart = new Date(now - 7*24*60*60*1000).toISOString();
+  } else if (currentPeriod === 'month') {
+    periodStart = new Date(now - 30*24*60*60*1000).toISOString();
+  }
+  
+  db.collection('logins').get().then(function(snapshot) {
+    var rows = [['טלפון', 'כניסה ראשונה', 'כניסה אחרונה', 'כניסות היום', 'סה"כ כניסות', 'מספר מכשירים', 'סטטוס']];
+    var today = new Date().toISOString().split('T')[0];
+    var weekAgo = new Date(Date.now() - 7*24*60*60*1000).toISOString();
+    
+    snapshot.forEach(function(doc) {
+      var d = doc.data();
+      var isSuspect = (d.deviceCount >= 4) || (d.todayCount >= 20);
+      var isBlocked = d.blocked === true;
+      var isActive = d.lastLogin > weekAgo;
+      var status = isSuspect ? 'חשוד' : isActive ? 'פעיל' : 'לא פעיל';
+      rows.push([
+        d.phone || '',
+        d.firstLogin ? new Date(d.firstLogin).toLocaleString('he-IL') : '',
+        d.lastLogin ? new Date(d.lastLogin).toLocaleString('he-IL') : '',
+        d.todayCount || 0,
+        d.totalCount || 0,
+        d.deviceCount || 1,
+        status
+      ]);
+    });
+    
+    // Build CSV with BOM for Hebrew Excel support
+    var bom = '\uFEFF';
+    var csv = bom + rows.map(function(row) {
+      return row.map(function(cell) {
+        var str = String(cell);
+        if (str.indexOf(',') >= 0 || str.indexOf('"') >= 0 || str.indexOf('\n') >= 0) {
+          str = '"' + str.replace(/"/g, '""') + '"';
+        }
+        return str;
+      }).join(',');
+    }).join('\n');
+    
+    var blob = new Blob([csv], {type: 'text/csv;charset=utf-8'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'soharim_' + new Date().toISOString().split('T')[0] + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }).catch(function(err) {
+    alert('שגיאה: ' + err.message);
+  });
+}
+
+function showDevices(el) {
+  var list = el.nextElementSibling;
+  if (list) {
+    list.style.display = list.style.display === 'none' ? 'block' : 'none';
+    el.textContent = list.style.display === 'block' 
+      ? el.textContent.replace('▼','▲') 
+      : el.textContent.replace('▲','▼');
+  }
+}
+
+
+function openLookup() {
+  document.body.classList.add('lookup-open');
+  var ls = document.getElementById('lookupScreen');
+  ls.style.display = 'block';
+  ls.scrollTop = 0;
+  setTimeout(function() {
+    var inp = document.getElementById('plateInput');
+    if (inp) inp.focus();
+  }, 100);
+}
+
+function closeLookup() {
+  document.body.classList.remove('lookup-open');
+  var ls = document.getElementById('lookupScreen'); if(ls) ls.style.display = 'none';
+}
+
+document.addEventListener('keydown', function(e) {
+  var ls = document.getElementById('lookupScreen');
+  if (e.key === 'Enter' && ls && ls.style.display === 'block') {
+    lookupPlate();
+  }
+});
+
+function lookupPlate() {
+  var plate = document.getElementById('plateInput').value.trim().replace(/[-\s]/g, '');
+  if (!plate || plate.length < 5) { alert('הכנס מספר רישוי תקין'); return; }
+  
+  var result = document.getElementById('lookupResult');
+  result.innerHTML = '<div class="lookup-loading">⏳ שולף נתונים ממשרד התחבורה...</div>';
+  
+  var baseUrl = 'https://data.gov.il/api/3/action/datastore_search?';
+  
+  // Fetch from 3 sources simultaneously
+  var carUrl = baseUrl + 'resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3&filters=%7B%22mispar_rechev%22%3A%22' + plate + '%22%7D&limit=1';
+  var testUrl = baseUrl + 'resource_id=7d99a60d-cb04-4b57-8ad3-a53e2e0eba69&filters=%7B%22mispar_rechev%22%3A%22' + plate + '%22%7D&limit=1&sort=test_date%20desc';
+  var ownerUrl = baseUrl + 'resource_id=bf9df4e2-d90d-4c0a-a400-19e15af8e95f&filters=%7B%22mispar_rechev%22%3A%22' + plate + '%22%7D&limit=10&sort=shnat_yitzur%20desc';
+
+  Promise.all([
+    fetch(carUrl).then(function(r){return r.json();}).catch(function(){return null;}),
+    Promise.resolve(null),
+    Promise.resolve(null)
+  ]).then(function(results) {
+    var carData = results[0];
+    var testData = results[1];
+    var ownerData = results[2];
+    
+    if (!carData || !carData.success || !carData.result.records || carData.result.records.length === 0) {
+      result.innerHTML = '<div class="lookup-empty"><span class="lookup-empty-icon">❌</span>לא נמצא רכב עם מספר רישוי זה</div>';
+      return;
+    }
+    
+    var c = carData.result.records[0];
+    var t = (testData && testData.success && testData.result.records.length > 0) ? testData.result.records[0] : null;
+    var owners = (ownerData && ownerData.success) ? ownerData.result.records : [];
+    
+    function v(val) { return val && val !== 'None' && val !== '' && val !== null ? val : '—'; }
+    
+    // Determine test validity
+    var testValidClass = '';
+    var tokef = v(c.tokef_dt);
+    if (tokef !== '—') {
+      testValidClass = new Date(tokef) < new Date() ? 'red' : 'green';
+    }
+    
+    // Build ownership history
+    var ownerHistory = '';
+    if (owners.length > 0) {
+      ownerHistory = owners.map(function(o) {
+        return '<div style="font-size:12px;padding:4px 0;border-bottom:1px solid #f0f2fa">' +
+          '<span style="color:#7a839a">' + v(o.moed_aliya_lakvish || o.shnat_yitzur) + '</span> — ' +
+          v(o.baalut || o.sug_baalut) + '</div>';
+      }).join('');
+    }
+    
+    // km from test
+    var km = t ? v(t.test_km) : '—';
+    var testDate = t ? v(t.test_date) : '—';
+    
+    result.innerHTML = 
+      '<div class="lookup-result">' +
+      '<div class="lookup-result-header">' +
+        '<div class="lookup-plate">' + plate + '</div>' +
+        '<div class="lookup-car-name">' + v(c.tozeret_nm) + ' ' + v(c.kinuy_mishari) + ' ' + v(c.shnat_yitzur) + '</div>' +
+      '</div>' +
+      
+      '<div style="padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:0">' +
+        field('יצרן', v(c.tozeret_nm)) +
+        field('דגם מסחרי', v(c.kinuy_mishari)) +
+        field('שנת ייצור', v(c.shnat_yitzur)) +
+        field('ארץ ייצור', v(c.eretz_yitzur_nm)) +
+        field('צבע', v(c.tzeva_rechev)) +
+        field('סוג דלק', v(c.sug_delek_nm)) +
+        field('נפח מנוע (סמ"ק)', v(c.nefach_manoa)) +
+        field('הספק (כ"ס)', v(c.kosher_neto)) +
+        field('סוג גוף', v(c.mivchan_nm || c.sug_degem_nm)) +
+        field('תיבת הילוכים', v(c.kvuzat_agra_nm || c.automatic_ind)) +
+        field('משקל כולל (ק"ג)', v(c.mishkal_kolel)) +
+        field('מספר מושבים', v(c.mispar_moshavim)) +
+        field('תוקף רישיון', tokef, testValidClass) +
+        field('טסט אחרון', testDate) +
+        field('ק"מ בטסט', km !== '—' ? Number(km).toLocaleString('he-IL') + ' ק"מ' : '—') +
+        field('מספר בעלים', v(c.mispar_baalim)) +
+      '</div>' +
+      
+      (ownerHistory ? '<div style="padding:0 16px 16px"><div style="font-size:12px;font-weight:700;color:#7a839a;margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em">היסטוריית בעלויות</div>' + ownerHistory + '</div>' : '') +
+      
+      '</div>';
+      
+  }).catch(function(err) {
+    result.innerHTML = '<div class="lookup-empty"><span class="lookup-empty-icon">⚠️</span>שגיאה בחיבור למאגר. נסה שוב.</div>';
+  });
+}
+
+function field(label, value, cls) {
+  return '<div class="lookup-field">' +
+    '<div class="lookup-field-label">' + label + '</div>' +
+    '<div class="lookup-field-val ' + (cls||'') + '">' + value + '</div>' +
+    '</div>';
+}
+
+
+
+function addDealer() {
+  var msg = document.getElementById('addMsg');
+  var name = (document.getElementById('newDealerName') || {}).value || '';
+  var email = (document.getElementById('newDealerEmail') || {}).value.trim().toLowerCase() || '';
+  var raw = document.getElementById('newDealerPhone').value.trim();
+  var phone = raw ? ('+972' + raw.replace(/[\s\-]/g, '').replace(/^0/, '').replace(/^\+972/, '')) : '';
+
+  if (!phone && !email) {
+    msg.style.color = '#e24b4a';
+    msg.textContent = 'חובה להכניס טלפון או מייל';
+    return;
+  }
+
+  // Use phone as doc ID if available, else email
+  var docId = (phone && phone.length >= 12) ? phone : email;
+  var data = { active: true, blocked: false, addedAt: new Date().toISOString() };
+  if (name.trim()) data.name = name.trim();
+  if (email) data.email = email;
+  if (phone && phone.length >= 12) data.phone = phone;
+
+  // Save to settings/dealers (writable) instead of dealers collection (read-only)
+  var safeKey = docId.replace(/[.#$[\]@+]/g, '_');
+  var settingsData = {};
+  settingsData[safeKey] = Object.assign({}, data, { docId: docId });
+  db.collection('settings').doc('newDealers').set(settingsData, { merge: true }).then(function() {
+    msg.style.color = '#059669';
+    msg.textContent = '✓ ' + (name || phone || email) + ' נוסף בהצלחה';
+    document.getElementById('newDealerPhone').value = '';
+    if (document.getElementById('newDealerName')) document.getElementById('newDealerName').value = '';
+    if (document.getElementById('newDealerEmail')) document.getElementById('newDealerEmail').value = '';
+    setTimeout(function() { msg.textContent = ''; }, 3000);
+    loadAdmin();
+  }).catch(function(err) {
+    msg.style.color = '#e24b4a';
+    msg.textContent = 'שגיאה: ' + err.message;
+  });
+}
+
+function blockUser(phone) {
+  if (!confirm('לחסום את ' + phone + '?')) return;
+  Promise.all([
+    db.collection('logins').doc(phone).set({ blocked: true }, { merge: true }),
+    db.collection('dealers').doc(phone).set({ blocked: true, active: false }, { merge: true })
+  ]).then(function() {
+    // Remove from in-memory list
+    ALLOWED_PHONES = ALLOWED_PHONES.filter(function(p) { return p !== phone; });
+    alert('הסוחר נחסם בהצלחה.');
+    loadAdmin();
+  }).catch(function(err) { alert('שגיאה: ' + err.message); });
+}
+
+function activateAll() {
+  if (!confirm('להפעיל את כל הסוחרים?')) return;
+  var phones = ['+972502014228', '+972502222010', '+972503033408', '+972503370701', '+972504128656', '+972505870052', '+972505977522', '+972506706096', '+972507197766', '+972507545404', '+972508396030', '+972509737771', '+972522122074', '+972522222317', '+972522331777', '+972523232883', '+972523332978', '+972526011539', '+972526055755', '+972527005587', '+972527125685', '+972527272333', '+972528222588', '+972528744019', '+972528744107', '+972528885585', '+972528897778', '+972532454518', '+972535269255', '+972535415791', '+972536224967', '+972537153235', '+972537778098', '+972542213632', '+972542284092', '+972542323429', '+972542561800', '+972542607104', '+972542971325', '+972543037883', '+972543055532', '+972543063114', '+972544214850', '+972544555365', '+972544579878', '+972544771021', '+972545547120', '+972546747922', '+972549261090', '+972549539200', '+972559400231', '+972586005535'];
+  var db = window.db;
+  var batch = db.batch();
+  phones.forEach(function(phone) {
+    var ref = db.collection('dealers').doc(phone);
+    batch.set(ref, { active: true, blocked: false }, { merge: true });
+  });
+  batch.commit().then(function() {
+    alert('כל הסוחרים הופעלו!');
+    loadAdmin();
+  }).catch(function(err) {
+    alert('שגיאה: ' + err.message);
+  });
+}
+
+function unblockUser(phone) {
+  if (!confirm('לבטל חסימה של ' + phone + '?')) return;
+  Promise.all([
+    db.collection('logins').doc(phone).set({ blocked: false }, { merge: true }),
+    db.collection('dealers').doc(phone).set({ blocked: false, active: true }, { merge: true })
+  ]).then(function() {
+    if (ALLOWED_PHONES.indexOf(phone) < 0) ALLOWED_PHONES.push(phone);
+    alert('הסוחר שוחרר.');
+    loadAdmin();
+  });
+}
+
+
+var currentPeriod = 'all';
+
+function setPeriod(period, btn) {
+  currentPeriod = period;
+  document.querySelectorAll('.period-btn').forEach(function(b) { b.classList.remove('active'); });
+  btn.classList.add('active');
+  loadAdmin();
+}
+
+function saveNickname(phone, name) {
+  if (!phone) return;
+  db.collection('logins').doc(phone).set({ nickname: name }, { merge: true })
+    .catch(function(err) { console.error('nickname error:', err); });
+}
+
+
+var currentPeriod = 'all';
+
+function setPeriod(period, btn) {
+  currentPeriod = period;
+  document.querySelectorAll('.period-btn').forEach(function(b) { b.classList.remove('active'); });
+  btn.classList.add('active');
+  loadAdmin();
+}
+
+function saveNickname(phone, name) {
+  if (!phone) return;
+  db.collection('logins').doc(phone).set({ nickname: name }, { merge: true })
+    .then(function() { console.log('Saved nickname for', phone); })
+    .catch(function(err) { console.error(err); });
+}
+
+
+function resetAllStock() {
+  if (!confirm('לאפס את כל סטטוסי אזל/זמין?')) return;
+  stockStatus = {};
+  window.db.collection('settings').doc('stockStatus').set({}).then(function() {
+    alert('אופס! כל הסטטוסים אופסו.');
+    renderTable();
+  });
+}
+
+
+function openAdmin() {
+  var panel = document.getElementById('adminPanel');
+  if (panel) { panel.style.display = 'block'; loadAdmin(); }
+}
+
+function closeAdmin() {
+  var panel = document.getElementById('adminPanel');
+  if (panel) panel.style.display = 'none';
+}
+
+function loadAdmin() { /* overridden by admin script */ }
+
+function blockUser(p) { /* overridden */ }
+function unblockUser(p) { /* overridden */ }
+function exportExcel() { /* overridden */ }
+function setPeriod(p,b) { /* overridden */ }
+
+function saveEmail(phone, email) {
+  if (!phone || !window.db) return;
+  var emailVal = email.trim().toLowerCase();
+  window.db.collection('dealers').doc(phone).set({ email: emailVal }, { merge: true })
+    .then(function() { console.log('Email saved:', emailVal); })
+    .catch(function(err) { console.error('saveEmail error:', err.message); });
+}
+
+function saveNickname(p,n) { /* overridden */ }
+function addDealer() { /* overridden */ }
+
+
+function getModelName(car) {
+  var keyFull = car.brand + '||' + car.model + '||' + car.dealer;
+  var keyShort = car.brand + '||' + car.model;
+  return carOverrides[keyFull] || carOverrides[keyShort] || car.model;
+}
+
+function showError(id, msg) {
+  document.getElementById(id).textContent = msg;
+}
+</script>
+
+
+<div id="adminPanel">
+
+<!-- Add Car Modal -->
+<div class="add-car-modal" id="addCarModal">
+  <div class="add-car-box">
+    <h3>➕ הוספת רכב ידנית</h3>
+    <div class="add-car-row">
+      <div class="add-car-field">
+        <label>יצרן</label>
+        <input id="ac_brand" placeholder="לדוג׳ BYD" />
+      </div>
+      <div class="add-car-field">
+        <label>דגם</label>
+        <input id="ac_model" placeholder="לדוג׳ SEAL U" />
+      </div>
+    </div>
+    <div class="add-car-row">
+      <div class="add-car-field">
+        <label>סוג דלק</label>
+        <select id="ac_fuel">
+          <option value="PHEV">PHEV</option>
+          <option value="HEV">HEV (היברידי)</option>
+          <option value="EV">EV (חשמלי)</option>
+          <option value="בנזין">בנזין</option>
+          <option value="דיזל">דיזל</option>
+        </select>
+      </div>
+      <div class="add-car-field">
+        <label>מחירון כולל רישוי (₪)</label>
+        <input id="ac_catalog" type="number" placeholder="200000" />
+      </div>
+    </div>
+    <div class="add-car-row">
+      <div class="add-car-field">
+        <label>מחיר לסוחר (₪)</label>
+        <input id="ac_dealer" type="number" placeholder="185000" />
+      </div>
+      <div class="add-car-field">
+        <label>הנחה (₪)</label>
+        <input id="ac_discount" type="number" placeholder="15000" />
+      </div>
+    </div>
+    <div id="ac_error" style="color:#e24b4a;font-size:13px;margin-top:4px;display:none"></div>
+    <div class="add-car-actions">
+      <button class="btn-save-car" onclick="saveManualCar()">שמור רכב</button>
+      <button class="btn-cancel-car" onclick="closeAddCar()">ביטול</button>
+    </div>
+  </div>
+</div>
+
+  <div class="admin-header">
+    <div class="admin-title">🛡️ פאנל ניהול</div>
+  </div>
+  <div class="admin-body">
+    <div class="admin-stats">
+      <div class="admin-stat"><div class="admin-stat-val" id="statTotal">—</div><div class="admin-stat-label">סוחרים רשומים</div></div>
+      <div class="admin-stat"><div class="admin-stat-val" id="statToday">—</div><div class="admin-stat-label">כניסות היום</div></div>
+      <div class="admin-stat"><div class="admin-stat-val" id="statActive">—</div><div class="admin-stat-label">פעילים השבוע</div></div>
+      <div class="admin-stat"><div class="admin-stat-val" id="statSuspect" style="color:#e24b4a">—</div><div class="admin-stat-label">חשודים בשיתוף</div></div>
+    </div>
+    <div style="margin-bottom:12px;">
+      <button onclick="openAddCar()" style="background:#1a1a2e;color:#c9a227;border:1.5px solid #c9a227;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;font-family:Heebo,sans-serif;cursor:pointer;">➕ הוסף רכב ידנית</button>
+    </div>
+    <div class="add-dealer-box">
+      <div class="add-dealer-label">הוספת סוחר חדש</div>
+      <input type="tel" id="newDealerPhone" placeholder="05X-XXX-XXXX" oninput="this.value=this.value.replace(/[^0-9\-\+]/g,'')" style="margin-bottom:8px;">
+      <input type="text" id="newDealerName" placeholder="שם הסוחר" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;margin-bottom:8px;direction:rtl;">
+      <input type="email" id="newDealerEmail" placeholder="מייל (אופציונלי)" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;margin-bottom:8px;direction:ltr;text-align:left;">
+      <button class="add-btn" onclick="addDealer()">+ הוסף סוחר</button>
+      <div class="add-msg" id="addMsg"></div>
+    </div>
+    <div class="admin-period-bar">
+      <span style="font-size:13px;font-weight:700;color:#7a839a">תקופה:</span>
+      <button class="period-btn active" onclick="setPeriod('all',this)">הכל</button>
+      <button class="period-btn" onclick="setPeriod('today',this)">היום</button>
+      <button class="period-btn" onclick="setPeriod('week',this)">שבוע</button>
+      <button class="period-btn" onclick="setPeriod('month',this)">חודש</button>
+    </div>
+    
+    <button class="admin-btn" onclick="loadAdmin()">🔄 רענן נתונים</button>
+    <button class="admin-btn" onclick="activateAll()" style="background:#27ae60;color:#fff;">✅ הפעל הכל</button>
+    <button class="admin-btn" onclick="exportExcel()" style="margin-right:8px;background:#1a7a4a">📥 ייצוא לאקסל</button>
+    <button class="admin-btn" onclick="closeAdmin()" style="margin-right:8px;background:#1a3a7a">← חזור למלאי</button>
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead><tr>
+          <th>כינוי / שם</th>
+          <th>טלפון</th>
+          <th>כניסה אחרונה</th>
+          <th>כניסות היום</th>
+          <th>סה"כ כניסות</th>
+          <th>מכשירים</th>
+          <th>סטטוס</th>
+          <th>לינק</th>
+          <th>פעולה</th>
+        </tr></thead>
+        <tbody id="adminTbody"><tr><td colspan="7" style="text-align:center;color:#999;padding:24px">לוחץ רענן לטעינת נתונים...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+
+// Session timeout - 30 minutes of inactivity
+var inactivityTimer;
+var SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+
+function resetTimer() {
+  clearTimeout(inactivityTimer);
+  inactivityTimer = setTimeout(function() {
+    auth.signOut().then(function() {
+      document.getElementById('appContent').style.display = 'none';
+      document.getElementById('authScreen').style.display = 'flex';
+      document.getElementById('error1').textContent = 'פג תוקף החיבור לאחר חוסר פעילות. התחבר שוב.';
+    });
+  }, SESSION_TIMEOUT);
+}
+
+function startInactivityWatch() {
+  ['mousemove','keydown','click','scroll','touchstart'].forEach(function(evt) {
+    document.addEventListener(evt, resetTimer, true);
+  });
+  resetTimer();
+}
+
+var ADMIN_PHONE = '+972544214850';
+
+
+
+function exportExcel() {
+  var now = new Date();
+  var periodStart = null;
+  if (currentPeriod === 'today') {
+    periodStart = now.toISOString().split('T')[0];
+  } else if (currentPeriod === 'week') {
+    periodStart = new Date(now - 7*24*60*60*1000).toISOString();
+  } else if (currentPeriod === 'month') {
+    periodStart = new Date(now - 30*24*60*60*1000).toISOString();
+  }
+  
+  db.collection('logins').get().then(function(snapshot) {
+    var rows = [['טלפון', 'כניסה ראשונה', 'כניסה אחרונה', 'כניסות היום', 'סה"כ כניסות', 'מספר מכשירים', 'סטטוס']];
+    var today = new Date().toISOString().split('T')[0];
+    var weekAgo = new Date(Date.now() - 7*24*60*60*1000).toISOString();
+    
+    snapshot.forEach(function(doc) {
+      var d = doc.data();
+      var isSuspect = (d.deviceCount >= 4) || (d.todayCount >= 20);
+      var isBlocked = d.blocked === true;
+      var isActive = d.lastLogin > weekAgo;
+      var status = isSuspect ? 'חשוד' : isActive ? 'פעיל' : 'לא פעיל';
+      rows.push([
+        d.phone || '',
+        d.firstLogin ? new Date(d.firstLogin).toLocaleString('he-IL') : '',
+        d.lastLogin ? new Date(d.lastLogin).toLocaleString('he-IL') : '',
+        d.todayCount || 0,
+        d.totalCount || 0,
+        d.deviceCount || 1,
+        status
+      ]);
+    });
+    
+    // Build CSV with BOM for Hebrew Excel support
+    var bom = '\uFEFF';
+    var csv = bom + rows.map(function(row) {
+      return row.map(function(cell) {
+        var str = String(cell);
+        if (str.indexOf(',') >= 0 || str.indexOf('"') >= 0 || str.indexOf('\n') >= 0) {
+          str = '"' + str.replace(/"/g, '""') + '"';
+        }
+        return str;
+      }).join(',');
+    }).join('\n');
+    
+    var blob = new Blob([csv], {type: 'text/csv;charset=utf-8'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'soharim_' + new Date().toISOString().split('T')[0] + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }).catch(function(err) {
+    alert('שגיאה: ' + err.message);
+  });
+}
+
+function showDevices(el) {
+  var list = el.nextElementSibling;
+  if (list) {
+    list.style.display = list.style.display === 'none' ? 'block' : 'none';
+    el.textContent = list.style.display === 'block' 
+      ? el.textContent.replace('▼','▲') 
+      : el.textContent.replace('▲','▼');
+  }
+}
+
+
+function openLookup() {
+  document.body.classList.add('lookup-open');
+  var ls = document.getElementById('lookupScreen');
+  ls.style.display = 'block';
+  ls.scrollTop = 0;
+  setTimeout(function() {
+    var inp = document.getElementById('plateInput');
+    if (inp) inp.focus();
+  }, 100);
+}
+
+function closeLookup() {
+  document.body.classList.remove('lookup-open');
+  var ls = document.getElementById('lookupScreen'); if(ls) ls.style.display = 'none';
+}
+
+document.addEventListener('keydown', function(e) {
+  var ls = document.getElementById('lookupScreen');
+  if (e.key === 'Enter' && ls && ls.style.display === 'block') {
+    lookupPlate();
+  }
+});
+
+function lookupPlate() {
+  var plate = document.getElementById('plateInput').value.trim().replace(/[-\s]/g, '');
+  if (!plate || plate.length < 5) { alert('הכנס מספר רישוי תקין'); return; }
+  
+  var result = document.getElementById('lookupResult');
+  result.innerHTML = '<div class="lookup-loading">⏳ שולף נתונים ממשרד התחבורה...</div>';
+  
+  var baseUrl = 'https://data.gov.il/api/3/action/datastore_search?';
+  
+  // Fetch from 3 sources simultaneously
+  var carUrl = baseUrl + 'resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3&filters=%7B%22mispar_rechev%22%3A%22' + plate + '%22%7D&limit=1';
+  var testUrl = baseUrl + 'resource_id=7d99a60d-cb04-4b57-8ad3-a53e2e0eba69&filters=%7B%22mispar_rechev%22%3A%22' + plate + '%22%7D&limit=1&sort=test_date%20desc';
+  var ownerUrl = baseUrl + 'resource_id=bf9df4e2-d90d-4c0a-a400-19e15af8e95f&filters=%7B%22mispar_rechev%22%3A%22' + plate + '%22%7D&limit=10&sort=shnat_yitzur%20desc';
+
+  Promise.all([
+    fetch(carUrl).then(function(r){return r.json();}).catch(function(){return null;}),
+    Promise.resolve(null),
+    Promise.resolve(null)
+  ]).then(function(results) {
+    var carData = results[0];
+    var testData = results[1];
+    var ownerData = results[2];
+    
+    if (!carData || !carData.success || !carData.result.records || carData.result.records.length === 0) {
+      result.innerHTML = '<div class="lookup-empty"><span class="lookup-empty-icon">❌</span>לא נמצא רכב עם מספר רישוי זה</div>';
+      return;
+    }
+    
+    var c = carData.result.records[0];
+    var t = (testData && testData.success && testData.result.records.length > 0) ? testData.result.records[0] : null;
+    var owners = (ownerData && ownerData.success) ? ownerData.result.records : [];
+    
+    function v(val) { return val && val !== 'None' && val !== '' && val !== null ? val : '—'; }
+    
+    // Determine test validity
+    var testValidClass = '';
+    var tokef = v(c.tokef_dt);
+    if (tokef !== '—') {
+      testValidClass = new Date(tokef) < new Date() ? 'red' : 'green';
+    }
+    
+    // Build ownership history
+    var ownerHistory = '';
+    if (owners.length > 0) {
+      ownerHistory = owners.map(function(o) {
+        return '<div style="font-size:12px;padding:4px 0;border-bottom:1px solid #f0f2fa">' +
+          '<span style="color:#7a839a">' + v(o.moed_aliya_lakvish || o.shnat_yitzur) + '</span> — ' +
+          v(o.baalut || o.sug_baalut) + '</div>';
+      }).join('');
+    }
+    
+    // km from test
+    var km = t ? v(t.test_km) : '—';
+    var testDate = t ? v(t.test_date) : '—';
+    
+    result.innerHTML = 
+      '<div class="lookup-result">' +
+      '<div class="lookup-result-header">' +
+        '<div class="lookup-plate">' + plate + '</div>' +
+        '<div class="lookup-car-name">' + v(c.tozeret_nm) + ' ' + v(c.kinuy_mishari) + ' ' + v(c.shnat_yitzur) + '</div>' +
+      '</div>' +
+      
+      '<div style="padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:0">' +
+        field('יצרן', v(c.tozeret_nm)) +
+        field('דגם מסחרי', v(c.kinuy_mishari)) +
+        field('שנת ייצור', v(c.shnat_yitzur)) +
+        field('ארץ ייצור', v(c.eretz_yitzur_nm)) +
+        field('צבע', v(c.tzeva_rechev)) +
+        field('סוג דלק', v(c.sug_delek_nm)) +
+        field('נפח מנוע (סמ"ק)', v(c.nefach_manoa)) +
+        field('הספק (כ"ס)', v(c.kosher_neto)) +
+        field('סוג גוף', v(c.mivchan_nm || c.sug_degem_nm)) +
+        field('תיבת הילוכים', v(c.kvuzat_agra_nm || c.automatic_ind)) +
+        field('משקל כולל (ק"ג)', v(c.mishkal_kolel)) +
+        field('מספר מושבים', v(c.mispar_moshavim)) +
+        field('תוקף רישיון', tokef, testValidClass) +
+        field('טסט אחרון', testDate) +
+        field('ק"מ בטסט', km !== '—' ? Number(km).toLocaleString('he-IL') + ' ק"מ' : '—') +
+        field('מספר בעלים', v(c.mispar_baalim)) +
+      '</div>' +
+      
+      (ownerHistory ? '<div style="padding:0 16px 16px"><div style="font-size:12px;font-weight:700;color:#7a839a;margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em">היסטוריית בעלויות</div>' + ownerHistory + '</div>' : '') +
+      
+      '</div>';
+      
+  }).catch(function(err) {
+    result.innerHTML = '<div class="lookup-empty"><span class="lookup-empty-icon">⚠️</span>שגיאה בחיבור למאגר. נסה שוב.</div>';
+  });
+}
+
+function field(label, value, cls) {
+  return '<div class="lookup-field">' +
+    '<div class="lookup-field-label">' + label + '</div>' +
+    '<div class="lookup-field-val ' + (cls||'') + '">' + value + '</div>' +
+    '</div>';
+}
+
+
+
+function addDealer() {
+  var msg = document.getElementById('addMsg');
+  var name = (document.getElementById('newDealerName') || {}).value || '';
+  var email = (document.getElementById('newDealerEmail') || {}).value.trim().toLowerCase() || '';
+  var raw = document.getElementById('newDealerPhone').value.trim();
+  var phone = raw ? ('+972' + raw.replace(/[\s\-]/g, '').replace(/^0/, '').replace(/^\+972/, '')) : '';
+
+  if (!phone && !email) {
+    msg.style.color = '#e24b4a';
+    msg.textContent = 'חובה להכניס טלפון או מייל';
+    return;
+  }
+
+  // Use phone as doc ID if available, else email
+  var docId = (phone && phone.length >= 12) ? phone : email;
+  var data = { active: true, blocked: false, addedAt: new Date().toISOString() };
+  if (name.trim()) data.name = name.trim();
+  if (email) data.email = email;
+  if (phone && phone.length >= 12) data.phone = phone;
+
+  // Save to settings/dealers (writable) instead of dealers collection (read-only)
+  var safeKey = docId.replace(/[.#$[\]@+]/g, '_');
+  var settingsData = {};
+  settingsData[safeKey] = Object.assign({}, data, { docId: docId });
+  db.collection('settings').doc('newDealers').set(settingsData, { merge: true }).then(function() {
+    msg.style.color = '#059669';
+    msg.textContent = '✓ ' + (name || phone || email) + ' נוסף בהצלחה';
+    document.getElementById('newDealerPhone').value = '';
+    if (document.getElementById('newDealerName')) document.getElementById('newDealerName').value = '';
+    if (document.getElementById('newDealerEmail')) document.getElementById('newDealerEmail').value = '';
+    setTimeout(function() { msg.textContent = ''; }, 3000);
+    loadAdmin();
+  }).catch(function(err) {
+    msg.style.color = '#e24b4a';
+    msg.textContent = 'שגיאה: ' + err.message;
+  });
+}
+
+function blockUser(phone) {
+  if (!confirm('לחסום את ' + phone + '?')) return;
+  Promise.all([
+    db.collection('logins').doc(phone).set({ blocked: true }, { merge: true }),
+    db.collection('dealers').doc(phone).set({ blocked: true, active: false }, { merge: true })
+  ]).then(function() {
+    // Remove from in-memory list
+    ALLOWED_PHONES = ALLOWED_PHONES.filter(function(p) { return p !== phone; });
+    alert('הסוחר נחסם בהצלחה.');
+    loadAdmin();
+  }).catch(function(err) { alert('שגיאה: ' + err.message); });
+}
+
+function activateAll() {
+  if (!confirm('להפעיל את כל הסוחרים?')) return;
+  var phones = ['+972502014228', '+972502222010', '+972503033408', '+972503370701', '+972504128656', '+972505870052', '+972505977522', '+972506706096', '+972507197766', '+972507545404', '+972508396030', '+972509737771', '+972522122074', '+972522222317', '+972522331777', '+972523232883', '+972523332978', '+972526011539', '+972526055755', '+972527005587', '+972527125685', '+972527272333', '+972528222588', '+972528744019', '+972528744107', '+972528885585', '+972528897778', '+972532454518', '+972535269255', '+972535415791', '+972536224967', '+972537153235', '+972537778098', '+972542213632', '+972542284092', '+972542323429', '+972542561800', '+972542607104', '+972542971325', '+972543037883', '+972543055532', '+972543063114', '+972544214850', '+972544555365', '+972544579878', '+972544771021', '+972545547120', '+972546747922', '+972549261090', '+972549539200', '+972559400231', '+972586005535'];
+  var db = window.db;
+  var batch = db.batch();
+  phones.forEach(function(phone) {
+    var ref = db.collection('dealers').doc(phone);
+    batch.set(ref, { active: true, blocked: false }, { merge: true });
+  });
+  batch.commit().then(function() {
+    alert('כל הסוחרים הופעלו!');
+    loadAdmin();
+  }).catch(function(err) {
+    alert('שגיאה: ' + err.message);
+  });
+}
+
+function unblockUser(phone) {
+  if (!confirm('לבטל חסימה של ' + phone + '?')) return;
+  Promise.all([
+    db.collection('logins').doc(phone).set({ blocked: false }, { merge: true }),
+    db.collection('dealers').doc(phone).set({ blocked: false, active: true }, { merge: true })
+  ]).then(function() {
+    if (ALLOWED_PHONES.indexOf(phone) < 0) ALLOWED_PHONES.push(phone);
+    alert('הסוחר שוחרר.');
+    loadAdmin();
+  });
+}
+
+
+var currentPeriod = 'all';
+
+function setPeriod(period, btn) {
+  currentPeriod = period;
+  document.querySelectorAll('.period-btn').forEach(function(b) { b.classList.remove('active'); });
+  btn.classList.add('active');
+  loadAdmin();
+}
+
+function saveNickname(phone, name) {
+  if (!phone) return;
+  db.collection('logins').doc(phone).set({ nickname: name }, { merge: true })
+    .catch(function(err) { console.error('nickname error:', err); });
+}
+
+
+var currentPeriod = 'all';
+
+function setPeriod(period, btn) {
+  currentPeriod = period;
+  document.querySelectorAll('.period-btn').forEach(function(b) { b.classList.remove('active'); });
+  btn.classList.add('active');
+  loadAdmin();
+}
+
+function saveNickname(phone, name) {
+  if (!phone) return;
+  db.collection('logins').doc(phone).set({ nickname: name }, { merge: true })
+    .then(function() { console.log('Saved nickname for', phone); })
+    .catch(function(err) { console.error(err); });
+}
+
+
+function resetAllStock() {
+  if (!confirm('לאפס את כל סטטוסי אזל/זמין?')) return;
+  stockStatus = {};
+  window.db.collection('settings').doc('stockStatus').set({}).then(function() {
+    alert('אופס! כל הסטטוסים אופסו.');
+    renderTable();
+  });
+}
+
 
 function resetDevice(phone) {
   if (!confirm('לאפס את המכשיר הרשום של ' + phone + '?')) return;
@@ -4684,7 +5968,6 @@ function resetDevice(phone) {
 function openAdmin() {
   document.getElementById('adminPanel').style.display = 'block';
   loadAdmin();
-  loadBroadcastList();
 }
 
 function closeAdmin() {
@@ -4844,9 +6127,8 @@ function loadAdmin() {
         '<td>' + (d.totalCount || (d.lastLoginDate === new Date().toISOString().split('T')[0] ? Math.max(d.todayCount||0, 1) : 0)) + '</td>' +
         '<td>' + devicesHtml + '</td>' +
         '<td>' + statusHtml + '</td>' +
-        '<td><button onclick="sendTokenLink(\'' + (d.phone||'') + '\')" style="background:#25d366;color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:Heebo,sans-serif;">📲 שלח לינק</button>' +
-        '<button onclick="resetDevice(\'' + (d.phone||'') + '\')" style="margin-right:4px;background:#f0f2fa;color:#1a1a2e;border:1px solid #ddd;border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:Heebo,sans-serif;">🔄 אפס מכשיר</button></td>' +
-        '<td>' + (isSuspect ? '<a class="wa-suspect-btn" href="https://wa.me/' + (d.phone||'').replace(/[^0-9]/g,'') + '?text=' + encodeURIComponent('שלום, שמנו לב לפעילות חשודה בחשבונך. אנא צור קשר.') + '" target="_blank">📲 שלח</a>' : '') +
+        '<td><button onclick="resetDevice(\'' + (d.phone||'') + '\')" style="margin-right:4px;background:#f0f2fa;color:#1a1a2e;border:1px solid #ddd;border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:Heebo,sans-serif;">🔄 אפס מכשיר</button></td>' +
+        '<td>
         '<button class="block-btn" onclick="' + (d.blocked ? 'unblock' : 'block') + 'User(\'' + (d.phone||'') + '\')"> ' + (d.blocked ? 'שחרר' : 'חסום') + '</button></td>' +
         '</tr>';
     }).join('');
