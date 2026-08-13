@@ -550,6 +550,17 @@ exports.taskReminders = onSchedule(
 exports.telegramWebhook = onRequest({ region: "europe-west1" }, async (req, res) => {
   res.status(200).send("ok"); // ack Telegram immediately, process after
   try {
+    // כל הודעה שמגיעה מקבוצה — רושמים את מזהה הקבוצה ושמה, כדי שאפשר
+    // יהיה לבחור אותה כיעד בהגדרות בלי כלים חיצוניים.
+    const msg = req.body?.message || req.body?.edited_message;
+    if (msg?.chat && (msg.chat.type === "group" || msg.chat.type === "supergroup")) {
+      try {
+        await db.collection("config").doc("telegram_groups").set({
+          [String(msg.chat.id)]: { id: msg.chat.id, title: msg.chat.title || "", at: new Date() },
+        }, { merge: true });
+      } catch (err) { console.error("group capture failed", err); }
+    }
+
     const cq = req.body?.callback_query;
     if (!cq || !cq.data) return;
 
