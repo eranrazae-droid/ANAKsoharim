@@ -486,6 +486,53 @@ exports.batteryCheckReminder = onSchedule(
   }
 );
 
+// תזכורת יומית לנהגים על משימות שפתוחות יותר מ-48 שעות. רצה כל בוקר
+// ב-8:00 בימים ראשון–שישי (לא בשבת). כל עוד המשימה פתוחה — הנהג מקבל
+// תזכורת בכל בוקר.
+const _TASK_DRIVERS = ["עופר", "גיל", "איתי"];
+exports.taskReminders = onSchedule(
+  { schedule: "0 8 * * 0-5", region: "europe-west1", timeZone: "Asia/Jerusalem" },
+  async () => {
+    const snap = await db.collection("tasks").get();
+    if (snap.empty) return;
+    const now = Date.now();
+    const cutoff = 48 * 3600 * 1000;   // 48 שעות
+    const byDriver = {};
+    for (const docSnap of snap.docs) {
+      const t = docSnap.data();
+      if (t.type === "divider" || t.status === "done") continue;
+      const created = t.createdAt && typeof t.createdAt.toMillis === "function"
+        ? t.createdAt.toMillis()
+        : (t.createdAt && t.createdAt.seconds ? t.createdAt.seconds * 1000 : 0);
+      if (!created || now - created < cutoff) continue;
+      // המשימה שייכת לנהג אם הוא הנמען או שם העמודה הוא שמו
+      const driver = _TASK_DRIVERS.includes(t.assignedTo) ? t.assignedTo
+        : (_TASK_DRIVERS.includes(t.label) ? t.label : null);
+      if (!driver) continue;
+      (byDriver[driver] = byDriver[driver] || []).push(t.title || "משימה");
+    }
+    if (!Object.keys(byDriver).length) return;
+
+    const contactsSnap = await db.collection("config").doc("driver_contacts").get();
+    const contacts = contactsSnap.exists ? contactsSnap.data() : {};
+    const token = contacts["_telegramToken"]?.value || "";
+    if (!token) return;
+
+    for (const [name, titles] of Object.entries(byDriver)) {
+      const chatId = contacts[name]?.telegramId;
+      if (!chatId) continue;
+      const list = titles.slice(0, 15).map((x) => `• ${x}`).join("\n");
+      const text = `בוקר טוב ${name} 👋\nיש לך ${titles.length} ${titles.length === 1 ? "משימה שממתינה" : "משימות שממתינות"} יותר מיומיים:\n${list}${titles.length > 15 ? `\n…ועוד ${titles.length - 15}` : ""}\n\nכנס לאפליקציה ענק הרכבים.`;
+      try {
+        await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: chatId, text }),
+        });
+      } catch (err) { console.error("task reminder send failed for", name, err); }
+    }
+  }
+);
+
 // instant webhook — Telegram calls this the moment a driver taps a button,
 // instead of waiting for a 2-minute poll.
 exports.telegramWebhook = onRequest({ region: "europe-west1" }, async (req, res) => {
