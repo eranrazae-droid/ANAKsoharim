@@ -16515,19 +16515,29 @@ function _addrKey(city, address) {
   return `${c}|${a}`;
 }
 
-// שני אנשי קשר נחשבים לאותו אדם אם הטלפון זהה, ובלי טלפון — אם השם זהה
-const _contactDigits = s => String(s || '').replace(/\D/g, '');
-function _sameContact(a, b) {
-  const da = _contactDigits(a), db = _contactDigits(b);
-  if (da && db) return da === db;
-  // בלי טלפון משווים לפי השם בלבד — בלי רווחים, גרשיים וסימני פיסוק
-  const clean = s => String(s || '').replace(/["'`׳״’‘“”]/g, '').replace(/[^א-תa-zA-Z0-9]+/g, '').toLowerCase();
-  return clean(a) === clean(b);
+// מסלק כפילויות ממחרוזת אנשי קשר ומחזיר מחרוזת נקייה, מופרדת ב־" · ".
+// המחרוזת מפוצלת לרכיבים לפי · , ; או שורה חדשה. שני רכיבים הם אותו אדם
+// אם הטלפון זהה; בלי טלפון — אם השם זהה. טלפון שהופיע בלי שם ואחר כך עם
+// שם — מקבל את השם. כך "עמוס 054... , 053... · סרגיי 053... · סרגיי 053..."
+// מתנקה ל־"עמוס 054... · סרגיי 053...".
+function _dedupContacts(str) {
+  const parts = String(str || '').split(/[·,;\n]+/).map(s => s.trim()).filter(Boolean);
+  const out = [];      // {key, name, phone}
+  const idx = {};      // key → מיקום ב-out
+  for (const p of parts) {
+    const digits = p.replace(/\D/g, '');
+    const phone = digits.length >= 7 ? digits : '';
+    const name = p.replace(/[\d()+\-]/g, ' ').replace(/\s+/g, ' ').trim();
+    const key = phone || (name ? 'name:' + name.toLowerCase() : '');
+    if (!key) continue;
+    if (key in idx) { const e = out[idx[key]]; if (!e.name && name) e.name = name; continue; }
+    idx[key] = out.length;
+    out.push({ key, name, phone });
+  }
+  return out.map(o => [o.name, o.phone].filter(Boolean).join(' ')).join(' · ');
 }
-// האם המחרוזת שעל הרכב כבר מכילה את איש הקשר הזה
-function _contactIncluded(existing, one) {
-  return String(existing || '').split('·').some(p => _sameContact(p, one));
-}
+// רשימת רכיבים נקייה (מערך) לשמירה על הכתובת
+function _contactParts(str) { const d = _dedupContacts(str); return d ? d.split(' · ') : []; }
 
 function _listenAddrContacts() {
   if (_addrContactsUnsub) return;
@@ -16539,22 +16549,21 @@ function _listenAddrContacts() {
   }, () => {});
 }
 
-// כל אנשי הקשר הידועים לכתובת של הרכב
+// כל אנשי הקשר הידועים לכתובת של הרכב — תמיד מוחזרים נקיים מכפילויות
 function _knownContactsFor(car) {
   const key = _addrKey(_pickupCity(car), car.address);
-  return key && _addrContacts[key] ? (_addrContacts[key].contacts || []) : [];
+  return key && _addrContacts[key] ? _contactParts((_addrContacts[key].contacts || []).join(' · ')) : [];
 }
 
-// לומד כתובת ואיש קשר. נכתב רק כשבאמת התווסף מישהו חדש.
+// לומד כתובת ואיש קשר. הרשימה נשמרת תמיד מנוקה מכפילויות, ונכתבת רק אם
+// באמת השתנתה — כך גם רשימות ישנות עם כפילויות מתנקות מעצמן.
 async function _learnAddrContact(city, address, contact) {
   const key = _addrKey(city, address);
   if (!key || !String(contact || '').trim()) return;
   const cur = _addrContacts[key] || { city, address: _cleanStreet(address), contacts: [] };
-  const list = cur.contacts || [];
-  const parts = String(contact).split('·').map(s => s.trim()).filter(Boolean);
-  const add = parts.filter(p => !list.some(x => _sameContact(x, p)));
-  if (!add.length) return;
-  const next = { city: cur.city || city, address: cur.address || _cleanStreet(address), contacts: [...list, ...add] };
+  const parts = _contactParts([...(cur.contacts || []), contact].join(' · '));
+  if (parts.join('·') === (cur.contacts || []).join('·')) return;   // שום שינוי
+  const next = { city: cur.city || city, address: cur.address || _cleanStreet(address), contacts: parts };
   _addrContacts[key] = next;       // מיידית, כדי שלא נכתוב פעמיים באותו סבב
   try { await window._setDoc(_docRef('pickup_addr_contacts', key.replace(/\//g, '-')), next, { merge: true }); } catch (e) {}
 }
@@ -16571,9 +16580,10 @@ async function _syncAddrContacts() {
       if (!key) continue;
       if (car.contact) await _learnAddrContact(_pickupCity(car), car.address, car.contact);
       const known = _knownContactsFor(car);
-      const missing = known.filter(k => !_contactIncluded(car.contact, k));
-      if (!missing.length) continue;
-      const merged = [car.contact, ...missing].map(s => String(s || '').trim()).filter(Boolean).join(' · ');
+      // ממזג את אנשי הקשר הידועים ומנקה כפילויות בשדה הרכב עצמו. הכתיבה
+      // רק כשהתוצאה שונה — כך כפילויות קיימות מתנקות, בלי לולאת כתיבה.
+      const merged = _dedupContacts([car.contact || '', ...known].join(' · '));
+      if (!merged || merged === String(car.contact || '').trim()) continue;
       car.contact = merged;
       try { await _updateDoc(_docRef('pickup_cars', car.id), { contact: merged }); } catch (e) {}
     }
@@ -16591,8 +16601,7 @@ function pickupAddrContactHint() {
   const known = key && _addrContacts[key] ? (_addrContacts[key].contacts || []) : [];
   if (hint) hint.innerHTML = '';
   if (!known.length || !el) return;
-  const missing = known.filter(k => !_contactIncluded(el.value, k));
-  if (missing.length) el.value = [el.value, ...missing].map(s => s.trim()).filter(Boolean).join(' · ');
+  el.value = _dedupContacts([el.value, ...known].join(' · '));
   if (hint) hint.innerHTML = `<div style="margin-top:4px;font-size:12px;font-weight:800;color:#1d4ed8">👤 מולא לפי הכתובת: ${esc(known.join(' · '))}</div>`;
 }
 window.pickupAddrContactHint = pickupAddrContactHint;
@@ -16875,7 +16884,7 @@ async function submitPickupCar() {
     color: document.getElementById('pickup-color').value.trim(),
     km: document.getElementById('pickup-km').value.trim(),
     test: document.getElementById('pickup-test').value.trim(),
-    contact: document.getElementById('pickup-contact').value.trim(),
+    contact: _dedupContacts(document.getElementById('pickup-contact').value),
     city: document.getElementById('pickup-city').value.trim(),
     address: document.getElementById('pickup-address').value.trim(),
     note: document.getElementById('pickup-note').value.trim(),
