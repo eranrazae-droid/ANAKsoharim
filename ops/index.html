@@ -10655,42 +10655,44 @@ async function submitBsmSend() {
   if (!plate) return showToast('נא להזין מספר רישוי');
   if (!_bsmPicked.length) return showToast('נא לבחור לפחות חלק אחד');
   if (!_bsmVideoFile) return showToast('חובה לצרף סרטון תיעוד לפני יצירת הפתק');
+
+  // שומרים תמונת מצב של כל הנתונים, סוגרים את החלון מיד, וכל הכתיבות
+  // (הפתק, התמונה, הסרטון) מתבצעות ברקע — כדי שאין דיליי לפני הסגירה.
+  const snap = {
+    plate, desc, note, maker: _bsmMaker,
+    thumb: _bsmThumb, focus: _bsmFocus, photo: _bsmPhoto, video: _bsmVideoFile,
+    items: _bshopSortNames(_bsmPicked).map(name => ({ name, price: null })),
+  };
+  _bsmVideoFile = null;
+  closeModal('modal-bsm-send');
+  showToast('📝 הפתק נוצר — נשאר אצלך עד ששולחים');
+
+  // הסרטון נשלח לקבוצה ולא נשמר בשום מקום
+  _bsmSendVideoToGroup(snap.video, snap.plate, snap.desc)
+    .then(() => showToast('✅ הסרטון נשלח לקבוצת הפחחות'))
+    .catch(e => showToast('⚠️ הסרטון לא נשלח: ' + e.message, 8000));
+
+  // כתיבת הפתק ברקע
   try {
     const ref = await _addDoc(_colRef('bodyshop_jobs'), {
-      plate, desc, note,
-      maker: _bsmMaker,
-      ...(_bsmThumb ? { photoThumb: _bsmThumb } : {}),
-      ...(_bsmFocus ? { photoFocus: _bsmFocus } : {}),
-      items: _bshopSortNames(_bsmPicked).map(name => ({ name, price: null })),
-      status: 'draft', paidAt: null,
-      sentAt: null,
+      plate: snap.plate, desc: snap.desc, note: snap.note, maker: snap.maker,
+      ...(snap.thumb ? { photoThumb: snap.thumb } : {}),
+      ...(snap.focus ? { photoFocus: snap.focus } : {}),
+      items: snap.items,
+      status: 'draft', paidAt: null, sentAt: null,
       createdBy: currentUser.name, createdAt: _serverTs()
     });
-    // the full photo lives in its own document, fetched only when a car is
-    // opened, so hundreds of notes never weigh down the list
-    if (_bsmPhoto && ref?.id) {
+    // התמונה המלאה במסמך נפרד, נטענת רק כשפותחים רכב
+    if (snap.photo && ref?.id) {
       const { setDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-      try { await setDoc(_docRef('bodyshop_photos', ref.id), { photo: _bsmPhoto }); }
+      try { await setDoc(_docRef('bodyshop_photos', ref.id), { photo: snap.photo }); }
       catch (e) {
-        // the note is already saved; the picture is what is missing, and that
-        // must not pass in silence
         console.error('bodyshop photo save', e);
         await _updateDoc(_docRef('bodyshop_jobs', ref.id), { photoFailed: true }).catch(() => {});
         showToast('⚠️ הפתק נשמר אבל התמונה לא נשמרה — אפשר לצרף שוב', 7000);
       }
     }
-    // הסרטון נשלח לקבוצה ברקע ולא נשמר — הפתק לא ממתין לו
-    if (_bsmVideoFile) {
-      const vf = _bsmVideoFile;
-      showToast('🎥 שולח סרטון לקבוצת הפחחות…', 4000);
-      _bsmSendVideoToGroup(vf, plate, desc)
-        .then(() => showToast('✅ הסרטון נשלח לקבוצת הפחחות'))
-        .catch(e => showToast('⚠️ הסרטון לא נשלח: ' + e.message, 8000));
-    }
-    _bsmVideoFile = null;
-    closeModal('modal-bsm-send');
-    showToast('📝 הפתק נוצר — נשאר אצלך עד ששולחים');
-  } catch (e) { showToast('שגיאה בשמירה: ' + (e.code || e.message)); }
+  } catch (e) { showToast('⚠️ שגיאה בשמירת הפתק: ' + (e.code || e.message), 8000); }
 }
 window.submitBsmSend = submitBsmSend;
 
