@@ -15034,11 +15034,18 @@ function _renderPahachGroups() {
       : 'background:#fff;color:var(--text);border:2px solid var(--border)'}">${on ? '✅ ' : ''}${esc(g.title || 'קבוצה')} <span style="font-weight:600;opacity:.7;font-size:11px">(${esc(String(g.id))})</span></button>`;
   }).join('');
 }
-function pickPahachGroup(id) {
+// הבחירה נשמרת מיד — בלי תלות בכפתור השמירה של החלון — כדי שהיעד תמיד
+// יהיה זמין כשמקימים פתק עם סרטון.
+async function pickPahachGroup(id) {
   _pahachGroupSel = (String(_pahachGroupSel) === String(id)) ? '' : id;   // לחיצה חוזרת מבטלת
   const hid = document.getElementById('nc-video-chat');
   if (hid) hid.value = _pahachGroupSel;
   _renderPahachGroups();
+  try {
+    await window._setDoc(_docRef('config', 'driver_contacts'), { _pahachVideoChat: { value: _pahachGroupSel } }, { merge: true });
+    _driverContacts = { ...(_driverContacts || {}), _pahachVideoChat: { value: _pahachGroupSel } };
+    showToast(_pahachGroupSel ? '✅ קבוצת הסרטונים נשמרה' : 'הבחירה בוטלה');
+  } catch (e) { showToast('שמירת הקבוצה נכשלה'); }
 }
 window.pickPahachGroup = pickPahachGroup;
 
