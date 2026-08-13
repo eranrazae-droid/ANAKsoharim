@@ -486,30 +486,37 @@ exports.batteryCheckReminder = onSchedule(
   }
 );
 
-// תזכורת יומית לנהגים על משימות שפתוחות יותר מ-48 שעות. רצה כל בוקר
-// ב-8:00 בימים ראשון–שישי (לא בשבת). כל עוד המשימה פתוחה — הנהג מקבל
-// תזכורת בכל בוקר.
+// תזכורת לנהגים על משימות פתוחות. רצה כל בוקר ב-8:00 (ראשון–שישי), אבל
+// כל משימה מזכירים עליה רק כל 48 שעות: תזכורת ראשונה אחרי 48 שעות
+// מהיצירה, ואז שוב כל 48 שעות כל עוד היא פתוחה. אחרי 4 ימים הנוסח
+// משתנה ל"יותר מ-4 ימים". lastReminderAt נשמר על כל משימה כדי לשמור על
+// הקצב הזה.
 const _TASK_DRIVERS = ["עופר", "גיל", "איתי"];
+const _tsMillis = (v) => v && typeof v.toMillis === "function" ? v.toMillis() : (v && v.seconds ? v.seconds * 1000 : 0);
+
 exports.taskReminders = onSchedule(
   { schedule: "0 8 * * 0-5", region: "europe-west1", timeZone: "Asia/Jerusalem" },
   async () => {
     const snap = await db.collection("tasks").get();
     if (snap.empty) return;
     const now = Date.now();
-    const cutoff = 48 * 3600 * 1000;   // 48 שעות
-    const byDriver = {};
+    const DAY2 = 48 * 3600 * 1000, DAY4 = 96 * 3600 * 1000;
+    const byDriver = {};        // name → [{title, days}]
+    const toStamp = [];         // refs לעדכון lastReminderAt
     for (const docSnap of snap.docs) {
       const t = docSnap.data();
       if (t.type === "divider" || t.status === "done") continue;
-      const created = t.createdAt && typeof t.createdAt.toMillis === "function"
-        ? t.createdAt.toMillis()
-        : (t.createdAt && t.createdAt.seconds ? t.createdAt.seconds * 1000 : 0);
-      if (!created || now - created < cutoff) continue;
-      // המשימה שייכת לנהג אם הוא הנמען או שם העמודה הוא שמו
+      const created = _tsMillis(t.createdAt);
+      if (!created || now - created < DAY2) continue;   // טרם עברו 48 שעות מהיצירה
       const driver = _TASK_DRIVERS.includes(t.assignedTo) ? t.assignedTo
         : (_TASK_DRIVERS.includes(t.label) ? t.label : null);
       if (!driver) continue;
-      (byDriver[driver] = byDriver[driver] || []).push(t.title || "משימה");
+      // מזכירים רק אם עברו 48 שעות מהתזכורת האחרונה (או מהיצירה אם אין)
+      const lastRem = _tsMillis(t.lastReminderAt) || created;
+      if (now - lastRem < DAY2) continue;
+      const days = now - created >= DAY4 ? 4 : 2;
+      (byDriver[driver] = byDriver[driver] || []).push({ title: t.title || "משימה", days });
+      toStamp.push(docSnap.ref);
     }
     if (!Object.keys(byDriver).length) return;
 
@@ -518,17 +525,22 @@ exports.taskReminders = onSchedule(
     const token = contacts["_telegramToken"]?.value || "";
     if (!token) return;
 
-    for (const [name, titles] of Object.entries(byDriver)) {
+    for (const [name, items] of Object.entries(byDriver)) {
       const chatId = contacts[name]?.telegramId;
       if (!chatId) continue;
-      const list = titles.slice(0, 15).map((x) => `• ${x}`).join("\n");
-      const text = `בוקר טוב ${name} 👋\nיש לך ${titles.length} ${titles.length === 1 ? "משימה שממתינה" : "משימות שממתינות"} יותר מיומיים:\n${list}${titles.length > 15 ? `\n…ועוד ${titles.length - 15}` : ""}\n\nכנס לאפליקציה ענק הרכבים.`;
+      const list = items.slice(0, 15)
+        .map((x) => `• ${x.title} — ממתינה ${x.days === 4 ? "יותר מ-4 ימים" : "יותר מיומיים"}`).join("\n");
+      const text = `בוקר טוב ${name} 👋\nמשימות שממתינות לך:\n${list}${items.length > 15 ? `\n…ועוד ${items.length - 15}` : ""}\n\nכנס לאפליקציה ענק הרכבים.`;
       try {
         await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ chat_id: chatId, text }),
         });
       } catch (err) { console.error("task reminder send failed for", name, err); }
+    }
+    // מסמנים את זמן התזכורת רק אחרי השליחה, כדי לשמור על קצב 48 השעות
+    for (const ref of toStamp) {
+      try { await ref.update({ lastReminderAt: new Date(now) }); } catch (err) { /* ignore */ }
     }
   }
 );
