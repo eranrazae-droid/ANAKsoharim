@@ -11391,16 +11391,38 @@ function _bsRenderHistory() {
   c.innerHTML = rows.map(r => {
     const d = new Date(r.installedAt);
     const ds = isNaN(d) ? '' : d.toLocaleDateString('he-IL');
-    return `<div style="display:flex;align-items:center;gap:10px;border:2px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:8px;background:var(--card)">
-      <div style="flex:1">
+    // רכב שטרם עודכן תשלום בתוכנה — מסומן בצהוב עד שלוחצים
+    const paid = !!r.paidSw;
+    const rowStyle = paid ? 'border:2px solid var(--border);background:var(--card)' : 'border:2px solid #eab308;background:#fef9c3';
+    const payBtn = paid
+      ? `<button onclick="bsSetSwPaid('${r.id}',false)" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:6px 10px;font-family:Heebo,sans-serif;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap" title="בטל סימון">✅ עודכן בתוכנה</button>`
+      : `<button onclick="bsSetSwPaid('${r.id}',true)" style="background:#0d6ab0;color:#fff;border:none;border-radius:8px;padding:6px 10px;font-family:Heebo,sans-serif;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap">💳 עדכנתי תשלום בתוכנה</button>`;
+    return `<div style="display:flex;align-items:center;gap:10px;border-radius:12px;padding:10px 14px;margin-bottom:8px;${rowStyle}">
+      <div style="flex:1;min-width:0">
         <div style="font-weight:800;font-size:14px">🚗 ${esc(r.plate)}${r.car ? ` <span style="font-weight:700;color:var(--muted);font-size:12px">· ${esc(r.car)}</span>` : ''}</div>
         <div style="font-size:12px;color:var(--muted)">${esc(_bsModelOf(r))}${r.note ? ' · ' + esc(r.note) : ''}</div>
       </div>
       <div style="font-size:12px;color:var(--muted);white-space:nowrap">${esc(ds)}</div>
-      <button onclick="bsDeleteInstall('${r.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:8px;width:28px;height:28px;cursor:pointer" title="מחק">🗑</button>
+      ${payBtn}
+      <button onclick="bsDeleteInstall('${r.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:8px;width:28px;height:28px;cursor:pointer;flex-shrink:0" title="מחק">🗑</button>
     </div>`;
   }).join('');
 }
+
+// מסמן/מבטל "עודכן תשלום בתוכנה" על הרכבה. נשמר על המסמך.
+async function bsSetSwPaid(id, val) {
+  const r = _bsInstalls.find(x => x.id === id);
+  if (r) r.paidSw = val;            // תגובה מיידית
+  _bsRenderHistory();
+  try {
+    await _updateDoc(_docRef('battery_installs', id), { paidSw: val });
+  } catch (e) {
+    if (r) r.paidSw = !val;         // כשל — חזרה
+    _bsRenderHistory();
+    showToast('שמירת הסימון נכשלה');
+  }
+}
+window.bsSetSwPaid = bsSetSwPaid;
 
 /* One delivery can contain several battery types under a single invoice, so
    the form is a list of lines. Each line is a SKU, a type, a price and a
