@@ -4560,7 +4560,7 @@ function renderTasksFromCache() {
 
   const statusLabel = { open:'פתוחה', inprog:'בביצוע', done:'הושלמה' };
 
-  function makeCard(t, readOnly) {
+  function makeCard(t, readOnly, vladi) {
     // Divider card
     if (t.type === 'divider') {
       const div = document.createElement('div');
@@ -4593,6 +4593,7 @@ function renderTasksFromCache() {
           ${isManager && !done ? `<button onclick="openEditTask('${t.id}')" style="background:#6366f1;color:#fff;border:none;border-radius:999px;width:24px;height:24px;cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0">✏️</button>` : ''}
           ${isManager ? `<button onclick="deleteTask('${t.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:999px;width:24px;height:24px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="מחק">🗑</button>` : ''}
           ${!isManager && !done && !readOnly ? `<button onclick="driverCompleteTask('${t.id}')" style="background:#22c55e;color:#fff;border:none;border-radius:8px;padding:3px 8px;cursor:pointer;font-family:Heebo,sans-serif;font-size:11px;font-weight:700;flex-shrink:0">✅ הושלמה</button>` : ''}
+          ${!isManager && vladi ? `<button onclick="driverClearVladiTask('${t.id}')" title="בוצע — הסר מהרשימה" style="background:#22c55e;color:#fff;border:none;border-radius:8px;width:26px;height:26px;cursor:pointer;font-size:13px;font-weight:900;flex-shrink:0">✔</button>` : ''}
         </div>
       </div>
       ${t.notes ? `<div class="task-notes" style="font-size:12px;color:var(--muted);margin-bottom:6px">${esc(t.notes)}</div>` : ''}
@@ -4684,7 +4685,7 @@ function renderTasksFromCache() {
       const cards = document.createElement('div');
       cards.className = 'task-col-cards';
       if (!tasks.length) cards.innerHTML = `<div style="text-align:center;color:var(--muted);font-size:13px;padding:20px 0">אין משימות</div>`;
-      else tasks.forEach(t => cards.appendChild(makeCard(t, readOnly)));
+      else tasks.forEach(t => cards.appendChild(makeCard(t, readOnly, readOnly)));  // readOnly=כן רק בעמודת ולאדי
       col.appendChild(cards);
       return col;
     };
@@ -4844,6 +4845,19 @@ async function driverCompleteTask(id) {
   showToast('✅ המשימה הושלמה ונמחקה');
 }
 window.driverCompleteTask = driverCompleteTask;
+
+// נהג מסמן וי על משימת ולאדי → המשימה נמחקת לגמרי, ולכן נעלמת גם מהרשימה
+// של הנהג וגם מזו של ולאדי אצל המנהל.
+async function driverClearVladiTask(id) {
+  if (!window._CONFIG_DONE) return;
+  if (!confirm('המשימה בוצעה? היא תוסר מהרשימה שלך ושל ולאדי.')) return;
+  try {
+    const { deleteDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    await deleteDoc(doc(window._db, 'tasks', id));
+    showToast('✔ המשימה הוסרה');
+  } catch (e) { showToast('שגיאה במחיקה'); }
+}
+window.driverClearVladiTask = driverClearVladiTask;
 
 async function deleteTask(id) {
   if (!window._CONFIG_DONE) return;
