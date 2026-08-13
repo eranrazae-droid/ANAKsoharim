@@ -150,6 +150,9 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
 .task-board::-webkit-scrollbar-thumb{background:#a0a8c0;border-radius:5px;border:2px solid var(--bg)}
 .task-board::-webkit-scrollbar-thumb:hover{background:#7c85a8}
 .task-col{background:#e8eaf4;border-radius:16px;min-width:240px;max-width:240px;display:flex;flex-direction:column;max-height:calc(100vh - 160px)}
+/* עמודות הנהג: שתיים זו לצד זו שממלאות את רוחב הטלפון, בלי גלילה אופקית.
+   הגובה ממלא את המסך כך שהכותרות והכרטיסים העליונים נראים בלי גלילה למטה. */
+.task-col-driver{flex:1 1 0;min-width:0 !important;max-width:none !important;max-height:calc(100vh - 130px)}
 .task-col-header{padding:12px 14px 8px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
 .task-col-title{font-size:14px;font-weight:900;color:var(--dark)}
 .task-col-count{background:rgba(0,0,0,.15);color:var(--dark);border-radius:999px;padding:2px 9px;font-size:12px;font-weight:700}
@@ -4557,7 +4560,7 @@ function renderTasksFromCache() {
 
   const statusLabel = { open:'פתוחה', inprog:'בביצוע', done:'הושלמה' };
 
-  function makeCard(t) {
+  function makeCard(t, readOnly) {
     // Divider card
     if (t.type === 'divider') {
       const div = document.createElement('div');
@@ -4589,7 +4592,7 @@ function renderTasksFromCache() {
         <div style="display:flex;gap:4px;flex-shrink:0;align-items:center">
           ${isManager && !done ? `<button onclick="openEditTask('${t.id}')" style="background:#6366f1;color:#fff;border:none;border-radius:999px;width:24px;height:24px;cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0">✏️</button>` : ''}
           ${isManager ? `<button onclick="deleteTask('${t.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:999px;width:24px;height:24px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="מחק">🗑</button>` : ''}
-          ${!isManager && !done ? `<button onclick="driverCompleteTask('${t.id}')" style="background:#22c55e;color:#fff;border:none;border-radius:8px;padding:3px 8px;cursor:pointer;font-family:Heebo,sans-serif;font-size:11px;font-weight:700;flex-shrink:0">✅ הושלמה</button>` : ''}
+          ${!isManager && !done && !readOnly ? `<button onclick="driverCompleteTask('${t.id}')" style="background:#22c55e;color:#fff;border:none;border-radius:8px;padding:3px 8px;cursor:pointer;font-family:Heebo,sans-serif;font-size:11px;font-weight:700;flex-shrink:0">✅ הושלמה</button>` : ''}
         </div>
       </div>
       ${t.notes ? `<div class="task-notes" style="font-size:12px;color:var(--muted);margin-bottom:6px">${esc(t.notes)}</div>` : ''}
@@ -4669,21 +4672,24 @@ function renderTasksFromCache() {
   container.innerHTML = '';
 
   if (!isManager) {
+    // הנהג רואה שתי עמודות זו לצד זו: המשימות שלו, ולעיון גם ולאדי.
+    // עמודת ולאדי היא לצפייה בלבד — בלי כפתור "הושלמה".
     const myTasks = sortTasks(allTasks);
-    const openCount = myTasks.filter(t => t.status !== 'done').length;
-    const col = document.createElement('div');
-    col.className = 'task-col';
-    col.style.minWidth = 'calc(100% - 28px)';
-    col.innerHTML = `<div class="task-col-header"><span class="task-col-title" style="color:#ef4444">המשימות שלי</span><span class="task-col-count">${openCount}</span></div>`;
-    const cards = document.createElement('div');
-    cards.className = 'task-col-cards';
-    if (myTasks.length === 0) {
-      cards.innerHTML = `<div style="text-align:center;color:var(--muted);font-size:13px;padding:20px 0">אין משימות</div>`;
-    } else {
-      myTasks.forEach(t => cards.appendChild(makeCard(t)));
-    }
-    col.appendChild(cards);
-    container.appendChild(col);
+    const vladiTasks = sortTasks(tasksCache.filter(t => t.label === 'ולאדי' && t.type !== 'divider'));
+    const buildDriverCol = (title, color, tasks, readOnly) => {
+      const openCount = tasks.filter(t => t.status !== 'done').length;
+      const col = document.createElement('div');
+      col.className = 'task-col task-col-driver';
+      col.innerHTML = `<div class="task-col-header"><span class="task-col-title" style="color:${color}">${title}</span><span class="task-col-count">${openCount}</span></div>`;
+      const cards = document.createElement('div');
+      cards.className = 'task-col-cards';
+      if (!tasks.length) cards.innerHTML = `<div style="text-align:center;color:var(--muted);font-size:13px;padding:20px 0">אין משימות</div>`;
+      else tasks.forEach(t => cards.appendChild(makeCard(t, readOnly)));
+      col.appendChild(cards);
+      return col;
+    };
+    container.appendChild(buildDriverCol('המשימות שלי', '#ef4444', myTasks, false));
+    container.appendChild(buildDriverCol('ולאדי', '#3b82f6', vladiTasks, true));
     return;
   }
 
