@@ -680,6 +680,7 @@ exports.sendDueReminders = onSchedule(
 
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { google } = require("googleapis");
+const { getStorage } = require("firebase-admin/storage");
 
 const GCAL_REGION = "europe-west1";
 const GCAL_CFG = () => db.collection("config").doc("google_calendar");
@@ -1344,4 +1345,111 @@ exports.dailyOwnershipCheck = onSchedule(
       });
     } catch (err) { console.error("ownership daily alert failed", err); }
   }
+);
+
+/* ── גיבוי שבועי ─────────────────────────────────────────────────────
+   כל שישי לפנות בוקר, ה-Functions מפעילות את יצוא הגיבוי המנוהל של
+   Firestore (המנגנון הרשמי שגוגל ממליצה עליו לגיבוי) לתוך Cloud
+   Storage. זו הביטוח נגד מחיקה בטעות — עד עכשיו לא היה עותק שני של
+   הנתונים בשום מקום.
+   גיבויים בני יותר משמונה שבועות נמחקים אוטומטית כדי שהאחסון לא יתפח
+   בלי גבול. הצלחה וכישלון כאחד מדווחים בטלגרם למנהל, כדי שגיבוי לא
+   יפסיק לרוץ בלי ששמים לב.
+─────────────────────────────────────────────────────────────────────── */
+const BACKUP_PROJECT = "anak-soharim";
+const BACKUP_DATABASE = "default";
+const BACKUP_PREFIX = "firestore-backups";
+const BACKUP_KEEP_DAYS = 56;   // שמונה שבועות
+// initializeApp() נקרא בלי storageBucket מפורש, אז השם נקבע כאן
+// לפי דפוס הדלי הרגיל של פרויקט Firebase/App Engine ישן כמו זה
+const BACKUP_BUCKET = `${BACKUP_PROJECT}.appspot.com`;
+
+async function _runFirestoreBackup() {
+  const dateTag = new Date().toISOString().slice(0, 10);   // YYYY-MM-DD
+  const outputUriPrefix = `gs://${BACKUP_BUCKET}/${BACKUP_PREFIX}/${dateTag}`;
+  const auth = new google.auth.GoogleAuth({
+    scopes: ["https://www.googleapis.com/auth/datastore", "https://www.googleapis.com/auth/cloud-platform"],
+  });
+  const client = await auth.getClient();
+  const url = `https://firestore.googleapis.com/v1/projects/${BACKUP_PROJECT}/databases/${BACKUP_DATABASE}:exportDocuments`;
+  // ללא collectionIds = מייצא את כל ה-collections, כל אחד מהם
+  await client.request({ url, method: "POST", data: { outputUriPrefix } });
+  return { outputUriPrefix };
+}
+
+// מוחק תיקיות גיבוי ישנות משמונה שבועות
+async function _cleanOldBackups() {
+  const bucket = getStorage().bucket(BACKUP_BUCKET);
+  const [files] = await bucket.getFiles({ prefix: `${BACKUP_PREFIX}/` });
+  const cutoff = Date.now() - BACKUP_KEEP_DAYS * 86400000;
+  const dateRe = new RegExp(`^${BACKUP_PREFIX}/(\\d{4}-\\d{2}-\\d{2})/`);
+  let deleted = 0;
+  for (const f of files) {
+    const m = f.name.match(dateRe);
+    if (!m) continue;
+    const d = new Date(m[1]);
+    if (isNaN(d) || d.getTime() >= cutoff) continue;
+    try { await f.delete(); deleted++; } catch (err) { console.error("backup cleanup: delete failed for", f.name, err); }
+  }
+  return deleted;
+}
+
+// השירות שרץ תחתיו הגיבוי — כדי שהודעת כישלון תגיד בדיוק למי לתת הרשאה
+async function _backupRuntimeAccount() {
+  try {
+    const auth = new google.auth.GoogleAuth({ scopes: ["https://www.googleapis.com/auth/datastore"] });
+    const c = await auth.getCredentials();
+    return c.client_email || "";
+  } catch (err) { return ""; }
+}
+
+async function _backupTelegram(text) {
+  try {
+    const cs = await db.collection("config").doc("driver_contacts").get();
+    const contacts = cs.exists ? cs.data() : {};
+    const token = contacts["_telegramToken"]?.value || "";
+    const chatId = contacts["ליאל"]?.telegramId || "";
+    if (!token || !chatId) return;
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text }),
+    });
+  } catch (err) { console.error("backup telegram ping failed", err); }
+}
+
+async function _weeklyBackupRun() {
+  let result;
+  try {
+    result = await _runFirestoreBackup();
+  } catch (err) {
+    console.error("weekly backup failed", err);
+    const who = await _backupRuntimeAccount();
+    await _backupTelegram(
+      `❌ הגיבוי השבועי נכשל.\nסיבה: ${err.message || err}` +
+      (who ? `\n\nכנראה חסרה הרשאה. יש לתת ל-${who} את התפקידים "Cloud Datastore Import Export Admin" ו-"Storage Admin" ב-IAM של הפרויקט anak-soharim.` : ""),
+    );
+    return { ok: false, error: err.message || String(err) };
+  }
+  let deleted = 0;
+  try { deleted = await _cleanOldBackups(); } catch (err) { console.error("backup cleanup failed", err); }
+  await _backupTelegram(
+    `✅ הגיבוי השבועי בוצע בהצלחה.\n${result.outputUriPrefix}` +
+    (deleted ? `\n🧹 נמחקו ${deleted} קבצים ישנים מ-8 שבועות` : ""),
+  );
+  return { ok: true, ...result, deleted };
+}
+
+exports.weeklyFirestoreBackup = onSchedule(
+  { schedule: "0 3 * * 5", region: "europe-west1", timeZone: "Asia/Jerusalem", timeoutSeconds: 300, memory: "256MiB" },
+  async () => { await _weeklyBackupRun(); },
+);
+
+// הרצה ידנית — לבדיקה מיידית בלי לחכות ליום שישי, באותו דפוס בדיוק כמו
+// runRecallScanNow / runOwnershipScanNow
+exports.runBackupNow = onRequest(
+  { cors: true, region: "europe-west1", timeoutSeconds: 300, memory: "256MiB" },
+  async (req, res) => {
+    const out = await _weeklyBackupRun();
+    res.status(out.ok ? 200 : 500).json(out);
+  },
 );
