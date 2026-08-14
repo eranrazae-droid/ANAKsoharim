@@ -1,0 +1,22 @@
+name: Run Backup Now
+
+# Triggers the Firestore backup on demand from the Actions tab, without
+# waiting for the Friday schedule. Useful for verifying the backup works
+# after a permissions or configuration change.
+on:
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call backupNow
+        run: |
+          echo "Triggering Firestore backup…"
+          code=$(curl -s -o response.json -w "%{http_code}" --max-time 300 \
+            "https://europe-west1-anak-soharim.cloudfunctions.net/backupNow")
+          echo "HTTP $code"
+          echo "--- response ---"
+          cat response.json || true
+          echo
+          test "$code" = "200"
