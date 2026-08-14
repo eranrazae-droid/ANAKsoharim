@@ -262,6 +262,22 @@ body.modal-open{overflow:hidden}
 /* סרגל שצף בתחתית המסך יושב בתוך החלונית ולא מאחורי ההצללה */
 #screen-host-slot #inv-submit-wrap{position:sticky !important;bottom:0;z-index:5}
 #screen-host-close{position:absolute;top:10px;left:12px;z-index:8;background:rgba(0,0,0,.45);color:#fff;border:none;border-radius:999px;width:32px;height:32px;font-size:16px;font-weight:900;cursor:pointer;line-height:1}
+/* חלונית ההגדרות המאוחדת: במחשב שלוש עמודות זו לצד זו עם כותרת לכל אחת,
+   בטלפון לשוניות בראש והחלפה ביניהן. */
+.modal-box-settings{max-width:1080px}
+.settings-tabs{display:none;gap:6px;margin-bottom:14px}
+.settings-tab{flex:1;padding:10px 6px;border-radius:9px;border:2px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer}
+.settings-tab.active{background:var(--dark);color:#fff;border-color:var(--dark)}
+.settings-cols{display:flex;gap:18px;align-items:flex-start}
+.settings-panel{flex:1;min-width:0}
+.settings-col-title{font-size:16px;font-weight:900;color:var(--dark);border-bottom:2px solid var(--border);padding-bottom:8px;margin-bottom:12px}
+@media(max-width:760px){
+  .settings-tabs{display:flex}
+  .settings-cols{display:block}
+  .settings-panel{display:none}
+  .settings-panel.active{display:block}
+  .settings-col-title{display:none}
+}
 .modal-overlay.open .modal-box{transform:translateY(0)}
 .modal-title{font-size:18px;font-weight:900;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between}
 .modal-close{background:var(--bg);border:none;border-radius:999px;width:32px;height:32px;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center}
@@ -475,25 +491,6 @@ if ('serviceWorker' in navigator) {
 </head>
 <body>
 
-<!-- ====== SCREEN: LOGIN ====== -->
-<div class="modal-overlay" id="modal-gcal">
-  <div class="modal-box">
-    <div class="modal-title"><span>📅 סנכרון יומן גוגל</span> <button class="modal-close" onclick="closeModal('modal-gcal')">✕</button></div>
-    <div style="font-size:13px;color:var(--muted);line-height:1.8;margin-bottom:12px">
-      לפני ההפעלה, פעם אחת בלבד:<br>
-      1. להפעיל <b>Google Calendar API</b> בפרויקט<br>
-      2. לשתף את היומן עם <b style="direction:ltr;display:inline-block">343573102369-compute@developer.gserviceaccount.com</b> בהרשאת <b>לבצע שינויים ולראות את כל פרטי האירועים</b>
-    </div>
-    <div class="form-group"><label>מזהה היומן</label>
-      <input class="form-input" id="gcal-id" placeholder="example@gmail.com" style="direction:ltr;text-align:right">
-      <div style="font-size:12px;color:var(--muted);margin-top:5px">ביומן גוגל: הגדרות היומן → "שילוב היומן" → <b>מזהה היומן</b>. ביומן ראשי זו כתובת המייל של החשבון; ביומן נפרד כתובת שמסתיימת ב-group.calendar.google.com. היומן יכול להיות מכל חשבון גוגל.</div>
-    </div>
-    <button class="btn-submit" onclick="startGcalSync()">🔗 הפעל סנכרון</button>
-    <button class="btn-submit" onclick="checkGcalSync()" style="margin-top:8px;background:#334155">🔍 בדיקת סנכרון</button>
-    <div id="gcal-status" style="margin-top:12px;font-size:13px;font-weight:700;text-align:center;white-space:pre-line"></div>
-  </div>
-</div>
-
 <div class="modal-overlay" id="modal-inv-paste">
   <div class="modal-box">
     <div class="modal-title"><span>📝 הוספת מלאי לפי מלל</span> <button class="modal-close" onclick="closeModal('modal-inv-paste')">✕</button></div>
@@ -505,22 +502,6 @@ if ('serviceWorker' in navigator) {
 </div>
 
 
-<div class="modal-overlay" id="modal-users">
-  <div class="modal-box">
-    <div class="modal-title"><span>👥 משתמשים וסיסמאות</span> <button class="modal-close" onclick="closeModal('modal-users')">✕</button></div>
-    <div id="users-warning" style="display:none;background:#fef3c7;border-right:5px solid #d97706;border-radius:10px;padding:10px 12px;font-size:12px;font-weight:800;color:#92400e;margin-bottom:12px"></div>
-    <div class="form-group"><label>שם</label>
-      <input class="form-input" id="usr-name" placeholder="לדוגמה עופר" autocomplete="off" name="anak-user-name"></div>
-    <div class="form-group"><label>טלפון</label>
-      <input class="form-input" id="usr-phone" inputmode="tel" placeholder="0521234567" autocomplete="off" name="anak-user-phone" style="direction:ltr;text-align:right" oninput="this.value=this.value.replace(/[^0-9]/g,'')"></div>
-    <div class="form-group"><label>סיסמה</label>
-      <input class="form-input" id="usr-pass" placeholder="לפחות 8 תווים" type="text" autocomplete="new-password" name="anak-user-pass" data-lpignore="true" style="direction:ltr;text-align:right"></div>
-    <div style="font-size:12px;color:var(--muted);margin:-6px 0 12px">התפקיד נקבע לפי השם — ליאל מנהל · גיל, עופר, איתי נהגים · משה והילה איסוף · איברהים פחח.</div>
-    <button class="btn-submit" onclick="saveAppUser()">✅ שמור משתמש</button>
-    <div class="section-title" style="margin-top:18px">הרשימה</div>
-    <div id="users-list"></div>
-  </div>
-</div>
 
 <div class="modal-overlay" id="modal-switch-user">
   <div class="modal-box">
@@ -586,9 +567,7 @@ if ('serviceWorker' in navigator) {
   <div id="task-notif-stack" style="position:fixed;top:0;left:0;right:0;z-index:9000;display:flex;flex-direction:column;align-items:center;pointer-events:none"></div>
   <div class="app-header">
     <div class="logo">ענק <span>הרכבים</span></div>
-    <button id="btn-gcal-settings" onclick="openGcalScreen()" style="display:none;background:rgba(255,255,255,0.15);border:none;border-radius:999px;color:#fff;font-size:13px;font-weight:700;padding:6px 14px;cursor:pointer;font-family:Heebo,sans-serif">📅 יומן גוגל</button>
-    <button id="btn-users-settings" onclick="openUsersScreen()" style="display:none;background:rgba(255,255,255,0.15);border:none;border-radius:999px;color:#fff;font-size:13px;font-weight:700;padding:6px 14px;cursor:pointer;font-family:Heebo,sans-serif">👥 משתמשים</button>
-    <button id="btn-whatsapp-settings" onclick="goToScreen('_notify')" style="display:none;background:rgba(255,255,255,0.15);border:none;border-radius:999px;color:#fff;font-size:13px;font-weight:700;padding:6px 14px;cursor:pointer;font-family:Heebo,sans-serif">✈️ טלגרם</button>
+    <button id="btn-settings" onclick="openSettings()" style="display:none;background:rgba(255,255,255,0.15);border:none;border-radius:999px;color:#fff;font-size:13px;font-weight:700;padding:6px 14px;cursor:pointer;font-family:Heebo,sans-serif">⚙️ הגדרות</button>
     <div class="user-badge" id="home-user-badge" onclick="logout()">יציאה</div>
   </div>
   <div class="home-body">
@@ -2608,12 +2587,56 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
-<div class="modal-overlay" id="modal-notify-settings">
-  <div class="modal-box" style="max-height:85vh;overflow-y:auto">
-    <div class="modal-title">✈️ הגדרות הודעות טלגרם <button class="modal-close" onclick="closeModal('modal-notify-settings')">✕</button></div>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">הגדר את הבוט פעם אחת — ואז הודעות ישלחו לנהגים אוטומטית ללא כל פעולה מצידם.</p>
-    <div id="notify-settings-body"></div>
-    <button class="btn-submit" onclick="saveNotifySettings()" style="width:100%;margin-top:4px">💾 שמור הגדרות</button>
+<!-- ====== חלונית הגדרות מאוחדת ====== -->
+<div class="modal-overlay" id="modal-settings">
+  <div class="modal-box modal-box-settings" style="max-height:88vh;overflow-y:auto">
+    <div class="modal-title"><span>⚙️ הגדרות</span> <button class="modal-close" onclick="closeModal('modal-settings')">✕</button></div>
+    <div class="settings-tabs">
+      <button id="stab-telegram" class="settings-tab active" onclick="settingsTab('telegram')">✈️ טלגרם</button>
+      <button id="stab-users" class="settings-tab" onclick="settingsTab('users')">👥 משתמשים</button>
+      <button id="stab-gcal" class="settings-tab" onclick="settingsTab('gcal')">📅 יומן גוגל</button>
+    </div>
+    <div class="settings-cols">
+
+      <div class="settings-panel active" id="spanel-telegram">
+        <div class="settings-col-title">הגדרות טלגרם</div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">הגדר את הבוט פעם אחת — ואז הודעות ישלחו לנהגים אוטומטית ללא כל פעולה מצידם.</p>
+        <div id="notify-settings-body"></div>
+        <button class="btn-submit" onclick="saveNotifySettings()" style="width:100%;margin-top:4px">💾 שמור הגדרות</button>
+      </div>
+
+      <div class="settings-panel" id="spanel-users">
+        <div class="settings-col-title">משתמשים וסיסמאות</div>
+        <div id="users-warning" style="display:none;background:#fef3c7;border-right:5px solid #d97706;border-radius:10px;padding:10px 12px;font-size:12px;font-weight:800;color:#92400e;margin-bottom:12px"></div>
+        <div class="form-group"><label>שם</label>
+          <input class="form-input" id="usr-name" placeholder="לדוגמה עופר" autocomplete="off" name="anak-user-name"></div>
+        <div class="form-group"><label>טלפון</label>
+          <input class="form-input" id="usr-phone" inputmode="tel" placeholder="0521234567" autocomplete="off" name="anak-user-phone" style="direction:ltr;text-align:right" oninput="this.value=this.value.replace(/[^0-9]/g,'')"></div>
+        <div class="form-group"><label>סיסמה</label>
+          <input class="form-input" id="usr-pass" placeholder="לפחות 8 תווים" type="text" autocomplete="new-password" name="anak-user-pass" data-lpignore="true" style="direction:ltr;text-align:right"></div>
+        <div style="font-size:12px;color:var(--muted);margin:-6px 0 12px">התפקיד נקבע לפי השם — ליאל מנהל · גיל, עופר, איתי נהגים · משה והילה איסוף · איברהים פחח.</div>
+        <button class="btn-submit" onclick="saveAppUser()">✅ שמור משתמש</button>
+        <div class="section-title" style="margin-top:18px">הרשימה</div>
+        <div id="users-list"></div>
+      </div>
+
+      <div class="settings-panel" id="spanel-gcal">
+        <div class="settings-col-title">יומן גוגל</div>
+        <div style="font-size:13px;color:var(--muted);line-height:1.8;margin-bottom:12px">
+          לפני ההפעלה, פעם אחת בלבד:<br>
+          1. להפעיל <b>Google Calendar API</b> בפרויקט<br>
+          2. לשתף את היומן עם <b style="direction:ltr;display:inline-block">343573102369-compute@developer.gserviceaccount.com</b> בהרשאת <b>לבצע שינויים ולראות את כל פרטי האירועים</b>
+        </div>
+        <div class="form-group"><label>מזהה היומן</label>
+          <input class="form-input" id="gcal-id" placeholder="example@gmail.com" style="direction:ltr;text-align:right">
+          <div style="font-size:12px;color:var(--muted);margin-top:5px">ביומן גוגל: הגדרות היומן → "שילוב היומן" → <b>מזהה היומן</b>. ביומן ראשי זו כתובת המייל של החשבון; ביומן נפרד כתובת שמסתיימת ב-group.calendar.google.com. היומן יכול להיות מכל חשבון גוגל.</div>
+        </div>
+        <button class="btn-submit" onclick="startGcalSync()">🔗 הפעל סנכרון</button>
+        <button class="btn-submit" onclick="checkGcalSync()" style="margin-top:8px;background:#334155">🔍 בדיקת סנכרון</button>
+        <div id="gcal-status" style="margin-top:12px;font-size:13px;font-weight:700;text-align:center;white-space:pre-line"></div>
+      </div>
+
+    </div>
   </div>
 </div>
 
@@ -2978,7 +3001,6 @@ async function openGcalScreen() {
       st.textContent = '✅ הסנכרון פעיל' + (d.watchExpires ? ` · מתחדש עד ${new Date(Number(d.watchExpires)).toLocaleDateString('he-IL')}` : '');
     }
   } catch (e) { /* nothing saved yet */ }
-  openModal('modal-gcal');
 }
 window.openGcalScreen = openGcalScreen;
 
@@ -3082,11 +3104,11 @@ async function openUsersScreen() {
     document.getElementById('users-list').innerHTML =
       `<div style="padding:18px;text-align:center">
         <div style="color:var(--muted);font-size:14px;font-weight:700;margin-bottom:12px">כדי לנהל משתמשים צריך להתחבר עם הטלפון והסיסמה שלך</div>
-        <button onclick="closeModal('modal-users');goToLoginScreen()" class="btn-submit" style="margin-top:0;background:var(--dark);color:#fff">🔐 מעבר להתחברות</button>
+        <button onclick="closeModal('modal-settings');goToLoginScreen()" class="btn-submit" style="margin-top:0;background:var(--dark);color:#fff">🔐 מעבר להתחברות</button>
       </div>`;
     const w = document.getElementById('users-warning');
     if (w) w.style.display = 'none';
-    return openModal('modal-users');
+    return;
   }
   const warn = document.getElementById('users-warning');
   if (warn) {
@@ -3094,7 +3116,6 @@ async function openUsersScreen() {
     warn.textContent = 'עד שההרשאות במסד יהודקו, הסיסמאות שנשמרות כאן נגישות לכל מי שיש לו קישור לאפליקציה. עד אז — עדיף לא לשמור כאן סיסמאות אמיתיות.';
   }
   document.getElementById('users-list').innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted)">טוען…</div>';
-  openModal('modal-users');
   try {
     const secretsSnap = await Promise.race([
       window._getDoc(_docRef('config', 'user_secrets')),
@@ -3391,12 +3412,8 @@ function renderHome() {
     now.toLocaleDateString('he-IL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   document.getElementById('home-user-badge').textContent = currentUser.name;
   document.getElementById('stat-vehicles').parentElement.style.display = 'none';
-  const usersBtn = document.getElementById('btn-users-settings');
-  if (usersBtn) usersBtn.style.display = (currentUser?.role === 'manager') ? 'inline-flex' : 'none';
-  const gcalBtn = document.getElementById('btn-gcal-settings');
-  if (gcalBtn) gcalBtn.style.display = (currentUser?.role === 'manager') ? 'inline-flex' : 'none';
-  const waBtn = document.getElementById('btn-whatsapp-settings');
-  if (waBtn) waBtn.style.display = isManager ? 'inline-block' : 'none';
+  const settingsBtn = document.getElementById('btn-settings');
+  if (settingsBtn) settingsBtn.style.display = (currentUser?.role === 'manager') ? 'inline-flex' : 'none';
 
   // הילה (pickup_driver) — only sees assigned pickup cars
   if (currentUser.role === 'pickup_driver') {
@@ -3903,7 +3920,7 @@ function goToScreen(name) {
   else if (name === 'driver-charging') openDriverChargingScreen();
   else if (name === 'pits') openPitsScreen();
   else if (name === 'driver-inventory') openDriverInventoryScreen();
-  else if (name === '_notify') openNotifySettings();
+  else if (name === '_notify') openSettings();
   else if (name === '_broadcast') openBroadcast();
   else if (name === '_refresh') openRefreshScreen();
   else if (name === 'pickup') { if (currentUser.role === 'pickup_driver') openMyPickupScreen(); else openPickupScreen(); }
@@ -11236,7 +11253,7 @@ function bsOrderText() {
 function bsCopyOrderText() {
   const txt = bsOrderText();
   if (!txt) return showToast('אין מה להזמין');
-  const done = () => showToast('📋 המלל הועתק — אפשר להדביק בוואטסאפ');
+  const done = () => showToast('📋 המלל הועתק — אפשר להדביק בטלגרם');
   if (navigator.clipboard && window.isSecureContext) {
     navigator.clipboard.writeText(txt).then(done).catch(() => _pcCopyFallback(txt, done));
   } else {
@@ -14975,6 +14992,27 @@ async function _notifyAllDrivers(message) {
 }
 
 // ─── Settings screen ───────────────────────────────────
+// חלונית ההגדרות המאוחדת — שלוש הלשוניות במקום אחד
+async function openSettings() {
+  if (currentUser?.role !== 'manager') return;
+  settingsTab('telegram');
+  openModal('modal-settings');
+  // ממלאים את שלושת החלקים
+  _openNotifySettingsInner().catch(e => { showToast('שגיאה: ' + e.message, 6000); console.error(e); });
+  openGcalScreen();
+  openUsersScreen();
+}
+window.openSettings = openSettings;
+
+// החלפת לשונית (בטלפון). במחשב שלושתן מוצגות יחד ממילא.
+function settingsTab(name) {
+  ['telegram', 'users', 'gcal'].forEach(t => {
+    document.getElementById('stab-' + t)?.classList.toggle('active', t === name);
+    document.getElementById('spanel-' + t)?.classList.toggle('active', t === name);
+  });
+}
+window.settingsTab = settingsTab;
+
 async function openNotifySettings() {
   try { return await _openNotifySettingsInner(); } catch(e) { showToast('שגיאה: ' + e.message, 6000); console.error(e); }
 }
@@ -15020,7 +15058,6 @@ async function _openNotifySettingsInner() {
   }).join('');
   document.getElementById('notify-settings-body').innerHTML = telegramRow + videoGroupRow + rows;
   _renderPahachGroups();
-  openModal('modal-notify-settings');
 }
 
 // בחירת קבוצת הפחחות שאליה יישלחו הסרטונים
@@ -15071,7 +15108,7 @@ async function saveNotifySettings() {
   const { setDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
   await setDoc(doc(window._db, 'config', 'driver_contacts'), data, { merge: true });
   _driverContacts = data;
-  closeModal('modal-notify-settings');
+  closeModal('modal-settings');
   showToast('✅ הגדרות נשמרו');
 }
 
