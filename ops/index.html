@@ -1750,7 +1750,7 @@ if ('serviceWorker' in navigator) {
       </div></div>
     <div class="form-group"><label>הערה לפחח</label>
       <input class="form-input" id="bsm-note" placeholder="לא חובה"></div>
-    <button class="btn-submit" onclick="submitBsmSend()">📝 צור פתק</button>
+    <button class="btn-submit" id="bsm-submit-btn" onclick="submitBsmSend()">📝 צור פתק</button>
   </div>
 </div>
 
@@ -10656,21 +10656,26 @@ async function submitBsmSend() {
   if (!_bsmPicked.length) return showToast('נא לבחור לפחות חלק אחד');
   if (!_bsmVideoFile) return showToast('חובה לצרף סרטון תיעוד לפני יצירת הפתק');
 
-  // שומרים תמונת מצב של כל הנתונים, סוגרים את החלון מיד, וכל הכתיבות
-  // (הפתק, התמונה, הסרטון) מתבצעות ברקע — כדי שאין דיליי לפני הסגירה.
+  // הסרטון נשלח קודם — הפתק ייווצר רק אם הסרטון הגיע לקבוצה בהצלחה.
+  const btn = document.getElementById('bsm-submit-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '🎥 שולח סרטון…'; }
+  try {
+    await _bsmSendVideoToGroup(_bsmVideoFile, plate, desc);
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = '📝 צור פתק'; }
+    return showToast('⚠️ הפתק לא נוצר — הסרטון לא נשלח: ' + e.message, 9000);
+  }
+
+  // הסרטון נשלח — עכשיו שומרים תמונת מצב, סוגרים מיד, וכותבים ברקע
   const snap = {
     plate, desc, note, maker: _bsmMaker,
-    thumb: _bsmThumb, focus: _bsmFocus, photo: _bsmPhoto, video: _bsmVideoFile,
+    thumb: _bsmThumb, focus: _bsmFocus, photo: _bsmPhoto,
     items: _bshopSortNames(_bsmPicked).map(name => ({ name, price: null })),
   };
   _bsmVideoFile = null;
+  if (btn) { btn.disabled = false; btn.textContent = '📝 צור פתק'; }
   closeModal('modal-bsm-send');
-  showToast('📝 הפתק נוצר — נשאר אצלך עד ששולחים');
-
-  // הסרטון נשלח לקבוצה ולא נשמר בשום מקום
-  _bsmSendVideoToGroup(snap.video, snap.plate, snap.desc)
-    .then(() => showToast('✅ הסרטון נשלח לקבוצת הפחחות'))
-    .catch(e => showToast('⚠️ הסרטון לא נשלח: ' + e.message, 8000));
+  showToast('✅ הסרטון נשלח והפתק נוצר');
 
   // כתיבת הפתק ברקע
   try {
