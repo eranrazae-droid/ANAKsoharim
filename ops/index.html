@@ -10025,6 +10025,25 @@ async function psSearch() {
     if (car) hits.push({ src: { icon: '⚠️', label: 'ריקול פתוח', when: () => null, desc: () => car.resolved ? 'טופל — ממתין להסרה' : 'דורש טיפול', warn: true }, d: car });
   } catch (e) {}
 
+  // בדיקת בעלויות — כל רכב שנסרק, כולל אלה שסומנו תקינים, כך שהתשובה
+  // ברורה גם כשאין חריגה
+  try {
+    const snap = await window._getDoc(_docRef('ownership_status', 'current'));
+    const cars = snap.exists() ? (snap.data().cars || []) : [];
+    const car = cars.find(c => _psDigits(c.plate) === plate);
+    if (car) {
+      const bad = car.status === 'not' || (car.baalut && car.baalut.includes('פרטי'));
+      hits.push({ src: {
+        icon: bad ? '📑' : '✅', label: 'בדיקת בעלויות',
+        when: () => null,
+        desc: () => bad
+          ? `לא רשום על החברה${car.baalut ? ' · ' + car.baalut : ''}${car.ownerId ? ' · ' + car.ownerId : ''}`
+          : `תקין${car.baalut ? ' · ' + car.baalut : ''}`,
+        warn: bad,
+      }, d: car });
+    }
+  } catch (e) {}
+
   _psRenderResults(hits);
   msg.textContent = hits.length ? `נמצאו ${hits.length} רשומות` : 'לא נמצאה שום רשומה לרכב הזה';
   _psBusy = false;
@@ -10651,16 +10670,14 @@ window.bsmClearVideo = bsmClearVideo;
 // לטלגרם ונעלם.
 async function _bsmSendVideoToGroup(file, plate, desc) {
   const contacts = await _loadDriverContacts();
-  const token = (contacts['_telegramToken']?.value || '').trim();
   const chatId = (contacts['_pahachVideoChat']?.value || '').trim();
-  if (!token) throw new Error('אין טוקן טלגרם');
   if (!chatId) throw new Error('לא נבחרה קבוצת פחחות בהגדרות');
   const form = new FormData();
   form.append('chat_id', chatId);
   form.append('caption', [plate, desc].filter(Boolean).join(' · '));
   form.append('video', file, file.name || 'video.mp4');
-  const res = await fetch(`https://api.telegram.org/bot${token}/sendVideo`, { method: 'POST', body: form });
-  const data = await res.json().catch(() => ({}));
+  const data = await _telegramApi('sendVideo', form);
+  if (data._noToken) throw new Error('אין טוקן טלגרם');
   if (!data.ok) throw new Error(data.description || 'שליחה נכשלה');
 }
 window.bsmClearPhoto = bsmClearPhoto;
@@ -14816,38 +14833,54 @@ async function _loadDriverContacts() {
   return _driverContacts;
 }
 
+/* ── טלגרם: מקום אחד לכל השליחות ─────────────────────────────────────
+   כל קריאה ל-Bot API עוברת דרך _telegramApi. פונקציות הנוחות למטה
+   (הודעה/תמונה/סרטון) שומרות בדיוק על אותה חתימה שכל הקוד הקיים קורא
+   לה — רק המנגנון הפנימי אוחד, שום התנהגות לא השתנתה.
+─────────────────────────────────────────────────────────────────────── */
+async function _telegramToken() {
+  const contacts = await _loadDriverContacts();
+  return (contacts['_telegramToken']?.value || '').trim();
+}
+
+// method: 'sendMessage' | 'sendPhoto' | 'sendVideo' | 'getUpdates?limit=100' | ...
+// body: FormData לקבצים, אובייקט JS שנשלח כ-JSON, או undefined לבקשת GET
+async function _telegramApi(method, body) {
+  const token = await _telegramToken();
+  if (!token) return { ok: false, description: 'אין טוקן טלגרם מוגדר', _noToken: true };
+  const opts = body instanceof FormData
+    ? { method: 'POST', body }
+    : body
+      ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+      : {};
+  const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, opts);
+  const data = await res.json().catch(() => ({}));
+  return { ...data, _httpOk: res.ok, _status: res.status };
+}
+window._telegramApi = _telegramApi;
+
 // Telegram Bot API is free/unlimited and supports CORS, so we can call it
 // directly from the browser — no Cloud Function needed.
 // a picture goes as a file, not as text — telegram wants it uploaded
 async function _sendTelegramPhoto(chatId, dataUrl, caption) {
-  const contacts = await _loadDriverContacts();
-  const token = (contacts['_telegramToken']?.value || '').trim();
-  if (!token || !dataUrl) return false;
+  if (!dataUrl) return false;
   try {
     const blob = await (await fetch(dataUrl)).blob();
     const form = new FormData();
     form.append('chat_id', chatId);
     form.append('caption', caption || '');
     form.append('photo', blob, 'car.jpg');
-    const res = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, { method: 'POST', body: form });
-    return res.ok;
+    const data = await _telegramApi('sendPhoto', form);
+    return !!data._httpOk;
   } catch (e) { console.error('telegram photo', e); return false; }
 }
 window._sendTelegramPhoto = _sendTelegramPhoto;
 
 async function _sendTelegram(chatId, message) {
   if (!chatId) return false;
-  const contacts = await _loadDriverContacts();
-  const token = (contacts['_telegramToken']?.value || '').trim();
-  if (!token) return false;
   try {
-    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text: message })
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!data.ok) { console.error('Telegram send error', data); showToast(`⚠️ טלגרם שגיאה: ${data.description || res.status}`, 5000); return false; }
+    const data = await _telegramApi('sendMessage', { chat_id: chatId, text: message });
+    if (!data.ok) { console.error('Telegram send error', data); showToast(`⚠️ טלגרם שגיאה: ${data.description || data._status}`, 5000); return false; }
     return true;
   } catch(e) {
     console.error('Telegram fetch error', e);
@@ -14874,7 +14907,7 @@ async function sendBatteryReminders() {
     if (!Object.keys(countByDriver).length) { showToast('אין בדיקות טעינה ממתינות לאף נהג'); return; }
 
     const contacts = await _loadDriverContacts();
-    const token = (contacts['_telegramToken']?.value || '').trim();
+    const token = await _telegramToken();
     if (!token) { showToast('⚠️ טוקן טלגרם לא מוגדר בהגדרות הודעות'); return; }
 
     let sent = 0, missing = [];
@@ -14887,10 +14920,7 @@ async function sendBatteryReminders() {
         [{ text: '✅ מטפל בזה עכשיו', callback_data: `battery_now:${name}` }],
       ]};
       try {
-        await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chat_id: chatId, text, reply_markup })
-        });
+        await _telegramApi('sendMessage', { chat_id: chatId, text, reply_markup });
         sent++;
       } catch(e) { console.error('sendBatteryReminders', name, e); }
     }
@@ -14905,12 +14935,10 @@ window.sendBatteryReminders = sendBatteryReminders;
 
 // fetch recent messages sent TO the bot, to discover each driver's chat id
 async function _telegramGetUpdates() {
-  const contacts = await _loadDriverContacts();
-  const token = (contacts['_telegramToken']?.value || '').trim();
+  const token = await _telegramToken();
   if (!token) { showToast('נא להזין קודם טוקן בוט'); return []; }
   try {
-    const res = await fetch(`https://api.telegram.org/bot${token}/getUpdates?limit=100`);
-    const data = await res.json().catch(() => ({}));
+    const data = await _telegramApi('getUpdates?limit=100');
     if (!data.ok) { showToast(`⚠️ שגיאת טוקן: ${data.description || ''}`, 5000); return []; }
     const seen = new Map(); // chatId → name (last message wins, most recent)
     for (const u of (data.result || [])) {
