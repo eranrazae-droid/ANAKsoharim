@@ -1445,8 +1445,11 @@ exports.weeklyFirestoreBackup = onSchedule(
 );
 
 // הרצה ידנית — לבדיקה מיידית בלי לחכות ליום שישי, באותו דפוס בדיוק כמו
-// runRecallScanNow / runOwnershipScanNow
-exports.runBackupNow = onRequest(
+// runRecallScanNow / runOwnershipScanNow.
+// השם backupNow ולא runBackupNow: הניסיון הראשון להקים את runBackupNow
+// יצר שירות Cloud Run יתום בלי רשומת פונקציה, וכל פריסה מאז נכשלה על
+// 409 "service already exists". שם חדש עוקף את היתום.
+exports.backupNow = onRequest(
   { cors: true, region: "europe-west1", timeoutSeconds: 300, memory: "256MiB" },
   async (req, res) => {
     const out = await _weeklyBackupRun();
