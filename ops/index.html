@@ -10009,9 +10009,12 @@ async function psSearch() {
   // הפחחות שומרת רכבים גם בתוך תיקיות ארכיון, כמערך בתוך מסמך אחד
   try {
     for (const a of await _psDocs('bodyshop_archive')) {
-      (a.cars || []).forEach(c => {
+      (a.cars || []).forEach((c, idx) => {
         if (_psDigits(c.plate) === plate) {
-          hits.push({ src: { icon: '🧾', label: 'פחחות · שולם', when: () => a.paidAt, desc: () => [a.title, c.total ? Number(c.total).toLocaleString('he-IL') + ' ₪' : ''].filter(Boolean).join(' · ') }, d: c });
+          hits.push({ src: {
+            icon: '🧾', label: 'פחחות · שולם', kind: 'bshop_archive_car',
+            when: () => a.paidAt, desc: () => [a.title, c.total ? Number(c.total).toLocaleString('he-IL') + ' ₪' : ''].filter(Boolean).join(' · '),
+          }, d: { ...c, _archiveDoc: a, _archiveId: a.id, _archiveIdx: idx } });
         }
       });
     }
@@ -10022,7 +10025,7 @@ async function psSearch() {
     const snap = await window._getDoc(_docRef('recall_status', 'current'));
     const cars = snap.exists() ? (snap.data().cars || []) : [];
     const car = cars.find(c => _psDigits(c.plate) === plate);
-    if (car) hits.push({ src: { icon: '⚠️', label: 'ריקול פתוח', when: () => null, desc: () => car.resolved ? 'טופל — ממתין להסרה' : 'דורש טיפול', warn: true }, d: car });
+    if (car) hits.push({ src: { icon: '⚠️', label: 'ריקול פתוח', kind: 'recall', when: () => null, desc: () => car.resolved ? 'טופל — ממתין להסרה' : 'דורש טיפול', warn: true }, d: car });
   } catch (e) {}
 
   // בדיקת בעלויות — כל רכב שנסרק, כולל אלה שסומנו תקינים, כך שהתשובה
@@ -10034,7 +10037,7 @@ async function psSearch() {
     if (car) {
       const bad = car.status === 'not' || (car.baalut && car.baalut.includes('פרטי'));
       hits.push({ src: {
-        icon: bad ? '📑' : '✅', label: 'בדיקת בעלויות',
+        icon: bad ? '📑' : '✅', label: 'בדיקת בעלויות', kind: 'ownership',
         when: () => null,
         desc: () => bad
           ? `לא רשום על החברה${car.baalut ? ' · ' + car.baalut : ''}${car.ownerId ? ' · ' + car.ownerId : ''}`
@@ -10066,15 +10069,20 @@ const _psWhen = t => {
   return d && !isNaN(d) ? d.toLocaleDateString('he-IL') : '';
 };
 
+// המקורות שיש להם טופס/מסך ספציפי שאפשר לפתוח בלחיצה. מה שלא ברשימה
+// עדיין ניתן ללחיצה — פשוט עובר למסך הכללי של אותו מודול.
+let _psLastHits = [];
+
 function _psRenderResults(hits) {
   const box = document.getElementById('ps-results');
   if (!box) return;
+  _psLastHits = hits;
   if (!hits.length) { box.innerHTML = ''; return; }
   // החדש למעלה; רשומה בלי תאריך יורדת לסוף
   const key = h => { const t = h.src.when(h.d); const d = t?.toDate ? t.toDate() : (t ? new Date(t) : null); return d && !isNaN(d) ? d.getTime() : 0; };
   hits.sort((a, b) => key(b) - key(a));
-  box.innerHTML = hits.map(({ src, d }) => `
-    <div style="display:flex;align-items:flex-start;gap:10px;border:2px solid ${src.warn ? '#ef4444' : 'var(--border)'};border-radius:12px;padding:11px 13px;margin-bottom:8px;background:${src.warn ? '#fee2e2' : 'var(--card)'}">
+  box.innerHTML = hits.map(({ src, d }, i) => `
+    <div onclick="_psOpenRecord(${i})" style="display:flex;align-items:flex-start;gap:10px;border:2px solid ${src.warn ? '#ef4444' : 'var(--border)'};border-radius:12px;padding:11px 13px;margin-bottom:8px;background:${src.warn ? '#fee2e2' : 'var(--card)'};cursor:pointer">
       <div style="font-size:20px;flex-shrink:0">${src.icon}</div>
       <div style="flex:1;min-width:0">
         <div style="font-weight:900;font-size:14px;${src.warn ? 'color:#991b1b' : ''}">${esc(src.label)}</div>
@@ -10083,6 +10091,47 @@ function _psRenderResults(hits) {
       <div style="font-size:11.5px;color:var(--muted);font-weight:700;white-space:nowrap">${esc(_psWhen(src.when(d)))}</div>
     </div>`).join('');
 }
+
+// פותח את הטופס הרלוונטי לרשומה שנלחצה — אם יש כזה; אחרת עובר למסך
+// הכללי של אותו מודול, כך שלפחות מגיעים למקום הנכון.
+async function _psOpenRecord(i) {
+  const hit = _psLastHits[i];
+  if (!hit) return;
+  const { src, d } = hit;
+  const col = d._archiveDoc ? 'bshop_archive_car' : src.kind || src.col;
+  try {
+    if (col === 'tasks') return openEditTask(d.id);
+
+    if (col === 'pickup_cars') {
+      openPickupScreen();
+      if (!_pickupAllCars.find(c => c.id === d.id)) _pickupAllCars.push(d);
+      return openEditPickupModal(d.id);
+    }
+
+    if (col === 'bodyshop_jobs') {
+      openBodyShopMgrScreen();
+      if (!_bshopJobs.find(j => j.id === d.id)) _bshopJobs.push(d);
+      return bshopOpenFill(d.id);
+    }
+
+    if (col === 'bshop_archive_car') {
+      openBodyShopMgrScreen();
+      if (!_bshopArchive.find(a => a.id === d._archiveId)) _bshopArchive.push(d._archiveDoc);
+      return bsmOpenArchiveCar(d._archiveId, d._archiveIdx);
+    }
+
+    // שאר המודולים — אין טופס ספציפי לרשומה בודדת, עוברים למסך הכללי
+    const screenByCol = {
+      intake_assignments: 'vehicles', intake_archive: 'vehicles', refreshes: 'vehicles',
+      pickup_archive: 'pickup', pit_checks: 'pits', test_drives: 'test-drive',
+      wash_notes: 'wash', battery_installs: 'battery-stock', charging_tasks: 'battery',
+      parts: 'parts', recall: 'recall', ownership: 'ownership',
+    };
+    const screen = screenByCol[col];
+    if (screen) goToScreen(screen);
+  } catch (e) { console.error('_psOpenRecord', e); showToast('לא הצלחנו לפתוח את הרשומה'); }
+}
+window._psOpenRecord = _psOpenRecord;
 
 /* ── פתק שטיפה ───────────────────────────────────────────────────────
    הנהג בוחר רכב וסוג שטיפה, ומדפיס פתק גדול שנתלה על הרכב. ההדפסה
