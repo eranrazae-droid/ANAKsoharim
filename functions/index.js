@@ -1360,13 +1360,34 @@ const BACKUP_PROJECT = "anak-soharim";
 const BACKUP_DATABASE = "default";
 const BACKUP_PREFIX = "firestore-backups";
 const BACKUP_KEEP_DAYS = 56;   // שמונה שבועות
-// initializeApp() נקרא בלי storageBucket מפורש, אז השם נקבע כאן
-// לפי דפוס הדלי הרגיל של פרויקט Firebase/App Engine ישן כמו זה
-const BACKUP_BUCKET = `${BACKUP_PROJECT}.appspot.com`;
+
+// שם הדלי נלקח מהגדרות הפרויקט עצמן (FIREBASE_CONFIG שנטען אוטומטית
+// בענן), ולא מנוחש. פרויקטים ישנים משתמשים ב-appspot.com וחדשים ב-
+// firebasestorage.app, ולכן ניחוש היה נכשל על חצי מהמקרים.
+function _backupBucketName() {
+  try {
+    const cfg = JSON.parse(process.env.FIREBASE_CONFIG || "{}");
+    if (cfg.storageBucket) return cfg.storageBucket;
+  } catch (err) { /* נופלים לברירת המחדל */ }
+  return `${BACKUP_PROJECT}.appspot.com`;
+}
+
+// מוודא שהדלי באמת קיים לפני הייצוא, כדי ששגיאה על דלי חסר לא תיראה
+// כמו שגיאת הרשאה
+async function _assertBucket(name) {
+  const [exists] = await getStorage().bucket(name).exists();
+  if (!exists) {
+    throw new Error(
+      `דלי האחסון ${name} לא קיים. יש להפעיל Storage פעם אחת בקונסולת Firebase ` +
+      `(Build → Storage → Get started), ואז להריץ את הגיבוי שוב.`);
+  }
+}
 
 async function _runFirestoreBackup() {
   const dateTag = new Date().toISOString().slice(0, 10);   // YYYY-MM-DD
-  const outputUriPrefix = `gs://${BACKUP_BUCKET}/${BACKUP_PREFIX}/${dateTag}`;
+  const bucketName = _backupBucketName();
+  await _assertBucket(bucketName);
+  const outputUriPrefix = `gs://${bucketName}/${BACKUP_PREFIX}/${dateTag}`;
   const auth = new google.auth.GoogleAuth({
     scopes: ["https://www.googleapis.com/auth/datastore", "https://www.googleapis.com/auth/cloud-platform"],
   });
@@ -1374,12 +1395,12 @@ async function _runFirestoreBackup() {
   const url = `https://firestore.googleapis.com/v1/projects/${BACKUP_PROJECT}/databases/${BACKUP_DATABASE}:exportDocuments`;
   // ללא collectionIds = מייצא את כל ה-collections, כל אחד מהם
   await client.request({ url, method: "POST", data: { outputUriPrefix } });
-  return { outputUriPrefix };
+  return { outputUriPrefix, bucketName };
 }
 
 // מוחק תיקיות גיבוי ישנות משמונה שבועות
 async function _cleanOldBackups() {
-  const bucket = getStorage().bucket(BACKUP_BUCKET);
+  const bucket = getStorage().bucket(_backupBucketName());
   const [files] = await bucket.getFiles({ prefix: `${BACKUP_PREFIX}/` });
   const cutoff = Date.now() - BACKUP_KEEP_DAYS * 86400000;
   const dateRe = new RegExp(`^${BACKUP_PREFIX}/(\\d{4}-\\d{2}-\\d{2})/`);
