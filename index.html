@@ -3970,7 +3970,7 @@ function resetDevice(phone) {
 function openAdmin() {
   document.getElementById('appContent').style.display = 'none';
   var panel = document.getElementById('adminPanel');
-  if (panel) { panel.style.display = 'block'; loadAdmin(); }
+  if (panel) { panel.style.display = 'block'; loadAdmin(); populateEditPriceSelect(); }
 }
 
 function closeAdmin() {
@@ -3979,6 +3979,87 @@ function closeAdmin() {
 }
 
 function loadAdmin() { /* overridden by admin script */ }
+
+function populateEditPriceSelect() {
+  var sel = document.getElementById('editPriceSelect');
+  if (!sel) return;
+  var allCars = cars.concat(manualCars);
+  sel.innerHTML = '<option value="">— בחר רכב —</option>';
+  allCars.forEach(function(c, i) {
+    var opt = document.createElement('option');
+    opt.value = i < cars.length ? ('c:' + i) : ('m:' + (i - cars.length));
+    opt.textContent = c.brand + ' — ' + c.model;
+    sel.appendChild(opt);
+  });
+}
+
+function onEditPriceSelect() {
+  var sel = document.getElementById('editPriceSelect');
+  var fields = document.getElementById('editPriceFields');
+  var val = sel.value;
+  if (!val) { fields.style.display = 'none'; return; }
+  var parts = val.split(':');
+  var car = parts[0] === 'c' ? cars[+parts[1]] : manualCars[+parts[1]];
+  if (!car) { fields.style.display = 'none'; return; }
+  fields.style.display = 'block';
+  document.getElementById('editCurrentDealer').textContent = fmt(car.dealer) + ' ₪';
+  document.getElementById('editCurrentCatalog').textContent = fmt(car.catalog) + ' ₪';
+  document.getElementById('editNewDealer').value = car.dealer;
+  document.getElementById('editNewCatalog').value = car.catalog;
+  document.getElementById('editPriceMsg').textContent = '';
+}
+
+function onEditPriceInput() {
+  var dealer = parseInt(document.getElementById('editNewDealer').value) || 0;
+  var catalog = parseInt(document.getElementById('editNewCatalog').value) || 0;
+  if (dealer && catalog && catalog > dealer) {
+    document.getElementById('editPriceMsg').style.color = '#7a839a';
+    document.getElementById('editPriceMsg').textContent = 'הנחה: ' + fmt(catalog - dealer) + ' ₪';
+  } else {
+    document.getElementById('editPriceMsg').textContent = '';
+  }
+}
+
+function saveEditPriceAdmin() {
+  var sel = document.getElementById('editPriceSelect');
+  var val = sel.value;
+  if (!val) return;
+  var newDealer = parseInt(document.getElementById('editNewDealer').value);
+  var newCatalog = parseInt(document.getElementById('editNewCatalog').value);
+  if (!newDealer || isNaN(newDealer)) {
+    document.getElementById('editPriceMsg').style.color = '#e24b4a';
+    document.getElementById('editPriceMsg').textContent = 'יש להכניס מחיר תקין';
+    return;
+  }
+  var parts = val.split(':');
+  var car = parts[0] === 'c' ? cars[+parts[1]] : manualCars[+parts[1]];
+  if (!car) return;
+  var key = car.brand + '||' + car.model;
+  car.dealer = newDealer;
+  if (newCatalog && !isNaN(newCatalog)) { car.catalog = newCatalog; car.discount = newCatalog - newDealer; }
+  else { car.discount = car.catalog - newDealer; }
+  if (parts[0] === 'm') saveManualCarsToDb();
+  var update = {};
+  update['price_' + key.replace(/[^a-zA-Z0-9\u05d0-\u05ea]/g, '_')] = newDealer;
+  if (newCatalog && !isNaN(newCatalog)) update['catalog_' + key.replace(/[^a-zA-Z0-9\u05d0-\u05ea]/g, '_')] = newCatalog;
+  if (window.db) {
+    window.db.collection('settings').doc('priceOverrides').set(update, { merge: true })
+      .then(function() {
+        document.getElementById('editPriceMsg').style.color = '#059669';
+        document.getElementById('editPriceMsg').textContent = '✓ נשמר בהצלחה';
+        document.getElementById('editCurrentDealer').textContent = fmt(newDealer) + ' ₪';
+        if (newCatalog) document.getElementById('editCurrentCatalog').textContent = fmt(newCatalog) + ' ₪';
+        filterAndRender();
+      }).catch(function(err) {
+        document.getElementById('editPriceMsg').style.color = '#e24b4a';
+        document.getElementById('editPriceMsg').textContent = 'שגיאה: ' + err.message;
+      });
+  } else {
+    document.getElementById('editPriceMsg').style.color = '#059669';
+    document.getElementById('editPriceMsg').textContent = '✓ עודכן';
+    filterAndRender();
+  }
+}
 
 function blockUser(p) { /* overridden */ }
 function unblockUser(p) { /* overridden */ }
@@ -4062,9 +4143,43 @@ function showError(id, msg) {
     <div class="admin-title">🛡️ פאנל ניהול</div>
   </div>
   <div class="admin-body">
-    <div style="display:flex;gap:12px;flex-wrap:wrap;">
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px;">
       <button onclick="openAddCar()" style="background:#1a1a2e;color:#c9a227;border:1.5px solid #c9a227;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;font-family:Heebo,sans-serif;cursor:pointer;">➕ הוסף רכב ידנית</button>
       <button class="admin-btn" onclick="closeAdmin()" style="background:#1a3a7a">← חזור למלאי</button>
+    </div>
+
+    <div style="background:#fff;border:1px solid #e0e4ef;border-radius:14px;padding:20px;max-width:480px;">
+      <div style="font-size:14px;font-weight:700;color:#1a1a2e;margin-bottom:16px;">✏️ שינוי מחיר לרכב קיים</div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">בחר רכב</label>
+        <select id="editPriceSelect" onchange="onEditPriceSelect()" style="width:100%;padding:9px 12px;border:1.5px solid #e0e4ef;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;direction:rtl;color:#1a1a2e;outline:none;cursor:pointer;">
+          <option value="">— בחר רכב —</option>
+        </select>
+      </div>
+      <div id="editPriceFields" style="display:none;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+          <div>
+            <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">מחיר לסוחר (נוכחי)</label>
+            <div id="editCurrentDealer" style="font-size:15px;font-weight:700;color:#c9a227;padding:8px 0;"></div>
+          </div>
+          <div>
+            <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">מחירון (נוכחי)</label>
+            <div id="editCurrentCatalog" style="font-size:15px;font-weight:700;color:#555;padding:8px 0;"></div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+          <div>
+            <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">מחיר לסוחר חדש ₪</label>
+            <input id="editNewDealer" type="number" placeholder="למשל 150000" style="width:100%;padding:9px 12px;border:1.5px solid #e0e4ef;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;outline:none;box-sizing:border-box;" oninput="onEditPriceInput()" />
+          </div>
+          <div>
+            <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">מחירון חדש ₪</label>
+            <input id="editNewCatalog" type="number" placeholder="למשל 180000" style="width:100%;padding:9px 12px;border:1.5px solid #e0e4ef;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;outline:none;box-sizing:border-box;" />
+          </div>
+        </div>
+        <div id="editPriceMsg" style="font-size:13px;min-height:18px;margin-bottom:10px;"></div>
+        <button onclick="saveEditPriceAdmin()" style="background:#c9a227;color:#000;border:none;border-radius:8px;padding:10px 24px;font-size:14px;font-weight:900;font-family:Heebo,sans-serif;cursor:pointer;width:100%;">שמור שינויים</button>
+      </div>
     </div>
   </div>
 </div>
@@ -4471,9 +4586,43 @@ function showError(id, msg) {
     <div class="admin-title">🛡️ פאנל ניהול</div>
   </div>
   <div class="admin-body">
-    <div style="display:flex;gap:12px;flex-wrap:wrap;">
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px;">
       <button onclick="openAddCar()" style="background:#1a1a2e;color:#c9a227;border:1.5px solid #c9a227;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;font-family:Heebo,sans-serif;cursor:pointer;">➕ הוסף רכב ידנית</button>
       <button class="admin-btn" onclick="closeAdmin()" style="background:#1a3a7a">← חזור למלאי</button>
+    </div>
+
+    <div style="background:#fff;border:1px solid #e0e4ef;border-radius:14px;padding:20px;max-width:480px;">
+      <div style="font-size:14px;font-weight:700;color:#1a1a2e;margin-bottom:16px;">✏️ שינוי מחיר לרכב קיים</div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">בחר רכב</label>
+        <select id="editPriceSelect" onchange="onEditPriceSelect()" style="width:100%;padding:9px 12px;border:1.5px solid #e0e4ef;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;direction:rtl;color:#1a1a2e;outline:none;cursor:pointer;">
+          <option value="">— בחר רכב —</option>
+        </select>
+      </div>
+      <div id="editPriceFields" style="display:none;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+          <div>
+            <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">מחיר לסוחר (נוכחי)</label>
+            <div id="editCurrentDealer" style="font-size:15px;font-weight:700;color:#c9a227;padding:8px 0;"></div>
+          </div>
+          <div>
+            <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">מחירון (נוכחי)</label>
+            <div id="editCurrentCatalog" style="font-size:15px;font-weight:700;color:#555;padding:8px 0;"></div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+          <div>
+            <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">מחיר לסוחר חדש ₪</label>
+            <input id="editNewDealer" type="number" placeholder="למשל 150000" style="width:100%;padding:9px 12px;border:1.5px solid #e0e4ef;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;outline:none;box-sizing:border-box;" oninput="onEditPriceInput()" />
+          </div>
+          <div>
+            <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">מחירון חדש ₪</label>
+            <input id="editNewCatalog" type="number" placeholder="למשל 180000" style="width:100%;padding:9px 12px;border:1.5px solid #e0e4ef;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;outline:none;box-sizing:border-box;" />
+          </div>
+        </div>
+        <div id="editPriceMsg" style="font-size:13px;min-height:18px;margin-bottom:10px;"></div>
+        <button onclick="saveEditPriceAdmin()" style="background:#c9a227;color:#000;border:none;border-radius:8px;padding:10px 24px;font-size:14px;font-weight:900;font-family:Heebo,sans-serif;cursor:pointer;width:100%;">שמור שינויים</button>
+      </div>
     </div>
   </div>
 </div>
@@ -4893,9 +5042,43 @@ function showError(id, msg) {
     <div class="admin-title">🛡️ פאנל ניהול</div>
   </div>
   <div class="admin-body">
-    <div style="display:flex;gap:12px;flex-wrap:wrap;">
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px;">
       <button onclick="openAddCar()" style="background:#1a1a2e;color:#c9a227;border:1.5px solid #c9a227;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;font-family:Heebo,sans-serif;cursor:pointer;">➕ הוסף רכב ידנית</button>
       <button class="admin-btn" onclick="closeAdmin()" style="background:#1a3a7a">← חזור למלאי</button>
+    </div>
+
+    <div style="background:#fff;border:1px solid #e0e4ef;border-radius:14px;padding:20px;max-width:480px;">
+      <div style="font-size:14px;font-weight:700;color:#1a1a2e;margin-bottom:16px;">✏️ שינוי מחיר לרכב קיים</div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">בחר רכב</label>
+        <select id="editPriceSelect" onchange="onEditPriceSelect()" style="width:100%;padding:9px 12px;border:1.5px solid #e0e4ef;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;direction:rtl;color:#1a1a2e;outline:none;cursor:pointer;">
+          <option value="">— בחר רכב —</option>
+        </select>
+      </div>
+      <div id="editPriceFields" style="display:none;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+          <div>
+            <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">מחיר לסוחר (נוכחי)</label>
+            <div id="editCurrentDealer" style="font-size:15px;font-weight:700;color:#c9a227;padding:8px 0;"></div>
+          </div>
+          <div>
+            <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">מחירון (נוכחי)</label>
+            <div id="editCurrentCatalog" style="font-size:15px;font-weight:700;color:#555;padding:8px 0;"></div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+          <div>
+            <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">מחיר לסוחר חדש ₪</label>
+            <input id="editNewDealer" type="number" placeholder="למשל 150000" style="width:100%;padding:9px 12px;border:1.5px solid #e0e4ef;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;outline:none;box-sizing:border-box;" oninput="onEditPriceInput()" />
+          </div>
+          <div>
+            <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">מחירון חדש ₪</label>
+            <input id="editNewCatalog" type="number" placeholder="למשל 180000" style="width:100%;padding:9px 12px;border:1.5px solid #e0e4ef;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;outline:none;box-sizing:border-box;" />
+          </div>
+        </div>
+        <div id="editPriceMsg" style="font-size:13px;min-height:18px;margin-bottom:10px;"></div>
+        <button onclick="saveEditPriceAdmin()" style="background:#c9a227;color:#000;border:none;border-radius:8px;padding:10px 24px;font-size:14px;font-weight:900;font-family:Heebo,sans-serif;cursor:pointer;width:100%;">שמור שינויים</button>
+      </div>
     </div>
   </div>
 </div>
@@ -5302,9 +5485,43 @@ function showError(id, msg) {
     <div class="admin-title">🛡️ פאנל ניהול</div>
   </div>
   <div class="admin-body">
-    <div style="display:flex;gap:12px;flex-wrap:wrap;">
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px;">
       <button onclick="openAddCar()" style="background:#1a1a2e;color:#c9a227;border:1.5px solid #c9a227;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;font-family:Heebo,sans-serif;cursor:pointer;">➕ הוסף רכב ידנית</button>
       <button class="admin-btn" onclick="closeAdmin()" style="background:#1a3a7a">← חזור למלאי</button>
+    </div>
+
+    <div style="background:#fff;border:1px solid #e0e4ef;border-radius:14px;padding:20px;max-width:480px;">
+      <div style="font-size:14px;font-weight:700;color:#1a1a2e;margin-bottom:16px;">✏️ שינוי מחיר לרכב קיים</div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">בחר רכב</label>
+        <select id="editPriceSelect" onchange="onEditPriceSelect()" style="width:100%;padding:9px 12px;border:1.5px solid #e0e4ef;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;direction:rtl;color:#1a1a2e;outline:none;cursor:pointer;">
+          <option value="">— בחר רכב —</option>
+        </select>
+      </div>
+      <div id="editPriceFields" style="display:none;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+          <div>
+            <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">מחיר לסוחר (נוכחי)</label>
+            <div id="editCurrentDealer" style="font-size:15px;font-weight:700;color:#c9a227;padding:8px 0;"></div>
+          </div>
+          <div>
+            <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">מחירון (נוכחי)</label>
+            <div id="editCurrentCatalog" style="font-size:15px;font-weight:700;color:#555;padding:8px 0;"></div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+          <div>
+            <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">מחיר לסוחר חדש ₪</label>
+            <input id="editNewDealer" type="number" placeholder="למשל 150000" style="width:100%;padding:9px 12px;border:1.5px solid #e0e4ef;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;outline:none;box-sizing:border-box;" oninput="onEditPriceInput()" />
+          </div>
+          <div>
+            <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">מחירון חדש ₪</label>
+            <input id="editNewCatalog" type="number" placeholder="למשל 180000" style="width:100%;padding:9px 12px;border:1.5px solid #e0e4ef;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;outline:none;box-sizing:border-box;" />
+          </div>
+        </div>
+        <div id="editPriceMsg" style="font-size:13px;min-height:18px;margin-bottom:10px;"></div>
+        <button onclick="saveEditPriceAdmin()" style="background:#c9a227;color:#000;border:none;border-radius:8px;padding:10px 24px;font-size:14px;font-weight:900;font-family:Heebo,sans-serif;cursor:pointer;width:100%;">שמור שינויים</button>
+      </div>
     </div>
   </div>
 </div>
