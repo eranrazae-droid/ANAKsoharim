@@ -431,39 +431,6 @@ tbody td{padding:14px 16px;font-size:14px;vertical-align:middle}
     background: #c9a227; cursor: pointer; border: 2px solid #fff;
   }
 
-  .add-dealer-box {
-    background: #fff;
-    border: 1px solid #e0e4ef;
-    border-radius: 12px;
-    padding: 20px;
-    margin-bottom: 20px;
-    display: flex;
-    gap: 10px;
-    align-items: flex-end;
-    flex-wrap: wrap;
-  }
-  .add-dealer-box input {
-    flex: 1;
-    min-width: 180px;
-    padding: 10px 14px;
-    border: 1.5px solid #e0e4ef;
-    border-radius: 8px;
-    font-size: 15px;
-    font-family: 'Heebo', sans-serif;
-    color: #1a1a2e;
-    outline: none;
-    direction: ltr;
-  }
-  .add-dealer-box input:focus { border-color: #c9a227; }
-  .add-dealer-box input::placeholder { color: #bbb; direction: rtl; }
-  .add-dealer-label { font-size: 13px; font-weight: 700; color: #7a839a; width: 100%; }
-  .add-btn {
-    background: #c9a227; color: #000; border: none; border-radius: 8px;
-    padding: 10px 20px; font-size: 14px; font-weight: 900;
-    font-family: 'Heebo', sans-serif; cursor: pointer; white-space: nowrap;
-  }
-  .add-btn:hover { opacity: .88; }
-  .add-msg { font-size: 13px; margin-top: 4px; width: 100%; min-height: 18px; }
 
   .admin-period-bar {
     display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: center;
@@ -4015,7 +3982,6 @@ function saveEmail(phone, email) {
 }
 
 function saveNickname(p,n) { /* overridden */ }
-function addDealer() { /* overridden */ }
 
 
 function getModelName(car) {
@@ -4092,14 +4058,6 @@ function showError(id, msg) {
     </div>
     <div style="margin-bottom:12px;">
       <button onclick="openAddCar()" style="background:#1a1a2e;color:#c9a227;border:1.5px solid #c9a227;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;font-family:Heebo,sans-serif;cursor:pointer;">➕ הוסף רכב ידנית</button>
-    </div>
-    <div class="add-dealer-box">
-      <div class="add-dealer-label">הוספת סוחר חדש</div>
-      <input type="tel" id="newDealerPhone" placeholder="05X-XXX-XXXX" oninput="this.value=this.value.replace(/[^0-9\-\+]/g,'')" style="margin-bottom:8px;">
-      <input type="text" id="newDealerName" placeholder="שם הסוחר" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;margin-bottom:8px;direction:rtl;">
-      <input type="email" id="newDealerEmail" placeholder="מייל (אופציונלי)" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;margin-bottom:8px;direction:ltr;text-align:left;">
-      <button class="add-btn" onclick="addDealer()">+ הוסף סוחר</button>
-      <div class="add-msg" id="addMsg"></div>
     </div>
     <div class="admin-period-bar">
       <span style="font-size:13px;font-weight:700;color:#7a839a">תקופה:</span>
@@ -4352,43 +4310,6 @@ function field(label, value, cls) {
 
 
 
-function addDealer() {
-  var msg = document.getElementById('addMsg');
-  var name = (document.getElementById('newDealerName') || {}).value || '';
-  var email = (document.getElementById('newDealerEmail') || {}).value.trim().toLowerCase() || '';
-  var raw = document.getElementById('newDealerPhone').value.trim();
-  var phone = raw ? ('+972' + raw.replace(/[\s\-]/g, '').replace(/^0/, '').replace(/^\+972/, '')) : '';
-
-  if (!phone && !email) {
-    msg.style.color = '#e24b4a';
-    msg.textContent = 'חובה להכניס טלפון או מייל';
-    return;
-  }
-
-  // Use phone as doc ID if available, else email
-  var docId = (phone && phone.length >= 12) ? phone : email;
-  var data = { active: true, blocked: false, addedAt: new Date().toISOString() };
-  if (name.trim()) data.name = name.trim();
-  if (email) data.email = email;
-  if (phone && phone.length >= 12) data.phone = phone;
-
-  // Save to settings/dealers (writable) instead of dealers collection (read-only)
-  var safeKey = docId.replace(/[.#$[\]@+]/g, '_');
-  var settingsData = {};
-  settingsData[safeKey] = Object.assign({}, data, { docId: docId });
-  db.collection('settings').doc('newDealers').set(settingsData, { merge: true }).then(function() {
-    msg.style.color = '#059669';
-    msg.textContent = '✓ ' + (name || phone || email) + ' נוסף בהצלחה';
-    document.getElementById('newDealerPhone').value = '';
-    if (document.getElementById('newDealerName')) document.getElementById('newDealerName').value = '';
-    if (document.getElementById('newDealerEmail')) document.getElementById('newDealerEmail').value = '';
-    setTimeout(function() { msg.textContent = ''; }, 3000);
-    loadAdmin();
-  }).catch(function(err) {
-    msg.style.color = '#e24b4a';
-    msg.textContent = 'שגיאה: ' + err.message;
-  });
-}
 
 function blockUser(phone) {
   if (!confirm('לחסום את ' + phone + '?')) return;
@@ -4502,7 +4423,6 @@ function saveEmail(phone, email) {
 }
 
 function saveNickname(p,n) { /* overridden */ }
-function addDealer() { /* overridden */ }
 
 
 function getModelName(car) {
@@ -4579,14 +4499,6 @@ function showError(id, msg) {
     </div>
     <div style="margin-bottom:12px;">
       <button onclick="openAddCar()" style="background:#1a1a2e;color:#c9a227;border:1.5px solid #c9a227;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;font-family:Heebo,sans-serif;cursor:pointer;">➕ הוסף רכב ידנית</button>
-    </div>
-    <div class="add-dealer-box">
-      <div class="add-dealer-label">הוספת סוחר חדש</div>
-      <input type="tel" id="newDealerPhone" placeholder="05X-XXX-XXXX" oninput="this.value=this.value.replace(/[^0-9\-\+]/g,'')" style="margin-bottom:8px;">
-      <input type="text" id="newDealerName" placeholder="שם הסוחר" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;margin-bottom:8px;direction:rtl;">
-      <input type="email" id="newDealerEmail" placeholder="מייל (אופציונלי)" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;margin-bottom:8px;direction:ltr;text-align:left;">
-      <button class="add-btn" onclick="addDealer()">+ הוסף סוחר</button>
-      <div class="add-msg" id="addMsg"></div>
     </div>
     <div class="admin-period-bar">
       <span style="font-size:13px;font-weight:700;color:#7a839a">תקופה:</span>
@@ -4839,43 +4751,6 @@ function field(label, value, cls) {
 
 
 
-function addDealer() {
-  var msg = document.getElementById('addMsg');
-  var name = (document.getElementById('newDealerName') || {}).value || '';
-  var email = (document.getElementById('newDealerEmail') || {}).value.trim().toLowerCase() || '';
-  var raw = document.getElementById('newDealerPhone').value.trim();
-  var phone = raw ? ('+972' + raw.replace(/[\s\-]/g, '').replace(/^0/, '').replace(/^\+972/, '')) : '';
-
-  if (!phone && !email) {
-    msg.style.color = '#e24b4a';
-    msg.textContent = 'חובה להכניס טלפון או מייל';
-    return;
-  }
-
-  // Use phone as doc ID if available, else email
-  var docId = (phone && phone.length >= 12) ? phone : email;
-  var data = { active: true, blocked: false, addedAt: new Date().toISOString() };
-  if (name.trim()) data.name = name.trim();
-  if (email) data.email = email;
-  if (phone && phone.length >= 12) data.phone = phone;
-
-  // Save to settings/dealers (writable) instead of dealers collection (read-only)
-  var safeKey = docId.replace(/[.#$[\]@+]/g, '_');
-  var settingsData = {};
-  settingsData[safeKey] = Object.assign({}, data, { docId: docId });
-  db.collection('settings').doc('newDealers').set(settingsData, { merge: true }).then(function() {
-    msg.style.color = '#059669';
-    msg.textContent = '✓ ' + (name || phone || email) + ' נוסף בהצלחה';
-    document.getElementById('newDealerPhone').value = '';
-    if (document.getElementById('newDealerName')) document.getElementById('newDealerName').value = '';
-    if (document.getElementById('newDealerEmail')) document.getElementById('newDealerEmail').value = '';
-    setTimeout(function() { msg.textContent = ''; }, 3000);
-    loadAdmin();
-  }).catch(function(err) {
-    msg.style.color = '#e24b4a';
-    msg.textContent = 'שגיאה: ' + err.message;
-  });
-}
 
 function blockUser(phone) {
   if (!confirm('לחסום את ' + phone + '?')) return;
@@ -5002,7 +4877,6 @@ function saveEmail(phone, email) {
 }
 
 function saveNickname(p,n) { /* overridden */ }
-function addDealer() { /* overridden */ }
 
 
 function getModelName(car) {
@@ -5079,14 +4953,6 @@ function showError(id, msg) {
     </div>
     <div style="margin-bottom:12px;">
       <button onclick="openAddCar()" style="background:#1a1a2e;color:#c9a227;border:1.5px solid #c9a227;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;font-family:Heebo,sans-serif;cursor:pointer;">➕ הוסף רכב ידנית</button>
-    </div>
-    <div class="add-dealer-box">
-      <div class="add-dealer-label">הוספת סוחר חדש</div>
-      <input type="tel" id="newDealerPhone" placeholder="05X-XXX-XXXX" oninput="this.value=this.value.replace(/[^0-9\-\+]/g,'')" style="margin-bottom:8px;">
-      <input type="text" id="newDealerName" placeholder="שם הסוחר" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;margin-bottom:8px;direction:rtl;">
-      <input type="email" id="newDealerEmail" placeholder="מייל (אופציונלי)" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;margin-bottom:8px;direction:ltr;text-align:left;">
-      <button class="add-btn" onclick="addDealer()">+ הוסף סוחר</button>
-      <div class="add-msg" id="addMsg"></div>
     </div>
     <div class="admin-period-bar">
       <span style="font-size:13px;font-weight:700;color:#7a839a">תקופה:</span>
@@ -5339,43 +5205,6 @@ function field(label, value, cls) {
 
 
 
-function addDealer() {
-  var msg = document.getElementById('addMsg');
-  var name = (document.getElementById('newDealerName') || {}).value || '';
-  var email = (document.getElementById('newDealerEmail') || {}).value.trim().toLowerCase() || '';
-  var raw = document.getElementById('newDealerPhone').value.trim();
-  var phone = raw ? ('+972' + raw.replace(/[\s\-]/g, '').replace(/^0/, '').replace(/^\+972/, '')) : '';
-
-  if (!phone && !email) {
-    msg.style.color = '#e24b4a';
-    msg.textContent = 'חובה להכניס טלפון או מייל';
-    return;
-  }
-
-  // Use phone as doc ID if available, else email
-  var docId = (phone && phone.length >= 12) ? phone : email;
-  var data = { active: true, blocked: false, addedAt: new Date().toISOString() };
-  if (name.trim()) data.name = name.trim();
-  if (email) data.email = email;
-  if (phone && phone.length >= 12) data.phone = phone;
-
-  // Save to settings/dealers (writable) instead of dealers collection (read-only)
-  var safeKey = docId.replace(/[.#$[\]@+]/g, '_');
-  var settingsData = {};
-  settingsData[safeKey] = Object.assign({}, data, { docId: docId });
-  db.collection('settings').doc('newDealers').set(settingsData, { merge: true }).then(function() {
-    msg.style.color = '#059669';
-    msg.textContent = '✓ ' + (name || phone || email) + ' נוסף בהצלחה';
-    document.getElementById('newDealerPhone').value = '';
-    if (document.getElementById('newDealerName')) document.getElementById('newDealerName').value = '';
-    if (document.getElementById('newDealerEmail')) document.getElementById('newDealerEmail').value = '';
-    setTimeout(function() { msg.textContent = ''; }, 3000);
-    loadAdmin();
-  }).catch(function(err) {
-    msg.style.color = '#e24b4a';
-    msg.textContent = 'שגיאה: ' + err.message;
-  });
-}
 
 function blockUser(phone) {
   if (!confirm('לחסום את ' + phone + '?')) return;
@@ -5489,7 +5318,6 @@ function saveEmail(phone, email) {
 }
 
 function saveNickname(p,n) { /* overridden */ }
-function addDealer() { /* overridden */ }
 
 
 function getModelName(car) {
@@ -5566,14 +5394,6 @@ function showError(id, msg) {
     </div>
     <div style="margin-bottom:12px;">
       <button onclick="openAddCar()" style="background:#1a1a2e;color:#c9a227;border:1.5px solid #c9a227;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;font-family:Heebo,sans-serif;cursor:pointer;">➕ הוסף רכב ידנית</button>
-    </div>
-    <div class="add-dealer-box">
-      <div class="add-dealer-label">הוספת סוחר חדש</div>
-      <input type="tel" id="newDealerPhone" placeholder="05X-XXX-XXXX" oninput="this.value=this.value.replace(/[^0-9\-\+]/g,'')" style="margin-bottom:8px;">
-      <input type="text" id="newDealerName" placeholder="שם הסוחר" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;margin-bottom:8px;direction:rtl;">
-      <input type="email" id="newDealerEmail" placeholder="מייל (אופציונלי)" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;margin-bottom:8px;direction:ltr;text-align:left;">
-      <button class="add-btn" onclick="addDealer()">+ הוסף סוחר</button>
-      <div class="add-msg" id="addMsg"></div>
     </div>
     <div class="admin-period-bar">
       <span style="font-size:13px;font-weight:700;color:#7a839a">תקופה:</span>
@@ -5826,43 +5646,6 @@ function field(label, value, cls) {
 
 
 
-function addDealer() {
-  var msg = document.getElementById('addMsg');
-  var name = (document.getElementById('newDealerName') || {}).value || '';
-  var email = (document.getElementById('newDealerEmail') || {}).value.trim().toLowerCase() || '';
-  var raw = document.getElementById('newDealerPhone').value.trim();
-  var phone = raw ? ('+972' + raw.replace(/[\s\-]/g, '').replace(/^0/, '').replace(/^\+972/, '')) : '';
-
-  if (!phone && !email) {
-    msg.style.color = '#e24b4a';
-    msg.textContent = 'חובה להכניס טלפון או מייל';
-    return;
-  }
-
-  // Use phone as doc ID if available, else email
-  var docId = (phone && phone.length >= 12) ? phone : email;
-  var data = { active: true, blocked: false, addedAt: new Date().toISOString() };
-  if (name.trim()) data.name = name.trim();
-  if (email) data.email = email;
-  if (phone && phone.length >= 12) data.phone = phone;
-
-  // Save to settings/dealers (writable) instead of dealers collection (read-only)
-  var safeKey = docId.replace(/[.#$[\]@+]/g, '_');
-  var settingsData = {};
-  settingsData[safeKey] = Object.assign({}, data, { docId: docId });
-  db.collection('settings').doc('newDealers').set(settingsData, { merge: true }).then(function() {
-    msg.style.color = '#059669';
-    msg.textContent = '✓ ' + (name || phone || email) + ' נוסף בהצלחה';
-    document.getElementById('newDealerPhone').value = '';
-    if (document.getElementById('newDealerName')) document.getElementById('newDealerName').value = '';
-    if (document.getElementById('newDealerEmail')) document.getElementById('newDealerEmail').value = '';
-    setTimeout(function() { msg.textContent = ''; }, 3000);
-    loadAdmin();
-  }).catch(function(err) {
-    msg.style.color = '#e24b4a';
-    msg.textContent = 'שגיאה: ' + err.message;
-  });
-}
 
 function blockUser(phone) {
   if (!confirm('לחסום את ' + phone + '?')) return;
