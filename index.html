@@ -2806,7 +2806,7 @@ function loadDevices() {
 
 function loadCarOverrides(cb) {
   if (window.db) {
-    loadManualCars();
+    var p0 = new Promise(function(res) { loadManualCars(res); });
     loadPriceOverrides();
     var p1 = window.db.collection('settings').doc('carOverrides').get().then(function(doc) {
       if (doc.exists) carOverrides = doc.data();
@@ -2829,8 +2829,8 @@ function loadCarOverrides(cb) {
         });
       }
     }).catch(function() {});
-    var timeout = new Promise(function(res) { setTimeout(res, 5000); });
-    Promise.race([Promise.all([p1, p2, p3]), timeout]).then(function() { if (cb) cb(); }).catch(function() { if (cb) cb(); });
+    var timeout = new Promise(function(res) { setTimeout(res, 6000); });
+    Promise.race([Promise.all([p0, p1, p2, p3]), timeout]).then(function() { if (cb) cb(); }).catch(function() { if (cb) cb(); });
   } else { if (cb) cb(); }
 }
 
