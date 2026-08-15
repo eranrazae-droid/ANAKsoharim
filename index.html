@@ -5885,26 +5885,24 @@ function resetDevice(phone) {
   });
 }
 
-var _manualCarsLoaded = false;
 function openAdmin() {
   document.getElementById('appContent').style.display = 'none';
   var panel = document.getElementById('adminPanel');
   if (!panel) return;
   panel.style.display = 'block';
   try { loadAdmin(); } catch(e) {}
-  if (_manualCarsLoaded) { populateEditPriceSelect(); return; }
+  populateEditPriceSelect();
   if (window.db) {
     window.db.collection('settings').doc('manualCars').get().then(function(doc) {
-      if (doc.exists && doc.data().list) manualCars = doc.data().list;
-      _manualCarsLoaded = true;
+      if (doc.exists && doc.data().list) {
+        var fromDb = doc.data().list;
+        if (fromDb.length >= manualCars.length) manualCars = fromDb;
+      }
       var sel = document.getElementById('editBrandSelect');
       var prevBrand = sel ? sel.value : '';
       populateEditPriceSelect();
       if (prevBrand && sel) { sel.value = prevBrand; onEditBrandSelect(); }
-    }).catch(function() { _manualCarsLoaded = true; populateEditPriceSelect(); });
-  } else {
-    _manualCarsLoaded = true;
-    populateEditPriceSelect();
+    }).catch(function() { populateEditPriceSelect(); });
   }
 }
 
