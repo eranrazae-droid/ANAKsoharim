@@ -762,6 +762,7 @@ var cars = [
   {brand:'קיה',model:'SPORTAGE EX HEV',fuel:'HEV',catalog:198686,dealer:187000,discount:12686},
   {brand:'קיי גי מוביליט',model:'TORRES PREMIUM 1.5 HEV',fuel:'HEV',catalog:182350,dealer:172000,discount:11350}
 ];
+window._staticCars = cars;
 
 function fmt(n) {
   if (!n && n !== 0) return '';
@@ -3991,11 +3992,13 @@ function loadAdmin() { /* overridden by admin script */ }
 function populateEditPriceSelect() {
   var sel = document.getElementById('editPriceSelect');
   if (!sel) return;
-  var allCars = cars.concat(manualCars);
+  var baseCars = window._staticCars || cars || [];
+  var extraCars = (typeof manualCars !== 'undefined' ? manualCars : []) || [];
+  var allCars = baseCars.concat(extraCars);
   sel.innerHTML = '<option value="">— בחר רכב —</option>';
   allCars.forEach(function(c, i) {
     var opt = document.createElement('option');
-    opt.value = i < cars.length ? ('c:' + i) : ('m:' + (i - cars.length));
+    opt.value = i < baseCars.length ? ('c:' + i) : ('m:' + (i - baseCars.length));
     opt.textContent = c.brand + ' — ' + c.model;
     sel.appendChild(opt);
   });
@@ -4007,7 +4010,9 @@ function onEditPriceSelect() {
   var val = sel.value;
   if (!val) { fields.style.display = 'none'; return; }
   var parts = val.split(':');
-  var car = parts[0] === 'c' ? cars[+parts[1]] : manualCars[+parts[1]];
+  var baseCars = window._staticCars || cars || [];
+  var extraCars = (typeof manualCars !== 'undefined' ? manualCars : []) || [];
+  var car = parts[0] === 'c' ? baseCars[+parts[1]] : extraCars[+parts[1]];
   if (!car) { fields.style.display = 'none'; return; }
   fields.style.display = 'block';
   document.getElementById('editCurrentDealer').textContent = fmt(car.dealer) + ' ₪';
@@ -4040,7 +4045,9 @@ function saveEditPriceAdmin() {
     return;
   }
   var parts = val.split(':');
-  var car = parts[0] === 'c' ? cars[+parts[1]] : manualCars[+parts[1]];
+  var baseCars2 = window._staticCars || cars || [];
+  var extraCars2 = (typeof manualCars !== 'undefined' ? manualCars : []) || [];
+  var car = parts[0] === 'c' ? baseCars2[+parts[1]] : extraCars2[+parts[1]];
   if (!car) return;
   var key = car.brand + '||' + car.model;
   car.dealer = newDealer;
