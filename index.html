@@ -3894,6 +3894,16 @@ function showApp(user) {
   if (!user) user = window._tokenUser || {};
   _hideLoading();
   document.getElementById('authScreen').style.display = 'none';
+  if (!user) user = auth.currentUser;
+  var loginUser = (window._bypassUser && window._bypassUser.phoneNumber) ? window._bypassUser : user;
+  var phone = (loginUser && loginUser.phoneNumber) ? loginUser.phoneNumber : '';
+  if (phone === '+972544214850' || window.isAdmin || (window._bypassUser && window._bypassUser.phoneNumber === '+972544214850')) {
+    window.isAdmin = true;
+    if (window._adminMode) { openAdmin(); return; }
+  } else if (window._adminMode) {
+    alert('גישה לאדמין מותרת למורשים בלבד.');
+    return;
+  }
   document.getElementById('appContent').style.display = 'block';
   startInactivityWatch();
   filterAndRender();
@@ -3903,16 +3913,6 @@ function showApp(user) {
   } catch(e) { console.error('loadCarOverrides error:', e); }
   // Fallback: re-render after 3s in case Firestore is slow
   setTimeout(function() { filterAndRender(); }, 3000);
-  if (!user) user = auth.currentUser;
-  var loginUser = (window._bypassUser && window._bypassUser.phoneNumber) ? window._bypassUser : user;
-  var phone = (loginUser && loginUser.phoneNumber) ? loginUser.phoneNumber : '';
-  if (phone === '+972544214850' || window.isAdmin || (window._bypassUser && window._bypassUser.phoneNumber === '+972544214850')) {
-    window.isAdmin = true;
-    if (window._adminMode) { showAdmin(); return; }
-  } else if (window._adminMode) {
-    alert('גישה לאדמין מותרת למורשים בלבד.');
-    return;
-  }
   if (window._bypassUser && window._bypassUser.phoneNumber) {
     logLogin(window._bypassUser);
   }
@@ -3959,6 +3959,7 @@ function resetDevice(phone) {
 }
 
 function openAdmin() {
+  document.getElementById('appContent').style.display = 'none';
   var panel = document.getElementById('adminPanel');
   if (panel) { panel.style.display = 'block'; loadAdmin(); }
 }
@@ -4391,6 +4392,7 @@ function resetAllStock() {
 
 
 function openAdmin() {
+  document.getElementById('appContent').style.display = 'none';
   var panel = document.getElementById('adminPanel');
   if (panel) { panel.style.display = 'block'; loadAdmin(); }
 }
@@ -4836,6 +4838,7 @@ function resetDevice(phone) {
 }
 
 function openAdmin() {
+  document.getElementById('appContent').style.display = 'none';
   var panel = document.getElementById('adminPanel');
   if (panel) { panel.style.display = 'block'; loadAdmin(); }
 }
@@ -5268,6 +5271,7 @@ function resetAllStock() {
 
 
 function openAdmin() {
+  document.getElementById('appContent').style.display = 'none';
   var panel = document.getElementById('adminPanel');
   if (panel) { panel.style.display = 'block'; loadAdmin(); }
 }
