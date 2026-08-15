@@ -8699,7 +8699,10 @@ function _bshopListen(onChange) {
   // they are simply not fetched, so the screens stay fast however many notes
   // pile up over the years.
   _bshopUnsubJobs = _onSnap(_query(_colRef('bodyshop_jobs'), _where('paidAt', '==', null)), snap => {
-    _bshopJobs = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(j => !j.paidAt);
+    _bshopJobs = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(j => !j.paidAt)
+      // החדש למעלה בכל המסכים. פתק ישן בלי createdAt יורד לסוף במקום
+      // לקפוץ לראש.
+      .sort((a, b) => (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0));
     onChange();
   }, err => {
     console.error('bodyshop jobs listen error:', err);
