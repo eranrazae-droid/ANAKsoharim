@@ -2000,6 +2000,7 @@ function restoreCars() {
 
 var carOverrides = {};
 var stockStatus = {};
+var hiddenCars = {};
 
 var USED_CARS = [
   {plate:42336403,brand:'מיצובישי',model:'ספייס סטאר',submodel:"SUPREME 1200 הצ'בק אוטומטי בנזין 5 דלתות 4*2 5 מושבים",year:2023,hand:1,source:'פרטי',km:26200,color:'שחור',test:'02/05/2027',priceList:67800,salePrice:52000,discount:11800},
@@ -2585,7 +2586,7 @@ function updateBrandBar() {
 function filterAndRender() {
   updateBrandBar();
   var allCars = cars.concat(manualCars);
-  var data = allCars.filter(function(c) { return removedCars.indexOf(c.brand+'||'+c.model) < 0; });
+  var data = allCars.filter(function(c) { return removedCars.indexOf(c.brand+'||'+c.model) < 0 && !hiddenCars[c.brand+'||'+c.model]; });
   if (currentBrand !== 'all') data = data.filter(function(c) { return c.brand.indexOf(currentBrand) === 0; });
   if (maxCatalog < 400000) data = data.filter(function(c) { return c.catalog <= maxCatalog; });
   if (maxMonthly < 4000) data = data.filter(function(c) { return pmt(c.catalog) <= maxMonthly; });
@@ -2861,8 +2862,11 @@ function loadCarOverrides(cb) {
         });
       }
     }).catch(function() {});
+    var p4 = window.db.collection('settings').doc('hiddenCars').get().then(function(doc) {
+      if (doc.exists) { hiddenCars = doc.data() || {}; }
+    }).catch(function() {});
     var timeout = new Promise(function(res) { setTimeout(res, 6000); });
-    Promise.race([Promise.all([p0, p1, p2, p3]), timeout]).then(function() { if (cb) cb(); }).catch(function() { if (cb) cb(); });
+    Promise.race([Promise.all([p0, p1, p2, p3, p4]), timeout]).then(function() { if (cb) cb(); }).catch(function() { if (cb) cb(); });
   } else { if (cb) cb(); }
 }
 
@@ -4082,11 +4086,48 @@ function onEditBrandSelect() {
     html += '</div>';
     html += '<div style="margin-bottom:8px;"><label style="font-size:11px;color:#7a839a;display:block;margin-bottom:3px;">הערה</label><input id="note_' + sk + '" type="text" placeholder="הערה אופציונלית..." style="' + inp + 'direction:rtl;"></div>';
     html += '<div id="msg_' + sk + '" style="font-size:12px;min-height:16px;margin-bottom:6px;"></div>';
+    var carKey2 = c.brand + '||' + c.model;
+    var isHidden = hiddenCars[carKey2];
+    html += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">';
     html += '<button onclick="saveCarPrice(\'' + item.key + '\')" style="background:#c9a227;color:#000;border:none;border-radius:7px;padding:8px 20px;font-size:13px;font-weight:900;font-family:Heebo,sans-serif;cursor:pointer;">שמור</button>';
+    html += '<button onclick="toggleCarVisibility(\'' + item.key + '\')" style="background:' + (isHidden ? '#e0e4ef' : '#e8f5e9') + ';color:' + (isHidden ? '#7a839a' : '#1b7a3e') + ';border:1px solid ' + (isHidden ? '#ccc' : '#a5d6a7') + ';border-radius:7px;padding:8px 14px;font-size:13px;font-weight:700;font-family:Heebo,sans-serif;cursor:pointer;">' + (isHidden ? '🚫 מוסתר' : '✅ מוצג') + '</button>';
+    html += '<button onclick="deleteAdminCar(\'' + item.key + '\')" style="background:#fff0f0;color:#e24b4a;border:1px solid #f5c6c6;border-radius:7px;padding:8px 14px;font-size:13px;font-weight:700;font-family:Heebo,sans-serif;cursor:pointer;">🗑️ מחק</button>';
+    html += '</div>';
     html += '</div>';
   });
   grid.innerHTML = html;
   grid.style.display = 'block';
+}
+
+function saveHiddenCars() {
+  if (!window.db) return;
+  window.db.collection('settings').doc('hiddenCars').set(hiddenCars).catch(function() {});
+}
+
+function toggleCarVisibility(carKey) {
+  var parts = carKey.split(':');
+  var car = parts[0] === 'c' ? (window._staticCars || cars)[+parts[1]] : manualCars[+parts[1]];
+  if (!car) return;
+  var key = car.brand + '||' + car.model;
+  if (hiddenCars[key]) { delete hiddenCars[key]; } else { hiddenCars[key] = true; }
+  saveHiddenCars();
+  onEditBrandSelect();
+}
+
+function deleteAdminCar(carKey) {
+  var parts = carKey.split(':');
+  var car = parts[0] === 'c' ? (window._staticCars || cars)[+parts[1]] : manualCars[+parts[1]];
+  if (!car) return;
+  if (!confirm('למחוק את ' + car.model + '?')) return;
+  if (parts[0] === 'm') {
+    manualCars.splice(+parts[1], 1);
+    saveManualCarsToDb();
+  } else {
+    hiddenCars[car.brand + '||' + car.model] = true;
+    saveHiddenCars();
+  }
+  onEditBrandSelect();
+  populateEditPriceSelect();
 }
 
 function editCarName(carKey) {
