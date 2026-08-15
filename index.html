@@ -4006,7 +4006,7 @@ function populateEditPriceSelect() {
   var extraCars = (typeof manualCars !== 'undefined' ? manualCars : []) || [];
   var allCars = baseCars.concat(extraCars);
   var brands = [];
-  allCars.forEach(function(c) { if (brands.indexOf(c.brand) === -1) brands.push(c.brand); });
+  allCars.forEach(function(c) { var b = (c.brand || '').trim(); if (b && brands.indexOf(b) === -1) brands.push(b); });
   sel.innerHTML = '<option value="">— בחר יצרן —</option>';
   brands.forEach(function(b) {
     var opt = document.createElement('option');
@@ -4030,7 +4030,8 @@ function onEditBrandSelect() {
   var extraCars = (typeof manualCars !== 'undefined' ? manualCars : []) || [];
   var indexed = baseCars.map(function(c, i) { return {car: c, key: 'c:' + i}; })
     .concat(extraCars.map(function(c, i) { return {car: c, key: 'm:' + i}; }));
-  var brandCars = indexed.filter(function(item) { return item.car.brand === brand; });
+  var brandNorm = brand.trim();
+  var brandCars = indexed.filter(function(item) { return (item.car.brand || '').trim() === brandNorm; });
   if (countEl) { countEl.textContent = brand + ': ' + brandCars.length + ' דגמים'; countEl.style.display = 'block'; }
   var inp = 'width:100%;padding:7px 10px;border:1.5px solid #e0e4ef;border-radius:7px;font-family:Heebo,sans-serif;font-size:13px;outline:none;box-sizing:border-box;';
   var html = '';
