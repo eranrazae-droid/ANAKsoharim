@@ -2977,8 +2977,14 @@ function checkVersion() {
 
 window.addEventListener('load', function() {
   loadDevices();
-  // Open app immediately for all visitors
-  showApp({});
+  // If ?admin in URL: show login screen (admin only). Otherwise open app for all.
+  if (new URLSearchParams(window.location.search).has('admin')) {
+    document.getElementById('authScreen').style.display = 'flex';
+    document.getElementById('appContent').style.display = 'none';
+    window._adminMode = true;
+  } else {
+    showApp({});
+  }
   // If token login URL, sign out first and force token verification
   if (new URLSearchParams(window.location.search).get('t')) {
     auth.signOut().then(function() {
@@ -3905,6 +3911,10 @@ function showApp(user) {
   if (phone === '+972544214850' || window.isAdmin || (window._bypassUser && window._bypassUser.phoneNumber === '+972544214850')) {
     document.getElementById('adminBtn').style.display = 'block';
     window.isAdmin = true;
+    if (window._adminMode) { showAdmin(); return; }
+  } else if (window._adminMode) {
+    alert('גישה לאדמין מותרת למורשים בלבד.');
+    return;
   }
   if (window._bypassUser && window._bypassUser.phoneNumber) {
     logLogin(window._bypassUser);
