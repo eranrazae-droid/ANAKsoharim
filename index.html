@@ -4127,8 +4127,9 @@ function saveCarPrice(carKey) {
   var newDealer = parseInt(ndEl ? ndEl.value : '');
   var newCatalog = parseInt(ncEl ? ncEl.value : '');
   var note = noteEl ? noteEl.value.trim() : '';
-  if (!newDealer || isNaN(newDealer)) {
-    if (msgEl) { msgEl.style.color = '#e24b4a'; msgEl.textContent = 'יש להכניס מחיר תקין'; }
+  var hasPrice = newDealer && !isNaN(newDealer);
+  if (!hasPrice && !note) {
+    if (msgEl) { msgEl.style.color = '#e24b4a'; msgEl.textContent = 'יש להכניס מחיר או הערה'; }
     return;
   }
   var parts = carKey.split(':');
@@ -4137,14 +4138,16 @@ function saveCarPrice(carKey) {
   var car = parts[0] === 'c' ? baseCars2[+parts[1]] : extraCars2[+parts[1]];
   if (!car) return;
   var key = car.brand + '||' + car.model;
-  car.dealer = newDealer;
-  if (newCatalog && !isNaN(newCatalog)) { car.catalog = newCatalog; car.discount = newCatalog - newDealer; }
-  else { car.discount = car.catalog - newDealer; }
-  if (parts[0] === 'm') saveManualCarsToDb();
   var san = function(s) { return s.replace(/[^a-zA-Z0-9א-ת]/g, '_'); };
   var update = {};
-  update['price_' + san(key)] = newDealer;
-  if (newCatalog && !isNaN(newCatalog)) update['catalog_' + san(key)] = newCatalog;
+  if (hasPrice) {
+    car.dealer = newDealer;
+    if (newCatalog && !isNaN(newCatalog)) { car.catalog = newCatalog; car.discount = newCatalog - newDealer; }
+    else { car.discount = car.catalog - newDealer; }
+    if (parts[0] === 'm') saveManualCarsToDb();
+    update['price_' + san(key)] = newDealer;
+    if (newCatalog && !isNaN(newCatalog)) update['catalog_' + san(key)] = newCatalog;
+  }
   if (note) update['note_' + san(key)] = note;
   if (window.db) {
     window.db.collection('settings').doc('priceOverrides').set(update, {merge: true})
