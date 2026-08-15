@@ -1361,31 +1361,49 @@ const BACKUP_DATABASE = "default";
 const BACKUP_PREFIX = "firestore-backups";
 const BACKUP_KEEP_DAYS = 56;   // שמונה שבועות
 
-// שם הדלי נלקח מהגדרות הפרויקט עצמן (FIREBASE_CONFIG שנטען אוטומטית
-// בענן), ולא מנוחש. פרויקטים ישנים משתמשים ב-appspot.com וחדשים ב-
-// firebasestorage.app, ולכן ניחוש היה נכשל על חצי מהמקרים.
-function _backupBucketName() {
+// Firestore מייצא רק לדלי שנמצא באותו אזור כמו מסד הנתונים. המסד כאן
+// יושב ב-me-west1 (ישראל), בעוד דלי ברירת המחדל של Firebase נוצר
+// ב-europe-west1 — ולכן נדרש דלי ייעודי לגיבוי, באזור הנכון.
+const BACKUP_DB_LOCATION = "me-west1";
+const BACKUP_BUCKET_DEFAULT = `${BACKUP_PROJECT}-backups`;
+
+// אפשר לעקוף את שם הדלי דרך config/backup בלי פריסה מחדש
+async function _backupBucketName() {
   try {
-    const cfg = JSON.parse(process.env.FIREBASE_CONFIG || "{}");
-    if (cfg.storageBucket) return cfg.storageBucket;
+    const snap = await db.collection("config").doc("backup").get();
+    const name = snap.exists ? (snap.data().bucket || "") : "";
+    if (name) return String(name).trim();
   } catch (err) { /* נופלים לברירת המחדל */ }
-  return `${BACKUP_PROJECT}.appspot.com`;
+  return BACKUP_BUCKET_DEFAULT;
 }
 
-// מוודא שהדלי באמת קיים לפני הייצוא, כדי ששגיאה על דלי חסר לא תיראה
-// כמו שגיאת הרשאה
+// מוודא שהדלי קיים ושהוא באזור הנכון, כדי ששתי התקלות האלה לא ייראו
+// כמו שגיאת הרשאה סתומה
 async function _assertBucket(name) {
-  const [exists] = await getStorage().bucket(name).exists();
+  const bucket = getStorage().bucket(name);
+  const [exists] = await bucket.exists();
   if (!exists) {
     throw new Error(
-      `דלי האחסון ${name} לא קיים. יש להפעיל Storage פעם אחת בקונסולת Firebase ` +
-      `(Build → Storage → Get started), ואז להריץ את הגיבוי שוב.`);
+      `דלי הגיבוי ${name} לא קיים. יש ליצור אותו פעם אחת ב-Cloud Storage ` +
+      `בשם המדויק "${name}" ובאזור ${BACKUP_DB_LOCATION}, ואז להריץ שוב.`);
+  }
+  try {
+    const [meta] = await bucket.getMetadata();
+    const loc = String(meta.location || "").toLowerCase();
+    if (loc && loc !== BACKUP_DB_LOCATION) {
+      throw new Error(
+        `דלי הגיבוי ${name} נמצא באזור ${loc}, אבל מסד הנתונים דורש ${BACKUP_DB_LOCATION}. ` +
+        `אי אפשר לשנות אזור של דלי קיים — צריך ליצור דלי חדש באזור ${BACKUP_DB_LOCATION}.`);
+    }
+  } catch (err) {
+    if (err.message && err.message.includes("אזור")) throw err;
+    // כשל בקריאת המטא-דאטה אינו סיבה לעצור — הייצוא עצמו יאמת ממילא
   }
 }
 
 async function _runFirestoreBackup() {
   const dateTag = new Date().toISOString().slice(0, 10);   // YYYY-MM-DD
-  const bucketName = _backupBucketName();
+  const bucketName = await _backupBucketName();
   await _assertBucket(bucketName);
   const outputUriPrefix = `gs://${bucketName}/${BACKUP_PREFIX}/${dateTag}`;
   const auth = new google.auth.GoogleAuth({
@@ -1400,7 +1418,7 @@ async function _runFirestoreBackup() {
 
 // מוחק תיקיות גיבוי ישנות משמונה שבועות
 async function _cleanOldBackups() {
-  const bucket = getStorage().bucket(_backupBucketName());
+  const bucket = getStorage().bucket(await _backupBucketName());
   const [files] = await bucket.getFiles({ prefix: `${BACKUP_PREFIX}/` });
   const cutoff = Date.now() - BACKUP_KEEP_DAYS * 86400000;
   const dateRe = new RegExp(`^${BACKUP_PREFIX}/(\\d{4}-\\d{2}-\\d{2})/`);
