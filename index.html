@@ -5862,8 +5862,17 @@ function resetDevice(phone) {
 }
 
 function openAdmin() {
-  document.getElementById('adminPanel').style.display = 'block';
-  loadAdmin();
+  document.getElementById('appContent').style.display = 'none';
+  var panel = document.getElementById('adminPanel');
+  if (!panel) return;
+  panel.style.display = 'block';
+  populateEditPriceSelect();
+  try { loadAdmin(); } catch(e) {}
+  if (window.db) {
+    window.db.collection('settings').doc('manualCars').get().then(function(doc) {
+      if (doc.exists && doc.data().list) { manualCars = doc.data().list; populateEditPriceSelect(); }
+    }).catch(function(){});
+  }
 }
 
 function closeAdmin() {
