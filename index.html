@@ -5891,18 +5891,24 @@ function openAdmin() {
   if (!panel) return;
   panel.style.display = 'block';
   try { loadAdmin(); } catch(e) {}
-  populateEditPriceSelect();
+  var sel = document.getElementById('editBrandSelect');
+  if (sel) { sel.disabled = true; sel.style.opacity = '0.5'; }
+  var totalEl = document.getElementById('adminTotalCount');
+  if (totalEl) totalEl.textContent = 'טוען...';
   if (window.db) {
     window.db.collection('settings').doc('manualCars').get().then(function(doc) {
-      if (doc.exists && doc.data().list) {
-        var fromDb = doc.data().list;
-        if (fromDb.length >= manualCars.length) manualCars = fromDb;
-      }
-      var sel = document.getElementById('editBrandSelect');
-      var prevBrand = sel ? sel.value : '';
+      if (doc.exists && doc.data().list) { manualCars = doc.data().list; }
+      var s = document.getElementById('editBrandSelect');
+      if (s) { s.disabled = false; s.style.opacity = '1'; }
       populateEditPriceSelect();
-      if (prevBrand && sel) { sel.value = prevBrand; onEditBrandSelect(); }
-    }).catch(function() { populateEditPriceSelect(); });
+    }).catch(function() {
+      var s = document.getElementById('editBrandSelect');
+      if (s) { s.disabled = false; s.style.opacity = '1'; }
+      populateEditPriceSelect();
+    });
+  } else {
+    if (sel) { sel.disabled = false; sel.style.opacity = '1'; }
+    populateEditPriceSelect();
   }
 }
 
