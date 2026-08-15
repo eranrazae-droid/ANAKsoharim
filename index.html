@@ -2589,8 +2589,10 @@ function filterAndRender() {
       var isChecked = compareList.some(function(x) { return (x.brand+'||'+x.model) === (c.brand+'||'+c.model); });
       rows += '<tr>';
       rows += '<td><input type="checkbox" class="compare-chk" ' + (isChecked?'checked':'') + ' onchange="toggleCompare(' + i + ',this)" style="width:16px;height:16px;accent-color:#c9a227;cursor:pointer"></td>';
+      var _noteKey = (c.brand + '||' + c.model).replace(/[^a-zA-Z0-9א-ת]/g, '_');
+      var _note = carNotes[_noteKey] || '';
       rows += '<td class="col-brand">' + c.brand + '</td>';
-      rows += '<td class="col-model">' + getModelName(c) + (window.isAdmin ? ' <button class="edit-model-btn" onclick="openEditModal(this.getAttribute(\'data-key\'))" data-key="' + c.brand + '||' + c.model + '||' + c.dealer + '" title="עריכה">✏️</button>' : '') + '</td>';
+      rows += '<td class="col-model">' + getModelName(c) + (window.isAdmin ? ' <button class="edit-model-btn" onclick="openEditModal(this.getAttribute(\'data-key\'))" data-key="' + c.brand + '||' + c.model + '||' + c.dealer + '" title="עריכה">✏️</button>' : '') + (_note ? '<div style="font-size:11px;color:#c9a227;font-weight:600;margin-top:2px;">' + _note + '</div>' : '') + '</td>';
       rows += '<td><span class="fuel-badge ' + fuelClass(c.fuel) + '">' + c.fuel + '</span></td>';
       rows += '<td><div class="col-catalog">' + fmt(c.catalog) + '</div></td>';
       var carKey = (c.brand + '||' + c.model).replace(/[^a-zA-Z0-9א-ת|]/g, '_');
@@ -2618,7 +2620,9 @@ function filterAndRender() {
     var disabled = '';
     var btnTxt = ' להזמנה';
     cards += '<div class="mc">';
-    cards += '<div class="mc-top"><div><div class="mc-brand">' + c.brand + '</div><div class="mc-model">' + getModelName(c) + '</div></div>';
+    var _noteKeyM = (c.brand + '||' + c.model).replace(/[^a-zA-Z0-9א-ת]/g, '_');
+    var _noteM = carNotes[_noteKeyM] || '';
+    cards += '<div class="mc-top"><div><div class="mc-brand">' + c.brand + '</div><div class="mc-model">' + getModelName(c) + '</div>' + (_noteM ? '<div style="font-size:11px;color:#c9a227;font-weight:600;margin-top:2px;">' + _noteM + '</div>' : '') + '</div>';
     cards += '<span class="fuel-badge ' + fuelClass(c.fuel) + '">' + c.fuel + '</span></div>';
     cards += '<div class="mc-grid">';
     cards += '<div class="mc-box"><div class="mc-box-label">מחירון כולל רישוי</div><div class="mc-box-val catalog" style="white-space:nowrap">' + fmt(c.catalog) + '</div></div>';
@@ -3371,6 +3375,7 @@ function saveManualCarsToDb() {
 
 // carPriceOverrides: brand||model -> {dealer, discount}
 var carPriceOverrides = {};
+var carNotes = {};
 
 function openEditPrice(e, key, currentDealer) {
   e.stopPropagation();
@@ -3419,7 +3424,12 @@ function loadPriceOverrides(cb) {
   window.db.collection('settings').doc('priceOverrides').get().then(function(doc) {
     if (doc.exists) {
       var raw = doc.data();
+      carNotes = {};
       Object.keys(raw).forEach(function(safeKey) {
+        if (safeKey.indexOf('note_') === 0 && typeof raw[safeKey] === 'string') {
+          carNotes[safeKey.slice(5)] = raw[safeKey];
+          return;
+        }
         var price = raw[safeKey];
         if (typeof price !== 'number') return;
         var allCars = cars.concat(manualCars);
