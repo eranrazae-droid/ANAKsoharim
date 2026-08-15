@@ -547,7 +547,18 @@ tbody td{padding:14px 16px;font-size:14px;vertical-align:middle}
       <input class="auth-input" type="tel" id="phoneInput" placeholder="05X-XXX-XXXX" inputmode="numeric" onkeydown="if(event.key==='Enter')sendCode()" />
       <button class="auth-btn" id="sendBtn" onclick="sendCode()">שלח קוד</button>
       <div class="auth-error" id="error1"></div>
-      <div style="text-align:center;margin-top:16px;"><span onclick="adminPinLogin()" style="font-size:13px;color:rgba(255,255,255,0.6);cursor:pointer;font-family:Heebo,sans-serif;text-decoration:underline;">כניסת מנהל</span></div>
+      <div style="text-align:center;margin-top:16px;"><span onclick="showAdminPinStep()" style="font-size:13px;color:rgba(255,255,255,0.6);cursor:pointer;font-family:Heebo,sans-serif;text-decoration:underline;">כניסת מנהל</span></div>
+    </div>
+
+    <div class="auth-step" id="stepAdminPin">
+      <div style="font-size:15px;font-weight:700;color:#c9a227;text-align:center;margin-bottom:16px;">🛡️ כניסת מנהל</div>
+      <form onsubmit="doAdminPinLogin(event)" autocomplete="on">
+        <input name="username" type="tel" id="adminPhoneInput" class="auth-input" placeholder="מספר טלפון" autocomplete="username" style="margin-bottom:10px;" value="+972544214850" />
+        <input name="password" type="password" id="adminPinInput" class="auth-input" placeholder="סיסמה" autocomplete="current-password" onkeydown="if(event.key==='Enter')doAdminPinLogin(event)" />
+        <button type="submit" class="auth-btn" style="margin-top:10px;">כניסה</button>
+      </form>
+      <div class="auth-error" id="errorAdminPin"></div>
+      <span class="auth-back" onclick="backToPhone()">← חזור</span>
     </div>
 
     <div class="auth-step" id="step2">
@@ -2718,19 +2729,33 @@ function signInWithGoogle() {
     });
 }
 
-function adminPinLogin() {
-  var pin = prompt('הכנס PIN:');
-  if (pin === '8850') {
-    auth.signInAnonymously().then(function() {
-      window._bypassUser = { phoneNumber: '+972544214850' };
-      window.isAdmin = true;
-      sessionStorage.setItem('isAdmin', '1');
-      sessionStorage.setItem('bypassPhone', '+972544214850');
-      showApp(window._bypassUser);
-    }).catch(function() { showError('error1', 'שגיאת כניסה'); });
-  } else if (pin !== null) {
-    showError('error1', 'PIN שגוי');
+function adminPinLogin() { showAdminPinStep(); }
+
+function showAdminPinStep() {
+  document.getElementById('step1').classList.remove('active');
+  document.getElementById('step1').style.display = 'none';
+  var s = document.getElementById('stepAdminPin');
+  s.style.display = 'block'; s.classList.add('active');
+  setTimeout(function() { document.getElementById('adminPinInput').focus(); }, 100);
+}
+
+function doAdminPinLogin(e) {
+  if (e) e.preventDefault();
+  var pin = document.getElementById('adminPinInput').value.trim();
+  if (pin !== '8850') {
+    document.getElementById('errorAdminPin').textContent = 'סיסמה שגויה';
+    return;
   }
+  document.getElementById('errorAdminPin').textContent = '';
+  auth.signInAnonymously().then(function() {
+    window._bypassUser = { phoneNumber: '+972544214850' };
+    window.isAdmin = true;
+    sessionStorage.setItem('isAdmin', '1');
+    sessionStorage.setItem('bypassPhone', '+972544214850');
+    showApp(window._bypassUser);
+  }).catch(function() {
+    document.getElementById('errorAdminPin').textContent = 'שגיאת כניסה';
+  });
 }
 
 
@@ -2980,6 +3005,8 @@ window.addEventListener('load', function() {
     document.getElementById('authScreen').style.display = 'flex';
     document.getElementById('appContent').style.display = 'none';
     window._adminMode = true;
+    // Show admin PIN step directly
+    setTimeout(showAdminPinStep, 0);
   } else {
     showApp({});
   }
@@ -3244,25 +3271,7 @@ function sendCode() {
   var phone = raw.startsWith('+') ? raw : '+972' + raw.replace(/^0/, '');
   showError('error1', '');
   if (phone === '+972544214850') {
-    var pin = prompt('הכנס PIN כניסה מהירה:');
-    if (pin === '8850') {
-      auth.onAuthStateChanged(function(){});
-      window._adminBypass = true;
-      auth.signInAnonymously().then(function(result) {
-      var user = result.user;
-      user.phoneNumber = phone;
-      window._bypassUser = { phoneNumber: phone };
-      window.isAdmin = true;
-      sessionStorage.setItem('isAdmin', '1');
-      sessionStorage.setItem('bypassPhone', phone);
-      showApp(window._bypassUser);
-    }).catch(function() {
-      showError('error1', 'שגיאת כניסה מהירה');
-    });
-    } else {
-      showError('error1', 'PIN שגוי');
-      document.getElementById('sendBtn').disabled = false;
-    }
+    showAdminPinStep();
     return;
   }
   var sb = document.getElementById('sendBtn');
