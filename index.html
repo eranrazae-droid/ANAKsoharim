@@ -3990,61 +3990,71 @@ function closeAdmin() {
 function loadAdmin() { /* overridden by admin script */ }
 
 function populateEditPriceSelect() {
-  var sel = document.getElementById('editPriceSelect');
+  var sel = document.getElementById('editBrandSelect');
   if (!sel) return;
   var baseCars = window._staticCars || cars || [];
   var extraCars = (typeof manualCars !== 'undefined' ? manualCars : []) || [];
   var allCars = baseCars.concat(extraCars);
-  sel.innerHTML = '<option value="">— בחר רכב —</option>';
-  allCars.forEach(function(c, i) {
+  var brands = [];
+  allCars.forEach(function(c) { if (brands.indexOf(c.brand) === -1) brands.push(c.brand); });
+  sel.innerHTML = '<option value="">— בחר יצרן —</option>';
+  brands.forEach(function(b) {
     var opt = document.createElement('option');
-    opt.value = i < baseCars.length ? ('c:' + i) : ('m:' + (i - baseCars.length));
-    opt.textContent = c.brand + ' — ' + c.model;
+    opt.value = b;
+    opt.textContent = b;
     sel.appendChild(opt);
   });
 }
 
-function onEditPriceSelect() {
-  var sel = document.getElementById('editPriceSelect');
-  var fields = document.getElementById('editPriceFields');
-  var val = sel.value;
-  if (!val) { fields.style.display = 'none'; return; }
-  var parts = val.split(':');
+function onEditBrandSelect() {
+  var sel = document.getElementById('editBrandSelect');
+  var brand = sel ? sel.value : '';
+  var grid = document.getElementById('editModelsGrid');
+  if (!grid) return;
+  if (!brand) { grid.style.display = 'none'; grid.innerHTML = ''; return; }
   var baseCars = window._staticCars || cars || [];
   var extraCars = (typeof manualCars !== 'undefined' ? manualCars : []) || [];
-  var car = parts[0] === 'c' ? baseCars[+parts[1]] : extraCars[+parts[1]];
-  if (!car) { fields.style.display = 'none'; return; }
-  fields.style.display = 'block';
-  document.getElementById('editCurrentDealer').textContent = fmt(car.dealer) + ' ₪';
-  document.getElementById('editCurrentCatalog').textContent = fmt(car.catalog) + ' ₪';
-  document.getElementById('editNewDealer').value = car.dealer;
-  document.getElementById('editNewCatalog').value = car.catalog;
-  document.getElementById('editPriceMsg').textContent = '';
+  var indexed = baseCars.map(function(c, i) { return {car: c, key: 'c:' + i}; })
+    .concat(extraCars.map(function(c, i) { return {car: c, key: 'm:' + i}; }));
+  var brandCars = indexed.filter(function(item) { return item.car.brand === brand; });
+  var inp = 'width:100%;padding:7px 10px;border:1.5px solid #e0e4ef;border-radius:7px;font-family:Heebo,sans-serif;font-size:13px;outline:none;box-sizing:border-box;';
+  var html = '';
+  brandCars.forEach(function(item) {
+    var c = item.car;
+    var sk = item.key.replace(':', '_');
+    html += '<div style="border:1px solid #e0e4ef;border-radius:10px;padding:14px;margin-bottom:10px;">';
+    html += '<div style="font-size:13px;font-weight:700;color:#1a1a2e;margin-bottom:10px;">' + c.model + '</div>';
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">';
+    html += '<div><div style="font-size:11px;color:#7a839a;margin-bottom:2px;">מחיר לסוחר נוכחי</div><div style="font-size:14px;font-weight:700;color:#c9a227;">' + fmt(c.dealer) + ' ₪</div></div>';
+    html += '<div><div style="font-size:11px;color:#7a839a;margin-bottom:2px;">מחירון נוכחי</div><div style="font-size:14px;font-weight:700;color:#555;">' + fmt(c.catalog) + ' ₪</div></div>';
+    html += '</div>';
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">';
+    html += '<div><label style="font-size:11px;color:#7a839a;display:block;margin-bottom:3px;">מחיר לסוחר חדש ₪</label><input id="nd_' + sk + '" type="number" placeholder="' + c.dealer + '" style="' + inp + '"></div>';
+    html += '<div><label style="font-size:11px;color:#7a839a;display:block;margin-bottom:3px;">מחירון חדש ₪</label><input id="nc_' + sk + '" type="number" placeholder="' + c.catalog + '" style="' + inp + '"></div>';
+    html += '</div>';
+    html += '<div style="margin-bottom:8px;"><label style="font-size:11px;color:#7a839a;display:block;margin-bottom:3px;">הערה</label><input id="note_' + sk + '" type="text" placeholder="הערה אופציונלית..." style="' + inp + 'direction:rtl;"></div>';
+    html += '<div id="msg_' + sk + '" style="font-size:12px;min-height:16px;margin-bottom:6px;"></div>';
+    html += '<button onclick="saveCarPrice(\'' + item.key + '\')" style="background:#c9a227;color:#000;border:none;border-radius:7px;padding:8px 20px;font-size:13px;font-weight:900;font-family:Heebo,sans-serif;cursor:pointer;">שמור</button>';
+    html += '</div>';
+  });
+  grid.innerHTML = html;
+  grid.style.display = 'block';
 }
 
-function onEditPriceInput() {
-  var dealer = parseInt(document.getElementById('editNewDealer').value) || 0;
-  var catalog = parseInt(document.getElementById('editNewCatalog').value) || 0;
-  if (dealer && catalog && catalog > dealer) {
-    document.getElementById('editPriceMsg').style.color = '#7a839a';
-    document.getElementById('editPriceMsg').textContent = 'הנחה: ' + fmt(catalog - dealer) + ' ₪';
-  } else {
-    document.getElementById('editPriceMsg').textContent = '';
-  }
-}
-
-function saveEditPriceAdmin() {
-  var sel = document.getElementById('editPriceSelect');
-  var val = sel.value;
-  if (!val) return;
-  var newDealer = parseInt(document.getElementById('editNewDealer').value);
-  var newCatalog = parseInt(document.getElementById('editNewCatalog').value);
+function saveCarPrice(carKey) {
+  var sk = carKey.replace(':', '_');
+  var ndEl = document.getElementById('nd_' + sk);
+  var ncEl = document.getElementById('nc_' + sk);
+  var noteEl = document.getElementById('note_' + sk);
+  var msgEl = document.getElementById('msg_' + sk);
+  var newDealer = parseInt(ndEl ? ndEl.value : '');
+  var newCatalog = parseInt(ncEl ? ncEl.value : '');
+  var note = noteEl ? noteEl.value.trim() : '';
   if (!newDealer || isNaN(newDealer)) {
-    document.getElementById('editPriceMsg').style.color = '#e24b4a';
-    document.getElementById('editPriceMsg').textContent = 'יש להכניס מחיר תקין';
+    if (msgEl) { msgEl.style.color = '#e24b4a'; msgEl.textContent = 'יש להכניס מחיר תקין'; }
     return;
   }
-  var parts = val.split(':');
+  var parts = carKey.split(':');
   var baseCars2 = window._staticCars || cars || [];
   var extraCars2 = (typeof manualCars !== 'undefined' ? manualCars : []) || [];
   var car = parts[0] === 'c' ? baseCars2[+parts[1]] : extraCars2[+parts[1]];
@@ -4054,27 +4064,26 @@ function saveEditPriceAdmin() {
   if (newCatalog && !isNaN(newCatalog)) { car.catalog = newCatalog; car.discount = newCatalog - newDealer; }
   else { car.discount = car.catalog - newDealer; }
   if (parts[0] === 'm') saveManualCarsToDb();
+  var san = function(s) { return s.replace(/[^a-zA-Z0-9א-ת]/g, '_'); };
   var update = {};
-  update['price_' + key.replace(/[^a-zA-Z0-9\u05d0-\u05ea]/g, '_')] = newDealer;
-  if (newCatalog && !isNaN(newCatalog)) update['catalog_' + key.replace(/[^a-zA-Z0-9\u05d0-\u05ea]/g, '_')] = newCatalog;
+  update['price_' + san(key)] = newDealer;
+  if (newCatalog && !isNaN(newCatalog)) update['catalog_' + san(key)] = newCatalog;
+  if (note) update['note_' + san(key)] = note;
   if (window.db) {
-    window.db.collection('settings').doc('priceOverrides').set(update, { merge: true })
+    window.db.collection('settings').doc('priceOverrides').set(update, {merge: true})
       .then(function() {
-        document.getElementById('editPriceMsg').style.color = '#059669';
-        document.getElementById('editPriceMsg').textContent = '✓ נשמר בהצלחה';
-        document.getElementById('editCurrentDealer').textContent = fmt(newDealer) + ' ₪';
-        if (newCatalog) document.getElementById('editCurrentCatalog').textContent = fmt(newCatalog) + ' ₪';
-        filterAndRender();
+        if (msgEl) { msgEl.style.color = '#059669'; msgEl.textContent = '✓ נשמר'; }
+        setTimeout(onEditBrandSelect, 300);
       }).catch(function(err) {
-        document.getElementById('editPriceMsg').style.color = '#e24b4a';
-        document.getElementById('editPriceMsg').textContent = 'שגיאה: ' + err.message;
+        if (msgEl) { msgEl.style.color = '#e24b4a'; msgEl.textContent = 'שגיאה: ' + err.message; }
       });
   } else {
-    document.getElementById('editPriceMsg').style.color = '#059669';
-    document.getElementById('editPriceMsg').textContent = '✓ עודכן';
-    filterAndRender();
+    if (msgEl) { msgEl.style.color = '#059669'; msgEl.textContent = '✓ עודכן'; }
+    setTimeout(onEditBrandSelect, 300);
   }
 }
+
+function saveEditPriceAdmin() { /* replaced by saveCarPrice */ }
 
 function blockUser(p) { /* overridden */ }
 function unblockUser(p) { /* overridden */ }
@@ -4159,92 +4168,15 @@ function showError(id, msg) {
       <button class="admin-btn" onclick="closeAdmin()" style="background:#1a3a7a">← חזור למלאי</button>
     </div>
 
-    <div style="background:#fff;border:1px solid #e0e4ef;border-radius:14px;padding:20px;max-width:480px;">
+    <div style="background:#fff;border:1px solid #e0e4ef;border-radius:14px;padding:20px;max-width:700px;">
       <div style="font-size:14px;font-weight:700;color:#1a1a2e;margin-bottom:16px;">✏️ שינוי מחיר לרכב קיים</div>
-      <div style="margin-bottom:12px;">
-        <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">בחר רכב</label>
-        <select id="editPriceSelect" onchange="onEditPriceSelect()" style="width:100%;padding:9px 12px;border:1.5px solid #e0e4ef;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;direction:rtl;color:#1a1a2e;outline:none;cursor:pointer;">
-          <option value="">— בחר רכב —</option>
-          <option value="c:0">AVATR — Ultra RWD</option>
-          <option value="c:1">BYD — BYD ATTO2 DM-I Boost</option>
-          <option value="c:2">BYD — BYD SEAL U BOOST  DM-i</option>
-          <option value="c:3">BYD — BYD SEALION COMF 5 DM-i</option>
-          <option value="c:4">BYD — BYD SEALION DESIGN 5 DM-i</option>
-          <option value="c:5">LEAPMOTOR — C 10 LIFE</option>
-          <option value="c:6">MG — MG3 LUXURY HYBRID 1.5</option>
-          <option value="c:7">MG — ZS COMORT 1.5</option>
-          <option value="c:8">MG — ZS LUXURY HYBRID 1.5</option>
-          <option value="c:9">MG — MG HS LUXURY 1.5L</option>
-          <option value="c:10">MG — MG HS HYBRID+ LUXURY 1.5L 224h</option>
-          <option value="c:11">MG — MG EHS Luxury PHEV 1.5L 272hp</option>
-          <option value="c:12">אומודה — OMODA 7 PHV - ELEVATE</option>
-          <option value="c:13">אומודה — OMODA 7 PHV - Harmony</option>
-          <option value="c:14">אומודה — OMODA 9 PHEV - Harmony</option>
-          <option value="c:15">XPENG — G6 Core+ RWD</option>
-          <option value="c:16">ג'אקו — JAECOO 7 PREMIUM PHEV 1.5</option>
-          <option value="c:17">ג'אקו — JAECOO 7 LUXURY PHEV 1.5</option>
-          <option value="c:18">גילי — EX5 PRO</option>
-          <option value="c:19">גילי — EX5 TECH</option>
-          <option value="c:20">גילי — StarRay EM-i Pro</option>
-          <option value="c:21">גילי — STARRAY EM-I TECH</option>
-          <option value="c:22">טויוטה — TOYOTA CITY 5 DIESEL 1.5</option>
-          <option value="c:23">טויוטה — YARIS CROSS ECO HSD 1.5</option>
-          <option value="c:24">טויוטה — HILUX ACTIVE 4X4 DIESEL 2.4</option>
-          <option value="c:25">יונדאי — ELANTRA PREMIUM FL HYBRID 1.6</option>
-          <option value="c:26">יונדאי — TUCSON EXECUTIVE HYBRID 1.6 גג</option>
-          <option value="c:27">יונדאי — VENUE PRIME 1.6</option>
-          <option value="c:28">יונדאי — KONA PREMIUM HYBRID 1.6</option>
-          <option value="c:29">יונדאי — SONATA LIMITED FL HYBRID 2.0</option>
-          <option value="c:30">מזדה — CX5 2.5L EXECUTIVE</option>
-          <option value="c:31">מיצובישי — OUTLANDER INSTYLE FL 2.5 גג</option>
-          <option value="c:32">מיצובישי — OUTLANDER EXECUTIVE 2.5</option>
-          <option value="c:33">סיאט — ARONA STYLE 1.0</option>
-          <option value="c:34">סיטרואן — CITROEN BERLINGO COMBI  Shine Pack 1.5</option>
-          <option value="c:35">סובארו — THE NEW CROSSTREK LUXURY 2.5</option>
-          <option value="c:36">סקודה — KAMIQ FL SELECTION 1.0</option>
-          <option value="c:37">סקודה — OCTAVIA FL SELECTION 1.5</option>
-          <option value="c:38">פורד — RANGER XLT CHROM תא כפול  4*4</option>
-          <option value="c:39">פיגו — ACTIVE 2008</option>
-          <option value="c:40">צ'רי — FX COMFORT HEV 1.5</option>
-          <option value="c:41">צ'רי — TIGGO 4 COMFORT HEV 1.5</option>
-          <option value="c:42">צ'רי — TIGGO 4 LUXURY HEV 1.5</option>
-          <option value="c:43">צ'רי — TIGGO 7 PRO PHEV LUXURY + גג 1.5</option>
-          <option value="c:44">צ'רי — TIGGO 8 PRO PHEV NOBLE + גג 1.5</option>
-          <option value="c:45">צ'רי — TIGGO 8 PRO PHEV Unlimited + גג 1.5</option>
-          <option value="c:46">צ'רי — TIGGO 9 PRO PHEV LUXURY + גג 1.5</option>
-          <option value="c:47">צ'רי — TIGGO 9 PRO PHEV NOBLE + גג 1.5</option>
-          <option value="c:48">צ'רי — ARIZO 8 PHEV COMFORT 1.5</option>
-          <option value="c:49">קיה — PICANTO LX PLUS 1.2</option>
-          <option value="c:50">קיה — NIRO HEV LX 1.6</option>
-          <option value="c:51">קיה — SPORTAGE URBAN</option>
-          <option value="c:52">קיה — SPORTAGE EX HEV</option>
-          <option value="c:53">קיי גי מוביליט — TORRES PREMIUM 1.5 HEV</option>
+      <div style="margin-bottom:16px;">
+        <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">בחר יצרן</label>
+        <select id="editBrandSelect" onchange="onEditBrandSelect()" style="width:100%;padding:9px 12px;border:1.5px solid #e0e4ef;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;direction:rtl;color:#1a1a2e;outline:none;cursor:pointer;">
+          <option value="">— בחר יצרן —</option>
         </select>
       </div>
-      <div id="editPriceFields" style="display:none;">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
-          <div>
-            <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">מחיר לסוחר (נוכחי)</label>
-            <div id="editCurrentDealer" style="font-size:15px;font-weight:700;color:#c9a227;padding:8px 0;"></div>
-          </div>
-          <div>
-            <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">מחירון (נוכחי)</label>
-            <div id="editCurrentCatalog" style="font-size:15px;font-weight:700;color:#555;padding:8px 0;"></div>
-          </div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
-          <div>
-            <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">מחיר לסוחר חדש ₪</label>
-            <input id="editNewDealer" type="number" placeholder="למשל 150000" style="width:100%;padding:9px 12px;border:1.5px solid #e0e4ef;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;outline:none;box-sizing:border-box;" oninput="onEditPriceInput()" />
-          </div>
-          <div>
-            <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">מחירון חדש ₪</label>
-            <input id="editNewCatalog" type="number" placeholder="למשל 180000" style="width:100%;padding:9px 12px;border:1.5px solid #e0e4ef;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;outline:none;box-sizing:border-box;" />
-          </div>
-        </div>
-        <div id="editPriceMsg" style="font-size:13px;min-height:18px;margin-bottom:10px;"></div>
-        <button onclick="saveEditPriceAdmin()" style="background:#c9a227;color:#000;border:none;border-radius:8px;padding:10px 24px;font-size:14px;font-weight:900;font-family:Heebo,sans-serif;cursor:pointer;width:100%;">שמור שינויים</button>
-      </div>
+      <div id="editModelsGrid" style="display:none;"></div>
     </div>
   </div>
 </div>
@@ -4652,92 +4584,15 @@ function showError(id, msg) {
       <button class="admin-btn" onclick="closeAdmin()" style="background:#1a3a7a">← חזור למלאי</button>
     </div>
 
-    <div style="background:#fff;border:1px solid #e0e4ef;border-radius:14px;padding:20px;max-width:480px;">
+    <div style="background:#fff;border:1px solid #e0e4ef;border-radius:14px;padding:20px;max-width:700px;">
       <div style="font-size:14px;font-weight:700;color:#1a1a2e;margin-bottom:16px;">✏️ שינוי מחיר לרכב קיים</div>
-      <div style="margin-bottom:12px;">
-        <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">בחר רכב</label>
-        <select id="editPriceSelect" onchange="onEditPriceSelect()" style="width:100%;padding:9px 12px;border:1.5px solid #e0e4ef;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;direction:rtl;color:#1a1a2e;outline:none;cursor:pointer;">
-          <option value="">— בחר רכב —</option>
-          <option value="c:0">AVATR — Ultra RWD</option>
-          <option value="c:1">BYD — BYD ATTO2 DM-I Boost</option>
-          <option value="c:2">BYD — BYD SEAL U BOOST  DM-i</option>
-          <option value="c:3">BYD — BYD SEALION COMF 5 DM-i</option>
-          <option value="c:4">BYD — BYD SEALION DESIGN 5 DM-i</option>
-          <option value="c:5">LEAPMOTOR — C 10 LIFE</option>
-          <option value="c:6">MG — MG3 LUXURY HYBRID 1.5</option>
-          <option value="c:7">MG — ZS COMORT 1.5</option>
-          <option value="c:8">MG — ZS LUXURY HYBRID 1.5</option>
-          <option value="c:9">MG — MG HS LUXURY 1.5L</option>
-          <option value="c:10">MG — MG HS HYBRID+ LUXURY 1.5L 224h</option>
-          <option value="c:11">MG — MG EHS Luxury PHEV 1.5L 272hp</option>
-          <option value="c:12">אומודה — OMODA 7 PHV - ELEVATE</option>
-          <option value="c:13">אומודה — OMODA 7 PHV - Harmony</option>
-          <option value="c:14">אומודה — OMODA 9 PHEV - Harmony</option>
-          <option value="c:15">XPENG — G6 Core+ RWD</option>
-          <option value="c:16">ג'אקו — JAECOO 7 PREMIUM PHEV 1.5</option>
-          <option value="c:17">ג'אקו — JAECOO 7 LUXURY PHEV 1.5</option>
-          <option value="c:18">גילי — EX5 PRO</option>
-          <option value="c:19">גילי — EX5 TECH</option>
-          <option value="c:20">גילי — StarRay EM-i Pro</option>
-          <option value="c:21">גילי — STARRAY EM-I TECH</option>
-          <option value="c:22">טויוטה — TOYOTA CITY 5 DIESEL 1.5</option>
-          <option value="c:23">טויוטה — YARIS CROSS ECO HSD 1.5</option>
-          <option value="c:24">טויוטה — HILUX ACTIVE 4X4 DIESEL 2.4</option>
-          <option value="c:25">יונדאי — ELANTRA PREMIUM FL HYBRID 1.6</option>
-          <option value="c:26">יונדאי — TUCSON EXECUTIVE HYBRID 1.6 גג</option>
-          <option value="c:27">יונדאי — VENUE PRIME 1.6</option>
-          <option value="c:28">יונדאי — KONA PREMIUM HYBRID 1.6</option>
-          <option value="c:29">יונדאי — SONATA LIMITED FL HYBRID 2.0</option>
-          <option value="c:30">מזדה — CX5 2.5L EXECUTIVE</option>
-          <option value="c:31">מיצובישי — OUTLANDER INSTYLE FL 2.5 גג</option>
-          <option value="c:32">מיצובישי — OUTLANDER EXECUTIVE 2.5</option>
-          <option value="c:33">סיאט — ARONA STYLE 1.0</option>
-          <option value="c:34">סיטרואן — CITROEN BERLINGO COMBI  Shine Pack 1.5</option>
-          <option value="c:35">סובארו — THE NEW CROSSTREK LUXURY 2.5</option>
-          <option value="c:36">סקודה — KAMIQ FL SELECTION 1.0</option>
-          <option value="c:37">סקודה — OCTAVIA FL SELECTION 1.5</option>
-          <option value="c:38">פורד — RANGER XLT CHROM תא כפול  4*4</option>
-          <option value="c:39">פיגו — ACTIVE 2008</option>
-          <option value="c:40">צ'רי — FX COMFORT HEV 1.5</option>
-          <option value="c:41">צ'רי — TIGGO 4 COMFORT HEV 1.5</option>
-          <option value="c:42">צ'רי — TIGGO 4 LUXURY HEV 1.5</option>
-          <option value="c:43">צ'רי — TIGGO 7 PRO PHEV LUXURY + גג 1.5</option>
-          <option value="c:44">צ'רי — TIGGO 8 PRO PHEV NOBLE + גג 1.5</option>
-          <option value="c:45">צ'רי — TIGGO 8 PRO PHEV Unlimited + גג 1.5</option>
-          <option value="c:46">צ'רי — TIGGO 9 PRO PHEV LUXURY + גג 1.5</option>
-          <option value="c:47">צ'רי — TIGGO 9 PRO PHEV NOBLE + גג 1.5</option>
-          <option value="c:48">צ'רי — ARIZO 8 PHEV COMFORT 1.5</option>
-          <option value="c:49">קיה — PICANTO LX PLUS 1.2</option>
-          <option value="c:50">קיה — NIRO HEV LX 1.6</option>
-          <option value="c:51">קיה — SPORTAGE URBAN</option>
-          <option value="c:52">קיה — SPORTAGE EX HEV</option>
-          <option value="c:53">קיי גי מוביליט — TORRES PREMIUM 1.5 HEV</option>
+      <div style="margin-bottom:16px;">
+        <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">בחר יצרן</label>
+        <select id="editBrandSelect" onchange="onEditBrandSelect()" style="width:100%;padding:9px 12px;border:1.5px solid #e0e4ef;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;direction:rtl;color:#1a1a2e;outline:none;cursor:pointer;">
+          <option value="">— בחר יצרן —</option>
         </select>
       </div>
-      <div id="editPriceFields" style="display:none;">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
-          <div>
-            <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">מחיר לסוחר (נוכחי)</label>
-            <div id="editCurrentDealer" style="font-size:15px;font-weight:700;color:#c9a227;padding:8px 0;"></div>
-          </div>
-          <div>
-            <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">מחירון (נוכחי)</label>
-            <div id="editCurrentCatalog" style="font-size:15px;font-weight:700;color:#555;padding:8px 0;"></div>
-          </div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
-          <div>
-            <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">מחיר לסוחר חדש ₪</label>
-            <input id="editNewDealer" type="number" placeholder="למשל 150000" style="width:100%;padding:9px 12px;border:1.5px solid #e0e4ef;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;outline:none;box-sizing:border-box;" oninput="onEditPriceInput()" />
-          </div>
-          <div>
-            <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">מחירון חדש ₪</label>
-            <input id="editNewCatalog" type="number" placeholder="למשל 180000" style="width:100%;padding:9px 12px;border:1.5px solid #e0e4ef;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;outline:none;box-sizing:border-box;" />
-          </div>
-        </div>
-        <div id="editPriceMsg" style="font-size:13px;min-height:18px;margin-bottom:10px;"></div>
-        <button onclick="saveEditPriceAdmin()" style="background:#c9a227;color:#000;border:none;border-radius:8px;padding:10px 24px;font-size:14px;font-weight:900;font-family:Heebo,sans-serif;cursor:pointer;width:100%;">שמור שינויים</button>
-      </div>
+      <div id="editModelsGrid" style="display:none;"></div>
     </div>
   </div>
 </div>
@@ -5158,92 +5013,15 @@ function showError(id, msg) {
       <button class="admin-btn" onclick="closeAdmin()" style="background:#1a3a7a">← חזור למלאי</button>
     </div>
 
-    <div style="background:#fff;border:1px solid #e0e4ef;border-radius:14px;padding:20px;max-width:480px;">
+    <div style="background:#fff;border:1px solid #e0e4ef;border-radius:14px;padding:20px;max-width:700px;">
       <div style="font-size:14px;font-weight:700;color:#1a1a2e;margin-bottom:16px;">✏️ שינוי מחיר לרכב קיים</div>
-      <div style="margin-bottom:12px;">
-        <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">בחר רכב</label>
-        <select id="editPriceSelect" onchange="onEditPriceSelect()" style="width:100%;padding:9px 12px;border:1.5px solid #e0e4ef;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;direction:rtl;color:#1a1a2e;outline:none;cursor:pointer;">
-          <option value="">— בחר רכב —</option>
-          <option value="c:0">AVATR — Ultra RWD</option>
-          <option value="c:1">BYD — BYD ATTO2 DM-I Boost</option>
-          <option value="c:2">BYD — BYD SEAL U BOOST  DM-i</option>
-          <option value="c:3">BYD — BYD SEALION COMF 5 DM-i</option>
-          <option value="c:4">BYD — BYD SEALION DESIGN 5 DM-i</option>
-          <option value="c:5">LEAPMOTOR — C 10 LIFE</option>
-          <option value="c:6">MG — MG3 LUXURY HYBRID 1.5</option>
-          <option value="c:7">MG — ZS COMORT 1.5</option>
-          <option value="c:8">MG — ZS LUXURY HYBRID 1.5</option>
-          <option value="c:9">MG — MG HS LUXURY 1.5L</option>
-          <option value="c:10">MG — MG HS HYBRID+ LUXURY 1.5L 224h</option>
-          <option value="c:11">MG — MG EHS Luxury PHEV 1.5L 272hp</option>
-          <option value="c:12">אומודה — OMODA 7 PHV - ELEVATE</option>
-          <option value="c:13">אומודה — OMODA 7 PHV - Harmony</option>
-          <option value="c:14">אומודה — OMODA 9 PHEV - Harmony</option>
-          <option value="c:15">XPENG — G6 Core+ RWD</option>
-          <option value="c:16">ג'אקו — JAECOO 7 PREMIUM PHEV 1.5</option>
-          <option value="c:17">ג'אקו — JAECOO 7 LUXURY PHEV 1.5</option>
-          <option value="c:18">גילי — EX5 PRO</option>
-          <option value="c:19">גילי — EX5 TECH</option>
-          <option value="c:20">גילי — StarRay EM-i Pro</option>
-          <option value="c:21">גילי — STARRAY EM-I TECH</option>
-          <option value="c:22">טויוטה — TOYOTA CITY 5 DIESEL 1.5</option>
-          <option value="c:23">טויוטה — YARIS CROSS ECO HSD 1.5</option>
-          <option value="c:24">טויוטה — HILUX ACTIVE 4X4 DIESEL 2.4</option>
-          <option value="c:25">יונדאי — ELANTRA PREMIUM FL HYBRID 1.6</option>
-          <option value="c:26">יונדאי — TUCSON EXECUTIVE HYBRID 1.6 גג</option>
-          <option value="c:27">יונדאי — VENUE PRIME 1.6</option>
-          <option value="c:28">יונדאי — KONA PREMIUM HYBRID 1.6</option>
-          <option value="c:29">יונדאי — SONATA LIMITED FL HYBRID 2.0</option>
-          <option value="c:30">מזדה — CX5 2.5L EXECUTIVE</option>
-          <option value="c:31">מיצובישי — OUTLANDER INSTYLE FL 2.5 גג</option>
-          <option value="c:32">מיצובישי — OUTLANDER EXECUTIVE 2.5</option>
-          <option value="c:33">סיאט — ARONA STYLE 1.0</option>
-          <option value="c:34">סיטרואן — CITROEN BERLINGO COMBI  Shine Pack 1.5</option>
-          <option value="c:35">סובארו — THE NEW CROSSTREK LUXURY 2.5</option>
-          <option value="c:36">סקודה — KAMIQ FL SELECTION 1.0</option>
-          <option value="c:37">סקודה — OCTAVIA FL SELECTION 1.5</option>
-          <option value="c:38">פורד — RANGER XLT CHROM תא כפול  4*4</option>
-          <option value="c:39">פיגו — ACTIVE 2008</option>
-          <option value="c:40">צ'רי — FX COMFORT HEV 1.5</option>
-          <option value="c:41">צ'רי — TIGGO 4 COMFORT HEV 1.5</option>
-          <option value="c:42">צ'רי — TIGGO 4 LUXURY HEV 1.5</option>
-          <option value="c:43">צ'רי — TIGGO 7 PRO PHEV LUXURY + גג 1.5</option>
-          <option value="c:44">צ'רי — TIGGO 8 PRO PHEV NOBLE + גג 1.5</option>
-          <option value="c:45">צ'רי — TIGGO 8 PRO PHEV Unlimited + גג 1.5</option>
-          <option value="c:46">צ'רי — TIGGO 9 PRO PHEV LUXURY + גג 1.5</option>
-          <option value="c:47">צ'רי — TIGGO 9 PRO PHEV NOBLE + גג 1.5</option>
-          <option value="c:48">צ'רי — ARIZO 8 PHEV COMFORT 1.5</option>
-          <option value="c:49">קיה — PICANTO LX PLUS 1.2</option>
-          <option value="c:50">קיה — NIRO HEV LX 1.6</option>
-          <option value="c:51">קיה — SPORTAGE URBAN</option>
-          <option value="c:52">קיה — SPORTAGE EX HEV</option>
-          <option value="c:53">קיי גי מוביליט — TORRES PREMIUM 1.5 HEV</option>
+      <div style="margin-bottom:16px;">
+        <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">בחר יצרן</label>
+        <select id="editBrandSelect" onchange="onEditBrandSelect()" style="width:100%;padding:9px 12px;border:1.5px solid #e0e4ef;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;direction:rtl;color:#1a1a2e;outline:none;cursor:pointer;">
+          <option value="">— בחר יצרן —</option>
         </select>
       </div>
-      <div id="editPriceFields" style="display:none;">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
-          <div>
-            <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">מחיר לסוחר (נוכחי)</label>
-            <div id="editCurrentDealer" style="font-size:15px;font-weight:700;color:#c9a227;padding:8px 0;"></div>
-          </div>
-          <div>
-            <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">מחירון (נוכחי)</label>
-            <div id="editCurrentCatalog" style="font-size:15px;font-weight:700;color:#555;padding:8px 0;"></div>
-          </div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
-          <div>
-            <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">מחיר לסוחר חדש ₪</label>
-            <input id="editNewDealer" type="number" placeholder="למשל 150000" style="width:100%;padding:9px 12px;border:1.5px solid #e0e4ef;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;outline:none;box-sizing:border-box;" oninput="onEditPriceInput()" />
-          </div>
-          <div>
-            <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">מחירון חדש ₪</label>
-            <input id="editNewCatalog" type="number" placeholder="למשל 180000" style="width:100%;padding:9px 12px;border:1.5px solid #e0e4ef;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;outline:none;box-sizing:border-box;" />
-          </div>
-        </div>
-        <div id="editPriceMsg" style="font-size:13px;min-height:18px;margin-bottom:10px;"></div>
-        <button onclick="saveEditPriceAdmin()" style="background:#c9a227;color:#000;border:none;border-radius:8px;padding:10px 24px;font-size:14px;font-weight:900;font-family:Heebo,sans-serif;cursor:pointer;width:100%;">שמור שינויים</button>
-      </div>
+      <div id="editModelsGrid" style="display:none;"></div>
     </div>
   </div>
 </div>
@@ -5651,92 +5429,15 @@ function showError(id, msg) {
       <button class="admin-btn" onclick="closeAdmin()" style="background:#1a3a7a">← חזור למלאי</button>
     </div>
 
-    <div style="background:#fff;border:1px solid #e0e4ef;border-radius:14px;padding:20px;max-width:480px;">
+    <div style="background:#fff;border:1px solid #e0e4ef;border-radius:14px;padding:20px;max-width:700px;">
       <div style="font-size:14px;font-weight:700;color:#1a1a2e;margin-bottom:16px;">✏️ שינוי מחיר לרכב קיים</div>
-      <div style="margin-bottom:12px;">
-        <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">בחר רכב</label>
-        <select id="editPriceSelect" onchange="onEditPriceSelect()" style="width:100%;padding:9px 12px;border:1.5px solid #e0e4ef;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;direction:rtl;color:#1a1a2e;outline:none;cursor:pointer;">
-          <option value="">— בחר רכב —</option>
-          <option value="c:0">AVATR — Ultra RWD</option>
-          <option value="c:1">BYD — BYD ATTO2 DM-I Boost</option>
-          <option value="c:2">BYD — BYD SEAL U BOOST  DM-i</option>
-          <option value="c:3">BYD — BYD SEALION COMF 5 DM-i</option>
-          <option value="c:4">BYD — BYD SEALION DESIGN 5 DM-i</option>
-          <option value="c:5">LEAPMOTOR — C 10 LIFE</option>
-          <option value="c:6">MG — MG3 LUXURY HYBRID 1.5</option>
-          <option value="c:7">MG — ZS COMORT 1.5</option>
-          <option value="c:8">MG — ZS LUXURY HYBRID 1.5</option>
-          <option value="c:9">MG — MG HS LUXURY 1.5L</option>
-          <option value="c:10">MG — MG HS HYBRID+ LUXURY 1.5L 224h</option>
-          <option value="c:11">MG — MG EHS Luxury PHEV 1.5L 272hp</option>
-          <option value="c:12">אומודה — OMODA 7 PHV - ELEVATE</option>
-          <option value="c:13">אומודה — OMODA 7 PHV - Harmony</option>
-          <option value="c:14">אומודה — OMODA 9 PHEV - Harmony</option>
-          <option value="c:15">XPENG — G6 Core+ RWD</option>
-          <option value="c:16">ג'אקו — JAECOO 7 PREMIUM PHEV 1.5</option>
-          <option value="c:17">ג'אקו — JAECOO 7 LUXURY PHEV 1.5</option>
-          <option value="c:18">גילי — EX5 PRO</option>
-          <option value="c:19">גילי — EX5 TECH</option>
-          <option value="c:20">גילי — StarRay EM-i Pro</option>
-          <option value="c:21">גילי — STARRAY EM-I TECH</option>
-          <option value="c:22">טויוטה — TOYOTA CITY 5 DIESEL 1.5</option>
-          <option value="c:23">טויוטה — YARIS CROSS ECO HSD 1.5</option>
-          <option value="c:24">טויוטה — HILUX ACTIVE 4X4 DIESEL 2.4</option>
-          <option value="c:25">יונדאי — ELANTRA PREMIUM FL HYBRID 1.6</option>
-          <option value="c:26">יונדאי — TUCSON EXECUTIVE HYBRID 1.6 גג</option>
-          <option value="c:27">יונדאי — VENUE PRIME 1.6</option>
-          <option value="c:28">יונדאי — KONA PREMIUM HYBRID 1.6</option>
-          <option value="c:29">יונדאי — SONATA LIMITED FL HYBRID 2.0</option>
-          <option value="c:30">מזדה — CX5 2.5L EXECUTIVE</option>
-          <option value="c:31">מיצובישי — OUTLANDER INSTYLE FL 2.5 גג</option>
-          <option value="c:32">מיצובישי — OUTLANDER EXECUTIVE 2.5</option>
-          <option value="c:33">סיאט — ARONA STYLE 1.0</option>
-          <option value="c:34">סיטרואן — CITROEN BERLINGO COMBI  Shine Pack 1.5</option>
-          <option value="c:35">סובארו — THE NEW CROSSTREK LUXURY 2.5</option>
-          <option value="c:36">סקודה — KAMIQ FL SELECTION 1.0</option>
-          <option value="c:37">סקודה — OCTAVIA FL SELECTION 1.5</option>
-          <option value="c:38">פורד — RANGER XLT CHROM תא כפול  4*4</option>
-          <option value="c:39">פיגו — ACTIVE 2008</option>
-          <option value="c:40">צ'רי — FX COMFORT HEV 1.5</option>
-          <option value="c:41">צ'רי — TIGGO 4 COMFORT HEV 1.5</option>
-          <option value="c:42">צ'רי — TIGGO 4 LUXURY HEV 1.5</option>
-          <option value="c:43">צ'רי — TIGGO 7 PRO PHEV LUXURY + גג 1.5</option>
-          <option value="c:44">צ'רי — TIGGO 8 PRO PHEV NOBLE + גג 1.5</option>
-          <option value="c:45">צ'רי — TIGGO 8 PRO PHEV Unlimited + גג 1.5</option>
-          <option value="c:46">צ'רי — TIGGO 9 PRO PHEV LUXURY + גג 1.5</option>
-          <option value="c:47">צ'רי — TIGGO 9 PRO PHEV NOBLE + גג 1.5</option>
-          <option value="c:48">צ'רי — ARIZO 8 PHEV COMFORT 1.5</option>
-          <option value="c:49">קיה — PICANTO LX PLUS 1.2</option>
-          <option value="c:50">קיה — NIRO HEV LX 1.6</option>
-          <option value="c:51">קיה — SPORTAGE URBAN</option>
-          <option value="c:52">קיה — SPORTAGE EX HEV</option>
-          <option value="c:53">קיי גי מוביליט — TORRES PREMIUM 1.5 HEV</option>
+      <div style="margin-bottom:16px;">
+        <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">בחר יצרן</label>
+        <select id="editBrandSelect" onchange="onEditBrandSelect()" style="width:100%;padding:9px 12px;border:1.5px solid #e0e4ef;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;direction:rtl;color:#1a1a2e;outline:none;cursor:pointer;">
+          <option value="">— בחר יצרן —</option>
         </select>
       </div>
-      <div id="editPriceFields" style="display:none;">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
-          <div>
-            <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">מחיר לסוחר (נוכחי)</label>
-            <div id="editCurrentDealer" style="font-size:15px;font-weight:700;color:#c9a227;padding:8px 0;"></div>
-          </div>
-          <div>
-            <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">מחירון (נוכחי)</label>
-            <div id="editCurrentCatalog" style="font-size:15px;font-weight:700;color:#555;padding:8px 0;"></div>
-          </div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
-          <div>
-            <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">מחיר לסוחר חדש ₪</label>
-            <input id="editNewDealer" type="number" placeholder="למשל 150000" style="width:100%;padding:9px 12px;border:1.5px solid #e0e4ef;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;outline:none;box-sizing:border-box;" oninput="onEditPriceInput()" />
-          </div>
-          <div>
-            <label style="font-size:12px;color:#7a839a;font-weight:700;display:block;margin-bottom:4px;">מחירון חדש ₪</label>
-            <input id="editNewCatalog" type="number" placeholder="למשל 180000" style="width:100%;padding:9px 12px;border:1.5px solid #e0e4ef;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;outline:none;box-sizing:border-box;" />
-          </div>
-        </div>
-        <div id="editPriceMsg" style="font-size:13px;min-height:18px;margin-bottom:10px;"></div>
-        <button onclick="saveEditPriceAdmin()" style="background:#c9a227;color:#000;border:none;border-radius:8px;padding:10px 24px;font-size:14px;font-weight:900;font-family:Heebo,sans-serif;cursor:pointer;width:100%;">שמור שינויים</button>
-      </div>
+      <div id="editModelsGrid" style="display:none;"></div>
     </div>
   </div>
 </div>
