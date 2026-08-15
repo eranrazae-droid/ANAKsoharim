@@ -4071,7 +4071,7 @@ function onEditBrandSelect() {
     var c = item.car;
     var sk = item.key.replace(':', '_');
     html += '<div style="border:1px solid #e0e4ef;border-radius:10px;padding:14px;margin-bottom:10px;">';
-    html += '<div style="font-size:13px;font-weight:700;color:#1a1a2e;margin-bottom:10px;">' + c.model + '</div>';
+    html += '<div id="modelName_' + sk + '" style="font-size:13px;font-weight:700;color:#1a1a2e;margin-bottom:10px;display:flex;align-items:center;gap:6px;">' + c.model + '<button onclick="editCarName(\'' + item.key + '\')" title="עריכת שם" style="background:none;border:none;cursor:pointer;font-size:13px;padding:0;line-height:1;opacity:0.55;flex-shrink:0;">✏️</button></div>';
     html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">';
     html += '<div><div style="font-size:11px;color:#7a839a;margin-bottom:2px;">מחיר לסוחר נוכחי</div><div style="font-size:14px;font-weight:700;color:#c9a227;">' + fmtN(c.dealer) + ' ₪</div></div>';
     html += '<div><div style="font-size:11px;color:#7a839a;margin-bottom:2px;">מחירון נוכחי</div><div style="font-size:14px;font-weight:700;color:#555;">' + fmtN(c.catalog) + ' ₪</div></div>';
@@ -4087,6 +4087,35 @@ function onEditBrandSelect() {
   });
   grid.innerHTML = html;
   grid.style.display = 'block';
+}
+
+function editCarName(carKey) {
+  var sk = carKey.replace(':', '_');
+  var nameDiv = document.getElementById('modelName_' + sk);
+  if (!nameDiv) return;
+  var parts = carKey.split(':');
+  var car = parts[0] === 'c' ? (window._staticCars || cars)[+parts[1]] : manualCars[+parts[1]];
+  if (!car) return;
+  nameDiv.innerHTML = '<input id="nameInp_' + sk + '" value="' + car.model.replace(/"/g,'&quot;') + '" style="font-size:13px;font-weight:700;padding:3px 7px;border:1.5px solid #c9a227;border-radius:6px;outline:none;flex:1;font-family:Heebo,sans-serif;direction:rtl;">' +
+    '<button onclick="saveCarName(\'' + carKey + '\')" style="background:#c9a227;color:#000;border:none;border-radius:6px;padding:4px 12px;font-size:12px;font-weight:900;cursor:pointer;font-family:Heebo,sans-serif;white-space:nowrap;">אשר</button>';
+  var inp = document.getElementById('nameInp_' + sk);
+  if (inp) { inp.focus(); inp.select(); }
+}
+
+function saveCarName(carKey) {
+  var sk = carKey.replace(':', '_');
+  var inp = document.getElementById('nameInp_' + sk);
+  if (!inp) return;
+  var newName = inp.value.trim();
+  if (!newName) return;
+  var parts = carKey.split(':');
+  if (parts[0] === 'm') {
+    manualCars[+parts[1]].model = newName;
+    saveManualCarsToDb();
+  } else {
+    (window._staticCars || cars)[+parts[1]].model = newName;
+  }
+  onEditBrandSelect();
 }
 
 function saveCarPrice(carKey) {
