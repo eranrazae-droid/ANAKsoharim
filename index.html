@@ -3362,8 +3362,10 @@ function loadManualCars(cb) {
 }
 
 function saveManualCarsToDb() {
-  if (!window.db) return;
-  window.db.collection('settings').doc('manualCars').set({ list: manualCars });
+  if (!window.db) { alert('שגיאה: אין חיבור לבסיס נתונים'); return; }
+  window.db.collection('settings').doc('manualCars').set({ list: manualCars })
+    .then(function() { console.log('manualCars saved', manualCars.length); })
+    .catch(function(err) { alert('שגיאה בשמירה: ' + err.message); });
 }
 
 
@@ -5853,17 +5855,23 @@ function resetDevice(phone) {
   });
 }
 
+var _manualCarsLoaded = false;
 function openAdmin() {
   document.getElementById('appContent').style.display = 'none';
   var panel = document.getElementById('adminPanel');
   if (!panel) return;
   panel.style.display = 'block';
-  populateEditPriceSelect();
   try { loadAdmin(); } catch(e) {}
+  if (_manualCarsLoaded) { populateEditPriceSelect(); return; }
   if (window.db) {
     window.db.collection('settings').doc('manualCars').get().then(function(doc) {
-      if (doc.exists && doc.data().list) { manualCars = doc.data().list; populateEditPriceSelect(); }
-    }).catch(function(){});
+      if (doc.exists && doc.data().list) manualCars = doc.data().list;
+      _manualCarsLoaded = true;
+      populateEditPriceSelect();
+    }).catch(function() { _manualCarsLoaded = true; populateEditPriceSelect(); });
+  } else {
+    _manualCarsLoaded = true;
+    populateEditPriceSelect();
   }
 }
 
