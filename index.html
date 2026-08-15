@@ -2555,7 +2555,35 @@ function toggleUsedSold(plate, btn) {
     .catch(function(err) { alert('שגיאה: ' + err.message); });
 }
 
+function updateBrandBar() {
+  var bar = document.getElementById('brandBar');
+  if (!bar) return;
+  var existing = [];
+  bar.querySelectorAll('.brand-btn[data-brand]').forEach(function(btn) {
+    var b = btn.getAttribute('data-brand');
+    if (b && b !== 'all') existing.push(b.trim());
+  });
+  var allBrands = cars.concat(manualCars).map(function(c) { return (c.brand || '').trim(); });
+  allBrands = allBrands.filter(function(b, i, arr) { return b && arr.indexOf(b) === i; });
+  allBrands.forEach(function(brand) {
+    if (existing.indexOf(brand) === -1) {
+      var btn = document.createElement('button');
+      btn.className = 'brand-btn';
+      btn.setAttribute('data-brand', brand);
+      btn.textContent = brand;
+      btn.addEventListener('click', function() {
+        bar.querySelectorAll('.brand-btn').forEach(function(b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        currentBrand = brand;
+        filterAndRender();
+      });
+      bar.appendChild(btn);
+    }
+  });
+}
+
 function filterAndRender() {
+  updateBrandBar();
   var allCars = cars.concat(manualCars);
   var data = allCars.filter(function(c) { return removedCars.indexOf(c.brand+'||'+c.model) < 0; });
   if (currentBrand !== 'all') data = data.filter(function(c) { return c.brand.indexOf(currentBrand) === 0; });
