@@ -2569,8 +2569,9 @@ function filterAndRender() {
   var col = currentSort.col === 'monthly' ? 'catalog' : currentSort.col;
   data.sort(function(a, b) {
     var av = a[col], bv = b[col];
-    if (typeof av === 'number') return (av - bv) * currentSort.dir;
-    return String(av||'').localeCompare(String(bv||''), 'he') * currentSort.dir;
+    var primary = typeof av === 'number' ? (av - bv) * currentSort.dir : String(av||'').localeCompare(String(bv||''), 'he') * currentSort.dir;
+    if (primary !== 0) return primary;
+    return String(a.model||'').localeCompare(String(b.model||''), 'he');
   });
   window._lastData = data;
   document.getElementById('shownCount').textContent = data.length;
