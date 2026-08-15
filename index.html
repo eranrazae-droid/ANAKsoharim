@@ -4074,7 +4074,7 @@ function onEditBrandSelect() {
   brandCars.forEach(function(item) {
     var c = item.car;
     var sk = item.key.replace(':', '_');
-    html += '<div style="border:1px solid #e0e4ef;border-radius:10px;padding:14px;margin-bottom:10px;">';
+    html += '<div id="card_' + sk + '" style="border:1px solid #e0e4ef;border-radius:10px;padding:14px;margin-bottom:10px;">';
     html += '<div id="modelName_' + sk + '" style="font-size:13px;font-weight:700;color:#1a1a2e;margin-bottom:10px;display:flex;align-items:center;gap:6px;">' + c.model + '<button onclick="editCarName(\'' + item.key + '\')" title="עריכת שם" style="background:none;border:none;cursor:pointer;font-size:13px;padding:0;line-height:1;opacity:0.55;flex-shrink:0;">✏️</button></div>';
     html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">';
     html += '<div><div style="font-size:11px;color:#7a839a;margin-bottom:2px;">מחיר לסוחר נוכחי</div><div style="font-size:14px;font-weight:700;color:#c9a227;">' + fmtN(c.dealer) + ' ₪</div></div>';
@@ -4091,12 +4091,64 @@ function onEditBrandSelect() {
     html += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">';
     html += '<button onclick="saveCarPrice(\'' + item.key + '\')" style="background:#c9a227;color:#000;border:none;border-radius:7px;padding:8px 20px;font-size:13px;font-weight:900;font-family:Heebo,sans-serif;cursor:pointer;">שמור</button>';
     html += '<button onclick="toggleCarVisibility(\'' + item.key + '\')" style="background:' + (isHidden ? '#e0e4ef' : '#e8f5e9') + ';color:' + (isHidden ? '#7a839a' : '#1b7a3e') + ';border:1px solid ' + (isHidden ? '#ccc' : '#a5d6a7') + ';border-radius:7px;padding:8px 14px;font-size:13px;font-weight:700;font-family:Heebo,sans-serif;cursor:pointer;">' + (isHidden ? '🚫 מוסתר' : '✅ מוצג') + '</button>';
+    html += '<button onclick="editCarDetails(\'' + item.key + '\')" style="background:#f0f2fa;color:#1a1a2e;border:1px solid #d0d4e4;border-radius:7px;padding:8px 14px;font-size:13px;font-weight:700;font-family:Heebo,sans-serif;cursor:pointer;">✏️ ערוך פרטים</button>';
     html += '<button onclick="deleteAdminCar(\'' + item.key + '\')" style="background:#fff0f0;color:#e24b4a;border:1px solid #f5c6c6;border-radius:7px;padding:8px 14px;font-size:13px;font-weight:700;font-family:Heebo,sans-serif;cursor:pointer;">🗑️ מחק</button>';
     html += '</div>';
     html += '</div>';
   });
   grid.innerHTML = html;
   grid.style.display = 'block';
+}
+
+function editCarDetails(carKey) {
+  var sk = carKey.replace(':', '_');
+  var card = document.getElementById('card_' + sk);
+  if (!card) return;
+  var parts = carKey.split(':');
+  var car = parts[0] === 'c' ? (window._staticCars || cars)[+parts[1]] : manualCars[+parts[1]];
+  if (!car) return;
+  var inp = 'width:100%;padding:7px 10px;border:1.5px solid #e0e4ef;border-radius:7px;font-family:Heebo,sans-serif;font-size:13px;outline:none;box-sizing:border-box;direction:rtl;';
+  var fuels = ['PHEV','EV','HEV','MHEV','בנזין','דיזל'];
+  var fuelOpts = fuels.map(function(f) { return '<option value="' + f + '"' + (car.fuel === f ? ' selected' : '') + '>' + f + '</option>'; }).join('');
+  card.innerHTML =
+    '<div style="font-size:13px;font-weight:700;color:#1a1a2e;margin-bottom:12px;">✏️ עריכת פרטי רכב</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">' +
+      '<div><label style="font-size:11px;color:#7a839a;display:block;margin-bottom:3px;">יצרן</label><input id="ed_brand_' + sk + '" value="' + (car.brand||'').replace(/"/g,'&quot;') + '" style="' + inp + '"></div>' +
+      '<div><label style="font-size:11px;color:#7a839a;display:block;margin-bottom:3px;">דגם</label><input id="ed_model_' + sk + '" value="' + (car.model||'').replace(/"/g,'&quot;') + '" style="' + inp + '"></div>' +
+    '</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">' +
+      '<div><label style="font-size:11px;color:#7a839a;display:block;margin-bottom:3px;">סוג דלק</label><select id="ed_fuel_' + sk + '" style="' + inp + '">' + fuelOpts + '</select></div>' +
+      '<div></div>' +
+    '</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">' +
+      '<div><label style="font-size:11px;color:#7a839a;display:block;margin-bottom:3px;">מחיר לסוחר ₪</label><input id="ed_dealer_' + sk + '" type="number" value="' + (car.dealer||'') + '" style="' + inp + '"></div>' +
+      '<div><label style="font-size:11px;color:#7a839a;display:block;margin-bottom:3px;">מחירון ₪</label><input id="ed_catalog_' + sk + '" type="number" value="' + (car.catalog||'') + '" style="' + inp + '"></div>' +
+    '</div>' +
+    '<div style="display:flex;gap:8px;">' +
+      '<button onclick="saveCarDetails(\'' + carKey + '\')" style="background:#c9a227;color:#000;border:none;border-radius:7px;padding:8px 20px;font-size:13px;font-weight:900;font-family:Heebo,sans-serif;cursor:pointer;">שמור</button>' +
+      '<button onclick="onEditBrandSelect()" style="background:#f0f2fa;color:#1a1a2e;border:1px solid #d0d4e4;border-radius:7px;padding:8px 16px;font-size:13px;font-weight:700;font-family:Heebo,sans-serif;cursor:pointer;">ביטול</button>' +
+    '</div>';
+}
+
+function saveCarDetails(carKey) {
+  var sk = carKey.replace(':', '_');
+  var parts = carKey.split(':');
+  var arr = parts[0] === 'c' ? (window._staticCars || cars) : manualCars;
+  var car = arr[+parts[1]];
+  if (!car) return;
+  var brand = (document.getElementById('ed_brand_' + sk) || {}).value || car.brand;
+  var model = (document.getElementById('ed_model_' + sk) || {}).value || car.model;
+  var fuel  = (document.getElementById('ed_fuel_' + sk) || {}).value || car.fuel;
+  var dealer  = parseInt((document.getElementById('ed_dealer_' + sk) || {}).value);
+  var catalog = parseInt((document.getElementById('ed_catalog_' + sk) || {}).value);
+  car.brand = brand.trim();
+  car.model = model.trim();
+  car.fuel  = fuel;
+  if (dealer && !isNaN(dealer)) car.dealer = dealer;
+  if (catalog && !isNaN(catalog)) { car.catalog = catalog; car.discount = catalog - car.dealer; }
+  if (parts[0] === 'm') saveManualCarsToDb();
+  onEditBrandSelect();
+  populateEditPriceSelect();
 }
 
 function saveHiddenCars() {
