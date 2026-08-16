@@ -19118,7 +19118,16 @@ async function _tdConvertToIntake(tdId, data) {
     Object.entries(tdNotes).forEach(([k,t]) => { const ik=tdToIntake[k]; if(ik&&t) intakeNotes[ik]=t; });
     tdDashLights.forEach(k => { const ik=tdDashMap[k]; if(ik) intakeDash[ik]=true; });
     if (tdDashOther) intakeNotes['c-dashboard'] = tdDashOther;
-    const intakeDraft = { checks:intakeChecks, notes:intakeNotes, dashChecks:intakeDash, km:data.km||data.draft?.km||'' };
+    // הקוד שהנהג הקליד בנסיעת המבחן עובר לקליטה — אותו שדה, אותו שם.
+    // גם הליקויים הנוספים שפירט עוברים, להערות הכלליות של הקליטה.
+    const tdCode = data.code || data.draft?.code || '';
+    const tdExtra = data.extraIssues || data.draft?.extraIssues || '';
+    const intakeDraft = {
+      checks: intakeChecks, notes: intakeNotes, dashChecks: intakeDash,
+      km: data.km || data.draft?.km || '',
+      code: tdCode,
+      ...(tdExtra ? { general: tdExtra } : {}),
+    };
     console.log('[TD→INTAKE] intakeDraft:', JSON.stringify(intakeDraft));
     if (!Object.keys(intakeChecks).length && !intakeDraft.km) {
       showToast('⚠️ לא נמצאו נתוני תשובות — בדוק שהנהג שלח את הטופס');
