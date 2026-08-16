@@ -1678,6 +1678,7 @@ if ('serviceWorker' in navigator) {
       <button class="bsm-fab bsm-fab-gold" onclick="openBsmSendModal()">➕ יצירת פתק</button>
       <button class="bsm-fab bsm-fab-dark" onclick="openBsmItemsModal()">⚙️ רשימת חלקים</button>
       <button class="bsm-fab bsm-fab-red" onclick="openBsmDelete()">🗑 מחק פתק</button>
+      <input type="file" accept="image/*" capture="environment" id="bsm-addphoto-file" style="display:none" onchange="bsmAddPhotoPicked(this)">
     </div>
     <div id="bsm-summary" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px;align-items:stretch">
       <div id="bsm-summary-tile"></div>
@@ -9120,7 +9121,8 @@ function _bshopJobCard(j, forWorker) {
       const all = empty === (j.items || []).length;
       return `<div class="bs-note" style="margin-top:6px;background:#fee2e2;color:#991b1b;border-right:5px solid #dc2626;border-radius:8px;padding:6px 9px;font-size:12px;font-weight:900">⚠️ ${all ? 'לא עודכן תשלום' : 'חסר מחיר לחלק בפתק'}</div>`;
     })()}
-    ${(j.photoThumb || j.photo) ? `<img id="bshop-card-img-${j.id}" src="${j.photo || j.photoThumb}" alt="" loading="lazy" style="margin-top:8px;width:100%;max-height:150px;object-fit:cover;object-position:${_bshopFocusCss(j)};border-radius:10px;display:block">` : ''}
+    ${(j.photoThumb || j.photo) ? `<img id="bshop-card-img-${j.id}" src="${j.photo || j.photoThumb}" alt="" loading="lazy" style="margin-top:8px;width:100%;max-height:150px;object-fit:cover;object-position:${_bshopFocusCss(j)};border-radius:10px;display:block">`
+      : (!forWorker ? `<button onclick="event.stopPropagation();bsmAddPhoto('${j.id}')" style="margin-top:8px;width:100%;background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:9px;font-family:'Heebo',sans-serif;font-size:13px;font-weight:800;cursor:pointer">📷 הוסף תמונה</button>` : '')}
     ${!forWorker && j.status === 'at_shop' ? `<button onclick="event.stopPropagation();bsmMarkReturned('${j.id}')"
       style="margin-top:10px;width:100%;background:var(--dark);color:#fff;border:none;border-radius:10px;padding:10px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:900;cursor:pointer">✅ סיימנו עם הרכב</button>` : ''}
     ${!forWorker && j.status === 'draft' ? `<div style="display:flex;gap:8px;margin-top:10px">
@@ -10829,6 +10831,41 @@ async function bsmPickPhoto(input) {
 window.bsmPickPhoto = bsmPickPhoto;
 
 function bsmClearPhoto() { _bsmPhoto = null; _bsmThumb = null; _bsmRenderPhoto(); }
+
+// הוספת תמונה לפתק קיים שנוצר בלי תמונה — אותו עיבוד ואותה שמירה
+// כמו ביצירת פתק: מוקטנת על הכרטיס, מלאה במסמך נפרד
+let _bsmAddPhotoJob = null;
+function bsmAddPhoto(id) {
+  _bsmAddPhotoJob = id;
+  document.getElementById('bsm-addphoto-file').click();
+}
+window.bsmAddPhoto = bsmAddPhoto;
+
+async function bsmAddPhotoPicked(input) {
+  const f = input.files && input.files[0];
+  input.value = '';
+  const id = _bsmAddPhotoJob;
+  _bsmAddPhotoJob = null;
+  if (!f || !id) return;
+  showToast('מעבד תמונה…');
+  let photo, thumb, focus;
+  try {
+    photo = await compressToBase64(f, 1000, 0.7);
+    thumb = await compressToBase64(f, 700, 0.62);
+    focus = await _bsmPlateFocus(photo);
+  } catch (e) { return showToast('לא הצלחנו לעבד את התמונה'); }
+  try {
+    const { setDoc, deleteField } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    await setDoc(_docRef('bodyshop_photos', id), { photo });
+    await _updateDoc(_docRef('bodyshop_jobs', id), {
+      photoThumb: thumb,
+      ...(focus ? { photoFocus: focus } : {}),
+      photoFailed: deleteField(),
+    });
+    showToast('✅ התמונה נוספה לפתק');
+  } catch (e) { showToast('⚠️ שמירת התמונה נכשלה: ' + (e.code || e.message), 7000); }
+}
+window.bsmAddPhotoPicked = bsmAddPhotoPicked;
 
 /* ── סרטון תיעוד לפחחות ─────────────────────────────────────────────
    שני מסלולים לקבלת סרטון:
