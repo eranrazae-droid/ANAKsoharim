@@ -2251,6 +2251,7 @@ if ('serviceWorker' in navigator) {
     <span id="pickup-batch-count" style="font-weight:800;font-size:13px;flex-shrink:0">נבחרו 0</span>
     <button onclick="batchCollectPickup()" style="flex:1;min-width:0;background:#059669;color:#fff;border:none;border-radius:10px;padding:12px 6px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">✅ נאספו</button>
     <button onclick="batchSendPickupToDriver()" style="flex:1;min-width:0;background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:12px 6px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">📲 שלח לנהג</button>
+    <button onclick="batchCopyPickupText()" style="flex:1;min-width:0;background:var(--dark);color:#fff;border:none;border-radius:10px;padding:12px 6px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">📋 העתק מלל</button>
     <button onclick="batchDeletePickup()" style="flex:1;min-width:0;background:#ef4444;color:#fff;border:none;border-radius:10px;padding:12px 6px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">🗑️ הסר</button>
     <button onclick="clearPickupSelection()" style="flex-shrink:0;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:12px 10px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">✕</button>
   </div>
@@ -16439,6 +16440,44 @@ function batchCollectPickup() {
   setTimeout(() => document.getElementById('collect-pickup-by')?.focus(), 50);
 }
 window.batchCollectPickup = batchCollectPickup;
+
+/* מלל לאיסוף — כל מה שנהג צריך כדי לצאת לדרך, מוכן להדבקה בוואטסאפ
+   או בטלגרם. אישור העברת הבעלות לא נכלל בכוונה; הוא מסמך שמצורף לרכב
+   ולא חלק ממה שמכתיבים בטלפון. */
+function pickupCarText(c) {
+  const lines = [];
+  lines.push(`🚗 ${c.plate || ''}`);
+  const desc = [c.type, c.year, c.color].filter(Boolean).join(' · ');
+  if (desc) lines.push(desc);
+  const where = [c.address, _pickupCity(c)].filter(Boolean).join(', ');
+  if (where) lines.push(`📍 ${where}`);
+  if (c.contact) lines.push(`👤 ${c.contact}`);
+  if (c.km) lines.push(`🛣️ ${_fmtKm(c.km)} ק"מ`);
+  if (c.test) lines.push(`🔧 טסט: ${c.test}${_testExpired(c.test) ? ' (פג תוקף)' : ''}`);
+  if (c.note) lines.push(`📝 ${c.note}`);
+  // ניווט ישיר — חוסך לנהג לחפש את הכתובת בעצמו
+  if (c.lat && c.lng) lines.push(`🗺️ https://www.google.com/maps/dir/?api=1&destination=${c.lat},${c.lng}`);
+  return lines.join('\n');
+}
+
+function batchCopyPickupText() {
+  if (!_pickupSelected.size) { showToast('לא נבחרו רכבים'); return; }
+  // לפי הסדר שמוצג על המסך, לא לפי סדר הסימון
+  const cars = _pickupShownIds
+    .filter(id => _pickupSelected.has(id))
+    .map(id => _pickupAllCars.find(c => c.id === id))
+    .filter(Boolean);
+  if (!cars.length) { showToast('לא נמצאו רכבים'); return; }
+  const head = cars.length === 1 ? 'רכב לאיסוף:' : `${cars.length} רכבים לאיסוף:`;
+  const txt = `${head}\n\n` + cars.map(pickupCarText).join('\n\n────────\n\n');
+  const done = () => showToast(`📋 ${cars.length === 1 ? 'הרכב הועתק' : `${cars.length} רכבים הועתקו`} — אפשר להדביק`);
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(txt).then(done).catch(() => _pcCopyFallback(txt, done));
+  } else {
+    _pcCopyFallback(txt, done);
+  }
+}
+window.batchCopyPickupText = batchCopyPickupText;
 
 async function batchDeletePickup() {
   const ids = [..._pickupSelected];
