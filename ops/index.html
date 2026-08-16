@@ -11005,9 +11005,13 @@ async function bsrOpen() {
   document.getElementById('bsr-review-controls').style.display = 'none';
   const t = document.getElementById('bsr-timer'); if (t) t.textContent = '';
   const m = document.getElementById('bsr-scan-msg'); if (m) m.innerHTML = '';
+  // מנעול מסך: בלי זה iOS מעמעם ונועל את המסך באמצע צילום — נעילה
+  // אוטומטית של 30 שניות חותכת כל סרטון ארוך ממנה
+  try { _bsrWake = await navigator.wakeLock?.request('screen'); } catch (e) { _bsrWake = null; }
   openModal('modal-bsr');
 }
 window.bsrOpen = bsrOpen;
+let _bsrWake = null;
 
 function _bsrPickMime() {
   const opts = ['video/mp4;codecs=avc1.640028,mp4a.40.2', 'video/mp4', 'video/webm;codecs=h264', 'video/webm'];
@@ -11029,9 +11033,10 @@ function bsrToggleRec() {
   } catch (e) { return showToast('המכשיר לא תומך בהקלטה: ' + e.message, 6000); }
   _bsrRec.ondataavailable = ev => { if (ev.data && ev.data.size) _bsrChunks.push(ev.data); };
   _bsrRec.onstop = _bsrOnStop;
-  // הקלטה רציפה אחת, בלי חיתוך לנתחים — נתחים בספארי מייצרים קובץ
-  // מקוטע שמגמגם בניגון. הגודל מוערך לפי הזמן במקום להימדד.
-  _bsrRec.start();
+  // ריקון הבאפר כל שנייה: בהקלטה רציפה לבאפר אחד ספארי מפסיק לכתוב
+  // פריימים אחרי ~20 שניות (השמע ממשיך והסרטון קופא) — נמדד בשטח בכל
+  // רמות האיכות. עם ריקון קבוע הכתיבה לא נתקעת. הגודל מוערך לפי זמן.
+  _bsrRec.start(1000);
   _bsrT0 = Date.now();
   _bsrPixPrev = null; _bsrPixSame = 0;
   const btn = document.getElementById('bsr-rec-btn');
@@ -11129,13 +11134,14 @@ function _bsrOnStop() {
   _bsrElapsedSec = _bsrT0 ? (Date.now() - _bsrT0) / 1000 : 0;
   const btn = document.getElementById('bsr-rec-btn');
   if (btn) { btn.textContent = '⏺'; btn.style.background = '#dc2626'; }
-  // בספארי הנתח האחרון של ההקלטה מגיע לפעמים רק אחרי אירוע העצירה —
-  // בלי המתנה הסרטון נחשב "ריק" בטעות והמסך חוזר למצלמה במקום לאישור
-  let waited = 0;
+  // בספארי הנתחים האחרונים מגיעים לפעמים רק אחרי אירוע העצירה —
+  // ממתינים עד שמספר הנתחים מתייצב, אחרת החלק האחרון של הסרטון נחתך
+  let waited = 0, lastCount = -1;
   const finalize = () => {
-    if (!_bsrChunks.length && waited < 2000) {
-      waited += 150;
-      return setTimeout(finalize, 150);
+    if (waited < 2000 && (_bsrChunks.length === 0 || _bsrChunks.length !== lastCount)) {
+      lastCount = _bsrChunks.length;
+      waited += 250;
+      return setTimeout(finalize, 250);
     }
     _bsrFinish();
   };
@@ -11202,6 +11208,8 @@ document.addEventListener('visibilitychange', () => {
 
 function bsrClose() {
   try { if (_bsrRec && _bsrRec.state === 'recording') _bsrRec.stop(); } catch (e) {}
+  try { _bsrWake?.release(); } catch (e) {}
+  _bsrWake = null;
   clearInterval(_bsrTick); _bsrTick = null;
   if (_bsrStream) { _bsrStream.getTracks().forEach(t => t.stop()); _bsrStream = null; }
   const rv = document.getElementById('bsr-review');
