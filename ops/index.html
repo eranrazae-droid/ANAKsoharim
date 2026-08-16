@@ -1733,6 +1733,9 @@ if ('serviceWorker' in navigator) {
     <div class="form-group"><label>תמונת הרכב (לא חובה)</label>
       <input type="file" accept="image/*" capture="environment" id="bsm-photo-file" style="display:none" onchange="bsmPickPhoto(this)">
       <div id="bsm-photo-wrap"></div></div>
+    <div class="form-group"><label>🎥 סרטון תיעוד <span style="color:#ef4444">*</span> <span style="font-weight:600;color:var(--muted)">(חובה — יישלח לקבוצת הפחחות)</span></label>
+      <input type="file" accept="video/*" id="bsm-video-file" style="display:none" onchange="bsmPickVideo(this)">
+      <div id="bsm-video-wrap"></div></div>
     <div class="form-group"><label>מה צריך לעשות <span style="color:#ef4444">*</span></label>
       <div id="bsm-items-pick"></div></div>
     <div class="form-group"><label>הוסף חלק שלא ברשימה</label>
@@ -1743,6 +1746,27 @@ if ('serviceWorker' in navigator) {
     <div class="form-group"><label>הערה לפחח</label>
       <input class="form-input" id="bsm-note" placeholder="לא חובה"></div>
     <button class="btn-submit" id="bsm-submit-btn" onclick="submitBsmSend()">📝 צור פתק</button>
+  </div>
+</div>
+
+<!-- מצלמת הסרטון של הפחחות: זרם גולמי מהחיישן, מוקלט אצלנו באיכות
+     שאנחנו קובעים — בלי הדחיסה ש-iOS כופה על צילום/בחירה רגילים -->
+<div class="modal-overlay" id="modal-bsr" style="z-index:265">
+  <div class="modal-box" style="max-width:640px;padding:14px;background:#000">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <span id="bsr-quality" style="color:#9ca3af;font-size:12px;font-weight:800;direction:ltr"></span>
+      <span id="bsr-timer" style="color:#fff;font-size:15px;font-weight:900;direction:ltr"></span>
+      <button onclick="bsrClose()" style="background:rgba(255,255,255,.2);color:#fff;border:none;border-radius:999px;width:32px;height:32px;font-size:15px;font-weight:900;cursor:pointer">✕</button>
+    </div>
+    <video id="bsr-preview" autoplay playsinline muted style="width:100%;max-height:60vh;border-radius:12px;background:#111;display:block"></video>
+    <video id="bsr-review" playsinline controls style="display:none;width:100%;max-height:60vh;border-radius:12px;background:#111"></video>
+    <div id="bsr-controls" style="display:flex;gap:10px;justify-content:center;margin-top:12px">
+      <button id="bsr-rec-btn" onclick="bsrToggleRec()" style="background:#dc2626;color:#fff;border:4px solid #fff;border-radius:999px;width:64px;height:64px;font-size:22px;cursor:pointer">⏺</button>
+    </div>
+    <div id="bsr-review-controls" style="display:none;gap:10px;margin-top:12px">
+      <button onclick="bsrRetake()" style="flex:1;background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:12px;padding:13px;font-family:Heebo,sans-serif;font-weight:800;font-size:15px;cursor:pointer">🔄 צלם שוב</button>
+      <button onclick="bsrUse()" style="flex:1;background:#16a34a;color:#fff;border:none;border-radius:12px;padding:13px;font-family:Heebo,sans-serif;font-weight:900;font-size:15px;cursor:pointer">✅ השתמש בסרטון</button>
+    </div>
   </div>
 </div>
 
@@ -10678,6 +10702,9 @@ function openBsmSendModal() {
   _bsmMaker = '';
   _bsmPhoto = null;
   _bsmThumb = null;
+  _bsmVideoFile = null;
+  _bsmVideoInfo = null;
+  _bsmRenderVideo();
   _bsmRenderPhoto();
   _bsmRenderPicker();
   openModal('modal-bsm-send');
@@ -10803,6 +10830,194 @@ window.bsmPickPhoto = bsmPickPhoto;
 
 function bsmClearPhoto() { _bsmPhoto = null; _bsmThumb = null; _bsmRenderPhoto(); }
 
+/* ── סרטון תיעוד לפחחות ─────────────────────────────────────────────
+   שני מסלולים לקבלת סרטון:
+   1. המצלמה הפנימית (הראשי) — הזרם הגולמי מהחיישן מוקלט אצלנו,
+      ברזולוציה המקסימלית שהמכשיר נותן ובקצב סיביות גבוה. iOS דוחס רק
+      סרטונים שעוברים דרך המנגנונים שלו (צילום דפדפן / בחירת גלריה);
+      קובץ שנוצר כאן לא עובר דרכם, ולכן שומר על האיכות.
+   2. בחירה מהגלריה (משני) — iOS ידחוס. הרזולוציה שמתקבלת מוצגת.
+   הקובץ נשלח לקבוצה כ-document — בייט-בבייט, טלגרם לא נוגע בו.       */
+let _bsmVideoFile = null, _bsmVideoInfo = null;
+
+function _bsmRenderVideo() {
+  const w = document.getElementById('bsm-video-wrap');
+  if (!w) return;
+  if (_bsmVideoFile) {
+    const mb = (_bsmVideoFile.size / 1048576).toFixed(1);
+    const i = _bsmVideoInfo || {};
+    const meta = [i.w ? `${i.w}×${i.h}` : '', i.sec ? `${Math.round(i.sec)} שנ׳` : '', mb + 'MB'].filter(Boolean).join(' · ');
+    w.innerHTML = `<div style="display:flex;align-items:center;gap:10px;border:2px solid #16a34a;border-radius:12px;padding:10px 12px;background:#f0fdf4">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:800;font-size:13px">🎥 סרטון מוכן לשליחה</div>
+          <div style="font-size:12px;font-weight:700;color:var(--muted);direction:ltr;text-align:right">${meta}</div>
+        </div>
+        <button type="button" onclick="bsmClearVideo()" style="background:#ef4444;color:#fff;border:none;border-radius:8px;width:30px;height:30px;cursor:pointer;flex-shrink:0">🗑</button>
+      </div>`;
+  } else {
+    w.innerHTML = `
+      <button type="button" onclick="bsrOpen()" style="width:100%;background:#7c3aed;color:#fff;border:none;border-radius:10px;padding:12px;font-family:Heebo,sans-serif;font-weight:800;font-size:15px;cursor:pointer">🎥 צלם סרטון (איכות גבוהה)</button>
+      <button type="button" onclick="document.getElementById('bsm-video-file').click()" style="width:100%;margin-top:6px;background:var(--surface2);color:var(--muted);border:1.5px dashed var(--border);border-radius:10px;padding:8px;font-family:Heebo,sans-serif;font-weight:700;font-size:12px;cursor:pointer">🖼 או בחר מהגלריה (iOS מוריד איכות)</button>`;
+  }
+}
+
+function _videoDims(file) {
+  return new Promise(resolve => {
+    try {
+      const v = document.createElement('video');
+      v.preload = 'metadata';
+      v.onloadedmetadata = () => { resolve({ w: v.videoWidth, h: v.videoHeight, sec: v.duration }); URL.revokeObjectURL(v.src); };
+      v.onerror = () => resolve(null);
+      v.src = URL.createObjectURL(file);
+      setTimeout(() => resolve(null), 4000);
+    } catch (e) { resolve(null); }
+  });
+}
+
+async function bsmPickVideo(input) {
+  const f = input.files[0];
+  input.value = '';
+  if (!f) return;
+  if (f.size > 50 * 1048576) { showToast('⚠️ הסרטון גדול מ-50MB ולא יישלח בטלגרם. צלם קצר יותר.', 7000); return; }
+  _bsmVideoFile = f;
+  _bsmVideoInfo = await _videoDims(f);
+  _bsmRenderVideo();
+}
+window.bsmPickVideo = bsmPickVideo;
+function bsmClearVideo() { _bsmVideoFile = null; _bsmVideoInfo = null; _bsmRenderVideo(); }
+window.bsmClearVideo = bsmClearVideo;
+
+/* המקליט הפנימי */
+let _bsrStream = null, _bsrRec = null, _bsrChunks = [], _bsrBlob = null, _bsrMime = '';
+let _bsrTick = null, _bsrT0 = 0;
+const _BSR_BPS = 10_000_000;                 // 10Mbps — איכות 1080p גבוהה
+const _BSR_MAX_BYTES = 47 * 1048576;         // עצירה אוטומטית לפני תקרת טלגרם
+
+async function bsrOpen() {
+  _bsrBlob = null; _bsrChunks = [];
+  try {
+    // מבקשים 4K — המכשיר ייתן את המקסימום שהוא מסוגל
+    _bsrStream = await navigator.mediaDevices.getUserMedia({
+      audio: true,
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 3840 }, height: { ideal: 2160 }, frameRate: { ideal: 30 } },
+    });
+  } catch (e) {
+    return showToast('אין גישה למצלמה: ' + (e.message || e.name), 6000);
+  }
+  const set = _bsrStream.getVideoTracks()[0]?.getSettings?.() || {};
+  const q = document.getElementById('bsr-quality');
+  if (q) q.textContent = set.width ? `${set.width}×${set.height} · ${Math.round(_BSR_BPS / 1e6)}Mbps` : '';
+  const prev = document.getElementById('bsr-preview');
+  prev.srcObject = _bsrStream;
+  prev.style.display = 'block';
+  document.getElementById('bsr-review').style.display = 'none';
+  document.getElementById('bsr-controls').style.display = 'flex';
+  document.getElementById('bsr-review-controls').style.display = 'none';
+  const t = document.getElementById('bsr-timer'); if (t) t.textContent = '';
+  openModal('modal-bsr');
+}
+window.bsrOpen = bsrOpen;
+
+function _bsrPickMime() {
+  const opts = ['video/mp4;codecs=avc1.640028,mp4a.40.2', 'video/mp4', 'video/webm;codecs=h264', 'video/webm'];
+  for (const m of opts) { try { if (MediaRecorder.isTypeSupported(m)) return m; } catch (e) {} }
+  return '';
+}
+
+function bsrToggleRec() {
+  if (_bsrRec && _bsrRec.state === 'recording') { _bsrRec.stop(); return; }
+  if (!_bsrStream) return;
+  _bsrChunks = [];
+  _bsrMime = _bsrPickMime();
+  try {
+    _bsrRec = new MediaRecorder(_bsrStream, {
+      ...(_bsrMime ? { mimeType: _bsrMime } : {}),
+      videoBitsPerSecond: _BSR_BPS,
+      audioBitsPerSecond: 128_000,
+    });
+  } catch (e) { return showToast('המכשיר לא תומך בהקלטה: ' + e.message, 6000); }
+  _bsrRec.ondataavailable = ev => { if (ev.data && ev.data.size) _bsrChunks.push(ev.data); };
+  _bsrRec.onstop = _bsrOnStop;
+  _bsrRec.start(1000);   // נתח כל שנייה — מאפשר לעקוב אחרי הגודל תוך כדי
+  _bsrT0 = Date.now();
+  const btn = document.getElementById('bsr-rec-btn');
+  if (btn) { btn.textContent = '⏹'; btn.style.background = '#111'; }
+  _bsrTick = setInterval(() => {
+    const sec = Math.floor((Date.now() - _bsrT0) / 1000);
+    const bytes = _bsrChunks.reduce((s, c) => s + c.size, 0);
+    const t = document.getElementById('bsr-timer');
+    if (t) t.textContent = `● ${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')} · ${(bytes / 1048576).toFixed(0)}MB`;
+    // עצירה לפני מגבלת ה-50MB של טלגרם, שלא יילך סרטון לפח
+    if (bytes > _BSR_MAX_BYTES && _bsrRec?.state === 'recording') {
+      showToast('הגעת לגבול הגודל — ההקלטה נעצרה ונשמרה', 5000);
+      _bsrRec.stop();
+    }
+  }, 500);
+}
+window.bsrToggleRec = bsrToggleRec;
+
+function _bsrOnStop() {
+  clearInterval(_bsrTick); _bsrTick = null;
+  const btn = document.getElementById('bsr-rec-btn');
+  if (btn) { btn.textContent = '⏺'; btn.style.background = '#dc2626'; }
+  _bsrBlob = new Blob(_bsrChunks, { type: _bsrMime || 'video/mp4' });
+  if (!_bsrBlob.size) return showToast('ההקלטה יצאה ריקה — נסה שוב');
+  // תצוגה מקדימה לאישור לפני שימוש
+  const rv = document.getElementById('bsr-review');
+  rv.src = URL.createObjectURL(_bsrBlob);
+  document.getElementById('bsr-preview').style.display = 'none';
+  rv.style.display = 'block';
+  document.getElementById('bsr-controls').style.display = 'none';
+  document.getElementById('bsr-review-controls').style.display = 'flex';
+}
+
+function bsrRetake() {
+  const rv = document.getElementById('bsr-review');
+  if (rv.src) { URL.revokeObjectURL(rv.src); rv.removeAttribute('src'); }
+  _bsrBlob = null;
+  rv.style.display = 'none';
+  document.getElementById('bsr-preview').style.display = 'block';
+  document.getElementById('bsr-controls').style.display = 'flex';
+  document.getElementById('bsr-review-controls').style.display = 'none';
+  const t = document.getElementById('bsr-timer'); if (t) t.textContent = '';
+}
+window.bsrRetake = bsrRetake;
+
+async function bsrUse() {
+  if (!_bsrBlob) return;
+  const ext = (_bsrMime || '').includes('webm') ? 'webm' : 'mp4';
+  _bsmVideoFile = new File([_bsrBlob], `car-${Date.now()}.${ext}`, { type: _bsrBlob.type });
+  _bsmVideoInfo = await _videoDims(_bsmVideoFile);
+  bsrClose();
+  _bsmRenderVideo();
+}
+window.bsrUse = bsrUse;
+
+function bsrClose() {
+  try { if (_bsrRec && _bsrRec.state === 'recording') _bsrRec.stop(); } catch (e) {}
+  clearInterval(_bsrTick); _bsrTick = null;
+  if (_bsrStream) { _bsrStream.getTracks().forEach(t => t.stop()); _bsrStream = null; }
+  const rv = document.getElementById('bsr-review');
+  if (rv?.src) { URL.revokeObjectURL(rv.src); rv.removeAttribute('src'); }
+  const pv = document.getElementById('bsr-preview'); if (pv) pv.srcObject = null;
+  closeModal('modal-bsr');
+}
+window.bsrClose = bsrClose;
+
+// השליחה לקבוצה — כ-document, בייט-בבייט, בלי דחיסה של טלגרם
+async function _bsmSendVideoToGroup(file, plate, desc) {
+  const contacts = await _loadDriverContacts();
+  const chatId = (contacts['_pahachVideoChat']?.value || '').trim();
+  if (!chatId) throw new Error('לא נבחרה קבוצת פחחות בהגדרות');
+  const form = new FormData();
+  form.append('chat_id', chatId);
+  form.append('caption', [plate, desc].filter(Boolean).join(' · '));
+  form.append('document', file, file.name || 'video.mp4');
+  const data = await _telegramApi('sendDocument', form);
+  if (data._noToken) throw new Error('אין טוקן טלגרם');
+  if (!data.ok) throw new Error(data.description || 'שליחה נכשלה');
+}
+
 window.bsmClearPhoto = bsmClearPhoto;
 
 async function submitBsmSend() {
@@ -10811,6 +11026,19 @@ async function submitBsmSend() {
   const note = document.getElementById('bsm-note').value.trim();
   if (!plate) return showToast('נא להזין מספר רישוי');
   if (!_bsmPicked.length) return showToast('נא לבחור לפחות חלק אחד');
+  if (!_bsmVideoFile) return showToast('חובה לצרף סרטון תיעוד לפני יצירת הפתק');
+
+  // הסרטון נשלח קודם — הפתק נוצר רק אם הוא הגיע לקבוצה
+  const btn = document.getElementById('bsm-submit-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '🎥 שולח סרטון…'; }
+  try {
+    await _bsmSendVideoToGroup(_bsmVideoFile, plate, desc);
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = '📝 צור פתק'; }
+    return showToast('⚠️ הפתק לא נוצר — הסרטון לא נשלח: ' + e.message, 9000);
+  }
+  _bsmVideoFile = null; _bsmVideoInfo = null;
+  if (btn) { btn.disabled = false; btn.textContent = '📝 צור פתק'; }
 
   // תמונת מצב של הטופס, סגירה מיידית, וכתיבה ברקע — בלי דיליי
   const snap = {
@@ -10819,7 +11047,7 @@ async function submitBsmSend() {
     items: _bshopSortNames(_bsmPicked).map(name => ({ name, price: null })),
   };
   closeModal('modal-bsm-send');
-  showToast('✅ הפתק נוצר');
+  showToast('✅ הסרטון נשלח והפתק נוצר');
 
   // כתיבת הפתק ברקע
   try {
@@ -15170,6 +15398,20 @@ async function _openNotifySettingsInner() {
       <button onclick="refreshTelegramChats()" style="background:#229ED9;color:#fff;border:none;border-radius:8px;padding:8px;width:100%;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer">🔄 רענן צ׳אטים מהבוט</button>
       <div id="nc-telegram-chats" style="margin-top:8px;font-size:12px"></div>
     </div>`;
+  // קבוצת סרטוני הפחחות — הבוט (מנהל בקבוצה) רושם אותה כשהוא רואה הודעה
+  _pahachGroupSel = contacts['_pahachVideoChat']?.value || '';
+  let groups = {};
+  try {
+    const gs = await window._getDoc(_docRef('config', 'telegram_groups'));
+    if (gs.exists()) groups = gs.data() || {};
+  } catch (e) {}
+  window._pahachGroups = groups;
+  const videoGroupRow = `
+    <div style="border:2px solid #7c3aed;border-radius:12px;padding:12px 14px;margin-bottom:14px;background:#f5f3ff">
+      <div style="font-weight:900;font-size:14px;margin-bottom:4px;color:#6d28d9">🎥 קבוצת סרטוני פחחות</div>
+      <div style="font-size:11px;color:#333;margin-bottom:8px;line-height:1.6">סרטון שמצורף לפתק פחחות נשלח לקבוצה שנבחרת כאן.</div>
+      <div id="nc-video-groups"></div>
+    </div>`;
   const rows = drivers.map(name => {
     const c = contacts[name] || {};
     return `<div style="border:1.5px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:10px;background:#fff">
@@ -15179,8 +15421,37 @@ async function _openNotifySettingsInner() {
       <button onclick="testTelegram('${name}')" style="width:100%;background:#229ED9;color:#fff;border:none;border-radius:8px;padding:7px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer">✈️ בדיקת טלגרם</button>
     </div>`;
   }).join('');
-  document.getElementById('notify-settings-body').innerHTML = telegramRow + rows;
+  document.getElementById('notify-settings-body').innerHTML = telegramRow + videoGroupRow + rows;
+  _renderPahachGroups();
 }
+
+// בחירת קבוצת היעד לסרטונים — נשמרת מיד בלחיצה
+let _pahachGroupSel = '';
+function _renderPahachGroups() {
+  const box = document.getElementById('nc-video-groups');
+  if (!box) return;
+  const entries = Object.values(window._pahachGroups || {}).filter(g => g && g.id);
+  if (!entries.length) {
+    box.innerHTML = `<div style="font-size:12px;color:#6d28d9;font-weight:700">עדיין לא זוהתה קבוצה — ודא שהבוט מנהל בקבוצה ושלח בה הודעה, ואז פתח שוב את ההגדרות.</div>`;
+    return;
+  }
+  box.innerHTML = entries.map(g => {
+    const on = String(g.id) === String(_pahachGroupSel);
+    return `<button type="button" onclick="pickPahachGroup('${esc(String(g.id))}')" style="display:block;width:100%;text-align:right;margin-bottom:6px;padding:10px 12px;border-radius:10px;font-family:Heebo,sans-serif;font-size:14px;font-weight:800;cursor:pointer;${on
+      ? 'background:#7c3aed;color:#fff;border:2px solid #7c3aed'
+      : 'background:#fff;color:var(--text);border:2px solid var(--border)'}">${on ? '✅ ' : ''}${esc(g.title || 'קבוצה')} <span style="font-weight:600;opacity:.7;font-size:11px">(${esc(String(g.id))})</span></button>`;
+  }).join('');
+}
+async function pickPahachGroup(id) {
+  _pahachGroupSel = (String(_pahachGroupSel) === String(id)) ? '' : id;
+  _renderPahachGroups();
+  try {
+    await window._setDoc(_docRef('config', 'driver_contacts'), { _pahachVideoChat: { value: _pahachGroupSel } }, { merge: true });
+    _driverContacts = { ...(_driverContacts || {}), _pahachVideoChat: { value: _pahachGroupSel } };
+    showToast(_pahachGroupSel ? '✅ קבוצת הסרטונים נשמרה' : 'הבחירה בוטלה');
+  } catch (e) { showToast('שמירת הקבוצה נכשלה'); }
+}
+window.pickPahachGroup = pickPahachGroup;
 
 async function saveNotifySettings() {
   const drivers = ['ליאל','עופר','גיל','איתי','איברהים'];
