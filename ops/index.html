@@ -1764,6 +1764,7 @@ if ('serviceWorker' in navigator) {
     <div id="bsr-controls" style="display:flex;gap:10px;justify-content:center;margin-top:12px">
       <button id="bsr-rec-btn" onclick="bsrToggleRec()" style="background:#dc2626;color:#fff;border:4px solid #fff;border-radius:999px;width:64px;height:64px;font-size:22px;cursor:pointer">⏺</button>
     </div>
+    <div id="bsr-scan-msg" style="margin-top:10px"></div>
     <div id="bsr-review-controls" style="display:none;gap:10px;margin-top:12px">
       <button onclick="bsrRetake()" style="flex:1;background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:12px;padding:13px;font-family:Heebo,sans-serif;font-weight:800;font-size:15px;cursor:pointer">🔄 צלם שוב</button>
       <button onclick="bsrUse()" style="flex:1;background:#16a34a;color:#fff;border:none;border-radius:12px;padding:13px;font-family:Heebo,sans-serif;font-weight:900;font-size:15px;cursor:pointer">✅ השתמש בסרטון</button>
@@ -10926,7 +10927,26 @@ window.bsmClearVideo = bsmClearVideo;
 
 /* המקליט הפנימי */
 let _bsrStream = null, _bsrRec = null, _bsrChunks = [], _bsrBlob = null, _bsrMime = '';
-let _bsrTick = null, _bsrT0 = 0, _bsrLastFrame = 0;
+let _bsrTick = null, _bsrT0 = 0, _bsrLastFrame = 0, _bsrElapsedSec = 0;
+// השוואת פיקסלים: שעון הפריימים של הדפדפן לא תמיד מדווח אמת ב-iOS,
+// אז בודקים את התמונה עצמה — מצלמה אמיתית אף פעם לא מחזירה שני צילומים
+// זהים בית-בבית (רעש חיישן), ולכן זהות מוחלטת = תמונה קפואה
+let _bsrPixPrev = null, _bsrPixSame = 0;
+function _bsrGrabPix(videoEl) {
+  try {
+    if (!videoEl.videoWidth) return null;
+    const c = _bsrGrabPix._c || (_bsrGrabPix._c = document.createElement('canvas'));
+    c.width = 48; c.height = 27;
+    const ctx = c.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(videoEl, 0, 0, 48, 27);
+    return ctx.getImageData(0, 0, 48, 27).data;
+  } catch (e) { return null; }
+}
+function _bsrPixEqual(a, b) {
+  if (!a || !b || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 8) if (a[i] !== b[i]) return false;
+  return true;
+}
 const _BSR_BPS = 8_000_000;                  // 8Mbps ב-1080p — חד וגם חלק
 const _BSR_MAX_BYTES = 45 * 1048576;         // עצירה אוטומטית לפני תקרת טלגרם
 
@@ -10964,6 +10984,7 @@ async function bsrOpen() {
   document.getElementById('bsr-controls').style.display = 'flex';
   document.getElementById('bsr-review-controls').style.display = 'none';
   const t = document.getElementById('bsr-timer'); if (t) t.textContent = '';
+  const m = document.getElementById('bsr-scan-msg'); if (m) m.innerHTML = '';
   openModal('modal-bsr');
 }
 window.bsrOpen = bsrOpen;
@@ -10992,6 +11013,7 @@ function bsrToggleRec() {
   // מקוטע שמגמגם בניגון. הגודל מוערך לפי הזמן במקום להימדד.
   _bsrRec.start();
   _bsrT0 = Date.now();
+  _bsrPixPrev = null; _bsrPixSame = 0;
   const btn = document.getElementById('bsr-rec-btn');
   if (btn) { btn.textContent = '⏹'; btn.style.background = '#111'; }
   _bsrTick = setInterval(() => {
@@ -11010,12 +11032,56 @@ function bsrToggleRec() {
       showToast('⚠️ המצלמה קפאה — הסרטון נשמר עד רגע הקפיאה. צלם המשך אם צריך.', 7000);
       _bsrRec.stop();
     }
+    // שכבה שנייה: התמונה בתצוגה זהה לחלוטין 2 שניות ברצף = קפואה,
+    // גם אם שעון הפריימים ממשיך לדווח כאילו הכל תקין
+    const pix = _bsrGrabPix(document.getElementById('bsr-preview'));
+    if (pix) {
+      _bsrPixSame = _bsrPixEqual(pix, _bsrPixPrev) ? _bsrPixSame + 1 : 0;
+      _bsrPixPrev = pix;
+      if (_bsrPixSame >= 4 && _bsrRec?.state === 'recording') {
+        showToast('⚠️ המצלמה קפאה — הסרטון נשמר עד רגע הקפיאה. צלם המשך אם צריך.', 7000);
+        _bsrRec.stop();
+      }
+    }
   }, 500);
 }
 window.bsrToggleRec = bsrToggleRec;
 
+/* סריקת קפיאה על הקובץ המוקלט עצמו: דוגמים פריימים לאורך כל הסרטון
+   ומחפשים רצף זהה שנמשך עד הסוף. תופס גם קפיאה שקרתה בקידוד — כזאת
+   שהתצוגה החיה לא מראה — לפני שהסרטון נשלח לקבוצה. */
+async function _bsrScanFreeze(url, fallbackSec) {
+  const v = document.createElement('video');
+  v.muted = true; v.playsInline = true; v.preload = 'auto'; v.src = url;
+  await new Promise(res => { v.onloadedmetadata = res; v.onerror = res; setTimeout(res, 3000); });
+  const dur = (isFinite(v.duration) && v.duration > 0) ? v.duration : fallbackSec;
+  if (!dur || dur < 4) return null;
+  const c = document.createElement('canvas'); c.width = 48; c.height = 27;
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  const grab = t => new Promise(res => {
+    let done = false;
+    const fin = d => { if (!done) { done = true; res(d); } };
+    v.onseeked = () => { try { ctx.drawImage(v, 0, 0, 48, 27); fin(ctx.getImageData(0, 0, 48, 27).data); } catch (e) { fin(null); } };
+    setTimeout(() => fin(null), 2000);
+    try { v.currentTime = Math.min(t, dur - 0.1); } catch (e) { fin(null); }
+  });
+  const step = Math.max(1, dur / 15);
+  let prev = null, freezeAt = null, run = 0;
+  for (let t = 0.2; t < dur; t += step) {
+    const d = await grab(t);
+    if (!d) continue;
+    if (prev && _bsrPixEqual(d, prev)) { run++; if (freezeAt == null) freezeAt = Math.max(0, t - step); }
+    else { run = 0; freezeAt = null; }
+    prev = d;
+  }
+  // דורש רצף של לפחות שתי דגימות זהות שנמשך עד סוף הסרטון — צילום
+  // אמיתי, גם של סצנה דוממת, לא מייצר פריימים זהים בית-בבית לאורך זמן
+  return run >= 2 ? freezeAt : null;
+}
+
 function _bsrOnStop() {
   clearInterval(_bsrTick); _bsrTick = null;
+  _bsrElapsedSec = _bsrT0 ? (Date.now() - _bsrT0) / 1000 : 0;
   const btn = document.getElementById('bsr-rec-btn');
   if (btn) { btn.textContent = '⏺'; btn.style.background = '#dc2626'; }
   // בספארי הנתח האחרון של ההקלטה מגיע לפעמים רק אחרי אירוע העצירה —
@@ -11041,6 +11107,15 @@ function _bsrFinish() {
   rv.style.display = 'block';
   document.getElementById('bsr-controls').style.display = 'none';
   document.getElementById('bsr-review-controls').style.display = 'flex';
+  // בדיקה אוטומטית של הקובץ שהוקלט, לפני שבוחרים להשתמש בו
+  const msg = document.getElementById('bsr-scan-msg');
+  if (msg) msg.innerHTML = '<div style="color:#9ca3af;font-size:13px;font-weight:700;text-align:center">🔍 בודק שהסרטון תקין…</div>';
+  _bsrScanFreeze(rv.src, _bsrElapsedSec).then(fz => {
+    if (!msg) return;
+    msg.innerHTML = fz != null
+      ? `<div style="background:#7f1d1d;color:#fff;border-radius:10px;padding:10px 12px;font-size:14px;font-weight:900;text-align:center">⚠️ הסרטון קפוא בערך משנייה ${Math.round(fz)} — מומלץ לצלם שוב</div>`
+      : '<div style="color:#4ade80;font-size:13px;font-weight:800;text-align:center">✅ הסרטון נבדק — תקין לכל האורך</div>';
+  }).catch(() => { if (msg) msg.innerHTML = ''; });
 }
 
 function bsrRetake() {
@@ -11052,6 +11127,7 @@ function bsrRetake() {
   document.getElementById('bsr-controls').style.display = 'flex';
   document.getElementById('bsr-review-controls').style.display = 'none';
   const t = document.getElementById('bsr-timer'); if (t) t.textContent = '';
+  const m = document.getElementById('bsr-scan-msg'); if (m) m.innerHTML = '';
 }
 window.bsrRetake = bsrRetake;
 
