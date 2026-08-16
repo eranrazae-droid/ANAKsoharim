@@ -4315,9 +4315,15 @@ function loadManagerBadges() {
     _onSnap(_colRef('battery_installs'), snap => {
       _setBatteryStockCard(snap.docs.filter(d => !d.data().ordered).length);
     });
-    // פחחות: רכבים שאיברהים סיים ועדיין לא עודכנו בתוכנה השנייה
-    _onSnap(_query(_colRef('bodyshop_jobs'), _where('status', '==', 'returned')), snap => {
-      _setBodyshopSwCard(snap.docs.filter(d => !d.data().swUpdated).length);
+    // פחחות: רכבים שסיימנו ועדיין לא עודכנו בתוכנה השנייה. נספרים רק
+    // רכבים שיושבים כרגע במסך "מכוניות שסיימנו" — סגירת חשבון מסמנת
+    // paidAt ומשאירה את הסטטוס, ולכן בלי הסינון הזה רכבים ששולמו
+    // מזמן ממשיכים להיספר לנצח.
+    _onSnap(_query(_colRef('bodyshop_jobs'), _where('paidAt', '==', null)), snap => {
+      _setBodyshopSwCard(snap.docs.filter(d => {
+        const j = d.data();
+        return j.status === 'returned' && !j.swUpdated;
+      }).length);
     });
     _onSnap(_docRef('recall_status', 'current'), snap => {
       const cars = snap.exists() ? (snap.data().cars || []) : [];
