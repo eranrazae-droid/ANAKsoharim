@@ -10975,8 +10975,9 @@ async function bsrOpen() {
   _bsrBlob = null; _bsrChunks = [];
   try {
     const lvl = _bsrPickLevel();
+    // בלי מיקרופון כלל — הסרטונים לתיעוד נשלחים ללא קול
     _bsrStream = await navigator.mediaDevices.getUserMedia({
-      audio: true,
+      audio: false,
       video: { facingMode: { ideal: 'environment' }, width: { ideal: lvl.w }, height: { ideal: lvl.h }, frameRate: { ideal: 30 } },
     });
   } catch (e) {
@@ -11014,7 +11015,8 @@ window.bsrOpen = bsrOpen;
 let _bsrWake = null;
 
 function _bsrPickMime() {
-  const opts = ['video/mp4;codecs=avc1.640028,mp4a.40.2', 'video/mp4', 'video/webm;codecs=h264', 'video/webm'];
+  // וידאו בלבד — בלי רכיב שמע בהגדרת הפורמט
+  const opts = ['video/mp4;codecs=avc1.640028', 'video/mp4', 'video/webm;codecs=h264', 'video/webm'];
   for (const m of opts) { try { if (MediaRecorder.isTypeSupported(m)) return m; } catch (e) {} }
   return '';
 }
@@ -11028,7 +11030,6 @@ function bsrToggleRec() {
     _bsrRec = new MediaRecorder(_bsrStream, {
       ...(_bsrMime ? { mimeType: _bsrMime } : {}),
       videoBitsPerSecond: _bsrLvl.bps,
-      audioBitsPerSecond: 128_000,
     });
   } catch (e) { return showToast('המכשיר לא תומך בהקלטה: ' + e.message, 6000); }
   _bsrRec.ondataavailable = ev => { if (ev.data && ev.data.size) _bsrChunks.push(ev.data); };
@@ -11043,7 +11044,7 @@ function bsrToggleRec() {
   if (btn) { btn.textContent = '⏹'; btn.style.background = '#111'; }
   _bsrTick = setInterval(() => {
     const sec = (Date.now() - _bsrT0) / 1000;
-    const estBytes = (_bsrLvl.bps + 128_000) / 8 * sec;
+    const estBytes = _bsrLvl.bps / 8 * sec;
     const t = document.getElementById('bsr-timer');
     const si = Math.floor(sec);
     if (t) t.textContent = `● ${Math.floor(si / 60)}:${String(si % 60).padStart(2, '0')} · ~${(estBytes / 1048576).toFixed(0)}MB`;
