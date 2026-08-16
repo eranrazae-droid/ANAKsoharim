@@ -10890,16 +10890,17 @@ window.bsmClearVideo = bsmClearVideo;
 /* המקליט הפנימי */
 let _bsrStream = null, _bsrRec = null, _bsrChunks = [], _bsrBlob = null, _bsrMime = '';
 let _bsrTick = null, _bsrT0 = 0;
-const _BSR_BPS = 10_000_000;                 // 10Mbps — איכות 1080p גבוהה
-const _BSR_MAX_BYTES = 47 * 1048576;         // עצירה אוטומטית לפני תקרת טלגרם
+const _BSR_BPS = 8_000_000;                  // 8Mbps ב-1080p — חד וגם חלק
+const _BSR_MAX_BYTES = 45 * 1048576;         // עצירה אוטומטית לפני תקרת טלגרם
 
 async function bsrOpen() {
   _bsrBlob = null; _bsrChunks = [];
   try {
-    // מבקשים 4K — המכשיר ייתן את המקסימום שהוא מסוגל
+    // ‎1080p ולא 4K: קידוד 4K בדפדפן מפיל פריימים והסרטון יוצא מגמגם.
+    // ‎1080p חד לגמרי לתיעוד, ומתקודד חלק בזמן אמת.
     _bsrStream = await navigator.mediaDevices.getUserMedia({
       audio: true,
-      video: { facingMode: { ideal: 'environment' }, width: { ideal: 3840 }, height: { ideal: 2160 }, frameRate: { ideal: 30 } },
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
     });
   } catch (e) {
     return showToast('אין גישה למצלמה: ' + (e.message || e.name), 6000);
@@ -10938,17 +10939,20 @@ function bsrToggleRec() {
   } catch (e) { return showToast('המכשיר לא תומך בהקלטה: ' + e.message, 6000); }
   _bsrRec.ondataavailable = ev => { if (ev.data && ev.data.size) _bsrChunks.push(ev.data); };
   _bsrRec.onstop = _bsrOnStop;
-  _bsrRec.start(1000);   // נתח כל שנייה — מאפשר לעקוב אחרי הגודל תוך כדי
+  // הקלטה רציפה אחת, בלי חיתוך לנתחים — נתחים בספארי מייצרים קובץ
+  // מקוטע שמגמגם בניגון. הגודל מוערך לפי הזמן במקום להימדד.
+  _bsrRec.start();
   _bsrT0 = Date.now();
   const btn = document.getElementById('bsr-rec-btn');
   if (btn) { btn.textContent = '⏹'; btn.style.background = '#111'; }
   _bsrTick = setInterval(() => {
-    const sec = Math.floor((Date.now() - _bsrT0) / 1000);
-    const bytes = _bsrChunks.reduce((s, c) => s + c.size, 0);
+    const sec = (Date.now() - _bsrT0) / 1000;
+    const estBytes = (_BSR_BPS + 128_000) / 8 * sec;
     const t = document.getElementById('bsr-timer');
-    if (t) t.textContent = `● ${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')} · ${(bytes / 1048576).toFixed(0)}MB`;
+    const si = Math.floor(sec);
+    if (t) t.textContent = `● ${Math.floor(si / 60)}:${String(si % 60).padStart(2, '0')} · ~${(estBytes / 1048576).toFixed(0)}MB`;
     // עצירה לפני מגבלת ה-50MB של טלגרם, שלא יילך סרטון לפח
-    if (bytes > _BSR_MAX_BYTES && _bsrRec?.state === 'recording') {
+    if (estBytes > _BSR_MAX_BYTES && _bsrRec?.state === 'recording') {
       showToast('הגעת לגבול הגודל — ההקלטה נעצרה ונשמרה', 5000);
       _bsrRec.stop();
     }
