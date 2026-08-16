@@ -11067,36 +11067,59 @@ function bsrToggleRec() {
 }
 window.bsrToggleRec = bsrToggleRec;
 
-/* סריקת קפיאה על הקובץ המוקלט עצמו: דוגמים פריימים לאורך כל הסרטון
-   ומחפשים רצף זהה שנמשך עד הסוף. תופס גם קפיאה שקרתה בקידוד — כזאת
-   שהתצוגה החיה לא מראה — לפני שהסרטון נשלח לקבוצה. */
+/* סריקת קפיאה על הקובץ המוקלט: התקלה האמיתית היא שהפריימים נגמרים
+   באמצע בעוד השמע ממשיך. לכן שואלים את הנגן מהי חותמת הזמן של הפריים
+   שמוצג כשקופצים לסוף הסרטון — אם הוא רחוק מהסוף ביותר מ-2.5 שניות,
+   הווידאו קטוע. בלי השוואת פיקסלים: ב-iOS קפיצה בסרטון מציירת לפעמים
+   את הפריים הקודם, והשוואת פיקסלים שם מזייפת אזהרות על סרטון תקין. */
 async function _bsrScanFreeze(url, fallbackSec) {
   const v = document.createElement('video');
   v.muted = true; v.playsInline = true; v.preload = 'auto'; v.src = url;
-  await new Promise(res => { v.onloadedmetadata = res; v.onerror = res; setTimeout(res, 3000); });
-  const dur = (isFinite(v.duration) && v.duration > 0) ? v.duration : fallbackSec;
-  if (!dur || dur < 4) return null;
-  const c = document.createElement('canvas'); c.width = 48; c.height = 27;
-  const ctx = c.getContext('2d', { willReadFrequently: true });
-  const grab = t => new Promise(res => {
-    let done = false;
-    const fin = d => { if (!done) { done = true; res(d); } };
-    v.onseeked = () => { try { ctx.drawImage(v, 0, 0, 48, 27); fin(ctx.getImageData(0, 0, 48, 27).data); } catch (e) { fin(null); } };
-    setTimeout(() => fin(null), 2000);
-    try { v.currentTime = Math.min(t, dur - 0.1); } catch (e) { fin(null); }
-  });
-  const step = Math.max(1, dur / 15);
-  let prev = null, freezeAt = null, run = 0;
-  for (let t = 0.2; t < dur; t += step) {
-    const d = await grab(t);
-    if (!d) continue;
-    if (prev && _bsrPixEqual(d, prev)) { run++; if (freezeAt == null) freezeAt = Math.max(0, t - step); }
-    else { run = 0; freezeAt = null; }
-    prev = d;
-  }
-  // דורש רצף של לפחות שתי דגימות זהות שנמשך עד סוף הסרטון — צילום
-  // אמיתי, גם של סצנה דוממת, לא מייצר פריימים זהים בית-בבית לאורך זמן
-  return run >= 2 ? freezeAt : null;
+  // חייב להיות בעמוד (לא display:none) כדי שהנגן יציג פריימים; שקוף ומחוץ למסך
+  v.style.cssText = 'position:fixed;left:-9999px;top:0;width:4px;height:4px;opacity:0';
+  document.body.appendChild(v);
+  try {
+    await new Promise(res => { v.onloadedmetadata = res; v.onerror = res; setTimeout(res, 3000); });
+    const dur = (isFinite(v.duration) && v.duration > 0) ? v.duration : fallbackSec;
+    if (!dur || dur < 4 || !v.requestVideoFrameCallback) return null;
+    let frames = 0, live = true;
+    const onF = () => { frames++; if (live) v.requestVideoFrameCallback(onF); };
+    v.requestVideoFrameCallback(onF);
+    // בכל נקודת בדיקה מנגנים ~0.7 שנייה וסופרים פריימים שהוצגו בפועל.
+    // בקובץ קטוע השמע מריץ את הנגן קדימה אבל אפס פריימים מגיעים.
+    const probe = async t => {
+      await new Promise(res => {
+        let d = false; const f = () => { if (!d) { d = true; res(); } };
+        v.onseeked = f; setTimeout(f, 1500);
+        try { v.currentTime = t; } catch (e) { f(); }
+      });
+      const c0 = frames, t0 = v.currentTime;
+      try { await v.play(); } catch (e) { return null; }
+      await new Promise(r => setTimeout(r, 700));
+      v.pause();
+      if (v.currentTime - t0 < 0.25) return null;   // הנגן לא רץ — אין מדידה
+      // הקפיצה עצמה מציגה פריים אחד גם באזור קפוא; ניגון תקין (30fps)
+      // מציג עשרות ב-0.7 שנייה. פחות מ-3 = אין וידאו חי בנקודה הזאת.
+      return frames - c0 >= 3;
+    };
+    let lastOk = 0;
+    for (const t of [dur * 0.2, dur * 0.45, dur * 0.7, Math.max(0, dur - 3)]) {
+      const ok = await probe(t);
+      if (ok === false) {
+        // צמצום לנקודת הקפיאה: חיפוש בין הנקודה התקינה האחרונה לקפואה
+        let lo = lastOk, hi = t;
+        for (let i = 0; i < 3 && hi - lo > 2; i++) {
+          const mid = (lo + hi) / 2;
+          if (await probe(mid) === false) hi = mid; else lo = mid;
+        }
+        live = false;
+        return hi;
+      }
+      if (ok === true) lastOk = t;
+    }
+    live = false;
+    return null;
+  } finally { try { v.pause(); } catch (e) {} v.remove(); v.removeAttribute('src'); }
 }
 
 function _bsrOnStop() {
