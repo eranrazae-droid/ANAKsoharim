@@ -10981,6 +10981,20 @@ function _bsrOnStop() {
   clearInterval(_bsrTick); _bsrTick = null;
   const btn = document.getElementById('bsr-rec-btn');
   if (btn) { btn.textContent = '⏺'; btn.style.background = '#dc2626'; }
+  // בספארי הנתח האחרון של ההקלטה מגיע לפעמים רק אחרי אירוע העצירה —
+  // בלי המתנה הסרטון נחשב "ריק" בטעות והמסך חוזר למצלמה במקום לאישור
+  let waited = 0;
+  const finalize = () => {
+    if (!_bsrChunks.length && waited < 2000) {
+      waited += 150;
+      return setTimeout(finalize, 150);
+    }
+    _bsrFinish();
+  };
+  finalize();
+}
+
+function _bsrFinish() {
   _bsrBlob = new Blob(_bsrChunks, { type: _bsrMime || 'video/mp4' });
   if (!_bsrBlob.size) return showToast('ההקלטה יצאה ריקה — נסה שוב');
   // תצוגה מקדימה לאישור לפני שימוש
