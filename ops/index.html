@@ -10947,24 +10947,40 @@ function _bsrPixEqual(a, b) {
   for (let i = 0; i < a.length; i += 8) if (a[i] !== b[i]) return false;
   return true;
 }
-const _BSR_BPS = 8_000_000;                  // 8Mbps ב-1080p — חד וגם חלק
+// ‎1080p/8Mbps הפיל את מקודד הווידאו של iOS באופן עקבי סביב שנייה 17 —
+// הפריימים פשוט מפסיקים להגיע בעוד השמע ממשיך (מגבלת משאבים מתועדת של
+// ספארי). ‎720p זה פחות מחצי מהעומס, ואם גם זה נחנק — יורדים עוד שלב,
+// והבחירה נשמרת במכשיר כדי שהכישלון לא יחזור בהקלטה הבאה.
+const _BSR_LEVELS = [
+  { w: 1280, h: 720, bps: 5_000_000, label: '720p' },
+  { w: 960,  h: 540, bps: 3_000_000, label: '540p' },
+];
+let _bsrLvl = _BSR_LEVELS[0];
+function _bsrPickLevel() {
+  const n = Math.min(+(localStorage.getItem('bsrQ') || 0), _BSR_LEVELS.length - 1);
+  _bsrLvl = _BSR_LEVELS[n];
+  return _bsrLvl;
+}
+function _bsrStepDown() {
+  const n = +(localStorage.getItem('bsrQ') || 0);
+  if (n < _BSR_LEVELS.length - 1) localStorage.setItem('bsrQ', String(n + 1));
+}
 const _BSR_MAX_BYTES = 45 * 1048576;         // עצירה אוטומטית לפני תקרת טלגרם
 
 async function bsrOpen() {
   _bsrBlob = null; _bsrChunks = [];
   try {
-    // ‎1080p ולא 4K: קידוד 4K בדפדפן מפיל פריימים והסרטון יוצא מגמגם.
-    // ‎1080p חד לגמרי לתיעוד, ומתקודד חלק בזמן אמת.
+    const lvl = _bsrPickLevel();
     _bsrStream = await navigator.mediaDevices.getUserMedia({
       audio: true,
-      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: lvl.w }, height: { ideal: lvl.h }, frameRate: { ideal: 30 } },
     });
   } catch (e) {
     return showToast('אין גישה למצלמה: ' + (e.message || e.name), 6000);
   }
   const set = _bsrStream.getVideoTracks()[0]?.getSettings?.() || {};
   const q = document.getElementById('bsr-quality');
-  if (q) q.textContent = set.width ? `${set.width}×${set.height} · ${Math.round(_BSR_BPS / 1e6)}Mbps` : '';
+  if (q) q.textContent = set.width ? `${set.width}×${set.height} · ${Math.round(_bsrLvl.bps / 1e6)}Mbps` : '';
   const prev = document.getElementById('bsr-preview');
   prev.srcObject = _bsrStream;
   prev.style.display = 'block';
@@ -10978,7 +10994,7 @@ async function bsrOpen() {
   }
   const vTrack = _bsrStream.getVideoTracks()[0];
   if (vTrack) vTrack.onended = vTrack.onmute = () => {
-    if (_bsrRec?.state === 'recording') { showToast('⚠️ המצלמה נעצרה ע״י המכשיר — הסרטון נשמר עד כאן', 6000); _bsrRec.stop(); }
+    if (_bsrRec?.state === 'recording') { showToast('⚠️ המצלמה נעצרה ע״י המכשיר — הסרטון נשמר עד כאן', 6000); _bsrStepDown(); _bsrRec.stop(); }
   };
   document.getElementById('bsr-review').style.display = 'none';
   document.getElementById('bsr-controls').style.display = 'flex';
@@ -11003,7 +11019,7 @@ function bsrToggleRec() {
   try {
     _bsrRec = new MediaRecorder(_bsrStream, {
       ...(_bsrMime ? { mimeType: _bsrMime } : {}),
-      videoBitsPerSecond: _BSR_BPS,
+      videoBitsPerSecond: _bsrLvl.bps,
       audioBitsPerSecond: 128_000,
     });
   } catch (e) { return showToast('המכשיר לא תומך בהקלטה: ' + e.message, 6000); }
@@ -11018,7 +11034,7 @@ function bsrToggleRec() {
   if (btn) { btn.textContent = '⏹'; btn.style.background = '#111'; }
   _bsrTick = setInterval(() => {
     const sec = (Date.now() - _bsrT0) / 1000;
-    const estBytes = (_BSR_BPS + 128_000) / 8 * sec;
+    const estBytes = (_bsrLvl.bps + 128_000) / 8 * sec;
     const t = document.getElementById('bsr-timer');
     const si = Math.floor(sec);
     if (t) t.textContent = `● ${Math.floor(si / 60)}:${String(si % 60).padStart(2, '0')} · ~${(estBytes / 1048576).toFixed(0)}MB`;
@@ -11030,6 +11046,7 @@ function bsrToggleRec() {
     // המצלמה קפאה — אין פריים חדש כבר 1.5 שניות תוך כדי הקלטה
     if (_bsrLastFrame && Date.now() - _bsrLastFrame > 1500 && _bsrRec?.state === 'recording') {
       showToast('⚠️ המצלמה קפאה — הסרטון נשמר עד רגע הקפיאה. צלם המשך אם צריך.', 7000);
+      _bsrStepDown();
       _bsrRec.stop();
     }
     // שכבה שנייה: התמונה בתצוגה זהה לחלוטין 2 שניות ברצף = קפואה,
@@ -11040,6 +11057,7 @@ function bsrToggleRec() {
       _bsrPixPrev = pix;
       if (_bsrPixSame >= 4 && _bsrRec?.state === 'recording') {
         showToast('⚠️ המצלמה קפאה — הסרטון נשמר עד רגע הקפיאה. צלם המשך אם צריך.', 7000);
+        _bsrStepDown();
         _bsrRec.stop();
       }
     }
@@ -11112,13 +11130,18 @@ function _bsrFinish() {
   if (msg) msg.innerHTML = '<div style="color:#9ca3af;font-size:13px;font-weight:700;text-align:center">🔍 בודק שהסרטון תקין…</div>';
   _bsrScanFreeze(rv.src, _bsrElapsedSec).then(fz => {
     if (!msg) return;
+    if (fz != null) _bsrStepDown();   // הצילום הבא ירוץ באיכות שהמכשיר עומד בה
     msg.innerHTML = fz != null
-      ? `<div style="background:#7f1d1d;color:#fff;border-radius:10px;padding:10px 12px;font-size:14px;font-weight:900;text-align:center">⚠️ הסרטון קפוא בערך משנייה ${Math.round(fz)} — מומלץ לצלם שוב</div>`
+      ? `<div style="background:#7f1d1d;color:#fff;border-radius:10px;padding:10px 12px;font-size:14px;font-weight:900;text-align:center">⚠️ הסרטון קפוא בערך משנייה ${Math.round(fz)} — צלם שוב, האיכות הותאמה אוטומטית למכשיר</div>`
       : '<div style="color:#4ade80;font-size:13px;font-weight:800;text-align:center">✅ הסרטון נבדק — תקין לכל האורך</div>';
   }).catch(() => { if (msg) msg.innerHTML = ''; });
 }
 
 function bsrRetake() {
+  // האיכות ירדה בעקבות קפיאה — הזרם הפתוח עדיין ברמה הישנה, ולכן
+  // פותחים את המצלמה מחדש ברמה החדשה במקום להמשיך עם אותו זרם
+  const stored = Math.min(+(localStorage.getItem('bsrQ') || 0), _BSR_LEVELS.length - 1);
+  if (_BSR_LEVELS[stored] !== _bsrLvl) { bsrClose(); bsrOpen(); return; }
   const rv = document.getElementById('bsr-review');
   if (rv.src) { URL.revokeObjectURL(rv.src); rv.removeAttribute('src'); }
   _bsrBlob = null;
