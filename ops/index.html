@@ -747,6 +747,7 @@ if ('serviceWorker' in navigator) {
   <div class="app-header">
     <button class="back-btn" onclick="goHome()">→</button>
     <div class="logo">משימות</div>
+    <button id="btn-tasks-archive" onclick="openTasksArchive()" style="display:none;background:rgba(255,255,255,0.15);border:none;border-radius:999px;color:#fff;font-size:13px;font-weight:700;padding:6px 14px;cursor:pointer;font-family:Heebo,sans-serif">📁 ארכיון</button>
     <div class="user-badge" id="tasks-user-badge" onclick="logout()"></div>
   </div>
   <div id="task-list-container" class="task-board">
@@ -754,6 +755,21 @@ if ('serviceWorker' in navigator) {
   </div>
   <button class="fab" id="fab-new-task" onclick="openNewTaskModal()" style="display:none">+ משימה חדשה</button>
   <button class="fab" id="fab-request-task" onclick="openRequestTaskModal()" style="display:none;bottom:24px;left:16px;transform:none;background:#7c3aed">+ הצע משימה</button>
+</div>
+
+<!-- ── modal: tasks archive (manager only) ── -->
+<div class="modal-overlay" id="modal-tasks-archive">
+  <div class="modal-box" style="max-height:88vh;overflow-y:auto">
+    <div class="modal-title"><span>📁 ארכיון משימות</span> <button class="modal-close" onclick="closeModal('modal-tasks-archive')">✕</button></div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.6">כל משימה שבוצעה או נמחקה, עם מי עשה זאת ומתי.</div>
+    <input class="form-input" id="ta-search" placeholder="🔎 חפש משימה, עמודה או שם" oninput="_renderTasksArchive()" style="margin-bottom:8px">
+    <div id="ta-filter" style="display:flex;gap:6px;margin-bottom:12px">
+      <button onclick="tasksArchiveFilter('all')" id="ta-f-all" style="flex:1;padding:8px;border-radius:9px;border:2px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer">הכל</button>
+      <button onclick="tasksArchiveFilter('done')" id="ta-f-done" style="flex:1;padding:8px;border-radius:9px;border:2px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer">✅ בוצעו</button>
+      <button onclick="tasksArchiveFilter('deleted')" id="ta-f-deleted" style="flex:1;padding:8px;border-radius:9px;border:2px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer">🗑 נמחקו</button>
+    </div>
+    <div id="ta-list"></div>
+  </div>
 </div>
 
 <!-- ── modal: driver task request ── -->
@@ -4392,6 +4408,9 @@ function openTasksScreen() {
   const isManager = currentUser.role === 'manager';
   document.getElementById('tasks-user-badge').textContent = currentUser.name;
   document.getElementById('fab-new-task').style.display = isManager ? 'flex' : 'none';
+  // הארכיון הוא כלי ניהולי — מוצג למנהל בלבד
+  const _arcBtn = document.getElementById('btn-tasks-archive');
+  if (_arcBtn) _arcBtn.style.display = isManager ? 'inline-flex' : 'none';
   const _fabReq = document.getElementById('fab-request-task');
   const _showFabReq = !isManager || currentUser.role === 'pickup_agent';
   if (_fabReq) { _fabReq.style.cssText = _showFabReq ? 'display:flex !important;position:fixed;bottom:24px;left:16px;transform:none;background:#7c3aed;z-index:999' : 'display:none'; }
@@ -4859,8 +4878,86 @@ async function saveEditTask() {
 }
 window.saveEditTask = saveEditTask;
 
+/* ── ארכיון משימות ───────────────────────────────────────────────────
+   כל משימה שנמחקת או מבוצעת נרשמת ב-tasks_archive לפני שהיא נעלמת,
+   עם מי עשה מה ומתי. הארכיון מוצג למנהל בלבד.
+   הרישום נעשה לפני המחיקה — משימה שכבר נמחקה אי אפשר לקרוא.
+─────────────────────────────────────────────────────────────────────── */
+let _tasksArchive = [], _tasksArchiveUnsub = null, _taFilter = 'all';
+
+function openTasksArchive() {
+  if (currentUser?.role !== 'manager') return;
+  const el = document.getElementById('ta-search'); if (el) el.value = '';
+  _taFilter = 'all';
+  if (!_tasksArchiveUnsub) {
+    _tasksArchiveUnsub = _onSnap(_colRef('tasks_archive'), snap => {
+      _tasksArchive = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (b.at?.seconds || 0) - (a.at?.seconds || 0));
+      if (document.getElementById('modal-tasks-archive')?.classList.contains('open')) _renderTasksArchive();
+    }, () => {});
+  }
+  _renderTasksArchive();
+  openModal('modal-tasks-archive');
+}
+window.openTasksArchive = openTasksArchive;
+
+function tasksArchiveFilter(f) { _taFilter = f; _renderTasksArchive(); }
+window.tasksArchiveFilter = tasksArchiveFilter;
+
+function _renderTasksArchive() {
+  const c = document.getElementById('ta-list');
+  if (!c) return;
+  ['all','done','deleted'].forEach(f => {
+    const b = document.getElementById('ta-f-' + f);
+    if (b) { const on = _taFilter === f; b.style.background = on ? 'var(--dark)' : 'var(--surface2)'; b.style.color = on ? '#fff' : 'var(--text)'; b.style.borderColor = on ? 'var(--dark)' : 'var(--border)'; }
+  });
+  const term = (document.getElementById('ta-search')?.value || '').trim().toLowerCase();
+  let rows = _tasksArchive;
+  if (_taFilter !== 'all') rows = rows.filter(r => r.action === _taFilter);
+  if (term) rows = rows.filter(r => `${r.title || ''} ${r.label || ''} ${r.assignedTo || ''} ${r.by || ''}`.toLowerCase().includes(term));
+  if (!rows.length) {
+    c.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted)">${term || _taFilter !== 'all' ? 'לא נמצאו רשומות' : 'הארכיון ריק — משימות שיבוצעו או יימחקו יופיעו כאן'}</div>`;
+    return;
+  }
+  c.innerHTML = rows.slice(0, 200).map(r => {
+    const d = r.at?.toDate ? r.at.toDate() : null;
+    const when = d ? `${d.toLocaleDateString('he-IL')} ${d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}` : '';
+    const done = r.action === 'done';
+    return `<div style="border:2px solid ${done ? '#bbf7d0' : '#fecaca'};border-right:5px solid ${done ? '#16a34a' : '#ef4444'};border-radius:11px;padding:10px 13px;margin-bottom:7px;background:${done ? '#f0fdf4' : '#fef2f2'}">
+      <div style="font-weight:900;font-size:14px">${done ? '✅' : '🗑'} ${esc(r.title || '(ללא כותרת)')}</div>
+      ${r.notes ? `<div style="font-size:12px;color:var(--muted);font-weight:700;margin-top:2px">${esc(r.notes)}</div>` : ''}
+      <div style="font-size:12px;font-weight:800;margin-top:4px;color:${done ? '#166534' : '#991b1b'}">
+        ${done ? 'בוצעה' : 'נמחקה'} ע״י ${esc(r.by || '—')}${when ? ' · ' + esc(when) : ''}
+      </div>
+      <div style="font-size:11.5px;color:var(--muted);font-weight:700;margin-top:2px">
+        ${r.label ? 'עמודה: ' + esc(r.label) : ''}${r.assignedTo ? ' · הוקצתה ל' + esc(r.assignedTo) : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+window._renderTasksArchive = _renderTasksArchive;
+
+async function _archiveTask(id, action) {
+  const t = tasksCache.find(x => x.id === id);
+  if (!t || t.type === 'divider') return;   // חוצץ אינו משימה
+  try {
+    await _addDoc(_colRef('tasks_archive'), {
+      taskId: id,
+      title: t.title || '',
+      notes: t.notes || '',
+      label: t.label || '',
+      assignedTo: t.assignedTo || '',
+      action,                                  // 'done' | 'deleted'
+      by: currentUser?.name || '',
+      at: _serverTs(),
+      createdAt: t.createdAt || null,
+    });
+  } catch (e) { console.error('archive task', e); }
+}
+
 async function driverCompleteTask(id) {
   if (!confirm('לסמן משימה זו כהושלמה ולמחוק אותה?')) return;
+  await _archiveTask(id, 'done');
   const { deleteDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
   await deleteDoc(doc(window._db, 'tasks', id));
   showToast('✅ המשימה הושלמה ונמחקה');
@@ -4873,6 +4970,7 @@ async function driverClearVladiTask(id) {
   if (!window._CONFIG_DONE) return;
   if (!confirm('המשימה בוצעה? היא תוסר מהרשימה שלך ושל ולאדי.')) return;
   try {
+    await _archiveTask(id, 'done');
     const { deleteDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
     await deleteDoc(doc(window._db, 'tasks', id));
     showToast('✔ המשימה הוסרה');
@@ -4884,6 +4982,7 @@ async function deleteTask(id) {
   if (!window._CONFIG_DONE) return;
   const t = tasksCache.find(x => x.id === id);
   if (t?.type !== 'divider' && !confirm('למחוק את המשימה?')) return;
+  await _archiveTask(id, 'deleted');
   const { deleteDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
   await deleteDoc(doc(window._db, 'tasks', id));
 }
@@ -4891,6 +4990,8 @@ async function deleteTask(id) {
 function toggleTaskDone(id, currentStatus) {
   if (!window._CONFIG_DONE) return showToast('Firebase לא מחובר');
   const newStatus = currentStatus === 'done' ? 'open' : 'done';
+  // סימון כבוצעה נרשם בארכיון; ביטול הסימון לא — המשימה חזרה לעבודה
+  if (newStatus === 'done') _archiveTask(id, 'done');
   const extra = newStatus === 'done'
     ? { doneBy: currentUser.name, doneAt: _serverTs() }
     : { doneBy: '', doneAt: null };
