@@ -10832,8 +10832,12 @@ async function _bsmSendVideoToGroup(file, plate, desc) {
   const form = new FormData();
   form.append('chat_id', chatId);
   form.append('caption', [plate, desc].filter(Boolean).join(' · '));
-  form.append('video', file, file.name || 'video.mp4');
-  const data = await _telegramApi('sendVideo', form);
+  // sendDocument ולא sendVideo: sendVideo מקודד מחדש ודוחס את הסרטון,
+  // וזה מה שהרס את האיכות. כקובץ הוא עובר בייט-בבייט כמו שיצא מהמצלמה.
+  // שם הקובץ נשמר עם הסיומת המקורית כדי שטלגרם יזהה אותו כווידאו וינגן
+  // אותו בתוך הצ'אט.
+  form.append('document', file, file.name || 'video.mp4');
+  const data = await _telegramApi('sendDocument', form);
   if (data._noToken) throw new Error('אין טוקן טלגרם');
   if (!data.ok) throw new Error(data.description || 'שליחה נכשלה');
 }
