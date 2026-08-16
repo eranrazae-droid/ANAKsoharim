@@ -11016,8 +11016,15 @@ async function _bsmSendVideoToGroup(file, plate, desc) {
   const form = new FormData();
   form.append('chat_id', chatId);
   form.append('caption', [plate, desc].filter(Boolean).join(' · '));
-  form.append('document', file, file.name || 'video.mp4');
-  const data = await _telegramApi('sendDocument', form);
+  // sendVideo של ה-Bot API לא דוחס — הדחיסה המפורסמת של טלגרם קורית רק
+  // באפליקציה כששולחים "כמדיה". דרך הבוט הקובץ עולה כמו שהוא, ומוצג
+  // בקבוצה כסרטון שמתנגן במקום, לא ככרטיס קובץ.
+  form.append('video', file, file.name || 'video.mp4');
+  form.append('supports_streaming', 'true');
+  const i = _bsmVideoInfo;
+  if (i?.w) { form.append('width', String(i.w)); form.append('height', String(i.h)); }
+  if (i?.sec && isFinite(i.sec)) form.append('duration', String(Math.round(i.sec)));
+  const data = await _telegramApi('sendVideo', form);
   if (data._noToken) throw new Error('אין טוקן טלגרם');
   if (!data.ok) throw new Error(data.description || 'שליחה נכשלה');
 }
