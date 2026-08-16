@@ -9124,11 +9124,9 @@ function _bshopJobCard(j, forWorker) {
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
       <div style="flex:1;min-width:0">
         <div class="bs-plate" style="font-weight:900;font-size:17px">${_brandIcon(j.maker)} ${
-          // ברכבים שסיימנו — לחיצה על המספר מעתיקה אותו להדבקה בתוכנה
-          !forWorker && j.status === 'returned'
-            ? `<span onclick="event.stopPropagation();bsmCopyPlate('${esc(j.plate)}')" title="לחץ להעתקה"
-                 style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">${esc(j.plate)} 📋</span>`
-            : esc(j.plate)}</div>
+          // לחיצה על המספר מעתיקה אותו — בכל שלבי הפחחות, גם אצל הפחח
+          `<span onclick="event.stopPropagation();bsmCopyPlate('${esc(j.plate)}')" title="לחץ להעתקה"
+             style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">${esc(j.plate)} 📋</span>`}</div>
         ${desc ? `<div class="bs-desc" style="font-size:13px;color:var(--muted)">${esc(desc)}</div>` : ''}
       </div>
       ${total > 0 ? `<div style="text-align:left;white-space:nowrap">
@@ -9221,8 +9219,10 @@ function bshopOpenFill(id) {
   _set('bshop-fill-add', _bshopFillMgr ? '➕ הוסף חלק' : '➕ צבעתי עוד חלק');
   const prn = document.getElementById('bshop-fill-print');
   if (prn) prn.style.display = _bshopFillMgr ? '' : 'none';
+  // גם בפתק הפתוח — לחיצה על המספר מעתיקה אותו
   document.getElementById('bshop-fill-title').innerHTML =
-    `${_brandIcon(j.maker)} ${esc(j.plate)}${j.desc ? ' · ' + esc(j.desc) : ''}`;
+    `${_brandIcon(j.maker)} <span onclick="bsmCopyPlate('${esc(j.plate)}')" title="לחץ להעתקה"
+       style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">${esc(j.plate)} 📋</span>${j.desc ? ' · ' + esc(j.desc) : ''}`;
   if (!j.desc) _bshopFillCarDetails(id);   // an old note with no car details
   const fp = document.getElementById('bshop-fill-photo');
   const small = j.photo || j.photoThumb || '';
@@ -9292,7 +9292,8 @@ async function _bshopFillCarDetails(id) {
     const desc = [maker, model, rec['shnat_yitzur'] || '', rec['tzeva_rechev'] || ''].filter(Boolean).join(' ');
     j.desc = desc; j.maker = maker;
     const title = document.getElementById('bshop-fill-title');
-    if (title && _bshopFillId === id) title.innerHTML = `${_brandIcon(maker)} ${esc(j.plate)} · ${esc(desc)}`;
+    if (title && _bshopFillId === id) title.innerHTML = `${_brandIcon(maker)} <span onclick="bsmCopyPlate('${esc(j.plate)}')" title="לחץ להעתקה"
+      style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">${esc(j.plate)} 📋</span> · ${esc(desc)}`;
     // only the manager writes it back, so a note is never edited from two sides
     if (currentUser?.role === 'manager') {
       await _updateDoc(_docRef('bodyshop_jobs', id), { desc, maker, updatedAt: _serverTs() });
