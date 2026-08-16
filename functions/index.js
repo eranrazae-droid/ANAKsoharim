@@ -561,6 +561,31 @@ exports.telegramWebhook = onRequest({ region: "europe-west1" }, async (req, res)
       } catch (err) { console.error("group capture failed", err); }
     }
 
+    // סרטון שנשלח לקבוצת הפחחות (מהאפליקציה של טלגרם, באיכות מלאה)
+    // נרשם — כך טופס הפחחות באפליקציה יכול לקשר אותו לפתק בלי שהקובץ
+    // יעבור דרך הדפדפן ויידחס.
+    const vid = msg && (msg.video || (msg.document && String(msg.document.mime_type || "").startsWith("video/")));
+    if (msg?.chat && vid) {
+      try {
+        const cs = await db.collection("config").doc("driver_contacts").get();
+        const pahachChat = cs.exists ? (cs.data()["_pahachVideoChat"]?.value || "") : "";
+        if (pahachChat && String(msg.chat.id) === String(pahachChat)) {
+          await db.collection("pahach_videos").add({
+            chatId: msg.chat.id,
+            messageId: msg.message_id,
+            caption: msg.caption || "",
+            fileName: vid.file_name || "",
+            size: vid.file_size || 0,
+            width: vid.width || 0,
+            height: vid.height || 0,
+            from: [msg.from?.first_name, msg.from?.last_name].filter(Boolean).join(" "),
+            at: new Date(),
+            linkedNoteId: null,
+          });
+        }
+      } catch (err) { console.error("pahach video capture failed", err); }
+    }
+
     const cq = req.body?.callback_query;
     if (!cq || !cq.data) return;
 

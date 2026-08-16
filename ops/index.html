@@ -747,13 +747,13 @@ if ('serviceWorker' in navigator) {
   <div class="app-header">
     <button class="back-btn" onclick="goHome()">→</button>
     <div class="logo">משימות</div>
-    <button id="btn-tasks-archive" onclick="openTasksArchive()" style="display:none;background:rgba(255,255,255,0.15);border:none;border-radius:999px;color:#fff;font-size:13px;font-weight:700;padding:6px 14px;cursor:pointer;font-family:Heebo,sans-serif">📁 ארכיון</button>
     <div class="user-badge" id="tasks-user-badge" onclick="logout()"></div>
   </div>
   <div id="task-list-container" class="task-board">
     <div class="loading"><div class="spinner"></div> טוען...</div>
   </div>
   <button class="fab" id="fab-new-task" onclick="openNewTaskModal()" style="display:none">+ משימה חדשה</button>
+  <button id="btn-tasks-archive" onclick="openTasksArchive()" style="display:none;position:fixed;bottom:24px;right:16px;z-index:50;background:var(--dark);color:#fff;border:none;border-radius:999px;padding:14px 20px;font-family:Heebo,sans-serif;font-size:15px;font-weight:900;cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,.25)">📁 ארכיון</button>
   <button class="fab" id="fab-request-task" onclick="openRequestTaskModal()" style="display:none;bottom:24px;left:16px;transform:none;background:#7c3aed">+ הצע משימה</button>
 </div>
 
@@ -1733,7 +1733,7 @@ if ('serviceWorker' in navigator) {
     <div class="form-group"><label>תמונת הרכב (לא חובה)</label>
       <input type="file" accept="image/*" capture="environment" id="bsm-photo-file" style="display:none" onchange="bsmPickPhoto(this)">
       <div id="bsm-photo-wrap"></div></div>
-    <div class="form-group"><label>🎥 סרטון תיעוד <span style="color:#ef4444">*</span> <span style="font-weight:600;color:var(--muted)">(חובה — יישלח לקבוצת הפחחות)</span></label>
+    <div class="form-group"><label>🎥 סרטון תיעוד <span style="color:#ef4444">*</span> <span style="font-weight:600;color:var(--muted)">(חובה)</span></label>
       <!-- בלי capture: כך אפשר לבחור סרטון קיים מהגלריה. capture כופה
            הקלטה בתוך הדפדפן, ושם iOS מקליט באיכות נמוכה בהרבה. -->
       <input type="file" accept="video/*" id="bsm-video-file" style="display:none" onchange="bsmPickVideo(this)">
@@ -4632,6 +4632,7 @@ function renderTasksFromCache() {
       <div class="task-top">
         <div class="task-title">${esc(t.title)}</div>
         <div style="display:flex;gap:4px;flex-shrink:0;align-items:center">
+          ${isManager && !done ? `<button onclick="managerCompleteTask('${t.id}')" title="בוצע" style="background:#22c55e;color:#fff;border:none;border-radius:8px;padding:3px 8px;cursor:pointer;font-family:Heebo,sans-serif;font-size:11px;font-weight:700;flex-shrink:0">✅ בוצע</button>` : ''}
           ${isManager && !done ? `<button onclick="openEditTask('${t.id}')" style="background:#6366f1;color:#fff;border:none;border-radius:999px;width:24px;height:24px;cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0">✏️</button>` : ''}
           ${isManager ? `<button onclick="deleteTask('${t.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:999px;width:24px;height:24px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="מחק">🗑</button>` : ''}
           ${!isManager && !done && !readOnly ? `<button onclick="driverCompleteTask('${t.id}')" style="background:#22c55e;color:#fff;border:none;border-radius:8px;padding:3px 8px;cursor:pointer;font-family:Heebo,sans-serif;font-size:11px;font-weight:700;flex-shrink:0">✅ הושלמה</button>` : ''}
@@ -4965,6 +4966,19 @@ async function driverCompleteTask(id) {
   showToast('✅ המשימה הושלמה ונמחקה');
 }
 window.driverCompleteTask = driverCompleteTask;
+
+// כפתור "בוצע" של המנהל — אותה משמעות בדיוק: נרשם בארכיון כבוצעה ויורד
+// מהלוח. שם נפרד רק כדי שנוסח האישור יתאים.
+async function managerCompleteTask(id) {
+  if (!confirm('לסמן שהמשימה בוצעה? היא תעבור לארכיון ותרד מהלוח.')) return;
+  await _archiveTask(id, 'done');
+  try {
+    const { deleteDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    await deleteDoc(doc(window._db, 'tasks', id));
+    showToast('✅ בוצעה — נשמרה בארכיון');
+  } catch (e) { showToast('שגיאה: ' + (e.code || e.message)); }
+}
+window.managerCompleteTask = managerCompleteTask;
 
 // נהג מסמן וי על משימת ולאדי → המשימה נמחקת לגמרי, ולכן נעלמת גם מהרשימה
 // של הנהג וגם מזו של ולאדי אצל המנהל.
@@ -10671,6 +10685,8 @@ function openBsmSendModal() {
   _bsmThumb = null;
   _bsmVideoFile = null;
   _bsmVideoInfo = null;
+  _bsmVideoSel = null;
+  _bsmListenGroupVideos();
   _bsmRenderPhoto();
   _bsmRenderVideo();
   _bsmRenderPicker();
@@ -10799,32 +10815,71 @@ function bsmClearPhoto() { _bsmPhoto = null; _bsmThumb = null; _bsmRenderPhoto()
 
 // סרטון תיעוד — נשלח ישר לקבוצת הפחחות בטלגרם ולא נשמר בשום מקום, כדי
 // לא להעמיס. נשמר כקובץ בלבד עד לשליחה.
+/* המסלול הראשי לסרטון: מצלמים במצלמה הרגילה של הטלפון ומשתפים לקבוצת
+   הטלגרם דרך אפליקציית טלגרם — הדרך היחידה שבה האיכות המלאה נשמרת.
+   האייפון דוחס מחדש כל סרטון שעובר דרך דף אינטרנט (גם צילום בדפדפן וגם
+   בחירה מהגלריה — שלב ה"דחיסה" של iOS), ולכן העלאה מהאפליקציה לעולם לא
+   תשמור על איכות המצלמה. הבוט שבקבוצה רואה את הסרטון ורושם אותו, וכאן
+   רק בוחרים אותו ומקשרים לפתק. צירוף קובץ ישיר נשאר כמסלול משני. */
 let _bsmVideoFile = null, _bsmVideoInfo = null;
+let _bsmVideoSel = null;                      // סרטון מהקבוצה שנבחר לפתק
+let _bsmGroupVideos = [], _bsmGroupVidsUnsub = null;
+
+function _bsmListenGroupVideos() {
+  if (_bsmGroupVidsUnsub) return;
+  _bsmGroupVidsUnsub = _onSnap(_colRef('pahach_videos'), snap => {
+    _bsmGroupVideos = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (b.at?.seconds || 0) - (a.at?.seconds || 0));
+    _bsmRenderVideo();
+  }, () => {});
+}
+
+function bsmPickGroupVideo(id) {
+  const v = _bsmGroupVideos.find(x => x.id === id);
+  _bsmVideoSel = (_bsmVideoSel?.id === id) ? null : v;   // לחיצה חוזרת מבטלת
+  if (_bsmVideoSel) { _bsmVideoFile = null; _bsmVideoInfo = null; }
+  _bsmRenderVideo();
+}
+window.bsmPickGroupVideo = bsmPickGroupVideo;
+
 function _bsmRenderVideo() {
   const w = document.getElementById('bsm-video-wrap');
   if (!w) return;
+  // מסלול משני: קובץ שצורף ישירות מהדפדפן (איכות מופחתת)
   if (_bsmVideoFile) {
     const mb = (_bsmVideoFile.size / 1048576).toFixed(1);
     const i = _bsmVideoInfo;
-    // הרזולוציה והמשקל מוצגים כדי שיהיה אפשר לראות מיד אם הדפדפן הקטין
-    // את הסרטון — ולא לגלות את זה רק אחרי שהוא כבר בקבוצה
     const dims = i && i.w ? `${i.w}×${i.h}` : '';
     const secs = i && i.sec ? `${Math.round(i.sec)} שנ׳` : '';
-    const rate = i && i.sec ? `${(_bsmVideoFile.size / 1048576 / i.sec * 8).toFixed(1)} Mbps` : '';
-    const low = i && i.h && i.h < 1000;   // פחות מ-1080p ⇒ הדפדפן הקטין
-    w.innerHTML = `<div style="border:2px solid ${low ? '#f59e0b' : 'var(--border)'};border-radius:12px;padding:10px 12px;background:${low ? '#fef3c7' : 'var(--surface2)'}">
+    w.innerHTML = `<div style="border:2px solid #f59e0b;border-radius:12px;padding:10px 12px;background:#fef3c7">
         <div style="display:flex;align-items:center;gap:10px">
-          <div style="flex:1;min-width:0;font-weight:800;font-size:13px">🎥 סרטון נבחר</div>
+          <div style="flex:1;min-width:0;font-weight:800;font-size:13px">📎 קובץ מצורף <span style="font-weight:700;color:#92400e">(איכות מופחתת)</span></div>
           <button type="button" onclick="bsmClearVideo()" style="background:#ef4444;color:#fff;border:none;border-radius:8px;width:30px;height:30px;cursor:pointer;flex-shrink:0">🗑</button>
         </div>
-        <div style="font-size:12px;font-weight:700;color:${low ? '#92400e' : 'var(--muted)'};margin-top:4px">
-          ${[dims, secs, mb + 'MB', rate].filter(Boolean).join(' · ')}
-        </div>
-        ${low ? `<div style="font-size:11.5px;font-weight:800;color:#92400e;margin-top:4px">⚠️ הדפדפן הקטין את הסרטון. נסה לבחור אותו מהגלריה במקום לצלם כאן.</div>` : ''}
+        <div style="font-size:12px;font-weight:700;color:#92400e;margin-top:4px">${[dims, secs, mb + 'MB'].filter(Boolean).join(' · ')}</div>
       </div>`;
-  } else {
-    w.innerHTML = `<button type="button" onclick="document.getElementById('bsm-video-file').click()" style="width:100%;background:#7c3aed;color:#fff;border:none;border-radius:10px;padding:10px;font-family:Heebo,sans-serif;font-weight:700;font-size:14px;cursor:pointer">🎥 בחר סרטון מהגלריה</button>`;
+    return;
   }
+  // סרטונים טריים מהקבוצה שטרם קושרו לפתק
+  const fresh = _bsmGroupVideos
+    .filter(v => !v.linkedNoteId && v.at?.seconds && (Date.now() / 1000 - v.at.seconds) < 3 * 3600)
+    .slice(0, 6);
+  const rows = fresh.map(v => {
+    const d = v.at?.toDate ? v.at.toDate() : null;
+    const t = d ? d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : '';
+    const on = _bsmVideoSel?.id === v.id;
+    const mb = v.size ? (v.size / 1048576).toFixed(1) + 'MB' : '';
+    const label = [t, v.from, mb, v.caption].filter(Boolean).map(esc).join(' · ');
+    return `<button type="button" onclick="bsmPickGroupVideo('${esc(v.id)}')" style="display:block;width:100%;text-align:right;margin-bottom:6px;padding:10px 12px;border-radius:10px;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer;${on
+      ? 'background:#7c3aed;color:#fff;border:2px solid #7c3aed'
+      : 'background:var(--surface2);color:var(--text);border:2px solid var(--border)'}">${on ? '✅ ' : '🎬 '}${label}</button>`;
+  }).join('');
+  w.innerHTML = `
+    <div style="font-size:12px;color:var(--muted);font-weight:700;line-height:1.7;margin-bottom:8px">
+      צלם במצלמה <b>הרגילה</b> של הטלפון → שתף מהגלריה ל<b>קבוצת הטלגרם</b> של הפחחות → הסרטון יופיע כאן תוך רגע — בחר אותו:
+    </div>
+    ${fresh.length ? rows : `<div style="border:2px dashed var(--border);border-radius:10px;padding:14px;text-align:center;color:var(--muted);font-size:13px;font-weight:700">⏳ ממתין לסרטון בקבוצה…</div>`}
+    <button type="button" onclick="document.getElementById('bsm-video-file').click()" style="width:100%;margin-top:8px;background:var(--surface2);color:var(--muted);border:1.5px dashed var(--border);border-radius:10px;padding:8px;font-family:Heebo,sans-serif;font-weight:700;font-size:12px;cursor:pointer">📎 או צרף קובץ ישירות (איכות מופחתת)</button>`;
 }
 // קורא את הרזולוציה בפועל של הקובץ שהתקבל — כך רואים אם הדפדפן הקטין
 // את הסרטון עוד לפני שנשלח
@@ -10848,11 +10903,12 @@ async function bsmPickVideo(input) {
   // הגבלת טלגרם לבוט — 50MB
   if (f.size > 50 * 1048576) { showToast('⚠️ הסרטון גדול מ-50MB ולא יישלח בטלגרם. צלם קצר יותר.', 7000); return; }
   _bsmVideoFile = f;
+  _bsmVideoSel = null;
   _bsmVideoInfo = await _videoDims(f);
   _bsmRenderVideo();
 }
 window.bsmPickVideo = bsmPickVideo;
-function bsmClearVideo() { _bsmVideoFile = null; _bsmVideoInfo = null; _bsmRenderVideo(); }
+function bsmClearVideo() { _bsmVideoFile = null; _bsmVideoInfo = null; _bsmVideoSel = null; _bsmRenderVideo(); }
 window.bsmClearVideo = bsmClearVideo;
 
 // שולח את הסרטון ישירות לקבוצת הפחחות. הקובץ לא נשמר — עובר מהטלפון
@@ -10881,28 +10937,32 @@ async function submitBsmSend() {
   const note = document.getElementById('bsm-note').value.trim();
   if (!plate) return showToast('נא להזין מספר רישוי');
   if (!_bsmPicked.length) return showToast('נא לבחור לפחות חלק אחד');
-  if (!_bsmVideoFile) return showToast('חובה לצרף סרטון תיעוד לפני יצירת הפתק');
+  if (!_bsmVideoSel && !_bsmVideoFile) return showToast('חובה סרטון: שלח אותו לקבוצת הטלגרם ובחר אותו כאן');
 
-  // הסרטון נשלח קודם — הפתק ייווצר רק אם הסרטון הגיע לקבוצה בהצלחה.
+  // סרטון מהקבוצה כבר נמצא שם באיכות מלאה — אין מה לשלוח. קובץ מצורף
+  // (המסלול המשני) נשלח קודם, והפתק נוצר רק אם השליחה הצליחה.
   const btn = document.getElementById('bsm-submit-btn');
-  if (btn) { btn.disabled = true; btn.textContent = '🎥 שולח סרטון…'; }
-  try {
-    await _bsmSendVideoToGroup(_bsmVideoFile, plate, desc);
-  } catch (e) {
-    if (btn) { btn.disabled = false; btn.textContent = '📝 צור פתק'; }
-    return showToast('⚠️ הפתק לא נוצר — הסרטון לא נשלח: ' + e.message, 9000);
+  if (_bsmVideoFile) {
+    if (btn) { btn.disabled = true; btn.textContent = '🎥 שולח סרטון…'; }
+    try {
+      await _bsmSendVideoToGroup(_bsmVideoFile, plate, desc);
+    } catch (e) {
+      if (btn) { btn.disabled = false; btn.textContent = '📝 צור פתק'; }
+      return showToast('⚠️ הפתק לא נוצר — הסרטון לא נשלח: ' + e.message, 9000);
+    }
   }
 
   // הסרטון נשלח — עכשיו שומרים תמונת מצב, סוגרים מיד, וכותבים ברקע
   const snap = {
     plate, desc, note, maker: _bsmMaker,
     thumb: _bsmThumb, focus: _bsmFocus, photo: _bsmPhoto,
+    videoSel: _bsmVideoSel,
     items: _bshopSortNames(_bsmPicked).map(name => ({ name, price: null })),
   };
-  _bsmVideoFile = null; _bsmVideoInfo = null;
+  _bsmVideoFile = null; _bsmVideoInfo = null; _bsmVideoSel = null;
   if (btn) { btn.disabled = false; btn.textContent = '📝 צור פתק'; }
   closeModal('modal-bsm-send');
-  showToast('✅ הסרטון נשלח והפתק נוצר');
+  showToast('✅ הפתק נוצר');
 
   // כתיבת הפתק ברקע
   try {
@@ -10914,6 +10974,16 @@ async function submitBsmSend() {
       status: 'draft', paidAt: null, sentAt: null,
       createdBy: currentUser.name, createdAt: _serverTs()
     });
+    // סרטון מהקבוצה: מסומן כמקושר לפתק, והבוט משיב עליו בקבוצה עם
+    // פרטי הרכב — כך רואים שם לאיזה רכב הסרטון שייך
+    if (snap.videoSel && ref?.id) {
+      _updateDoc(_docRef('pahach_videos', snap.videoSel.id), { linkedNoteId: ref.id, linkedPlate: snap.plate }).catch(() => {});
+      _telegramApi('sendMessage', {
+        chat_id: snap.videoSel.chatId,
+        reply_to_message_id: snap.videoSel.messageId,
+        text: `🚗 ${snap.plate}${snap.desc ? ' · ' + snap.desc : ''}`,
+      }).catch(e => console.error('video reply failed', e));
+    }
     // התמונה המלאה במסמך נפרד, נטענת רק כשפותחים רכב
     if (snap.photo && ref?.id) {
       const { setDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
