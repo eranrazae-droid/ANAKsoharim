@@ -4061,6 +4061,19 @@ function _setBatteryStockCard(units) {
   card.querySelectorAll('.mc-title,.mc-sub').forEach(el => el.style.color = on ? '#fff' : '');
 }
 
+/* קוביית הפחחות: כמה רכבים שאיברהים סיים עדיין מחכים לעדכון עלויות
+   בתוכנה השנייה. הקובייה נצבעת רק כשיש מה לעדכן, ונכבית כשהכל מעודכן. */
+function _setBodyshopSwCard(n) {
+  const card = document.getElementById('menu-card-bodyshop-mgr');
+  const sub  = document.getElementById('sub-bodyshop-mgr');
+  // הצבע והמונה מטופלים במנגנון הקוביות המשותף; כאן רק המשפט שמתחת
+  _setCardBadge('bodyshop-mgr', n, n > 0 ? '#b45309' : null);
+  if (!card || !sub) return;
+  sub.textContent = n
+    ? (n === 1 ? '💳 רכב אחד לעדכון בתוכנה' : `💳 ${n} רכבים לעדכון בתוכנה`)
+    : 'עבודות, מחירים וחשבון חודשי';
+}
+
 // badge קובייה מאוחדת (נהג): קליטות ממתינות + רענונים ממתינים
 function _setDriverVehiclesBadge() {
   const intakes = (_driverIntakeDocs || []).filter(v => v.status === 'pending').length;
@@ -4301,6 +4314,10 @@ function loadManagerBadges() {
     // לא הוזמן חזרה. אותו חישוב בדיוק כמו רשימת ההזמנה שבמסך המצברים.
     _onSnap(_colRef('battery_installs'), snap => {
       _setBatteryStockCard(snap.docs.filter(d => !d.data().ordered).length);
+    });
+    // פחחות: רכבים שאיברהים סיים ועדיין לא עודכנו בתוכנה השנייה
+    _onSnap(_query(_colRef('bodyshop_jobs'), _where('status', '==', 'returned')), snap => {
+      _setBodyshopSwCard(snap.docs.filter(d => !d.data().swUpdated).length);
     });
     _onSnap(_docRef('recall_status', 'current'), snap => {
       const cars = snap.exists() ? (snap.data().cars || []) : [];
@@ -9124,6 +9141,11 @@ function _bshopJobCard(j, forWorker) {
     })()}
     ${(j.photoThumb || j.photo) ? `<img id="bshop-card-img-${j.id}" src="${j.photo || j.photoThumb}" alt="" loading="lazy" style="margin-top:8px;width:100%;max-height:150px;object-fit:cover;object-position:${_bshopFocusCss(j)};border-radius:10px;display:block">`
       : (!forWorker ? `<button onclick="event.stopPropagation();bsmAddPhoto('${j.id}')" style="margin-top:8px;width:100%;background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:9px;font-family:'Heebo',sans-serif;font-size:13px;font-weight:800;cursor:pointer">📷 הוסף תמונה</button>` : '')}
+    ${!forWorker && j.status === 'returned' ? (j.swUpdated
+      ? `<button onclick="event.stopPropagation();bsmSetSwUpdated('${j.id}',false)" title="בטל סימון"
+          style="margin-top:10px;width:100%;background:var(--success);color:#fff;border:none;border-radius:10px;padding:10px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:900;cursor:pointer">✅ עודכן בתוכנה</button>`
+      : `<button onclick="event.stopPropagation();bsmSetSwUpdated('${j.id}',true)"
+          style="margin-top:10px;width:100%;background:#b45309;color:#fff;border:none;border-radius:10px;padding:10px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:900;cursor:pointer">💳 עדכנתי בתוכנה</button>`) : ''}
     ${!forWorker && j.status === 'at_shop' ? `<button onclick="event.stopPropagation();bsmMarkReturned('${j.id}')"
       style="margin-top:10px;width:100%;background:var(--dark);color:#fff;border:none;border-radius:10px;padding:10px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:900;cursor:pointer">✅ סיימנו עם הרכב</button>` : ''}
     ${!forWorker && j.status === 'draft' ? `<div style="display:flex;gap:8px;margin-top:10px">
@@ -9812,6 +9834,22 @@ async function bsmMarkReturned(id) {
   } catch (e) { showToast('שגיאה — נסה שוב'); }
 }
 window.bsmMarkReturned = bsmMarkReturned;
+
+// סימון "עדכנתי את העלות בתוכנה השנייה". המונה בקוביית הבית יורד מיד
+// כי הוא מאזין לאותו שדה במסמך.
+async function bsmSetSwUpdated(id, val) {
+  const j = _bshopJobs.find(x => x.id === id);
+  if (j) j.swUpdated = val;          // תגובה מיידית על הכרטיס
+  _bshopRenderMgr();
+  try {
+    await _updateDoc(_docRef('bodyshop_jobs', id), { swUpdated: val });
+  } catch (e) {
+    if (j) j.swUpdated = !val;       // כשל — חזרה
+    _bshopRenderMgr();
+    showToast('שמירת הסימון נכשלה');
+  }
+}
+window.bsmSetSwUpdated = bsmSetSwUpdated;
 
 /* "טופס הזמנת תיקון" — same layout as the printed form already in use.
    The date and time are stamped at print time so a form always carries them,
