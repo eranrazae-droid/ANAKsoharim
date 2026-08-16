@@ -10707,6 +10707,7 @@ function openBsmSendModal() {
   _bsmThumb = null;
   _bsmVideoFile = null;
   _bsmVideoInfo = null;
+  _bsmUpl = null;
   _bsmRenderVideo();
   _bsmRenderPhoto();
   _bsmRenderPicker();
@@ -10920,9 +10921,10 @@ async function bsmPickVideo(input) {
   _bsmVideoFile = f;
   _bsmVideoInfo = await _videoDims(f);
   _bsmRenderVideo();
+  _bsmStartVideoUpload();
 }
 window.bsmPickVideo = bsmPickVideo;
-function bsmClearVideo() { _bsmVideoFile = null; _bsmVideoInfo = null; _bsmRenderVideo(); }
+function bsmClearVideo() { _bsmVideoFile = null; _bsmVideoInfo = null; _bsmUpl = null; _bsmRenderVideo(); }
 window.bsmClearVideo = bsmClearVideo;
 
 /* המקליט הפנימי */
@@ -11161,6 +11163,7 @@ async function bsrUse() {
   _bsmVideoInfo = await _videoDims(_bsmVideoFile);
   bsrClose();
   _bsmRenderVideo();
+  _bsmStartVideoUpload();
 }
 window.bsrUse = bsrUse;
 
@@ -11204,6 +11207,19 @@ async function _bsmSendVideoToGroup(file, plate, desc) {
   if (!data.ok) throw new Error(data.description || 'שליחה נכשלה');
 }
 
+// העלאה ברקע: הסרטון מתחיל לעלות לקבוצה ברגע שהוא מצורף, בזמן שממלאים
+// את שאר הפתק. "צור פתק" רק מחכה לסיום — לרוב זה כבר מוכן, בלי המתנה.
+let _bsmUpl = null;
+function _bsmStartVideoUpload() {
+  if (!_bsmVideoFile) return;
+  const plate = document.getElementById('bsm-plate')?.value.replace(/\D/g, '') || '';
+  const desc = document.getElementById('bsm-desc')?.value.trim() || '';
+  const u = { key: plate + '|' + desc };
+  u.promise = _bsmSendVideoToGroup(_bsmVideoFile, plate, desc);
+  u.promise.catch(() => {});   // הכשל מטופל בעת יצירת הפתק, עם ניסיון חוזר
+  _bsmUpl = u;
+}
+
 window.bsmClearPhoto = bsmClearPhoto;
 
 async function submitBsmSend() {
@@ -11214,15 +11230,30 @@ async function submitBsmSend() {
   if (!_bsmPicked.length) return showToast('נא לבחור לפחות חלק אחד');
   if (!_bsmVideoFile) return showToast('חובה לצרף סרטון תיעוד לפני יצירת הפתק');
 
-  // הסרטון נשלח קודם — הפתק נוצר רק אם הוא הגיע לקבוצה
+  // הסרטון חייב להגיע לקבוצה לפני שהפתק נוצר. אם ההעלאה שהתחילה ברקע
+  // הסתיימה — אין המתנה בכלל; אם נכשלה — ניסיון שני כאן.
   const btn = document.getElementById('bsm-submit-btn');
   if (btn) { btn.disabled = true; btn.textContent = '🎥 שולח סרטון…'; }
   try {
-    await _bsmSendVideoToGroup(_bsmVideoFile, plate, desc);
+    if (_bsmUpl) {
+      try { await _bsmUpl.promise; } catch (e) { await _bsmSendVideoToGroup(_bsmVideoFile, plate, desc); _bsmUpl.key = plate + '|' + desc; }
+      if (_bsmUpl.key !== plate + '|' + desc) {
+        // הפרטים שונו אחרי שהסרטון כבר עלה — הודעת שיוך במקום העלאה כפולה
+        const contacts = await _loadDriverContacts();
+        const chatId = (contacts['_pahachVideoChat']?.value || '').trim();
+        const fd = new FormData();
+        fd.append('chat_id', chatId);
+        fd.append('text', '↑ הסרטון שייך לרכב: ' + [plate, desc].filter(Boolean).join(' · '));
+        await _telegramApi('sendMessage', fd);
+      }
+    } else {
+      await _bsmSendVideoToGroup(_bsmVideoFile, plate, desc);
+    }
   } catch (e) {
     if (btn) { btn.disabled = false; btn.textContent = '📝 צור פתק'; }
     return showToast('⚠️ הפתק לא נוצר — הסרטון לא נשלח: ' + e.message, 9000);
   }
+  _bsmUpl = null;
   _bsmVideoFile = null; _bsmVideoInfo = null;
   if (btn) { btn.disabled = false; btn.textContent = '📝 צור פתק'; }
 
