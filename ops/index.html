@@ -10889,7 +10889,7 @@ window.bsmClearVideo = bsmClearVideo;
 
 /* המקליט הפנימי */
 let _bsrStream = null, _bsrRec = null, _bsrChunks = [], _bsrBlob = null, _bsrMime = '';
-let _bsrTick = null, _bsrT0 = 0;
+let _bsrTick = null, _bsrT0 = 0, _bsrLastFrame = 0;
 const _BSR_BPS = 8_000_000;                  // 8Mbps ב-1080p — חד וגם חלק
 const _BSR_MAX_BYTES = 45 * 1048576;         // עצירה אוטומטית לפני תקרת טלגרם
 
@@ -10911,6 +10911,18 @@ async function bsrOpen() {
   const prev = document.getElementById('bsr-preview');
   prev.srcObject = _bsrStream;
   prev.style.display = 'block';
+  // שעון-פריימים: כל פריים חדש מהמצלמה מעדכן חותמת. אם החותמת מפסיקה
+  // להתקדם תוך כדי הקלטה — המצלמה קפאה (iOS עושה את זה בלי להודיע),
+  // והמעקב בלולאת הטיימר עוצר את ההקלטה מיד במקום להמשיך עם פריים קפוא.
+  _bsrLastFrame = Date.now();
+  if (prev.requestVideoFrameCallback) {
+    const onFrame = () => { _bsrLastFrame = Date.now(); if (_bsrStream) prev.requestVideoFrameCallback(onFrame); };
+    prev.requestVideoFrameCallback(onFrame);
+  }
+  const vTrack = _bsrStream.getVideoTracks()[0];
+  if (vTrack) vTrack.onended = vTrack.onmute = () => {
+    if (_bsrRec?.state === 'recording') { showToast('⚠️ המצלמה נעצרה ע״י המכשיר — הסרטון נשמר עד כאן', 6000); _bsrRec.stop(); }
+  };
   document.getElementById('bsr-review').style.display = 'none';
   document.getElementById('bsr-controls').style.display = 'flex';
   document.getElementById('bsr-review-controls').style.display = 'none';
@@ -10956,6 +10968,11 @@ function bsrToggleRec() {
       showToast('הגעת לגבול הגודל — ההקלטה נעצרה ונשמרה', 5000);
       _bsrRec.stop();
     }
+    // המצלמה קפאה — אין פריים חדש כבר 1.5 שניות תוך כדי הקלטה
+    if (_bsrLastFrame && Date.now() - _bsrLastFrame > 1500 && _bsrRec?.state === 'recording') {
+      showToast('⚠️ המצלמה קפאה — הסרטון נשמר עד רגע הקפיאה. צלם המשך אם צריך.', 7000);
+      _bsrRec.stop();
+    }
   }, 500);
 }
 window.bsrToggleRec = bsrToggleRec;
@@ -10996,6 +11013,14 @@ async function bsrUse() {
   _bsmRenderVideo();
 }
 window.bsrUse = bsrUse;
+
+// מסך כבה / מעבר אפליקציה — הזרם ימות ממילא; עצירה שומרת את מה שצולם
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && _bsrRec?.state === 'recording') {
+    showToast('ההקלטה נעצרה כי המסך נסגר — הסרטון נשמר', 5000);
+    try { _bsrRec.stop(); } catch (e) {}
+  }
+});
 
 function bsrClose() {
   try { if (_bsrRec && _bsrRec.state === 'recording') _bsrRec.stop(); } catch (e) {}
