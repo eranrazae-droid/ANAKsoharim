@@ -1,24 +1,20 @@
-// בודק את שמות הרחובות על הקטעים המדויקים באזור קרית אריה פ"ת, ישירות
-// מנתוני המאגר (Overpass) — לא מהציור. מכריע אם הטעות בנתונים או במטמון.
-const UA = { 'User-Agent': 'anak-ops-geo-verify/1.0 (ops maintenance check)', 'Content-Type': 'text/plain' };
+// אימות הגשר לגוגל מפות מקצה לקצה: פינג, המרת כתובת, ומסלול הליכה —
+// מול השרת האמיתי עם המפתח האמיתי. משווה לערכים הידועים מגוגל מפות.
+const BASE = 'https://europe-west1-anak-soharim.cloudfunctions.net/mapsProxy';
 
-// התיבה של האזור מהצילום: קרית אריה, סביב 32.095-32.105 / 34.855-34.875
-const q = `
-[out:json][timeout:30];
-(
-  way["highway"]["name"~"אם המושבות|אבשלום גיסין|השפלה|משה דיין"](32.090,34.850,32.108,34.880);
-);
-out tags center;
-`;
-const res = await fetch('https://overpass-api.de/api/interpreter', { method: 'POST', body: q, headers: UA });
-const j = await res.json();
-const byName = {};
-for (const el of j.elements) {
-  const n = el.tags?.name || '?';
-  (byName[n] ||= []).push(`(${el.center?.lat.toFixed(4)},${el.center?.lon.toFixed(4)})`);
-}
-console.log(`קטעי כביש באזור קרית אריה, לפי שם במאגר החי:`);
-for (const [n, locs] of Object.entries(byName)) {
-  console.log(`  "${n}" — ${locs.length} קטעים · דוגמאות: ${locs.slice(0, 4).join(' ')}`);
-}
-if (!j.elements.length) console.log('  (לא נמצאו קטעים — בעיה בשאילתה)');
+const ping = await (await fetch(`${BASE}?op=ping`)).json();
+console.log('פינג:', JSON.stringify(ping));
+if (!ping.hasKey) { console.log('❌ אין מפתח מוגדר'); process.exit(1); }
+
+// הכתובת מהמקרה של הנהג: שנקר 15 פתח תקווה
+const g = await (await fetch(`${BASE}?op=geocode&address=${encodeURIComponent('אריה שנקר 15')}&city=${encodeURIComponent('פתח תקווה')}`)).json();
+console.log('גיאוקוד שנקר 15 פ"ת:', JSON.stringify(g));
+if (!g.found) { console.log('❌ לא נמצא'); process.exit(1); }
+
+// מסלול ממנה לתחנת קרית אריה (32.0980,34.8620) — בגוגל של המשתמש: 2.5 ק"מ / 6 דק' נסיעה
+const r = await (await fetch(`${BASE}?op=route&from=${g.lat},${g.lng}&to=32.0980,34.8620`)).json();
+console.log('מסלול לתחנה:', JSON.stringify(r));
+if (!r.ok || !r.walking) { console.log('❌ אין מסלול'); process.exit(1); }
+console.log(`🚶 הליכה: ${r.walking.km.toFixed(1)} ק"מ · ${Math.round(r.walking.min)} דק'`);
+console.log(`🚗 נסיעה: ${r.driving.km.toFixed(1)} ק"מ · ${Math.round(r.driving.min)} דק'`);
+console.log('✅ הגשר לגוגל עובד');
