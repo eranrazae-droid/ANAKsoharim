@@ -1,0 +1,22 @@
+name: Geo Verify
+
+# בדיקת אמת של מנגנון הכתובות: מריץ את הקוד מהאפליקציה על כתובות
+# אמיתיות מול שירות הכתובות (Nominatim) ומשווה את זמני ההליכה למסלולי
+# הליכה אמיתיים ממנוע ניווט (OSRM). רץ ידנית או כשהקובץ הזה משתנה.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/geo-verify.yml'
+      - 'scripts/geo-verify.mjs'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Run geo verification
+        run: node scripts/geo-verify.mjs
