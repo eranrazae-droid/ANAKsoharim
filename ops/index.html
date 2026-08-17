@@ -2676,6 +2676,13 @@ if ('serviceWorker' in navigator) {
         <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">הגדר את הבוט פעם אחת — ואז הודעות ישלחו לנהגים אוטומטית ללא כל פעולה מצידם.</p>
         <div id="notify-settings-body"></div>
         <button class="btn-submit" onclick="saveNotifySettings()" style="width:100%;margin-top:4px">💾 שמור הגדרות</button>
+
+        <div class="settings-col-title" style="margin-top:22px">🗺️ גוגל מפות</div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.6">מפתח Google Maps — הכתובות, המרחקים וזמני ההליכה במפת האיסוף יגיעו ישירות מגוגל. יצירת מפתח: console.cloud.google.com ← APIs ← הפעל Geocoding API ו-Directions API ← Credentials ← Create API key.</p>
+        <div class="form-group"><label>מפתח API</label>
+          <input class="form-input" id="maps-api-key" autocomplete="off" placeholder="AIza..." style="direction:ltr;text-align:left"></div>
+        <div id="maps-key-status" style="font-size:12px;font-weight:700;margin-bottom:8px;color:var(--muted)"></div>
+        <button class="btn-submit" onclick="saveMapsKey()" style="width:100%;margin-top:0;background:var(--dark);color:#fff">💾 שמור מפתח מפות</button>
       </div>
 
       <div class="settings-panel" id="spanel-users">
@@ -15709,8 +15716,44 @@ async function openSettings() {
   _openNotifySettingsInner().catch(e => { showToast('שגיאה: ' + e.message, 6000); console.error(e); });
   openGcalScreen();
   openUsersScreen();
+  _loadMapsKeyStatus();
 }
 window.openSettings = openSettings;
+
+// ── מפתח גוגל מפות: נשמר ב-config/maps, השרת קורא אותו משם ──
+async function _loadMapsKeyStatus() {
+  const st = document.getElementById('maps-key-status');
+  const inp = document.getElementById('maps-api-key');
+  if (!st || !inp) return;
+  try {
+    const { getDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const snap = await getDoc(_docRef('config', 'maps'));
+    const key = snap.exists() ? (snap.data().key || '') : '';
+    if (key) {
+      st.textContent = '✅ מפתח מוגדר (' + key.slice(0, 8) + '…) — המרחקים מגיעים מגוגל';
+      st.style.color = '#16a34a';
+    } else {
+      st.textContent = 'אין מפתח — המערכת עובדת עם מקור המפות החינמי';
+      st.style.color = 'var(--muted)';
+    }
+  } catch (e) { st.textContent = ''; }
+}
+
+async function saveMapsKey() {
+  const inp = document.getElementById('maps-api-key');
+  const key = (inp?.value || '').trim();
+  if (!key) return showToast('נא להדביק מפתח');
+  if (!/^AIza[0-9A-Za-z_\-]{30,}$/.test(key)) return showToast('זה לא נראה כמו מפתח Google תקין (מתחיל ב-AIza)');
+  try {
+    const { setDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    await setDoc(_docRef('config', 'maps'), { key, updatedAt: new Date().toISOString(), updatedBy: currentUser.name });
+    inp.value = '';
+    _mapsHasKey = null;   // הבדיקה הבאה תזהה את המפתח והכל יחושב מחדש דרך גוגל
+    showToast('✅ המפתח נשמר — המפה תעבוד עכשיו עם נתוני גוגל');
+    _loadMapsKeyStatus();
+  } catch (e) { showToast('שמירה נכשלה: ' + (e.code || e.message), 6000); }
+}
+window.saveMapsKey = saveMapsKey;
 
 // החלפת לשונית (בטלפון). במחשב שלושתן מוצגות יחד ממילא.
 function settingsTab(name) {
@@ -16825,6 +16868,20 @@ const _stKm = km => km < 10 ? km.toFixed(1) : Math.round(km);
 async function _stationRouteInfo(latlng) {
   const st = _nearestStation(latlng);
   if (!st) return null;
+  // גוגל קודם: הליכה ונסיעה אמיתיות, אותם מספרים כמו בגוגל מפות
+  if (await _mapsPing()) {
+    try {
+      const j = await (await fetch(`${_MAPS_PROXY}?op=route&from=${latlng[0]},${latlng[1]}&to=${st.lat},${st.lng}`)).json();
+      if (j.ok && j.walking) {
+        return {
+          stName: st.name,
+          stRouteKm: +j.walking.km.toFixed(2),
+          stWalkMin: Math.max(1, Math.round(j.walking.min)),
+          stDriveMin: Math.max(1, Math.round(j.driving?.min || j.walking.min / 4)),
+        };
+      }
+    } catch (e) { /* נפילה למסלול הרגיל */ }
+  }
   try {
     const ctl = new AbortController();
     const tm = setTimeout(() => ctl.abort(), 7000);
@@ -16894,9 +16951,9 @@ function _loadLeaflet() {
 
 // הכתובת כפי שהיא מזוהה — משמשת גם כמפתח של הנקודה השמורה, כדי שכתובת
 // שהשתנתה תומר מחדש וכתובת שלא השתנתה לא תיגע בשירות
-// ה-v2 מבטל את כל הנקודות שנשמרו לפני אימות העיר — בלעדיו נקודות שגויות
-// שכבר נשמרו על הרכבים היו נשארות לנצח, כי המפתח היה מזוהה כתקף
-const _geoKeyOf = car => `v2|${(car.address || '').trim()}|${_pickupCity(car).trim()}`;
+// גרסת המפתח מזהה גם את מקור הנתונים: ברגע שמפתח גוגל מוגדר, כל
+// הנקודות והמרחקים השמורים מחושבים מחדש דרך גוגל — פעם אחת לרכב
+const _geoKeyOf = car => `v2${_mapsHasKey ? 'g' : ''}|${(car.address || '').trim()}|${_pickupCity(car).trim()}`;
 
 // הכתובת נכתבת בשדה חופשי, ולכן נגררות אליה הערות כמו "קומה 2" או
 // "ליד הדואר". השירות מוצא רחוב ומספר, לא הערות — אז הן יורדות לפני החיפוש
@@ -16944,9 +17001,37 @@ function _geoHitInCity(hit, city) {
   return _haversineKm([Number(hit.lat), Number(hit.lon)], center) <= _GEO_MAX_KM;
 }
 
+/* ── גוגל מפות דרך השרת ─────────────────────────────────────────────
+   כשמוגדר מפתח (הגדרות ← מפות), הכתובות והמרחקים מגיעים ישירות מגוגל —
+   אותם מספרים כמו באפליקציית גוגל מפות. בלי מפתח — המנגנון הקיים.   */
+const _MAPS_PROXY = 'https://europe-west1-anak-soharim.cloudfunctions.net/mapsProxy';
+let _mapsHasKey = null;   // null = טרם נבדק
+async function _mapsPing() {
+  if (_mapsHasKey !== null) return _mapsHasKey;
+  try {
+    const j = await (await fetch(`${_MAPS_PROXY}?op=ping`)).json();
+    _mapsHasKey = !!j.hasKey;
+  } catch (e) { _mapsHasKey = false; }
+  return _mapsHasKey;
+}
+async function _googleGeocode(address, city) {
+  const j = await (await fetch(`${_MAPS_PROXY}?op=geocode&address=${encodeURIComponent(address)}&city=${encodeURIComponent(city || '')}`)).json();
+  if (!j.ok || !j.found || j.cityLevel) return null;
+  // אימות עיר — גוגל לפעמים מחזיר עיר אחרת כשהרחוב לא נמצא
+  if (!_geoHitInCity({ lat: j.lat, lon: j.lng, address: {} }, city)) return null;
+  return [j.lat, j.lng];
+}
+
 // מחזיר נקודה מדויקת לפי הרחוב, או null אם הרחוב לא נמצא בעיר המבוקשת.
 // נפילה למרכז העיר נעשית בחוץ, כדי שיהיה ברור מתי המיקום מדויק ומתי משוער.
 async function _geocodeAddress(address, city) {
+  // גוגל קודם — המקור המדויק ביותר; נפילה למנגנון הקיים אם אין מפתח
+  if (await _mapsPing()) {
+    try {
+      const g = await _googleGeocode(_cleanStreet(address), city);
+      if (g) return g;
+    } catch (e) { /* המשך למסלול הרגיל */ }
+  }
   const street = _cleanStreet(address);
   if (!street) return null;
   const tries = [
@@ -17045,6 +17130,9 @@ async function drawPickupMap() {
   const st = document.getElementById('pickup-map-status');
   const say = t => { if (st) st.textContent = t; };
   say('⏳ טוען מפה…');
+  // לפני בדיקת הנקודות השמורות חייבים לדעת אם יש מפתח גוגל — זהות
+  // המפתח של כל נקודה תלויה במקור הנתונים
+  await _mapsPing();
   let L;
   try { L = await _loadLeaflet(); } catch (e) { return say('❌ ' + e.message); }
 

@@ -1340,6 +1340,65 @@ exports.runOwnershipScanNow = onRequest(
   }
 );
 
+/* ── גשר לגוגל מפות ──────────────────────────────────────────────────
+   כתובות, מרחקים וזמני הליכה מדויקים — ישירות מגוגל, אותם מספרים כמו
+   באפליקציית גוגל מפות. המפתח נשמר ב-config/maps (שדה key) ולא נחשף
+   לדפדפן: כל הקריאות עוברות דרך הפונקציה הזאת.
+   op=ping    → האם יש מפתח מוגדר
+   op=geocode → address+city → נקודה מאומתת בישראל
+   op=route   → from=lat,lng & to=lat,lng → הליכה ונסיעה בקריאה אחת   */
+async function _mapsKey() {
+  try {
+    const snap = await db.collection("config").doc("maps").get();
+    return snap.exists ? String(snap.data().key || "").trim() : "";
+  } catch (e) { return ""; }
+}
+exports.mapsProxy = onRequest(
+  { cors: true, region: "europe-west1", timeoutSeconds: 30 },
+  async (req, res) => {
+    const key = await _mapsKey();
+    const op = String(req.query.op || "");
+    if (op === "ping") return res.json({ ok: true, hasKey: !!key });
+    if (!key) return res.status(400).json({ ok: false, error: "no-key" });
+    try {
+      if (op === "geocode") {
+        const address = String(req.query.address || "");
+        const city = String(req.query.city || "");
+        const q = [address, city].filter(Boolean).join(", ");
+        const url = "https://maps.googleapis.com/maps/api/geocode/json?address=" +
+          encodeURIComponent(q) + "&components=country:IL&language=he&key=" + key;
+        const j = await (await fetch(url)).json();
+        const r = (j.results || [])[0];
+        if (!r) return res.json({ ok: true, found: false, status: j.status });
+        // תוצאה ברמת עיר/מדינה אינה כתובת — שהלקוח ידע שזה משוער
+        const kinds = r.types || [];
+        const cityLevel = kinds.includes("locality") || kinds.includes("administrative_area_level_1") || kinds.includes("country");
+        return res.json({
+          ok: true, found: true, cityLevel,
+          lat: r.geometry.location.lat, lng: r.geometry.location.lng,
+          formatted: r.formatted_address,
+        });
+      }
+      if (op === "route") {
+        const from = String(req.query.from || ""), to = String(req.query.to || "");
+        if (!/^[\d.,-]+$/.test(from) || !/^[\d.,-]+$/.test(to)) return res.status(400).json({ ok: false, error: "bad-coords" });
+        const leg = async (mode) => {
+          const url = "https://maps.googleapis.com/maps/api/directions/json?origin=" + from +
+            "&destination=" + to + "&mode=" + mode + "&language=he&key=" + key;
+          const j = await (await fetch(url)).json();
+          const l = j.routes?.[0]?.legs?.[0];
+          return l ? { km: l.distance.value / 1000, min: l.duration.value / 60 } : null;
+        };
+        const [walking, driving] = await Promise.all([leg("walking"), leg("driving")]);
+        return res.json({ ok: true, walking, driving });
+      }
+      res.status(400).json({ ok: false, error: "bad-op" });
+    } catch (err) {
+      res.status(502).json({ ok: false, error: err.message });
+    }
+  }
+);
+
 // בדיקת מקור המלאי: כמה רכבים נמשכו ואיך נקראו השדות. משמשת לאימות
 // מהיר אחרי החלפת מקור, בלי להריץ סריקה שלמה.
 exports.inventoryCheck = onRequest(
