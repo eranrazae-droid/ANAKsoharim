@@ -135,8 +135,51 @@ exports.govilProxy = onRequest({ cors: true, region: "europe-west1" }, async (re
 
 // ── daily inventory pull + recall check (Sun–Fri 7:00) ──────────────────
 const _RECALL_RESOURCE = "36bf1404-0be4-49d2-82dc-2f1ead4a8b93";
-const _INVENTORY_URL = "https://phpstack-1347359-5276985.cloudwaysapps.com/comigo-anakarehevim/index.php/api/GetActiveVehicles";
+// המלאי מגיע כ-XML מה-CRM. השדות שמעניינים אותנו: CarNumber (מספר רישוי),
+// ManufactureYear (שנה) ו-Description (יצרן ודגם כטקסט חופשי).
+const _INVENTORY_URL = "https://anak-harechev-crm.vercel.app/api/vehicles/carwiz";
 const _sleep2 = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// פיענוח ה-XML בלי ספרייה חיצונית: הפיד שטוח (תג אחד לכל שדה), ולכן
+// שליפה ישירה של התוכן בין התגים בטוחה ומספיקה.
+function _xmlTag(block, tag) {
+  const m = block.match(new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</${tag}>`, "i"));
+  if (!m) return "";
+  return m[1]
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+    .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .trim();
+}
+
+// ה-Description הוא טקסט חופשי: "יונדאי VENUE PREMIUM 2023" או
+// "COROLLA TS HSD SPACE 2019". המילה הראשונה בעברית היא היצרן; אם אין
+// עברית, כל הטקסט הוא הדגם. שנת הייצור בסוף הטקסט מיותרת ומוסרת.
+function _carwizName(desc) {
+  const clean = String(desc || "").replace(/\s+/g, " ").trim().replace(/\s+(19|20)\d{2}$/, "");
+  if (!clean) return { tozeret: "", degem: "" };
+  const parts = clean.split(" ");
+  if (/[֐-׿]/.test(parts[0])) return { tozeret: parts[0], degem: parts.slice(1).join(" ") };
+  return { tozeret: "", degem: clean };
+}
+
+// מושכת את המלאי הפעיל ומחזירה רשימת רכבים אחידה לשתי הסריקות
+// (ריקולים ובעלויות), כדי ששתיהן תמיד יעבדו על אותו מלאי.
+async function _fetchInventory() {
+  const res = await fetch(_INVENTORY_URL);
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  const xml = await res.text();
+  const blocks = xml.match(/<CAR>[\s\S]*?<\/CAR>/gi) || [];
+  return blocks.map((b) => {
+    const { tozeret, degem } = _carwizName(_xmlTag(b, "Description"));
+    return {
+      plate: _xmlTag(b, "CarNumber").replace(/\D/g, ""),
+      tozeret,
+      degem,
+      shnat: _xmlTag(b, "ManufactureYear"),
+    };
+  }).filter((c) => c.plate.length === 7 || c.plate.length === 8);
+}
 
 async function _recallLearnField() {
   const res = await fetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=${_RECALL_RESOURCE}&limit=1`);
@@ -268,22 +311,13 @@ async function _runRecallScan(trigger) {
 }
 
 async function _runRecallScanInner() {
-    let vehicles;
+    let cars;
     try {
-      const res = await fetch(_INVENTORY_URL);
-      vehicles = await res.json();
+      cars = await _fetchInventory();
     } catch (err) {
       console.error("dailyRecallPull: inventory fetch failed", err);
       return { ok: false, reason: "inventory-fetch-failed" };
     }
-    if (!Array.isArray(vehicles) || !vehicles.length) return { ok: false, reason: "empty-inventory" };
-
-    const cars = vehicles.map((v) => ({
-      plate: String(v.ank_s_car_number || "").replace(/\D/g, ""),
-      tozeret: v.ank_id_manufacturer || "",
-      degem: [v.ank_id_model, v.ank_id_sub_model].filter(Boolean).join(" "),
-      shnat: v.ank_id_year_of_manufacture || "",
-    })).filter((c) => c.plate.length === 7 || c.plate.length === 8);
     if (!cars.length) return { ok: false, reason: "no-valid-plates" };
 
     // keep "resolved" + linked-task info for cars still open from a previous run
@@ -1231,12 +1265,11 @@ async function _ownRegistryBaalut(plates) {
 async function _runOwnershipScan() {
   let vehicles;
   try {
-    const res = await fetch(_INVENTORY_URL);
-    vehicles = await res.json();
+    vehicles = await _fetchInventory();
   } catch (err) {
     return { ok: false, reason: "inventory-fetch-failed" };
   }
-  if (!Array.isArray(vehicles) || !vehicles.length) return { ok: false, reason: "empty-inventory" };
+  if (!vehicles.length) return { ok: false, reason: "empty-inventory" };
 
   let owners = {}, ourIds = [], marks = {};
   try {
@@ -1248,14 +1281,12 @@ async function _runOwnershipScan() {
     }
   } catch (err) { /* בלי רשימה — הכל לפי המאגר */ }
 
-  const plates = vehicles
-    .map((v) => String(v.ank_s_car_number || "").replace(/\D/g, ""))
-    .filter((p) => p.length === 7 || p.length === 8);
+  const plates = vehicles.map((v) => v.plate);
   // סוג הבעלות מהמאגר הפתוח — האות האוטומטי שמתעדכן אחרי העברת בעלות
   const baalutByPlate = await _ownRegistryBaalut(plates);
 
   const cars = vehicles.map((v) => {
-    const plate = String(v.ank_s_car_number || "").replace(/\D/g, "");
+    const plate = v.plate;
     const ownerId = String(owners[plate] || "").replace(/\D/g, "");
     const baalut = baalutByPlate[plate] || "";
     // רכב "פרטי" = עדיין רשום על אדם פרטי, כלומר העברת הבעלות לחברה
@@ -1267,13 +1298,10 @@ async function _runOwnershipScan() {
     else if (!baalut) status = "unknown";                                            // לא נמצא במאגר
     else status = stillPrivate ? "not" : "ours";                                     // לפי סוג הבעלות
     return {
-      plate,
-      tozeret: v.ank_id_manufacturer || "",
-      degem: [v.ank_id_model, v.ank_id_sub_model].filter(Boolean).join(" "),
-      shnat: v.ank_id_year_of_manufacture || "",
+      plate, tozeret: v.tozeret, degem: v.degem, shnat: v.shnat,
       ownerId: ownerId || null, baalut: baalut || null, status,
     };
-  }).filter((c) => c.plate.length === 7 || c.plate.length === 8);
+  });
   if (!cars.length) return { ok: false, reason: "no-valid-plates" };
 
   // רכבים חדשים = לוחיות שלא היו במלאי בסריקה הקודמת. כך הסריקה היומית
@@ -1309,6 +1337,20 @@ exports.runOwnershipScanNow = onRequest(
     try { out = await _runOwnershipScan(); }
     catch (err) { out = { ok: false, reason: "crashed", error: err.message }; }
     res.status(out.ok ? 200 : 500).json(out);
+  }
+);
+
+// בדיקת מקור המלאי: כמה רכבים נמשכו ואיך נקראו השדות. משמשת לאימות
+// מהיר אחרי החלפת מקור, בלי להריץ סריקה שלמה.
+exports.inventoryCheck = onRequest(
+  { cors: true, region: "europe-west1", timeoutSeconds: 120 },
+  async (req, res) => {
+    try {
+      const cars = await _fetchInventory();
+      res.json({ ok: true, url: _INVENTORY_URL, count: cars.length, sample: cars.slice(0, 5) });
+    } catch (err) {
+      res.status(500).json({ ok: false, url: _INVENTORY_URL, error: err.message });
+    }
   }
 );
 
