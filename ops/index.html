@@ -6447,7 +6447,9 @@ async function createIntakeTasks(checklist, allNotes, vehicle, photoUrls) {
   const driverName = currentUser.name;
   const plate = vehicle.plate || '';
   const carDesc = [vehicle.brand, vehicle.model].filter(Boolean).join(' ');
-  const prefix = `לפי הקליטה של ${driverName} לרכב מספר ${plate} מסוג ${carDesc}`;
+  // כותרת המשימה: מספר הרכב, היצרן והדגם, ואז הליקוי וההערה.
+  // שם הנהג הקולט נשמר בשדה createdBy ולכן אינו חוזר בכותרת.
+  const prefix = [plate, carDesc].filter(Boolean).join(' ');
 
   const rules = [
     { key: 'c-steering',    col: 'רפד',              title: 'קילופים בהגה' },
@@ -15790,7 +15792,8 @@ async function _openNotifySettingsInner() {
   const twilioFrom  = contacts['_twilioFrom']?.value  || '';
   const managerPhone = contacts['_managerPhone']?.value || '';
   const telegramToken = contacts['_telegramToken']?.value || '';
-  const drivers = ['ליאל','עופר','גיל','איתי','איברהים'];
+  // איברהים אינו מקבל התראות טלגרם — גיבוי הפתקים אליו מוקפא (_BSHOP_TG_BACKUP)
+  const drivers = ['ליאל','עופר','גיל','איתי'];
   const telegramRow = `
     <div style="border:2px solid #229ED9;border-radius:12px;padding:12px 14px;margin-bottom:14px;background:#eaf7ff">
       <div style="font-weight:900;font-size:14px;margin-bottom:4px;color:#0d6ab0">✈️ טלגרם — חינמי, מועדף</div>
@@ -15871,7 +15874,8 @@ async function pickPahachGroup(id) {
 window.pickPahachGroup = pickPahachGroup;
 
 async function saveNotifySettings() {
-  const drivers = ['ליאל','עופר','גיל','איתי','איברהים'];
+  // איברהים אינו מקבל התראות טלגרם — גיבוי הפתקים אליו מוקפא (_BSHOP_TG_BACKUP)
+  const drivers = ['ליאל','עופר','גיל','איתי'];
   const data = {};
   const telegramToken = document.getElementById('nc-telegram-token')?.value.trim();
   if (telegramToken) data['_telegramToken'] = { value: telegramToken };
