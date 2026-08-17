@@ -2412,9 +2412,10 @@ if ('serviceWorker' in navigator) {
       <input type="text" id="pickup-city" autocomplete="off" placeholder="התחל להקליד עיר..." oninput="_cityAutocomplete('pickup-city','pickup-city-dd')" onblur="_cityBlur('pickup-city-dd','pickup-city');setTimeout(pickupAddrContactHint,180)" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:14px;box-sizing:border-box">
       <div id="pickup-city-dd" style="display:none;position:absolute;left:0;right:0;top:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;max-height:220px;overflow-y:auto;z-index:1000;box-shadow:0 6px 20px rgba(0,0,0,0.15)"></div>
     </div>
-    <div class="form-group">
+    <div class="form-group" style="position:relative">
       <label>כתובת לאיסוף</label>
-      <input type="text" id="pickup-address" onblur="pickupAddrContactHint()" placeholder="רחוב ומספר..." style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:14px;box-sizing:border-box">
+      <input type="text" id="pickup-address" autocomplete="off" onfocus="_streetAcLoad()" oninput="_streetAutocomplete('pickup-address','pickup-address-dd','pickup-city')" onblur="_streetBlur('pickup-address-dd');pickupAddrContactHint()" placeholder="התחל להקליד רחוב..." style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:14px;box-sizing:border-box">
+      <div id="pickup-address-dd" style="display:none;position:absolute;left:0;right:0;top:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;max-height:220px;overflow-y:auto;z-index:1000;box-shadow:0 6px 20px rgba(0,0,0,0.15)"></div>
     </div>
     <div class="form-group">
       <label>הערה לאיסוף</label>
@@ -16600,6 +16601,76 @@ function _snapCityField(inputId) {
   if (m?.city && m.city !== raw) el.value = m.city;
 }
 window._snapCityField = _snapCityField;
+
+/* ── השלמת רחובות ────────────────────────────────────────────────────
+   מילון כל הרחובות בארץ שמור אצלנו (ops/streets.json, מתעדכן מהמאגר
+   הממשלתי דרך Actions). נטען פעם אחת, בכניסה הראשונה לשדה כתובת.
+   מקלידים רחוב → בוחרים מהרשימה → מוסיפים מספר בית. אם נבחרה עיר,
+   הרחובות שלה קודמים; בחירת רחוב מעיר אחרת ממלאת גם את העיר. */
+let _streetsByCity = null, _streetsLoading = null;
+function _streetAcLoad() {
+  if (_streetsByCity || _streetsLoading) return;
+  _streetsLoading = fetch('streets.json')
+    .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(j => { _streetsByCity = j; })
+    .catch(() => { _streetsLoading = null; });   // אין קובץ — השדה עובד כרגיל
+}
+window._streetAcLoad = _streetAcLoad;
+
+const _normStreet = s => String(s || '').replace(/["'`״׳]/g, '').replace(/\s+/g, ' ').trim();
+
+function _streetAutocomplete(inputId, ddId, cityInputId) {
+  const input = document.getElementById(inputId), dd = document.getElementById(ddId);
+  if (!input || !dd) return;
+  const raw = input.value;
+  // אחרי בחירת רחוב מקלידים מספר בית — ספרות בסוף לא פותחות רשימה מחדש
+  const v = _normStreet(raw.replace(/[\d\-/]+\s*$/, ''));
+  if (!_streetsByCity || v.length < 2 || /\d/.test(raw.trim().slice(0, 1))) {
+    dd.style.display = 'none'; dd.innerHTML = ''; return;
+  }
+  const city = _normCityName(document.getElementById(cityInputId)?.value || '');
+  const inCity = [], elsewhere = [];
+  for (const [c, streets] of Object.entries(_streetsByCity)) {
+    const cityMatches = city && (_normCityName(c) === city || _normCityName(c).startsWith(city));
+    for (const st of streets) {
+      if (!_normStreet(st).startsWith(v)) continue;
+      (cityMatches ? inCity : elsewhere).push([st, c]);
+      if (inCity.length > 40) break;
+    }
+    if (inCity.length > 40) break;
+  }
+  // כשנבחרה עיר — רק הרחובות שלה; רחובות מערים אחרות רק כשאין עיר עדיין
+  const matches = (city ? inCity : elsewhere).slice(0, 8);
+  if (!matches.length) { dd.style.display = 'none'; dd.innerHTML = ''; return; }
+  dd.innerHTML = matches.map(([st, c]) =>
+    `<div onmousedown="event.preventDefault();_pickStreet('${inputId}','${ddId}','${cityInputId}',this.dataset.s,this.dataset.c)"
+        data-s="${esc(st)}" data-c="${esc(c)}"
+        style="padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:14px;font-weight:600;background:var(--card);color:var(--text)">
+      ${esc(st)}${city ? '' : ` <span style="color:var(--muted);font-size:12px">· ${esc(c)}</span>`}</div>`).join('');
+  dd.style.display = 'block';
+}
+window._streetAutocomplete = _streetAutocomplete;
+
+function _pickStreet(inputId, ddId, cityInputId, street, city) {
+  const input = document.getElementById(inputId);
+  if (input) {
+    input.value = street + ' ';
+    input.focus();   // הסמן נשאר בשדה — נשאר רק להקליד מספר בית
+  }
+  const cityEl = document.getElementById(cityInputId);
+  if (cityEl && !cityEl.value.trim()) cityEl.value = city;
+  const dd = document.getElementById(ddId);
+  if (dd) { dd.style.display = 'none'; dd.innerHTML = ''; }
+}
+window._pickStreet = _pickStreet;
+
+function _streetBlur(ddId) {
+  setTimeout(() => {
+    const dd = document.getElementById(ddId);
+    if (dd) { dd.style.display = 'none'; dd.innerHTML = ''; }
+  }, 200);
+}
+window._streetBlur = _streetBlur;
 
 function _cityBlur(ddId, inputId) {
   setTimeout(() => {

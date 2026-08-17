@@ -1,0 +1,39 @@
+name: Update Streets
+
+# מרענן את מילון הרחובות (ops/streets.json) מהמאגר הממשלתי ודוחף לענף.
+# רץ אוטומטית פעם בחודש, כשמשנים את הסקריפט, וגם ידנית מלשונית Actions.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 4 1 * *'
+  push:
+    paths:
+      - 'scripts/update-streets.mjs'
+      - '.github/workflows/update-streets.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/charming-archimedes-nlfl58
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Build streets.json
+        run: node scripts/update-streets.mjs
+      - name: Commit if changed
+        run: |
+          git config user.name "streets-bot"
+          git config user.email "actions@github.com"
+          git add ops/streets.json
+          if git diff --cached --quiet; then
+            echo "אין שינוי ברשימת הרחובות"
+          else
+            git commit -m "עדכון מילון הרחובות מהמאגר הממשלתי"
+            git push
+          fi
