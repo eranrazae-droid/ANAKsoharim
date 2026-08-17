@@ -1,20 +1,24 @@
-// בודק אם מאגר המפות העדכני (OSM) מכיר שמות רחובות שהתלוננו עליהם —
-// כדי להכריע אם הבעיה בנתונים עצמם או רק בעותק הישן של ספק האריחים.
-const UA = { 'User-Agent': 'anak-ops-geo-verify/1.0 (ops maintenance check)' };
-const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+// בודק את שמות הרחובות על הקטעים המדויקים באזור קרית אריה פ"ת, ישירות
+// מנתוני המאגר (Overpass) — לא מהציור. מכריע אם הטעות בנתונים או במטמון.
+const UA = { 'User-Agent': 'anak-ops-geo-verify/1.0 (ops maintenance check)', 'Content-Type': 'text/plain' };
 
-const CHECKS = [
-  'אם המושבות, פתח תקווה',
-  'השפלה, פתח תקווה',
-  'אבשלום גיסין, פתח תקווה',
-  'משה דיין, פתח תקווה',
-];
-
-for (const q of CHECKS) {
-  await sleep(1100);
-  const res = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=2&countrycodes=il&q=' + encodeURIComponent(q), { headers: UA });
-  const j = await res.json();
-  console.log(`🔎 ${q}`);
-  if (!j.length) { console.log('   — לא נמצא'); continue; }
-  for (const h of j) console.log(`   → ${h.display_name.slice(0, 100)} (${(+h.lat).toFixed(4)},${(+h.lon).toFixed(4)})`);
+// התיבה של האזור מהצילום: קרית אריה, סביב 32.095-32.105 / 34.855-34.875
+const q = `
+[out:json][timeout:30];
+(
+  way["highway"]["name"~"אם המושבות|אבשלום גיסין|השפלה|משה דיין"](32.090,34.850,32.108,34.880);
+);
+out tags center;
+`;
+const res = await fetch('https://overpass-api.de/api/interpreter', { method: 'POST', body: q, headers: UA });
+const j = await res.json();
+const byName = {};
+for (const el of j.elements) {
+  const n = el.tags?.name || '?';
+  (byName[n] ||= []).push(`(${el.center?.lat.toFixed(4)},${el.center?.lon.toFixed(4)})`);
 }
+console.log(`קטעי כביש באזור קרית אריה, לפי שם במאגר החי:`);
+for (const [n, locs] of Object.entries(byName)) {
+  console.log(`  "${n}" — ${locs.length} קטעים · דוגמאות: ${locs.slice(0, 4).join(' ')}`);
+}
+if (!j.elements.length) console.log('  (לא נמצאו קטעים — בעיה בשאילתה)');
