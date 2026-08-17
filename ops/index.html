@@ -16690,10 +16690,12 @@ function _driveMinutes(km) {
   return Math.max(1, Math.round(road / speed * 60));
 }
 
-// זמן הליכה משוער. מקדם דרך קטן יותר מהנסיעה — מדרכות מקיפות פחות
-// מכבישים — ומהירות הליכה ממוצעת של מבוגר.
+// זמן הליכה משוער: המרחק האווירי מוכפל בתוספת דרך קטנה (מדרכות ומעברי
+// חצייה מקיפים פחות מכבישים), במהירות 5 קמ"ש — הקצב שבו מחשבים שירותי
+// הניווט. המרחק עצמו מוצג כפי שהוא, בלי ניפוח.
+const _WALK_ROAD_FACTOR = 1.2;
 function _walkMinutes(km) {
-  return Math.max(1, Math.round(km * 1.25 / 4.5 * 60));
+  return Math.max(1, Math.round(km * _WALK_ROAD_FACTOR / 5 * 60));
 }
 // הליכה ארוכה מזה כבר אינה אפשרות מעשית, ואין טעם להציג אותה
 const _WALK_MAX_KM = 3;
@@ -16739,7 +16741,9 @@ function _loadLeaflet() {
 
 // הכתובת כפי שהיא מזוהה — משמשת גם כמפתח של הנקודה השמורה, כדי שכתובת
 // שהשתנתה תומר מחדש וכתובת שלא השתנתה לא תיגע בשירות
-const _geoKeyOf = car => `${(car.address || '').trim()}|${_pickupCity(car).trim()}`;
+// ה-v2 מבטל את כל הנקודות שנשמרו לפני אימות העיר — בלעדיו נקודות שגויות
+// שכבר נשמרו על הרכבים היו נשארות לנצח, כי המפתח היה מזוהה כתקף
+const _geoKeyOf = car => `v2|${(car.address || '').trim()}|${_pickupCity(car).trim()}`;
 
 // הכתובת נכתבת בשדה חופשי, ולכן נגררות אליה הערות כמו "קומה 2" או
 // "ליד הדואר". השירות מוצא רחוב ומספר, לא הערות — אז הן יורדות לפני החיפוש
@@ -16765,8 +16769,30 @@ async function _geoFetch(params) {
   return j.length ? j[0] : null;
 }
 
-// מחזיר נקודה מדויקת לפי הרחוב, או null אם הרחוב לא נמצא. נפילה למרכז
-// העיר נעשית בחוץ, כדי שיהיה ברור מתי המיקום מדויק ומתי משוער.
+/* אימות שהתוצאה באמת בעיר שביקשנו. שירות הכתובות מחזיר את ההתאמה
+   הטובה ביותר בארץ כולה — רחוב "הרצל" שלא נמצא בעיר המבוקשת יוחזר
+   מעיר אחרת, והמיקום על המפה (וגם המרחק מהרכבת) יוצא שגוי לגמרי.
+   לכן נדרשות שתי בדיקות: שם היישוב בתשובה, ומרחק סביר ממרכז העיר. */
+const _GEO_MAX_KM = 12;   // עיר גדולה ביותר בארץ קטנה משמעותית מזה
+function _geoHitInCity(hit, city) {
+  const want = _normCityName(city || '');
+  if (!want) return true;                       // בלי עיר אין מה לאמת
+  const a = hit.address || {};
+  const match = n => { n = _normCityName(n); return n === want || n.startsWith(want) || want.startsWith(n); };
+  // כל שם מקום בתשובה שמתאים לעיר המבוקשת — כולל שכונה — מאשר את התוצאה
+  if ([a.city, a.town, a.village, a.municipality, a.county, a.suburb, a.neighbourhood, a.city_district]
+      .filter(Boolean).some(match)) return true;
+  // השירות נקב בשם יישוב אחר במפורש — זו כתובת בעיר אחרת, ואין מה לדון
+  const named = [a.city, a.town, a.village, a.municipality].filter(Boolean);
+  if (named.length) return false;
+  // אין שם יישוב מוכר בתשובה — אז המרחק ממרכז העיר מכריע
+  const center = _coordOfCity(city);
+  if (!center) return false;
+  return _haversineKm([Number(hit.lat), Number(hit.lon)], center) <= _GEO_MAX_KM;
+}
+
+// מחזיר נקודה מדויקת לפי הרחוב, או null אם הרחוב לא נמצא בעיר המבוקשת.
+// נפילה למרכז העיר נעשית בחוץ, כדי שיהיה ברור מתי המיקום מדויק ומתי משוער.
 async function _geocodeAddress(address, city) {
   const street = _cleanStreet(address);
   if (!street) return null;
@@ -16780,6 +16806,8 @@ async function _geocodeAddress(address, city) {
     if (!hit) continue;
     // תוצאה שהיא עיר או אזור שלם אינה כתובת — עדיף לסמן אותה כמשוערת
     if (['city', 'town', 'village', 'municipality', 'state', 'county'].includes(hit.addresstype)) continue;
+    // כתובת שנפלה בעיר אחרת — עדיף מרכז העיר הנכונה על נקודה מדויקת שגויה
+    if (!_geoHitInCity(hit, city)) continue;
     return [Number(hit.lat), Number(hit.lon)];
   }
   return null;
