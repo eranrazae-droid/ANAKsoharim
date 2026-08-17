@@ -16997,6 +16997,10 @@ function _drawTrainStations(L) {
 
 function _drawCityLabels(L) {
   if (!_pickupCityLayer) return;
+  // אריחי OSM כבר מציגים את שמות הערים בעברית — ציור כפול רק מלכלך.
+  // הפונקציה נשארת למקרה שנחזור לרקע בלי שמות.
+  _pickupCityLayer.clearLayers();
+  return;
   const z = _pickupMap.getZoom();
   _pickupCityLayer.clearLayers();
   const seen = new Set();
@@ -17049,13 +17053,12 @@ async function drawPickupMap() {
     // רקע בסגנון גוגל מפות — יבשה בז', ים כחול, פארקים ירוקים וכבישים
     // צבעוניים — אבל בלי השמות של ספק המפה, שמגיעים גם באנגלית ובערבית.
     // את שמות הערים אנחנו כותבים בעצמנו, בעברית בלבד.
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19, subdomains: 'abcd', attribution: '© OpenStreetMap · © CARTO',
-    }).addTo(_pickupMap);
-    // שמות הרחובות: נדלקים מזום 14 והלאה (רמת שכונה ורחוב). במבט ארצי
-    // נשארים רק שמות הערים בעברית שאנחנו מציירים בעצמנו.
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19, minZoom: 14, subdomains: 'abcd',
+    // אריחי המפה הרשמיים של OpenStreetMap: מתעדכנים שוטף מהמאגר החי,
+    // ולכן שמות הרחובות עדכניים (אומת: "אם המושבות" ו"השפלה" בפ"ת מופיעים
+    // נכון במאגר בעוד שהאריחים הישנים של CARTO עוד הציגו את השמות הקודמים).
+    // השמות מוצגים בשפה המקומית — בישראל זה עברית.
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19, attribution: '© OpenStreetMap',
     }).addTo(_pickupMap);
     _pickupCityLayer = L.layerGroup().addTo(_pickupMap);
     _pickupTrainLayer = L.layerGroup().addTo(_pickupMap);
