@@ -2682,16 +2682,21 @@ if ('serviceWorker' in navigator) {
       <div class="settings-panel" id="spanel-users">
         <div class="settings-col-title">משתמשים וסיסמאות</div>
         <div id="users-warning" style="display:none;background:#fef3c7;border-right:5px solid #d97706;border-radius:10px;padding:10px 12px;font-size:12px;font-weight:800;color:#92400e;margin-bottom:12px"></div>
-        <div class="form-group"><label>שם</label>
-          <input class="form-input" id="usr-name" placeholder="לדוגמה עופר" autocomplete="off" name="anak-user-name"></div>
-        <div class="form-group"><label>טלפון</label>
-          <input class="form-input" id="usr-phone" inputmode="tel" placeholder="0521234567" autocomplete="off" name="anak-user-phone" style="direction:ltr;text-align:right" oninput="this.value=this.value.replace(/[^0-9]/g,'')"></div>
-        <div class="form-group"><label>סיסמה</label>
-          <input class="form-input" id="usr-pass" placeholder="לפחות 8 תווים" type="text" autocomplete="new-password" name="anak-user-pass" data-lpignore="true" style="direction:ltr;text-align:right"></div>
-        <div style="font-size:12px;color:var(--muted);margin:-6px 0 12px">התפקיד נקבע לפי השם — ליאל מנהל · גיל, עופר, איתי נהגים · משה והילה איסוף · איברהים פחח.</div>
-        <button class="btn-submit" onclick="saveAppUser()">✅ שמור משתמש</button>
-        <div class="section-title" style="margin-top:18px">הרשימה</div>
-        <div id="users-list"></div>
+        <button type="button" id="usr-add-btn" class="btn-submit" style="width:100%;margin-top:0;margin-bottom:10px"
+          onclick="_toggleBox('usr-add-box','usr-add-btn','➕ הוספת משתמש','✖ סגור הוספה')">➕ הוספת משתמש</button>
+        <div id="usr-add-box" style="display:none">
+          <div class="form-group"><label>שם</label>
+            <input class="form-input" id="usr-name" placeholder="לדוגמה עופר" autocomplete="off" name="anak-user-name"></div>
+          <div class="form-group"><label>טלפון</label>
+            <input class="form-input" id="usr-phone" inputmode="tel" placeholder="0521234567" autocomplete="off" name="anak-user-phone" style="direction:ltr;text-align:right" oninput="this.value=this.value.replace(/[^0-9]/g,'')"></div>
+          <div class="form-group"><label>סיסמה</label>
+            <input class="form-input" id="usr-pass" placeholder="לפחות 8 תווים" type="text" autocomplete="new-password" name="anak-user-pass" data-lpignore="true" style="direction:ltr;text-align:right"></div>
+          <div style="font-size:12px;color:var(--muted);margin:-6px 0 12px">התפקיד נקבע לפי השם — ליאל מנהל · גיל, עופר, איתי נהגים · משה והילה איסוף · איברהים פחח.</div>
+          <button class="btn-submit" onclick="saveAppUser()" style="margin-top:0">✅ שמור משתמש</button>
+        </div>
+        <button type="button" id="users-list-btn" class="btn-submit" style="width:100%;margin-top:10px;background:var(--surface2);color:var(--text);border:2px solid var(--border)"
+          onclick="_toggleBox('users-list','users-list-btn','👥 הצגת משתמשים','👥 הסתרת משתמשים')">👥 הצגת משתמשים</button>
+        <div id="users-list" style="display:none;margin-top:10px"></div>
       </div>
 
       <div class="settings-panel" id="spanel-gcal">
@@ -3189,6 +3194,11 @@ async function openUsersScreen() {
         <div style="color:var(--muted);font-size:14px;font-weight:700;margin-bottom:12px">כדי לנהל משתמשים צריך להתחבר עם הטלפון והסיסמה שלך</div>
         <button onclick="closeModal('modal-settings');goToLoginScreen()" class="btn-submit" style="margin-top:0;background:var(--dark);color:#fff">🔐 מעבר להתחברות</button>
       </div>`;
+    // הודעת ההתחברות חייבת להיראות גם כשהרשימה מקופלת
+    const box = document.getElementById('users-list');
+    if (box) box.style.display = 'block';
+    const btn = document.getElementById('users-list-btn');
+    if (btn) btn.style.display = 'none';
     const w = document.getElementById('users-warning');
     if (w) w.style.display = 'none';
     return;
@@ -3198,6 +3208,9 @@ async function openUsersScreen() {
     warn.style.display = 'block';
     warn.textContent = 'עד שההרשאות במסד יהודקו, הסיסמאות שנשמרות כאן נגישות לכל מי שיש לו קישור לאפליקציה. עד אז — עדיף לא לשמור כאן סיסמאות אמיתיות.';
   }
+  // חזרה למצב הרגיל: הרשימה מקופלת מאחורי הכפתור
+  const lstBtn = document.getElementById('users-list-btn');
+  if (lstBtn) lstBtn.style.display = '';
   document.getElementById('users-list').innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted)">טוען…</div>';
   try {
     const secretsSnap = await Promise.race([
@@ -15809,9 +15822,25 @@ async function _openNotifySettingsInner() {
       <button onclick="testTelegram('${name}')" style="width:100%;background:#229ED9;color:#fff;border:none;border-radius:8px;padding:7px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer">✈️ בדיקת טלגרם</button>
     </div>`;
   }).join('');
-  document.getElementById('notify-settings-body').innerHTML = telegramRow + videoGroupRow + rows;
+  // רשימת המשתמשים מקופלת — היא ארוכה, ורוב הזמן לא נוגעים בה
+  const driversBlock = `
+    <button type="button" onclick="_toggleBox('nc-drivers','nc-drivers-btn','👥 הצגת משתמשים','👥 הסתרת משתמשים')"
+      id="nc-drivers-btn" class="btn-submit" style="width:100%;margin-top:0;margin-bottom:10px;background:var(--surface2);color:var(--text);border:2px solid var(--border)">👥 הצגת משתמשים</button>
+    <div id="nc-drivers" style="display:none">${rows}</div>`;
+  document.getElementById('notify-settings-body').innerHTML = telegramRow + videoGroupRow + driversBlock;
   _renderPahachGroups();
 }
+
+/* פתיחה וסגירה של אזור מקופל. השדות נשארים בעמוד גם כשהם מוסתרים,
+   כדי ששמירה תמשיך לקרוא מהם גם בלי לפתוח את הרשימה. */
+function _toggleBox(boxId, btnId, showText, hideText) {
+  const box = document.getElementById(boxId), btn = document.getElementById(btnId);
+  if (!box) return;
+  const open = box.style.display !== 'none';
+  box.style.display = open ? 'none' : 'block';
+  if (btn) btn.textContent = open ? showText : hideText;
+}
+window._toggleBox = _toggleBox;
 
 // בחירת קבוצת היעד לסרטונים — נשמרת מיד בלחיצה
 let _pahachGroupSel = '';
