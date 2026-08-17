@@ -16623,17 +16623,21 @@ function _streetAutocomplete(inputId, ddId, cityInputId) {
   const input = document.getElementById(inputId), dd = document.getElementById(ddId);
   if (!input || !dd) return;
   const raw = input.value;
-  // אחרי בחירת רחוב מקלידים מספר בית — ספרות בסוף לא פותחות רשימה מחדש
   const v = _normStreet(raw.replace(/[\d\-/]+\s*$/, ''));
   if (!_streetsByCity || v.length < 2 || /\d/.test(raw.trim().slice(0, 1))) {
     dd.style.display = 'none'; dd.innerHTML = ''; return;
   }
+  // התאמה מתחילת השם או מתחילת כל מילה — "רוטשילד" מוצא גם "שדרות רוטשילד"
+  const hit = st => {
+    const n = _normStreet(st);
+    return n.startsWith(v) || n.split(' ').some(w => w.startsWith(v));
+  };
   const city = _normCityName(document.getElementById(cityInputId)?.value || '');
   const inCity = [], elsewhere = [];
   for (const [c, streets] of Object.entries(_streetsByCity)) {
     const cityMatches = city && (_normCityName(c) === city || _normCityName(c).startsWith(city));
     for (const st of streets) {
-      if (!_normStreet(st).startsWith(v)) continue;
+      if (!hit(st)) continue;
       (cityMatches ? inCity : elsewhere).push([st, c]);
       if (inCity.length > 40) break;
     }
@@ -16642,6 +16646,10 @@ function _streetAutocomplete(inputId, ddId, cityInputId) {
   // כשנבחרה עיר — רק הרחובות שלה; רחובות מערים אחרות רק כשאין עיר עדיין
   const matches = (city ? inCity : elsewhere).slice(0, 8);
   if (!matches.length) { dd.style.display = 'none'; dd.innerHTML = ''; return; }
+  // כבר נבחר רחוב מלא ועכשיו מוקלד מספר בית — אין מה להציע יותר
+  if (/\d\s*$/.test(raw) && matches.some(([st]) => _normStreet(st) === v)) {
+    dd.style.display = 'none'; dd.innerHTML = ''; return;
+  }
   dd.innerHTML = matches.map(([st, c]) =>
     `<div onmousedown="event.preventDefault();_pickStreet('${inputId}','${ddId}','${cityInputId}',this.dataset.s,this.dataset.c)"
         data-s="${esc(st)}" data-c="${esc(c)}"
