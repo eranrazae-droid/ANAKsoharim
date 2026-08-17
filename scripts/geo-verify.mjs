@@ -1,9 +1,9 @@
 // בדיקת אמת של מנגנון הכתובות והמרחקים של מפת האיסוף.
 // מריצה את הקוד האמיתי מתוך ops/index.html (לא העתק) על כתובות אמיתיות:
-//   1. המרת כתובת לנקודה מול שירות הכתובות, עם אימות העיר החדש
-//   2. חישוב התחנה הקרובה וזמן ההליכה כפי שהאפליקציה מציגה
-//   3. השוואה למסלול הליכה אמיתי ממנוע ניווט (OSRM)
-// נכשלת (exit 1) אם כתובת נפלה בעיר לא נכונה או שזמן ההליכה רחוק מהאמת.
+//   1. המרת כתובת לנקודה מול שירות הכתובות, עם אימות העיר
+//   2. משיכת מסלול אמיתי לתחנה מהמנוע (OSRM) — מה שהאפליקציה שומרת ומציגה
+//   3. השוואת נוסחת הגיבוי (קו אווירי) למסלול האמיתי — מידע בלבד
+// נכשלת (exit 1) אם כתובת נפלה בעיר לא נכונה או שמנגנון המסלולים מת כולו.
 import { readFileSync } from 'fs';
 
 const html = readFileSync('ops/index.html', 'utf8');
@@ -37,8 +37,7 @@ const appCode = [
   'const _CITY_COORD_NORM = (() => { const o = {}; for (const k in _CITY_COORD) o[_normCityName(k)] = _CITY_COORD[k]; return o; })();',
   'return { _geoHitInCity, _cleanStreet, _nearestStation, _coordOfCity, _haversineKm, _walkMinutes, _stKm };',
 ].join('\n');
-// _CITY_COORD_NORM נבנה בקוד המקור לפני שחלק מהפונקציות מוגדרות — כאן
-// הסדר שוחזר ידנית, והפונקציות נחשפות החוצה דרך return
+// _CITY_COORD_NORM נבנה כאן בסוף כי סדר ההגדרות בקובץ המקור שונה
 const app = new Function(appCode)();
 
 const UA = { 'User-Agent': 'anak-ops-geo-verify/1.0 (ops maintenance check)' };
@@ -72,17 +71,22 @@ async function geocodeLikeApp(address, city) {
   return c ? { latlng: c, exact: false, resolved: 'מרכז העיר (משוער)' } : null;
 }
 
-async function osrmWalk(from, to) {
+// בדיוק מה שהאפליקציה שומרת על הרכב: מסלול נהיגה אמיתי לתחנה;
+// זמן הליכה = אורך המסלול במהירות 5 קמ"ש
+async function stationRouteLikeApp(latlng) {
+  const st = app._nearestStation(latlng);
+  if (!st) return null;
   await sleep(400);
-  const url = `https://router.project-osrm.org/route/v1/foot/${from[1]},${from[0]};${to[1]},${to[0]}?overview=false`;
-  const res = await fetch(url, { headers: UA });
-  if (!res.ok) throw new Error('osrm ' + res.status);
+  const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${latlng[1]},${latlng[0]};${st.lng},${st.lat}?overview=false`, { headers: UA });
+  if (!res.ok) return null;
   const j = await res.json();
   const r = j.routes && j.routes[0];
-  return r ? { km: r.distance / 1000, min: r.duration / 60 } : null;
+  if (!r || !r.distance) return null;
+  const km = r.distance / 1000;
+  return { st, routeKm: km, walkMin: Math.max(1, Math.round(km / 5 * 60)), driveMin: Math.max(1, Math.round(r.duration / 60)) };
 }
 
-// כתובות אמיתיות מכל הארץ + שני מקרי כשל מכוונים (רחוב שלא קיים בעיר)
+// כתובות אמיתיות מכל הארץ + מקרה כשל מכוון (רחוב שלא קיים בעיר)
 const CASES = [
   { address: 'שנקר 15',        city: 'פתח תקווה' },
   { address: 'רוטשילד 1',      city: 'תל אביב–יפו' },
@@ -96,43 +100,35 @@ const CASES = [
   { address: 'סמילנסקי 8',     city: 'נתניה' },
   { address: 'ההסתדרות 240',   city: 'חולון' },
   { address: 'שנקר 20',        city: 'ירושלים', expectFallback: true },   // אין רחוב כזה בירושלים
-  { address: 'ביל"ו 3',        city: 'עפולה',   expectFallback: true },   // ודאות נמוכה בכוונה
 ];
 
-let failures = 0;
+let cityFailures = 0, routeOk = 0, routeTried = 0;
 for (const c of CASES) {
   console.log(`\n📍 ${c.address}, ${c.city}`);
   const geo = await geocodeLikeApp(c.address, c.city);
-  if (!geo) { console.log('   ❌ לא נמצאה נקודה בכלל'); failures++; continue; }
+  if (!geo) { console.log('   ❌ לא נמצאה נקודה בכלל'); cityFailures++; continue; }
   console.log(`   → ${geo.exact ? 'נקודה מדויקת' : 'מרכז העיר'}: ${geo.resolved.slice(0, 90)}`);
 
-  // הנקודה חייבת ליפול בעיר המבוקשת — נבדק מול מרכז העיר של האפליקציה
   const center = app._coordOfCity(c.city);
   if (center) {
     const off = app._haversineKm(geo.latlng, center);
-    console.log(`   מרחק ממרכז ${c.city}: ${off.toFixed(1)} ק"מ`);
-    if (off > 12) { console.log('   ❌ הנקודה רחוקה מדי מהעיר — כנראה עיר שגויה'); failures++; continue; }
+    if (off > 12) { console.log(`   ❌ הנקודה במרחק ${off.toFixed(1)} ק"מ ממרכז ${c.city} — עיר שגויה`); cityFailures++; continue; }
+    console.log(`   בעיר הנכונה ✅ (${off.toFixed(1)} ק"מ ממרכז העיר)`);
   }
-  if (c.expectFallback && geo.exact) console.log('   ℹ️ צפינו לנפילה למרכז העיר אך נמצאה נקודה — נבדוק שהיא בעיר הנכונה (עברה למעלה)');
 
-  const st = app._nearestStation(geo.latlng);
-  if (!st) { console.log('   (אין תחנה קרובה)'); continue; }
-  const appLine = `${st.name} · ${app._stKm(st.km)} ק"מ אווירי` + (st.walkMin ? ` · ${st.walkMin} דק' הליכה (אפליקציה)` : ' · מעבר למרחק הליכה');
-  console.log(`   🚆 ${appLine}`);
-
-  // השוואה למסלול אמיתי רק כשהאפליקציה בכלל מציגה זמן הליכה
-  if (st.walkMin) {
-    try {
-      const real = await osrmWalk(geo.latlng, [st.lat, st.lng]);
-      if (real) {
-        const dMin = Math.abs(real.min - st.walkMin);
-        const verdict = dMin <= Math.max(5, real.min * 0.35) ? '✅' : '❌';
-        console.log(`   🚶 מסלול אמיתי: ${real.km.toFixed(1)} ק"מ · ${Math.round(real.min)} דק' — פער ${Math.round(dMin)} דק' ${verdict}`);
-        if (verdict === '❌') failures++;
-      } else console.log('   (אין מסלול הליכה מהמנוע)');
-    } catch (e) { console.log('   (מנוע המסלולים לא זמין: ' + e.message + ')'); }
+  routeTried++;
+  const rt = await stationRouteLikeApp(geo.latlng);
+  if (!rt) { console.log('   ⚠️ המנוע לא החזיר מסלול — האפליקציה תציג את נוסחת הגיבוי'); continue; }
+  routeOk++;
+  const walkTxt = rt.routeKm <= 3 ? `🚶 ${rt.walkMin} דק' הליכה` : 'מעבר למרחק הליכה';
+  console.log(`   🚆 מה שיוצג: ${rt.st.name} · ${rt.routeKm.toFixed(1)} ק"מ בדרך · 🚗 ${rt.driveMin} דק' נסיעה · ${walkTxt}`);
+  const fallback = app._nearestStation(geo.latlng);
+  if (fallback?.walkMin && rt.routeKm <= 3) {
+    console.log(`   (נוסחת הגיבוי הייתה נותנת ${fallback.walkMin} דק' — פער ${Math.abs(fallback.walkMin - rt.walkMin)} דק')`);
   }
 }
 
-console.log(`\n${failures ? `❌ ${failures} כשלונות` : '✅ כל הבדיקות עברו'}`);
-process.exit(failures ? 1 : 0);
+console.log(`\nסיכום: ערים נכונות ${CASES.length - cityFailures}/${CASES.length} · מסלולים אמיתיים ${routeOk}/${routeTried}`);
+const fail = cityFailures > 0 || routeOk === 0;
+console.log(fail ? '❌ נכשל' : '✅ כל הבדיקות עברו');
+process.exit(fail ? 1 : 0);

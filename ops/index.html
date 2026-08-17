@@ -16690,10 +16690,11 @@ function _driveMinutes(km) {
   return Math.max(1, Math.round(road / speed * 60));
 }
 
-// זמן הליכה משוער: המרחק האווירי מוכפל בתוספת דרך קטנה (מדרכות ומעברי
-// חצייה מקיפים פחות מכבישים), במהירות 5 קמ"ש — הקצב שבו מחשבים שירותי
-// הניווט. המרחק עצמו מוצג כפי שהוא, בלי ניפוח.
-const _WALK_ROAD_FACTOR = 1.2;
+// זמן הליכה משוער כשאין עדיין מסלול אמיתי: המרחק האווירי מוכפל בתוספת
+// דרך שנמדדה מול מסלולים אמיתיים לתחנות רכבת (גשרים, כניסות, מעברי
+// מסילה מאריכים הרבה מעבר לקו האווירי), במהירות 5 קמ"ש. ברגע שיש מסלול
+// אמיתי מהמנוע — הוא זה שמוצג, לא הנוסחה.
+const _WALK_ROAD_FACTOR = 1.5;
 function _walkMinutes(km) {
   return Math.max(1, Math.round(km * _WALK_ROAD_FACTOR / 5 * 60));
 }
@@ -16701,6 +16702,42 @@ function _walkMinutes(km) {
 const _WALK_MAX_KM = 3;
 // מרחק קצר מוצג עם ספרה אחרי הנקודה — "0 ק\"מ" לא אומר כלום
 const _stKm = km => km < 10 ? km.toFixed(1) : Math.round(km);
+
+/* מרחקי אמת לתחנה: פנייה חד-פעמית למנוע ניווט (OSRM, מסלולי כבישים
+   אמיתיים) שמחזירה את אורך הדרך בפועל וזמן נסיעה. זמן ההליכה נגזר
+   מאורך המסלול במהירות 5 קמ"ש. נשמר על מסמך הרכב — פנייה אחת לרכב. */
+async function _stationRouteInfo(latlng) {
+  const st = _nearestStation(latlng);
+  if (!st) return null;
+  try {
+    const ctl = new AbortController();
+    const tm = setTimeout(() => ctl.abort(), 7000);
+    const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${latlng[1]},${latlng[0]};${st.lng},${st.lat}?overview=false`, { signal: ctl.signal });
+    clearTimeout(tm);
+    if (!res.ok) return null;
+    const j = await res.json();
+    const r = j.routes && j.routes[0];
+    if (!r || !r.distance) return null;
+    const km = r.distance / 1000;
+    return {
+      stName: st.name,
+      stRouteKm: +km.toFixed(2),
+      stWalkMin: Math.max(1, Math.round(km / 5 * 60)),
+      stDriveMin: Math.max(1, Math.round(r.duration / 60)),
+    };
+  } catch (e) { return null; }
+}
+
+// מה שמוצג בפועל: מסלול אמיתי אם כבר נשמר על הרכב, אחרת הנוסחה
+function _stationDisplay(car, latlng) {
+  if (car && car.stRouteKm != null && car.stName && car.geoKey === _geoKeyOf(car)) {
+    return {
+      name: car.stName, km: car.stRouteKm, min: car.stDriveMin,
+      walkMin: car.stRouteKm <= _WALK_MAX_KM ? car.stWalkMin : null, route: true,
+    };
+  }
+  return _nearestStation(latlng);
+}
 
 // התחנה הקרובה ביותר לנקודה, עם המרחק וזמן הנסיעה המשוער
 function _nearestStation(latlng) {
@@ -16956,8 +16993,8 @@ async function _pickupDrawMarkers(L, cars, say, refit) {
       iconSize: null, iconAnchor: [0, 0],
     });
     const addr = [car.address, _pickupCity(car)].filter(Boolean).join(', ');
-    // התחנה מחושבת מהנקודה שהרכב סומן בה בפועל, גם כשהיא משוערת
-    const st = _nearestStation(latlng);
+    // התחנה מחושבת מהנקודה שהרכב סומן בה בפועל — מסלול אמיתי אם נשמר
+    const st = _stationDisplay(car, latlng);
     L.marker(latlng, { icon }).addTo(_pickupMapLayer).bindPopup(
       `<div style="font-family:Heebo,sans-serif;direction:rtl;text-align:right;font-size:13px">
          <b style="font-size:15px">${esc(car.plate || '')}</b><br>
@@ -16989,12 +17026,17 @@ async function _pickupDrawMarkers(L, cars, say, refit) {
     }
     if (!latlng) { latlng = _coordOfCity(_pickupCity(car)); approx = true; }
     if (!latlng) { pending--; continue; }
+    // מרחקי האמת לתחנה נמשכים לפני הציור, כדי שהחלונית תציג אותם מיד
+    const rt = await _stationRouteInfo(latlng);
+    car.geoKey = _geoKeyOf(car);
+    if (rt) Object.assign(car, rt);
     place(car, latlng, !approx);
     approx ? rough++ : exact++;
     pending--;
     // נשמר על הרכב, כך שבפעם הבאה אין צורך להמיר שוב
     _updateDoc(_docRef('pickup_cars', car.id), {
       lat: latlng[0], lng: latlng[1], geoKey: _geoKeyOf(car), geoApprox: approx,
+      ...(rt || {}),
     }).catch(() => {});
     // התכווננות רק אם המשתמש עוד לא הזיז את המפה בעצמו
     if (refit) _pickupMap.fitBounds(pts, { padding: [30, 30] });
@@ -17677,7 +17719,7 @@ function _pickupRegionTasksHtml(c, e) {
 
 // תחנת הרכבת הקרובה לרכב — מוצגת בתוך הכרטיס, לנהג שמגיע או חוזר ברכבת
 function _pickupStationHtml(c, e) {
-  const s = _nearestStation(_pickupLatLng(c));
+  const s = _stationDisplay(c, _pickupLatLng(c));
   if (!s) return '';
   return `<div style="margin-top:6px;background:#eff6ff;border:1px solid #bfdbfe;border-right:5px solid #1d4ed8;border-radius:8px;padding:7px 10px;font-size:13px;font-weight:800;color:#1e3a8a">
     🚆 תחנה קרובה: ${e(s.name)} — כ־${s.min} דק׳ נסיעה${s.walkMin ? ` · 🚶 כ־${s.walkMin} דק׳ הליכה` : ''} <span style="color:#3b82f6;font-weight:700">(${_stKm(s.km)} ק"מ)</span>
