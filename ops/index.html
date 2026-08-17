@@ -16680,6 +16680,43 @@ function _streetBlur(ddId) {
 }
 window._streetBlur = _streetBlur;
 
+/* יישור כתובת חופשית (הדבקה / ייבוא / הקלדה בלי בחירה מהרשימה) לשם
+   הרחוב הרשמי מהמילון: "שינקר 15" בפתח תקווה → "שנקר אריה 15".
+   התאמה לא מספיק בטוחה — הכתובת נשארת בדיוק כמו שנכתבה. */
+function _snapAddressToStreets(city, address) {
+  if (!_streetsByCity || !city || !address) return address;
+  const w = _normCityName(city);
+  if (!w) return address;
+  const key = Object.keys(_streetsByCity).find(c => {
+    const n = _normCityName(c);
+    return n === w || n.startsWith(w) || w.startsWith(n);
+  });
+  if (!key) return address;
+  const numM = String(address).match(/\d[\d\-/]*\s*$/);
+  const num = numM ? numM[0].trim() : '';
+  const typed = _normStreet(String(address).replace(/\d[\d\-/]*\s*$/, ''));
+  if (typed.length < 2) return address;
+  const withNum = st => (st + (num ? ' ' + num : '')).trim();
+  const streets = _streetsByCity[key];
+  // התאמה מלאה — מיידית
+  for (const st of streets) if (_normStreet(st) === typed) return withNum(st);
+  // "שנקר" ← "שנקר אריה": רק כשיש רחוב אחד ויחיד שהמילה מופיעה בו —
+  // שניים או יותר זה ניחוש, ואז עדיף להשאיר את מה שנכתב
+  const wordHits = streets.filter(st => _normStreet(st).split(' ').includes(typed));
+  if (wordHits.length === 1) return withNum(wordHits[0]);
+  if (wordHits.length > 1) return address;
+  // שגיאת כתיב של אות אחת בלבד, ורק כשיש מועמד יחיד
+  if (typed.length >= 4) {
+    const typoHits = streets.filter(st => {
+      const n = _normStreet(st);
+      return _levenshtein(n, typed) <= 1 ||
+             n.split(' ').some(x => x.length >= 4 && _levenshtein(x, typed) <= 1);
+    });
+    if (typoHits.length === 1) return withNum(typoHits[0]);
+  }
+  return address;
+}
+
 function _cityBlur(ddId, inputId) {
   setTimeout(() => {
     const d = document.getElementById(ddId); if (d) d.style.display = 'none';
@@ -17974,7 +18011,9 @@ async function submitPickupCar() {
     test: document.getElementById('pickup-test').value.trim(),
     contact: _dedupContacts(document.getElementById('pickup-contact').value),
     city: document.getElementById('pickup-city').value.trim(),
-    address: document.getElementById('pickup-address').value.trim(),
+    address: _snapAddressToStreets(
+      document.getElementById('pickup-city').value.trim(),
+      document.getElementById('pickup-address').value.trim()),
     note: document.getElementById('pickup-note').value.trim(),
     ...(_pickupDocData
       ? { doc: _pickupDocData, docMime: _pickupDocMime, docName }
@@ -18871,6 +18910,14 @@ async function parseFreeTextPickup() {
 
   const lineBlocks = _splitPickupBlocks(raw);
   _freetextParsed = lineBlocks.map(_parsePickupBlock).filter(c => c.plate || c.type || c.contact);
+
+  // יישור הכתובות שזוהו לשמות הרחובות הרשמיים מהמילון, לפני התצוגה —
+  // כך רואים (ואפשר לתקן) את הכתובת הסופית עוד לפני השמירה
+  _streetAcLoad();
+  if (_streetsLoading) await _streetsLoading.catch(() => {});
+  for (const c of _freetextParsed) {
+    if (c.city && c.address) c.address = _snapAddressToStreets(c.city, c.address);
+  }
 
   const preview = document.getElementById('freetext-pickup-preview');
   if (!_freetextParsed.length) { preview.innerHTML = '<div style="color:var(--muted);text-align:center;padding:20px">לא זוהו רכבים</div>'; return; }
