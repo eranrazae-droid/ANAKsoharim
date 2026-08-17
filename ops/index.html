@@ -1196,9 +1196,23 @@ if ('serviceWorker' in navigator) {
           <button type="button" class="ci-box sf-box" data-sf="sf-vest" onclick="sfMark(this)">✓</button>
           <span style="font-size:14px;font-weight:600;flex:1">אפוד זוהר</span>
         </div>
+        <!-- לספייר יש גם ✕ מפורש: סימון ✕ הוא שפותח את התת־סעיפים, כך
+             שטופס חדש לא נפתח איתם כברירת מחדל -->
         <div style="display:flex;align-items:center;gap:10px">
           <button type="button" class="ci-box sf-box" data-sf="sf-spare" onclick="sfMark(this)">✓</button>
+          <button type="button" class="ci-box sf-x" data-sfx="sf-spare" onclick="sfMarkX(this)">✕</button>
           <span style="font-size:14px;font-weight:600;flex:1">גלגל ספייר</span>
+        </div>
+        <!-- אין גלגל ספייר — נשאל מה כן יש ברכב במקומו -->
+        <div id="sf-spare-sub" style="display:none;flex-direction:column;gap:6px;padding-right:42px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <button type="button" class="ci-box sf-box" data-sf="sf-puncture-kit" onclick="sfMark(this)">✓</button>
+            <span style="font-size:14px;font-weight:600;flex:1">ערכת תיקון פנצ׳ר</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <button type="button" class="ci-box sf-box" data-sf="sf-air-kit" onclick="sfMark(this)">✓</button>
+            <span style="font-size:14px;font-weight:600;flex:1">ערכת ניפוח אוויר</span>
+          </div>
         </div>
       </div>
     </div>
@@ -1429,6 +1443,7 @@ if ('serviceWorker' in navigator) {
     <div class="checklist-item"><span class="ci-label">לדים שרופים/מנורות שרופות</span><div class="ci-btns"><button type="button" class="ci-box" data-key="td-lights-burnt" data-val="v" onclick="tdCiClick(this)">✓</button><button type="button" class="ci-box" data-key="td-lights-burnt" data-val="x" onclick="tdCiClick(this)">✕</button></div></div>
     <div class="checklist-item"><span class="ci-label">מתגי חלונות</span><div class="ci-btns"><button type="button" class="ci-box" data-key="td-windows" data-val="v" onclick="tdCiClick(this)">✓</button><button type="button" class="ci-box" data-key="td-windows" data-val="x" onclick="tdCiClick(this)">✕</button></div></div>
     <div class="checklist-item"><span class="ci-label">קיפול וכיוון מראות חשמליות</span><div class="ci-btns"><button type="button" class="ci-box" data-key="td-mirrors" data-val="v" onclick="tdCiClick(this)">✓</button><button type="button" class="ci-box" data-key="td-mirrors" data-val="x" onclick="tdCiClick(this)">✕</button></div></div>
+    <div class="checklist-item"><span class="ci-label">גג נפתח</span><div class="ci-btns"><button type="button" class="ci-box" data-key="td-sunroof" data-val="v" onclick="tdCiClick(this)">✓</button><button type="button" class="ci-box" data-key="td-sunroof" data-val="x" onclick="tdCiClick(this)">✕</button></div></div>
 
     <!-- מזגן -->
     <div class="checklist-item"><span class="ci-label">מזגן מחמם ומקרר</span><div class="ci-btns"><button type="button" class="ci-box" data-key="td-ac" data-val="v" onclick="tdCiClick(this)">✓</button><button type="button" class="ci-box" data-key="td-ac" data-val="x" onclick="tdCiClick(this)">✕</button></div></div>
@@ -6290,10 +6305,20 @@ async function submitDriverIntake() {
   // an unmarked accessory is a missing one — that is what opens the task.
   // A missing spare wheel is not one of them: it is written on the intake for
   // the record, but it does not become a job for anybody.
-  const _sfMissing = Object.keys(_SF_ITEMS).filter(id => !safetyChecks[id]);
-  const _sfForTask = _sfMissing.filter(id => id !== 'sf-spare');
+  // התת־סעיפים של הספייר נשאלים רק כשהוא חסר, ולכן כשהוא קיים הם אינם
+  // "חסרים" אלא פשוט לא רלוונטיים
+  const _spareOk = !!safetyChecks['sf-spare'];
+  const _sfMissing = Object.keys(_SF_ITEMS)
+    .filter(id => !(_spareOk && _SF_SPARE_SUBS.includes(id)))
+    .filter(id => !safetyChecks[id]);
+  const _sfForTask = _sfMissing.filter(id => id !== 'sf-spare' && !_SF_SPARE_SUBS.includes(id));
   checklist['c-safety'] = _sfForTask.length ? 'x' : 'v';
   if (_sfMissing.length) checklist['c-safety_note'] = 'חסר: ' + _sfMissing.map(id => _SF_ITEMS[id]).join(', ');
+  // מה שכן יש ברכב במקום הספייר — נרשם בקליטה לצד מה שחסר
+  const _spareHas = _spareOk ? [] : _SF_SPARE_SUBS.filter(id => safetyChecks[id]).map(id => _SF_ITEMS[id]);
+  if (_spareHas.length) {
+    checklist['c-safety_note'] = (checklist['c-safety_note'] ? checklist['c-safety_note'] + ' · ' : '') + 'יש ברכב: ' + _spareHas.join(', ');
+  }
 
   const notes     = document.getElementById('di-notes').value.trim();
   const km        = document.getElementById('di-km').value.trim();
@@ -6625,9 +6650,15 @@ function _renderViewIntakeModal(v) {
     let sfRows = '';
     if (key === 'c-safety' && v.safetyChecks) {
       const sfLabels = { 'sf-jack': 'ג׳ק + מפתח גלגלים + משולש', 'sf-vest': 'אפוד זוהר', 'sf-spare': 'גלגל ספייר' };
+      // תת־סעיפי הספייר מוצגים רק כשהוא חסר — אחרת הם לא נשאלו בכלל
+      const sfSubLabels = { 'sf-puncture-kit': 'ערכת תיקון פנצ׳ר', 'sf-air-kit': 'ערכת ניפוח אוויר' };
+      const subRows = v.safetyChecks['sf-spare'] ? '' :
+        Object.entries(sfSubLabels).map(([id, lbl]) =>
+          `<div style="padding-right:20px">${v.safetyChecks[id] ? '✅' : '❌'} ${esc(lbl)}</div>`).join('');
       sfRows = `<div style="margin-top:6px;font-size:13px;line-height:1.9">` +
         Object.entries(sfLabels).map(([id, lbl]) =>
-          `<div>${v.safetyChecks[id] ? '✅' : '❌'} ${esc(lbl)}</div>`).join('') + `</div>`;
+          `<div>${v.safetyChecks[id] ? '✅' : '❌'} ${esc(lbl)}</div>` +
+          (id === 'sf-spare' ? subRows : '')).join('') + `</div>`;
     }
     const note = noteText ? `<div style="font-size:12px;color:#555;margin-top:4px">📝 ${esc(noteText)}</div>` : '';
     // match photos by exact key or any key that starts with the same prefix
@@ -6883,12 +6914,48 @@ async function uploadPhotos(key) {
    unmarked item means "missing", and a task is opened to complete it.
    One click marks; a double click clears. Clicking an already-marked box is a
    no-op, so the two clicks that precede a dblclick can't undo it by accident. */
-const _SF_ITEMS = { 'sf-jack': 'ג׳ק + מפתח גלגלים + משולש', 'sf-vest': 'אפוד זוהר', 'sf-spare': 'גלגל ספייר' };
+const _SF_ITEMS = {
+  'sf-jack': 'ג׳ק + מפתח גלגלים + משולש', 'sf-vest': 'אפוד זוהר', 'sf-spare': 'גלגל ספייר',
+  // תת־סעיפים שנפתחים רק כשאין גלגל ספייר
+  'sf-puncture-kit': 'ערכת תיקון פנצ׳ר', 'sf-air-kit': 'ערכת ניפוח אוויר',
+};
+// התת־סעיפים של הספייר: נשאלים רק כשהספייר חסר, ולכן גם נספרים רק אז
+const _SF_SPARE_SUBS = ['sf-puncture-kit', 'sf-air-kit'];
 
 // plain toggle — tap to mark, tap again to clear. No timing involved, so it
 // behaves the same on a phone in the sun as it does on a desktop.
-function sfMark(btn) { btn.classList.toggle('v-active'); }
+function sfMark(btn) {
+  btn.classList.toggle('v-active');
+  if (btn.dataset.sf === 'sf-spare') {
+    // ✓ ו-✕ סותרים זה את זה
+    if (btn.classList.contains('v-active')) document.querySelector('.sf-x[data-sfx="sf-spare"]')?.classList.remove('x-active');
+    _sfSpareSub();
+  }
+}
 window.sfMark = sfMark;
+
+// ה-✕ של הספייר: מסמן במפורש "אין ספייר" ופותח את התת־סעיפים
+function sfMarkX(btn) {
+  btn.classList.toggle('x-active');
+  if (btn.classList.contains('x-active')) document.querySelector('.sf-box[data-sf="sf-spare"]')?.classList.remove('v-active');
+  _sfSpareSub();
+}
+window.sfMarkX = sfMarkX;
+
+// רק ✕ מפורש פותח את התת־סעיפים. כשהוא נסגר הסימונים מתאפסים, כדי
+// שסימון ישן לא יישאר תלוי באוויר.
+function _sfSpareSub() {
+  const box = document.getElementById('sf-spare-sub');
+  if (!box) return;
+  const x = document.querySelector('.sf-x[data-sfx="sf-spare"]');
+  const noSpare = !!(x && x.classList.contains('x-active'));
+  box.style.display = noSpare ? 'flex' : 'none';
+  if (!noSpare) {
+    for (const id of _SF_SPARE_SUBS) {
+      document.querySelector(`.sf-box[data-sf="${id}"]`)?.classList.remove('v-active');
+    }
+  }
+}
 
 function _sfRead() {
   const out = {};
@@ -6896,6 +6963,8 @@ function _sfRead() {
     const b = document.querySelector(`.sf-box[data-sf="${id}"]`);
     out[id] = !!(b && b.classList.contains('v-active'));
   }
+  // נשמר בנפרד כדי שטיוטה תיפתח חזרה עם התת־סעיפים במקום
+  out['sf-spare-x'] = !!document.querySelector('.sf-x[data-sfx="sf-spare"].x-active');
   return out;
 }
 
@@ -6904,6 +6973,10 @@ function _sfApply(state) {
     const b = document.querySelector(`.sf-box[data-sf="${id}"]`);
     if (b) b.classList.toggle('v-active', !!(state && state[id]));
   }
+  // ה-✕ נדלק כשנשמר במפורש, או כשיש סימון בתת־סעיפים (טיוטה ישנה)
+  const noSpare = !!(state && (state['sf-spare-x'] || _SF_SPARE_SUBS.some(id => state[id])));
+  document.querySelector('.sf-x[data-sfx="sf-spare"]')?.classList.toggle('x-active', noSpare);
+  _sfSpareSub();   // טעינת טיוטה — התת־סעיפים נפתחים לפי מצב הספייר
 }
 
 function ciClick(btn) {
@@ -6951,7 +7024,9 @@ function ciClick(btn) {
 function saveIntakeDraft() {
   if (!_currentIntakeId) return;
   const checks = {};
-  document.querySelectorAll('#modal-driver-intake .ci-box.v-active,#modal-driver-intake .ci-box.x-active').forEach(b => {
+  // כפתורי האביזרים נשמרים בנפרד ב-safetyChecks — בלי הסינון הזה הם
+  // היו נכתבים לטיוטה עם מפתח ריק
+  document.querySelectorAll('#modal-driver-intake .ci-box.v-active:not(.sf-box):not(.sf-x),#modal-driver-intake .ci-box.x-active:not(.sf-box):not(.sf-x)').forEach(b => {
     checks[b.dataset.key] = b.dataset.val;
   });
   const notes = {};
@@ -19776,6 +19851,7 @@ const _TD_CHECK_LABELS = {
   'td-lights':'שברים בפנסים','td-glass':'שברים בשמשות',
   'td-lights-burnt':'לדים שרופים/מנורות שרופות',
   'td-windows':'מתגי חלונות','td-mirrors':'קיפול וכיוון מראות חשמליות',
+  'td-sunroof':'גג נפתח',
   'td-ac':'מזגן מחמם ומקרר','td-ac-noise':'רעשי מזגן',
   'td-dashboard':'מנורות לוח שעונים',
   'td-drive':'בדיקת הרכב בנסיעה',
@@ -20053,7 +20129,7 @@ async function _tdConvertToIntake(tdId, data) {
     const tdDashLights  = data.dashLights  || data.draft?.dashLights  || [];
     const tdDashOther   = data.dashOtherText || data.draft?.dashOtherText || '';
     console.log('[TD→INTAKE] tdChecks:', JSON.stringify(tdChecks));
-    const tdToIntake = { 'td-oil':'c-oil','td-coolant':'c-coolant','td-glass':'c-glass-break','td-windows':'c-windows','td-mirrors':'c-mirrors','td-lights':'c-lights-break','td-lights-burnt':'c-bulbs','td-ac':'c-ac','td-ac-noise':'c-ac-noise','td-dashboard':'c-dashboard','td-drive':'c-drive' };
+    const tdToIntake = { 'td-oil':'c-oil','td-coolant':'c-coolant','td-glass':'c-glass-break','td-windows':'c-windows','td-mirrors':'c-mirrors','td-sunroof':'c-sunroof','td-lights':'c-lights-break','td-lights-burnt':'c-bulbs','td-ac':'c-ac','td-ac-noise':'c-ac-noise','td-dashboard':'c-dashboard','td-drive':'c-drive' };
     const tdDashMap  = { 'td-dash-engine':'dash-check-engine','td-dash-tire':'dash-tire-pressure','td-dash-service':'dash-service','td-dash-collision':'dash-collision','td-dash-fuel':'dash-fuel','td-dash-istop':'dash-istop','td-dash-other':'dash-other' };
     const intakeChecks = {}, intakeNotes = {}, intakeDash = {};
     Object.entries(tdChecks).forEach(([k,v]) => { const ik=tdToIntake[k]; if(ik) intakeChecks[ik]=v; });
