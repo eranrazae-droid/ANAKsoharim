@@ -595,6 +595,20 @@ exports.telegramWebhook = onRequest({ region: "europe-west1" }, async (req, res)
       } catch (err) { console.error("group capture failed", err); }
     }
 
+    // שיחה פרטית — רושמים את מזהה הצ'אט והשם, כדי לשייך אותו לעובד
+    // בהגדרות. הבוט עובד ב-webhook, ולכן getUpdates חסום ואי אפשר לשלוף
+    // את ההודעות בדיעבד — הן נתפסות כאן, ברגע שהן מגיעות.
+    if (msg?.chat && msg.chat.type === "private") {
+      try {
+        const from = msg.from || {};
+        const name = [from.first_name, from.last_name].filter(Boolean).join(" ")
+          || from.username || String(msg.chat.id);
+        await db.collection("config").doc("telegram_chats").set({
+          [String(msg.chat.id)]: { id: msg.chat.id, name, username: from.username || "", at: new Date() },
+        }, { merge: true });
+      } catch (err) { console.error("private chat capture failed", err); }
+    }
+
     const cq = req.body?.callback_query;
     if (!cq || !cq.data) return;
 

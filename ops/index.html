@@ -15722,9 +15722,28 @@ window.sendBatteryReminders = sendBatteryReminders;
 async function _telegramGetUpdates() {
   const token = await _telegramToken();
   if (!token) { showToast('נא להזין קודם טוקן בוט'); return []; }
+  // הבוט עובד ב-webhook, ולכן getUpdates חסום על ידי טלגרם. השיחות
+  // נרשמות בשרת ברגע שהן מגיעות — קוראים משם. אם אין שם כלום, ננסה
+  // בכל זאת את getUpdates (למקרה שה-webhook מנותק).
+  try {
+    const snap = await window._getDoc(_docRef('config', 'telegram_chats'));
+    if (snap.exists()) {
+      const rows = Object.values(snap.data() || {})
+        .filter(c => c && c.id)
+        .sort((a, b) => String(b.at?.toMillis?.() ?? b.at ?? '').localeCompare(String(a.at?.toMillis?.() ?? a.at ?? '')))
+        .map(c => ({ id: c.id, name: c.name || String(c.id) }));
+      if (rows.length) return rows;
+    }
+  } catch (e) { console.warn('telegram_chats read', e); }
   try {
     const data = await _telegramApi('getUpdates?limit=100');
-    if (!data.ok) { showToast(`⚠️ שגיאת טוקן: ${data.description || ''}`, 5000); return []; }
+    if (!data.ok) {
+      const busy = /webhook is active/i.test(data.description || '');
+      showToast(busy
+        ? 'הבוט עובד במצב webhook — בקש מהעובד לשלוח הודעה לבוט עכשיו, ואז לחץ שוב'
+        : `⚠️ שגיאת טוקן: ${data.description || ''}`, 7000);
+      return [];
+    }
     const seen = new Map(); // chatId → name (last message wins, most recent)
     for (const u of (data.result || [])) {
       const m = u.message || u.edited_message;
@@ -15992,7 +16011,7 @@ async function refreshTelegramChats() {
   box.innerHTML = '⏳ טוען...';
   const chats = await _telegramGetUpdates();
   if (!chats.length) {
-    box.innerHTML = 'לא נמצאו הודעות עדיין — ודא שכל נהג שלח הודעה לבוט, ונסה שוב.';
+    box.innerHTML = 'לא נמצאו שיחות — בקש מכל עובד לשלוח הודעה לבוט (למשל /start), ואז לחץ שוב.';
     return;
   }
   const drivers = ['ליאל','עופר','גיל','איתי','משה'];
