@@ -1360,6 +1360,18 @@ async function _runOwnershipScan() {
   const nowSet = new Set(cars.map((c) => c.plate));
   const goneFromStock = hadPrev
     ? Object.values(prevCars).filter((c) => !nowSet.has(c.plate)) : [];
+  /* רכב שירד מהמלאי — בדיקה אחרונה במרשם: האם הוא גם עבר בעלות, או
+     שירד מהרשימה בלי שהבעלות זזה. זו התשובה לשאלה "למה הוא ירד". */
+  if (goneFromStock.length) {
+    try {
+      const goneBaalut = await _ownRegistryBaalut(goneFromStock.map((c) => c.plate));
+      for (const c of goneFromStock) {
+        const nowB = (goneBaalut[c.plate] || "").trim();
+        c.nowBaalut = nowB;
+        c.movedOnExit = !!(nowB && c.baalut && nowB !== c.baalut);
+      }
+    } catch (err) { console.error("gone-from-stock baalut check failed", err); }
+  }
 
   /* רגע זיהוי שינוי הבעלות. המרשם אינו מפרסם תאריך העברה, ולכן זה הזמן
      שבו הסריקה ראתה את השינוי — מדויק עד שעה, כי היא רצה כל שעה.
@@ -1391,7 +1403,12 @@ async function _runOwnershipScan() {
       rows.push(entry(c, c.status === "ours" ? "back" : "moved", from, c.baalut));
     }
     for (const c of newAndNot) if (!seenLog.has(c.plate)) { seenLog.add(c.plate); rows.push(entry(c, "new_not", "", c.baalut)); }
-    for (const c of goneFromStock) if (!seenLog.has(c.plate)) { seenLog.add(c.plate); rows.push(entry(c, "gone", c.baalut, "")); }
+    for (const c of goneFromStock) if (!seenLog.has(c.plate)) {
+      seenLog.add(c.plate);
+      const row = entry(c, "gone", c.baalut, c.movedOnExit ? c.nowBaalut : "");
+      row.movedOnExit = !!c.movedOnExit;
+      rows.push(row);
+    }
     for (const row of rows) {
       try { await log.add(row); } catch (err) { console.error("ownership_log write failed", row.plate, err); }
     }
@@ -1559,7 +1576,10 @@ exports.dailyOwnershipCheck = onSchedule(
       const parts = [];
       if (moved.length)  parts.push(block(`🚨 ${moved.length} רכבים עברו בעלות:`, moved, movedTxt));
       if (newNot.length) parts.push(block(`⚠️ ${newNot.length} רכבים חדשים במלאי שאינם על תו סחר:`, newNot, (c) => c.baalut ? ` — רשום על ${phrase(c.baalut)}` : ""));
-      if (gone.length)   parts.push(block(`📤 ${gone.length} רכבים ירדו מהמלאי:`, gone, (c) => c.baalut ? ` — היה רשום על ${phrase(c.baalut)}` : ""));
+      if (gone.length)   parts.push(block(`📤 ${gone.length} רכבים ירדו מהמלאי:`, gone, (c) =>
+        c.movedOnExit
+          ? ` — עבר מבעלות ${phrase(c.baalut)} לבעלות ${phrase(c.nowBaalut)}`
+          : (c.baalut ? ` — הבעלות לא השתנתה (${phrase(c.baalut)})` : "")));
       if (newUnk.length) parts.push(block(`🆕 ${newUnk.length} רכבים חדשים שטרם נבדקה בעלותם:`, newUnk));
       if (toOurs.length) parts.push(block(`✅ ${toOurs.length} רכבים חזרו לתו סחר:`, toOurs, movedTxt));
 
