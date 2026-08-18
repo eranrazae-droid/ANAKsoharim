@@ -2080,7 +2080,6 @@ if ('serviceWorker' in navigator) {
 
     <div id="own-filter" style="display:none;gap:6px;margin:12px 0 4px">
       <button onclick="ownFilter('all')" id="own-f-all" style="flex:1;padding:8px;border-radius:9px;border:2px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer">הכל</button>
-      <button onclick="ownFilter('todo')" id="own-f-todo" style="flex:1;padding:8px;border-radius:9px;border:2px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer">לא נבדקו</button>
       <button onclick="ownFilter('not')" id="own-f-not" style="flex:1;padding:8px;border-radius:9px;border:2px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer">לא שלנו</button>
     </div>
     <div id="own-list"></div>
@@ -10095,7 +10094,6 @@ const _OWN_FN = 'https://europe-west1-anak-soharim.cloudfunctions.net/runOwnersh
 const _OWN_GOV_URL = 'https://ecom.gov.il/voucherspa/input/260?clear=true';
 let _ownUnsub = null;
 let _ownCars = [];            // רשימת המלאי מהשרת
-let _ownMarks = {};           // לוחית → 'ours' | 'not' | 'skip'
 let _ownIds = [];             // הח.פ/ת.ז של החברה
 let _ownFilter = 'all';
 
@@ -10117,10 +10115,7 @@ async function _ownLoadConfig() {
   try {
     const s = await window._getDoc(_docRef('config', 'ownership'));
     const d = s.exists() ? s.data() : {};
-    // הסימונים הידניים נשארים — הם עדיין גוברים על הבדיקה האוטומטית.
-    // שדות הח.פ/ת.ז והרשימה הידנית הוסרו מהמסך יחד עם השיטה הישנה.
     _ownIds = d.ourIds || [];
-    _ownMarks = d.marks || {};
   } catch (e) {}
   _ownRender();
 }
@@ -10173,16 +10168,6 @@ window.runOwnershipScan = runOwnershipScan;
 function ownFilter(f) { _ownFilter = f; _ownRender(); }
 window.ownFilter = ownFilter;
 
-// סימון רכב. נשמר גם מיידית בזיכרון וגם ב-Firestore, כדי שהעבודה לא
-// תאבד גם אם עוברים מכשיר.
-async function ownMark(plate, val) {
-  if (_ownMarks[plate] === val) delete _ownMarks[plate];   // לחיצה חוזרת מבטלת
-  else _ownMarks[plate] = val;
-  _ownRender();
-  try { await window._setDoc(_docRef('config', 'ownership'), { marks: _ownMarks }, { merge: true }); }
-  catch (e) { showToast('שמירת הסימון נכשלה'); }
-}
-window.ownMark = ownMark;
 
 /* ── יומן שינויי בעלות ───────────────────────────────────────────────
    כל שינוי שהסריקה זיהתה נשמר בשרת ב-ownership_log ונשאר שם לתמיד.
@@ -10309,57 +10294,44 @@ function _ownRender() {
     if (filt) filt.style.display = 'none';
     return;
   }
-  // הסטטוס האפקטיבי: סימון ידני גובר, אחרת ההצלבה האוטומטית מהרשימה
-  const eff = c => _ownMarks[c.plate] || c.status || 'unknown';
+  // הסטטוס מגיע רק מההצלבה האוטומטית מול מרשם הרכב (תו סחר)
+  const eff = c => c.status || 'unknown';
   const total = _ownCars.length;
   const ours = _ownCars.filter(c => eff(c) === 'ours').length;
   const not  = _ownCars.filter(c => eff(c) === 'not').length;
-  const skip = _ownCars.filter(c => eff(c) === 'skip').length;
-  const done = ours + not + skip;
-  const pct = total ? Math.round(done / total * 100) : 0;
+  const unk  = total - ours - not;
   sum.innerHTML = `<div style="border:2px solid var(--border);border-radius:14px;padding:13px 15px;background:var(--surface2)">
-      <div style="font-weight:900;font-size:15px;margin-bottom:8px">נבדקו ${done} מתוך ${total} (${pct}%)</div>
-      <div style="height:12px;border-radius:999px;background:var(--border);overflow:hidden;margin-bottom:10px"><div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#0d9488,#38bdf8)"></div></div>
+      <div style="font-weight:900;font-size:15px;margin-bottom:8px">${total} רכבים במלאי</div>
       <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:13px;font-weight:800">
-        <span style="color:#16a34a">✅ שלנו: ${ours}</span>
-        <span style="color:#dc2626">❌ לא שלנו: ${not}</span>
-        <span style="color:#6b7280">⏭️ דילוג: ${skip}</span>
+        <span style="color:#16a34a">\u2705 על תו סחר: ${ours}</span>
+        <span style="color:#dc2626">\u274c לא על תו סחר: ${not}</span>
+        ${unk ? `<span style="color:#6b7280">\u2753 לא נמצא במרשם: ${unk}</span>` : ''}
       </div>
     </div>`;
   if (filt) filt.style.display = 'flex';
-  ['all','todo','not'].forEach(f => {
+  ['all','not'].forEach(f => {
     const b = document.getElementById('own-f-' + f);
     if (b) { const on = _ownFilter === f; b.style.background = on ? '#0d9488' : 'var(--surface2)'; b.style.color = on ? '#fff' : 'var(--text)'; b.style.borderColor = on ? '#0d9488' : 'var(--border)'; }
   });
   let cars = _ownCars;
-  if (_ownFilter === 'todo') cars = cars.filter(c => eff(c) === 'unknown');
-  else if (_ownFilter === 'not') cars = cars.filter(c => eff(c) === 'not');
+  if (_ownFilter === 'not') cars = cars.filter(c => eff(c) === 'not');
   if (!cars.length) { list.innerHTML = `<div style="color:var(--muted);padding:20px;text-align:center">אין רכבים בקטגוריה הזו</div>`; return; }
   const e = s => esc(s);
   list.innerHTML = cars.map(c => {
     const mk = eff(c);
-    // סימון ידני מסומן בטבעת מלאה; סטטוס אוטומטי מהרשימה — צבע רקע בלבד
-    const auto = !_ownMarks[c.plate];
-    const border = mk === 'ours' ? '#16a34a' : mk === 'not' ? '#dc2626' : mk === 'skip' ? '#9ca3af' : 'var(--border)';
+    const border = mk === 'ours' ? '#16a34a' : mk === 'not' ? '#dc2626' : 'var(--border)';
     const bg = mk === 'ours' ? '#dcfce7' : mk === 'not' ? '#fee2e2' : 'var(--card)';
-    const mbtn = (val, icon, col) => `<button onclick="ownMark('${e(c.plate)}','${val}')" style="flex:1;padding:8px 4px;border-radius:9px;border:2px solid ${mk===val?col:'var(--border)'};background:${mk===val?col:'#fff'};color:${mk===val?'#fff':'var(--text)'};font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer">${icon}</button>`;
     return `<div style="border:2px solid ${border};border-radius:12px;padding:11px 13px;margin-bottom:8px;background:${bg}">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
         <div style="min-width:0">
           <div style="font-weight:900;font-size:17px;letter-spacing:1px">${e(c.plate)}</div>
           <div style="font-size:12px;color:var(--muted);font-weight:700">${e([c.tozeret,c.degem,c.shnat].filter(Boolean).join(' · '))}</div>
-          ${c.ownerId ? `<div style="font-size:12px;font-weight:800;margin-top:2px;color:${mk==='not'?'#dc2626':'#16a34a'}">רשום על ${e(c.ownerId)}${auto?' · מהרשימה':''}</div>` : ''}
-          ${c.baalut ? `<div style="font-size:12px;font-weight:800;margin-top:2px;color:${c.baalut.includes('סוחר')?'#16a34a':'#dc2626'}">בעלות: ${e(c.baalut)}${c.baalut.includes('סוחר')?'':' · אינו על תו סחר'}</div>` : ''}
+          ${c.baalut ? `<div style="font-size:12px;font-weight:800;margin-top:2px;color:${c.baalut.includes('סוחר')?'#16a34a':'#dc2626'}">בעלות: ${e(c.baalut)}${c.baalut.includes('סוחר')?'':' · אינו על תו סחר'}</div>` : `<div style="font-size:12px;font-weight:800;margin-top:2px;color:#6b7280">לא נמצא במרשם הרכב</div>`}
           ${c.baalutChangedAt ? `<div style="font-size:11px;font-weight:700;color:var(--muted);margin-top:2px">🕒 שינוי בעלות זוהה ב-${e(new Date(c.baalutChangedAt).toLocaleString('he-IL',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}))}${c.baalutFrom ? ` · היה ${e(c.baalutFrom)}` : ''}</div>` : ''}
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
           <button onclick="_ownCopy('${e(c.plate)}','מספר הרכב')" title="העתק מספר רכב" style="background:var(--surface2);border:2px solid var(--border);border-radius:9px;width:38px;height:38px;font-size:16px;cursor:pointer">📋</button>
         </div>
-      </div>
-      <div style="display:flex;gap:6px;margin-top:9px">
-        ${mbtn('ours','✅ שלנו','#16a34a')}
-        ${mbtn('not','❌ לא שלנו','#dc2626')}
-        ${mbtn('skip','⏭️ דלג','#6b7280')}
       </div>
     </div>`;
   }).join('');
