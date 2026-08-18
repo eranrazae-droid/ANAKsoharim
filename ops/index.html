@@ -18038,6 +18038,26 @@ function _pickupRegionTasksHtml(c, e) {
   </div>`;
 }
 
+/* ניווט הליכה ליעד. היעד הוא הנקודה המדויקת אם היא כבר חושבה, אחרת
+   הכתובת כטקסט. נקודת המוצא נשארת ריקה בכוונה — גוגל לוקח את המיקום
+   הנוכחי של הנהג, כך שזה עובד גם כשהוא יורד מהרכבת וגם מכל מקום אחר. */
+function _pickupNavUrl(c) {
+  const ll = _pickupLatLng(c);
+  const exact = c.lat && c.lng && c.geoKey === _geoKeyOf(c);
+  const dest = exact ? `${c.lat},${c.lng}`
+    : [c.address, _pickupCity(c), 'ישראל'].filter(Boolean).join(', ');
+  if (!dest || (!exact && !c.address && !_pickupCity(c))) return '';
+  return 'https://www.google.com/maps/dir/?api=1&travelmode=walking&destination=' + encodeURIComponent(dest);
+}
+
+// כפתור ניווט הליכה — נפתח בלשונית חדשה, ולא מפעיל את לחיצת הכרטיס
+function _pickupNavBtn(c, label) {
+  const url = _pickupNavUrl(c);
+  if (!url) return '';
+  return `<a href="${url}" target="_blank" rel="noopener" onclick="event.stopPropagation()"
+    style="display:inline-flex;align-items:center;gap:6px;background:#1d4ed8;color:#fff;border-radius:10px;padding:8px 13px;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;text-decoration:none;white-space:nowrap">🚶 ${label || 'ניווט הליכה'}</a>`;
+}
+
 // תחנת הרכבת הקרובה לרכב — מוצגת בתוך הכרטיס, לנהג שמגיע או חוזר ברכבת
 function _pickupStationHtml(c, e) {
   const s = _stationDisplay(c, _pickupLatLng(c));
@@ -18073,7 +18093,9 @@ function _pickupCardHtml(c) {
           ${km ? `<span class="tag assignee">🛣️ ${e(km)}</span>` : ''}
           ${c.contact ? `<span class="tag assignee">👤 ${e(c.contact)}</span>` : ''}
           ${_pickupCity(c) ? `<span class="tag assignee">🏙️ ${e(_pickupCity(c))}</span>` : ''}
-          ${c.address ? `<span class="tag assignee">📍 ${e(c.address)}</span>` : ''}
+          ${c.address ? (_pickupNavUrl(c)
+            ? `<a class="tag assignee" href="${_pickupNavUrl(c)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="text-decoration:none;color:inherit">📍 ${e(c.address)} 🚶</a>`
+            : `<span class="tag assignee">📍 ${e(c.address)}</span>`) : ''}
         </div>
         ${(c.test || c.doc) ? `<div style="margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           ${c.test ? `<span style="font-size:13px;font-weight:800;color:${_testExpired(c.test)?'#dc2626':'var(--dark)'}">🔧 טסט: ${e(c.test)}${_testExpired(c.test)?' — פג תוקף':''}</span>` : ''}
@@ -19519,7 +19541,9 @@ function _myPickupCardHtml(c) {
           ${c.color?`<span class="tag assignee">🎨 ${e(c.color)}</span>`:''}
           ${km?`<span class="tag assignee">🛣️ ${e(km)}</span>`:''}
           ${c.city?`<span class="tag assignee">🏙️ ${e(c.city)}</span>`:''}
+          ${c.address?`<span class="tag assignee">📍 ${e(c.address)}</span>`:''}
         </div>
+        ${_pickupNavBtn(c) ? `<div style="margin-top:8px">${_pickupNavBtn(c)}</div>` : ''}
       </div>
       <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
         <span style="background:#1e40af;color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;white-space:nowrap">פתח ▶</span>
@@ -19539,8 +19563,10 @@ function openPickupDetail(id) {
     ['עיר', car.city], ['כתובת', car.address], ['הערה', car.note]
   ].filter(([,v]) => v);
   const docHtml = car.doc ? `<div style="margin-top:14px"><div style="font-size:13px;font-weight:700;color:var(--muted);margin-bottom:6px">אישור העברת בעלות:</div>${_pickupDocThumb(car.doc, car.docMime, car.docName)}</div>` : '';
+  const navHtml = _pickupNavBtn(car, 'ניווט הליכה ליעד');
   document.getElementById('pickup-detail-body').innerHTML =
     `<div style="display:flex;flex-direction:column;gap:10px">
+      ${navHtml ? `<div style="display:flex;justify-content:center">${navHtml}</div>` : ''}
       ${rows.map(([label,val]) => `<div style="background:var(--surface2);border-radius:10px;padding:10px 14px">
         <div style="font-size:11px;color:var(--muted);font-weight:700">${label}</div>
         <div style="font-size:15px;font-weight:700;margin-top:2px">${e(val)}</div>
