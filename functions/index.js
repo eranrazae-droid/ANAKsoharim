@@ -1296,13 +1296,12 @@ async function _runOwnershipScan() {
   }
   if (!vehicles.length) return { ok: false, reason: "empty-inventory" };
 
-  let owners = {}, ourIds = [], marks = {};
+  let owners = {}, ourIds = [];
   try {
     const cfg = await db.collection("config").doc("ownership").get();
     if (cfg.exists) {
       owners = cfg.data().owners || {};
       ourIds = (cfg.data().ourIds || []).map((s) => String(s).replace(/\D/g, ""));
-      marks = cfg.data().marks || {};
     }
   } catch (err) { /* בלי רשימה — הכל לפי המאגר */ }
 
@@ -1320,10 +1319,9 @@ async function _runOwnershipScan() {
     // כל ערך אחר (פרטי / חברה / ליסינג / השכרה) אומר שהוא כבר לא אצלנו.
     const onTradePlate = baalut.includes("סוחר");
     let status;
-    // סימון ידני גובר על הכל. אחריו — רק סוג הבעלות במרשם. רשימת
-    // הח.פ/ת.ז הידנית של השיטה הישנה כבר לא משפיעה על התוצאה.
-    if (marks[plate] === "ours" || marks[plate] === "not") status = marks[plate];
-    else if (!baalut) status = "unknown";                                            // לא נמצא במאגר
+    // התוצאה נקבעת רק לפי סוג הבעלות במרשם. הסימונים הידניים ורשימת
+    // הח.פ/ת.ז של השיטה הישנה כבר לא משפיעים.
+    if (!baalut) status = "unknown";                                                 // לא נמצא במאגר
     else status = onTradePlate ? "ours" : "not";                                     // לפי סוג הבעלות
     return {
       plate, tozeret: v.tozeret, degem: v.degem, shnat: v.shnat,
