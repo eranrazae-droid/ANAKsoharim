@@ -23,3 +23,10 @@ for (const [name, url] of urls) {
     console.log(`${name}: שגיאה — ${e.message}`);
   }
 }
+
+console.log('\n=== מהשרת (Google Cloud) ===');
+try {
+  const r = await fetch('https://europe-west1-anak-soharim.cloudfunctions.net/govProbe');
+  const j = await r.json();
+  for (const t of j.tries || []) console.log(`  ${t.name} ${t.ua ? '(דפדפן)' : '(רגיל)'}: ${t.status || t.error} · ${t.len ?? ''} · ${(t.head || '').replace(/\s+/g, ' ').slice(0, 90)}`);
+} catch (e) { console.log('  שגיאה:', e.message); }
