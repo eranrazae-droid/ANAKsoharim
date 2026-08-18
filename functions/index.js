@@ -319,6 +319,11 @@ async function _runRecallScanInner() {
       return { ok: false, reason: "inventory-fetch-failed" };
     }
     if (!cars.length) return { ok: false, reason: "no-valid-plates" };
+  // אם אף רכב לא נמצא במרשם — אין גישה למאגר. לא דורסים את המצב הקודם
+  // ולא שולחים התראות על סמך בדיקה שלא הצליחה.
+  if (!cars.some((c) => c.baalut)) {
+    return { ok: false, reason: "registry-unreachable", checked: cars.length, registryHttp: _govLast };
+  }
 
     // keep "resolved" + linked-task info for cars still open from a previous run
     const statusRef = db.collection("recall_status").doc("current");
@@ -1458,31 +1463,6 @@ async function _runOwnershipScan() {
       Object.values(prevCars).filter((c) => c.baalut).map((c) => [c.plate, c.baalut])),
   };
 }
-
-// בדיקה חד-פעמית: אילו דרכי גישה למאגר הממשלתי פתוחות מהשרת
-exports.govProbe = onRequest(
-  { cors: true, region: "europe-west1", timeoutSeconds: 120 },
-  async (req, res) => {
-    const RES = _VEHICLE_RESOURCE;
-    const tries = [
-      ["api", `https://data.gov.il/api/3/action/datastore_search?resource_id=${RES}&limit=1`],
-      ["dump", `https://data.gov.il/datastore/dump/${RES}?limit=2`],
-      ["dataset-page", "https://data.gov.il/dataset/private-and-commercial-vehicles"],
-      ["home", "https://data.gov.il/"],
-    ];
-    const out = [];
-    for (const [name, url] of tries) {
-      for (const withUa of [true, false]) {
-        try {
-          const r = await fetch(url, withUa ? { headers: _GOV_HEADERS } : {});
-          const t = await r.text();
-          out.push({ name, ua: withUa, status: r.status, type: r.headers.get("content-type"), len: t.length, head: t.slice(0, 120) });
-        } catch (err) { out.push({ name, ua: withUa, error: err.message }); }
-      }
-    }
-    res.json({ ok: true, tries: out });
-  }
-);
 
 exports.runOwnershipScanNow = onRequest(
   { cors: true, region: "europe-west1", timeoutSeconds: 540, memory: "512MiB" },
