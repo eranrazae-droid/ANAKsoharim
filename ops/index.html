@@ -10194,14 +10194,15 @@ window.ownSaveOwners = ownSaveOwners;
 
 async function runOwnershipScan() {
   const btn = document.getElementById('own-scan-btn');
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ טוען מלאי…'; }
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ בודק…'; }
   try {
     const res = await fetch(_OWN_FN);
     const r = await res.json().catch(() => ({}));
     if (r.ok) showToast(`✅ נטענו ${r.checked} רכבים`, 5000);
+    else if (r.reason === 'registry-unreachable') showToast('⚠️ אין כרגע גישה למרשם הרכב של משרד התחבורה — הבדיקה לא בוצעה', 9000);
     else showToast('⚠️ הטעינה נכשלה: ' + (r.reason || r.error || res.status), 7000);
   } catch (e) { showToast('⚠️ שגיאת חיבור לשרת: ' + e.message, 7000); }
-  finally { if (btn) { btn.disabled = false; btn.textContent = '🔄 טען את רשימת המלאי'; } }
+  finally { if (btn) { btn.disabled = false; btn.textContent = '🔄 בדוק עכשיו'; } }
 }
 window.runOwnershipScan = runOwnershipScan;
 
@@ -10345,7 +10346,17 @@ function _ownRender() {
   const unk  = total - ours - not;
 
   // כותרת גדולה שעונה במשפט אחד: יש בעיה או שאין
-  const ok = not === 0;
+  const ok = not === 0 && unk < total;   // הכל לא במרשם = לא הצלחנו לבדוק
+  if (unk === total) {
+    hero.style.background = '#fef3c7';
+    hero.style.borderColor = '#d97706';
+    hero.innerHTML = `<div style="font-size:34px;line-height:1">\u2753</div>
+      <div style="font-weight:900;font-size:18px;margin-top:6px;color:#92400e">לא ניתן לבדוק כרגע</div>
+      <div style="font-weight:700;font-size:13px;margin-top:4px;color:#92400e">אין גישה למרשם הרכב של משרד התחבורה — אף רכב לא נבדק</div>`;
+    if (tiles) tiles.style.display = 'none';
+    list.innerHTML = '';
+    return;
+  }
   hero.style.background = ok ? '#dcfce7' : '#fee2e2';
   hero.style.borderColor = ok ? '#16a34a' : '#dc2626';
   hero.innerHTML = `
