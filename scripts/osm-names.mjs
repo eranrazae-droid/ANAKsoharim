@@ -3,11 +3,12 @@ const INV = 'https://anak-harechev-crm.vercel.app/api/vehicles/carwiz';
 const RES = '053cea08-09bc-40ec-8f7a-156f0677aff3';
 
 const xml = await (await fetch(INV)).text();
-const plates = [...xml.matchAll(/<(?:plate|mispar_rechev|licensePlate|MisparRechev)>([^<]+)</gi)]
-  .map(m => m[1].replace(/\D/g, '')).filter(Boolean);
+const plates = [...xml.matchAll(/<CarNumber>([^<]+)<\/CarNumber>/gi)]
+  .map(m => m[1].replace(/\D/g, '')).filter(p => p.length === 7 || p.length === 8);
 const uniq = [...new Set(plates)];
 console.log('לוחיות במלאי:', uniq.length, uniq.slice(0, 8).join(', '));
 if (!uniq.length) { console.log('דוגמת XML:\n', xml.slice(0, 1200)); }
+console.log('דוגמה מלאה של רשומה מהמרשם תודפס בהמשך');
 
 const sample = uniq.slice(0, 40);
 async function q(vals) {
