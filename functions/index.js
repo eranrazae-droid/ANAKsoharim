@@ -1291,12 +1291,14 @@ async function _runOwnershipScan() {
     const baalut = baalutByPlate[plate] || "";
     // רכב "פרטי" = עדיין רשום על אדם פרטי, כלומר העברת הבעלות לחברה
     // עוד לא בוצעה. זה מה שהסריקה מחפשת.
-    const stillPrivate = baalut.includes("פרטי");
+    // רכב שעומד במגרש אמור להיות רשום על תו סחר — כלומר "סוחר" במרשם.
+    // כל ערך אחר (פרטי / חברה / ליסינג / השכרה) אומר שהוא כבר לא אצלנו.
+    const onTradePlate = baalut.includes("סוחר");
     let status;
     if (marks[plate] === "ours" || marks[plate] === "not") status = marks[plate];   // סימון ידני קודם לכל
     else if (ownerId) status = ourIds.includes(ownerId) ? "ours" : "not";           // רשימה מפורשת אם יש
     else if (!baalut) status = "unknown";                                            // לא נמצא במאגר
-    else status = stillPrivate ? "not" : "ours";                                     // לפי סוג הבעלות
+    else status = onTradePlate ? "ours" : "not";                                     // לפי סוג הבעלות
     return {
       plate, tozeret: v.tozeret, degem: v.degem, shnat: v.shnat,
       ownerId: ownerId || null, baalut: baalut || null, status,
@@ -1430,8 +1432,10 @@ exports.dailyOwnershipCheck = onSchedule(
       if (!token || !chatId) return;
       const parts = [];
       if (r.notOurs) {
-        const list = (r.notOursCars || []).slice(0, 15).map((c) => `• ${c.plate}${c.ownerId ? " — רשום על " + c.ownerId : ""}`).join("\n");
-        parts.push(`⚠️ ${r.notOurs} רכבים מסומנים כלא רשומים על החברה:\n${list}${r.notOurs > 15 ? `\n…ועוד ${r.notOurs - 15}` : ""}`);
+        // מציינים מה הבעלות בפועל — זה מה שאומר לאן הרכב הלך
+        const list = (r.notOursCars || []).slice(0, 15).map((c) =>
+          `• ${c.plate} ${[c.tozeret, c.degem].filter(Boolean).join(" ")} — ${c.baalut ? "רשום כ" + c.baalut : "לא נמצא במרשם"}${c.ownerId ? " · " + c.ownerId : ""}`.trim()).join("\n");
+        parts.push(`⚠️ ${r.notOurs} רכבים במלאי שאינם רשומים על תו סחר:\n${list}${r.notOurs > 15 ? `\n…ועוד ${r.notOurs - 15}` : ""}`);
       }
       if (newN) {
         const list = (r.newUnchecked || []).slice(0, 15).map((c) => `• ${c.plate} ${c.tozeret} ${c.degem}`.trim()).join("\n");

@@ -10242,7 +10242,7 @@ function _ownRender() {
           <div style="font-weight:900;font-size:17px;letter-spacing:1px">${e(c.plate)}</div>
           <div style="font-size:12px;color:var(--muted);font-weight:700">${e([c.tozeret,c.degem,c.shnat].filter(Boolean).join(' · '))}</div>
           ${c.ownerId ? `<div style="font-size:12px;font-weight:800;margin-top:2px;color:${mk==='not'?'#dc2626':'#16a34a'}">רשום על ${e(c.ownerId)}${auto?' · מהרשימה':''}</div>` : ''}
-          ${c.baalut ? `<div style="font-size:12px;font-weight:800;margin-top:2px;color:${c.baalut.includes('פרטי')?'#dc2626':'#16a34a'}">בעלות: ${e(c.baalut)}${c.baalut.includes('פרטי')?' · טרם הועבר לחברה':''}</div>` : ''}
+          ${c.baalut ? `<div style="font-size:12px;font-weight:800;margin-top:2px;color:${c.baalut.includes('סוחר')?'#16a34a':'#dc2626'}">בעלות: ${e(c.baalut)}${c.baalut.includes('סוחר')?'':' · אינו על תו סחר'}</div>` : ''}
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
           <button onclick="_ownCopy('${e(c.plate)}','מספר הרכב')" title="העתק מספר רכב" style="background:var(--surface2);border:2px solid var(--border);border-radius:9px;width:38px;height:38px;font-size:16px;cursor:pointer">📋</button>
@@ -10374,12 +10374,13 @@ async function psSearch() {
     const cars = snap.exists() ? (snap.data().cars || []) : [];
     const car = cars.find(c => _psDigits(c.plate) === plate);
     if (car) {
-      const bad = car.status === 'not' || (car.baalut && car.baalut.includes('פרטי'));
+      // תקין = רשום על תו סחר. כל בעלות אחרת אומרת שהרכב כבר לא אצלנו.
+      const bad = car.status === 'not' || (car.baalut && !car.baalut.includes('סוחר'));
       hits.push({ src: {
         icon: bad ? '📑' : '✅', label: 'בדיקת בעלויות', kind: 'ownership',
         when: () => null,
         desc: () => bad
-          ? `לא רשום על החברה${car.baalut ? ' · ' + car.baalut : ''}${car.ownerId ? ' · ' + car.ownerId : ''}`
+          ? `אינו רשום על תו סחר${car.baalut ? ' · ' + car.baalut : ''}${car.ownerId ? ' · ' + car.ownerId : ''}`
           : `תקין${car.baalut ? ' · ' + car.baalut : ''}`,
         warn: bad,
       }, d: car });
