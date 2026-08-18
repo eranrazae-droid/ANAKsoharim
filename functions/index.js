@@ -1361,6 +1361,17 @@ async function _runOwnershipScan() {
   const goneFromStock = hadPrev
     ? Object.values(prevCars).filter((c) => !nowSet.has(c.plate)) : [];
 
+  /* רגע זיהוי שינוי הבעלות. המרשם אינו מפרסם תאריך העברה, ולכן זה הזמן
+     שבו הסריקה ראתה את השינוי — מדויק עד שעה, כי היא רצה כל שעה.
+     רכב שלא השתנה שומר את התאריך שכבר נרשם לו. */
+  const stamp = new Date().toISOString();
+  for (const c of cars) {
+    const p = prevCars[c.plate];
+    const moved = p && p.baalut && c.baalut && p.baalut !== c.baalut;
+    if (moved) { c.baalutFrom = p.baalut; c.baalutChangedAt = stamp; }
+    else if (p) { if (p.baalutFrom) c.baalutFrom = p.baalutFrom; if (p.baalutChangedAt) c.baalutChangedAt = p.baalutChangedAt; }
+  }
+
   await db.collection("ownership_status").doc("current").set({
     cars, checkedCount: cars.length,
     notOursCount: notOurs.length, unknownCount: unknown.length,
@@ -1477,9 +1488,13 @@ exports.dailyOwnershipCheck = onSchedule(
     const newNot  = r.newAndNot      || [];
     const newUnk  = r.newUnchecked   || [];
     const gone    = r.goneFromStock  || [];
-    const baalut  = (r.changedBaalut || []).filter((c) =>
-      !toNot.some((x) => x.plate === c.plate) && !toOurs.some((x) => x.plate === c.plate));
-    if (!toNot.length && !toOurs.length && !newNot.length && !newUnk.length && !baalut.length && !gone.length) return;
+    /* "ירד מתו סחר" ו"שינה סוג בעלות" הם אותו דבר מבחינת המנהל — הרכב
+       עבר בעלות. מאחדים לרשימה אחת, בלי כפילויות. */
+    const moved = [...toNot];
+    for (const c of (r.changedBaalut || [])) {
+      if (!moved.some((x) => x.plate === c.plate) && !toOurs.some((x) => x.plate === c.plate)) moved.push(c);
+    }
+    if (!moved.length && !toOurs.length && !newNot.length && !newUnk.length && !gone.length) return;
 
     try {
       const cs = await db.collection("config").doc("driver_contacts").get();
@@ -1493,12 +1508,23 @@ exports.dailyOwnershipCheck = onSchedule(
         "סוחר": "תו סחר", "פרטי": "אדם פרטי", "חברה": "חברה",
         "ליסינג": "ליסינג", "השכרה": "השכרה",
       }[String(b || "").trim()] || b || "לא ידוע");
-      // "עבר מ… ל…" — הבעלות הקודמת מול הנוכחית
-      const moved = (c) => {
-        const from = r.prevBaalut?.[c.plate];
-        return from && c.baalut && from !== c.baalut
+      // תאריך ושעה שבהם הסריקה זיהתה את המעבר
+      const when = (c) => {
+        if (!c.baalutChangedAt) return "";
+        const d = new Date(c.baalutChangedAt);
+        if (isNaN(d)) return "";
+        return "\n   🕒 זוהה ב-" + d.toLocaleString("he-IL", {
+          timeZone: "Asia/Jerusalem", day: "2-digit", month: "2-digit",
+          year: "numeric", hour: "2-digit", minute: "2-digit",
+        });
+      };
+      // "עבר מ… ל…" — הבעלות הקודמת מול הנוכחית, עם מועד הזיהוי
+      const movedTxt = (c) => {
+        const from = r.prevBaalut?.[c.plate] || c.baalutFrom;
+        const head = from && c.baalut && from !== c.baalut
           ? ` — עבר מבעלות ${phrase(from)} לבעלות ${phrase(c.baalut)}`
-          : (c.baalut ? ` — רשום כ${phrase(c.baalut)}` : "");
+          : (c.baalut ? ` — רשום על ${phrase(c.baalut)}` : "");
+        return head + when(c);
       };
       const line = (c, extra) => `• ${c.plate} ${[c.tozeret, c.degem].filter(Boolean).join(" ")}${extra || ""}`.trim();
       const block = (title, cars, extraFn) => {
@@ -1506,12 +1532,11 @@ exports.dailyOwnershipCheck = onSchedule(
         return `${title}\n${shown}${cars.length > 15 ? `\n…ועוד ${cars.length - 15}` : ""}`;
       };
       const parts = [];
-      if (toNot.length)  parts.push(block(`🚨 ${toNot.length} רכבים ירדו מתו סחר:`, toNot, moved));
+      if (moved.length)  parts.push(block(`🚨 ${moved.length} רכבים עברו בעלות:`, moved, movedTxt));
       if (newNot.length) parts.push(block(`⚠️ ${newNot.length} רכבים חדשים במלאי שאינם על תו סחר:`, newNot, (c) => c.baalut ? ` — רשום על ${phrase(c.baalut)}` : ""));
-      if (baalut.length) parts.push(block(`🔄 ${baalut.length} רכבים ששינו סוג בעלות:`, baalut, moved));
       if (gone.length)   parts.push(block(`📤 ${gone.length} רכבים ירדו מהמלאי:`, gone, (c) => c.baalut ? ` — היה רשום על ${phrase(c.baalut)}` : ""));
       if (newUnk.length) parts.push(block(`🆕 ${newUnk.length} רכבים חדשים שטרם נבדקה בעלותם:`, newUnk));
-      if (toOurs.length) parts.push(block(`✅ ${toOurs.length} רכבים חזרו לתו סחר:`, toOurs, moved));
+      if (toOurs.length) parts.push(block(`✅ ${toOurs.length} רכבים חזרו לתו סחר:`, toOurs, movedTxt));
 
       await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
         method: "POST", headers: { "Content-Type": "application/json" },
