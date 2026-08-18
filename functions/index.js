@@ -1309,8 +1309,9 @@ async function _runOwnershipScan() {
     // כל ערך אחר (פרטי / חברה / ליסינג / השכרה) אומר שהוא כבר לא אצלנו.
     const onTradePlate = baalut.includes("סוחר");
     let status;
-    if (marks[plate] === "ours" || marks[plate] === "not") status = marks[plate];   // סימון ידני קודם לכל
-    else if (ownerId) status = ourIds.includes(ownerId) ? "ours" : "not";           // רשימה מפורשת אם יש
+    // סימון ידני גובר על הכל. אחריו — רק סוג הבעלות במרשם. רשימת
+    // הח.פ/ת.ז הידנית של השיטה הישנה כבר לא משפיעה על התוצאה.
+    if (marks[plate] === "ours" || marks[plate] === "not") status = marks[plate];
     else if (!baalut) status = "unknown";                                            // לא נמצא במאגר
     else status = onTradePlate ? "ours" : "not";                                     // לפי סוג הבעלות
     return {
