@@ -10094,18 +10094,27 @@ window.bsmPrint = bsmPrint;
    מיד ולא נפתח דף חדש. התוכן והעיצוב של כל טופס נשארים אצל הטופס עצמו —
    כאן יושבת רק הדרך להוציא אותו למדפסת.
 ─────────────────────────────────────────────────────────────────────── */
-function _printHtml(html, tag, errMsg) {
+// onDone נקרא פעם אחת אחרי שחלון ההדפסה נסגר (או אחרי מנגנון ביטחון,
+// כי בטלפון לא תמיד מגיע אירוע סיום הדפסה).
+function _printHtml(html, tag, errMsg, onDone) {
   const fr = document.createElement('iframe');
   fr.style.cssText = 'position:fixed;left:-9999px;top:0;width:210mm;height:297mm;border:0';
   document.body.appendChild(fr);
   const w = fr.contentWindow;
   w.document.write(html);
   w.document.close();
+  let finished = false;
+  const finish = () => { if (finished) return; finished = true; try { onDone && onDone(); } catch (e) {} };
   setTimeout(() => {
-    try { w.focus(); w.print(); }
-    catch (e) { console.error(tag, e); showToast(errMsg || 'שגיאה בהדפסה'); }
+    try {
+      w.onafterprint = finish;
+      window.addEventListener('focus', finish, { once: true });
+      w.focus(); w.print();
+      setTimeout(finish, 4000);   // גיבוי — אם לא הגיע אירוע סיום
+    }
+    catch (e) { console.error(tag, e); showToast(errMsg || 'שגיאה בהדפסה'); finish(); }
     // המסגרת יורדת רק אחרי שחלון ההדפסה נסגר
-    setTimeout(() => fr.remove(), 1000);
+    setTimeout(() => fr.remove(), 5000);
   }, 250); // רגע לפריסת העמוד לפני ההדפסה
 }
 
@@ -10674,16 +10683,19 @@ async function _washStore(f) {
   await _addDoc(_colRef('wash_notes'), { ...f, createdBy: currentUser.name, createdAt: _serverTs() });
 }
 
-async function washSaveAndPrint() {
+// קודם מוקפץ מסך ההדפסה, ורק כשהוא נסגר הפתק נשמר והטופס מתנקה
+function washSaveAndPrint() {
   const f = _washForm(); if (!f) return;
   const btn = document.getElementById('wash-print-btn');
   if (btn) btn.disabled = true;
-  try {
-    await _washStore(f);
-    washPrintNote(f);
-    _washClear();
-  } catch (e) { showToast('שגיאה בשמירה — הפתק לא הודפס'); }
-  finally { if (btn) btn.disabled = false; }
+  washPrintNote(f, async () => {
+    try {
+      await _washStore(f);
+      _washClear();
+      showToast('✅ הפתק נשמר');
+    } catch (e) { showToast('שגיאה בשמירה — הפתק לא נשמר'); }
+    finally { if (btn) btn.disabled = false; }
+  });
 }
 window.washSaveAndPrint = washSaveAndPrint;
 
@@ -10696,7 +10708,7 @@ function _washClear() {
 }
 
 // הפתק נתלה על הרכב, ולכן הכל גדול: מספר הרישוי ענק וסוג השטיפה מתחתיו
-function washPrintNote(f) {
+function washPrintNote(f, onDone) {
   // בהדפסה חוזרת מוצג התאריך שבו הפתק נוצר, לא תאריך ההדפסה
   const now = f.createdAt?.toDate ? f.createdAt.toDate() : new Date();
   const when = now.toLocaleDateString('he-IL') + ' · ' + now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
@@ -10707,11 +10719,7 @@ function washPrintNote(f) {
     ([f.maker, f.model, f.subModel, f.color, f.year].some(Boolean)
       ? `${row('יצרן', f.maker)}${row('דגם', f.model)}${row('תת דגם', f.subModel)}${row('צבע', f.color)}${row('שנה', f.year)}`
       : row('רכב', f.desc));
-  const fr = document.createElement('iframe');
-  fr.style.cssText = 'position:fixed;left:-9999px;top:0;width:210mm;height:297mm;border:0';
-  document.body.appendChild(fr);
-  const w = fr.contentWindow;
-  w.document.write(`<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8">
+  _printHtml(`<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8">
 <title>פתק שטיפה ${esc(f.plate)}</title>
 <style>
   /* עיצוב עדין: קווים דקים ואפורים, וכהות רק במה שחשוב — מספר הרישוי
@@ -10757,7 +10765,7 @@ function washPrintNote(f) {
   <div class="stamp"><span>חותמת ואישור ביצוע</span></div>
   <div class="foot">${esc(f.createdBy || currentUser.name)} · ${esc(when)}</div>
  </div>
-</body></html>`, 'wash print', 'שגיאה בהדפסה');
+</body></html>`, 'wash print', 'שגיאה בהדפסה', onDone);
 }
 
 /* ── סיכום שטיפות ───────────────────────────────────────────────────
