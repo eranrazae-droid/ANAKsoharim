@@ -1235,6 +1235,17 @@ exports.setupReminders = onSchedule(
 
 const _VEHICLE_RESOURCE = "053cea08-09bc-40ec-8f7a-156f0677aff3";
 
+/* מתי המרשם עצמו התעדכן לאחרונה. הפרסום נעשה פעם ביום בשעות הלילה,
+   ולכן אין טעם לסרוק שוב לפני שהוא התחלף — הבדיקה הזאת היא בקשה אחת
+   קטנה, והיא זו שקובעת אם להריץ סריקה מלאה. */
+async function _registryLastModified() {
+  try {
+    const r = await (await fetch(`https://data.gov.il/api/3/action/resource_show?id=${_VEHICLE_RESOURCE}`)).json();
+    const d = r?.result || {};
+    return String(d.last_modified || d.metadata_modified || "");
+  } catch (err) { return ""; }
+}
+
 // סוג הבעלות (baalut) של קבוצת לוחיות מהמאגר הפתוח. הפונקציה רצה בענן,
 // שם data.gov.il נגיש (בניגוד לדפדפן). מחזיר { plate: "פרטי"|"חברה"|... }.
 async function _ownRegistryBaalut(plates) {
@@ -1516,13 +1527,29 @@ exports.inventoryCheck = onRequest(
 
 // סריקה יומית: כל בוקר מרעננת את המלאי ומתריעה בטלגרם על שני דברים —
 // רכבים שכבר סומנו כלא־שלנו, ורכבים חדשים שנכנסו וטרם נבדקו ידנית.
-/* בדיקת בעלויות — רצה כל שעה ומתריעה רק כשמשהו השתנה מהסריקה הקודמת.
-   ההתראה מפרטת בדיוק מה זז: רכב שירד מתו סחר, רכב שחזר אליו, רכב חדש
-   שנכנס כבר לא על תו סחר, ושינוי בסוג הבעלות. אין שינוי — אין הודעה.
-   (השם נשאר dailyOwnershipCheck כדי לא ליצור עבודה מתוזמנת כפולה.) */
+/* בדיקת בעלויות.
+   המרשם הממשלתי מתפרסם מחדש פעם ביום בשעות הלילה, ולכן אין טעם לסרוק
+   שוב ושוב על אותם נתונים. הפונקציה רצה כל שעה, אבל קודם בודקת בבקשה
+   אחת קטנה אם המרשם התחלף — ורק אז מריצה סריקה מלאה. כך ההתראה על
+   העברת בעלות מגיעה תוך שעה מרגע שהמידע מתפרסם, בלי עבודה מיותרת.
+   התראה על רכב שירד מהמלאי אינה דחופה, ולכן היא נצברת ונשלחת פעם ביום
+   בסיכום של 08:07. (השם נשאר dailyOwnershipCheck כדי לא ליצור עבודה
+   מתוזמנת כפולה.) */
+const _OWN_DIGEST_HOUR = 8;
 exports.dailyOwnershipCheck = onSchedule(
-  { schedule: "37 * * * *", region: "europe-west1", timeZone: "Asia/Jerusalem", timeoutSeconds: 300, memory: "256MiB" },
+  { schedule: "7 * * * *", region: "europe-west1", timeZone: "Asia/Jerusalem", timeoutSeconds: 300, memory: "256MiB" },
   async () => {
+    const metaRef = db.collection("ownership_status").doc("meta");
+    let meta = {};
+    try { const m = await metaRef.get(); if (m.exists) meta = m.data() || {}; } catch (err) { /* ignore */ }
+
+    const modified = await _registryLastModified();
+    const hour = Number(new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Jerusalem", hour: "2-digit", hour12: false }).format(new Date()));
+    const isDigest = hour === _OWN_DIGEST_HOUR;
+    // המרשם לא התחלף ואין סיכום יומי — אין מה לעשות
+    if (!isDigest && modified && meta.registryModified === modified) return;
+
     const r = await _runOwnershipScan().catch((e) => ({ ok: false, reason: "crashed", error: String(e && e.message || e) }));
     if (!r.ok) return;
 
@@ -1530,14 +1557,25 @@ exports.dailyOwnershipCheck = onSchedule(
     const toOurs  = r.changedToOurs  || [];
     const newNot  = r.newAndNot      || [];
     const newUnk  = r.newUnchecked   || [];
-    const gone    = r.goneFromStock  || [];
     /* "ירד מתו סחר" ו"שינה סוג בעלות" הם אותו דבר מבחינת המנהל — הרכב
        עבר בעלות. מאחדים לרשימה אחת, בלי כפילויות. */
     const moved = [...toNot];
     for (const c of (r.changedBaalut || [])) {
       if (!moved.some((x) => x.plate === c.plate) && !toOurs.some((x) => x.plate === c.plate)) moved.push(c);
     }
-    if (!moved.length && !toOurs.length && !newNot.length && !newUnk.length && !gone.length) return;
+
+    // רכבים שירדו מהמלאי נצברים לסיכום היומי במקום להתריע מיד
+    const pendingGone = [...(meta.pendingGone || []), ...(r.goneFromStock || []).map((c) => ({
+      plate: c.plate, tozeret: c.tozeret || "", degem: c.degem || "",
+      baalut: c.baalut || "", nowBaalut: c.nowBaalut || "", movedOnExit: !!c.movedOnExit,
+    }))];
+    const gone = isDigest ? pendingGone : [];
+
+    const nothing = !moved.length && !toOurs.length && !newNot.length && !newUnk.length && !gone.length;
+    if (nothing) {
+      await metaRef.set({ registryModified: modified || meta.registryModified || "", pendingGone, at: new Date() }, { merge: true });
+      return;
+    }
 
     try {
       const cs = await db.collection("config").doc("driver_contacts").get();
@@ -1577,7 +1615,7 @@ exports.dailyOwnershipCheck = onSchedule(
       const parts = [];
       if (moved.length)  parts.push(block(`🚨 ${moved.length} רכבים עברו בעלות:`, moved, movedTxt));
       if (newNot.length) parts.push(block(`⚠️ ${newNot.length} רכבים חדשים במלאי שאינם על תו סחר:`, newNot, (c) => c.baalut ? ` — רשום על ${phrase(c.baalut)}` : ""));
-      if (gone.length)   parts.push(block(`📤 ${gone.length} רכבים ירדו מהמלאי:`, gone, (c) =>
+      if (gone.length)   parts.push(block(`📤 ${gone.length} רכבים ירדו מהמלאי (סיכום יומי):`, gone, (c) =>
         c.movedOnExit
           ? ` — עבר מבעלות ${phrase(c.baalut)} לבעלות ${phrase(c.nowBaalut)}`
           : (c.baalut ? ` — הבעלות לא השתנתה (${phrase(c.baalut)})` : "")));
@@ -1591,7 +1629,14 @@ exports.dailyOwnershipCheck = onSchedule(
           text: `בדיקת בעלויות — שינוי מהסריקה הקודמת\n\n${parts.join("\n\n")}\n\nכנס לאפליקציה → בדיקת בעלויות.`,
         }),
       });
-    } catch (err) { console.error("ownership hourly alert failed", err); }
+    } catch (err) { console.error("ownership alert failed", err); }
+
+    // הרשימה הצבורה מתאפסת רק אחרי שהסיכום היומי נשלח
+    await metaRef.set({
+      registryModified: modified || meta.registryModified || "",
+      pendingGone: isDigest ? [] : pendingGone,
+      at: new Date(),
+    }, { merge: true });
   }
 );
 
