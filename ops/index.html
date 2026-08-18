@@ -18050,14 +18050,6 @@ function _pickupNavUrl(c) {
   return 'https://www.google.com/maps/dir/?api=1&travelmode=walking&destination=' + encodeURIComponent(dest);
 }
 
-// כפתור ניווט הליכה — נפתח בלשונית חדשה, ולא מפעיל את לחיצת הכרטיס
-function _pickupNavBtn(c, label) {
-  const url = _pickupNavUrl(c);
-  if (!url) return '';
-  return `<a href="${url}" target="_blank" rel="noopener" onclick="event.stopPropagation()"
-    style="display:inline-flex;align-items:center;gap:6px;background:#1d4ed8;color:#fff;border-radius:10px;padding:8px 13px;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;text-decoration:none;white-space:nowrap">🚶 ${label || 'ניווט הליכה'}</a>`;
-}
-
 // תחנת הרכבת הקרובה לרכב — מוצגת בתוך הכרטיס, לנהג שמגיע או חוזר ברכבת
 function _pickupStationHtml(c, e) {
   const s = _stationDisplay(c, _pickupLatLng(c));
@@ -19446,7 +19438,10 @@ function _renderDriverPickupModal() {
     const rows = [
       c.type && `<div style="font-size:15px;font-weight:700">${e(c.type)}${c.year?' · '+e(c.year):''}</div>`,
       c.city && `<div style="font-size:13px;color:var(--muted)">🏙️ ${e(c.city)}</div>`,
-      c.address && `<div style="font-size:13px;color:var(--muted)">📍 ${e(c.address)}</div>`,
+      // הכתובת עצמה היא כפתור הניווט — לחיצה פותחת מסלול הליכה בגוגל מפות
+      c.address && (_pickupNavUrl(c)
+        ? `<a href="${_pickupNavUrl(c)}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;background:#1d4ed8;color:#fff;border-radius:10px;padding:10px 12px;margin:6px 0;font-size:15px;font-weight:800;text-decoration:none">📍 ${e(c.address)} <span style="margin-right:auto;font-size:13px">🚶 ניווט</span></a>`
+        : `<div style="font-size:13px;color:var(--muted)">📍 ${e(c.address)}</div>`),
       c.note && `<div style="background:#fef08a;color:#000;border-right:5px solid #eab308;border-radius:8px;padding:8px 10px;margin:6px 0;font-size:14px;font-weight:800">📝 ${e(c.note)}</div>`,
       c.contact && `<div style="font-size:13px;color:var(--muted)">📞 <a href="tel:${e(c.contact)}" style="color:inherit">${e(c.contact)}</a></div>`,
       km && `<div style="font-size:13px;color:var(--muted)">🛣️ ${e(km)}</div>`,
@@ -19541,9 +19536,10 @@ function _myPickupCardHtml(c) {
           ${c.color?`<span class="tag assignee">🎨 ${e(c.color)}</span>`:''}
           ${km?`<span class="tag assignee">🛣️ ${e(km)}</span>`:''}
           ${c.city?`<span class="tag assignee">🏙️ ${e(c.city)}</span>`:''}
-          ${c.address?`<span class="tag assignee">📍 ${e(c.address)}</span>`:''}
         </div>
-        ${_pickupNavBtn(c) ? `<div style="margin-top:8px">${_pickupNavBtn(c)}</div>` : ''}
+        ${c.address ? (_pickupNavUrl(c)
+          ? `<a href="${_pickupNavUrl(c)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:8px;background:#1d4ed8;color:#fff;border-radius:10px;padding:9px 12px;margin-top:8px;font-size:14px;font-weight:800;text-decoration:none">📍 ${e(c.address)} <span style="margin-right:auto;font-size:12px">🚶 ניווט</span></a>`
+          : `<div style="margin-top:6px;font-size:13px;color:var(--muted)">📍 ${e(c.address)}</div>`) : ''}
       </div>
       <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
         <span style="background:#1e40af;color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;white-space:nowrap">פתח ▶</span>
@@ -19563,11 +19559,16 @@ function openPickupDetail(id) {
     ['עיר', car.city], ['כתובת', car.address], ['הערה', car.note]
   ].filter(([,v]) => v);
   const docHtml = car.doc ? `<div style="margin-top:14px"><div style="font-size:13px;font-weight:700;color:var(--muted);margin-bottom:6px">אישור העברת בעלות:</div>${_pickupDocThumb(car.doc, car.docMime, car.docName)}</div>` : '';
-  const navHtml = _pickupNavBtn(car, 'ניווט הליכה ליעד');
+  const navUrl = _pickupNavUrl(car);
   document.getElementById('pickup-detail-body').innerHTML =
     `<div style="display:flex;flex-direction:column;gap:10px">
-      ${navHtml ? `<div style="display:flex;justify-content:center">${navHtml}</div>` : ''}
-      ${rows.map(([label,val]) => `<div style="background:var(--surface2);border-radius:10px;padding:10px 14px">
+      ${rows.map(([label,val]) => (label === 'כתובת' && navUrl)
+        // שורת הכתובת היא כפתור הניווט
+        ? `<a href="${navUrl}" target="_blank" rel="noopener" style="display:block;background:#1d4ed8;color:#fff;border-radius:10px;padding:10px 14px;text-decoration:none">
+             <div style="font-size:11px;font-weight:700;opacity:.85">${label} — לחץ לניווט הליכה</div>
+             <div style="font-size:15px;font-weight:800;margin-top:2px">📍 ${e(val)} 🚶</div>
+           </a>`
+        : `<div style="background:var(--surface2);border-radius:10px;padding:10px 14px">
         <div style="font-size:11px;color:var(--muted);font-weight:700">${label}</div>
         <div style="font-size:15px;font-weight:700;margin-top:2px">${e(val)}</div>
       </div>`).join('')}
