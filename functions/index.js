@@ -1372,6 +1372,31 @@ async function _runOwnershipScan() {
     else if (p) { if (p.baalutFrom) c.baalutFrom = p.baalutFrom; if (p.baalutChangedAt) c.baalutChangedAt = p.baalutChangedAt; }
   }
 
+  /* יומן שינויי בעלות — כל שינוי נרשם פעם אחת ונשמר לתמיד, כדי שתהיה
+     היסטוריה מלאה גם אחרי שההתראה בטלגרם נעלמה. האישור הידני ("מאושר
+     על ידי") נכתב על אותה רשומה מתוך האפליקציה. */
+  if (hadPrev) {
+    const log = db.collection("ownership_log");
+    const entry = (c, kind, from, to) => ({
+      plate: c.plate, tozeret: c.tozeret || "", degem: c.degem || "", shnat: c.shnat || "",
+      kind, from: from || "", to: to || "",
+      at: new Date(), approvedBy: null, approvedAt: null, note: "",
+    });
+    const rows = [];
+    const seenLog = new Set();
+    for (const c of [...changedToNot, ...changedBaalut, ...changedToOurs]) {
+      if (seenLog.has(c.plate)) continue;
+      seenLog.add(c.plate);
+      const from = prevCars[c.plate]?.baalut || "";
+      rows.push(entry(c, c.status === "ours" ? "back" : "moved", from, c.baalut));
+    }
+    for (const c of newAndNot) if (!seenLog.has(c.plate)) { seenLog.add(c.plate); rows.push(entry(c, "new_not", "", c.baalut)); }
+    for (const c of goneFromStock) if (!seenLog.has(c.plate)) { seenLog.add(c.plate); rows.push(entry(c, "gone", c.baalut, "")); }
+    for (const row of rows) {
+      try { await log.add(row); } catch (err) { console.error("ownership_log write failed", row.plate, err); }
+    }
+  }
+
   await db.collection("ownership_status").doc("current").set({
     cars, checkedCount: cars.length,
     notOursCount: notOurs.length, unknownCount: unknown.length,

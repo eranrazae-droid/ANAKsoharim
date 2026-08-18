@@ -2046,6 +2046,19 @@ if ('serviceWorker' in navigator) {
 </div>
 
 <!-- ====== SCREEN: OWNERSHIP CHECK ====== -->
+<!-- יומן שינויי הבעלות: כל שינוי שנרשם אי פעם, עם אפשרות לאשר -->
+<div class="modal-overlay" id="modal-own-log">
+  <div class="modal-box" style="max-width:640px;max-height:88vh;overflow-y:auto">
+    <div class="modal-title"><span>📜 יומן שינויי בעלות</span> <button class="modal-close" onclick="closeModal('modal-own-log')">✕</button></div>
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+      <input class="form-input" id="own-log-search" placeholder="🔎 חפש מספר רכב" inputmode="numeric" oninput="_renderOwnLog()" style="flex:1;min-width:140px;margin:0">
+      <button onclick="_ownLogFilter='all';_renderOwnLog()" id="olf-all" class="btn-submit" style="margin:0;padding:8px 14px;font-size:13px;width:auto">הכל</button>
+      <button onclick="_ownLogFilter='open';_renderOwnLog()" id="olf-open" class="btn-submit" style="margin:0;padding:8px 14px;font-size:13px;width:auto;background:var(--surface2);color:var(--text);border:2px solid var(--border)">ממתין לאישור</button>
+    </div>
+    <div id="own-log-list"></div>
+  </div>
+</div>
+
 <div id="screen-ownership" class="screen">
   <div class="app-header">
     <button class="back-btn" onclick="goHome()">→</button>
@@ -2058,6 +2071,8 @@ if ('serviceWorker' in navigator) {
       במקום זה — צ'קליסט: לכל רכב יש כפתור שפותח את אתר גוב, מעתיק את מספר הרכב, ומאפשר לסמן אם הוא רשום עלינו. ההתקדמות נשמרת.<br>
       אם אתר גוב מציג סכום לתשלום או ״פטור״ → הרכב שלנו. אם ״ת.ז אינו רשום״ → לא שלנו.
     </div>
+
+    <button class="btn-submit" onclick="openOwnLog()" style="background:var(--dark);color:#fff;margin:0 0 14px;width:100%">📜 יומן שינויי בעלות</button>
 
     <div class="section-title" style="margin-top:0">המספרים של החברה (להעתקה מהירה)</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
@@ -10185,6 +10200,110 @@ async function ownMark(plate, val) {
   catch (e) { showToast('שמירת הסימון נכשלה'); }
 }
 window.ownMark = ownMark;
+
+/* ── יומן שינויי בעלות ───────────────────────────────────────────────
+   כל שינוי שהסריקה זיהתה נשמר בשרת ב-ownership_log ונשאר שם לתמיד.
+   כאן מציגים אותו, ומאפשרים לסמן "אושר על ידי" עם שם ותאריך.        */
+let _ownLog = [], _ownLogUnsub = null, _ownLogFilter = 'all';
+
+const _OWN_LOG_KINDS = {
+  moved:   { icon: '🚨', label: 'עבר בעלות',                 color: '#dc2626' },
+  new_not: { icon: '⚠️', label: 'נכנס למלאי לא על תו סחר',   color: '#d97706' },
+  gone:    { icon: '📤', label: 'ירד מהמלאי',                 color: '#6b7280' },
+  back:    { icon: '✅', label: 'חזר לתו סחר',                color: '#16a34a' },
+};
+const _ownBaalutPhrase = b => ({
+  'סוחר': 'תו סחר', 'פרטי': 'אדם פרטי', 'חברה': 'חברה',
+  'ליסינג': 'ליסינג', 'השכרה': 'השכרה',
+}[String(b || '').trim()] || b || '');
+
+function openOwnLog() {
+  openModal('modal-own-log');
+  if (_ownLogUnsub) { _renderOwnLog(); return; }
+  document.getElementById('own-log-list').innerHTML =
+    '<div style="padding:20px;text-align:center;color:var(--muted)">טוען…</div>';
+  _ownLogUnsub = _onSnap(_colRef('ownership_log'), snap => {
+    _ownLog = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (b.at?.toMillis?.() ?? 0) - (a.at?.toMillis?.() ?? 0));
+    _renderOwnLog();
+  }, err => {
+    document.getElementById('own-log-list').innerHTML =
+      `<div style="padding:20px;text-align:center;color:#dc2626">שגיאה בטעינה: ${esc(err?.code || err?.message || '')}</div>`;
+  });
+}
+window.openOwnLog = openOwnLog;
+
+function _ownLogDate(v) {
+  const d = v?.toDate ? v.toDate() : (v ? new Date(v) : null);
+  if (!d || isNaN(d)) return '';
+  return d.toLocaleString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function _renderOwnLog() {
+  const box = document.getElementById('own-log-list');
+  if (!box) return;
+  for (const [id, on] of [['olf-all', _ownLogFilter === 'all'], ['olf-open', _ownLogFilter === 'open']]) {
+    const b = document.getElementById(id);
+    if (b) {
+      b.style.background = on ? 'var(--gold)' : 'var(--surface2)';
+      b.style.color = on ? '#000' : 'var(--text)';
+      b.style.border = on ? 'none' : '2px solid var(--border)';
+    }
+  }
+  const term = (document.getElementById('own-log-search')?.value || '').replace(/\D/g, '');
+  let rows = _ownLog;
+  if (term) rows = rows.filter(r => String(r.plate || '').includes(term));
+  if (_ownLogFilter === 'open') rows = rows.filter(r => !r.approvedBy);
+  if (!rows.length) {
+    box.innerHTML = `<div style="padding:24px;text-align:center;color:var(--muted)">${
+      _ownLog.length ? 'אין רשומות שמתאימות לסינון' : 'עדיין לא נרשמו שינויי בעלות'}</div>`;
+    return;
+  }
+  box.innerHTML = rows.map(r => {
+    const k = _OWN_LOG_KINDS[r.kind] || { icon: '•', label: r.kind || '', color: 'var(--muted)' };
+    const move = (r.from && r.to) ? `עבר מבעלות ${esc(_ownBaalutPhrase(r.from))} לבעלות ${esc(_ownBaalutPhrase(r.to))}`
+      : r.to ? `רשום על ${esc(_ownBaalutPhrase(r.to))}`
+      : r.from ? `היה רשום על ${esc(_ownBaalutPhrase(r.from))}` : '';
+    return `<div style="border:2px solid ${r.approvedBy ? '#16a34a' : 'var(--border)'};border-radius:12px;padding:12px 14px;margin-bottom:8px;background:${r.approvedBy ? '#f0fdf4' : 'var(--card)'}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:900;font-size:16px">${k.icon} ${esc(r.plate || '')}
+            <span style="font-weight:700;font-size:13px;color:var(--muted)">${esc([r.tozeret, r.degem, r.shnat].filter(Boolean).join(' '))}</span></div>
+          <div style="font-size:13px;font-weight:800;color:${k.color};margin-top:3px">${esc(k.label)}${move ? ' · ' + move : ''}</div>
+          <div style="font-size:12px;color:var(--muted);font-weight:700;margin-top:3px">🕒 זוהה ב-${esc(_ownLogDate(r.at))}</div>
+          ${r.approvedBy ? `<div style="font-size:12px;font-weight:800;color:#16a34a;margin-top:3px">✅ אושר על ידי ${esc(r.approvedBy)} · ${esc(_ownLogDate(r.approvedAt))}</div>` : ''}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
+          <button onclick="_ownCopy('${esc(r.plate || '')}','מספר הרכב')" style="background:var(--surface2);border:2px solid var(--border);border-radius:9px;width:36px;height:36px;font-size:15px;cursor:pointer">📋</button>
+          ${r.approvedBy
+            ? `<button onclick="ownLogApprove('${esc(r.id)}',false)" style="background:var(--surface2);color:var(--muted);border:2px solid var(--border);border-radius:9px;padding:6px 10px;font-family:Heebo,sans-serif;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap">בטל אישור</button>`
+            : `<button onclick="ownLogApprove('${esc(r.id)}',true)" style="background:#16a34a;color:#fff;border:none;border-radius:9px;padding:8px 12px;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap">✅ אשר</button>`}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+window._renderOwnLog = _renderOwnLog;
+
+// אישור העברת הבעלות — נשמר עם השם של מי שאישר ומתי
+async function ownLogApprove(id, on) {
+  const r = _ownLog.find(x => x.id === id);
+  if (!r) return;
+  let by = null;
+  if (on) {
+    by = prompt('אושר על ידי:', currentUser?.name || '');
+    if (by === null) return;
+    by = by.trim();
+    if (!by) return showToast('נא להזין שם');
+  }
+  try {
+    await _updateDoc(_docRef('ownership_log', id), on
+      ? { approvedBy: by, approvedAt: new Date().toISOString() }
+      : { approvedBy: null, approvedAt: null });
+    showToast(on ? '✅ סומן כמאושר' : 'האישור בוטל');
+  } catch (e) { showToast('שמירה נכשלה: ' + (e.code || e.message), 6000); }
+}
+window.ownLogApprove = ownLogApprove;
 
 function _ownCopy(txt, label) {
   const done = () => showToast('📋 ' + label + ' הועתק');
