@@ -19397,8 +19397,10 @@ async function _notifyPickupCollected(car, collectedByText) {
       '✅ רכב נאסף',
       `🚗 ${car.plate || ''} ${[car.type, car.year].filter(Boolean).join(' · ')}`.trim(),
       [car.address, _pickupCity(car)].filter(Boolean).join(', '),
-      collectedByText ? `👤 נאסף ע״י: ${collectedByText}` : '',
-      `📲 דווח: ${currentUser?.name || ''}`,
+      // מה שהוקלד בשדה "על ידי מי נאסף הרכב" — לא איש הקשר של הכתובת
+      collectedByText ? `👤 אסף: ${collectedByText}` : '',
+      // מי דיווח באפליקציה — רק אם זה מישהו אחר, כדי לא לחזור על אותו שם
+      (currentUser?.name && currentUser.name !== collectedByText) ? `📲 דווח ע״י: ${currentUser.name}` : '',
     ].filter(Boolean);
     await _sendTelegram(chatId, lines.join('\n'));
   } catch (e) { console.error('pickup collected notify', e); }
