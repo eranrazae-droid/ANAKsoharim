@@ -1459,6 +1459,31 @@ async function _runOwnershipScan() {
   };
 }
 
+// בדיקה חד-פעמית: אילו דרכי גישה למאגר הממשלתי פתוחות מהשרת
+exports.govProbe = onRequest(
+  { cors: true, region: "europe-west1", timeoutSeconds: 120 },
+  async (req, res) => {
+    const RES = _VEHICLE_RESOURCE;
+    const tries = [
+      ["api", `https://data.gov.il/api/3/action/datastore_search?resource_id=${RES}&limit=1`],
+      ["dump", `https://data.gov.il/datastore/dump/${RES}?limit=2`],
+      ["dataset-page", "https://data.gov.il/dataset/private-and-commercial-vehicles"],
+      ["home", "https://data.gov.il/"],
+    ];
+    const out = [];
+    for (const [name, url] of tries) {
+      for (const withUa of [true, false]) {
+        try {
+          const r = await fetch(url, withUa ? { headers: _GOV_HEADERS } : {});
+          const t = await r.text();
+          out.push({ name, ua: withUa, status: r.status, type: r.headers.get("content-type"), len: t.length, head: t.slice(0, 120) });
+        } catch (err) { out.push({ name, ua: withUa, error: err.message }); }
+      }
+    }
+    res.json({ ok: true, tries: out });
+  }
+);
+
 exports.runOwnershipScanNow = onRequest(
   { cors: true, region: "europe-west1", timeoutSeconds: 540, memory: "512MiB" },
   async (req, res) => {
