@@ -2067,22 +2067,24 @@ if ('serviceWorker' in navigator) {
     <div class="user-badge" id="own-user-badge" onclick="logout()"></div>
   </div>
   <div style="padding:16px 16px 100px">
-    <div style="background:#eff6ff;border:2px solid #bfdbfe;border-right:5px solid #1d4ed8;border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:13px;font-weight:700;color:#1e3a8a;line-height:1.7">
-      הבדיקה רצה אוטומטית <b>כל שעה</b> ומוודאת שכל רכב במלאי רשום במרשם על <b>תו סחר</b>.<br>
-      התראה בטלגרם נשלחת רק כשמשהו משתנה — רכב שעבר בעלות, רכב חדש שאינו על תו סחר, או רכב שירד מהמלאי.<br>
-      המרשם הממשלתי מתעדכן פעם ביום בשעות הלילה, ולכן העברת בעלות מזוהה תוך יממה.
+    <div id="own-hero" style="text-align:center;border-radius:16px;padding:16px;margin-bottom:12px;background:var(--surface2);border:2px solid var(--border)"></div>
+
+    <div id="own-tiles" style="display:none;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px"></div>
+
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <button class="btn-submit" id="own-scan-btn" onclick="runOwnershipScan()" style="background:#0d6ab0;color:#fff;margin:0;flex:1">🔄 בדוק עכשיו</button>
+      <button class="btn-submit" onclick="openOwnLog()" style="background:var(--dark);color:#fff;margin:0;flex:1">📜 יומן שינויים</button>
     </div>
 
-    <button class="btn-submit" onclick="openOwnLog()" style="background:var(--dark);color:#fff;margin:0 0 14px;width:100%">📜 יומן שינויי בעלות</button>
+    <details style="margin-bottom:14px;border:2px solid var(--border);border-radius:12px;background:var(--card)">
+      <summary style="cursor:pointer;padding:11px 14px;font-weight:800;font-size:13px">איך הבדיקה עובדת?</summary>
+      <div style="padding:0 14px 12px;font-size:13px;font-weight:600;color:var(--muted);line-height:1.8">
+        הבדיקה רצה אוטומטית כל שעה ומוודאת שכל רכב במלאי רשום במרשם משרד התחבורה על <b>תו סחר</b>.<br>
+        התראה בטלגרם נשלחת רק כשמשהו משתנה — רכב שעבר בעלות, רכב חדש שאינו על תו סחר, או רכב שירד מהמלאי.<br>
+        המרשם הממשלתי מתעדכן פעם ביום בשעות הלילה, ולכן העברת בעלות מזוהה תוך יממה.
+      </div>
+    </details>
 
-    <button class="btn-submit" id="own-scan-btn" onclick="runOwnershipScan()" style="background:#0d6ab0;color:#fff;margin:0;width:100%">🔄 טען מלאי והצלב</button>
-
-    <div id="own-summary" style="margin-top:14px"></div>
-
-    <div id="own-filter" style="display:none;gap:6px;margin:12px 0 4px">
-      <button onclick="ownFilter('all')" id="own-f-all" style="flex:1;padding:8px;border-radius:9px;border:2px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer">הכל</button>
-      <button onclick="ownFilter('not')" id="own-f-not" style="flex:1;padding:8px;border-radius:9px;border:2px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer">לא שלנו</button>
-    </div>
     <div id="own-list"></div>
   </div>
 </div>
@@ -10131,6 +10133,7 @@ let _ownUnsub = null;
 let _ownCars = [];            // רשימת המלאי מהשרת
 let _ownIds = [];             // הח.פ/ת.ז של החברה
 let _ownFilter = 'all';
+let _ownUpdatedAt = '';
 
 function openOwnershipScreen() {
   document.getElementById('own-user-badge').textContent = currentUser.name;
@@ -10139,6 +10142,8 @@ function openOwnershipScreen() {
     _ownUnsub = _onSnap(_docRef('ownership_status', 'current'), snap => {
       const d = snap.exists() ? snap.data() : null;
       _ownCars = (d && d.cars) || [];
+      const u = d && d.updatedAt && d.updatedAt.toDate ? d.updatedAt.toDate() : null;
+      _ownUpdatedAt = u ? u.toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
       _ownRender();
     }, () => {});
   }
@@ -10319,14 +10324,17 @@ function _ownCopy(txt, label) {
 window._ownCopy = _ownCopy;
 
 function _ownRender() {
-  const sum = document.getElementById('own-summary');
-  const list = document.getElementById('own-list');
-  const filt = document.getElementById('own-filter');
-  if (!sum || !list) return;
+  const hero  = document.getElementById('own-hero');
+  const tiles = document.getElementById('own-tiles');
+  const list  = document.getElementById('own-list');
+  if (!hero || !list) return;
+  const e = s => esc(s);
   if (!_ownCars.length) {
-    sum.innerHTML = `<div style="color:var(--muted);padding:16px;text-align:center">עדיין לא נטענה רשימת מלאי — לחץ ״טען את רשימת המלאי״</div>`;
+    hero.style.background = 'var(--surface2)';
+    hero.style.borderColor = 'var(--border)';
+    hero.innerHTML = `<div style="text-align:center;color:var(--muted);font-weight:700;font-size:14px;line-height:1.8">עדיין לא נטענה רשימת מלאי<br>לחץ ״בדוק עכשיו״ כדי להצליב את המלאי מול מרשם הרכב</div>`;
+    if (tiles) tiles.style.display = 'none';
     list.innerHTML = '';
-    if (filt) filt.style.display = 'none';
     return;
   }
   // הסטטוס מגיע רק מההצלבה האוטומטית מול מרשם הרכב (תו סחר)
@@ -10335,38 +10343,54 @@ function _ownRender() {
   const ours = _ownCars.filter(c => eff(c) === 'ours').length;
   const not  = _ownCars.filter(c => eff(c) === 'not').length;
   const unk  = total - ours - not;
-  sum.innerHTML = `<div style="border:2px solid var(--border);border-radius:14px;padding:13px 15px;background:var(--surface2)">
-      <div style="font-weight:900;font-size:15px;margin-bottom:8px">${total} רכבים במלאי</div>
-      <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:13px;font-weight:800">
-        <span style="color:#16a34a">\u2705 על תו סחר: ${ours}</span>
-        <span style="color:#dc2626">\u274c לא על תו סחר: ${not}</span>
-        ${unk ? `<span style="color:#6b7280">\u2753 לא נמצא במרשם: ${unk}</span>` : ''}
-      </div>
+
+  // כותרת גדולה שעונה במשפט אחד: יש בעיה או שאין
+  const ok = not === 0;
+  hero.style.background = ok ? '#dcfce7' : '#fee2e2';
+  hero.style.borderColor = ok ? '#16a34a' : '#dc2626';
+  hero.innerHTML = `
+    <div style="font-size:34px;line-height:1">${ok ? '\u2705' : '\u26a0\ufe0f'}</div>
+    <div style="font-weight:900;font-size:19px;margin-top:6px;color:${ok ? '#166534' : '#991b1b'}">${ok ? 'הכל תקין' : `${not === 1 ? 'רכב אחד לא על תו סחר' : not + ' רכבים לא על תו סחר'}`}</div>
+    <div style="font-weight:700;font-size:13px;margin-top:4px;color:${ok ? '#166534' : '#991b1b'}">${ok ? `כל ${total} הרכבים במלאי רשומים על תו סחר` : `מתוך ${total} רכבים במלאי`}</div>
+    ${_ownUpdatedAt ? `<div style="font-size:12px;font-weight:700;color:var(--muted);margin-top:8px">נבדק לאחרונה: ${e(_ownUpdatedAt)}</div>` : ''}`;
+
+  // שלוש קוביות = גם סיכום וגם סינון
+  const tile = (key, num, label, col) => {
+    const on = _ownFilter === key;
+    return `<div onclick="ownFilter('${key}')" style="cursor:pointer;border:2px solid ${on ? col : 'var(--border)'};background:${on ? col : 'var(--card)'};color:${on ? '#fff' : 'var(--text)'};border-radius:12px;padding:10px 6px;text-align:center">
+      <div style="font-size:22px;font-weight:900">${num}</div>
+      <div style="font-size:11px;font-weight:800;margin-top:2px;opacity:.85">${label}</div>
     </div>`;
-  if (filt) filt.style.display = 'flex';
-  ['all','not'].forEach(f => {
-    const b = document.getElementById('own-f-' + f);
-    if (b) { const on = _ownFilter === f; b.style.background = on ? '#0d9488' : 'var(--surface2)'; b.style.color = on ? '#fff' : 'var(--text)'; b.style.borderColor = on ? '#0d9488' : 'var(--border)'; }
-  });
+  };
+  if (tiles) {
+    tiles.style.display = 'grid';
+    tiles.innerHTML = tile('all', total, 'הכל', '#0d9488')
+      + tile('not', not, 'לא על תו סחר', '#dc2626')
+      + tile('ours', ours, 'על תו סחר', '#16a34a')
+      + (unk ? tile('unknown', unk, 'לא במרשם', '#6b7280') : '');
+    tiles.style.gridTemplateColumns = `repeat(${unk ? 4 : 3},1fr)`;
+  }
+
   let cars = _ownCars;
-  if (_ownFilter === 'not') cars = cars.filter(c => eff(c) === 'not');
-  if (!cars.length) { list.innerHTML = `<div style="color:var(--muted);padding:20px;text-align:center">אין רכבים בקטגוריה הזו</div>`; return; }
-  const e = s => esc(s);
+  if (_ownFilter !== 'all') cars = cars.filter(c => eff(c) === _ownFilter);
+  // הבעייתיים תמיד ראשונים
+  const rank = c => eff(c) === 'not' ? 0 : eff(c) === 'unknown' ? 1 : 2;
+  cars = cars.slice().sort((a, b) => rank(a) - rank(b) || String(a.plate).localeCompare(String(b.plate)));
+  if (!cars.length) { list.innerHTML = `<div style="color:var(--muted);padding:20px;text-align:center;font-weight:700">אין רכבים בקטגוריה הזו</div>`; return; }
+
   list.innerHTML = cars.map(c => {
     const mk = eff(c);
-    const border = mk === 'ours' ? '#16a34a' : mk === 'not' ? '#dc2626' : 'var(--border)';
-    const bg = mk === 'ours' ? '#dcfce7' : mk === 'not' ? '#fee2e2' : 'var(--card)';
-    return `<div style="border:2px solid ${border};border-radius:12px;padding:11px 13px;margin-bottom:8px;background:${bg}">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+    const col = mk === 'ours' ? '#16a34a' : mk === 'not' ? '#dc2626' : '#6b7280';
+    const label = mk === 'ours' ? 'על תו סחר' : mk === 'not' ? 'לא על תו סחר' : 'לא נמצא במרשם';
+    return `<div style="border:2px solid var(--border);border-right:6px solid ${col};border-radius:12px;padding:11px 13px;margin-bottom:8px;background:var(--card)">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
         <div style="min-width:0">
-          <div style="font-weight:900;font-size:17px;letter-spacing:1px">${e(c.plate)}</div>
+          <div style="font-weight:900;font-size:18px;letter-spacing:1px">${e(c.plate)}</div>
           <div style="font-size:12px;color:var(--muted);font-weight:700">${e([c.tozeret,c.degem,c.shnat].filter(Boolean).join(' · '))}</div>
-          ${c.baalut ? `<div style="font-size:12px;font-weight:800;margin-top:2px;color:${c.baalut.includes('סוחר')?'#16a34a':'#dc2626'}">בעלות: ${e(c.baalut)}${c.baalut.includes('סוחר')?'':' · אינו על תו סחר'}</div>` : `<div style="font-size:12px;font-weight:800;margin-top:2px;color:#6b7280">לא נמצא במרשם הרכב</div>`}
-          ${c.baalutChangedAt ? `<div style="font-size:11px;font-weight:700;color:var(--muted);margin-top:2px">🕒 שינוי בעלות זוהה ב-${e(new Date(c.baalutChangedAt).toLocaleString('he-IL',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}))}${c.baalutFrom ? ` · היה ${e(c.baalutFrom)}` : ''}</div>` : ''}
+          <div style="display:inline-block;margin-top:6px;background:${col};color:#fff;border-radius:999px;padding:3px 11px;font-size:12px;font-weight:900">${label}${c.baalut ? ' · ' + e(c.baalut) : ''}</div>
+          ${c.baalutChangedAt ? `<div style="font-size:12px;font-weight:800;color:#b45309;margin-top:6px">🕒 שינוי בעלות ב-${e(new Date(c.baalutChangedAt).toLocaleString('he-IL',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}))}${c.baalutFrom ? ` · היה ${e(c.baalutFrom)}` : ''}</div>` : ''}
         </div>
-        <div style="display:flex;gap:6px;flex-shrink:0">
-          <button onclick="_ownCopy('${e(c.plate)}','מספר הרכב')" title="העתק מספר רכב" style="background:var(--surface2);border:2px solid var(--border);border-radius:9px;width:38px;height:38px;font-size:16px;cursor:pointer">📋</button>
-        </div>
+        <button onclick="_ownCopy('${e(c.plate)}','מספר הרכב')" title="העתק מספר רכב" style="background:var(--surface2);border:2px solid var(--border);border-radius:9px;width:38px;height:38px;font-size:16px;cursor:pointer;flex-shrink:0">📋</button>
       </div>
     </div>`;
   }).join('');
