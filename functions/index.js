@@ -1356,6 +1356,10 @@ async function _runOwnershipScan() {
     const p = prevCars[c.plate];
     return p && p.baalut && c.baalut && p.baalut !== c.baalut;
   }) : [];
+  // רכב שהיה במלאי ואיננו — נמכר, נאסף או ירד מהרשימה. שווה לדעת.
+  const nowSet = new Set(cars.map((c) => c.plate));
+  const goneFromStock = hadPrev
+    ? Object.values(prevCars).filter((c) => !nowSet.has(c.plate)) : [];
 
   await db.collection("ownership_status").doc("current").set({
     cars, checkedCount: cars.length,
@@ -1366,8 +1370,10 @@ async function _runOwnershipScan() {
   return {
     ok: true, checked: cars.length, notOurs: notOurs.length, unknown: unknown.length,
     notOursCars: notOurs, newUnchecked,
-    changedToNot, changedToOurs, newAndNot, changedBaalut,
-    prevBaalut: Object.fromEntries(changedBaalut.map((c) => [c.plate, prevCars[c.plate].baalut])),
+    changedToNot, changedToOurs, newAndNot, changedBaalut, goneFromStock,
+    // הבעלות הקודמת של כל רכב שהשתנה — כדי לנסח "עבר מ… ל…"
+    prevBaalut: Object.fromEntries(
+      Object.values(prevCars).filter((c) => c.baalut).map((c) => [c.plate, c.baalut])),
   };
 }
 
@@ -1470,9 +1476,10 @@ exports.dailyOwnershipCheck = onSchedule(
     const toOurs  = r.changedToOurs  || [];
     const newNot  = r.newAndNot      || [];
     const newUnk  = r.newUnchecked   || [];
+    const gone    = r.goneFromStock  || [];
     const baalut  = (r.changedBaalut || []).filter((c) =>
       !toNot.some((x) => x.plate === c.plate) && !toOurs.some((x) => x.plate === c.plate));
-    if (!toNot.length && !toOurs.length && !newNot.length && !newUnk.length && !baalut.length) return;
+    if (!toNot.length && !toOurs.length && !newNot.length && !newUnk.length && !baalut.length && !gone.length) return;
 
     try {
       const cs = await db.collection("config").doc("driver_contacts").get();
@@ -1481,17 +1488,30 @@ exports.dailyOwnershipCheck = onSchedule(
       const chatId = contacts["ליאל"]?.telegramId || "";
       if (!token || !chatId) return;
 
+      // ניסוח הבעלות במילים, כדי שההודעה תיקרא כמו משפט ולא כמו קוד
+      const phrase = (b) => ({
+        "סוחר": "תו סחר", "פרטי": "אדם פרטי", "חברה": "חברה",
+        "ליסינג": "ליסינג", "השכרה": "השכרה",
+      }[String(b || "").trim()] || b || "לא ידוע");
+      // "עבר מ… ל…" — הבעלות הקודמת מול הנוכחית
+      const moved = (c) => {
+        const from = r.prevBaalut?.[c.plate];
+        return from && c.baalut && from !== c.baalut
+          ? ` — עבר מבעלות ${phrase(from)} לבעלות ${phrase(c.baalut)}`
+          : (c.baalut ? ` — רשום כ${phrase(c.baalut)}` : "");
+      };
       const line = (c, extra) => `• ${c.plate} ${[c.tozeret, c.degem].filter(Boolean).join(" ")}${extra || ""}`.trim();
       const block = (title, cars, extraFn) => {
         const shown = cars.slice(0, 15).map((c) => line(c, extraFn ? extraFn(c) : "")).join("\n");
         return `${title}\n${shown}${cars.length > 15 ? `\n…ועוד ${cars.length - 15}` : ""}`;
       };
       const parts = [];
-      if (toNot.length)  parts.push(block(`🚨 ${toNot.length} רכבים ירדו מתו סחר:`, toNot, (c) => c.baalut ? ` — רשום עכשיו כ${c.baalut}` : ""));
-      if (newNot.length) parts.push(block(`⚠️ ${newNot.length} רכבים חדשים במלאי שאינם על תו סחר:`, newNot, (c) => c.baalut ? ` — רשום כ${c.baalut}` : ""));
-      if (baalut.length) parts.push(block(`🔄 ${baalut.length} רכבים ששינו סוג בעלות:`, baalut, (c) => ` — ${r.prevBaalut?.[c.plate] || "?"} ← ${c.baalut}`));
+      if (toNot.length)  parts.push(block(`🚨 ${toNot.length} רכבים ירדו מתו סחר:`, toNot, moved));
+      if (newNot.length) parts.push(block(`⚠️ ${newNot.length} רכבים חדשים במלאי שאינם על תו סחר:`, newNot, (c) => c.baalut ? ` — רשום על ${phrase(c.baalut)}` : ""));
+      if (baalut.length) parts.push(block(`🔄 ${baalut.length} רכבים ששינו סוג בעלות:`, baalut, moved));
+      if (gone.length)   parts.push(block(`📤 ${gone.length} רכבים ירדו מהמלאי:`, gone, (c) => c.baalut ? ` — היה רשום על ${phrase(c.baalut)}` : ""));
       if (newUnk.length) parts.push(block(`🆕 ${newUnk.length} רכבים חדשים שטרם נבדקה בעלותם:`, newUnk));
-      if (toOurs.length) parts.push(block(`✅ ${toOurs.length} רכבים חזרו לתו סחר:`, toOurs));
+      if (toOurs.length) parts.push(block(`✅ ${toOurs.length} רכבים חזרו לתו סחר:`, toOurs, moved));
 
       await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
         method: "POST", headers: { "Content-Type": "application/json" },
