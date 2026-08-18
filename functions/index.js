@@ -1323,9 +1323,15 @@ async function _runOwnershipScan() {
   // רכבים חדשים = לוחיות שלא היו במלאי בסריקה הקודמת. כך הסריקה היומית
   // יודעת על מה להתריע — מה שנכנס היום וטרם נבדק.
   let prevSeen = [];
+  const prevCars = {};
+  let hadPrev = false;
   try {
     const prev = await db.collection("ownership_status").doc("current").get();
-    if (prev.exists) prevSeen = prev.data().seenPlates || [];
+    if (prev.exists) {
+      prevSeen = prev.data().seenPlates || [];
+      for (const c of prev.data().cars || []) prevCars[c.plate] = c;
+      hadPrev = Object.keys(prevCars).length > 0;
+    }
   } catch (err) { /* ignore */ }
   const prevSet = new Set(prevSeen);
 
@@ -1333,6 +1339,23 @@ async function _runOwnershipScan() {
   const unknown = cars.filter((c) => c.status === "unknown");
   // חדשים וטרם נבדקו: נכנסו מאז הסריקה הקודמת ואין להם עדיין תשובה
   const newUnchecked = cars.filter((c) => c.status === "unknown" && !prevSet.has(c.plate));
+
+  /* מה השתנה מאז הסריקה הקודמת. הסריקה השעתית מתריעה רק על אלה —
+     בלי זה היא הייתה שולחת את אותה רשימה כל שעה. בסריקה הראשונה אין
+     מול מה להשוות, ולכן היא נשמרת כבסיס בלי להתריע. */
+  const changedToNot = hadPrev ? cars.filter((c) =>
+    c.status === "not" && prevCars[c.plate] && prevCars[c.plate].status !== "not") : [];
+  const changedToOurs = hadPrev ? cars.filter((c) =>
+    c.status === "ours" && prevCars[c.plate] && prevCars[c.plate].status === "not") : [];
+  // רכב שנכנס למלאי וכבר מגיע לא על תו סחר — גם זה שינוי שדורש טיפול
+  const newAndNot = hadPrev ? cars.filter((c) =>
+    c.status === "not" && !prevCars[c.plate]) : [];
+  // שינוי בסוג הבעלות עצמו, גם כשהסטטוס לא השתנה (סוחר→סוחר אחר לא נראה,
+  // אבל פרטי→חברה כן — וזה אומר שהרכב זז)
+  const changedBaalut = hadPrev ? cars.filter((c) => {
+    const p = prevCars[c.plate];
+    return p && p.baalut && c.baalut && p.baalut !== c.baalut;
+  }) : [];
 
   await db.collection("ownership_status").doc("current").set({
     cars, checkedCount: cars.length,
@@ -1343,6 +1366,8 @@ async function _runOwnershipScan() {
   return {
     ok: true, checked: cars.length, notOurs: notOurs.length, unknown: unknown.length,
     notOursCars: notOurs, newUnchecked,
+    changedToNot, changedToOurs, newAndNot, changedBaalut,
+    prevBaalut: Object.fromEntries(changedBaalut.map((c) => [c.plate, prevCars[c.plate].baalut])),
   };
 }
 
@@ -1431,38 +1456,51 @@ exports.inventoryCheck = onRequest(
 
 // סריקה יומית: כל בוקר מרעננת את המלאי ומתריעה בטלגרם על שני דברים —
 // רכבים שכבר סומנו כלא־שלנו, ורכבים חדשים שנכנסו וטרם נבדקו ידנית.
+/* בדיקת בעלויות — רצה כל שעה ומתריעה רק כשמשהו השתנה מהסריקה הקודמת.
+   ההתראה מפרטת בדיוק מה זז: רכב שירד מתו סחר, רכב שחזר אליו, רכב חדש
+   שנכנס כבר לא על תו סחר, ושינוי בסוג הבעלות. אין שינוי — אין הודעה.
+   (השם נשאר dailyOwnershipCheck כדי לא ליצור עבודה מתוזמנת כפולה.) */
 exports.dailyOwnershipCheck = onSchedule(
-  { schedule: "15 7 * * 0-5", region: "europe-west1", timeZone: "Asia/Jerusalem", timeoutSeconds: 300, memory: "256MiB" },
+  { schedule: "37 * * * *", region: "europe-west1", timeZone: "Asia/Jerusalem", timeoutSeconds: 300, memory: "256MiB" },
   async () => {
     const r = await _runOwnershipScan().catch((e) => ({ ok: false, reason: "crashed", error: String(e && e.message || e) }));
     if (!r.ok) return;
-    const newN = (r.newUnchecked || []).length;
-    if (!r.notOurs && !newN) return;   // אין על מה להתריע
+
+    const toNot   = r.changedToNot   || [];
+    const toOurs  = r.changedToOurs  || [];
+    const newNot  = r.newAndNot      || [];
+    const newUnk  = r.newUnchecked   || [];
+    const baalut  = (r.changedBaalut || []).filter((c) =>
+      !toNot.some((x) => x.plate === c.plate) && !toOurs.some((x) => x.plate === c.plate));
+    if (!toNot.length && !toOurs.length && !newNot.length && !newUnk.length && !baalut.length) return;
+
     try {
       const cs = await db.collection("config").doc("driver_contacts").get();
       const contacts = cs.exists ? cs.data() : {};
       const token = contacts["_telegramToken"]?.value || "";
       const chatId = contacts["ליאל"]?.telegramId || "";
       if (!token || !chatId) return;
+
+      const line = (c, extra) => `• ${c.plate} ${[c.tozeret, c.degem].filter(Boolean).join(" ")}${extra || ""}`.trim();
+      const block = (title, cars, extraFn) => {
+        const shown = cars.slice(0, 15).map((c) => line(c, extraFn ? extraFn(c) : "")).join("\n");
+        return `${title}\n${shown}${cars.length > 15 ? `\n…ועוד ${cars.length - 15}` : ""}`;
+      };
       const parts = [];
-      if (r.notOurs) {
-        // מציינים מה הבעלות בפועל — זה מה שאומר לאן הרכב הלך
-        const list = (r.notOursCars || []).slice(0, 15).map((c) =>
-          `• ${c.plate} ${[c.tozeret, c.degem].filter(Boolean).join(" ")} — ${c.baalut ? "רשום כ" + c.baalut : "לא נמצא במרשם"}${c.ownerId ? " · " + c.ownerId : ""}`.trim()).join("\n");
-        parts.push(`⚠️ ${r.notOurs} רכבים במלאי שאינם רשומים על תו סחר:\n${list}${r.notOurs > 15 ? `\n…ועוד ${r.notOurs - 15}` : ""}`);
-      }
-      if (newN) {
-        const list = (r.newUnchecked || []).slice(0, 15).map((c) => `• ${c.plate} ${c.tozeret} ${c.degem}`.trim()).join("\n");
-        parts.push(`🆕 ${newN} רכבים חדשים נכנסו למלאי וטרם נבדקה בעלותם:\n${list}${newN > 15 ? `\n…ועוד ${newN - 15}` : ""}`);
-      }
+      if (toNot.length)  parts.push(block(`🚨 ${toNot.length} רכבים ירדו מתו סחר:`, toNot, (c) => c.baalut ? ` — רשום עכשיו כ${c.baalut}` : ""));
+      if (newNot.length) parts.push(block(`⚠️ ${newNot.length} רכבים חדשים במלאי שאינם על תו סחר:`, newNot, (c) => c.baalut ? ` — רשום כ${c.baalut}` : ""));
+      if (baalut.length) parts.push(block(`🔄 ${baalut.length} רכבים ששינו סוג בעלות:`, baalut, (c) => ` — ${r.prevBaalut?.[c.plate] || "?"} ← ${c.baalut}`));
+      if (newUnk.length) parts.push(block(`🆕 ${newUnk.length} רכבים חדשים שטרם נבדקה בעלותם:`, newUnk));
+      if (toOurs.length) parts.push(block(`✅ ${toOurs.length} רכבים חזרו לתו סחר:`, toOurs));
+
       await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           chat_id: chatId,
-          text: `בדיקת בעלויות — סריקת בוקר\n\n${parts.join("\n\n")}\n\nכנס לאפליקציה → בדיקת בעלויות.`,
+          text: `בדיקת בעלויות — שינוי מהסריקה הקודמת\n\n${parts.join("\n\n")}\n\nכנס לאפליקציה → בדיקת בעלויות.`,
         }),
       });
-    } catch (err) { console.error("ownership daily alert failed", err); }
+    } catch (err) { console.error("ownership hourly alert failed", err); }
   }
 );
 
