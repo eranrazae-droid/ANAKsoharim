@@ -193,7 +193,7 @@ async function _recallLearnField() {
 async function _recallQueryBatch(field, plates) {
   const filters = encodeURIComponent(JSON.stringify({ [field]: plates.map(Number) }));
   const url = `https://data.gov.il/api/3/action/datastore_search?resource_id=${_RECALL_RESOURCE}&filters=${filters}&limit=${plates.length * 5}`;
-  const res = await fetch(url);
+  const res = await _govFetch(url);
   if (res.status === 409) throw new Error("VALIDATION"); // wrong field — switch strategy, don't retry
   if (!res.ok) throw new Error("HTTP " + res.status);
   const json = await res.json();
@@ -218,7 +218,7 @@ async function _recallQueryBatchSmart(field, plates) {
   if (asNum.length) return asNum;
   const filters = encodeURIComponent(JSON.stringify({ [field]: plates.map(String) }));
   const url = `https://data.gov.il/api/3/action/datastore_search?resource_id=${_RECALL_RESOURCE}&filters=${filters}&limit=${plates.length * 5}`;
-  const res = await fetch(url);
+  const res = await _govFetch(url);
   if (res.status === 409) return asNum;
   if (!res.ok) throw new Error("HTTP " + res.status);
   const json = await res.json();
