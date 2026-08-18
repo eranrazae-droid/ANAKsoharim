@@ -11,3 +11,4 @@ if (j) {
   console.log('ירדו מהמלאי:', (j.goneFromStock || []).length);
   console.log('סטטוס מול המאגר:', JSON.stringify(j.registryHttp));
 }
+
