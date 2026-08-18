@@ -590,6 +590,7 @@ if ('serviceWorker' in navigator) {
           <div class="stat-card" id="stat-vehicles-card" style="display:none"><div class="num" id="stat-vehicles">—</div><div class="lbl">רכבים במגרש</div></div>
           <div class="stat-card" id="stat-pickup-driver-card" style="display:none;cursor:pointer;background:linear-gradient(135deg,#1e3a8a,#1e40af);color:#fff" onclick="openDriverPickupModal()"><div class="num" id="stat-pickup-driver-count" style="color:#fff">0</div><div class="lbl" style="color:rgba(255,255,255,.8)">🚙 לאיסוף</div></div>
           <div class="stat-card" id="stat-inventory-driver-card" style="display:none;cursor:pointer;background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff" onclick="goToScreen('driver-inventory')"><div class="num" id="stat-inventory-driver-count" style="color:#fff">0</div><div class="lbl" style="color:rgba(255,255,255,.8)">📦 בדיקת מלאי</div></div>
+          <div class="stat-card" id="stat-battery-driver-card" style="display:none;cursor:pointer;background:linear-gradient(135deg,#0891b2,#0e7490);color:#fff" onclick="goToScreen('driver-battery-unified')"><div class="num" id="stat-battery-driver-count" style="color:#fff">0</div><div class="lbl" id="stat-battery-driver-lbl" style="color:rgba(255,255,255,.8)">🔋 בדיקת טעינה</div></div>
           <div class="stat-card" id="stat-intake-driver-card" style="display:none;cursor:pointer;background:linear-gradient(135deg,#047857,#065f46);color:#fff" onclick="goToScreen('vehicles')"><div class="num" id="stat-intake-driver-count" style="color:#fff">0</div><div class="lbl" style="color:rgba(255,255,255,.8)">🚗 קליטות ורענון</div></div>
           <div class="stat-card" id="stat-pits-driver-card" style="display:none;cursor:pointer;background:linear-gradient(135deg,#0f766e,#115e59);color:#fff" onclick="goToScreen('pits')"><div class="num" id="stat-pits-driver-count" style="color:#fff">0</div><div class="lbl" style="color:rgba(255,255,255,.8)">🕳️ בורות</div></div>
           <div class="stat-card" id="stat-yard-driver-card" style="display:none;cursor:pointer;background:linear-gradient(135deg,#b45309,#92400e);color:#fff" onclick="goToScreen('yard')"><div class="num" id="stat-yard-driver-count" style="color:#fff">0</div><div class="lbl" style="color:rgba(255,255,255,.8)">🅿️ סידור מגרש</div></div>
@@ -3643,6 +3644,11 @@ function renderHome() {
     grid.innerHTML = menuItems.map(_cardHtml).join('');
   }
 
+  // בדיקת הטעינה אינה קובייה גדולה יותר — היא קוביה קטנה למעלה שמופיעה
+  // רק כשנשלחה לנהג בדיקה או משימת טעינה. הקובייה נשארת בדף מוסתרת כי
+  // היא מחזיקה את המצב (בדיקה / טעינה) שקובע לאיזה מסך נכנסים.
+  const dbCard = document.getElementById('menu-card-driver-battery');
+  if (dbCard) dbCard.style.display = 'none';
   // restore stats row for manager/drivers (may have been hidden by previous role)
   const statsRowMain = document.getElementById('stats-row');
   if (statsRowMain) statsRowMain.style.display = '';
@@ -4200,8 +4206,22 @@ function loadDriverBadges() {
     });
     let _battPending = 0;
     const _dcTasks = {};
+    // הקובייה הגדולה של בדיקת הטעינה הוסתרה. במקומה מופיעה קוביה קטנה
+    // למעלה, ורק כשנשלחה לנהג בדיקת טעינה או משימת טעינה.
+    function _battTile(count, label, bg) {
+      const t = document.getElementById('stat-battery-driver-card');
+      const n = document.getElementById('stat-battery-driver-count');
+      const l = document.getElementById('stat-battery-driver-lbl');
+      if (!t) return;
+      if (label == null) { t.style.display = 'none'; return; }
+      t.style.display = 'block';
+      t.style.background = bg || 'linear-gradient(135deg,#0891b2,#0e7490)';
+      if (n) n.textContent = count;
+      if (l) l.textContent = label;
+    }
     function _renderUnifiedBatteryCard() {
       const card  = document.getElementById('menu-card-driver-battery');
+      if (card) card.style.display = 'none';
       const sub   = document.getElementById('sub-driver-battery');
       const allCars = Object.values(_dcTasks).flat();
       const chargingPending = allCars.filter(c => !c.charged).length;
@@ -4211,21 +4231,25 @@ function loadDriverBadges() {
         if (card) { card.style.background = ''; card.style.color = ''; card.querySelectorAll('.mc-title,.mc-sub').forEach(el => el.style.color = ''); card.classList.remove('driver-battery-awaiting'); card.dataset.unifiedMode = 'battery'; }
         if (sub) sub.textContent = 'מילוי אחוזי טעינה וטווח';
         _setCardBadge('driver-battery', _battPending);
+        _battTile(_battPending, '🔋 בדיקת טעינה');
       } else if (hasCharging && chargingPending === 0) {
         // כל הטעינות בוצעו
         if (card) { card.style.background = '#16a34a'; card.style.color = '#fff'; card.querySelectorAll('.mc-title,.mc-sub').forEach(el => el.style.color = '#fff'); card.classList.remove('driver-battery-awaiting'); card.dataset.unifiedMode = 'charging'; }
         if (sub) sub.textContent = 'כל הטעינות בוצעו בהצלחה ✅';
         _setCardBadge('driver-battery', 0);
+        _battTile('✅', 'כל הטעינות בוצעו', 'linear-gradient(135deg,#16a34a,#15803d)');
       } else if (hasCharging && chargingPending > 0) {
         // יש משימות טעינה פעילות
         if (card) { card.style.background = ''; card.style.color = ''; card.querySelectorAll('.mc-title,.mc-sub').forEach(el => el.style.color = ''); card.classList.remove('driver-battery-awaiting'); card.dataset.unifiedMode = 'charging'; }
         if (sub) sub.textContent = 'רכבים לטעינה';
         _setCardBadge('driver-battery', chargingPending, _HOME_CARD_HL);
+        _battTile(chargingPending, '⚡ רכבים לטעינה');
       } else {
         // מצב רגיל — אין בדיקות ואין טעינה
         if (card) { card.style.background = ''; card.style.color = ''; card.querySelectorAll('.mc-title,.mc-sub').forEach(el => el.style.color = ''); card.classList.remove('driver-battery-awaiting'); card.dataset.unifiedMode = 'battery'; }
         if (sub) sub.textContent = 'מילוי אחוזי טעינה וטווח';
         _setCardBadge('driver-battery', 0);
+        _battTile(0, null);
       }
     }
     _onSnap(_query(_colRef('battery_assignments'), _where('assignedTo','==',name)), snap => {
@@ -4238,6 +4262,8 @@ function loadDriverBadges() {
         const sub = document.getElementById('sub-driver-battery');
         if (sub) sub.textContent = 'ממתין להקמת משימה';
         _setCardBadge('driver-battery', 0);
+        if (card) card.style.display = 'none';
+        _battTile('⏳', 'ממתין להקמת משימה', 'linear-gradient(135deg,#64748b,#475569)');
       } else {
         _battPending = pending;
         _renderUnifiedBatteryCard();
