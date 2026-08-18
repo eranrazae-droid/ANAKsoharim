@@ -15873,7 +15873,7 @@ async function _openNotifySettingsInner() {
   const managerPhone = contacts['_managerPhone']?.value || '';
   const telegramToken = contacts['_telegramToken']?.value || '';
   // איברהים אינו מקבל התראות טלגרם — גיבוי הפתקים אליו מוקפא (_BSHOP_TG_BACKUP)
-  const drivers = ['ליאל','עופר','גיל','איתי'];
+  const drivers = ['ליאל','עופר','גיל','איתי','משה'];
   const telegramRow = `
     <div style="border:2px solid #229ED9;border-radius:12px;padding:12px 14px;margin-bottom:14px;background:#eaf7ff">
       <div style="font-weight:900;font-size:14px;margin-bottom:4px;color:#0d6ab0">✈️ טלגרם — חינמי, מועדף</div>
@@ -15955,7 +15955,7 @@ window.pickPahachGroup = pickPahachGroup;
 
 async function saveNotifySettings() {
   // איברהים אינו מקבל התראות טלגרם — גיבוי הפתקים אליו מוקפא (_BSHOP_TG_BACKUP)
-  const drivers = ['ליאל','עופר','גיל','איתי'];
+  const drivers = ['ליאל','עופר','גיל','איתי','משה'];
   const data = {};
   const telegramToken = document.getElementById('nc-telegram-token')?.value.trim();
   if (telegramToken) data['_telegramToken'] = { value: telegramToken };
@@ -15995,7 +15995,7 @@ async function refreshTelegramChats() {
     box.innerHTML = 'לא נמצאו הודעות עדיין — ודא שכל נהג שלח הודעה לבוט, ונסה שוב.';
     return;
   }
-  const drivers = ['ליאל','עופר','גיל','איתי'];
+  const drivers = ['ליאל','עופר','גיל','איתי','משה'];
   box.innerHTML = chats.map(chat => {
     const opts = ['<option value="">— שייך לנהג —</option>']
       .concat(drivers.map(d => `<option value="${d}">${d}</option>`)).join('');
@@ -19360,6 +19360,7 @@ async function submitCollectPickup() {
       try {
         await addDoc(collection(window._db, 'pickup_archive'), { ...car, collectedAt: _serverTs(), collectedBy: currentUser.name, collectedByText });
         await deleteDoc(doc(window._db, 'pickup_cars', id));
+        _notifyPickupCollected(car, collectedByText);
         ok++;
       } catch (err) { console.error('batch collect failed for', id, err); }
     }
@@ -19380,9 +19381,29 @@ async function submitCollectPickup() {
   _pendingCollectId = null;
   if (_pendingCollectFromHome) { closeModal('modal-driver-pickup'); loadStats(); }
   showToast('✅ הרכב הועבר לארכיון');
+  _notifyPickupCollected(car, collectedByText);
   _askTasksHandled(car);
 }
 window.submitCollectPickup = submitCollectPickup;
+
+/* התראה למשה על כל רכב שנאסף — אצלו זה הסימן להתקדם לרכב הבא.
+   נשלחת ברקע: כישלון בטלגרם לא מעכב ולא מבטל את האיסוף עצמו. */
+async function _notifyPickupCollected(car, collectedByText) {
+  try {
+    const contacts = await _loadDriverContacts();
+    const chatId = contacts['משה']?.telegramId;
+    if (!chatId) return;
+    const lines = [
+      '✅ רכב נאסף',
+      `🚗 ${car.plate || ''} ${[car.type, car.year].filter(Boolean).join(' · ')}`.trim(),
+      [car.address, _pickupCity(car)].filter(Boolean).join(', '),
+      collectedByText ? `👤 נאסף ע״י: ${collectedByText}` : '',
+      `📲 דווח: ${currentUser?.name || ''}`,
+    ].filter(Boolean);
+    await _sendTelegram(chatId, lines.join('\n'));
+  } catch (e) { console.error('pickup collected notify', e); }
+}
+
 
 // after a car is collected, ask which of its in-radius region tasks were handled
 let _handledPending = [];
