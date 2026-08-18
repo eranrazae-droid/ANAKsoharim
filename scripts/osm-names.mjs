@@ -9,4 +9,5 @@ if (j) {
   const list = (j.notOursCars || []).slice(0, 15).map(c => `${c.plate} · ${c.baalut || '—'}`);
   console.log('דוגמאות לא על תו סחר:\n  ' + list.join('\n  '));
   console.log('ירדו מהמלאי:', (j.goneFromStock || []).length);
+  console.log('סטטוס מול המאגר:', JSON.stringify(j.registryHttp));
 }

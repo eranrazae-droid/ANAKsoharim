@@ -125,7 +125,7 @@ exports.govilProxy = onRequest({ cors: true, region: "europe-west1" }, async (re
   if (req.query.q) params.set("q", req.query.q);
   params.set("limit", req.query.limit || "5");
   try {
-    const govRes = await fetch(`https://data.gov.il/api/3/action/datastore_search?${params.toString()}`);
+    const govRes = await _govFetch(`https://data.gov.il/api/3/action/datastore_search?${params.toString()}`);
     const data = await govRes.json();
     res.status(govRes.ok ? 200 : govRes.status).json(data);
   } catch (err) {
@@ -182,7 +182,7 @@ async function _fetchInventory() {
 }
 
 async function _recallLearnField() {
-  const res = await fetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=${_RECALL_RESOURCE}&limit=1`);
+  const res = await _govFetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=${_RECALL_RESOURCE}&limit=1`);
   const json = await res.json();
   const rec = json?.result?.records?.[0] || {};
   const keys = Object.keys(rec).filter((k) => !k.startsWith("_"));
@@ -201,7 +201,7 @@ async function _recallQueryBatch(field, plates) {
   return json.result?.records || [];
 }
 async function _recallQueryQ(plate) {
-  const res = await fetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=${_RECALL_RESOURCE}&q=${plate}&limit=5`);
+  const res = await _govFetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=${_RECALL_RESOURCE}&q=${plate}&limit=5`);
   if (!res.ok) throw new Error("HTTP " + res.status);
   const json = await res.json();
   if (!json.success) throw new Error("CKAN error");
@@ -230,7 +230,7 @@ async function _recallQueryBatchSmart(field, plates) {
 // result — an all-failed run must never silently wipe the open-recall list.
 async function _recallProbeWorks() {
   try {
-    const res = await fetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=${_RECALL_RESOURCE}&limit=1`);
+    const res = await _govFetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=${_RECALL_RESOURCE}&limit=1`);
     if (!res.ok) return false;
     const json = await res.json();
     return !!json.success && (json.result?.records || []).length > 0;
@@ -334,19 +334,19 @@ async function _runRecallScanInner() {
     // what the dataset looks like, which field was chosen, and what a direct
     // probe for one known plate returns in both filter modes and free-text.
     try {
-      const sampleRes = await fetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=${_RECALL_RESOURCE}&limit=2`);
+      const sampleRes = await _govFetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=${_RECALL_RESOURCE}&limit=2`);
       const sampleJson = await sampleRes.json().catch(() => ({}));
       const sampleRecs = sampleJson?.result?.records || [];
       const probePlate = cars[0]?.plate || "";
       const probe = {};
       for (const [mode, filters] of [["num", { [field]: [Number(probePlate)] }], ["str", { [field]: [String(probePlate)] }]]) {
         try {
-          const r = await fetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=${_RECALL_RESOURCE}&filters=${encodeURIComponent(JSON.stringify(filters))}&limit=3`);
+          const r = await _govFetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=${_RECALL_RESOURCE}&filters=${encodeURIComponent(JSON.stringify(filters))}&limit=3`);
           probe[mode] = { status: r.status, count: (await r.json().catch(() => ({})))?.result?.records?.length ?? -1 };
         } catch (e) { probe[mode] = { error: e.message }; }
       }
       try {
-        const r = await fetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=${_RECALL_RESOURCE}&q=${probePlate}&limit=3`);
+        const r = await _govFetch(`https://data.gov.il/api/3/action/datastore_search?resource_id=${_RECALL_RESOURCE}&q=${probePlate}&limit=3`);
         const j = await r.json().catch(() => ({}));
         probe.q = { status: r.status, count: j?.result?.records?.length ?? -1, sample: (j?.result?.records || [])[0] || null };
       } catch (e) { probe.q = { error: e.message }; }
@@ -1240,7 +1240,7 @@ const _VEHICLE_RESOURCE = "053cea08-09bc-40ec-8f7a-156f0677aff3";
    קטנה, והיא זו שקובעת אם להריץ סריקה מלאה. */
 async function _registryLastModified() {
   try {
-    const r = await (await fetch(`https://data.gov.il/api/3/action/resource_show?id=${_VEHICLE_RESOURCE}`)).json();
+    const r = await (await _govFetch(`https://data.gov.il/api/3/action/resource_show?id=${_VEHICLE_RESOURCE}`)).json();
     const d = r?.result || {};
     return String(d.last_modified || d.metadata_modified || "");
   } catch (err) { return ""; }
@@ -1248,6 +1248,24 @@ async function _registryLastModified() {
 
 // סוג הבעלות (baalut) של קבוצת לוחיות מהמאגר הפתוח. הפונקציה רצה בענן,
 // שם data.gov.il נגיש (בניגוד לדפדפן). מחזיר { plate: "פרטי"|"חברה"|... }.
+// data.gov.il חוסם בקשות בלי דפדפן מזוהה — כל הפניות למאגר עוברות דרך כאן
+const _GOV_HEADERS = {
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+  "Accept": "application/json, text/plain, */*",
+  "Accept-Language": "he-IL,he;q=0.9,en;q=0.8",
+  "Referer": "https://data.gov.il/",
+};
+let _govLast = { status: 0, body: "" };
+async function _govFetch(url) {
+  const res = await fetch(url, { headers: _GOV_HEADERS });
+  if (!res.ok) {
+    _govLast = { status: res.status, body: (await res.text().catch(() => "")).slice(0, 200) };
+  } else {
+    _govLast = { status: res.status, body: "" };
+  }
+  return res;
+}
+
 async function _ownRegistryBaalut(plates) {
   const out = {};
   const BATCH = 40;
@@ -1259,7 +1277,7 @@ async function _ownRegistryBaalut(plates) {
       const filters = encodeURIComponent(JSON.stringify({ mispar_rechev: vals }));
       const url = `https://data.gov.il/api/3/action/datastore_search?resource_id=${_VEHICLE_RESOURCE}&filters=${filters}&limit=${chunk.length}`;
       try {
-        const res = await fetch(url);
+        const res = await _govFetch(url);
         if (!res.ok) continue;
         const json = await res.json().catch(() => null);
         recs = json?.result?.records || [];
@@ -1432,6 +1450,7 @@ async function _runOwnershipScan() {
   });
   return {
     ok: true, checked: cars.length, notOurs: notOurs.length, unknown: unknown.length,
+    registryHttp: _govLast,
     notOursCars: notOurs, newUnchecked,
     changedToNot, changedToOurs, newAndNot, changedBaalut, goneFromStock,
     // הבעלות הקודמת של כל רכב שהשתנה — כדי לנסח "עבר מ… ל…"
