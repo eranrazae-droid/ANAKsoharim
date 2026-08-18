@@ -1,33 +1,22 @@
-// מריץ את סריקת הבעלויות ומדפיס את התוצאה בצורה קריאה
-const URL = 'https://europe-west1-anak-soharim.cloudfunctions.net/runOwnershipScanNow';
-console.log('⏳ מריץ סריקת בעלויות על כל המלאי…');
-const t0 = Date.now();
-const res = await fetch(URL, { signal: AbortSignal.timeout(540000) });
-const r = await res.json();
-console.log(`(${Math.round((Date.now() - t0) / 1000)} שניות)\n`);
-
-if (!r.ok) { console.log('❌ הסריקה נכשלה:', JSON.stringify(r)); process.exit(0); }
-
-console.log('═══════════ סיכום ═══════════');
-console.log(`  רכבים שנסרקו:        ${r.checked}`);
-console.log(`  ✅ תקינים (תו סחר):   ${r.checked - r.notOurs - r.unknown}`);
-console.log(`  ❌ לא על תו סחר:      ${r.notOurs}`);
-console.log(`  ❓ לא נמצאו במרשם:    ${r.unknown}`);
-console.log(`  🆕 חדשים שטרם נבדקו: ${(r.newUnchecked || []).length}`);
-
-const byType = {};
-for (const c of r.notOursCars || []) {
-  const k = c.baalut || '(לא נמצא במרשם)';
-  (byType[k] ||= []).push(c);
+// כל כמה זמן מאגר הרכבים הממשלתי מתעדכן בפועל
+const RES = '053cea08-09bc-40ec-8f7a-156f0677aff3';
+const r = await (await fetch(`https://data.gov.il/api/3/action/resource_show?id=${RES}`)).json();
+const d = r.result || {};
+console.log('=== מאגר רכבים פרטיים ומסחריים ===');
+for (const k of ['name','created','last_modified','metadata_modified','cache_last_updated','size','format']) {
+  if (d[k]) console.log(`  ${k}: ${d[k]}`);
 }
-if (Object.keys(byType).length) {
-  console.log('\n═══════ פירוט לפי סוג בעלות ═══════');
-  for (const [t, cars] of Object.entries(byType).sort((a, b) => b[1].length - a[1].length)) {
-    console.log(`\n▸ רשומים כ"${t}" — ${cars.length} רכבים:`);
-    for (const c of cars) {
-      console.log(`   ${c.plate}  ${[c.tozeret, c.degem, c.shnat].filter(Boolean).join(' ')}${c.ownerId ? '  · ' + c.ownerId : ''}`);
-    }
-  }
-} else {
-  console.log('\n✅ כל הרכבים במלאי רשומים על תו סחר');
+if (d.package_id) {
+  const p = await (await fetch(`https://data.gov.il/api/3/action/package_show?id=${d.package_id}`)).json();
+  const pk = p.result || {};
+  console.log('\n=== המאגר ההורה ===');
+  for (const k of ['title','metadata_created','metadata_modified']) if (pk[k]) console.log(`  ${k}: ${pk[k]}`);
+  const extras = (pk.extras || []).filter(e => /frequency|update|תדירות|עדכון/i.test(e.key + e.value));
+  for (const e of extras) console.log(`  ${e.key}: ${e.value}`);
+}
+const now = new Date();
+const lm = new Date(d.last_modified || d.metadata_modified);
+if (!isNaN(lm)) {
+  const hrs = (now - lm) / 36e5;
+  console.log(`\n⏱ עדכון אחרון לפני ${hrs.toFixed(1)} שעות (עכשיו: ${now.toISOString()})`);
 }
