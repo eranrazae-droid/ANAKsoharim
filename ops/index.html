@@ -139,6 +139,24 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
 .menu-card .mc-badge{display:inline-block;background:var(--danger);color:#fff;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:700;margin-top:8px}
 .menu-card .mc-badge.green{background:var(--success)}
 .menu-card .mc-badge.orange{background:var(--warning)}
+/* כרטיס רכב לאיסוף — כל הכרטיסים באותו גובה. מה שמשתנה בין רכב לרכב
+   (תחנה קרובה, משימות באזור, הערה) יושב באזור אחד בגובה קבוע שנגלל
+   בתוכו, כך שכרטיס עם משימה סמוכה אינו גבוה מכרטיס בלעדיה. */
+.pk-card{min-height:196px;display:flex;align-items:stretch}
+.pk-card > div{width:100%}
+.pk-info{min-height:0}
+.pk-extra{flex:1;min-height:0;overflow-y:auto;padding-left:2px}
+.pk-extra::-webkit-scrollbar{width:5px}
+.pk-extra::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+/* כותרת הכרטיס: מספר הרישוי מימין, ולצדו סוג הרכב והשנה */
+.pk-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px}
+.pk-model{font-size:14px;font-weight:800;color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pk-year{display:inline-block;margin-right:7px;background:var(--surface2);color:var(--text);border-radius:999px;padding:1px 9px;font-size:12px;font-weight:800}
+@media (max-width:700px){
+  .pk-card{min-height:0}
+  .pk-extra{max-height:120px}
+  .pk-model{white-space:normal}
+}
 /* כרטיס רכב לאיסוף בטלפון: הפרטים למעלה והפעולות מתחתם ברוחב מלא.
    בלי זה עמודת הכפתורים הקבועה חונקת את פרטי הרכב למסך צר. */
 @media (max-width:700px){
@@ -2319,18 +2337,24 @@ if ('serviceWorker' in navigator) {
   <div style="padding:12px 16px 0;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
     <input type="text" id="pickup-search-plate" placeholder="🔎 חפש מספר רכב" inputmode="numeric" oninput="renderPickupCars()" style="flex:1;min-width:140px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700">
     <button id="pickup-filter-btn" onclick="openPickupFilters()" style="flex:1;min-width:150px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;text-align:center">⚙️ מיון וסינון</button>
-    <button onclick="togglePickupMap()" style="flex:1;min-width:110px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;text-align:center">🗺️ מפה</button>
-    <button id="pickup-select-btn" onclick="toggleSelectAllPickup()" style="flex:1;min-width:120px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;text-align:center">☑️ סמן הכל</button>
+    <button onclick="openPickupActions()" style="flex:1;min-width:120px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;text-align:center">➕ פעולות</button>
   </div>
   <!-- שני שלישים ימניים לרשימה, שליש שמאלי למפה (במסך רחב בלבד) -->
   <div class="pickup-split">
     <div class="pickup-col-list">
-      <div style="padding:12px 16px 0" id="pickup-list">
+      <div style="padding:12px 16px 0;display:flex;align-items:center;gap:10px">
+        <button id="pickup-select-btn" onclick="toggleSelectAllPickup()" style= + btn + >☑️ סמן הכל</button>
+        <span id="pickup-select-count" style="font-size:12px;font-weight:800;color:var(--muted)"></span>
+      </div>
+      <div style="padding:8px 16px 0" id="pickup-list">
         <div class="loading"><div class="spinner"></div> טוען...</div>
       </div>
     </div>
     <div class="pickup-col-map">
-      <div id="pickup-map-status" style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;text-align:center"></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <button id="pickup-map-toggle" onclick="togglePickupMap()" style="flex-shrink:0;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;text-align:center">🗺️ הסתר מפה</button>
+        <div id="pickup-map-status" style="flex:1;font-size:12px;font-weight:700;color:var(--muted);text-align:center"></div>
+      </div>
       <div id="pickup-map"></div>
     </div>
   </div>
@@ -2352,12 +2376,6 @@ if ('serviceWorker' in navigator) {
     <input id="pickup-archive-search" oninput="renderPickupArchiveFiltered()" placeholder="🔍 חיפוש בארכיון (לוחית, דגם, עיר, מי אסף)..." style="display:none;width:100%;padding:9px 12px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;box-sizing:border-box;margin-bottom:10px">
     <div id="pickup-archive-body" style="display:none;flex-direction:column;gap:10px"></div>
   </div>
-  <!-- fixed, centered add buttons -->
-  <div id="pickup-add-bar" style="position:fixed;bottom:16px;left:0;right:0;display:flex;justify-content:center;gap:8px;padding:0 16px;z-index:55;pointer-events:none">
-    <button onclick="openFreeTextPickupModal()" style="pointer-events:auto;padding:12px 16px;border-radius:999px;border:none;background:var(--gold);color:#000;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,0.18)">🖼️ הוספה לפי תמונה</button>
-    <button onclick="openTextPickupModal()" style="pointer-events:auto;padding:12px 16px;border-radius:999px;border:none;background:#7c3aed;color:#fff;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,0.18)">📝 הוספה לפי מלל</button>
-    <button onclick="openOwnershipModal()" style="pointer-events:auto;padding:12px 16px;border-radius:999px;border:none;background:#2563eb;color:#fff;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,0.18)">📤 העלאת בעלויות</button>
-  </div>
 </div>
 
 <!-- ====== MODAL: SHARE PICKUP (desktop) ====== -->
@@ -2373,6 +2391,18 @@ if ('serviceWorker' in navigator) {
     <div id="share-docs" style="overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:10px"></div>
 
     <button class="btn-submit" id="share-download-all" onclick="_shareDownloadMergedPdf()" style="background:var(--surface2);color:var(--text);border:2px solid var(--border);width:100%;margin:12px 0 0">⬇️ הורד PDF אחד עם כל האישורים</button>
+  </div>
+</div>
+
+<!-- ====== MODAL: PICKUP ACTIONS ====== -->
+<div class="modal-overlay" id="modal-pickup-actions">
+  <div class="modal-box">
+    <div class="modal-title"><span>➕ פעולות</span> <button class="modal-close" onclick="closeModal('modal-pickup-actions')">✕</button></div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <button onclick="closeModal('modal-pickup-actions');openFreeTextPickupModal()" style="background:var(--gold);color:#000;border:none;border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:15px;font-weight:800;cursor:pointer">🖼️ הוספה לפי תמונה</button>
+      <button onclick="closeModal('modal-pickup-actions');openTextPickupModal()" style="background:#7c3aed;color:#fff;border:none;border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:15px;font-weight:800;cursor:pointer">📝 הוספה לפי מלל</button>
+      <button onclick="closeModal('modal-pickup-actions');openOwnershipModal()" style="background:#2563eb;color:#fff;border:none;border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:15px;font-weight:800;cursor:pointer">📤 העלאת בעלויות</button>
+    </div>
   </div>
 </div>
 
@@ -17526,10 +17556,27 @@ function togglePickupMap() {
   if (!col) return;
   const wide = window.matchMedia('(min-width:1000px)').matches;
   const shown = wide ? !col.classList.contains('closed') : col.classList.contains('open');
-  if (shown) { col.classList.toggle('closed', wide); col.classList.remove('open'); return; }
-  col.classList.remove('closed'); col.classList.add('open');
-  drawPickupMap();
+  if (shown) {
+    col.classList.toggle('closed', wide);
+    col.classList.remove('open');
+  } else {
+    col.classList.remove('closed');
+    col.classList.add('open');
+    drawPickupMap();
+  }
+  _syncMapToggleLabel();
 }
+
+// הכפתור יושב על המפה עצמה, ולכן הוא צריך לומר מה תעשה הלחיצה הבאה
+function _syncMapToggleLabel() {
+  const col = document.querySelector('.pickup-col-map');
+  const b = document.getElementById('pickup-map-toggle');
+  if (!col || !b) return;
+  const wide = window.matchMedia('(min-width:1000px)').matches;
+  const shown = wide ? !col.classList.contains('closed') : col.classList.contains('open');
+  b.textContent = shown ? '🗺️ הסתר מפה' : '🗺️ הצג מפה';
+}
+window._syncMapToggleLabel = _syncMapToggleLabel;
 window.togglePickupMap = togglePickupMap;
 
 async function drawPickupMap() {
@@ -17730,11 +17777,11 @@ function _syncSelectAllLabel() {
 function _updatePickupBatchBar() {
   const bar = document.getElementById('pickup-batch-bar');
   const cnt = document.getElementById('pickup-batch-count');
-  const addBar = document.getElementById('pickup-add-bar');
   const active = _pickupSelected.size > 0;
   if (bar) bar.style.display = active ? 'flex' : 'none';
-  if (addBar) addBar.style.display = active ? 'none' : 'flex';
   if (cnt) cnt.textContent = `נבחרו ${_pickupSelected.size}`;
+  const cnt2 = document.getElementById('pickup-select-count');
+  if (cnt2) cnt2.textContent = _pickupSelected.size ? `נבחרו ${_pickupSelected.size}` : '';
 }
 
 function batchCollectPickup() {
@@ -18353,6 +18400,9 @@ const _PICKUP_SORTS = [
   '📍 לפי מרחק — מהקרוב לרחוק',
 ];
 
+function openPickupActions() { openModal('modal-pickup-actions'); }
+window.openPickupActions = openPickupActions;
+
 function openPickupFilters() {
   _renderPickupFilterPanel();
   openModal('modal-pickup-filters');
@@ -18431,6 +18481,7 @@ function loadPickupCars() {
     renderPickupCars();
     _listenAddrContacts();
     _syncAddrContacts();
+    _syncMapToggleLabel();
     if (!_pickupTestBackfillDone) {
       _pickupTestBackfillDone = true;
       _backfillPickupTestDates();
@@ -18921,16 +18972,18 @@ function _pickupCardHtml(c) {
   // sent to a driver but not collected yet → highlight the whole card in yellow
   // (an explicit selection still wins, so the manager can see what he picked)
   const sentStyle = (!checked && c.assignedDriver) ? 'background:#fef9c3;border:2px solid #eab308;' : '';
-  return `<div class="vehicle-card" style="border-right:5px solid ${waitColor};margin-bottom:8px;cursor:pointer;${sentStyle}${checked?'background:#dcfce7;border:2px solid #059669':''}" onclick="openEditPickupModal('${e(c.id)}')">
+  return `<div class="vehicle-card pk-card" style="border-right:5px solid ${waitColor};margin-bottom:8px;cursor:pointer;${sentStyle}${checked?'background:#dcfce7;border:2px solid #059669':''}" onclick="openEditPickupModal('${e(c.id)}')">
    <div style="display:flex;align-items:center;gap:10px">
     <div style="flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:6px">
      <div onclick="event.stopPropagation();togglePickupPin('${e(c.id)}')" title="${pinned?'ביטול נעיצה':'נעיצה בראש הרשימה'}" style="cursor:pointer;width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:15px;${pinned?'background:#f59e0b;border:2px solid #f59e0b':'background:#fff;border:2px solid #cbd5e1;opacity:.55'}">📌</div>
      <div onclick="event.stopPropagation();togglePickupSelect('${e(c.id)}')" title="סימון" style="cursor:pointer;width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:900;${checked?'background:#16a34a;color:#fff;border:2px solid #16a34a':'background:#fff;color:transparent;border:2px solid #cbd5e1'}">✓</div>
     </div>
     <div class="pk-content" style="flex:1;min-width:0;display:flex;justify-content:space-between;align-items:stretch;gap:8px">
-      <div style="flex:1;min-width:0">
-        <div class="vehicle-plate">${e(c.plate||'')}</div>
-        ${c.type ? `<div class="vehicle-info">${e(c.type)}${c.year ? ' · ' + e(c.year) : ''}</div>` : ''}
+      <div class="pk-info" style="flex:1;min-width:0;display:flex;flex-direction:column">
+        <div class="pk-head">
+          <div class="vehicle-plate" style="margin:0">${e(c.plate||'')}</div>
+          ${c.type ? `<div class="pk-model">${e(c.type)}${c.year ? `<span class="pk-year">${e(c.year)}</span>` : ''}</div>` : ''}
+        </div>
         <div class="vehicle-meta">
           ${c.color ? `<span class="tag assignee">🎨 ${e(c.color)}</span>` : ''}
           ${km ? `<span class="tag assignee">🛣️ ${e(km)}</span>` : ''}
@@ -18944,9 +18997,11 @@ function _pickupCardHtml(c) {
           ${c.test ? `<span style="font-size:13px;font-weight:800;color:${_testExpired(c.test)?'#dc2626':'var(--dark)'}">🔧 טסט: ${e(c.test)}${_testExpired(c.test)?' — פג תוקף':''}</span>` : ''}
           ${c.doc ? `<span style="background:#38bdf8;color:#fff;border-radius:999px;padding:3px 11px;font-size:12px;font-weight:800;white-space:nowrap">✓ אישור העברת בעלות</span>` : ''}
         </div>` : ''}
-        ${_pickupStationHtml(c, e)}
-        ${c.note ? `<div style="margin-top:6px;background:#fef08a;color:#000;border-right:5px solid #eab308;border-radius:8px;padding:7px 10px;font-size:13px;font-weight:800">📝 ${e(c.note)}</div>` : ''}
-        ${_pickupRegionTasksHtml(c, e)}
+        <div class="pk-extra">
+          ${_pickupStationHtml(c, e)}
+          ${c.note ? `<div style="margin-top:6px;background:#fef08a;color:#000;border-right:5px solid #eab308;border-radius:8px;padding:7px 10px;font-size:13px;font-weight:800">📝 ${e(c.note)}</div>` : ''}
+          ${_pickupRegionTasksHtml(c, e)}
+        </div>
       </div>
       <div class="pk-actions" style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;width:240px">
         ${_pickupCellGrid([
