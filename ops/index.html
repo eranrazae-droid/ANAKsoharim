@@ -139,30 +139,35 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
 .menu-card .mc-badge{display:inline-block;background:var(--danger);color:#fff;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:700;margin-top:8px}
 .menu-card .mc-badge.green{background:var(--success)}
 .menu-card .mc-badge.orange{background:var(--warning)}
-/* כרטיס רכב לאיסוף — כל הכרטיסים באותו גובה. מה שמשתנה בין רכב לרכב
-   (תחנה קרובה, משימות באזור, הערה) יושב באזור אחד בגובה קבוע שנגלל
-   בתוכו, כך שכרטיס עם משימה סמוכה אינו גבוה מכרטיס בלעדיה. */
-.pk-card{min-height:196px;display:flex;align-items:stretch}
-.pk-card > div{width:100%}
-.pk-info{min-height:0}
-.pk-extra{flex:1;min-height:0;overflow-y:auto;padding-left:2px}
-.pk-extra::-webkit-scrollbar{width:5px}
-.pk-extra::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
-/* כותרת הכרטיס: מספר הרישוי מימין, ולצדו סוג הרכב והשנה */
-.pk-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px}
-.pk-model{font-size:14px;font-weight:800;color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pk-year{display:inline-block;margin-right:7px;background:var(--surface2);color:var(--text);border-radius:999px;padding:1px 9px;font-size:12px;font-weight:800}
+/* ── קוביות מכוניות לאיסוף ───────────────────────────────────────────
+   קובייה אחידה לכל רכב: מספר, ספק, דגם, מיקום, תוקף טסט, סטטוס וארבע
+   פעולות. כולן באותו גובה בדיוק, כך שהמסך מציג כמה שיותר רכבים. */
+#pickup-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;align-content:start}
+.pk-tile{background:var(--card);border:2px solid var(--border);border-radius:14px;padding:10px 12px;
+  display:flex;flex-direction:column;gap:6px;height:212px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.05);transition:box-shadow .15s}
+.pk-tile:hover{box-shadow:0 3px 12px rgba(0,0,0,.12)}
+.pk-tile-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.pk-plate{font-size:19px;font-weight:900;letter-spacing:.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.pk-tick{width:24px;height:24px;border:2px solid #cbd5e1;border-radius:7px;display:flex;align-items:center;
+  justify-content:center;font-size:14px;font-weight:900;cursor:pointer;flex-shrink:0}
+.pk-who{font-size:13px;font-weight:800;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pk-year{display:inline-block;margin-right:6px;background:var(--surface2);color:var(--text);border-radius:999px;
+  padding:0 8px;font-size:11.5px;font-weight:800}
+.pk-chips{display:flex;gap:5px;flex-wrap:wrap;overflow:hidden;max-height:22px}
+.pk-chip{background:var(--surface2);color:var(--muted);border-radius:999px;padding:2px 9px;font-size:11.5px;
+  font-weight:700;white-space:nowrap}
+.pk-lines{display:flex;flex-direction:column;gap:4px}
+.pk-line{font-size:12.5px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pk-nav{display:flex;align-items:center;gap:6px;background:#1d4ed8;color:#fff;border-radius:8px;padding:5px 9px;
+  text-decoration:none}
+.pk-status{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:auto}
+.pk-badge{display:flex;align-items:center;justify-content:center;height:28px;border-radius:8px;font-size:11.5px;
+  font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 6px}
+.pk-acts{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+.pk-acts button{border:none;border-radius:8px;color:#fff;font-size:15px;padding:7px 0;cursor:pointer;font-family:Heebo,sans-serif}
 @media (max-width:700px){
-  .pk-card{min-height:0}
-  .pk-extra{max-height:120px}
-  .pk-model{white-space:normal}
-}
-/* כרטיס רכב לאיסוף בטלפון: הפרטים למעלה והפעולות מתחתם ברוחב מלא.
-   בלי זה עמודת הכפתורים הקבועה חונקת את פרטי הרכב למסך צר. */
-@media (max-width:700px){
-  .pk-content{flex-direction:column;align-items:stretch}
-  .pk-actions{width:100% !important}
-  .pk-content .vehicle-meta{gap:6px}
+  #pickup-list{grid-template-columns:1fr}
+  .pk-tile{height:216px}
 }
 .driver-battery-awaiting{background:#0891b2 !important;color:#fff !important}
 .driver-battery-awaiting .mc-title,.driver-battery-awaiting .mc-sub{color:#fff !important}
@@ -2335,26 +2340,24 @@ if ('serviceWorker' in navigator) {
   </div>
   <div id="pickup-dup-banner" style="display:none;margin:12px 16px 0;background:#fef9c3;border:2px solid #ca8a04;border-radius:12px;padding:12px 14px;font-size:13px;font-weight:700;color:#854d0e"></div>
   <div style="padding:12px 16px 0;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-    <input type="text" id="pickup-search-plate" placeholder="🔎 חפש מספר רכב" inputmode="numeric" oninput="renderPickupCars()" style="flex:1;min-width:140px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700">
-    <button id="pickup-filter-btn" onclick="openPickupFilters()" style="flex:1;min-width:150px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;text-align:center">⚙️ מיון וסינון</button>
-    <button onclick="openPickupActions()" style="flex:1;min-width:120px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;text-align:center">➕ פעולות</button>
+    <input type="text" id="pickup-search-plate" placeholder="🔎 חפש מספר רכב" inputmode="numeric" oninput="renderPickupCars()" style="flex:1;min-width:150px;padding:9px 12px;border-radius:999px;border:2px solid var(--border);background:var(--card);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700">
+    <button id="pickup-filter-btn" onclick="openPickupFilters()" style="flex:1;min-width:140px;padding:9px 14px;border-radius:999px;border:none;background:#0d9488;color:#fff;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer">⚙️ מיון וסינון</button>
+    <button onclick="openPickupActions()" style="flex:1;min-width:110px;padding:9px 14px;border-radius:999px;border:none;background:var(--gold);color:#000;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer">➕ פעולות</button>
+    <button id="pickup-map-toggle" onclick="togglePickupMap()" style="flex:1;min-width:110px;padding:9px 14px;border-radius:999px;border:none;background:var(--dark);color:#fff;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer">🗺️ הצג מפה</button>
   </div>
   <!-- שני שלישים ימניים לרשימה, שליש שמאלי למפה (במסך רחב בלבד) -->
   <div class="pickup-split">
     <div class="pickup-col-list">
       <div style="padding:12px 16px 0;display:flex;align-items:center;gap:10px">
-        <button id="pickup-select-btn" onclick="toggleSelectAllPickup()" style= + btn + >☑️ סמן הכל</button>
-        <span id="pickup-select-count" style="font-size:12px;font-weight:800;color:var(--muted)"></span>
+        <button id="pickup-select-btn" onclick="toggleSelectAllPickup()" style="display:inline-flex;align-items:center;gap:7px;padding:7px 15px;border-radius:999px;border:2px solid var(--border);background:var(--card);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer">☑️ סמן הכל</button>
+        <span id="pickup-select-count" style="font-size:12.5px;font-weight:800;color:var(--muted)"></span>
       </div>
       <div style="padding:8px 16px 0" id="pickup-list">
         <div class="loading"><div class="spinner"></div> טוען...</div>
       </div>
     </div>
     <div class="pickup-col-map">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-        <button id="pickup-map-toggle" onclick="togglePickupMap()" style="flex-shrink:0;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;text-align:center">🗺️ הסתר מפה</button>
-        <div id="pickup-map-status" style="flex:1;font-size:12px;font-weight:700;color:var(--muted);text-align:center"></div>
-      </div>
+      <div id="pickup-map-status" style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;text-align:center"></div>
       <div id="pickup-map"></div>
     </div>
   </div>
@@ -17772,6 +17775,9 @@ function _syncSelectAllLabel() {
   if (!btn) return;
   const allSelected = _pickupShownIds.length > 0 && _pickupShownIds.every(id => _pickupSelected.has(id));
   btn.textContent = allSelected ? '❎ נקה הכל' : '☑️ סמן הכל';
+  btn.style.background = allSelected ? '#16a34a' : 'var(--card)';
+  btn.style.color = allSelected ? '#fff' : 'var(--text)';
+  btn.style.borderColor = allSelected ? '#16a34a' : 'var(--border)';
 }
 
 function _updatePickupBatchBar() {
@@ -18963,65 +18969,63 @@ function _pickupBtnGrid(btns) {
 
 function _pickupCardHtml(c) {
   const e = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  const km = c.km ? _fmtKm(c.km) + ' ק"מ' : '';
+  const km = c.km ? _fmtKm(c.km) : '';
   const days = _pickupDays(c);
-  const waitLabel = days === null ? '' : `${days} ימי המתנה`;
-  const waitColor = days === null ? '#6b7280' : days > 14 ? '#dc2626' : days > 7 ? '#f59e0b' : '#16a34a';
+  const waitLabel = days === null ? '' : `${days === 1 ? 'יום המתנה' : days + ' ימי המתנה'}`;
+  // צבע רגוע כברירת מחדל; כתום אחרי שבוע ואדום אחרי שבועיים
+  const waitColor = days === null ? '#64748b' : days > 14 ? '#dc2626' : days > 7 ? '#d97706' : '#64748b';
   const checked = _pickupSelected.has(c.id);
   const pinned = !!c.pinned;
-  // sent to a driver but not collected yet → highlight the whole card in yellow
-  // (an explicit selection still wins, so the manager can see what he picked)
-  const sentStyle = (!checked && c.assignedDriver) ? 'background:#fef9c3;border:2px solid #eab308;' : '';
-  return `<div class="vehicle-card pk-card" style="border-right:5px solid ${waitColor};margin-bottom:8px;cursor:pointer;${sentStyle}${checked?'background:#dcfce7;border:2px solid #059669':''}" onclick="openEditPickupModal('${e(c.id)}')">
-   <div style="display:flex;align-items:center;gap:10px">
-    <div style="flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:6px">
-     <div onclick="event.stopPropagation();togglePickupPin('${e(c.id)}')" title="${pinned?'ביטול נעיצה':'נעיצה בראש הרשימה'}" style="cursor:pointer;width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:15px;${pinned?'background:#f59e0b;border:2px solid #f59e0b':'background:#fff;border:2px solid #cbd5e1;opacity:.55'}">📌</div>
-     <div onclick="event.stopPropagation();togglePickupSelect('${e(c.id)}')" title="סימון" style="cursor:pointer;width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:900;${checked?'background:#16a34a;color:#fff;border:2px solid #16a34a':'background:#fff;color:transparent;border:2px solid #cbd5e1'}">✓</div>
-    </div>
-    <div class="pk-content" style="flex:1;min-width:0;display:flex;justify-content:space-between;align-items:stretch;gap:8px">
-      <div class="pk-info" style="flex:1;min-width:0;display:flex;flex-direction:column">
-        <div class="pk-head">
-          <div class="vehicle-plate" style="margin:0">${e(c.plate||'')}</div>
-          ${c.type ? `<div class="pk-model">${e(c.type)}${c.year ? `<span class="pk-year">${e(c.year)}</span>` : ''}</div>` : ''}
-        </div>
-        <div class="vehicle-meta">
-          ${c.color ? `<span class="tag assignee">🎨 ${e(c.color)}</span>` : ''}
-          ${km ? `<span class="tag assignee">🛣️ ${e(km)}</span>` : ''}
-          ${c.contact ? `<span class="tag assignee">👤 ${e(c.contact)}</span>` : ''}
-          ${_pickupCity(c) ? `<span class="tag assignee">🏙️ ${e(_pickupCity(c))}</span>` : ''}
-          ${c.address ? (_pickupNavUrl(c)
-            ? `<a class="tag assignee" href="${_pickupNavUrl(c)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="text-decoration:none;color:inherit">📍 ${e(c.address)} 🚶</a>`
-            : `<span class="tag assignee">📍 ${e(c.address)}</span>`) : ''}
-        </div>
-        ${(c.test || c.doc) ? `<div style="margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          ${c.test ? `<span style="font-size:13px;font-weight:800;color:${_testExpired(c.test)?'#dc2626':'var(--dark)'}">🔧 טסט: ${e(c.test)}${_testExpired(c.test)?' — פג תוקף':''}</span>` : ''}
-          ${c.doc ? `<span style="background:#38bdf8;color:#fff;border-radius:999px;padding:3px 11px;font-size:12px;font-weight:800;white-space:nowrap">✓ אישור העברת בעלות</span>` : ''}
-        </div>` : ''}
-        <div class="pk-extra">
-          ${_pickupStationHtml(c, e)}
-          ${c.note ? `<div style="margin-top:6px;background:#fef08a;color:#000;border-right:5px solid #eab308;border-radius:8px;padding:7px 10px;font-size:13px;font-weight:800">📝 ${e(c.note)}</div>` : ''}
-          ${_pickupRegionTasksHtml(c, e)}
-        </div>
+  const expired = c.test && _testExpired(c.test);
+  const place = c.address || _pickupCity(c) || '';
+  const nav = _pickupNavUrl(c);
+  const sent = !!c.assignedDriver;
+  // רכב שנשלח לנהג מקבל רקע צהוב; רכב שסומן — ירוק, והסימון גובר
+  const bg = checked ? 'background:#dcfce7;border-color:#059669;' : sent ? 'background:#fef9c3;border-color:#eab308;' : '';
+
+  return `<div class="pk-tile" style="border-top:4px solid ${waitColor};${bg}" onclick="openEditPickupModal('${e(c.id)}')">
+    <div class="pk-tile-top">
+      <div style="display:flex;align-items:center;gap:7px;min-width:0">
+        <div onclick="event.stopPropagation();togglePickupSelect('${e(c.id)}')" title="סימון" class="pk-tick" style="${checked?'background:#16a34a;color:#fff;border-color:#16a34a':'background:var(--card);color:transparent'}">✓</div>
+        <span class="pk-plate">${e(c.plate||'')}</span>
       </div>
-      <div class="pk-actions" style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;width:240px">
-        ${_pickupCellGrid([
-          _pickupSourceTag(c),
-          waitLabel ? `<span style="flex:1;display:flex;align-items:center;justify-content:center;height:100%;min-height:38px;background:#d97706;color:#fff;border-radius:8px;font-size:14px;font-weight:800;white-space:nowrap">⏱ ${waitLabel}</span>` : '',
-          // משבצת הנהג קיימת תמיד: כשעוד לא נשלח — מלבן מקווקו שאומר זאת
-          c.assignedDriver
-            ? `<span style="flex:1;display:flex;align-items:center;justify-content:center;height:100%;min-height:38px;background:#1e40af;color:#fff;border-radius:8px;font-size:14px;font-weight:800;white-space:nowrap">🚗 ${e(c.assignedDriver)}</span>`
-            : `<span style="flex:1;display:flex;align-items:center;justify-content:center;height:100%;min-height:38px;background:transparent;color:var(--muted);border:2px dashed var(--border);border-radius:8px;font-size:13px;font-weight:800;white-space:nowrap">עדיין לא נשלח לנהג</span>`,
-        ].filter(Boolean))}
-        ${_pickupBtnGrid([
-          [`openSendPickupToDriver('${e(c.id)}')`, '📲 שלח לנהג', '#0ea5e9'],
-          [`sendPickupCarIntake('${e(c.id)}')`, '📥 שלח קליטה', '#7c3aed',
-            c.assignedDriver ? '' : 'קודם שלח את הרכב לנהג, ואז אפשר לשלוח קליטה'],
-          [`collectPickupCar('${e(c.id)}')`, '✅ הרכב נאסף', '#059669'],
-          [`deletePickupCar('${e(c.id)}')`, '🗑️ הסר', '#ef4444'],
-        ])}
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+        ${_pickupSourceTag(c)}
+        <div onclick="event.stopPropagation();togglePickupPin('${e(c.id)}')" title="${pinned?'ביטול נעיצה':'נעיצה בראש'}" class="pk-tick" style="${pinned?'background:#f59e0b;border-color:#f59e0b':'background:var(--card);opacity:.5'}">📌</div>
       </div>
     </div>
-   </div>
+
+    <div class="pk-who">${e(c.type || '—')}${c.year ? `<span class="pk-year">${e(c.year)}</span>` : ''}</div>
+
+    <div class="pk-chips">
+      ${c.color ? `<span class="pk-chip">${e(c.color)}</span>` : ''}
+      ${km ? `<span class="pk-chip">${e(km)} ק"מ</span>` : ''}
+      ${c.doc ? `<span class="pk-chip" style="background:#e0f2fe;color:#0369a1">✓ בעלות</span>` : ''}
+      ${c.note ? `<span class="pk-chip" style="background:#fef08a;color:#713f12" title="${e(c.note)}">📝 הערה</span>` : ''}
+    </div>
+
+    <div class="pk-lines">
+      ${place ? (nav
+        ? `<a class="pk-line pk-nav" href="${nav}" target="_blank" rel="noopener" onclick="event.stopPropagation()">📍 ${e(place)} <span style="margin-right:auto;font-size:11px">🚶 ניווט</span></a>`
+        : `<div class="pk-line">📍 ${e(place)}</div>`) : `<div class="pk-line" style="color:var(--muted)">📍 אין כתובת</div>`}
+      <div class="pk-line" style="${expired ? 'color:#dc2626;font-weight:900' : ''}">🔧 טסט: ${c.test ? e(c.test) : '—'}${expired ? ' · פג תוקף' : ''}</div>
+    </div>
+
+    <div class="pk-status">
+      <span class="pk-badge" style="background:${waitColor};color:#fff">⏱ ${waitLabel || 'חדש'}</span>
+      ${sent
+        ? `<span class="pk-badge" style="background:#1e40af;color:#fff">🚗 ${e(c.assignedDriver)}</span>`
+        : `<span class="pk-badge" style="border:2px dashed var(--border);color:var(--muted)">לא נשלח לנהג</span>`}
+    </div>
+
+    <div class="pk-acts">
+      <button onclick="event.stopPropagation();openSendPickupToDriver('${e(c.id)}')" title="שלח לנהג" style="background:#0ea5e9">📲</button>
+      ${sent
+        ? `<button onclick="event.stopPropagation();sendPickupCarIntake('${e(c.id)}')" title="שלח קליטה" style="background:#7c3aed">📥</button>`
+        : `<button onclick="event.stopPropagation();showToast('קודם שלח את הרכב לנהג, ואז אפשר לשלוח קליטה', 4000)" title="צריך קודם לשלוח לנהג" style="background:var(--surface2);color:var(--muted);border:2px dashed var(--border);cursor:not-allowed">📥</button>`}
+      <button onclick="event.stopPropagation();collectPickupCar('${e(c.id)}')" title="הרכב נאסף" style="background:#059669">✅</button>
+      <button onclick="event.stopPropagation();deletePickupCar('${e(c.id)}')" title="הסר" style="background:#ef4444">🗑️</button>
+    </div>
   </div>`;
 }
 
