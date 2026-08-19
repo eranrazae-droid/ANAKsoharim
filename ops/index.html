@@ -18348,7 +18348,7 @@ const _PICKUP_LOGOS = {
 function _pickupSourceTag(c) {
   const logo = c && c.source ? _PICKUP_LOGOS[c.source] : null;
   if (!logo) return '';
-  return `<span title="${c.source}" style="display:inline-flex;align-items:center;justify-content:center;width:92px;height:28px;border-radius:7px;background:${_pickupSourceColor(c.source)};border:1px solid ${_pickupSourceColor(c.source)};overflow:hidden;flex-shrink:0">${logo}</span>`;
+  return `<span title="${c.source}" style="display:inline-flex;align-items:center;justify-content:center;width:100%;height:28px;border-radius:7px;background:${_pickupSourceColor(c.source)};border:1px solid ${_pickupSourceColor(c.source)};overflow:hidden;flex-shrink:0">${logo}</span>`;
 }
 
 // בורר הספק בטופס ההוספה והעריכה
@@ -18369,15 +18369,24 @@ function pickupPickSource(name) {
 }
 window.pickupPickSource = pickupPickSource;
 
-// כפתורי הפעולה בכרטיס: שתי עמודות במקום טור אחד ארוך, וכל הכפתורים
-// באותו גודל בדיוק. כפתור בודד בשורה האחרונה נפרס על שתי העמודות.
+// שתי שורות הפעולה בכרטיס בנויות על אותה רשת: שתי עמודות שוות ברוחב
+// מלא, ופריט בודד בשורה האחרונה נפרס על שתיהן — כך אין שוליים ריקים.
+function _pickupCell(html, span) {
+  return `<div style="${span ? 'grid-column:span 2;' : ''}display:flex">${html}</div>`;
+}
+function _pickupGridWrap(cells) {
+  return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;width:100%">${cells.join('')}</div>`;
+}
+function _pickupCellGrid(items) {
+  const odd = items.length % 2 === 1;
+  return _pickupGridWrap(items.map((html, i) => _pickupCell(html, odd && i === items.length - 1)));
+}
 function _pickupBtnGrid(btns) {
   const odd = btns.length % 2 === 1;
-  return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;width:230px">` +
-    btns.map(([fn, label, color], i) => {
-      const span = (odd && i === btns.length - 1) ? 'grid-column:span 2;' : '';
-      return `<button onclick="event.stopPropagation();${fn}" style="${span}background:${color};color:#fff;border:none;border-radius:10px;padding:9px 6px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;line-height:1.2;cursor:pointer;white-space:nowrap;width:100%">${label}</button>`;
-    }).join('') + `</div>`;
+  return _pickupGridWrap(btns.map(([fn, label, color], i) => {
+    const span = (odd && i === btns.length - 1) ? 'grid-column:span 2;' : '';
+    return `<button onclick="event.stopPropagation();${fn}" style="${span}background:${color};color:#fff;border:none;border-radius:8px;padding:9px 6px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;line-height:1.2;cursor:pointer;white-space:nowrap;width:100%">${label}</button>`;
+  }));
 }
 
 function _pickupCardHtml(c) {
@@ -18418,12 +18427,12 @@ function _pickupCardHtml(c) {
         ${c.note ? `<div style="margin-top:6px;background:#fef08a;color:#000;border-right:5px solid #eab308;border-radius:8px;padding:7px 10px;font-size:13px;font-weight:800">📝 ${e(c.note)}</div>` : ''}
         ${_pickupRegionTasksHtml(c, e)}
       </div>
-      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">
-        <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end">
-          ${_pickupSourceTag(c)}
-          ${waitLabel ? `<span style="background:#d97706;color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;white-space:nowrap">⏱ ${waitLabel}</span>` : ''}
-          ${c.assignedDriver ? `<span style="background:#1e40af;color:#fff;border-radius:999px;padding:4px 10px;font-size:12px;font-weight:700;white-space:nowrap">🚗 ${e(c.assignedDriver)}</span>` : ''}
-        </div>
+      <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;width:240px">
+        ${_pickupCellGrid([
+          _pickupSourceTag(c),
+          waitLabel ? `<span style="flex:1;display:flex;align-items:center;justify-content:center;height:28px;background:#d97706;color:#fff;border-radius:7px;font-size:12px;font-weight:700;white-space:nowrap">⏱ ${waitLabel}</span>` : '',
+          c.assignedDriver ? `<span style="flex:1;display:flex;align-items:center;justify-content:center;height:28px;background:#1e40af;color:#fff;border-radius:7px;font-size:12px;font-weight:700;white-space:nowrap">🚗 ${e(c.assignedDriver)}</span>` : '',
+        ].filter(Boolean))}
         ${_pickupBtnGrid([
           [`openSendPickupToDriver('${e(c.id)}')`, '📲 שלח לנהג', '#0ea5e9'],
           ...(c.assignedDriver ? [[`sendPickupCarIntake('${e(c.id)}')`, '📥 שלח קליטה', '#7c3aed']] : []),
