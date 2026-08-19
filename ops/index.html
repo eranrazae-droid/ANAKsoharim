@@ -2375,7 +2375,10 @@ if ('serviceWorker' in navigator) {
       <div id="pickup-sort-btns" style="display:flex;flex-direction:column;gap:6px"></div>
     </div>
 
-    <button class="btn-submit" onclick="closeModal('modal-pickup-filters')" style="background:var(--dark);color:#fff;width:100%">סגור</button>
+    <div style="display:flex;gap:8px">
+      <button class="btn-submit" onclick="resetPickupFilters()" style="background:var(--surface2);color:var(--text);border:2px solid var(--border);flex:1;margin:0">♻️ אפס מסננים</button>
+      <button class="btn-submit" onclick="closeModal('modal-pickup-filters')" style="background:var(--dark);color:#fff;flex:1;margin:0">סגור</button>
+    </div>
   </div>
 </div>
 
@@ -17900,6 +17903,20 @@ function setPickupSort(i) {
 }
 window.setPickupSort = setPickupSort;
 
+// חזרה למצב ההתחלתי: כל החברות, כל הערים, והחדשים ביותר קודם
+function resetPickupFilters() {
+  _pickupCompany = '';
+  _pickupDistSort = false;
+  _pickupSortMode = 0;
+  const city = document.getElementById('pickup-filter-city');
+  if (city) city.value = '';
+  const term = document.getElementById('pickup-search-plate');
+  if (term) term.value = '';
+  _renderPickupFilterPanel();
+  renderPickupCars();
+}
+window.resetPickupFilters = resetPickupFilters;
+
 // הכפתור במסך מראה מה פעיל, כדי שלא יהיה סינון נסתר
 function _syncPickupFilterBtn() {
   const btn = document.getElementById('pickup-filter-btn');
@@ -18201,6 +18218,8 @@ function renderPickupCars() {
   const term = (document.getElementById('pickup-search-plate')?.value || '').replace(/\D/g, '');
   // matches from the start of the number, so "42" is the cars that begin with 42
   if (term) cars = cars.filter(c => String(c.plate || '').replace(/\D/g, '').startsWith(term));
+  // סינון לפי חברה — מציג רק את הרכבים של הספק שסומן
+  if (_pickupCompany) cars = cars.filter(c => (c.source || '') === _pickupCompany);
   // sort
   if (_pickupSortMode === 0) {
     cars.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
