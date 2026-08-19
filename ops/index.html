@@ -164,6 +164,14 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
 .pk-badge{display:flex;align-items:center;justify-content:center;height:28px;border-radius:8px;font-size:11.5px;
   font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 6px}
 .pk-acts{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+.pk-drag{width:26px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:7px;
+  border:2px solid var(--border);background:var(--card);color:var(--muted);font-size:13px;font-weight:900;
+  cursor:grab;touch-action:none;user-select:none;flex-shrink:0;letter-spacing:-1px}
+.pk-drag:active{cursor:grabbing}
+.pk-tile.pk-dragging{opacity:.28}
+.pk-ghost{position:fixed;z-index:9999;pointer-events:none;box-shadow:0 12px 30px rgba(0,0,0,.28);
+  transform:rotate(1.2deg) scale(1.02);opacity:.97;margin:0}
+.pk-shift{transition:transform .18s cubic-bezier(.2,.7,.3,1)}
 .pk-acts button{border:none;border-radius:8px;color:#fff;font-size:15px;padding:7px 0;cursor:pointer;font-family:Heebo,sans-serif}
 @media (max-width:700px){
   #pickup-list{grid-template-columns:1fr}
@@ -18398,6 +18406,7 @@ function _pickupDays(car) {
    והכפתור במסך מראה כמה סינונים פעילים כרגע.
 ─────────────────────────────────────────────────────────────────────── */
 let _pickupCompany = '';          // '' = כל החברות
+let _pickupManualOrder = false;   // סדר שנקבע בגרירה
 
 const _PICKUP_SORTS = [
   'החדשים ביותר קודם',
@@ -18483,6 +18492,7 @@ function loadPickupCars() {
   list.innerHTML = '<div class="loading"><div class="spinner"></div> טוען...</div>';
   const unsub = _onSnap(_colRef('pickup_cars'), snap => {
     _pickupAllCars = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (_pickupAllCars.some(c => typeof c.sortIndex === 'number')) _pickupManualOrder = true;
     _rebuildPickupCityFilter();
     renderPickupCars();
     _listenAddrContacts();
@@ -18768,6 +18778,11 @@ function renderPickupCars() {
   if (term) cars = cars.filter(c => String(c.plate || '').replace(/\D/g, '').startsWith(term));
   // סינון לפי חברה — מציג רק את הרכבים של הספק שסומן
   if (_pickupCompany) cars = cars.filter(c => (c.source || '') === _pickupCompany);
+  // סדר ידני מגרירה גובר על כל מיון אחר
+  const hasManual = cars.some(c => typeof c.sortIndex === 'number');
+  if (_pickupManualOrder && hasManual) {
+    cars.sort((a, b) => (a.sortIndex ?? 9e9) - (b.sortIndex ?? 9e9));
+  } else
   // sort
   if (_pickupSortMode === 0) {
     cars.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
@@ -18776,10 +18791,11 @@ function renderPickupCars() {
   } else {
     cars.sort((a, b) => (_pickupDays(a) || 0) - (_pickupDays(b) || 0));
   }
+  const manual = _pickupManualOrder && hasManual;
   // distance takes over from the time sort while it is on
-  if (_pickupDistSort) cars.sort((a, b) => _pickupDistKm(a) - _pickupDistKm(b));
-  // assigned cars always float to top (stable)
-  cars.sort((a, b) => (b.assignedDriver ? 1 : 0) - (a.assignedDriver ? 1 : 0));
+  if (!manual && _pickupDistSort) cars.sort((a, b) => _pickupDistKm(a) - _pickupDistKm(b));
+  // assigned cars always float to top (stable) — אבל לא כשהסדר נקבע ידנית
+  if (!manual) cars.sort((a, b) => (b.assignedDriver ? 1 : 0) - (a.assignedDriver ? 1 : 0));
   // נעיצה גוברת על כל מיון — הרכב הנעוץ נשאר בראש עד שמורידים את הנעץ
   cars.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
   _computeTaskClosest();
@@ -18791,6 +18807,7 @@ function renderPickupCars() {
     return;
   }
   list.innerHTML = cars.map(_pickupCardHtml).join('');
+  _pickupEnableDrag();
   _syncSelectAllLabel();
   _schedulePickupMap();
 }
@@ -18967,6 +18984,120 @@ function _pickupBtnGrid(btns) {
   }), true);
 }
 
+/* ── גרירה לשינוי סדר הקוביות ────────────────────────────────────────
+   הגרירה מתחילה מהידית ⠿ בלבד, כדי שלחיצה על הקובייה ועל הכפתורים
+   תמשיך לעבוד ושגלילה במסך לא תיתפס כגרירה. התזוזה של שאר הקוביות
+   מונפשת בשיטת FLIP: מודדים לפני ואחרי, ומחליקים מהמצב הישן לחדש.
+─────────────────────────────────────────────────────────────────────── */
+let _pkDrag = null;
+
+function _pickupEnableDrag() {
+  const list = document.getElementById('pickup-list');
+  if (!list || list.dataset.dragReady) return;
+  list.dataset.dragReady = '1';
+
+  list.addEventListener('pointerdown', ev => {
+    const handle = ev.target.closest('.pk-drag');
+    if (!handle) return;
+    const tile = handle.closest('.pk-tile');
+    if (!tile) return;
+    ev.preventDefault();
+
+    const r = tile.getBoundingClientRect();
+    const ghost = tile.cloneNode(true);
+    ghost.classList.add('pk-ghost');
+    ghost.style.width = r.width + 'px';
+    ghost.style.height = r.height + 'px';
+    ghost.style.left = r.left + 'px';
+    ghost.style.top = r.top + 'px';
+    document.body.appendChild(ghost);
+    tile.classList.add('pk-dragging');
+
+    _pkDrag = { tile, ghost, dx: ev.clientX - r.left, dy: ev.clientY - r.top, moved: false,
+                lastX: ev.clientX, lastY: ev.clientY };
+    handle.setPointerCapture(ev.pointerId);
+  });
+
+  list.addEventListener('pointermove', ev => {
+    const d = _pkDrag;
+    if (!d) return;
+    ev.preventDefault();
+    d.moved = true;
+    d.ghost.style.left = (ev.clientX - d.dx) + 'px';
+    d.ghost.style.top  = (ev.clientY - d.dy) + 'px';
+
+    // מחשבים ישירות לאן הקובייה צריכה להיכנס: עוברים על שאר הקוביות
+    // בסדר הקריאה (ימין לשמאל, שורה אחרי שורה) ומוצאים את הראשונה
+    // שנמצאת "אחרי" מיקום הסמן. כך היעד תמיד עוקב אחרי היד, בלי קפיצות.
+    const fwd = (ev.clientX < d.lastX - 0.5) || (ev.clientY > d.lastY + 0.5);
+    d.lastX = ev.clientX; d.lastY = ev.clientY;
+    const tiles = [...list.querySelectorAll('.pk-tile')];
+    const before = new Map(tiles.map(t => [t, t.getBoundingClientRect()]));
+    let ref = null;
+    for (const t of tiles) {
+      if (t === d.tile) continue;
+      const b = before.get(t);
+      const cx = b.left + b.width / 2, cy = b.top + b.height / 2;
+      const sameRow = Math.abs(cy - ev.clientY) <= b.height / 2;
+      // כשגוררים קדימה (שמאלה או למטה) הקובייה נכנסת אחרי היעד, וכשחוזרים
+      // אחורה — לפניו. זה מה שגורם לתחושה שהקובייה "תופסת את המקום".
+      const hit = sameRow
+        ? (fwd ? cx < ev.clientX : cx <= ev.clientX)
+        : (fwd ? cy > ev.clientY : cy >= ev.clientY);
+      if (hit) { ref = t; break; }
+    }
+    if (ref === d.tile.nextElementSibling || (!ref && !d.tile.nextElementSibling)) return;
+    list.insertBefore(d.tile, ref);
+    for (const t of tiles) {
+      if (t === d.tile) continue;
+      const b = before.get(t), a = t.getBoundingClientRect();
+      const mx = b.left - a.left, my = b.top - a.top;
+      if (!mx && !my) continue;
+      t.classList.remove('pk-shift');
+      t.style.transform = `translate(${mx}px, ${my}px)`;
+      requestAnimationFrame(() => {
+        t.classList.add('pk-shift');
+        t.style.transform = '';
+      });
+    }
+  });
+
+  const finish = () => {
+    const d = _pkDrag;
+    if (!d) return;
+    _pkDrag = null;
+    d.ghost.remove();
+    d.tile.classList.remove('pk-dragging');
+    list.querySelectorAll('.pk-tile').forEach(t => { t.classList.remove('pk-shift'); t.style.transform = ''; });
+    if (d.moved) _savePickupOrder();
+  };
+  list.addEventListener('pointerup', finish);
+  list.addEventListener('pointercancel', finish);
+}
+
+// הסדר החדש נשמר על הרכבים עצמם, כדי שיישמר גם בכניסה הבאה ולכל מכשיר
+async function _savePickupOrder() {
+  const list = document.getElementById('pickup-list');
+  if (!list) return;
+  const ids = [...list.querySelectorAll('.pk-tile')].map(t => t.dataset.id).filter(Boolean);
+  _pickupManualOrder = true;
+  _pickupSortMode = 0;
+  _pickupDistSort = false;
+  // מעדכנים בזיכרון מיד, כדי שהרשימה לא תקפוץ חזרה בזמן השמירה
+  ids.forEach((id, i) => {
+    const car = _pickupAllCars.find(c => c.id === id);
+    if (car) car.sortIndex = i;
+  });
+  try {
+    const { updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    await Promise.all(ids.map((id, i) => updateDoc(doc(window._db, 'pickup_cars', id), { sortIndex: i })));
+    showToast('✅ הסדר נשמר');
+  } catch (e) {
+    console.error('save order failed', e);
+    showToast('שגיאה בשמירת הסדר');
+  }
+}
+
 function _pickupCardHtml(c) {
   const e = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const km = c.km ? _fmtKm(c.km) : '';
@@ -18983,15 +19114,16 @@ function _pickupCardHtml(c) {
   // רכב שנשלח לנהג מקבל רקע צהוב; רכב שסומן — ירוק, והסימון גובר
   const bg = checked ? 'background:#dcfce7;border-color:#059669;' : sent ? 'background:#fef9c3;border-color:#eab308;' : '';
 
-  return `<div class="pk-tile" style="border-top:4px solid ${waitColor};${bg}" onclick="openEditPickupModal('${e(c.id)}')">
+  return `<div class="pk-tile" data-id="${e(c.id)}" style="border-top:4px solid ${waitColor};${bg}" onclick="openEditPickupModal('${e(c.id)}')">
     <div class="pk-tile-top">
-      <div style="display:flex;align-items:center;gap:7px;min-width:0">
+      <div style="display:flex;align-items:center;gap:6px;min-width:0">
         <div onclick="event.stopPropagation();togglePickupSelect('${e(c.id)}')" title="סימון" class="pk-tick" style="${checked?'background:#16a34a;color:#fff;border-color:#16a34a':'background:var(--card);color:transparent'}">✓</div>
+        <div onclick="event.stopPropagation();togglePickupPin('${e(c.id)}')" title="${pinned?'ביטול נעיצה':'נעיצה בראש'}" class="pk-tick" style="${pinned?'background:#f59e0b;border-color:#f59e0b':'background:var(--card);opacity:.5'}">📌</div>
         <span class="pk-plate">${e(c.plate||'')}</span>
       </div>
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
         ${_pickupSourceTag(c)}
-        <div onclick="event.stopPropagation();togglePickupPin('${e(c.id)}')" title="${pinned?'ביטול נעיצה':'נעיצה בראש'}" class="pk-tick" style="${pinned?'background:#f59e0b;border-color:#f59e0b':'background:var(--card);opacity:.5'}">📌</div>
+        <div class="pk-drag" title="גרור כדי לשנות מקום" onclick="event.stopPropagation()">⠿</div>
       </div>
     </div>
 
