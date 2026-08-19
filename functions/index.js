@@ -1258,18 +1258,41 @@ const _GOV_HEADERS = {
   "Referer": "https://data.gov.il/",
 };
 let _govLast = { status: 0, body: "" };
+// המאגר הממשלתי חוסם פניות מחוץ לישראל, והפונקציות שלנו רצות בבלגיה.
+// לכן יש ממסר בשרת של גוגל בתל אביב (me-west1) — משם הפנייה יוצאת
+// מכתובת ישראלית ועוברת. קודם מנסים ישירות, ואם נחסם — דרך הממסר.
+const _GOV_RELAY = "https://me-west1-anak-soharim.cloudfunctions.net/govRelay";
 async function _govFetch(url) {
-  // המאגר הממשלתי חוסם לפעמים באופן זמני — שלושה ניסיונות עם המתנה ביניהם
   let res;
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < 2; attempt++) {
     res = await fetch(url, { headers: _GOV_HEADERS });
     if (res.ok) { _govLast = { status: res.status, body: "" }; return res; }
     _govLast = { status: res.status, body: (await res.text().catch(() => "")).slice(0, 200) };
-    if (res.status !== 403 && res.status < 500) break;   // חסימה אמיתית אחרת — אין טעם לנסות שוב
-    if (attempt < 2) await _sleep2(1500 * (attempt + 1));
+    if (res.status !== 403 && res.status < 500) break;
+    if (attempt < 1) await _sleep2(1500);
   }
+  // נחסמנו — מנסים דרך הממסר הישראלי
+  try {
+    const relayed = await fetch(`${_GOV_RELAY}?url=${encodeURIComponent(url)}`);
+    if (relayed.ok) { _govLast = { status: relayed.status, body: "", via: "relay" }; return relayed; }
+    _govLast = { status: relayed.status, body: (await relayed.text().catch(() => "")).slice(0, 200), via: "relay" };
+  } catch (err) { /* הממסר לא זמין — נשארים עם התשובה הישירה */ }
   return res;
 }
+
+// הממסר עצמו: רץ בתל אביב ומעביר הלאה רק כתובות של data.gov.il
+exports.govRelay = onRequest(
+  { region: "me-west1", timeoutSeconds: 120, memory: "256MiB" },
+  async (req, res) => {
+    const url = String(req.query.url || "");
+    if (!url.startsWith("https://data.gov.il/")) return res.status(400).send("bad url");
+    try {
+      const r = await fetch(url, { headers: _GOV_HEADERS });
+      const body = await r.text();
+      res.status(r.status).set("Content-Type", r.headers.get("content-type") || "application/json").send(body);
+    } catch (err) { res.status(502).json({ error: err.message }); }
+  }
+);
 
 async function _ownRegistryBaalut(plates) {
   const out = {};
