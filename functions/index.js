@@ -1846,7 +1846,14 @@ exports.retryBlockedScans = onSchedule(
         ["unreliable", "registry-unreachable"].includes(d.reason);
     } catch (err) { /* ignore */ }
 
-    if (recallBlocked) {
+    // אם סריקה כבר רצה (ידנית או מהניסיון הקודם) — לא מפעילים עוד אחת
+    let running = false;
+    try {
+      const pr = await db.collection("recall_status").doc("progress").get();
+      running = !!(pr.exists && pr.data().running);
+    } catch (err) { /* ignore */ }
+
+    if (recallBlocked && !running) {
       const r = await _runRecallScan("retry", true);
       if (r.ok) await _notifyManager("✅ בדיקת הריקול עברה בהצלחה — משרד התחבורה חזר להגיב.");
     }
