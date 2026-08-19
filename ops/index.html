@@ -2361,6 +2361,22 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
+<!-- ====== MODAL: SHARE PICKUP (desktop) ====== -->
+<div class="modal-overlay" id="modal-pickup-share">
+  <div class="modal-box" style="max-height:90vh;display:flex;flex-direction:column">
+    <div class="modal-title"><span>📤 שיתוף עם אישורים</span> <button class="modal-close" onclick="closeModal('modal-pickup-share')">✕</button></div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:10px">במחשב וואטסאפ לא מקבל קבצים ישירות. העתק את המלל, ואז העתק כל אישור והדבק אותו בצ׳אט עם Ctrl+V.</div>
+
+    <button class="btn-submit" onclick="_shareCopyText()" style="background:var(--dark);color:#fff;width:100%;margin:0 0 8px">📋 העתק את המלל</button>
+    <a id="share-open-wa" href="https://web.whatsapp.com" target="_blank" rel="noopener" class="btn-submit" style="background:#25d366;color:#fff;width:100%;margin:0 0 12px;display:block;text-align:center;text-decoration:none;box-sizing:border-box">💬 פתח וואטסאפ ווב</a>
+
+    <div style="font-weight:800;font-size:14px;margin-bottom:8px">האישורים <span id="share-docs-count" style="color:var(--muted);font-weight:700"></span></div>
+    <div id="share-docs" style="overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:10px"></div>
+
+    <button class="btn-submit" onclick="_shareDownloadAll()" style="background:var(--surface2);color:var(--text);border:2px solid var(--border);width:100%;margin:12px 0 0">⬇️ הורד את כל האישורים</button>
+  </div>
+</div>
+
 <!-- ====== MODAL: PICKUP SORT + FILTERS ====== -->
 <div class="modal-overlay" id="modal-pickup-filters">
   <div class="modal-box">
@@ -17821,19 +17837,95 @@ async function batchSharePickup() {
     }
   }
 
-  // אין תמיכה בשיתוף קבצים — מלל ללוח, וקבצים להורדה
-  const done = () => showToast(`📋 המלל הועתק · ${files.length} אישורים ירדו למכשיר — צרף אותם להודעה`, 8000);
+  // מחשב: פותחים חלון שיתוף שמאפשר להעתיק כל אישור ולהדביק בוואטסאפ ווב
+  _openDesktopShare(text + note, cars.filter(c => c.doc));
+}
+
+/* ── שיתוף במחשב ────────────────────────────────────────────────────
+   וואטסאפ ווב אינו מקבל קבצים דרך קישור, אבל כן מקבל תמונה שהודבקה
+   מהלוח. לכן כל אישור מקבל כפתור "העתק תמונה", וקובצי PDF — הורדה.
+─────────────────────────────────────────────────────────────────────── */
+let _shareText = '';
+let _shareCars = [];
+
+function _openDesktopShare(text, cars) {
+  _shareText = text;
+  _shareCars = cars;
+  const wa = document.getElementById('share-open-wa');
+  if (wa) wa.href = 'https://web.whatsapp.com/send?text=' + encodeURIComponent(text);
+  const cnt = document.getElementById('share-docs-count');
+  if (cnt) cnt.textContent = `(${cars.length})`;
+  const box = document.getElementById('share-docs');
+  if (box) {
+    box.innerHTML = cars.map((c, i) => {
+      const isImg = String(c.docMime || '').startsWith('image/');
+      const thumb = isImg
+        ? `<img src="${c.doc}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;flex-shrink:0">`
+        : `<div style="width:64px;height:64px;border-radius:8px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0">📄</div>`;
+      const btn = isImg
+        ? `<button onclick="_shareCopyImage(${i}, this)" style="background:#0d9488;color:#fff;border:none;border-radius:9px;padding:8px 12px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer;white-space:nowrap">📋 העתק תמונה</button>`
+        : `<button onclick="_shareDownloadOne(${i})" style="background:#6366f1;color:#fff;border:none;border-radius:9px;padding:8px 12px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer;white-space:nowrap">⬇️ הורד PDF</button>`;
+      return `<div style="display:flex;align-items:center;gap:10px;border:2px solid var(--border);border-radius:12px;padding:9px 11px;background:var(--card)">
+        ${thumb}
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:900;font-size:15px;letter-spacing:.5px">${esc(c.plate || '')}</div>
+          <div style="font-size:12px;color:var(--muted);font-weight:700">${esc(c.docName || (isImg ? 'תמונה' : 'מסמך'))}</div>
+        </div>
+        ${btn}
+      </div>`;
+    }).join('');
+  }
+  openModal('modal-pickup-share');
+}
+
+function _shareCopyText() {
+  const done = () => showToast('📋 המלל הועתק — הדבק בוואטסאפ');
   if (navigator.clipboard && window.isSecureContext) {
-    navigator.clipboard.writeText(text + note).then(done).catch(() => _pcCopyFallback(text + note, done));
-  } else _pcCopyFallback(text + note, done);
-  for (const f of files) {
-    const url = URL.createObjectURL(f);
-    const a = document.createElement('a');
-    a.href = url; a.download = f.name;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    navigator.clipboard.writeText(_shareText).then(done).catch(() => _pcCopyFallback(_shareText, done));
+  } else _pcCopyFallback(_shareText, done);
+}
+window._shareCopyText = _shareCopyText;
+
+// הלוח מקבל PNG בלבד, ולכן כל תמונה עוברת המרה דרך קנבס לפני ההעתקה
+async function _shareCopyImage(i, btn) {
+  const car = _shareCars[i];
+  if (!car || !car.doc) return;
+  try {
+    const img = new Image();
+    img.src = car.doc;
+    await img.decode();
+    const cv = document.createElement('canvas');
+    cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+    cv.getContext('2d').drawImage(img, 0, 0);
+    const blob = await new Promise(res => cv.toBlob(res, 'image/png'));
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+    if (btn) { const t = btn.textContent; btn.textContent = '✅ הועתק'; setTimeout(() => btn.textContent = t, 2500); }
+    showToast('📋 האישור הועתק — עבור לוואטסאפ והדבק עם Ctrl+V', 6000);
+  } catch (e) {
+    console.warn('copy image failed', e);
+    _shareDownloadOne(i);
+    showToast('הדפדפן לא אפשר העתקה — האישור ירד למחשב', 6000);
   }
 }
+window._shareCopyImage = _shareCopyImage;
+
+function _shareDownloadOne(i) {
+  const car = _shareCars[i];
+  if (!car || !car.doc) return;
+  const f = _dataUrlToFile(car.doc, car.docName || `אישור ${car.plate || ''}`, car.docMime);
+  const url = URL.createObjectURL(f);
+  const a = document.createElement('a');
+  a.href = url; a.download = f.name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+window._shareDownloadOne = _shareDownloadOne;
+
+function _shareDownloadAll() {
+  _shareCars.forEach((c, i) => setTimeout(() => _shareDownloadOne(i), i * 300));
+  showToast(`⬇️ ${_shareCars.length} אישורים יורדים למחשב`, 5000);
+}
+window._shareDownloadAll = _shareDownloadAll;
 window.batchSharePickup = batchSharePickup;
 
 async function batchDeletePickup() {
@@ -18529,8 +18621,9 @@ window.pickupPickSource = pickupPickSource;
 function _pickupCell(html, span) {
   return `<div style="${span ? 'grid-column:span 2;' : ''}display:flex">${html}</div>`;
 }
-function _pickupGridWrap(cells) {
-  return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;width:100%">${cells.join('')}</div>`;
+function _pickupGridWrap(cells, grow) {
+  const fill = grow ? 'flex:1;grid-auto-rows:1fr;min-height:96px;' : '';
+  return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;width:100%;${fill}">${cells.join('')}</div>`;
 }
 function _pickupCellGrid(items) {
   const odd = items.length % 2 === 1;
@@ -18540,8 +18633,8 @@ function _pickupBtnGrid(btns) {
   const odd = btns.length % 2 === 1;
   return _pickupGridWrap(btns.map(([fn, label, color], i) => {
     const span = (odd && i === btns.length - 1) ? 'grid-column:span 2;' : '';
-    return `<button onclick="event.stopPropagation();${fn}" style="${span}background:${color};color:#fff;border:none;border-radius:8px;padding:9px 6px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;line-height:1.2;cursor:pointer;white-space:nowrap;width:100%">${label}</button>`;
-  }));
+    return `<button onclick="event.stopPropagation();${fn}" style="${span}background:${color};color:#fff;border:none;border-radius:8px;padding:9px 6px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;line-height:1.2;cursor:pointer;white-space:nowrap;width:100%;height:100%">${label}</button>`;
+  }), true);
 }
 
 function _pickupCardHtml(c) {
@@ -18561,7 +18654,7 @@ function _pickupCardHtml(c) {
      <div onclick="event.stopPropagation();togglePickupPin('${e(c.id)}')" title="${pinned?'ביטול נעיצה':'נעיצה בראש הרשימה'}" style="cursor:pointer;width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:15px;${pinned?'background:#f59e0b;border:2px solid #f59e0b':'background:#fff;border:2px solid #cbd5e1;opacity:.55'}">📌</div>
      <div onclick="event.stopPropagation();togglePickupSelect('${e(c.id)}')" title="סימון" style="cursor:pointer;width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:900;${checked?'background:#16a34a;color:#fff;border:2px solid #16a34a':'background:#fff;color:transparent;border:2px solid #cbd5e1'}">✓</div>
     </div>
-    <div class="pk-content" style="flex:1;min-width:0;display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+    <div class="pk-content" style="flex:1;min-width:0;display:flex;justify-content:space-between;align-items:stretch;gap:8px">
       <div style="flex:1;min-width:0">
         <div class="vehicle-plate">${e(c.plate||'')}</div>
         ${c.type ? `<div class="vehicle-info">${e(c.type)}${c.year ? ' · ' + e(c.year) : ''}</div>` : ''}
