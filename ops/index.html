@@ -2365,7 +2365,7 @@ if ('serviceWorker' in navigator) {
 <div class="modal-overlay" id="modal-pickup-share">
   <div class="modal-box" style="max-height:90vh;display:flex;flex-direction:column">
     <div class="modal-title"><span>📤 שיתוף עם אישורים</span> <button class="modal-close" onclick="closeModal('modal-pickup-share')">✕</button></div>
-    <div style="font-size:13px;color:var(--muted);margin-bottom:10px">במחשב וואטסאפ לא מקבל קבצים ישירות. העתק את המלל, ואז העתק כל אישור והדבק אותו בצ׳אט עם Ctrl+V.</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:10px">המלל כבר הועתק. עכשיו העתק את האישורים והדבק בצ׳אט עם Ctrl+V — הכל נכנס באותה הודעה.</div>
 
     <button class="btn-submit" onclick="_shareCopyText()" style="background:var(--dark);color:#fff;width:100%;margin:0 0 8px">📋 העתק את המלל</button>
     <a id="share-open-wa" href="https://web.whatsapp.com" target="_blank" rel="noopener" class="btn-submit" style="background:#25d366;color:#fff;width:100%;margin:0 0 12px;display:block;text-align:center;text-decoration:none;box-sizing:border-box">💬 פתח וואטסאפ ווב</a>
@@ -2373,7 +2373,7 @@ if ('serviceWorker' in navigator) {
     <div style="font-weight:800;font-size:14px;margin-bottom:8px">האישורים <span id="share-docs-count" style="color:var(--muted);font-weight:700"></span></div>
     <div id="share-docs" style="overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:10px"></div>
 
-    <button class="btn-submit" onclick="_shareDownloadAll()" style="background:var(--surface2);color:var(--text);border:2px solid var(--border);width:100%;margin:12px 0 0">⬇️ הורד את כל האישורים</button>
+    <button class="btn-submit" id="share-download-all" onclick="_shareDownloadMergedPdf()" style="background:var(--surface2);color:var(--text);border:2px solid var(--border);width:100%;margin:12px 0 0">⬇️ הורד PDF אחד עם כל האישורים</button>
   </div>
 </div>
 
@@ -17900,6 +17900,67 @@ async function _mergeDocsToPdf(cars) {
   return { blob: new Blob([bytes], { type: 'application/pdf' }), failed };
 }
 
+/* ── המרת האישורים לתמונות ──────────────────────────────────────────
+   וואטסאפ מציג תמונות בתוך השיחה, ובמחשב אפשר להדביק תמונה ישר לצ׳אט.
+   לכן כל עמוד PDF מצויר לתמונה, ואפשר גם לאחד את כולן לתמונה אחת
+   ארוכה — כדי שהדבקה אחת תכניס את כל האישורים.
+─────────────────────────────────────────────────────────────────────── */
+async function _pdfToPngBlobs(dataUrl, scale) {
+  const pdfjs = await _loadPdfJs();
+  const pdf = await pdfjs.getDocument({ data: _b64Bytes(dataUrl) }).promise;
+  const out = [];
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const vp = page.getViewport({ scale: scale || 2 });
+    const cv = document.createElement('canvas');
+    cv.width = Math.ceil(vp.width); cv.height = Math.ceil(vp.height);
+    const ctx = cv.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
+    await page.render({ canvasContext: ctx, viewport: vp }).promise;
+    out.push(await new Promise(res => cv.toBlob(res, 'image/jpeg', 0.9)));
+  }
+  return out;
+}
+
+// כל אישור → תמונה אחת או יותר. תמונה נשארת כמו שהיא.
+async function _docsToImages(cars) {
+  const images = [], failed = [];
+  for (const c of cars) {
+    const mime = String(c.docMime || '');
+    try {
+      if (mime.includes('pdf')) {
+        const blobs = await _pdfToPngBlobs(c.doc, 2);
+        blobs.forEach((b, i) => images.push({ plate: c.plate || '', blob: b,
+          name: `אישור ${c.plate || ''}${blobs.length > 1 ? ' - עמוד ' + (i + 1) : ''}.jpg` }));
+      } else if (mime.startsWith('image/')) {
+        const r = await fetch(c.doc);
+        images.push({ plate: c.plate || '', blob: await r.blob(), name: `אישור ${c.plate || ''}.jpg` });
+      } else failed.push(c.plate || '');
+    } catch (e) { console.warn('to image failed', c.plate, e); failed.push(c.plate || ''); }
+  }
+  return { images, failed };
+}
+
+// תמונה אחת ארוכה מכל האישורים — להדבקה אחת בוואטסאפ ווב
+async function _combineImages(blobs) {
+  const bitmaps = [];
+  for (const b of blobs) bitmaps.push(await createImageBitmap(b));
+  const width = Math.max(...bitmaps.map(b => b.width));
+  const gap = 16;
+  const height = bitmaps.reduce((sum, b) => sum + Math.round(b.height * (width / b.width)), 0) + gap * (bitmaps.length - 1);
+  const cv = document.createElement('canvas');
+  cv.width = width; cv.height = height;
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, width, height);
+  let y = 0;
+  for (const b of bitmaps) {
+    const h = Math.round(b.height * (width / b.width));
+    ctx.drawImage(b, 0, y, width, h);
+    y += h + gap;
+  }
+  return await new Promise(res => cv.toBlob(res, 'image/jpeg', 0.9));
+}
+
 // כפתור אחד: המלל מועתק, וכל האישורים יורדים כקובץ PDF אחד.
 // בטלפון שתומך בשיתוף — הכל יוצא בהודעה אחת עם הקובץ המאוחד.
 async function batchExportPickup() {
@@ -17923,35 +17984,111 @@ async function batchExportPickup() {
 
   if (!withDoc.length) { showToast('📋 המלל הועתק — לאף רכב שסומן אין אישור', 6000); return; }
 
-  showToast('⏳ מאחד את האישורים לקובץ אחד...', 4000);
-  let res;
-  try { res = await _mergeDocsToPdf(withDoc); }
+  showToast('⏳ ממיר את האישורים לתמונות...', 4000);
+  let imgs;
+  try { imgs = await _docsToImages(withDoc); }
   catch (e) {
-    console.error('merge error', e);
-    showToast('לא הצלחתי לאחד את הקבצים — מוריד אותם בנפרד', 6000);
+    console.error('images error', e);
+    showToast('לא הצלחתי להמיר את האישורים — מוריד אותם כמו שהם', 6000);
     return _openDesktopShare(text, withDoc);
   }
-  if (!res.blob) { showToast('לא נמצאו אישורים שניתן לאחד', 6000); return _openDesktopShare(text, withDoc); }
+  if (!imgs.images.length) { showToast('לא נמצאו אישורים להמרה', 6000); return _openDesktopShare(text, withDoc); }
 
-  const name = `אישורי העברת בעלות - ${withDoc.length} רכבים.pdf`;
-  const file = new File([res.blob], name, { type: 'application/pdf' });
-
-  // הודעה אחת: מלל + הקובץ המאוחד
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
-    try { await navigator.share({ text, files: [file] }); return; }
+  // בטלפון: הודעה אחת עם המלל וכל התמונות
+  const files = imgs.images.map(im => new File([im.blob], im.name, { type: 'image/jpeg' }));
+  if (navigator.canShare && navigator.canShare({ files })) {
+    try { await navigator.share({ text, files }); return; }
     catch (e) { if (e && e.name === 'AbortError') return; }
   }
 
-  const url = URL.createObjectURL(res.blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = name;
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
-  const bad = res.failed.filter(Boolean);
-  showToast(`📋 המלל הועתק · הקובץ ירד עם ${withDoc.length - bad.length} אישורים` +
-            (bad.length ? ` (נכשלו: ${bad.join(', ')})` : ''), 8000);
+  // במחשב: חלון עם תמונה אחת מאוחדת להדבקה, ואפשרות להוריד
+  _openImageShare(text, imgs.images, withDoc);
 }
 window.batchExportPickup = batchExportPickup;
+
+/* ── חלון השיתוף במחשב: תמונות ─────────────────────────────────────
+   הדבקה אחת בוואטסאפ ווב מכניסה את כל האישורים, ולכן ברירת המחדל היא
+   תמונה אחת מאוחדת. אפשר גם להוריד את התמונות או את ה-PDF המאוחד.
+─────────────────────────────────────────────────────────────────────── */
+let _shareImages = [];
+let _shareDocCars = [];
+
+function _openImageShare(text, images, cars) {
+  _shareText = text;
+  _shareImages = images;
+  _shareDocCars = cars;
+  const wa = document.getElementById('share-open-wa');
+  if (wa) wa.href = 'https://web.whatsapp.com/send?text=' + encodeURIComponent(text);
+  const cnt = document.getElementById('share-docs-count');
+  if (cnt) cnt.textContent = `(${images.length})`;
+  const box = document.getElementById('share-docs');
+  if (box) {
+    box.innerHTML =
+      `<button onclick="_shareCopyAllImages(this)" style="background:#0d9488;color:#fff;border:none;border-radius:10px;padding:12px;font-family:Heebo,sans-serif;font-weight:900;font-size:14px;cursor:pointer">🖼️ העתק את כל האישורים כתמונה אחת</button>
+       <div style="font-size:12px;color:var(--muted);font-weight:600;margin:-2px 0 6px">אחרי ההעתקה — Ctrl+V בצ׳אט, והכל נכנס בהודעה אחת</div>` +
+      images.map((im, i) => `<div style="display:flex;align-items:center;gap:10px;border:2px solid var(--border);border-radius:12px;padding:9px 11px;background:var(--card)">
+        <img src="${URL.createObjectURL(im.blob)}" style="width:56px;height:56px;object-fit:cover;border-radius:8px;flex-shrink:0">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:900;font-size:15px;letter-spacing:.5px">${esc(im.plate)}</div>
+          <div style="font-size:12px;color:var(--muted);font-weight:700">${esc(im.name)}</div>
+        </div>
+        <button onclick="_shareCopyOneImage(${i}, this)" style="background:var(--surface2);color:var(--text);border:2px solid var(--border);border-radius:9px;padding:7px 11px;font-family:Heebo,sans-serif;font-weight:800;font-size:12.5px;cursor:pointer;white-space:nowrap">📋 העתק</button>
+      </div>`).join('');
+  }
+  const dl = document.getElementById('share-download-all');
+  if (dl) dl.textContent = `⬇️ הורד PDF אחד עם כל האישורים`;
+  openModal('modal-pickup-share');
+}
+
+async function _copyBlobToClipboard(blob) {
+  // הלוח מקבל PNG בלבד, ולכן ממירים לפני ההעתקה
+  const bmp = await createImageBitmap(blob);
+  const cv = document.createElement('canvas');
+  cv.width = bmp.width; cv.height = bmp.height;
+  cv.getContext('2d').drawImage(bmp, 0, 0);
+  const png = await new Promise(res => cv.toBlob(res, 'image/png'));
+  await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]);
+}
+
+async function _shareCopyAllImages(btn) {
+  try {
+    const blob = _shareImages.length === 1
+      ? _shareImages[0].blob
+      : await _combineImages(_shareImages.map(i => i.blob));
+    await _copyBlobToClipboard(blob);
+    if (btn) { const t = btn.textContent; btn.textContent = '✅ הועתק — הדבק בוואטסאפ'; setTimeout(() => btn.textContent = t, 3000); }
+    showToast('🖼️ כל האישורים הועתקו — Ctrl+V בצ׳אט', 7000);
+  } catch (e) {
+    console.warn('copy all failed', e);
+    showToast('הדפדפן לא אפשר העתקה — נסה להוריד את הקובץ', 6000);
+  }
+}
+window._shareCopyAllImages = _shareCopyAllImages;
+
+async function _shareCopyOneImage(i, btn) {
+  const im = _shareImages[i];
+  if (!im) return;
+  try {
+    await _copyBlobToClipboard(im.blob);
+    if (btn) { const t = btn.textContent; btn.textContent = '✅'; setTimeout(() => btn.textContent = t, 2000); }
+    showToast('📋 האישור הועתק — Ctrl+V בצ׳אט', 5000);
+  } catch (e) { showToast('הדפדפן לא אפשר העתקה', 5000); }
+}
+window._shareCopyOneImage = _shareCopyOneImage;
+
+// ההורדה נשארת PDF אחד — נוח לשמירה ולתיוק
+async function _shareDownloadMergedPdf() {
+  if (!_shareDocCars.length) return;
+  showToast('⏳ מכין קובץ אחד...', 3000);
+  const res = await _mergeDocsToPdf(_shareDocCars).catch(() => null);
+  if (!res || !res.blob) return showToast('לא הצלחתי להכין את הקובץ', 5000);
+  const url = URL.createObjectURL(res.blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `אישורי העברת בעלות - ${_shareDocCars.length} רכבים.pdf`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+window._shareDownloadMergedPdf = _shareDownloadMergedPdf;
 
 /* ── שיתוף במחשב ────────────────────────────────────────────────────
    וואטסאפ ווב אינו מקבל קבצים דרך קישור, אבל כן מקבל תמונה שהודבקה
