@@ -2340,7 +2340,7 @@ if ('serviceWorker' in navigator) {
     <button onclick="batchCollectPickup()" style="flex:1;min-width:0;background:#059669;color:#fff;border:none;border-radius:10px;padding:12px 6px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">✅ נאספו</button>
     <button onclick="batchSendPickupToDriver()" style="flex:1;min-width:0;background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:12px 6px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">📲 שלח לנהג</button>
     <button onclick="batchCopyPickupText()" style="flex:1;min-width:0;background:var(--dark);color:#fff;border:none;border-radius:10px;padding:12px 6px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">📋 העתק מלל</button>
-    <button onclick="batchSharePickup()" style="flex:1;min-width:0;background:#7c3aed;color:#fff;border:none;border-radius:10px;padding:12px 6px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">📤 שתף עם אישורים</button>
+    <button onclick="batchExportPickup()" style="flex:1;min-width:0;background:#7c3aed;color:#fff;border:none;border-radius:10px;padding:12px 6px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">📎 מלל + אישורים</button>
     <button onclick="batchDeletePickup()" style="flex:1;min-width:0;background:#ef4444;color:#fff;border:none;border-radius:10px;padding:12px 6px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">🗑️ הסר</button>
     <button onclick="clearPickupSelection()" style="flex-shrink:0;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:12px 10px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">✕</button>
   </div>
@@ -17841,6 +17841,118 @@ async function batchSharePickup() {
   _openDesktopShare(text + note, cars.filter(c => c.doc));
 }
 
+/* ── איחוד כל אישורי העברת הבעלות לקובץ אחד ─────────────────────────
+   ברוב המקרים האישור הוא PDF, ולכן אפשר לאחד את כולם למסמך אחד:
+   עמודי ה-PDF מועתקים כמו שהם, ותמונות נכנסות כעמוד מלא. התוצאה היא
+   קובץ אחד לשליחה, במקום קובץ לכל רכב.
+─────────────────────────────────────────────────────────────────────── */
+let _pdfLibLoading = null;
+function _loadPdfLib() {
+  if (window.PDFLib) return Promise.resolve(window.PDFLib);
+  if (_pdfLibLoading) return _pdfLibLoading;
+  _pdfLibLoading = new Promise((resolve, reject) => {
+    const el = document.createElement('script');
+    el.src = 'vendor/pdf-lib.min.js';
+    el.onload = () => window.PDFLib ? resolve(window.PDFLib) : reject(new Error('מנוע ה-PDF לא נטען'));
+    el.onerror = () => reject(new Error('מנוע ה-PDF לא נטען'));
+    document.head.appendChild(el);
+  });
+  return _pdfLibLoading;
+}
+
+const _b64Bytes = dataUrl => {
+  const bin = atob(String(dataUrl).split(',')[1] || '');
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+};
+
+async function _mergeDocsToPdf(cars) {
+  const { PDFDocument, StandardFonts, rgb } = await _loadPdfLib();
+  const merged = await PDFDocument.create();
+  const font = await merged.embedFont(StandardFonts.Helvetica);
+  const failed = [];
+
+  for (const c of cars) {
+    const mime = String(c.docMime || '');
+    try {
+      if (mime.includes('pdf')) {
+        const src = await PDFDocument.load(_b64Bytes(c.doc), { ignoreEncryption: true });
+        const pages = await merged.copyPages(src, src.getPageIndices());
+        pages.forEach(pg => merged.addPage(pg));
+      } else if (mime.startsWith('image/')) {
+        const bytes = _b64Bytes(c.doc);
+        const img = mime.includes('png') ? await merged.embedPng(bytes) : await merged.embedJpg(bytes);
+        // עמוד A4 עם התמונה מוגדלת לרוחב העמוד, בלי לחתוך
+        const page = merged.addPage([595, 842]);
+        const scale = Math.min(555 / img.width, 760 / img.height);
+        const w = img.width * scale, h = img.height * scale;
+        page.drawImage(img, { x: (595 - w) / 2, y: (842 - h) / 2 - 10, width: w, height: h });
+        page.drawText(String(c.plate || ''), { x: 20, y: 812, size: 16, font, color: rgb(0.1, 0.1, 0.1) });
+      } else { failed.push(c.plate || ''); }
+    } catch (e) {
+      console.warn('merge failed for', c.plate, e);
+      failed.push(c.plate || '');
+    }
+  }
+  if (!merged.getPageCount()) return { blob: null, failed };
+  const bytes = await merged.save();
+  return { blob: new Blob([bytes], { type: 'application/pdf' }), failed };
+}
+
+// כפתור אחד: המלל מועתק, וכל האישורים יורדים כקובץ PDF אחד.
+// בטלפון שתומך בשיתוף — הכל יוצא בהודעה אחת עם הקובץ המאוחד.
+async function batchExportPickup() {
+  if (!_pickupSelected.size) { showToast('לא נבחרו רכבים'); return; }
+  const cars = _pickupShownIds
+    .filter(id => _pickupSelected.has(id))
+    .map(id => _pickupAllCars.find(c => c.id === id))
+    .filter(Boolean);
+  if (!cars.length) { showToast('לא נמצאו רכבים'); return; }
+
+  const head = cars.length === 1 ? 'רכב לאיסוף:' : `${cars.length} רכבים לאיסוף:`;
+  const withDoc = cars.filter(c => c.doc);
+  const missing = cars.filter(c => !c.doc).map(c => c.plate).filter(Boolean);
+  const text = `${head}\n\n` + cars.map(pickupCarText).join('\n\n────────\n\n') +
+               (missing.length ? `\n\nללא אישור: ${missing.join(', ')}` : '');
+
+  // המלל ללוח קודם, כדי שההעתקה תתבצע בתוך הלחיצה עצמה
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).catch(() => _pcCopyFallback(text, () => {}));
+  } else _pcCopyFallback(text, () => {});
+
+  if (!withDoc.length) { showToast('📋 המלל הועתק — לאף רכב שסומן אין אישור', 6000); return; }
+
+  showToast('⏳ מאחד את האישורים לקובץ אחד...', 4000);
+  let res;
+  try { res = await _mergeDocsToPdf(withDoc); }
+  catch (e) {
+    console.error('merge error', e);
+    showToast('לא הצלחתי לאחד את הקבצים — מוריד אותם בנפרד', 6000);
+    return _openDesktopShare(text, withDoc);
+  }
+  if (!res.blob) { showToast('לא נמצאו אישורים שניתן לאחד', 6000); return _openDesktopShare(text, withDoc); }
+
+  const name = `אישורי העברת בעלות - ${withDoc.length} רכבים.pdf`;
+  const file = new File([res.blob], name, { type: 'application/pdf' });
+
+  // הודעה אחת: מלל + הקובץ המאוחד
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ text, files: [file] }); return; }
+    catch (e) { if (e && e.name === 'AbortError') return; }
+  }
+
+  const url = URL.createObjectURL(res.blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  const bad = res.failed.filter(Boolean);
+  showToast(`📋 המלל הועתק · הקובץ ירד עם ${withDoc.length - bad.length} אישורים` +
+            (bad.length ? ` (נכשלו: ${bad.join(', ')})` : ''), 8000);
+}
+window.batchExportPickup = batchExportPickup;
+
 /* ── שיתוף במחשב ────────────────────────────────────────────────────
    וואטסאפ ווב אינו מקבל קבצים דרך קישור, אבל כן מקבל תמונה שהודבקה
    מהלוח. לכן כל אישור מקבל כפתור "העתק תמונה", וקובצי PDF — הורדה.
@@ -18631,9 +18743,15 @@ function _pickupCellGrid(items) {
 }
 function _pickupBtnGrid(btns) {
   const odd = btns.length % 2 === 1;
-  return _pickupGridWrap(btns.map(([fn, label, color], i) => {
+  return _pickupGridWrap(btns.map(([fn, label, color, blockedMsg], i) => {
     const span = (odd && i === btns.length - 1) ? 'grid-column:span 2;' : '';
-    return `<button onclick="event.stopPropagation();${fn}" style="${span}background:${color};color:#fff;border:none;border-radius:8px;padding:6px 5px;font-family:Heebo,sans-serif;font-weight:700;font-size:12px;line-height:1.15;cursor:pointer;white-space:nowrap;width:100%;height:100%">${label}</button>`;
+    // כפתור חסום נשאר במקומו כדי שהכרטיס לא יקפוץ — אבל אפור, ולחיצה
+    // עליו מסבירה מה חסר במקום לבצע פעולה
+    const off = !!blockedMsg;
+    const act = off ? `showToast('${blockedMsg}', 4000)` : fn;
+    const bg  = off ? 'var(--surface2)' : color;
+    const fg  = off ? 'var(--muted)' : '#fff';
+    return `<button onclick="event.stopPropagation();${act}" style="${span}background:${bg};color:${fg};border:${off ? '2px dashed var(--border)' : 'none'};border-radius:8px;padding:6px 5px;font-family:Heebo,sans-serif;font-weight:700;font-size:12px;line-height:1.15;cursor:${off ? 'not-allowed' : 'pointer'};white-space:nowrap;width:100%;height:100%">${label}</button>`;
   }), true);
 }
 
@@ -18683,7 +18801,8 @@ function _pickupCardHtml(c) {
         ].filter(Boolean))}
         ${_pickupBtnGrid([
           [`openSendPickupToDriver('${e(c.id)}')`, '📲 שלח לנהג', '#0ea5e9'],
-          ...(c.assignedDriver ? [[`sendPickupCarIntake('${e(c.id)}')`, '📥 שלח קליטה', '#7c3aed']] : []),
+          [`sendPickupCarIntake('${e(c.id)}')`, '📥 שלח קליטה', '#7c3aed',
+            c.assignedDriver ? '' : 'קודם שלח את הרכב לנהג, ואז אפשר לשלוח קליטה'],
           [`collectPickupCar('${e(c.id)}')`, '✅ הרכב נאסף', '#059669'],
           [`deletePickupCar('${e(c.id)}')`, '🗑️ הסר', '#ef4444'],
         ])}
