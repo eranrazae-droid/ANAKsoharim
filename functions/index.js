@@ -319,11 +319,6 @@ async function _runRecallScanInner() {
       return { ok: false, reason: "inventory-fetch-failed" };
     }
     if (!cars.length) return { ok: false, reason: "no-valid-plates" };
-  // אם אף רכב לא נמצא במרשם — אין גישה למאגר. לא דורסים את המצב הקודם
-  // ולא שולחים התראות על סמך בדיקה שלא הצליחה.
-  if (!cars.some((c) => c.baalut)) {
-    return { ok: false, reason: "registry-unreachable", checked: cars.length, registryHttp: _govLast };
-  }
 
     // keep "resolved" + linked-task info for cars still open from a previous run
     const statusRef = db.collection("recall_status").doc("current");
@@ -1352,6 +1347,11 @@ async function _runOwnershipScan() {
     };
   });
   if (!cars.length) return { ok: false, reason: "no-valid-plates" };
+  // אם אף רכב לא נמצא במרשם — אין גישה למאגר. לא דורסים את המצב הקודם
+  // ולא שולחים התראות על סמך בדיקה שלא הצליחה.
+  if (!cars.some((c) => c.baalut)) {
+    return { ok: false, reason: "registry-unreachable", checked: cars.length, registryHttp: _govLast };
+  }
 
   // רכבים חדשים = לוחיות שלא היו במלאי בסריקה הקודמת. כך הסריקה היומית
   // יודעת על מה להתריע — מה שנכנס היום וטרם נבדק.
