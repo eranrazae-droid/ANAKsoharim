@@ -17827,7 +17827,7 @@ async function batchSharePickup() {
   }
 
   const note = missing.length ? `\n\nללא אישור: ${missing.filter(Boolean).join(', ')}` : '';
-  if (navigator.canShare && navigator.canShare({ files })) {
+  if (_isHandheld() && navigator.canShare && navigator.canShare({ files })) {
     try {
       await navigator.share({ text: text + note, files });
       return;
@@ -17905,6 +17905,12 @@ async function _mergeDocsToPdf(cars) {
    לכן כל עמוד PDF מצויר לתמונה, ואפשר גם לאחד את כולן לתמונה אחת
    ארוכה — כדי שהדבקה אחת תכניס את כל האישורים.
 ─────────────────────────────────────────────────────────────────────── */
+// תפריט השיתוף של המערכת שייך לטלפון. במחשב הוא פותח חלון של ווינדוס
+// שלא עוזר לוואטסאפ ווב, ולכן שם עובדים עם ההעתקה שלנו.
+const _isHandheld = () =>
+  /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+  (navigator.maxTouchPoints > 1 && /Mac/i.test(navigator.platform || ''));
+
 async function _pdfToPngBlobs(dataUrl, scale) {
   const pdfjs = await _loadPdfJs();
   const pdf = await pdfjs.getDocument({ data: _b64Bytes(dataUrl) }).promise;
@@ -17996,7 +18002,7 @@ async function batchExportPickup() {
 
   // בטלפון: הודעה אחת עם המלל וכל התמונות
   const files = imgs.images.map(im => new File([im.blob], im.name, { type: 'image/jpeg' }));
-  if (navigator.canShare && navigator.canShare({ files })) {
+  if (_isHandheld() && navigator.canShare && navigator.canShare({ files })) {
     try { await navigator.share({ text, files }); return; }
     catch (e) { if (e && e.name === 'AbortError') return; }
   }
