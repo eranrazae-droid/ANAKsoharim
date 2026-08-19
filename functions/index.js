@@ -1257,11 +1257,14 @@ const _GOV_HEADERS = {
 };
 let _govLast = { status: 0, body: "" };
 async function _govFetch(url) {
-  const res = await fetch(url, { headers: _GOV_HEADERS });
-  if (!res.ok) {
+  // המאגר הממשלתי חוסם לפעמים באופן זמני — שלושה ניסיונות עם המתנה ביניהם
+  let res;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    res = await fetch(url, { headers: _GOV_HEADERS });
+    if (res.ok) { _govLast = { status: res.status, body: "" }; return res; }
     _govLast = { status: res.status, body: (await res.text().catch(() => "")).slice(0, 200) };
-  } else {
-    _govLast = { status: res.status, body: "" };
+    if (res.status !== 403 && res.status < 500) break;   // חסימה אמיתית אחרת — אין טעם לנסות שוב
+    if (attempt < 2) await _sleep2(1500 * (attempt + 1));
   }
   return res;
 }
