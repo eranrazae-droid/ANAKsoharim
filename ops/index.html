@@ -2339,7 +2339,6 @@ if ('serviceWorker' in navigator) {
     <span id="pickup-batch-count" style="font-weight:800;font-size:13px;flex-shrink:0">נבחרו 0</span>
     <button onclick="batchCollectPickup()" style="flex:1;min-width:0;background:#059669;color:#fff;border:none;border-radius:10px;padding:12px 6px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">✅ נאספו</button>
     <button onclick="batchSendPickupToDriver()" style="flex:1;min-width:0;background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:12px 6px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">📲 שלח לנהג</button>
-    <button onclick="batchCopyPickupText()" style="flex:1;min-width:0;background:var(--dark);color:#fff;border:none;border-radius:10px;padding:12px 6px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">📋 העתק מלל</button>
     <button onclick="batchExportPickup()" style="flex:1;min-width:0;background:#7c3aed;color:#fff;border:none;border-radius:10px;padding:12px 6px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">📎 מלל + אישורים</button>
     <button onclick="batchDeletePickup()" style="flex:1;min-width:0;background:#ef4444;color:#fff;border:none;border-radius:10px;padding:12px 6px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">🗑️ הסר</button>
     <button onclick="clearPickupSelection()" style="flex-shrink:0;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:12px 10px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">✕</button>
@@ -17977,6 +17976,15 @@ async function batchExportPickup() {
     .filter(Boolean);
   if (!cars.length) { showToast('לא נמצאו רכבים'); return; }
 
+  // רכבי יורודרייב אינם דורשים אישור העברת בעלות. כל השאר כן — ובלי
+  // האישור אין טעם להעתיק הודעה חלקית, ולכן היא נחסמת.
+  const needDoc = cars.filter(c => c.source !== 'יורודרייב' && !c.doc);
+  if (needDoc.length) {
+    const plates = needDoc.map(c => c.plate).filter(Boolean).join(', ');
+    showToast(`⚠️ חסר אישור העברת בעלות ל${needDoc.length === 1 ? 'רכב' : '-' + needDoc.length + ' רכבים'}: ${plates}\nצרף אישור לכל רכב לפני שליחה`, 9000);
+    return;
+  }
+
   const head = cars.length === 1 ? 'רכב לאיסוף:' : `${cars.length} רכבים לאיסוף:`;
   const withDoc = cars.filter(c => c.doc);
   const missing = cars.filter(c => !c.doc).map(c => c.plate).filter(Boolean);
@@ -18944,7 +18952,10 @@ function _pickupCardHtml(c) {
         ${_pickupCellGrid([
           _pickupSourceTag(c),
           waitLabel ? `<span style="flex:1;display:flex;align-items:center;justify-content:center;height:100%;min-height:38px;background:#d97706;color:#fff;border-radius:8px;font-size:14px;font-weight:800;white-space:nowrap">⏱ ${waitLabel}</span>` : '',
-          c.assignedDriver ? `<span style="flex:1;display:flex;align-items:center;justify-content:center;height:100%;min-height:38px;background:#1e40af;color:#fff;border-radius:8px;font-size:14px;font-weight:800;white-space:nowrap">🚗 ${e(c.assignedDriver)}</span>` : '',
+          // משבצת הנהג קיימת תמיד: כשעוד לא נשלח — מלבן מקווקו שאומר זאת
+          c.assignedDriver
+            ? `<span style="flex:1;display:flex;align-items:center;justify-content:center;height:100%;min-height:38px;background:#1e40af;color:#fff;border-radius:8px;font-size:14px;font-weight:800;white-space:nowrap">🚗 ${e(c.assignedDriver)}</span>`
+            : `<span style="flex:1;display:flex;align-items:center;justify-content:center;height:100%;min-height:38px;background:transparent;color:var(--muted);border:2px dashed var(--border);border-radius:8px;font-size:13px;font-weight:800;white-space:nowrap">עדיין לא נשלח לנהג</span>`,
         ].filter(Boolean))}
         ${_pickupBtnGrid([
           [`openSendPickupToDriver('${e(c.id)}')`, '📲 שלח לנהג', '#0ea5e9'],
