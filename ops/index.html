@@ -5899,6 +5899,7 @@ function _renderIntakeList(all) {
             <span style="background:${color};color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;white-space:nowrap">${label}</span>
             ${st === 'pending' ? `<button onclick="resendIntakeNotify('${esc(v.assignedTo)}','${esc(v.plate)}','${esc(v.brand||'')}','${esc(v.model||'')}')" style="background:#25d366;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">📲 שלח התראה</button>` : ''}
             ${st === 'pending' ? `<button onclick="openEditIntake('${v.id}')" style="background:#6366f1;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">✏️ עריכה</button>` : ''}
+            ${v.previousIntake ? `<button onclick="restorePrevIntake('${v.id}')" style="background:#0d9488;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">↩️ שחזר קליטה קודמת</button>` : ''}
             ${st === 'done' ? `<button onclick="resendIntake('${v.id}')" style="background:#f59e0b;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">🔄 שליחה מחדש</button>` : ''}
             ${canCheck ? `<button onclick="markChecked('${v.id}')" style="background:var(--dark);color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">📁 שלח לארכיון</button>` : ''}
             <button onclick="deleteIntake('${v.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">🗑️ מחיקה</button>
@@ -6629,15 +6630,54 @@ async function createIntakeTasks(checklist, allNotes, vehicle, photoUrls) {
   }
 }
 
+// שליחה מחדש מרוקנת את מה שהנהג מילא. לפני שמוחקים — שומרים עותק
+// בתוך אותו מסמך, כדי שאפשר יהיה לשחזר בלחיצה אם זה היה בטעות.
 async function resendIntake(id) {
-  if (!confirm('לשלוח את הקליטה מחדש לנהג? הנתונים הקיימים יאופסו.')) return;
-  const { updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-  await updateDoc(doc(window._db, 'intake_assignments', id), {
+  const v = ((typeof _intakeCache !== 'undefined' && _intakeCache) || []).find(x => x.id === id) || {};
+  if (!confirm(`לשלוח מחדש לנהג את הקליטה של ${v.plate || 'הרכב'}?\n\nכל מה שהנהג מילא — צ׳קליסט, הערות, קילומטראז׳ ותמונות — יימחק מהמסך והטופס יחזור ריק.\nנשמור עותק, ותוכל לשחזר בלחיצה.`)) return;
+  const { getDoc, updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  const ref = doc(window._db, 'intake_assignments', id);
+  const snap = await getDoc(ref);
+  const d = snap.exists() ? snap.data() : {};
+  const previousIntake = {
+    checklist: d.checklist || {}, notes: d.notes || '', km: d.km || '', code: d.code || '',
+    photoUrls: d.photoUrls || {}, batteryPhotoUrls: d.batteryPhotoUrls || {},
+    dashChecks: d.dashChecks || {}, safetyChecks: d.safetyChecks || {},
+    intakeDateTime: d.intakeDateTime || '', completedBy: d.completedBy || '',
+    isElectric: !!d.isElectric, evCharge: d.evCharge || '', evRange: d.evRange || '',
+    batteryMonth: d.batteryMonth || '', batteryNoDate: !!d.batteryNoDate,
+    savedAt: new Date().toISOString(),
+  };
+  await updateDoc(ref, {
     status: 'pending', checklist: {}, notes: '', km: '', code: '',
-    photoUrls: {}, intakeDateTime: '', completedBy: '', completedAt: null
+    photoUrls: {}, intakeDateTime: '', completedBy: '', completedAt: null,
+    previousIntake,
   });
-  showToast('🔄 הקליטה נשלחה מחדש לנהג');
+  showToast('🔄 הקליטה נשלחה מחדש לנהג — העותק הקודם נשמר', 5000);
 }
+
+// שחזור הקליטה שנמחקה בשליחה מחדש
+async function restorePrevIntake(id) {
+  const { getDoc, updateDoc, doc, serverTimestamp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  const ref = doc(window._db, 'intake_assignments', id);
+  const snap = await getDoc(ref);
+  const p = snap.exists() ? snap.data().previousIntake : null;
+  if (!p) return showToast('אין עותק קודם לשחזור');
+  const when = p.savedAt ? new Date(p.savedAt).toLocaleString('he-IL') : '';
+  if (!confirm(`לשחזר את הקליטה כפי שהייתה${when ? ' לפני ' + when : ''}?`)) return;
+  await updateDoc(ref, {
+    status: 'done',
+    checklist: p.checklist || {}, notes: p.notes || '', km: p.km || '', code: p.code || '',
+    photoUrls: p.photoUrls || {}, batteryPhotoUrls: p.batteryPhotoUrls || {},
+    dashChecks: p.dashChecks || {}, safetyChecks: p.safetyChecks || {},
+    intakeDateTime: p.intakeDateTime || '', completedBy: p.completedBy || '',
+    isElectric: !!p.isElectric, evCharge: p.evCharge || '', evRange: p.evRange || '',
+    batteryMonth: p.batteryMonth || '', batteryNoDate: !!p.batteryNoDate,
+    completedAt: serverTimestamp(),
+  });
+  showToast('↩️ הקליטה שוחזרה');
+}
+window.restorePrevIntake = restorePrevIntake;
 
 async function deleteIntake(id) {
   if (!confirm('למחוק את הקליטה? הפעולה תימחק גם אצל הנהג.')) return;
