@@ -17108,12 +17108,28 @@ function _coordOfCity(city) {
 }
 // resolve a pickup car's effective city, applying locality aliases found in
 // either the city or the address (e.g. "עין המפרץ" → "עכו")
+// שמות המגרשים של יורודרייב הם מקומות, לא כתובות. כשאין עיר בכרטיס —
+// שם המגרש הוא זה שקובע לאיזו עיר הרכב שייך, כדי שיופיע ברשימת הערים.
+const _YARD_CITY = [
+  ['ניר צבי',   'ניר צבי'],
+  ['גלילות',    'גלילות'],
+  ['סוחרים גלי', 'גלילות'],   // השם בדוח נחתך באמצע
+  ['NRT',       'גלילות'],
+  ['חיפה',      'חיפה'],
+  ['ראשון לציו', 'ראשון לציון'],
+  ['כרכור',     'כרכור'],
+];
+
 function _pickupCity(c) {
   const n = _normCityName(`${c.city || ''} ${c.address || ''}`);
   for (const a of (typeof _CITY_ALIASES !== 'undefined' ? _CITY_ALIASES : [])) {
     if (a.alias && n.includes(_normCityName(a.alias))) return a.city;
   }
-  return c.city || '';
+  if (c.city) return c.city;
+  // רק כשאין עיר: הכתובת מכילה שם מגרש בלבד, ולכן ההשוואה בטוחה
+  const addr = String(c.address || '');
+  for (const [yard, city] of _YARD_CITY) if (addr.includes(yard)) return city;
+  return '';
 }
 
 /* ── תחנות רכבת ──────────────────────────────────────────────────────
