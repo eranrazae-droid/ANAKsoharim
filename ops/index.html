@@ -2340,6 +2340,7 @@ if ('serviceWorker' in navigator) {
     <button onclick="batchCollectPickup()" style="flex:1;min-width:0;background:#059669;color:#fff;border:none;border-radius:10px;padding:12px 6px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">✅ נאספו</button>
     <button onclick="batchSendPickupToDriver()" style="flex:1;min-width:0;background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:12px 6px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">📲 שלח לנהג</button>
     <button onclick="batchCopyPickupText()" style="flex:1;min-width:0;background:var(--dark);color:#fff;border:none;border-radius:10px;padding:12px 6px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">📋 העתק מלל</button>
+    <button onclick="batchSharePickup()" style="flex:1;min-width:0;background:#7c3aed;color:#fff;border:none;border-radius:10px;padding:12px 6px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">📤 שתף עם אישורים</button>
     <button onclick="batchDeletePickup()" style="flex:1;min-width:0;background:#ef4444;color:#fff;border:none;border-radius:10px;padding:12px 6px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">🗑️ הסר</button>
     <button onclick="clearPickupSelection()" style="flex-shrink:0;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:12px 10px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">✕</button>
   </div>
@@ -17767,6 +17768,73 @@ function batchCopyPickupText() {
   }
 }
 window.batchCopyPickupText = batchCopyPickupText;
+
+/* ── שיתוף הרכבים שסומנו יחד עם אישורי העברת הבעלות ─────────────────
+   הדפדפן יודע להעביר קבצים ישירות לוואטסאפ (Web Share), ולכן ההודעה
+   והמסמכים יוצאים יחד. איפה שזה לא נתמך — המלל מועתק והקבצים יורדים
+   למכשיר, כדי לצרף אותם ידנית.
+─────────────────────────────────────────────────────────────────────── */
+function _dataUrlToFile(dataUrl, name, mime) {
+  const parts = String(dataUrl).split(',');
+  const meta = parts[0] || '';
+  const type = mime || (meta.match(/data:([^;]+)/) || [])[1] || 'application/octet-stream';
+  const bin = atob(parts[1] || '');
+  const buf = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+  const ext = type.includes('pdf') ? 'pdf' : type.includes('png') ? 'png' : 'jpg';
+  const safe = String(name || '').trim() || `אישור.${ext}`;
+  return new File([buf], /\.[a-z0-9]+$/i.test(safe) ? safe : `${safe}.${ext}`, { type });
+}
+
+async function batchSharePickup() {
+  if (!_pickupSelected.size) { showToast('לא נבחרו רכבים'); return; }
+  const cars = _pickupShownIds
+    .filter(id => _pickupSelected.has(id))
+    .map(id => _pickupAllCars.find(c => c.id === id))
+    .filter(Boolean);
+  if (!cars.length) { showToast('לא נמצאו רכבים'); return; }
+
+  const head = cars.length === 1 ? 'רכב לאיסוף:' : `${cars.length} רכבים לאיסוף:`;
+  const text = `${head}\n\n` + cars.map(pickupCarText).join('\n\n────────\n\n');
+
+  const files = [];
+  const missing = [];
+  for (const c of cars) {
+    if (!c.doc) { missing.push(c.plate || ''); continue; }
+    try { files.push(_dataUrlToFile(c.doc, c.docName || `אישור ${c.plate || ''}`, c.docMime)); }
+    catch (e) { missing.push(c.plate || ''); }
+  }
+
+  if (!files.length) {
+    showToast('לאף רכב שסומן אין אישור העברת בעלות — הועתק מלל בלבד', 6000);
+    return batchCopyPickupText();
+  }
+
+  const note = missing.length ? `\n\nללא אישור: ${missing.filter(Boolean).join(', ')}` : '';
+  if (navigator.canShare && navigator.canShare({ files })) {
+    try {
+      await navigator.share({ text: text + note, files });
+      return;
+    } catch (e) {
+      if (e && e.name === 'AbortError') return;   // המשתמש ביטל
+      console.warn('share failed', e);
+    }
+  }
+
+  // אין תמיכה בשיתוף קבצים — מלל ללוח, וקבצים להורדה
+  const done = () => showToast(`📋 המלל הועתק · ${files.length} אישורים ירדו למכשיר — צרף אותם להודעה`, 8000);
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text + note).then(done).catch(() => _pcCopyFallback(text + note, done));
+  } else _pcCopyFallback(text + note, done);
+  for (const f of files) {
+    const url = URL.createObjectURL(f);
+    const a = document.createElement('a');
+    a.href = url; a.download = f.name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+}
+window.batchSharePickup = batchSharePickup;
 
 async function batchDeletePickup() {
   const ids = [..._pickupSelected];
