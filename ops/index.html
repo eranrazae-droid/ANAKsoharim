@@ -1154,7 +1154,7 @@ if ('serviceWorker' in navigator) {
       </div>
     </div>
     <div class="ci-note-row" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-      <label for="file-battery" style="background:var(--dark);color:#fff;border:none;border-radius:10px;padding:8px 16px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;display:inline-block">📷 צלם מצבר <span style="color:#ef4444">*</span></label>
+      <label for="file-battery" style="background:var(--dark);color:#fff;border:none;border-radius:10px;padding:8px 16px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;display:inline-block">📷 צלם מצבר <span id="battery-photo-req" style="color:#ef4444">*</span></label>
       <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;cursor:pointer;color:var(--dark)">
         <input type="checkbox" id="battery-no-date-cb" style="width:18px;height:18px;accent-color:#16a34a" onchange="batteryNoDateToggle(this)">
         לא רואים תאריך מצבר
@@ -6413,7 +6413,9 @@ async function submitDriverIntake() {
   // תמונת מצבר תקפה = "צלם מצבר" הייעודי או תמונה שצולמה תחת "בדיקת מצבר"
   const _hasBatteryPhoto = (_batteryPhotoFiles && _batteryPhotoFiles.length) ||
                            (ciPhotoFiles['c-battery-original'] && ciPhotoFiles['c-battery-original'].length);
-  if (!_hasBatteryPhoto) {
+  // כשסומן "לא רואים תאריך מצבר" — אין מה לצלם, ולכן התמונה אינה חובה
+  const _noBatteryDate = !!document.getElementById('battery-no-date-cb')?.checked;
+  if (!_hasBatteryPhoto && !_noBatteryDate) {
     document.getElementById('file-battery')?.closest('.ci-note-row')?.scrollIntoView({ behavior:'smooth', block:'center' });
     showToast('⚠️ נא לצלם תמונה של המצבר');
     return;
@@ -6903,6 +6905,9 @@ function batteryIsOriginalToggle(btn) {
 window.batteryIsOriginalToggle = batteryIsOriginalToggle;
 
 function batteryNoDateToggle(cb) {
+  // בלי תאריך על המצבר אין מה לצלם — הכוכבית של החובה יורדת
+  const req = document.getElementById('battery-photo-req');
+  if (req) req.style.display = cb.checked ? 'none' : '';
   const sec = document.getElementById('battery-date-section');
   if (!sec) return;
   if (cb.checked) {
