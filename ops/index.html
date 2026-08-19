@@ -2403,6 +2403,11 @@ if ('serviceWorker' in navigator) {
       <div id="pickup-lookup-status" style="margin-top:6px;font-size:13px;color:var(--muted)"></div>
     </div>
     <div class="form-group">
+      <label>מאיפה אוספים</label>
+      <div id="pickup-source-btns" style="display:flex;gap:8px"></div>
+      <input type="hidden" id="pickup-source">
+    </div>
+    <div class="form-group">
       <label>סוג רכב</label>
       <input type="text" id="pickup-type" placeholder="יונדאי i35..." style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:14px;box-sizing:border-box">
     </div>
@@ -18240,6 +18245,39 @@ function _pickupStationHtml(c, e) {
   </div>`;
 }
 
+/* ── ספקי האיסוף ────────────────────────────────────────────────────
+   שני מקורות, וכל אחד שולח את הרשימה בפורמט אחר. הסימון נקבע לבד לפי
+   הפורמט שהודבק, ואפשר להחליף אותו ידנית בכל רכב.
+─────────────────────────────────────────────────────────────────────── */
+const _PICKUP_SOURCES = [
+  { name: 'יורודרייב', color: '#4338ca' },
+  { name: 'כלמוביל',  color: '#b45309' },
+];
+const _pickupSourceColor = n => (_PICKUP_SOURCES.find(s => s.name === n) || {}).color || '#64748b';
+
+// תג הספק — מופיע בכרטיס הרכב אצל המנהל ואצל הנהג
+function _pickupSourceTag(c, e) {
+  if (!c || !c.source) return '';
+  return `<span style="background:${_pickupSourceColor(c.source)};color:#fff;border-radius:999px;padding:3px 11px;font-size:12px;font-weight:800;white-space:nowrap">${e ? e(c.source) : c.source}</span>`;
+}
+
+// בורר הספק בטופס ההוספה והעריכה
+function _renderPickupSourceBtns() {
+  const box = document.getElementById('pickup-source-btns');
+  const cur = (document.getElementById('pickup-source') || {}).value || '';
+  if (!box) return;
+  box.innerHTML = _PICKUP_SOURCES.map(s => {
+    const on = cur === s.name;
+    return `<button type="button" onclick="pickupPickSource('${s.name}')" style="flex:1;padding:9px;border-radius:10px;border:2px solid ${on ? s.color : 'var(--border)'};background:${on ? s.color : 'var(--surface2)'};color:${on ? '#fff' : 'var(--text)'};font-family:Heebo,sans-serif;font-weight:800;font-size:14px;cursor:pointer">${s.name}</button>`;
+  }).join('');
+}
+function pickupPickSource(name) {
+  const f = document.getElementById('pickup-source');
+  if (f) f.value = f.value === name ? '' : name;   // לחיצה חוזרת מבטלת
+  _renderPickupSourceBtns();
+}
+window.pickupPickSource = pickupPickSource;
+
 function _pickupCardHtml(c) {
   const e = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const km = c.km ? _fmtKm(c.km) + ' ק"מ' : '';
@@ -18279,6 +18317,7 @@ function _pickupCardHtml(c) {
         ${_pickupRegionTasksHtml(c, e)}
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">
+        ${_pickupSourceTag(c, e)}
         ${waitLabel ? `<span style="background:#d97706;color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;white-space:nowrap">⏱ ${waitLabel}</span>` : ''}
         ${c.assignedDriver ? `<span style="background:#1e40af;color:#fff;border-radius:999px;padding:4px 10px;font-size:12px;font-weight:700;white-space:nowrap">🚗 ${e(c.assignedDriver)}</span>` : ''}
         <button onclick="event.stopPropagation();openSendPickupToDriver('${e(c.id)}')" style="background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">📲 שלח לנהג</button>
@@ -18306,6 +18345,8 @@ function _pickupFillForm(c) {
   document.getElementById('pickup-city').value = c.city || '';
   document.getElementById('pickup-address').value = c.address || '';
   document.getElementById('pickup-note').value = c.note || '';
+  document.getElementById('pickup-source').value = c.source || '';
+  _renderPickupSourceBtns();
   document.getElementById('pickup-lookup-status').textContent = '';
   const _ch = document.getElementById('pickup-contact-hint'); if (_ch) _ch.innerHTML = '';
   document.getElementById('pickup-doc-file').value = '';
@@ -19288,7 +19329,7 @@ function _parseZivLine(line) {
 
   const car = { plate: t[0], type: [maker, latin].filter(Boolean).join(' ').trim(),
     year: t[y], color, km: _fmtKm(String(_zivNum(t[y + 1]))),
-    contact: '', city: '', address: '', note: '' };
+    contact: '', city: '', address: '', note: '', source: 'יורודרייב' };
 
   // המגרש הוא שם ולא כתובת — עד שממלאים את הטבלה למעלה, השם נשמר
   // בשדה הכתובת כדי שלא ילך לאיבוד, והמנהל יכול להשלים ידנית
@@ -19330,7 +19371,7 @@ function _parseZivSheet(rows) {
       year: col.year >= 0 ? cells[col.year] : '',
       color: col.color >= 0 ? cells[col.color] : '',
       km: col.km >= 0 && cells[col.km] ? _fmtKm(cells[col.km].replace(/,/g, '')) : '',
-      contact: '', city: '', address: '', note: '',
+      contact: '', city: '', address: '', note: '', source: 'יורודרייב',
     };
     const known = Object.keys(_YARD_ADDR).find(k => yard.includes(k));
     if (known) { car.city = _YARD_ADDR[known].city; car.address = _YARD_ADDR[known].address; }
@@ -19448,7 +19489,7 @@ async function extractTextFromPickupFile(input) {
 window.extractTextFromPickupFile = extractTextFromPickupFile;
 
 function _parsePickupBlock(lines) {
-  const car = { plate:'', type:'', year:'', color:'', km:'', contact:'', city:'', address:'', note:'' };
+  const car = { plate:'', type:'', year:'', color:'', km:'', contact:'', city:'', address:'', note:'', source:'כלמוביל' };
   const extra = [];
   let step = 0; // 0=plate 1=model 2=year 3=km 4=city 5+=extra
 
@@ -19507,11 +19548,24 @@ function _parsePickupBlock(lines) {
   return car;
 }
 
+// החלפת הספק של רכב בתצוגה המקדימה, לפני השמירה
+function _freetextSetSource(i, name) {
+  if (!_freetextParsed[i]) return;
+  _freetextParsed[i].source = _freetextParsed[i].source === name ? '' : name;
+  _renderFreetextPreview();
+}
+window._freetextSetSource = _freetextSetSource;
+
 function _renderFreetextPreview() {
   const preview = document.getElementById('freetext-pickup-preview');
   preview.innerHTML = _freetextParsed.map((c, i) => `
     <div style="background:var(--surface2);border:1.5px solid var(--border);border-radius:12px;padding:12px;margin-bottom:10px">
-      <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px">רכב ${i+1}${c._fetched ? ' ✅' : c._fetching ? ' ⏳' : ''}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px">
+        <div style="font-size:11px;font-weight:700;color:var(--muted)">רכב ${i+1}${c._fetched ? ' ✅' : c._fetching ? ' ⏳' : ''}</div>
+        <div style="display:flex;gap:5px">
+          ${_PICKUP_SOURCES.map(src => `<button type="button" onclick="_freetextSetSource(${i},'${src.name}')" style="padding:3px 10px;border-radius:999px;border:2px solid ${c.source === src.name ? src.color : 'var(--border)'};background:${c.source === src.name ? src.color : 'transparent'};color:${c.source === src.name ? '#fff' : 'var(--muted)'};font-family:Heebo,sans-serif;font-size:11px;font-weight:800;cursor:pointer">${src.name}</button>`).join('')}
+        </div>
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
         ${[
           ['לוחית','plate'],['סוג','type'],['שנה','year'],['צבע','color'],
@@ -19979,6 +20033,7 @@ function _myPickupCardHtml(c) {
           : `<div style="margin-top:6px;font-size:13px;color:var(--muted)">📍 ${e(c.address)}</div>`) : ''}
       </div>
       <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+        ${_pickupSourceTag(c, e)}
         <span style="background:#1e40af;color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;white-space:nowrap">פתח ▶</span>
         <button onclick="event.stopPropagation();collectPickupCar('${e(c.id)}')" style="background:#059669;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">✅ הרכב נאסף</button>
       </div>
@@ -19993,7 +20048,7 @@ function openPickupDetail(id) {
   const rows = [
     ['לוחית', car.plate], ['סוג רכב', [car.type,car.year].filter(Boolean).join(' · ')],
     ['צבע', car.color], ['קמ"ש', km], ['איש קשר', car.contact],
-    ['עיר', car.city], ['כתובת', car.address], ['הערה', car.note]
+    ['עיר', car.city], ['כתובת', car.address], ['מאיפה', car.source], ['הערה', car.note]
   ].filter(([,v]) => v);
   const docHtml = car.doc ? `<div style="margin-top:14px"><div style="font-size:13px;font-weight:700;color:var(--muted);margin-bottom:6px">אישור העברת בעלות:</div>${_pickupDocThumb(car.doc, car.docMime, car.docName)}</div>` : '';
   const navUrl = _pickupNavUrl(car);
