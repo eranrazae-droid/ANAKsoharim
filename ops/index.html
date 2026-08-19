@@ -2375,6 +2375,14 @@ if ('serviceWorker' in navigator) {
       </div>
       <div id="freetext-img-loading" style="display:none;align-items:center;gap:6px;font-size:13px;color:var(--muted);padding:9px"><span>⏳ מחלץ נתונים...</span></div>
     </div>
+    <!-- שורת צירוף קובץ: דוח מצבת רכב כ-PDF, אקסל או CSV -->
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-shrink:0">
+      <label id="freetext-file-label" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:9px;border-radius:10px;border:1.5px dashed var(--border);background:var(--surface2);cursor:pointer;font-size:13px;font-weight:700;color:var(--muted)">
+        📎 צרף קובץ (PDF / אקסל)
+        <input type="file" id="freetext-file-input" accept=".pdf,.xlsx,.xls,.csv" style="display:none" onchange="extractTextFromPickupFile(this)">
+      </label>
+      <div id="freetext-file-loading" style="display:none;align-items:center;gap:6px;font-size:13px;color:var(--muted);padding:9px"><span>⏳ קורא את הקובץ...</span></div>
+    </div>
     <textarea id="freetext-pickup-input" rows="6" placeholder="הדבק שורה לכל רכב, למשל:&#10;64665702 קיה פיקנטו 2021 לבן 50000 קמ דני 054-3055532 תל אביב&#10;12345678 יונדאי i35 אדום 2019 חיפה" style="display:none;width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:14px;box-sizing:border-box;resize:vertical;flex-shrink:0"></textarea>
     <button id="pickup-detect-btn" onclick="parseFreeTextPickup()" style="display:none;margin-top:10px;background:var(--gold);color:#000;border:none;border-radius:10px;padding:10px;font-family:Heebo,sans-serif;font-weight:900;font-size:14px;cursor:pointer;flex-shrink:0">🔍 זהה רכבים</button>
     <div id="freetext-pickup-preview" style="margin-top:12px;overflow-y:auto;flex:1"></div>
@@ -19212,6 +19220,233 @@ const _TECHNO = { contact: 'שרית 0525816341', city: 'טירת הכרמל', a
 const _SHENKAR_RE = /שנקר/;
 const _SHENKAR = { city: 'פתח תקווה', address: 'שנקר 15' };
 
+/* ── קריאת דוח מצבת רכב ─────────────────────────────────────────────
+   שורה אחת לכל רכב, בסדר: מס' רכב · יצרן · דגם · שנה · ק"מ · צבע ·
+   נפח מנוע · מגרש · מחירון. כשמעתיקים מ-PDF בעברית הסדר של המילים
+   הלועזיות מתהפך, ולכן מרכיבים אותן מחדש.
+─────────────────────────────────────────────────────────────────────── */
+
+// כתובות המגרשים — למלא פעם אחת, ומשם כל דוח נקלט עם ניווט לנהג
+const _YARD_ADDR = {
+  // 'ניר צבי':        { city: '', address: '' },
+  // 'חיפה':           { city: '', address: '' },
+  // 'גלילות':         { city: '', address: '' },
+  // 'ראשון לציון':    { city: '', address: '' },
+};
+
+const _zivNum = t => Number(String(t).replace(/,/g, ''));
+const _zivIsNum = t => /^[\d,]+$/.test(t);
+const _zivHasLatin = t => /[A-Za-z]/.test(t);
+
+// מילה לועזית שהועתקה מ-PDF עברי חוזרת הפוכה: SDRIVE18I הופך ל-I18SDRIVE
+function _zivFixLatin(tokens) {
+  return tokens.slice().reverse().map(t =>
+    (t.match(/[A-Za-z]+|\d+|[^A-Za-z\d]+/g) || [t]).reverse().join(''));
+}
+
+// הדגם בדוח בנוי מחלק לועזי (שם הדגם) וחלק עברי (סוג מרכב ומנוע)
+function _zivModel(tokens) {
+  const out = []; let run = []; const fromRun = [];
+  for (const t of tokens) {
+    // מספר באמצע שם לועזי שייך לשם עצמו — TIGGO 7 PRO
+    if (_zivHasLatin(t) || (run.length && /^\d+$/.test(t))) run.push(t);
+    else {
+      if (run.length) { const f = _zivFixLatin(run); out.push(...f); fromRun.push(...f.map(() => true)); run = []; }
+      out.push(t); fromRun.push(false);
+    }
+  }
+  if (run.length) { const f = _zivFixLatin(run); out.push(...f); fromRun.push(...f.map(() => true)); run = []; }
+  return { latin: out.filter((t, i) => fromRun[i]).join(' ').trim(),
+           hebrew: out.filter((t, i) => !fromRun[i]).join(' ').trim() };
+}
+
+// מחזיר רכב, או null אם השורה אינה שורת דוח
+function _parseZivLine(line) {
+  const t = String(line).trim().split(/\s+/).filter(Boolean);
+  if (t.length < 8 || !/^\d{7,8}$/.test(t[0])) return null;
+
+  // העוגן: השנה היא המספר בן 4 הספרות שאחריו מגיע הקילומטראז'.
+  // בלי העוגן הזה נפח מנוע כמו 1998 היה נקרא בטעות כשנה.
+  let y = -1;
+  for (let i = 2; i < t.length - 4; i++) {
+    if (/^\d{4}$/.test(t[i]) && _zivNum(t[i]) >= 1990 && _zivNum(t[i]) <= 2035 && _zivIsNum(t[i + 1])) { y = i; break; }
+  }
+  if (y < 0) return null;
+
+  const hasPrice = _zivIsNum(t[t.length - 1]);
+  const end = hasPrice ? t.length - 1 : t.length;
+  // מהסוף אחורה: מחירון · שם המגרש · נפח מנוע · צבע
+  let e = end - 1;
+  while (e > y + 1 && !/^\d{3,4}$/.test(t[e])) e--;
+  const yard  = t.slice(e + 1, end).join(' ');
+  const color = t.slice(y + 2, e).join(' ');
+
+  // יצרן: מילה אחת, ולפעמים גם ארץ הייצור ("צ'רי סין")
+  const makerLen = /^(סין|קוריאה|יפן|צרפת|ספרד|גרמניה|ארה"ב|ארה״ב)$/.test(t[2] || '') ? 2 : 1;
+  const maker = t.slice(1, 1 + makerLen).join(' ');
+  const { latin, hebrew } = _zivModel(t.slice(1 + makerLen, y));
+
+  const car = { plate: t[0], type: [maker, latin].filter(Boolean).join(' ').trim(),
+    year: t[y], color, km: _fmtKm(String(_zivNum(t[y + 1]))),
+    contact: '', city: '', address: '', note: '' };
+
+  // המגרש הוא שם ולא כתובת — עד שממלאים את הטבלה למעלה, השם נשמר
+  // בשדה הכתובת כדי שלא ילך לאיבוד, והמנהל יכול להשלים ידנית
+  const known = Object.keys(_YARD_ADDR).find(k => yard.includes(k));
+  if (known) { car.city = _YARD_ADDR[known].city; car.address = _YARD_ADDR[known].address; }
+  else if (yard) car.address = yard;
+  if (hebrew) car.note = hebrew;
+  return car;
+}
+
+// גיליון אקסל: כאן יש עמודות אמיתיות, ולכן קוראים לפי שמות הכותרות
+// ולא לפי מיקום — כך הדוח נקרא גם אם יתווספו או יזוזו עמודות.
+function _parseZivSheet(rows) {
+  const clean = v => String(v == null ? '' : v).replace(/\u00a0/g, ' ').trim();
+  const h = rows.findIndex(r => {
+    const j = r.map(clean).join(' ');
+    return j.includes('יצרן') && j.includes('מגרש');
+  });
+  if (h < 0) return null;
+
+  const head = rows[h].map(clean);
+  const find = (...names) => head.findIndex(c => names.some(n => c.includes(n)));
+  const col = {
+    maker: find('יצרן'), model: find('דגם'), year: find('שנה'),
+    km: find('ק"מ', 'ק״מ', 'קמ'), color: find('צבע'), yard: find('מגרש'),
+  };
+  if (col.maker < 0 || col.yard < 0) return null;
+
+  const cars = [];
+  for (const r of rows.slice(h + 1)) {
+    const cells = r.map(clean);
+    // עמודת מספר הרכב אינה תמיד מסומנת בכותרת — מזהים אותה לפי התוכן
+    const pi = cells.findIndex(c => /^\d{7,8}$/.test(c));
+    if (pi < 0 || pi >= col.maker) continue;
+    const yard = col.yard >= 0 ? cells[col.yard] : '';
+    const car = {
+      plate: cells[pi],
+      type: [cells[col.maker], cells[col.model]].filter(Boolean).join(' ').trim(),
+      year: col.year >= 0 ? cells[col.year] : '',
+      color: col.color >= 0 ? cells[col.color] : '',
+      km: col.km >= 0 && cells[col.km] ? _fmtKm(cells[col.km].replace(/,/g, '')) : '',
+      contact: '', city: '', address: '', note: '',
+    };
+    const known = Object.keys(_YARD_ADDR).find(k => yard.includes(k));
+    if (known) { car.city = _YARD_ADDR[known].city; car.address = _YARD_ADDR[known].address; }
+    else if (yard) car.address = yard;
+    cars.push(car);
+  }
+  return cars.length ? cars : null;
+}
+
+// טקסט שלם: אם לפחות שורה אחת נראית כמו דוח — קוראים את כולו ככה
+function _parseZivReport(raw) {
+  const cars = String(raw).split(/\r?\n/).map(_parseZivLine).filter(Boolean);
+  return cars.length ? cars : null;
+}
+
+/* ── צירוף קובץ: PDF, אקסל או CSV ────────────────────────────────── */
+let _pdfjsLoading = null;
+// הספרייה יושבת אצלנו ולא ב-CDN, כדי שהקריאה תעבוד גם בלי רשת חיצונית
+function _loadPdfJs() {
+  if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  if (_pdfjsLoading) return _pdfjsLoading;
+  _pdfjsLoading = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'vendor/pdf.min.js';
+    s.onload = () => {
+      if (window.pdfjsLib) {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
+        resolve(window.pdfjsLib);
+      } else reject(new Error('קורא ה-PDF לא נטען'));
+    };
+    s.onerror = () => reject(new Error('קורא ה-PDF לא נטען'));
+    document.head.appendChild(s);
+  });
+  return _pdfjsLoading;
+}
+
+// ב-PDF אין שורות — יש מילים עם מיקום. מקבצים לפי גובה ומסדרים מימין
+// לשמאל, וכך מקבלים בדיוק את מה שמתקבל בהעתקה ידנית.
+async function _pdfToLines(buf) {
+  const pdfjs = await _loadPdfJs();
+  const pdf = await pdfjs.getDocument({ data: buf }).promise;
+  const lines = [];
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const content = await page.getTextContent();
+    const rows = {};
+    for (const item of content.items) {
+      const str = (item.str || '').trim();
+      if (!str) continue;
+      const y = Math.round(item.transform[5]);
+      (rows[y] = rows[y] || []).push({ x: item.transform[4], w: item.width, h: item.height, str });
+    }
+    // pdf.js מפרק את השורה לחתיכות קטנות. חתיכות צמודות הן אותה מילה,
+    // ורק רווח אמיתי בין שתי חתיכות מפריד בין מילים.
+    for (const y of Object.keys(rows).sort((a, b) => b - a)) {
+      const items = rows[y].sort((a, b) => b.x - a.x);
+      let line = '';
+      items.forEach((it, i) => {
+        if (i) {
+          const prev = items[i - 1];
+          // מרווח חיובי גדול = רווח אמיתי. מרווח שלילי גדול = מעבר בין
+          // כיוון כתיבה עברי ללועזי, וגם הוא מפריד בין מילים.
+          const gap = prev.x - (it.x + it.w);
+          if (Math.abs(gap) > (it.h || 10) * 0.15) line += ' ';
+        }
+        line += it.str;
+      });
+      lines.push(line);
+    }
+  }
+  return lines;
+}
+
+async function extractTextFromPickupFile(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const label = document.getElementById('freetext-file-label');
+  const load  = document.getElementById('freetext-file-loading');
+  if (label) label.style.display = 'none';
+  if (load) load.style.display = 'flex';
+  try {
+    const buf = await file.arrayBuffer();
+    let lines = [], sheetCars = null;
+    if (/\.pdf$/i.test(file.name)) {
+      lines = await _pdfToLines(buf);
+    } else {
+      if (typeof XLSX === 'undefined') throw new Error('ספריית האקסל עדיין נטענת — נסה שוב עוד רגע');
+      const wb = XLSX.read(buf, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
+      sheetCars = _parseZivSheet(rows);
+      lines = rows.map(r => r.map(c => String(c).replace(/\u00a0/g, ' ').trim()).filter(Boolean).join(' '))
+        .filter(Boolean);
+    }
+    const ta = document.getElementById('freetext-pickup-input');
+    ta.value = lines.join('\n');
+    ta.style.display = 'block';
+    document.getElementById('pickup-detect-btn').style.display = 'block';
+    const found = sheetCars ? sheetCars.length : (_parseZivReport(ta.value) || []).length;
+    showToast(found ? `📎 נקראו ${found} רכבים מהקובץ` : '📎 הקובץ נקרא — לחץ ״זהה רכבים״', 4000);
+    if (found) parseFreeTextPickup(sheetCars);
+  } catch (err) {
+    console.error('pickup file read failed', err);
+    showToast(/\.pdf$/i.test(file.name)
+      ? 'לא הצלחתי לקרוא את ה-PDF. פתח אותו, סמן הכל, העתק — והדבק כאן בתיבה'
+      : 'שגיאה בקריאת הקובץ: ' + (err.message || err), 7000);
+    const ta = document.getElementById('freetext-pickup-input');
+    if (ta) { ta.style.display = 'block'; document.getElementById('pickup-detect-btn').style.display = 'block'; }
+  } finally {
+    if (label) label.style.display = 'flex';
+    if (load) load.style.display = 'none';
+    input.value = '';
+  }
+}
+window.extractTextFromPickupFile = extractTextFromPickupFile;
+
 function _parsePickupBlock(lines) {
   const car = { plate:'', type:'', year:'', color:'', km:'', contact:'', city:'', address:'', note:'' };
   const extra = [];
@@ -19296,12 +19531,18 @@ function _renderFreetextPreview() {
   document.getElementById('freetext-pickup-save-btn').textContent = `✅ שמור ${_freetextParsed.length} רכבים`;
 }
 
-async function parseFreeTextPickup() {
+async function parseFreeTextPickup(readyCars) {
   const raw = document.getElementById('freetext-pickup-input').value.trim();
-  if (!raw) return showToast('נא להזין טקסט');
+  if (!raw && !(Array.isArray(readyCars) && readyCars.length)) return showToast('נא להזין טקסט');
 
-  const lineBlocks = _splitPickupBlocks(raw);
-  _freetextParsed = lineBlocks.map(_parsePickupBlock).filter(c => c.plate || c.type || c.contact);
+  // דוח מצבת רכב — שורה אחת לכל רכב. אם זה הפורמט, קוראים אותו ישירות
+  const zivCars = (Array.isArray(readyCars) && readyCars.length) ? readyCars : _parseZivReport(raw);
+  if (zivCars) {
+    _freetextParsed = zivCars;
+  } else {
+    const lineBlocks = _splitPickupBlocks(raw);
+    _freetextParsed = lineBlocks.map(_parsePickupBlock).filter(c => c.plate || c.type || c.contact);
+  }
 
   // יישור הכתובות שזוהו לשמות הרחובות הרשמיים מהמילון, לפני התצוגה —
   // כך רואים (ואפשר לתקן) את הכתובת הסופית עוד לפני השמירה
