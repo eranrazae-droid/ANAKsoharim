@@ -260,13 +260,15 @@ exports.runRecallScanNow = onRequest(
 // A run that ends early used to write nothing at all, so a morning with no
 // scan looked exactly like a morning with no recalls. Every run now stamps
 // recall_status/lastRun, and every failure sends a Telegram message.
-async function _recallReportRun(result, trigger) {
+async function _recallReportRun(result, trigger, quiet) {
   try {
     await db.collection("recall_status").doc("lastRun").set({
       at: new Date(), trigger: trigger || "schedule", ...result,
     });
   } catch (err) { console.error("recall lastRun write failed", err); }
   if (result.ok) return;
+  // בזמן ניסיונות חוזרים אחרי חסימה לא שולחים הודעת כישלון בכל ניסיון
+  if (quiet) return;
   const reasons = {
     "inventory-fetch-failed": "לא הצלחנו למשוך את רשימת הרכבים מהמערכת (השרת לא הגיב)",
     "empty-inventory": "רשימת הרכבים חזרה ריקה מהמערכת",
@@ -300,13 +302,13 @@ async function _recallProgress(done, total, running) {
   } catch (err) { console.error("recall progress write failed", err); }
 }
 
-async function _runRecallScan(trigger) {
+async function _runRecallScan(trigger, quiet) {
   const res = await _runRecallScanInner().catch((err) => {
     console.error("recall scan crashed", err);
     return { ok: false, reason: "crashed", error: String(err && err.message || err) };
   });
   await _recallProgress(0, 0, false);   // הפס נעלם מהמסך בסיום, גם בכישלון
-  await _recallReportRun(res, trigger);
+  await _recallReportRun(res, trigger, quiet);
   return res;
 }
 
@@ -1473,6 +1475,9 @@ exports.runOwnershipScanNow = onRequest(
     let out;
     try { out = await _runOwnershipScan(); }
     catch (err) { out = { ok: false, reason: "crashed", error: err.message }; }
+    // גם בדיקה ידנית שנחסמה מפעילה את הניסיונות החוזרים
+    if (out.reason === "registry-unreachable") await _setScanBlocked("own", true);
+    else if (out.ok) await _setScanBlocked("own", false);
     res.status(out.ok ? 200 : 500).json(out);
   }
 );
@@ -1576,7 +1581,11 @@ exports.dailyOwnershipCheck = onSchedule(
     if (!isDigest && modified && meta.registryModified === modified) return;
 
     const r = await _runOwnershipScan().catch((e) => ({ ok: false, reason: "crashed", error: String(e && e.message || e) }));
-    if (!r.ok) return;
+    if (!r.ok) {
+      if (r.reason === "registry-unreachable") await _setScanBlocked("own", true);
+      return;
+    }
+    await _setScanBlocked("own", false);
 
     const toNot   = r.changedToNot   || [];
     const toOurs  = r.changedToOurs  || [];
@@ -1795,6 +1804,62 @@ async function _weeklyBackupRun() {
   );
   return { ok: true, ...result, deleted };
 }
+
+/* ── ניסיונות חוזרים אחרי חסימה של מרשם הרכב ─────────────────────────
+   כשמשרד התחבורה חוסם, הסריקה נכשלת ונשמר סימון "חסום". מכאן ואילך
+   מנסים שוב כל חמש דקות בשקט — בלי הודעות כישלון — ורק כשהבדיקה
+   עוברת נשלחת הודעה אחת בטלגרם, והסימון מתבטל.                      */
+const _SCAN_RETRY_DOC = () => db.collection("scan_status").doc("retry");
+
+async function _setScanBlocked(kind, blocked) {
+  try {
+    await _SCAN_RETRY_DOC().set({ [kind]: !!blocked, at: new Date() }, { merge: true });
+  } catch (err) { console.error("scan retry flag write failed", err); }
+}
+
+async function _notifyManager(text) {
+  try {
+    const cs = await db.collection("config").doc("driver_contacts").get();
+    const contacts = cs.exists ? cs.data() : {};
+    const token = contacts["_telegramToken"]?.value || "";
+    const chatId = contacts["ליאל"]?.telegramId || "";
+    if (!token || !chatId) return;
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text }),
+    });
+  } catch (err) { console.error("manager notify failed", err); }
+}
+
+exports.retryBlockedScans = onSchedule(
+  { schedule: "*/5 * * * *", region: "europe-west1", timeZone: "Asia/Jerusalem", timeoutSeconds: 540, memory: "512MiB" },
+  async () => {
+    let state = {};
+    try { const d = await _SCAN_RETRY_DOC().get(); if (d.exists) state = d.data() || {}; } catch (err) { /* ignore */ }
+
+    // הריקול: הסימון נלמד מהריצה האחרונה שנשמרה ממילא
+    let recallBlocked = false;
+    try {
+      const lr = await db.collection("recall_status").doc("lastRun").get();
+      const d = lr.exists ? lr.data() : null;
+      recallBlocked = !!d && d.ok === false &&
+        ["unreliable", "registry-unreachable"].includes(d.reason);
+    } catch (err) { /* ignore */ }
+
+    if (recallBlocked) {
+      const r = await _runRecallScan("retry", true);
+      if (r.ok) await _notifyManager("✅ בדיקת הריקול עברה בהצלחה — משרד התחבורה חזר להגיב.");
+    }
+
+    if (state.own) {
+      const r = await _runOwnershipScan().catch(() => ({ ok: false }));
+      if (r.ok) {
+        await _setScanBlocked("own", false);
+        await _notifyManager("✅ בדיקת הבעלויות עברה בהצלחה — משרד התחבורה חזר להגיב.");
+      }
+    }
+  }
+);
 
 exports.weeklyFirestoreBackup = onSchedule(
   { schedule: "0 3 * * 5", region: "europe-west1", timeZone: "Asia/Jerusalem", timeoutSeconds: 300, memory: "256MiB" },
