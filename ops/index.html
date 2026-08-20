@@ -144,9 +144,22 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
    פעולות. כולן באותו גובה בדיוק, כך שהמסך מציג כמה שיותר רכבים. */
 #pickup-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px;align-content:start}
 /* במסך העבודה הרחב מקבעים בדיוק ארבעה רכבים בשורה, כדי שהקוביות יהיו גדולות וקריאות */
-@media(min-width:1400px){#pickup-list{grid-template-columns:repeat(4,1fr)}}
-.pk-tile{user-select:none;-webkit-user-select:none;background:var(--card);border:2px solid var(--border);border-radius:14px;padding:10px 12px;
-  display:flex;flex-direction:column;gap:7px;height:236px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.05);transition:box-shadow .15s}
+@media(min-width:1400px){#pickup-list{grid-template-columns:repeat(5,1fr)}
+  /* במסך רחב מצטמצמים מעט כדי שחמישה רכבים ייכנסו בשורה */
+  .pk-tile{padding:9px 10px}
+  .pk-plate{font-size:17px !important}
+  .pk-tick{width:22px !important;height:22px !important;font-size:13px}
+  .pk-drag{display:none !important}
+  .pk-tile-top svg{width:76px;height:20px}
+  .pk-tile-top>div:last-child{max-width:96px}
+  .pk-acts button{font-size:14px;padding:5px 0 4px}
+  .pk-acts button b{font-size:9px}
+  .pk-line{font-size:12px}
+  .pk-badge{font-size:11px;height:26px}
+  .pk-who{font-size:12.5px}
+}
+.pk-tile{box-sizing:border-box;user-select:none;-webkit-user-select:none;background:var(--card);border:2px solid var(--border);border-radius:14px;padding:10px 12px;
+  display:flex;flex-direction:column;gap:7px;height:var(--pk-row,236px);cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.05);transition:box-shadow .15s}
 .pk-tile:hover{box-shadow:0 3px 12px rgba(0,0,0,.12)}
 .pk-tile-top{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-shrink:0}
 .pk-plate{font-size:19px;font-weight:900;letter-spacing:.5px;font-variant-numeric:tabular-nums;white-space:nowrap;flex-shrink:0}
@@ -18456,6 +18469,8 @@ function setPickupCompany(name) {
 window.setPickupCompany = setPickupCompany;
 
 function setPickupSort(i) {
+  // בחירת מיון מבטלת את הסדר הידני שנקבע בגרירה, וכל הרכבים נסדרים מחדש
+  _pickupClearManualOrder();
   // מיון לפי מרחק הוא אפשרות בפני עצמה, ולא תוספת על מיון הזמן
   _pickupDistSort = (i === 3);
   if (i < 3) _pickupSortMode = i;
@@ -18464,8 +18479,32 @@ function setPickupSort(i) {
 }
 window.setPickupSort = setPickupSort;
 
+// גובה הקובייה נקבע כך ששלוש שורות ימלאו בדיוק את גובה המסך, בלי שטח מת
+function _pickupFitRows() {
+  const list = document.getElementById('pickup-list');
+  if (!list) return;
+  const top = list.getBoundingClientRect().top;
+  // שלוש שורות + שני רווחים של 12 + שוליים תחתונים, ממלאות בדיוק את הגובה
+  const row = Math.max(210, Math.min(430, (window.innerHeight - top - 40) / 3));
+  list.style.setProperty('--pk-row', Math.floor(row) + 'px');
+}
+window.addEventListener('resize', () => _pickupFitRows());
+
+// ביטול הסדר הידני: מוחקים את מספרי הסדר מהרכבים וחוזרים למיון הרגיל
+async function _pickupClearManualOrder() {
+  if (!_pickupManualOrder) return;
+  _pickupManualOrder = false;
+  const ids = _pickupAllCars.filter(c => typeof c.sortIndex === 'number').map(c => c.id);
+  _pickupAllCars.forEach(c => { delete c.sortIndex; });
+  try {
+    await Promise.all(ids.map(id => db.collection('pickup_cars').doc(id)
+      .update({ sortIndex: firebase.firestore.FieldValue.delete() })));
+  } catch (e) { console.warn('clear manual order', e); }
+}
+
 // חזרה למצב ההתחלתי: כל החברות, כל הערים, והחדשים ביותר קודם
 function resetPickupFilters() {
+  _pickupClearManualOrder();
   _pickupCompany = '';
   _pickupDistSort = false;
   _pickupSortMode = 0;
@@ -18813,6 +18852,7 @@ function renderPickupCars() {
     return;
   }
   list.innerHTML = cars.map(_pickupCardHtml).join('');
+  _pickupFitRows();
   _pickupEnableDrag();
   _syncSelectAllLabel();
   _schedulePickupMap();
@@ -19021,14 +19061,19 @@ function _pickupEnableDrag() {
     try { (source || list).setPointerCapture(pointerId); } catch (e) {}
   };
 
+  // ביטול לחיצה ארוכה שטרם הבשילה — למשל כשהמשתמש רק לחץ ופתח עריכה
+  const cancelPress = () => { clearTimeout(pressTimer); pressTimer = null; pressInfo = null; };
+
   list.addEventListener('pointerdown', ev => {
-    if (ev.button > 0) return;
+    // גרירה בעכבר רק בלחיצה שמאלית ממושכת
+    if (ev.pointerType === 'mouse' && ev.button !== 0) { cancelPress(); return; }
+    if (ev.button > 0) { cancelPress(); return; }
     const tile = ev.target.closest('.pk-tile');
-    if (!tile) return;
+    if (!tile) { cancelPress(); return; }
     const handle = ev.target.closest('.pk-drag');
     if (handle) { ev.preventDefault(); beginDrag(tile, ev.clientX, ev.clientY, ev.pointerId, handle); return; }
     // כפתורים וקישורים ממשיכים לעבוד כרגיל
-    if (ev.target.closest('button, a, .pk-tick')) return;
+    if (ev.target.closest('button, a, .pk-tick')) { cancelPress(); return; }
     pressInfo = { tile, x: ev.clientX, y: ev.clientY, id: ev.pointerId };
     clearTimeout(pressTimer);
     pressTimer = setTimeout(() => {
@@ -19037,6 +19082,21 @@ function _pickupEnableDrag() {
       pressInfo = null;
     }, 350);
   });
+
+  // הרפיית האצבע או העכבר לפני שהלחיצה הבשילה = קליק רגיל, בלי גרירה
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(t =>
+    list.addEventListener(t, cancelPress, true));
+  // אם משהו אחר לקח את המסך (חלון עריכה, גלילה, מעבר מסך) — מבטלים
+  window.addEventListener('blur', cancelPress);
+  document.addEventListener('scroll', cancelPress, true);
+
+  // אחרי גרירה אמיתית בולעים את הקליק שאחריה, כדי שלא ייפתח חלון עריכה
+  list.addEventListener('click', ev => {
+    if (!list.dataset.swallowClick) return;
+    delete list.dataset.swallowClick;
+    ev.stopPropagation();
+    ev.preventDefault();
+  }, true);
 
   // תזוזה לפני שהלחיצה הארוכה הבשילה = גלילה, ולא גרירה
   list.addEventListener('pointermove', ev => {
@@ -19096,13 +19156,14 @@ function _pickupEnableDrag() {
   });
 
   const finish = () => {
+    cancelPress();
     const d = _pkDrag;
     if (!d) return;
     _pkDrag = null;
     d.ghost.remove();
     d.tile.classList.remove('pk-dragging');
     list.querySelectorAll('.pk-tile').forEach(t => { t.classList.remove('pk-shift'); t.style.transform = ''; });
-    if (d.moved) _savePickupOrder();
+    if (d.moved) { list.dataset.swallowClick = '1'; _savePickupOrder(); }
   };
   list.addEventListener('pointerup', finish);
   list.addEventListener('pointercancel', finish);
