@@ -17848,7 +17848,10 @@ function pickupCarText(c) {
   lines.push(`🚗 ${c.plate || ''}`);
   const desc = [c.type, c.year, c.color].filter(Boolean).join(' · ');
   if (desc) lines.push(desc);
-  const where = [c.address, _pickupCity(c)].filter(Boolean).join(', ');
+  // אם הכתובת כבר כוללת את שם העיר, לא כותבים אותו פעמיים
+  const _city = _pickupCity(c) || '';
+  const _addr = c.address || '';
+  const where = [_addr, _addr.includes(_city) ? '' : _city].filter(Boolean).join(', ');
   if (where) lines.push(`📍 ${where}`);
   if (c.contact) lines.push(`👤 ${c.contact}`);
   if (c.km) lines.push(`🛣️ ${_fmtKm(c.km)} ק"מ`);
@@ -17906,11 +17909,10 @@ async function batchSharePickup() {
   const text = `${head}\n\n` + cars.map(pickupCarText).join('\n\n────────\n\n');
 
   const files = [];
-  const missing = [];
   for (const c of cars) {
-    if (!c.doc) { missing.push(c.plate || ''); continue; }
+    if (!c.doc) continue;
     try { files.push(_dataUrlToFile(c.doc, c.docName || `אישור ${c.plate || ''}`, c.docMime)); }
-    catch (e) { missing.push(c.plate || ''); }
+    catch (e) {}
   }
 
   if (!files.length) {
@@ -17918,10 +17920,9 @@ async function batchSharePickup() {
     return batchCopyPickupText();
   }
 
-  const note = missing.length ? `\n\nללא אישור: ${missing.filter(Boolean).join(', ')}` : '';
   if (_isHandheld() && navigator.canShare && navigator.canShare({ files })) {
     try {
-      await navigator.share({ text: text + note, files });
+      await navigator.share({ text, files });
       return;
     } catch (e) {
       if (e && e.name === 'AbortError') return;   // המשתמש ביטל
@@ -17930,7 +17931,7 @@ async function batchSharePickup() {
   }
 
   // מחשב: פותחים חלון שיתוף שמאפשר להעתיק כל אישור ולהדביק בוואטסאפ ווב
-  _openDesktopShare(text + note, cars.filter(c => c.doc));
+  _openDesktopShare(text, cars.filter(c => c.doc));
 }
 
 /* ── איחוד כל אישורי העברת הבעלות לקובץ אחד ─────────────────────────
@@ -18080,9 +18081,7 @@ async function batchExportPickup() {
 
   const head = cars.length === 1 ? 'רכב לאיסוף:' : `${cars.length} רכבים לאיסוף:`;
   const withDoc = cars.filter(c => c.doc);
-  const missing = cars.filter(c => !c.doc).map(c => c.plate).filter(Boolean);
-  const text = `${head}\n\n` + cars.map(pickupCarText).join('\n\n────────\n\n') +
-               (missing.length ? `\n\nללא אישור: ${missing.join(', ')}` : '');
+  const text = `${head}\n\n` + cars.map(pickupCarText).join('\n\n────────\n\n');
 
   // המלל ללוח קודם, כדי שההעתקה תתבצע בתוך הלחיצה עצמה
   if (navigator.clipboard && window.isSecureContext) {
@@ -18787,8 +18786,21 @@ async function _learnAddrContact(city, address, contact) {
   try { await window._setDoc(_docRef('pickup_addr_contacts', key.replace(/\//g, '-')), next, { merge: true }); } catch (e) {}
 }
 
-// מעבר על הרכבים הקיימים: לומד מהם כתובות ואנשי קשר, ומשלים איש קשר
-// לרכב שיושב בכתובת מוכרת. כשכבר רשום מישהו אחר — שניהם נכתבים.
+// שכתוב זיכרון הכתובת לפי מה שנרשם עכשיו ברכב — כך מחיקה של איש קשר
+// נשמרת ולא חוזרת מהזיכרון בסיבוב הבא
+async function _setAddrContacts(city, address, contact) {
+  const key = _addrKey(city, address);
+  if (!key || !window._setDoc) return;
+  const parts = _contactParts(contact || '');
+  const cur = _addrContacts[key];
+  if (cur && (cur.contacts || []).join('·') === parts.join('·')) return;
+  const next = { city, address: _cleanStreet(address), contacts: parts };
+  _addrContacts[key] = next;
+  try { await window._setDoc(_docRef('pickup_addr_contacts', key.replace(/\//g, '-')), next); } catch (e) {}
+}
+
+// מעבר על הרכבים הקיימים: לומד מהם כתובות ואנשי קשר, ומנקה כפילויות
+// בשדה של הרכב. הוא לא מוסיף לרכב איש קשר שלא נרשם בו.
 let _addrSyncBusy = false;
 async function _syncAddrContacts() {
   if (_addrSyncBusy || !window._setDoc) return;
@@ -18798,10 +18810,9 @@ async function _syncAddrContacts() {
       const key = _addrKey(_pickupCity(car), car.address);
       if (!key) continue;
       if (car.contact) await _learnAddrContact(_pickupCity(car), car.address, car.contact);
-      const known = _knownContactsFor(car);
-      // ממזג את אנשי הקשר הידועים ומנקה כפילויות בשדה הרכב עצמו. הכתיבה
-      // רק כשהתוצאה שונה — כך כפילויות קיימות מתנקות, בלי לולאת כתיבה.
-      const merged = _dedupContacts([car.contact || '', ...known].join(' · '));
+      // מנקה כפילויות בשדה של הרכב בלבד. אין מיזוג מהזיכרון, כדי שאיש
+      // קשר שנמחק ידנית לא יחזור לרכב.
+      const merged = _dedupContacts(car.contact || '');
       if (!merged || merged === String(car.contact || '').trim()) continue;
       car.contact = merged;
       try { await _updateDoc(_docRef('pickup_cars', car.id), { contact: merged }); } catch (e) {}
@@ -19390,6 +19401,7 @@ async function submitPickupCar() {
   if (!plate) return showToast('נא להזין לוחית רישוי');
   const btn = document.getElementById('pickup-submit-btn');
   btn.disabled = true;
+  const isEdit = !!_pickupEditId;
   const docName = document.getElementById('pickup-doc-name').textContent || '';
   const data = {
     plate,
@@ -19420,8 +19432,10 @@ async function submitPickupCar() {
       closeModal('modal-add-pickup');
       showToast('✅ הרכב נוסף');
     }
-    // הכתובת ואיש הקשר נשמרים יחד, כדי שהרכב הבא באותה כתובת יתמלא לבד
-    _learnAddrContact(data.city, data.address, data.contact);
+    // הכתובת ואיש הקשר נשמרים יחד, כדי שהרכב הבא באותה כתובת יתמלא לבד.
+    // בעריכה מה שנרשם עכשיו קובע — כך מחיקה של איש קשר באמת נשמרת.
+    if (isEdit) _setAddrContacts(data.city, data.address, data.contact);
+    else _learnAddrContact(data.city, data.address, data.contact);
   } catch(e) { showToast('שגיאה בשמירה'); }
   btn.disabled = false;
 }
