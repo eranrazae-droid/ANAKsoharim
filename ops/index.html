@@ -142,9 +142,11 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
 /* ── קוביות מכוניות לאיסוף ───────────────────────────────────────────
    קובייה אחידה לכל רכב: מספר, ספק, דגם, מיקום, תוקף טסט, סטטוס וארבע
    פעולות. כולן באותו גובה בדיוק, כך שהמסך מציג כמה שיותר רכבים. */
-#pickup-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;align-content:start}
+#pickup-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px;align-content:start}
+/* במסך העבודה הרחב מקבעים בדיוק ארבעה רכבים בשורה, כדי שהקוביות יהיו גדולות וקריאות */
+@media(min-width:1400px){#pickup-list{grid-template-columns:repeat(4,1fr)}}
 .pk-tile{user-select:none;-webkit-user-select:none;background:var(--card);border:2px solid var(--border);border-radius:14px;padding:10px 12px;
-  display:flex;flex-direction:column;gap:6px;height:212px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.05);transition:box-shadow .15s}
+  display:flex;flex-direction:column;gap:7px;height:236px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.05);transition:box-shadow .15s}
 .pk-tile:hover{box-shadow:0 3px 12px rgba(0,0,0,.12)}
 .pk-tile-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .pk-plate{font-size:19px;font-weight:900;letter-spacing:.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -173,10 +175,11 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
 .pk-ghost{position:fixed;z-index:9999;pointer-events:none;box-shadow:0 12px 30px rgba(0,0,0,.28);
   transform:rotate(1.2deg) scale(1.02);opacity:.97;margin:0}
 .pk-shift{transition:transform .18s cubic-bezier(.2,.7,.3,1)}
-.pk-acts button{border:none;border-radius:8px;color:#fff;font-size:15px;padding:7px 0;cursor:pointer;font-family:Heebo,sans-serif}
+.pk-acts button{border:none;border-radius:8px;color:#fff;font-size:16px;padding:6px 0 5px;cursor:pointer;font-family:Heebo,sans-serif;display:flex;flex-direction:column;align-items:center;gap:1px;line-height:1.1}
+.pk-acts button b{font-size:10px;font-weight:800;white-space:nowrap}
 @media (max-width:700px){
   #pickup-list{grid-template-columns:1fr}
-  .pk-tile{height:216px}
+  .pk-tile{height:240px}
 }
 .driver-battery-awaiting{background:#0891b2 !important;color:#fff !important}
 .driver-battery-awaiting .mc-title,.driver-battery-awaiting .mc-sub{color:#fff !important}
@@ -435,13 +438,13 @@ body.modal-open{overflow:hidden}
 /* The panel beater works on a phone only: two cards to a row there, and the
    cards are short enough that three rows fit on one screen. */
 /* מסך איסוף: בטלפון הכל אחד מתחת לשני והמפה מוסתרת עד שלוחצים עליה.
-   במסך רחב — הרשימה תופסת שני שלישים מימין והמפה שליש משמאל. */
+   במסך רחב — הרשימה תופסת שלושה רבעים מימין והמפה רבע משמאל. */
 .pickup-split{display:block}
 .pickup-col-map{display:none;padding:12px 16px 0}
 .pickup-col-map.open{display:block}
 #pickup-map{height:420px;border-radius:14px;overflow:hidden;background:#e5e7eb;z-index:0}
 @media(min-width:1000px){
-  .pickup-split{display:grid;grid-template-columns:2fr 1fr;gap:16px;align-items:start}
+  .pickup-split{display:grid;grid-template-columns:3fr 1fr;gap:16px;align-items:start}
   .pickup-col-map{display:block;position:sticky;top:12px}
   .pickup-col-map.closed{display:none}
   #pickup-map{height:calc(100vh - 190px)}
@@ -19137,7 +19140,10 @@ function _pickupCardHtml(c) {
   const checked = _pickupSelected.has(c.id);
   const pinned = !!c.pinned;
   const expired = c.test && _testExpired(c.test);
-  const place = c.address || _pickupCity(c) || '';
+  // בשורת המיקום מציגים את הכתובת ואחריה את שם העיר
+  const _city = _pickupCity(c) || '';
+  const place = [c.address || '', c.address && _city && !c.address.includes(_city) ? _city : (c.address ? '' : _city)]
+    .filter(Boolean).join(', ');
   const nav = _pickupNavUrl(c);
   const sent = !!c.assignedDriver;
   // רכב שנשלח לנהג מקבל רקע צהוב; רכב שסומן — ירוק, והסימון גובר
@@ -19180,12 +19186,12 @@ function _pickupCardHtml(c) {
     </div>
 
     <div class="pk-acts">
-      <button onclick="event.stopPropagation();openSendPickupToDriver('${e(c.id)}')" title="שלח לנהג" style="background:#0ea5e9">📲</button>
+      <button onclick="event.stopPropagation();openSendPickupToDriver('${e(c.id)}')" title="שלח לנהג" style="background:#0ea5e9">📲<b>שלח לנהג</b></button>
       ${sent
-        ? `<button onclick="event.stopPropagation();sendPickupCarIntake('${e(c.id)}')" title="שלח קליטה" style="background:#7c3aed">📥</button>`
-        : `<button onclick="event.stopPropagation();showToast('קודם שלח את הרכב לנהג, ואז אפשר לשלוח קליטה', 4000)" title="צריך קודם לשלוח לנהג" style="background:var(--surface2);color:var(--muted);border:2px dashed var(--border);cursor:not-allowed">📥</button>`}
-      <button onclick="event.stopPropagation();collectPickupCar('${e(c.id)}')" title="הרכב נאסף" style="background:#059669">✅</button>
-      <button onclick="event.stopPropagation();deletePickupCar('${e(c.id)}')" title="הסר" style="background:#ef4444">🗑️</button>
+        ? `<button onclick="event.stopPropagation();sendPickupCarIntake('${e(c.id)}')" title="שלח קליטה" style="background:#7c3aed">📥<b>שלח קליטה</b></button>`
+        : `<button onclick="event.stopPropagation();showToast('קודם שלח את הרכב לנהג, ואז אפשר לשלוח קליטה', 4000)" title="צריך קודם לשלוח לנהג" style="background:var(--surface2);color:var(--muted);border:2px dashed var(--border);cursor:not-allowed">📥<b>שלח קליטה</b></button>`}
+      <button onclick="event.stopPropagation();collectPickupCar('${e(c.id)}')" title="הרכב נאסף" style="background:#059669">✅<b>נאסף</b></button>
+      <button onclick="event.stopPropagation();deletePickupCar('${e(c.id)}')" title="הסר" style="background:#ef4444">🗑️<b>הסר</b></button>
     </div>
   </div>`;
 }
