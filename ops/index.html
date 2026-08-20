@@ -143,14 +143,15 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
    קובייה אחידה לכל רכב: מספר, ספק, דגם, מיקום, תוקף טסט, סטטוס וארבע
    פעולות. כולן באותו גובה בדיוק, כך שהמסך מציג כמה שיותר רכבים. */
 #pickup-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;align-content:start}
-.pk-tile{background:var(--card);border:2px solid var(--border);border-radius:14px;padding:10px 12px;
+.pk-tile{user-select:none;-webkit-user-select:none;background:var(--card);border:2px solid var(--border);border-radius:14px;padding:10px 12px;
   display:flex;flex-direction:column;gap:6px;height:212px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.05);transition:box-shadow .15s}
 .pk-tile:hover{box-shadow:0 3px 12px rgba(0,0,0,.12)}
 .pk-tile-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .pk-plate{font-size:19px;font-weight:900;letter-spacing:.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
 .pk-tick{width:24px;height:24px;border:2px solid #cbd5e1;border-radius:7px;display:flex;align-items:center;
   justify-content:center;font-size:14px;font-weight:900;cursor:pointer;flex-shrink:0}
-.pk-who{font-size:13px;font-weight:800;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pk-who{font-size:13px;font-weight:800;color:var(--text);display:-webkit-box;-webkit-line-clamp:2;
+  -webkit-box-orient:vertical;overflow:hidden;line-height:1.35}
 .pk-year{display:inline-block;margin-right:6px;background:var(--surface2);color:var(--text);border-radius:999px;
   padding:0 8px;font-size:11.5px;font-weight:800}
 .pk-chips{display:flex;gap:5px;flex-wrap:wrap;overflow:hidden;max-height:22px}
@@ -18480,8 +18481,9 @@ function _syncPickupFilterBtn() {
   const city = document.getElementById('pickup-filter-city')?.value || '';
   const n = (_pickupCompany ? 1 : 0) + (city ? 1 : 0) + (_pickupDistSort || _pickupSortMode !== 0 ? 1 : 0);
   btn.textContent = n ? `⚙️ מיון וסינון (${n})` : '⚙️ מיון וסינון';
-  btn.style.background = n ? 'var(--dark)' : 'var(--surface2)';
-  btn.style.color = n ? '#fff' : 'var(--text)';
+  btn.style.background = n ? '#0f766e' : '#0d9488';
+  btn.style.color = '#fff';
+  btn.style.boxShadow = n ? '0 0 0 2px rgba(13,148,136,.35)' : 'none';
 }
 window._syncPickupFilterBtn = _syncPickupFilterBtn;
 
@@ -18996,13 +18998,10 @@ function _pickupEnableDrag() {
   if (!list || list.dataset.dragReady) return;
   list.dataset.dragReady = '1';
 
-  list.addEventListener('pointerdown', ev => {
-    const handle = ev.target.closest('.pk-drag');
-    if (!handle) return;
-    const tile = handle.closest('.pk-tile');
-    if (!tile) return;
-    ev.preventDefault();
+  // הגרירה מתחילה בלחיצה ארוכה על הקובייה, או מיד מהידית ⠿
+  let pressTimer = null, pressInfo = null;
 
+  const beginDrag = (tile, x, y, pointerId, source) => {
     const r = tile.getBoundingClientRect();
     const ghost = tile.cloneNode(true);
     ghost.classList.add('pk-ghost');
@@ -19012,11 +19011,36 @@ function _pickupEnableDrag() {
     ghost.style.top = r.top + 'px';
     document.body.appendChild(ghost);
     tile.classList.add('pk-dragging');
+    if (navigator.vibrate) { try { navigator.vibrate(15); } catch (e) {} }
 
-    _pkDrag = { tile, ghost, dx: ev.clientX - r.left, dy: ev.clientY - r.top, moved: false,
-                lastX: ev.clientX, lastY: ev.clientY };
-    handle.setPointerCapture(ev.pointerId);
+    _pkDrag = { tile, ghost, dx: x - r.left, dy: y - r.top, moved: false };
+    try { (source || list).setPointerCapture(pointerId); } catch (e) {}
+  };
+
+  list.addEventListener('pointerdown', ev => {
+    if (ev.button > 0) return;
+    const tile = ev.target.closest('.pk-tile');
+    if (!tile) return;
+    const handle = ev.target.closest('.pk-drag');
+    if (handle) { ev.preventDefault(); beginDrag(tile, ev.clientX, ev.clientY, ev.pointerId, handle); return; }
+    // כפתורים וקישורים ממשיכים לעבוד כרגיל
+    if (ev.target.closest('button, a, .pk-tick')) return;
+    pressInfo = { tile, x: ev.clientX, y: ev.clientY, id: ev.pointerId };
+    clearTimeout(pressTimer);
+    pressTimer = setTimeout(() => {
+      if (!pressInfo) return;
+      beginDrag(pressInfo.tile, pressInfo.x, pressInfo.y, pressInfo.id, list);
+      pressInfo = null;
+    }, 350);
   });
+
+  // תזוזה לפני שהלחיצה הארוכה הבשילה = גלילה, ולא גרירה
+  list.addEventListener('pointermove', ev => {
+    if (!pressInfo || _pkDrag) return;
+    if (Math.abs(ev.clientX - pressInfo.x) > 12 || Math.abs(ev.clientY - pressInfo.y) > 12) {
+      clearTimeout(pressTimer); pressInfo = null;
+    }
+  }, { passive: true });
 
   list.addEventListener('pointermove', ev => {
     const d = _pkDrag;
@@ -19026,32 +19050,37 @@ function _pickupEnableDrag() {
     d.ghost.style.left = (ev.clientX - d.dx) + 'px';
     d.ghost.style.top  = (ev.clientY - d.dy) + 'px';
 
-    // מחשבים ישירות לאן הקובייה צריכה להיכנס: עוברים על שאר הקוביות
-    // בסדר הקריאה (ימין לשמאל, שורה אחרי שורה) ומוצאים את הראשונה
-    // שנמצאת "אחרי" מיקום הסמן. כך היעד תמיד עוקב אחרי היד, בלי קפיצות.
-    const fwd = (ev.clientX < d.lastX - 0.5) || (ev.clientY > d.lastY + 0.5);
-    d.lastX = ev.clientX; d.lastY = ev.clientY;
+    // מוצאים את הקובייה שמתחת ליד (או הקרובה אליה ביותר), ומחליפים
+    // איתה מקום: אם היא אחרי הקובייה הנגררת — נכנסים אחריה, ואם היא
+    // לפניה — נכנסים לפניה. כך ההחלפה מדויקת בשני הכיוונים.
+    // המדידה נעשית לפי מיקום הפריסה (offsetLeft/offsetTop) ולא לפי
+    // getBoundingClientRect, כי בזמן אנימציית ההחלקה הקוביות מוזזות
+    // ויזואלית והמדידה הרגילה הייתה מחזירה מיקומי ביניים שגויים.
     const tiles = [...list.querySelectorAll('.pk-tile')];
-    const before = new Map(tiles.map(t => [t, t.getBoundingClientRect()]));
-    let ref = null;
+    const op = d.tile.offsetParent || list;
+    const opr = op.getBoundingClientRect();
+    const px = ev.clientX - opr.left + op.scrollLeft;
+    const py = ev.clientY - opr.top  + op.scrollTop;
+    const before = new Map(tiles.map(t => [t, {
+      left: t.offsetLeft, top: t.offsetTop, w: t.offsetWidth, h: t.offsetHeight
+    }]));
+    let over = null;
     for (const t of tiles) {
       if (t === d.tile) continue;
       const b = before.get(t);
-      const cx = b.left + b.width / 2, cy = b.top + b.height / 2;
-      const sameRow = Math.abs(cy - ev.clientY) <= b.height / 2;
-      // כשגוררים קדימה (שמאלה או למטה) הקובייה נכנסת אחרי היעד, וכשחוזרים
-      // אחורה — לפניו. זה מה שגורם לתחושה שהקובייה "תופסת את המקום".
-      const hit = sameRow
-        ? (fwd ? cx < ev.clientX : cx <= ev.clientX)
-        : (fwd ? cy > ev.clientY : cy >= ev.clientY);
-      if (hit) { ref = t; break; }
+      // רק כניסה ממש לתוך קובייה אחרת מחליפה מקום. כשהיד נמצאת מעל
+      // המקום של הקובייה הנגררת עצמה — כלום לא זז, וכך אין ריצוד.
+      if (px >= b.left && px <= b.left + b.w && py >= b.top && py <= b.top + b.h) { over = t; break; }
     }
-    if (ref === d.tile.nextElementSibling || (!ref && !d.tile.nextElementSibling)) return;
+    if (!over) return;
+    const isAfter = !!(d.tile.compareDocumentPosition(over) & Node.DOCUMENT_POSITION_FOLLOWING);
+    const ref = isAfter ? over.nextElementSibling : over;
+    if (ref === d.tile || ref === d.tile.nextElementSibling) return;
     list.insertBefore(d.tile, ref);
     for (const t of tiles) {
       if (t === d.tile) continue;
-      const b = before.get(t), a = t.getBoundingClientRect();
-      const mx = b.left - a.left, my = b.top - a.top;
+      const b = before.get(t);
+      const mx = b.left - t.offsetLeft, my = b.top - t.offsetTop;
       if (!mx && !my) continue;
       t.classList.remove('pk-shift');
       t.style.transform = `translate(${mx}px, ${my}px)`;
