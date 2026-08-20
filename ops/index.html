@@ -20907,14 +20907,15 @@ function _renderDriverPickupModal() {
       const isImage = (c.docMime||'').startsWith('image/');
       if (isImage) {
         docHtml = `<div style="margin-top:10px">
+          <div style="font-size:13px;font-weight:800;color:var(--muted);margin-bottom:5px">📄 אישור העברת בעלות</div>
           <img src="${c.doc}" onclick="openLightbox(this.src)" style="max-width:100%;max-height:200px;object-fit:cover;border-radius:10px;cursor:zoom-in;border:1.5px solid var(--border)">
         </div>`;
       } else {
         const label = e(c.docName || 'פתח קובץ');
         const mime = e(c.docMime || 'application/octet-stream');
         docHtml = `<div style="margin-top:10px">
-          <button onclick="_openDocBlob('${c.id}')" style="display:inline-flex;align-items:center;gap:8px;background:var(--card);border:1.5px solid var(--border);border-radius:10px;padding:10px 14px;font-family:Heebo,sans-serif;font-size:14px;font-weight:700;color:var(--text);cursor:pointer">
-            📎 ${label}
+          <button onclick="_openDocBlob('${c.id}')" style="display:flex;width:100%;align-items:center;justify-content:center;gap:8px;background:#0369a1;color:#fff;border:none;border-radius:10px;padding:12px 14px;font-family:Heebo,sans-serif;font-size:14px;font-weight:800;cursor:pointer">
+            📄 אישור העברת בעלות
           </button>
         </div>`;
       }
@@ -20940,8 +20941,11 @@ function collectPickupCarFromHome(id) {
   setTimeout(() => document.getElementById('collect-pickup-by')?.focus(), 50);
 }
 function _openDocBlob(carId) {
-  const car = _driverPickupCars.find(c => c.id === carId);
+  const car = _driverPickupCars.find(c => c.id === carId)
+           || _pickupAllCars.find(c => c.id === carId);
   if (!car?.doc) return;
+  // תמונה נפתחת בתצוגה המוגדלת, ולא כקובץ להורדה
+  if ((car.docMime || '').startsWith('image/')) return void openLightbox(car.doc);
   try {
     // convert data URL to blob for reliable mobile opening
     const [header, b64] = car.doc.split(',');
@@ -21000,6 +21004,7 @@ function _myPickupCardHtml(c) {
       </div>
       <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
         ${_pickupSourceTag(c)}
+        ${c.doc ? `<button onclick="event.stopPropagation();_openDocBlob('${e(c.id)}')" style="background:#0369a1;color:#fff;border:none;border-radius:10px;padding:8px 12px;font-family:Heebo,sans-serif;font-weight:800;font-size:12px;cursor:pointer;white-space:nowrap">📄 בעלות</button>` : ''}
         <span style="background:#1e40af;color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;white-space:nowrap">פתח ▶</span>
         <button onclick="event.stopPropagation();collectPickupCar('${e(c.id)}')" style="background:#059669;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">✅ הרכב נאסף</button>
       </div>
