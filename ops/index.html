@@ -185,6 +185,8 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
   border:2px solid var(--border);background:var(--card);color:var(--muted);font-size:13px;font-weight:900;
   cursor:grab;touch-action:none;user-select:none;flex-shrink:0;letter-spacing:-1px}
 .pk-drag:active{cursor:grabbing}
+/* גרירת קישור מובנית של הדפדפן מבטלת את גרירת הקובייה — מכבים אותה */
+.pk-tile a,.pk-tile svg{-webkit-user-drag:none;user-drag:none}
 .pk-tile.pk-dragging{opacity:.28}
 .pk-ghost{position:fixed;z-index:9999;pointer-events:none;box-shadow:0 12px 30px rgba(0,0,0,.28);
   transform:rotate(1.2deg) scale(1.02);opacity:.97;margin:0}
@@ -19045,7 +19047,7 @@ function _pickupEnableDrag() {
   // הגרירה מתחילה בלחיצה ארוכה על הקובייה, או מיד מהידית ⠿
   let pressTimer = null, pressInfo = null;
 
-  const beginDrag = (tile, x, y, pointerId, source) => {
+  const beginDrag = (tile, x, y, pointerId, source, startTarget) => {
     const r = tile.getBoundingClientRect();
     const ghost = tile.cloneNode(true);
     ghost.classList.add('pk-ghost');
@@ -19057,7 +19059,7 @@ function _pickupEnableDrag() {
     tile.classList.add('pk-dragging');
     if (navigator.vibrate) { try { navigator.vibrate(15); } catch (e) {} }
 
-    _pkDrag = { tile, ghost, dx: x - r.left, dy: y - r.top, moved: false };
+    _pkDrag = { tile, ghost, dx: x - r.left, dy: y - r.top, moved: false, startTarget };
     try { (source || list).setPointerCapture(pointerId); } catch (e) {}
   };
 
@@ -19071,24 +19073,23 @@ function _pickupEnableDrag() {
     const tile = ev.target.closest('.pk-tile');
     if (!tile) { cancelPress(); return; }
     const handle = ev.target.closest('.pk-drag');
-    if (handle) { ev.preventDefault(); beginDrag(tile, ev.clientX, ev.clientY, ev.pointerId, handle); return; }
-    // כפתורים וקישורים ממשיכים לעבוד כרגיל
-    if (ev.target.closest('button, a, .pk-tick')) { cancelPress(); return; }
-    pressInfo = { tile, x: ev.clientX, y: ev.clientY, id: ev.pointerId };
+    if (handle) { ev.preventDefault(); beginDrag(tile, ev.clientX, ev.clientY, ev.pointerId, handle, null); return; }
+    // הלחיצה הארוכה תופסת בכל שטח הקובייה, גם מעל הכפתורים ושורת הניווט.
+    // לחיצה קצרה עליהם ממשיכה לעבוד כרגיל, כי רק גרירה שזזה בולעת את הקליק.
+    pressInfo = { tile, x: ev.clientX, y: ev.clientY, id: ev.pointerId, target: ev.target };
     clearTimeout(pressTimer);
     pressTimer = setTimeout(() => {
       if (!pressInfo) return;
-      beginDrag(pressInfo.tile, pressInfo.x, pressInfo.y, pressInfo.id, list);
+      beginDrag(pressInfo.tile, pressInfo.x, pressInfo.y, pressInfo.id, list, pressInfo.target);
       pressInfo = null;
     }, 350);
   });
 
-  // הרפיית האצבע או העכבר לפני שהלחיצה הבשילה = קליק רגיל, בלי גרירה
-  ['pointerup', 'pointercancel', 'pointerleave'].forEach(t =>
-    list.addEventListener(t, cancelPress, true));
-  // אם משהו אחר לקח את המסך (חלון עריכה, גלילה, מעבר מסך) — מבטלים
+  // הרפיית האצבע או העכבר לפני שהלחיצה הבשילה = קליק רגיל, בלי גרירה.
+  // רק על המסמך כולו — האזנה על הקוביות עצמן ביטלה גם תזוזות זעירות.
+  document.addEventListener('pointerup', cancelPress);
+  document.addEventListener('pointercancel', cancelPress);
   window.addEventListener('blur', cancelPress);
-  document.addEventListener('scroll', cancelPress, true);
 
   // אחרי גרירה אמיתית בולעים את הקליק שאחריה, כדי שלא ייפתח חלון עריכה
   list.addEventListener('click', ev => {
@@ -19163,7 +19164,11 @@ function _pickupEnableDrag() {
     d.ghost.remove();
     d.tile.classList.remove('pk-dragging');
     list.querySelectorAll('.pk-tile').forEach(t => { t.classList.remove('pk-shift'); t.style.transform = ''; });
-    if (d.moved) { list.dataset.swallowClick = '1'; _savePickupOrder(); }
+    if (d.moved) { list.dataset.swallowClick = '1'; _savePickupOrder(); return; }
+    // לחיצה ארוכה שלא זזה = המשתמש רק התעכב על הכפתור. הדפדפן בולע את
+    // הקליק אחרי תפיסת המצביע, ולכן מפעילים אותו בעצמנו.
+    const el = d.startTarget;
+    if (el && el.isConnected) setTimeout(() => el.click(), 0);
   };
   list.addEventListener('pointerup', finish);
   list.addEventListener('pointercancel', finish);
