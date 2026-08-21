@@ -2147,8 +2147,10 @@ if ('serviceWorker' in navigator) {
 
     <div style="display:flex;gap:8px;margin-bottom:12px">
       <button class="btn-submit" id="own-scan-btn" onclick="runOwnershipScan()" style="background:#0d6ab0;color:#fff;margin:0;flex:1">🔄 בדוק עכשיו</button>
-      <button class="btn-submit" onclick="openOwnLog()" style="background:var(--dark);color:#fff;margin:0;flex:1">📜 יומן שינויים</button>
     </div>
+
+    <!-- רכבים שירדו מהמלאי — הדבר היחיד שדורש אישור ידני -->
+    <div id="own-gone" style="display:none;margin-bottom:14px"></div>
 
     <details style="margin-bottom:14px;border:2px solid var(--border);border-radius:12px;background:var(--card)">
       <summary style="cursor:pointer;padding:11px 14px;font-weight:800;font-size:13px">איך הבדיקה עובדת?</summary>
@@ -10327,6 +10329,53 @@ let _ownUpdatedAt = '';
 let _ownPickupByPlate = {};
 let _ownPickupUnsub = null;
 
+/* ── רכבים שירדו מהמלאי ──────────────────────────────────────────────
+   זה המצב היחיד שדורש אישור שלך. אחרי אישור הרכב לא מוצג שוב.
+   כל שאר שינויי הבעלות מוצגים כרגיל ואינם דורשים כלום.            */
+let _ownGone = [], _ownGoneUnsub = null;
+
+function _renderOwnGone() {
+  const box = document.getElementById('own-gone');
+  if (!box) return;
+  const rows = _ownGone.filter(r => !r.approvedBy);
+  if (!rows.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  box.style.display = 'block';
+  box.innerHTML = `<div style="font-weight:900;font-size:14px;margin-bottom:8px">📤 ירדו מהמלאי — ממתין לאישור (${rows.length})</div>`
+    + rows.map(r => {
+      const moved = r.movedOnExit && r.to
+        ? `עבר מבעלות ${esc(_ownBaalutPhrase(r.from))} לבעלות ${esc(_ownBaalutPhrase(r.to))}`
+        : (r.from ? `הבעלות לא השתנתה (${esc(_ownBaalutPhrase(r.from))})` : '');
+      return `<div style="border:2px solid #d97706;border-radius:12px;padding:11px 13px;margin-bottom:8px;background:#fffbeb">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+        <div style="min-width:0">
+          <div style="font-weight:900;font-size:17px;letter-spacing:1px">${esc(r.plate || '')}</div>
+          <div style="font-size:12px;color:var(--muted);font-weight:700">${esc([r.tozeret, r.degem, r.shnat].filter(Boolean).join(' · '))}</div>
+          ${moved ? `<div style="font-size:12.5px;font-weight:800;color:#b45309;margin-top:4px">${moved}</div>` : ''}
+          <div style="font-size:12px;color:var(--muted);font-weight:700;margin-top:3px">🕒 זוהה ב-${esc(_ownLogDate(r.at))}</div>
+        </div>
+        <button onclick="ownGoneApprove('${esc(r.id)}')" style="background:#16a34a;color:#fff;border:none;border-radius:9px;padding:9px 14px;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap;flex-shrink:0">✅ אשר</button>
+      </div>
+    </div>`;
+    }).join('');
+}
+
+// אישור רכב שירד מהמלאי — נעלם מהרשימה ולא חוזר
+async function ownGoneApprove(id) {
+  const r = _ownGone.find(x => x.id === id);
+  if (!r) return;
+  r.approvedBy = currentUser?.name || 'מנהל';    // תגובה מיידית
+  _renderOwnGone();
+  try {
+    await _updateDoc(_docRef('ownership_log', id),
+      { approvedBy: currentUser?.name || 'מנהל', approvedAt: new Date().toISOString() });
+    showToast('✅ אושר — הרכב לא יוצג שוב');
+  } catch (e) {
+    r.approvedBy = null; _renderOwnGone();
+    showToast('שמירה נכשלה: ' + (e.code || e.message), 6000);
+  }
+}
+window.ownGoneApprove = ownGoneApprove;
+
 // קולט רשימת רכבים ושומר מהם רק את הספק, לפי מספר רישוי. רכב שממתין
 // לאיסוף גובר על רכב שכבר נאסף, כי זה המצב העדכני יותר.
 function _ownAbsorbPickup(snap, state) {
@@ -10361,6 +10410,13 @@ function openOwnershipScreen() {
       _onSnap(_colRef('pickup_cars'),    snap => _ownAbsorbPickup(snap, 'ממתין לאיסוף'), () => {}),
       _onSnap(_colRef('pickup_archive'), snap => _ownAbsorbPickup(snap, 'נאסף'),        () => {}),
     ];
+  }
+  if (!_ownGoneUnsub) {
+    _ownGoneUnsub = _onSnap(_query(_colRef('ownership_log'), _where('kind', '==', 'gone')), snap => {
+      _ownGone = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (b.at?.toMillis?.() ?? 0) - (a.at?.toMillis?.() ?? 0));
+      _renderOwnGone();
+    }, () => {});
   }
   _ownLoadConfig();
 }
