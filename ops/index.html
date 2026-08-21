@@ -10345,27 +10345,39 @@ let _ownPickupUnsub = null;
    הכל נשמר מקומית במכשיר, כדי שרענון דף לא יפתח את המסך שוב.     */
 const _OWN_MORNING_HOUR = 8;
 let _ownMorningTimer = null;
+// המצב נשמר בשרת ולא במכשיר, כך שאישור מכל מכשיר תקף לכולם
+let _ownMorningState = null;   // { ackDate, snoozeUntil }
 
 const _ownToday = () => new Date().toLocaleDateString('sv-SE');   // YYYY-MM-DD
 
 function _startOwnMorning() {
   if (_ownMorningTimer) return;
-  _checkOwnMorning();
+  _onSnap(_docRef('config', 'own_morning'), snap => {
+    _ownMorningState = (snap.exists() ? snap.data() : {}) || {};
+    _checkOwnMorning();
+  }, () => { _ownMorningState = {}; });
   _ownMorningTimer = setInterval(_checkOwnMorning, 60000);
 }
 
+async function _ownMorningSet(data) {
+  _ownMorningState = { ..._ownMorningState, ...data };   // תגובה מיידית
+  try { await window._setDoc(_docRef('config', 'own_morning'), data, { merge: true }); }
+  catch (e) { showToast('השמירה נכשלה: ' + (e.code || e.message), 6000); }
+}
+
 function _checkOwnMorning() {
+  if (!_ownMorningState) return;                                  // עוד לא נטען מהשרת
   const now = new Date();
   if (now.getHours() < _OWN_MORNING_HOUR) return;                 // עוד לא הגיע הזמן
-  if (localStorage.getItem('anak_own_ack') === _ownToday()) return;   // כבר אושר היום
-  const snooze = Number(localStorage.getItem('anak_own_snooze') || 0);
-  if (snooze && Date.now() < snooze) return;                      // נדחה לשעה
+  if (_ownMorningState.ackDate === _ownToday()) return;           // כבר אושר היום
+  const snooze = Number(_ownMorningState.snoozeUntil || 0);
+  if (snooze && Date.now() < snooze) return;                      // נדחה
   const bar = document.getElementById('own-morning');
   if (bar && bar.style.display !== 'none') return;                // כבר פתוח
   openOwnershipScreen();
   if (bar) bar.style.display = 'block';
   // אם לא נלחץ כלום, לא נמשוך אותך למסך כל דקה — נחזור בעוד עשר דקות
-  localStorage.setItem('anak_own_snooze', String(Date.now() + 10 * 60 * 1000));
+  _ownMorningSet({ snoozeUntil: Date.now() + 10 * 60 * 1000 });
 }
 
 function _ownMorningClose() {
@@ -10375,15 +10387,14 @@ function _ownMorningClose() {
 }
 
 function ownMorningDone() {
-  localStorage.setItem('anak_own_ack', _ownToday());
-  localStorage.removeItem('anak_own_snooze');
+  _ownMorningSet({ ackDate: _ownToday(), snoozeUntil: 0 });
   _ownMorningClose();
   showToast('✅ נסגר עד מחר בבוקר');
 }
 window.ownMorningDone = ownMorningDone;
 
 function ownMorningSnooze() {
-  localStorage.setItem('anak_own_snooze', String(Date.now() + 60 * 60 * 1000));
+  _ownMorningSet({ snoozeUntil: Date.now() + 60 * 60 * 1000 });
   _ownMorningClose();
   showToast('⏰ נחזור אליך בעוד שעה');
 }
