@@ -4813,6 +4813,162 @@ function loadTasks() {
 let _dragTaskId   = null;
 let _dragTaskEl   = null;
 
+
+/* ── גרירת משימות ────────────────────────────────────────────────────
+   אותה שיטה כמו בקוביות האיסוף: לחיצה ארוכה תופסת את הכרטיס, עותק
+   שקוף נגרר עם היד, והכרטיסים האחרים מחליקים למקומם בזמן אמת.
+   אפשר להעביר משימה גם בתוך העמודה וגם בין עמודות.               */
+let _tkDrag = null, _tkPressing = false, _tkPendingRender = false;
+
+function _tkEnableDrag(board) {
+  if (!board || board.dataset.dragReady) return;
+  board.dataset.dragReady = '1';
+
+  let pressTimer = null, pressInfo = null;
+  const cancelPress = () => {
+    clearTimeout(pressTimer); pressTimer = null; pressInfo = null; _tkPressing = false;
+    if (_tkPendingRender && !_tkDrag) { _tkPendingRender = false; renderTasksFromCache(); }
+  };
+
+  const beginDrag = (card, x, y, pointerId) => {
+    const r = card.getBoundingClientRect();
+    const ghost = card.cloneNode(true);
+    ghost.classList.add('pk-ghost');
+    ghost.style.width = r.width + 'px';
+    ghost.style.height = r.height + 'px';
+    ghost.style.left = r.left + 'px';
+    ghost.style.top = r.top + 'px';
+    document.body.appendChild(ghost);
+    card.classList.add('pk-dragging');
+    if (navigator.vibrate) { try { navigator.vibrate(15); } catch (e) {} }
+    _tkPressing = false;
+    _tkDrag = { card, ghost, dx: x - r.left, dy: y - r.top, moved: false,
+                fromLabel: card.closest('.task-drop')?.dataset.label || '' };
+    try { board.setPointerCapture(pointerId); } catch (e) {}
+  };
+
+  board.addEventListener('pointerdown', ev => {
+    if (ev.pointerType === 'mouse' && ev.button !== 0) { cancelPress(); return; }
+    const card = ev.target.closest('.task-card');
+    if (!card || card.closest('.task-col-driver')) { cancelPress(); return; }
+    pressInfo = { card, x: ev.clientX, y: ev.clientY, id: ev.pointerId };
+    _tkPressing = true;
+    clearTimeout(pressTimer);
+    pressTimer = setTimeout(() => {
+      if (!pressInfo) return;
+      beginDrag(pressInfo.card, pressInfo.x, pressInfo.y, pressInfo.id);
+      pressInfo = null;
+    }, 350);
+  });
+
+  // תזוזה לפני שהלחיצה הבשילה = גלילה
+  board.addEventListener('pointermove', ev => {
+    if (!pressInfo || _tkDrag) return;
+    if (Math.abs(ev.clientX - pressInfo.x) > 12 || Math.abs(ev.clientY - pressInfo.y) > 12) cancelPress();
+  }, { passive: true });
+
+  document.addEventListener('pointerup', cancelPress);
+  document.addEventListener('pointercancel', cancelPress);
+  window.addEventListener('blur', cancelPress);
+
+  board.addEventListener('pointermove', ev => {
+    const d = _tkDrag;
+    if (!d) return;
+    ev.preventDefault();
+    d.moved = true;
+    d.ghost.style.left = (ev.clientX - d.dx) + 'px';
+    d.ghost.style.top  = (ev.clientY - d.dy) + 'px';
+
+    // באיזו עמודה היד נמצאת
+    const drop = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('.task-drop');
+    if (!drop) return;
+
+    const cards = [...drop.querySelectorAll('.task-card')].filter(c => c !== d.card);
+    const before = new Map();
+    [...document.querySelectorAll('.task-card')].forEach(c => before.set(c, c.getBoundingClientRect()));
+
+    // נקודת ההכנסה: הכרטיס הראשון שמרכזו מתחת ליד
+    let ref = null;
+    for (const c of cards) {
+      const b = before.get(c);
+      if (ev.clientY < b.top + b.height / 2) { ref = c; break; }
+    }
+    if (ref === d.card.nextElementSibling && d.card.parentElement === drop) return;
+    if (!ref && d.card.parentElement === drop && !d.card.nextElementSibling) return;
+    drop.insertBefore(d.card, ref);
+
+    for (const [c, b] of before) {
+      if (c === d.card || !c.isConnected) continue;
+      const a = c.getBoundingClientRect();
+      const mx = b.left - a.left, my = b.top - a.top;
+      if (!mx && !my) continue;
+      c.classList.remove('pk-shift');
+      c.style.transform = `translate(${mx}px, ${my}px)`;
+      requestAnimationFrame(() => { c.classList.add('pk-shift'); c.style.transform = ''; });
+    }
+  });
+
+  const finish = () => {
+    cancelPress();
+    const d = _tkDrag;
+    if (!d) return;
+    _tkDrag = null;
+    d.ghost.remove();
+    d.card.classList.remove('pk-dragging');
+    document.querySelectorAll('.task-card').forEach(c => { c.classList.remove('pk-shift'); c.style.transform = ''; });
+    if (!d.moved) { if (_tkPendingRender) { _tkPendingRender = false; renderTasksFromCache(); } return; }
+    board.dataset.swallowClick = '1';
+    _tkPendingRender = false;      // הסדר על המסך הוא הנכון
+    _tkSaveMove(d.card);
+  };
+  board.addEventListener('pointerup', finish);
+  board.addEventListener('pointercancel', finish);
+
+  // אחרי גרירה אמיתית לא פותחים את חלון העריכה
+  board.addEventListener('click', ev => {
+    if (!board.dataset.swallowClick) return;
+    delete board.dataset.swallowClick;
+    ev.stopPropagation(); ev.preventDefault();
+  }, true);
+}
+
+// שמירת המיקום החדש: העמודה שאליה שוחררה המשימה והסדר בין שכניה
+async function _tkSaveMove(card) {
+  const id = card.dataset.id;
+  const drop = card.closest('.task-drop');
+  const label = drop?.dataset.label || '';
+  const sibs = [...drop.querySelectorAll('.task-card')];
+  const i = sibs.indexOf(card);
+  const orderOf = el => {
+    const t = tasksCache.find(x => x.id === el?.dataset.id);
+    return t ? (t.sortOrder ?? t.createdAt?.toMillis?.() ?? null) : null;
+  };
+  const prev = orderOf(sibs[i - 1]);
+  const next = orderOf(sibs[i + 1]);
+  let sortOrder;
+  if (prev !== null && next !== null) sortOrder = (prev + next) / 2;
+  else if (prev !== null) sortOrder = prev + 1000;
+  else if (next !== null) sortOrder = next - 1000;
+  else sortOrder = Date.now();
+
+  const updates = { sortOrder };
+  const colToAssigned = {
+    'רפד':'רפד','זגג':'זגג','חביב':'חביב','ולאדי':'ולאדי','גיל':'גיל',
+    'עופר':'עופר','איתי':'איתי','רדארים':'רדארים','מוסך':'מוסך',
+    'משימות בעדיפות עליונה':'כולם','משימות כלליות':'כולם',
+  };
+  if (label) {
+    updates.label = label;
+    if (colToAssigned[label]) updates.assignedTo = colToAssigned[label];
+  }
+  // מעדכנים בזיכרון מיד, כדי שהלוח לא יקפוץ חזרה בזמן השמירה
+  const t = tasksCache.find(x => x.id === id);
+  if (t) Object.assign(t, updates);
+  if (!_requireNet('העברת המשימה')) return;
+  try { await _updateDoc(_docRef('tasks', id), updates); }
+  catch (e) { showToast('שגיאה בהעברה: ' + (e.code || e.message), 6000); }
+}
+
 function _onDragStart(e, taskId) {
   _dragTaskId = taskId;
   _dragTaskEl = e.currentTarget;
@@ -4959,11 +5115,8 @@ function renderTasksFromCache() {
     const done = t.status === 'done';
     const card = document.createElement('div');
     card.className = `task-card${t.color?' color-'+t.color:''}${done?' done':''}`;
-    card.draggable = isManager && !done;
     card.dataset.id = t.id;
     if (isManager && !done) {
-      card.addEventListener('dragstart', e => _onDragStart(e, t.id));
-      card.addEventListener('dragend',   _onDragEnd);
       card.addEventListener('click', e => { if (!e.target.closest('button')) openEditTask(t.id); });
       card.style.cursor = 'pointer';
     }
@@ -5041,7 +5194,8 @@ function renderTasksFromCache() {
     col.appendChild(header);
 
     const cards = document.createElement('div');
-    cards.className = 'task-col-cards';
+    cards.className = 'task-col-cards task-drop';
+    cards.dataset.label = label;
 
     if (tasks.length === 0) {
       const zone = makeDropZone(label, null, null);
@@ -5059,7 +5213,11 @@ function renderTasksFromCache() {
     return col;
   }
 
+  // ציור מחדש באמצע גרירה הורס את הכרטיס הנגרר — דוחים אותו לסיום
+  if (_tkDrag || _tkPressing) { _tkPendingRender = true; return; }
   container.innerHTML = '';
+  // הגרירה החדשה יושבת על הלוח עצמו, ולכן שורדת ציור מחדש של הכרטיסים
+  setTimeout(() => _tkEnableDrag(container), 0);
 
   if (!isManager) {
     // הנהג רואה שתי עמודות זו לצד זו: המשימות שלו, ולעיון גם ולאדי.
@@ -5105,6 +5263,8 @@ function renderTasksFromCache() {
   ['רדארים','מוסך'].forEach(name => {
     const tasks = sortTasks(allTasks.filter(t => t.label === name));
     const sub = document.createElement('div');
+    sub.className = 'task-drop';
+    sub.dataset.label = name;
     sub.style.marginBottom = '10px';
     const subHeader = document.createElement('div');
     subHeader.style.cssText = `font-size:12px;font-weight:900;color:${colColors[name]};padding:4px 2px 6px;border-bottom:2px solid ${colColors[name]};margin-bottom:6px`;
@@ -5134,6 +5294,8 @@ function renderTasksFromCache() {
   ['רפד','זגג'].forEach(name => {
     const tasks = sortTasks(allTasks.filter(t => t.label === name));
     const sub = document.createElement('div');
+    sub.className = 'task-drop';
+    sub.dataset.label = name;
     sub.style.marginBottom = '10px';
     const subHeader = document.createElement('div');
     subHeader.style.cssText = `font-size:12px;font-weight:900;color:${colColors[name]};padding:4px 2px 6px;border-bottom:2px solid ${colColors[name]};margin-bottom:6px`;
@@ -5163,6 +5325,8 @@ function renderTasksFromCache() {
   ['עופר','גיל','איתי'].forEach(driver => {
     const tasks = sortTasks(allTasks.filter(t => t.label === driver));
     const sub = document.createElement('div');
+    sub.className = 'task-drop';
+    sub.dataset.label = driver;
     sub.style.marginBottom = '10px';
     const subHeader = document.createElement('div');
     subHeader.style.cssText = `font-size:12px;font-weight:900;color:${colColors[driver]};padding:4px 2px 6px;border-bottom:2px solid ${colColors[driver]};margin-bottom:6px`;
