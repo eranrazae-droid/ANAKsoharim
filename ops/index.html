@@ -1953,6 +1953,26 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
+<!-- בדיקת ארון מצברים חודשית — נפתחת אצל גיל בכל כניסה עד שהיא מושלמת -->
+<div class="modal-overlay" id="modal-bs-audit">
+  <div class="modal-box" style="max-width:520px">
+    <div class="modal-title">🔋 בדיקת ארון מצברים
+      <button class="modal-close" onclick="closeModal('modal-bs-audit')">✕</button></div>
+    <div style="font-size:13px;font-weight:700;color:var(--muted);margin-bottom:12px" id="bs-audit-sub"></div>
+    <div id="bs-audit-list"></div>
+    <button class="btn-submit" id="bs-audit-send" onclick="bsAuditSubmit()" style="background:var(--gold);color:#000;margin-top:14px">✅ שלח את הבדיקה</button>
+  </div>
+</div>
+
+<!-- תיעוד הבדיקות אצל המנהל -->
+<div class="modal-overlay" id="modal-bs-audits">
+  <div class="modal-box" style="max-width:560px">
+    <div class="modal-title">🧾 בדיקות ארון
+      <button class="modal-close" onclick="closeModal('modal-bs-audits')">✕</button></div>
+    <div id="bs-audits-list"></div>
+  </div>
+</div>
+
 <div id="screen-battery-stock" class="screen">
   <div class="app-header">
     <button class="back-btn" onclick="goHome()">→</button>
@@ -1978,6 +1998,7 @@ if ('serviceWorker' in navigator) {
         <button class="btn-submit" onclick="openBsHistoryModal()" style="margin-top:0;padding-left:6px;padding-right:6px;font-size:14px;background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff">🧾 היסטוריית הזמנות</button>
         <button class="btn-submit" onclick="openBsCatalogModal()" style="margin-top:0;padding-left:6px;padding-right:6px;font-size:14px;background:var(--dark);color:#fff">⚙️ מק״טים וסוגי מצברים</button>
         <button class="btn-submit" onclick="openBatteryStatsScreen()" style="margin-top:0;padding-left:6px;padding-right:6px;font-size:14px;background:linear-gradient(135deg,#0ea5e9,#0369a1);color:#fff">📊 סטטיסטיקה</button>
+        <button class="btn-submit" onclick="openBsAudits()" style="margin-top:0;padding-left:6px;padding-right:6px;font-size:14px;background:linear-gradient(135deg,#16a34a,#15803d);color:#fff">🔋 בדיקות ארון</button>
       </div>
     </div>
     <input type="file" id="bs-invoice-file" accept="application/pdf,.pdf" style="display:none" onchange="bsImportInvoice(this)">
@@ -12501,7 +12522,11 @@ function openDriverBatteryInstall() {
   if (badge) badge.textContent = currentUser?.name || '';
   showScreen('driver-battery-stock');
   _bsListen();
+  _bsAuditListen();
   _bsRenderDriverStock();
+  // הבדיקה החודשית קופצת אחרי שהארון נטען
+  setTimeout(_bsMaybeOpenAudit, 900);
+  setTimeout(_bsMaybeOpenAudit, 2500);
 }
 window.openDriverBatteryInstall = openDriverBatteryInstall;
 const openDriverBatteryStockScreen = openDriverBatteryInstall;
@@ -12530,6 +12555,152 @@ function _bsRenderDriverStock() {
         <div style="font-size:22px;font-weight:900;color:${color};min-width:34px;text-align:center">${q}</div>
       </div>`;
     }).join('');
+}
+
+
+/* ── בדיקת ארון מצברים חודשית ────────────────────────────────────────
+   מה-1 בכל חודש, בכל כניסה של גיל למסך המצברים קופצת חלונית עם כל
+   המצברים שבארון. הוא מסמן לכל שורה "קיים" או "חסר" ושולח. גיל יכול
+   לסגור את החלונית, והיא תחזור בכניסה הבאה עד שהבדיקה נשלחת.
+   התיעוד נשמר ב-battery_audits: תאריך ושעה, המלאי שהיה, והסימונים. */
+const _BS_AUDIT_USER = 'גיל';
+let _bsAudits = [], _bsAuditUnsub = null, _bsAuditMarks = {};
+
+const _bsAuditMonth = () => new Date().toLocaleDateString('sv-SE').slice(0, 7);   // YYYY-MM
+const _bsMonthLabel = m => {
+  const [y, mm] = String(m || '').split('-');
+  return mm ? `${mm}/${y}` : m || '';
+};
+
+function _bsAuditListen() {
+  if (_bsAuditUnsub) return;
+  _bsAuditUnsub = _onSnap(_colRef('battery_audits'), snap => {
+    _bsAudits = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => String(b.month || '').localeCompare(String(a.month || '')));
+    _bsRenderAudits();
+  }, () => {});
+}
+
+// שורות הארון כפי שהן עכשיו — אותה מיון כמו במסך
+function _bsAuditRows() {
+  return _bsStock.filter(r => (r.qty || 0) > 0)
+    .sort((a, b) => _bsAmpOf(a) - _bsAmpOf(b) || String(a.model || '').localeCompare(String(b.model || ''), 'he'));
+}
+
+// האם צריך לבקש מגיל בדיקה החודש
+function _bsAuditDue() {
+  if ((currentUser?.name || '') !== _BS_AUDIT_USER) return false;
+  const m = _bsAuditMonth();
+  return !_bsAudits.some(a => a.month === m && a.status === 'done');
+}
+
+function _bsMaybeOpenAudit() {
+  if (!_bsAuditDue()) return;
+  if (!_bsAuditRows().length) return;                 // הארון עוד לא נטען
+  const modal = document.getElementById('modal-bs-audit');
+  if (modal && modal.classList.contains('open')) return;
+  _bsAuditMarks = {};
+  _bsRenderAuditForm();
+  openModal('modal-bs-audit');
+}
+
+function _bsRenderAuditForm() {
+  const box = document.getElementById('bs-audit-list');
+  const sub = document.getElementById('bs-audit-sub');
+  if (!box) return;
+  const rows = _bsAuditRows();
+  const total = rows.reduce((t, r) => t + (r.qty || 0), 0);
+  if (sub) sub.textContent = `בדיקת ${_bsMonthLabel(_bsAuditMonth())} · ${rows.length} סוגים · ${total} יחידות בארון`;
+  box.innerHTML = rows.map(r => {
+    const mark = _bsAuditMarks[r.id];
+    const btn = (val, label, color) => `<button onclick="bsAuditMark('${r.id}','${val}')" style="flex:1;background:${mark === val ? color : 'var(--surface2)'};color:${mark === val ? '#fff' : 'var(--muted)'};border:2px solid ${mark === val ? color : 'var(--border)'};border-radius:10px;padding:9px 0;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer">${label}</button>`;
+    return `<div style="border:2px solid ${mark ? (mark === 'ok' ? '#16a34a' : '#dc2626') : 'var(--border)'};border-radius:12px;padding:10px 12px;margin-bottom:8px;background:var(--card)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:800;font-size:14px">${esc(_bsModelOf(r))}</div>
+          ${r.sku ? `<div style="font-size:11.5px;color:var(--muted);font-weight:700">מק״ט ${esc(r.sku)}</div>` : ''}
+        </div>
+        <div style="font-size:19px;font-weight:900;min-width:32px;text-align:center">${r.qty || 0}</div>
+      </div>
+      <div style="display:flex;gap:8px">${btn('ok', '✅ קיים', '#16a34a')}${btn('missing', '❌ חסר', '#dc2626')}</div>
+    </div>`;
+  }).join('');
+  const send = document.getElementById('bs-audit-send');
+  const left = rows.filter(r => !_bsAuditMarks[r.id]).length;
+  if (send) {
+    send.disabled = left > 0;
+    send.style.opacity = left > 0 ? .5 : 1;
+    send.textContent = left > 0 ? `נותרו ${left} שורות לסימון` : '✅ שלח את הבדיקה';
+  }
+}
+
+function bsAuditMark(id, val) {
+  _bsAuditMarks[id] = val;
+  _bsRenderAuditForm();
+}
+window.bsAuditMark = bsAuditMark;
+
+async function bsAuditSubmit() {
+  const rows = _bsAuditRows();
+  if (rows.some(r => !_bsAuditMarks[r.id])) return showToast('נא לסמן את כל השורות');
+  const btn = document.getElementById('bs-audit-send');
+  if (btn) btn.disabled = true;
+  const month = _bsAuditMonth();
+  const lines = rows.map(r => ({
+    model: _bsModelOf(r) || '', sku: r.sku || '', qty: r.qty || 0,
+    mark: _bsAuditMarks[r.id] === 'ok' ? 'קיים' : 'חסר',
+  }));
+  const data = {
+    month, status: 'done',
+    submittedBy: currentUser?.name || '', submittedAt: new Date().toISOString(),
+    totalTypes: lines.length,
+    totalUnits: lines.reduce((t, l) => t + l.qty, 0),
+    missingCount: lines.filter(l => l.mark === 'חסר').length,
+    lines,
+  };
+  try {
+    await window._setDoc(_docRef('battery_audits', month), data, { merge: true });
+    closeModal('modal-bs-audit');
+    showToast('✅ הבדיקה נשלחה — תודה', 4000);
+  } catch (e) {
+    showToast('השליחה נכשלה: ' + (e.code || e.message), 6000);
+    if (btn) btn.disabled = false;
+  }
+}
+window.bsAuditSubmit = bsAuditSubmit;
+
+// ── תיעוד הבדיקות אצל המנהל ──
+function openBsAudits() { _bsAuditListen(); _bsRenderAudits(); openModal('modal-bs-audits'); }
+window.openBsAudits = openBsAudits;
+
+function _bsRenderAudits() {
+  const box = document.getElementById('bs-audits-list');
+  if (!box) return;
+  const done = _bsAudits.filter(a => a.status === 'done');
+  if (!done.length) {
+    box.innerHTML = `<div style="padding:24px;text-align:center;color:var(--muted);font-weight:700">עדיין לא נשלחו בדיקות</div>`;
+    return;
+  }
+  box.innerHTML = done.map(a => {
+    const when = a.submittedAt ? new Date(a.submittedAt).toLocaleString('he-IL',
+      { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+    const bad = a.missingCount || 0;
+    return `<details style="border:2px solid ${bad ? '#dc2626' : '#16a34a'};border-radius:12px;margin-bottom:8px;background:var(--card)">
+      <summary style="cursor:pointer;padding:11px 13px;font-weight:900;font-size:14px">
+        ${esc(_bsMonthLabel(a.month))} · ${esc(a.submittedBy || '')}
+        <span style="font-weight:700;font-size:12px;color:var(--muted)"> · ${esc(when)}</span>
+        <div style="font-size:12.5px;font-weight:800;color:${bad ? '#dc2626' : '#16a34a'};margin-top:3px">
+          ${bad ? `${bad} שורות חסרות` : 'הכל נמצא'} · ${a.totalTypes || 0} סוגים · ${a.totalUnits || 0} יחידות</div>
+      </summary>
+      <div style="padding:0 13px 12px">
+        ${(a.lines || []).map(l => `<div style="display:flex;align-items:center;gap:8px;border-top:1px solid var(--border);padding:7px 0">
+          <div style="flex:1;min-width:0;font-size:13px;font-weight:700">${esc(l.model)}${l.sku ? `<span style="color:var(--muted);font-weight:600"> · ${esc(l.sku)}</span>` : ''}</div>
+          <div style="font-size:13px;font-weight:900;min-width:26px;text-align:center">${l.qty}</div>
+          <div style="font-size:12px;font-weight:900;color:${l.mark === 'חסר' ? '#dc2626' : '#16a34a'};min-width:44px;text-align:center">${esc(l.mark)}</div>
+        </div>`).join('')}
+      </div>
+    </details>`;
+  }).join('');
 }
 
 function _bsListen() {
@@ -12566,6 +12737,7 @@ function openBatteryStockScreen() {
   document.getElementById('bs-user-badge').textContent = currentUser.name;
   showScreen('battery-stock');
   _bsListen();
+  _bsAuditListen();
 }
 window.openBatteryStockScreen = openBatteryStockScreen;
 
