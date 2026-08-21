@@ -128,6 +128,7 @@
     <nav class="sidebar-nav">
       <div class="nav-item active" onclick="showTab('dashboard')"><span class="nav-icon">📊</span><span>דשבורד</span><span id="dashBadge" style="display:none;background:#dc2626;color:#fff;font-size:11px;font-weight:900;border-radius:999px;padding:2px 8px;margin-right:auto"></span></div>
       <div class="nav-item" onclick="showTab('inventory')"><span class="nav-icon">🚗</span><span>מלאי רכבים</span></div>
+      <div class="nav-item" onclick="showTab('pricelist')"><span class="nav-icon">🧾</span><span>לוח מחירים</span></div>
       <div class="nav-item" onclick="showTab('addcar')"><span class="nav-icon">➕</span><span>הוספת רכב</span></div>
       <div class="nav-item" onclick="showTab('leads')"><span class="nav-icon">👥</span><span>לידים</span></div>
       <div class="nav-item" onclick="showTab('tasks')"><span class="nav-icon">📋</span><span>משימות</span></div>
@@ -218,6 +219,21 @@
           </div>
         </div>
         <div id="inventoryList"></div>
+      </div>
+
+      <!-- PRICE LIST -->
+      <div id="tab-pricelist" class="hidden">
+        <div class="section-hd">
+          <div><div class="eyebrow">מחירים</div><h2>לוח מחירים והחזר חודשי</h2></div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <input id="plSearch" oninput="renderPriceList()" placeholder="חיפוש רכב..." style="min-width:180px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;font-size:14px"/>
+            <button class="btn btn-line btn-sm" onclick="copyPriceList()">📋 העתק לוח</button>
+          </div>
+        </div>
+        <div class="card panel" style="overflow-x:auto">
+          <div id="priceListWrap"></div>
+        </div>
+        <p class="muted" style="font-size:12px;margin-top:10px">ההחזר החודשי הוא הנמוך מבין 5 מסלולי המימון (כאל צמוד/בלון, פריים, ישיר) לפי מחיר אוטודילר. אינדיקטיבי בלבד.</p>
       </div>
 
       <!-- ADD CAR -->
@@ -793,8 +809,8 @@
   let leads = JSON.parse(localStorage.getItem('autodealer_leads')||'[]');
   let vouchers = JSON.parse(localStorage.getItem('autodealer_vouchers')||'[]');
 
-  const tabTitles={dashboard:'דשבורד',inventory:'מלאי רכבים',addcar:'הוספת רכב',leads:'לידים',tasks:'משימות',pay:'שכר',vouchers:'קופונים',meta:'מיגרציית מזהי Meta',ads:'מרכז פרסום'};
-  const tabOrder=['dashboard','inventory','addcar','leads','tasks','pay','vouchers','meta','ads'];
+  const tabTitles={dashboard:'דשבורד',inventory:'מלאי רכבים',pricelist:'לוח מחירים והחזר חודשי',addcar:'הוספת רכב',leads:'לידים',tasks:'משימות',pay:'שכר',vouchers:'קופונים',meta:'מיגרציית מזהי Meta',ads:'מרכז פרסום'};
+  const tabOrder=['dashboard','inventory','pricelist','addcar','leads','tasks','pay','vouchers','meta','ads'];
 
   function login(){
     if(document.getElementById('pwInput').value===PASS){
@@ -888,6 +904,7 @@
     if(id==='pay') loadPay();
     if(id==='meta') renderMissingCatalogImages();
     if(id==='ads') renderAdsCenter();
+    if(id==='pricelist') renderPriceList();
     document.querySelectorAll('[id^="tab-"]').forEach(el=>el.classList.add('hidden'));
     document.getElementById('tab-'+id).classList.remove('hidden');
     document.querySelectorAll('.nav-item').forEach((el,i)=>el.classList.toggle('active',tabOrder[i]===id));
@@ -1386,7 +1403,68 @@
     }).join('');
   }
 
-  function renderAll(){updateStats();renderInventory();renderLeads();renderVouchers();renderDash();renderProfit();}
+  function renderAll(){updateStats();renderInventory();renderLeads();renderVouchers();renderDash();renderProfit();if(!document.getElementById('tab-pricelist').classList.contains('hidden'))renderPriceList();}
+
+  // לוח מחירים והחזר חודשי - ממוין א-ב לפי יצרן ואז דגם
+  function priceListRows(){
+    return cars
+      .filter(c=>c && !c.hidden && HIDDEN_IDS.indexOf(c.id)<0)
+      .filter(c=>(Number(c.autodealerPriceNumber)||0)>1)
+      .slice()
+      .sort((a,b)=>{
+        const bc=(a.brand||'').localeCompare(b.brand||'','he',{sensitivity:'base'});
+        return bc!==0?bc:(a.model||'').localeCompare(b.model||'','he',{sensitivity:'base'});
+      });
+  }
+  function renderPriceList(){
+    const q=((document.getElementById('plSearch')||{}).value||'').trim().toLowerCase();
+    let rows=priceListRows();
+    if(q) rows=rows.filter(c=>((c.brand||'')+' '+(c.model||'')+' '+(c.year||'')).toLowerCase().indexOf(q)>=0);
+    const wrap=document.getElementById('priceListWrap');
+    if(!rows.length){ wrap.innerHTML='<div class="muted" style="padding:20px">אין רכבים להצגה.</div>'; return; }
+    let html='<table style="width:100%;border-collapse:collapse;font-size:14px;white-space:nowrap">'+
+      '<thead><tr style="text-align:right;border-bottom:2px solid var(--line);color:var(--muted);font-size:12px">'+
+      '<th style="padding:8px 10px">#</th><th style="padding:8px 10px">יצרן</th><th style="padding:8px 10px">דגם</th>'+
+      '<th style="padding:8px 10px">שנה</th><th style="padding:8px 10px">מחירון</th><th style="padding:8px 10px">מחיר אוטודילר</th>'+
+      '<th style="padding:8px 10px">חיסכון</th><th style="padding:8px 10px">החזר חודשי מ-</th><th style="padding:8px 10px">אתר</th></tr></thead><tbody>';
+    let curBrand=null,i=0;
+    rows.forEach(c=>{
+      const price=Number(c.autodealerPriceNumber)||0;
+      const list=Number(c.catalogPriceNumber)||0;
+      const save=list>price?list-price:0;
+      const mon=lowestMonthly(price);
+      if(c.brand!==curBrand){ curBrand=c.brand;
+        html+='<tr style="background:#faf7ef"><td colspan="9" style="padding:6px 10px;font-weight:900;color:#000">'+_esc(c.brand||'—')+'</td></tr>';
+      }
+      i++;
+      html+='<tr style="border-bottom:1px solid #f0f0f0">'+
+        '<td style="padding:8px 10px;color:var(--muted)">'+i+'</td>'+
+        '<td style="padding:8px 10px;font-weight:700">'+_esc(c.brand||'')+'</td>'+
+        '<td style="padding:8px 10px">'+_esc(c.model||'')+'</td>'+
+        '<td style="padding:8px 10px;color:var(--muted)">'+_esc(c.year||'')+'</td>'+
+        '<td style="padding:8px 10px;color:var(--muted)">'+(list?fmt(list):'—')+'</td>'+
+        '<td style="padding:8px 10px;font-weight:800">'+fmt(price)+'</td>'+
+        '<td style="padding:8px 10px;color:#166534;font-weight:700">'+(save?('-'+fmt(save)):'—')+'</td>'+
+        '<td style="padding:8px 10px;font-weight:800;color:#15803d">'+(mon?fmt(mon):'—')+'</td>'+
+        '<td style="padding:8px 10px"><a href="https://autodealer.co.il/?car='+encodeURIComponent(c.id)+'" target="_blank" style="color:#2563eb;text-decoration:none">🔗</a></td>'+
+        '</tr>';
+    });
+    html+='</tbody></table>';
+    wrap.innerHTML=html;
+  }
+  function copyPriceList(){
+    const rows=priceListRows();
+    const lines=['לוח מחירים והחזר חודשי - אוטודילר',''];
+    let curBrand=null;
+    rows.forEach(c=>{
+      if(c.brand!==curBrand){ curBrand=c.brand; lines.push('== '+(c.brand||'')+' =='); }
+      const price=Number(c.autodealerPriceNumber)||0;
+      const mon=lowestMonthly(price);
+      lines.push((c.model||'')+(c.year?(' '+c.year):'')+' - '+fmt(price)+' | החזר חודשי מ-'+(mon?fmt(mon):'—'));
+    });
+    const txt=lines.join('\n');
+    navigator.clipboard.writeText(txt).then(()=>toast('📋 הלוח הועתק')).catch(()=>toast('❌ העתקה נכשלה'));
+  }
 
   function updateStats(){
     document.getElementById('st-total').textContent=cars.length;
