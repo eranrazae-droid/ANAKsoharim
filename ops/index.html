@@ -253,11 +253,17 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
   font-family:Heebo,sans-serif;display:flex;flex-direction:column;align-items:center;gap:1px;line-height:1.1}
 .task-acts button b{font-size:9.5px;font-weight:800;white-space:nowrap}
 .task-card:active{cursor:grabbing}
-.task-card.color-red{--strip:#dc2626}
-.task-card.color-green{--strip:#16a34a}
-.task-card.color-yellow{--strip:#eab308}
-.task-card.color-purple{--strip:#a855f7}
-.task-card.color-blue{--strip:#3b82f6}
+/* צבע שנבחר למשימה צובע את כל הכרטיס, והטקסט והתגיות מתהפכים ללבן */
+.task-card.color-red{background:#ef4444 !important;border-color:#b91c1c !important}
+.task-card.color-green{background:#22c55e !important;border-color:#15803d !important}
+.task-card.color-yellow{background:#eab308 !important;border-color:#a16207 !important}
+.task-card.color-purple{background:#a855f7 !important;border-color:#7e22ce !important}
+.task-card.color-blue{background:#3b82f6 !important;border-color:#1d4ed8 !important}
+.task-card[class*="color-"] .task-title{color:#fff !important}
+.task-card[class*="color-"] .task-notes{color:rgba(255,255,255,.9) !important}
+.task-card[class*="color-"] .tag{background:rgba(255,255,255,.25) !important;color:#fff !important}
+.task-card[class*="color-"] .task-strip{display:none}
+.task-card[class*="color-"] .task-acts button{background:rgba(255,255,255,.22) !important;color:#fff}
 .color-picker{display:flex;gap:8px;margin-top:4px}
 .color-swatch{width:32px;height:32px;border-radius:50%;border:3px solid transparent;cursor:pointer;transition:transform .15s}
 .color-swatch.selected{border-color:#1a1a2e;transform:scale(1.2)}
@@ -19449,6 +19455,9 @@ function renderPickupCars() {
     _syncSelectAllLabel();
     return;
   }
+  // ציור מחדש באמצע גרירה הורס את הקובייה שנגררת ומחזיר את הסדר.
+  // דוחים אותו עד שהגרירה מסתיימת.
+  if (_pkDrag || _pkPressing) { _pkPendingRender = true; return; }
   list.innerHTML = cars.map(_pickupCardHtml).join('');
   _pickupFitRows();
   _pickupEnableDrag();
@@ -19634,6 +19643,8 @@ function _pickupBtnGrid(btns) {
    מונפשת בשיטת FLIP: מודדים לפני ואחרי, ומחליקים מהמצב הישן לחדש.
 ─────────────────────────────────────────────────────────────────────── */
 let _pkDrag = null;
+let _pkPressing = false;      // לחיצה ארוכה שממתינה להבשיל
+let _pkPendingRender = false; // ציור מחדש שנדחה בגלל גרירה
 
 function _pickupEnableDrag() {
   const list = document.getElementById('pickup-list');
@@ -19655,12 +19666,14 @@ function _pickupEnableDrag() {
     tile.classList.add('pk-dragging');
     if (navigator.vibrate) { try { navigator.vibrate(15); } catch (e) {} }
 
+    _pkPressing = false;
     _pkDrag = { tile, ghost, dx: x - r.left, dy: y - r.top, moved: false, startTarget };
     try { (source || list).setPointerCapture(pointerId); } catch (e) {}
   };
 
   // ביטול לחיצה ארוכה שטרם הבשילה — למשל כשהמשתמש רק לחץ ופתח עריכה
-  const cancelPress = () => { clearTimeout(pressTimer); pressTimer = null; pressInfo = null; };
+  const cancelPress = () => { clearTimeout(pressTimer); pressTimer = null; pressInfo = null; _pkPressing = false;
+    if (_pkPendingRender && !_pkDrag) { _pkPendingRender = false; renderPickupCars(); } };
 
   list.addEventListener('pointerdown', ev => {
     // גרירה בעכבר רק בלחיצה שמאלית ממושכת
@@ -19673,6 +19686,7 @@ function _pickupEnableDrag() {
     // הלחיצה הארוכה תופסת בכל שטח הקובייה, גם מעל הכפתורים ושורת הניווט.
     // לחיצה קצרה עליהם ממשיכה לעבוד כרגיל, כי רק גרירה שזזה בולעת את הקליק.
     pressInfo = { tile, x: ev.clientX, y: ev.clientY, id: ev.pointerId, target: ev.target };
+    _pkPressing = true;
     clearTimeout(pressTimer);
     pressTimer = setTimeout(() => {
       if (!pressInfo) return;
@@ -19760,7 +19774,13 @@ function _pickupEnableDrag() {
     d.ghost.remove();
     d.tile.classList.remove('pk-dragging');
     list.querySelectorAll('.pk-tile').forEach(t => { t.classList.remove('pk-shift'); t.style.transform = ''; });
-    if (d.moved) { list.dataset.swallowClick = '1'; _savePickupOrder(); return; }
+    if (d.moved) {
+      list.dataset.swallowClick = '1';
+      _pkPendingRender = false;      // הסדר החדש על המסך הוא הנכון
+      _savePickupOrder();
+      return;
+    }
+    if (_pkPendingRender) { _pkPendingRender = false; renderPickupCars(); }
     // לחיצה ארוכה שלא זזה = המשתמש רק התעכב על הכפתור. הדפדפן בולע את
     // הקליק אחרי תפיסת המצביע, ולכן מפעילים אותו בעצמנו.
     const el = d.startTarget;
