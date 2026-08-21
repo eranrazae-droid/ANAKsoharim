@@ -163,31 +163,39 @@ function _carwizName(desc) {
   return { tozeret: "", degem: clean };
 }
 
-// ── רכבי שנת 2026 שמותר לסרוק ─────────────────────────────────────────
-// רכב משנת 2026 נכנס לסריקות רק אם מספר הרישוי שלו ברשימה המאושרת.
-// כל שאר השנים נסרקות כרגיל. הרשימה נשמרת ב-Firestore במסמך
-// config/scan_filter בשדה allowed2026, וניתן לעדכן אותה בלי לשנות קוד.
-const _FILTER_YEAR = "2026";
-let _allowed2026 = null;      // מטמון קצר, כדי שעדכון הרשימה ייכנס מיד
-let _allowed2026At = 0;
+// ── רכבים שלא נסרקים ──────────────────────────────────────────────────
+// רכבים "לפי הזמנה" שעדיין לא הגיעו בפועל. הם מופיעים במלאי אבל אין
+// טעם לבדוק להם ריקולים או בעלויות. הרשימה כאן היא ברירת המחדל, וניתן
+// לעדכן אותה בלי לשנות קוד דרך Firestore: config/scan_filter → skipPlates.
+const _SCAN_SKIP_PLATES = [
+  "36805104", "36872304", "41772304", "42339704", "47519104", "49245604",
+  "52807804", "53864404", "55054904", "55378904", "56514104", "56514304",
+  "58684704", "59634904", "60039604", "60727804", "60802504", "61731604",
+  "64244204", "64255104", "64263604", "65805904", "65816904", "65942904",
+  "67148404", "67294504", "67297604", "71544204", "72279204", "72382504",
+  "73093704", "73858803", "74232304", "75278804",
+];
+let _skipPlates = null;      // מטמון קצר, כדי שעדכון הרשימה ייכנס מיד
+let _skipPlatesAt = 0;
 
-async function _loadAllowed2026() {
-  if (_allowed2026 && Date.now() - _allowed2026At < 60000) return _allowed2026;
-  let list = [];
+async function _loadSkipPlates() {
+  if (_skipPlates && Date.now() - _skipPlatesAt < 60000) return _skipPlates;
+  let list = _SCAN_SKIP_PLATES;
   try {
     const snap = await db.collection("config").doc("scan_filter").get();
-    if (snap.exists) list = snap.data().allowed2026 || [];
+    const fromDb = snap.exists ? snap.data().skipPlates : null;
+    if (Array.isArray(fromDb)) list = fromDb;      // הרשימה במסד גוברת על הקוד
   } catch (err) { console.error("scan_filter load failed", err); }
-  _allowed2026 = new Set(list.map((p) => String(p).replace(/\D/g, "")));
-  _allowed2026At = Date.now();
-  return _allowed2026;
+  _skipPlates = new Set(list.map((p) => String(p).replace(/\D/g, "")).filter(Boolean));
+  _skipPlatesAt = Date.now();
+  return _skipPlates;
 }
 
-// מסננת מהמלאי רכבי 2026 שאינם ברשימה המאושרת
+// מסננת מהמלאי את הרכבים שברשימת הדילוג
 async function _filterScannable(cars) {
-  const allowed = await _loadAllowed2026();
-  if (!allowed.size) return cars;          // אין רשימה — לא מסננים כלום
-  return cars.filter((c) => String(c.shnat || "").trim() !== _FILTER_YEAR || allowed.has(c.plate));
+  const skip = await _loadSkipPlates();
+  if (!skip.size) return cars;
+  return cars.filter((c) => !skip.has(c.plate));
 }
 
 // מושכת את המלאי הפעיל ומחזירה רשימת רכבים אחידה לשתי הסריקות
