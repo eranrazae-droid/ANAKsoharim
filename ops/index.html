@@ -10327,6 +10327,21 @@ let _ownUpdatedAt = '';
 let _ownPickupByPlate = {};
 let _ownPickupUnsub = null;
 
+// קולט רשימת רכבים ושומר מהם רק את הספק, לפי מספר רישוי. רכב שממתין
+// לאיסוף גובר על רכב שכבר נאסף, כי זה המצב העדכני יותר.
+function _ownAbsorbPickup(snap, state) {
+  snap.docs.forEach(d => {
+    const c = d.data();
+    const key = String(c.plate || '').replace(/\D/g, '');
+    const src = String(c.source || '').trim();
+    if (!key || !src) return;
+    const cur = _ownPickupByPlate[key];
+    if (cur && cur.state === 'ממתין לאיסוף' && state !== 'ממתין לאיסוף') return;
+    _ownPickupByPlate[key] = { source: src, state };
+  });
+  _ownRender();
+}
+
 function openOwnershipScreen() {
   document.getElementById('own-user-badge').textContent = currentUser.name;
   showScreen('ownership');
@@ -10339,16 +10354,13 @@ function openOwnershipScreen() {
       _ownRender();
     }, () => {});
   }
+  // הספק נלמד גם מהרכבים שממתינים לאיסוף וגם מאלה שכבר נאספו, כדי
+  // שרכב שנאסף עדיין יציג מאיזו חברה הוא הגיע
   if (!_ownPickupUnsub) {
-    _ownPickupUnsub = _onSnap(_colRef('pickup_cars'), snap => {
-      _ownPickupByPlate = {};
-      snap.docs.forEach(d => {
-        const c = d.data();
-        const key = String(c.plate || '').replace(/\D/g, '');
-        if (key) _ownPickupByPlate[key] = c;
-      });
-      _ownRender();
-    }, () => {});
+    _ownPickupUnsub = [
+      _onSnap(_colRef('pickup_cars'),    snap => _ownAbsorbPickup(snap, 'ממתין לאיסוף'), () => {}),
+      _onSnap(_colRef('pickup_archive'), snap => _ownAbsorbPickup(snap, 'נאסף'),        () => {}),
+    ];
   }
   _ownLoadConfig();
 }
@@ -10599,7 +10611,10 @@ function _ownRender() {
     // רכב שאינו על תו סחר וגם ממתין לאיסוף — מציגים מאיזו חברה הוא
     const pk = mk === 'ours' ? null : _ownPickupByPlate[String(c.plate || '').replace(/\D/g, '')];
     const pickupTag = (pk && pk.source)
-      ? `<span class="own-logo" style="background:${_pickupSourceColor(pk.source)}" title="ממתין לאיסוף · ${e(pk.source)}">${_PICKUP_LOGOS[pk.source] || ''}</span>`
+      ? (_PICKUP_LOGOS[pk.source]
+          ? `<span class="own-logo" style="background:${_pickupSourceColor(pk.source)}" title="${e(pk.state)} · ${e(pk.source)}">${_PICKUP_LOGOS[pk.source]}</span>`
+          // ספק שאין לו לוגו — מוצג בשמו, כדי שלא תופיע תיבה ריקה
+          : `<span class="own-logo" style="background:${_pickupSourceColor(pk.source)};color:#fff;font-size:11px;font-weight:900" title="${e(pk.state)}">${e(pk.source)}</span>`)
       : '';
     return `<div style="border:2px solid var(--border);border-right:6px solid ${col};border-radius:12px;padding:11px 13px;margin-bottom:8px;background:var(--card)">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
