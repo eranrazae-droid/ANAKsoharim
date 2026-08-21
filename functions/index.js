@@ -163,6 +163,33 @@ function _carwizName(desc) {
   return { tozeret: "", degem: clean };
 }
 
+// ── רכבי שנת 2026 שמותר לסרוק ─────────────────────────────────────────
+// רכב משנת 2026 נכנס לסריקות רק אם מספר הרישוי שלו ברשימה המאושרת.
+// כל שאר השנים נסרקות כרגיל. הרשימה נשמרת ב-Firestore במסמך
+// config/scan_filter בשדה allowed2026, וניתן לעדכן אותה בלי לשנות קוד.
+const _FILTER_YEAR = "2026";
+let _allowed2026 = null;      // מטמון קצר, כדי שעדכון הרשימה ייכנס מיד
+let _allowed2026At = 0;
+
+async function _loadAllowed2026() {
+  if (_allowed2026 && Date.now() - _allowed2026At < 60000) return _allowed2026;
+  let list = [];
+  try {
+    const snap = await db.collection("config").doc("scan_filter").get();
+    if (snap.exists) list = snap.data().allowed2026 || [];
+  } catch (err) { console.error("scan_filter load failed", err); }
+  _allowed2026 = new Set(list.map((p) => String(p).replace(/\D/g, "")));
+  _allowed2026At = Date.now();
+  return _allowed2026;
+}
+
+// מסננת מהמלאי רכבי 2026 שאינם ברשימה המאושרת
+async function _filterScannable(cars) {
+  const allowed = await _loadAllowed2026();
+  if (!allowed.size) return cars;          // אין רשימה — לא מסננים כלום
+  return cars.filter((c) => String(c.shnat || "").trim() !== _FILTER_YEAR || allowed.has(c.plate));
+}
+
 // מושכת את המלאי הפעיל ומחזירה רשימת רכבים אחידה לשתי הסריקות
 // (ריקולים ובעלויות), כדי ששתיהן תמיד יעבדו על אותו מלאי.
 async function _fetchInventory() {
@@ -315,7 +342,7 @@ async function _runRecallScan(trigger, quiet) {
 async function _runRecallScanInner() {
     let cars;
     try {
-      cars = await _fetchInventory();
+      cars = await _filterScannable(await _fetchInventory());
     } catch (err) {
       console.error("dailyRecallPull: inventory fetch failed", err);
       return { ok: false, reason: "inventory-fetch-failed" };
@@ -1336,7 +1363,7 @@ async function _ownRegistryBaalut(plates) {
 async function _runOwnershipScan() {
   let vehicles;
   try {
-    vehicles = await _fetchInventory();
+    vehicles = await _filterScannable(await _fetchInventory());
   } catch (err) {
     return { ok: false, reason: "inventory-fetch-failed" };
   }
