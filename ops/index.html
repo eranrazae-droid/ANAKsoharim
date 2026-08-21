@@ -10334,6 +10334,7 @@ let _ownCars = [];            // רשימת המלאי מהשרת
 let _ownIds = [];             // הח.פ/ת.ז של החברה
 let _ownFilter = 'all';
 let _ownUpdatedAt = '';
+let _ownUpdatedRaw = null;   // מועד הבדיקה האחרונה
 // רכבים שממתינים לאיסוף, לפי מספר רישוי — כדי להציג את לוגו הספק
 // בשורה של רכב שאין לו בעלות ונמצא באיסוף
 let _ownPickupByPlate = {};
@@ -10369,15 +10370,21 @@ function _checkOwnMorning() {
   if (!_ownMorningState) return;                                  // עוד לא נטען מהשרת
   const now = new Date();
   if (now.getHours() < _OWN_MORNING_HOUR) return;                 // עוד לא הגיע הזמן
-  if (_ownMorningState.ackDate === _ownToday()) return;           // כבר אושר היום
-  const snooze = Number(_ownMorningState.snoozeUntil || 0);
+  const today = _ownToday();
+  if (_ownMorningState.ackDate === today) return;                 // כבר אושר היום
+  // דחייה תקפה רק ליום שבו נעשתה. אם התחלף היום — היא כבר לא סופרת,
+  // וכך גם אם לא נכנסת יום שלם, בכניסה הבאה תראה את התזכורת.
+  const snooze = _ownMorningState.snoozeDate === today ? Number(_ownMorningState.snoozeUntil || 0) : 0;
   if (snooze && Date.now() < snooze) return;                      // נדחה
   const bar = document.getElementById('own-morning');
   if (bar && bar.style.display !== 'none') return;                // כבר פתוח
   openOwnershipScreen();
   if (bar) bar.style.display = 'block';
   // אם לא נלחץ כלום, לא נמשוך אותך למסך כל דקה — נחזור בעוד עשר דקות
-  _ownMorningSet({ snoozeUntil: Date.now() + 10 * 60 * 1000 });
+  _ownMorningSet({ snoozeUntil: Date.now() + 10 * 60 * 1000, snoozeDate: today });
+  // אם הבדיקה האחרונה אינה מהיום — מרעננים אותה, כדי שתראה נתונים עדכניים
+  const last = _ownUpdatedRaw ? _ownUpdatedRaw.toLocaleDateString('sv-SE') : '';
+  if (last !== today) runOwnershipScan();
 }
 
 function _ownMorningClose() {
@@ -10387,14 +10394,14 @@ function _ownMorningClose() {
 }
 
 function ownMorningDone() {
-  _ownMorningSet({ ackDate: _ownToday(), snoozeUntil: 0 });
+  _ownMorningSet({ ackDate: _ownToday(), snoozeUntil: 0, snoozeDate: '' });
   _ownMorningClose();
   showToast('✅ נסגר עד מחר בבוקר');
 }
 window.ownMorningDone = ownMorningDone;
 
 function ownMorningSnooze() {
-  _ownMorningSet({ snoozeUntil: Date.now() + 60 * 60 * 1000 });
+  _ownMorningSet({ snoozeUntil: Date.now() + 60 * 60 * 1000, snoozeDate: _ownToday() });
   _ownMorningClose();
   showToast('⏰ נחזור אליך בעוד שעה');
 }
@@ -10484,6 +10491,7 @@ function openOwnershipScreen() {
       const d = snap.exists() ? snap.data() : null;
       _ownCars = (d && d.cars) || [];
       const u = d && d.updatedAt && d.updatedAt.toDate ? d.updatedAt.toDate() : null;
+      _ownUpdatedRaw = u;
       _ownUpdatedAt = u ? u.toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
       _ownRender();
     }, () => {});
