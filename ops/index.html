@@ -1040,6 +1040,13 @@ if ('serviceWorker' in navigator) {
       </div>
       <input type="hidden" id="et-color" value="">
     </div>
+    <div class="form-group">
+      <label>תמונות</label>
+      <div id="et-photos" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px"></div>
+      <input type="file" id="et-photo-file" accept="image/*" multiple style="display:none" onchange="etAddPhotos(this)">
+      <button type="button" id="et-photo-btn" onclick="document.getElementById('et-photo-file').click()"
+        style="background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:10px 16px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">📷 הוסף תמונה</button>
+    </div>
     <button class="btn-submit" onclick="saveEditTask()">💾 שמור שינויים</button>
   </div>
 </div>
@@ -5181,9 +5188,51 @@ async function openEditTask(id) {
   const existingColor = t.color || '';
   document.getElementById('et-color').value = existingColor;
   document.querySelectorAll('#et-color-picker .color-swatch').forEach(s => s.classList.toggle('selected', s.dataset.color === existingColor));
+  _etPhotos = Array.isArray(t.photos) ? [...t.photos] : [];
+  _etRenderPhotos();
   openModal('modal-edit-task');
 }
 window.openEditTask = openEditTask;
+
+/* ── תמונות במשימה קיימת ─────────────────────────────────────────────
+   אפשר להוסיף ולהסיר תמונות מכל משימה. התמונה נדחסת, עולה לשרת
+   הקבצים, ואם ההעלאה אינה זמינה היא נשמרת בתוך הרשומה כמו קודם.   */
+let _etPhotos = [];
+const _ET_MAX_PHOTOS = 4;
+
+function _etRenderPhotos() {
+  const box = document.getElementById('et-photos');
+  if (!box) return;
+  box.innerHTML = _etPhotos.map((p, i) => `<div style="position:relative">
+      <img src="${p}" onclick="openLightbox(this.src)" style="width:78px;height:78px;object-fit:cover;border-radius:10px;border:2px solid var(--border);cursor:zoom-in">
+      <button type="button" onclick="etRemovePhoto(${i})" title="הסר תמונה"
+        style="position:absolute;top:-6px;left:-6px;background:#ef4444;color:#fff;border:none;border-radius:999px;width:24px;height:24px;font-size:13px;font-weight:900;cursor:pointer;line-height:1">✕</button>
+    </div>`).join('') || '<div style="font-size:12.5px;color:var(--muted);font-weight:700">אין תמונות</div>';
+  const btn = document.getElementById('et-photo-btn');
+  if (btn) btn.style.display = _etPhotos.length >= _ET_MAX_PHOTOS ? 'none' : '';
+}
+
+function etRemovePhoto(i) { _etPhotos.splice(i, 1); _etRenderPhotos(); }
+window.etRemovePhoto = etRemovePhoto;
+
+async function etAddPhotos(input) {
+  const files = [...input.files].slice(0, _ET_MAX_PHOTOS - _etPhotos.length);
+  input.value = '';
+  if (!files.length) return;
+  if (!_requireNet('הוספת התמונה')) return;
+  const id = document.getElementById('et-id').value;
+  for (let i = 0; i < files.length; i++) {
+    showToast(`⏳ מעבד תמונה ${i + 1}/${files.length}...`);
+    try {
+      const b64 = await compressToBase64(files[i], 900, 0.7);
+      const urls = await _uploadAll(`tasks/${id}/photo`, [b64]);
+      _etPhotos.push(urls ? urls[0] : b64);
+    } catch (e) { showToast('שגיאה בעיבוד התמונה', 4000); }
+  }
+  _etRenderPhotos();
+  showToast('התמונה נוספה — לא לשכוח לשמור', 4000);
+}
+window.etAddPhotos = etAddPhotos;
 
 function pickColor(prefix, el) {
   document.querySelectorAll(`#${prefix}-color-picker .color-swatch`).forEach(s => s.classList.remove('selected'));
@@ -5197,6 +5246,12 @@ async function saveEditTask() {
   if (!id) return;
   const title = document.getElementById('et-title').value.trim();
   if (!title) return showToast('נא להזין כותרת');
+  if (!_requireNet('שמירת המשימה')) return;
+  // תמונות שנשמרות בתוך הרשומה חייבות להיכנס לתקציב הגודל
+  const inRecord = _etPhotos.filter(p => String(p).startsWith('data:'));
+  if (inRecord.reduce((t, b) => t + _b64Size(b), 0) > _DOC_PHOTO_BUDGET) {
+    return showToast('⚠️ התמונות כבדות מדי — הסר אחת ונסה שוב', 8000);
+  }
   try {
     const etCity = document.getElementById('et-city').value.trim();
     await _updateDoc(_docRef('tasks', id), {
@@ -5205,6 +5260,7 @@ async function saveEditTask() {
       color: document.getElementById('et-color').value,
       regionCity: etCity,
       region: _regionOfCity(etCity),
+      photos: _etPhotos,
     });
     closeModal('modal-edit-task');
     showToast('✅ המשימה עודכנה!');
