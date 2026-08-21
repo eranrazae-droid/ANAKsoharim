@@ -23,6 +23,8 @@ function closeModal(id) {
 }
 document.querySelectorAll('.modal-overlay').forEach(o => {
   o.addEventListener('click', e => {
+    // חלונית נעולה נסגרת רק מהכפתורים שבתוכה
+    if (o.dataset.locked === '1') return;
     // goes through closeModal so the page scroll is released as well
     if (e.target === o) closeModal(o.id);
   });

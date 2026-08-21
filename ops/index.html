@@ -2606,7 +2606,7 @@ if ('serviceWorker' in navigator) {
 
 <!-- ====== MODAL: PICKUP CAR DETAIL (driver view) ====== -->
 <!-- החלונית היומית של בדיקת הבעלויות -->
-<div class="modal-overlay" id="modal-own-morning">
+<div class="modal-overlay" id="modal-own-morning" data-locked="1">
   <div class="modal-box" style="max-width:430px">
     <div class="modal-title" style="justify-content:center">📄 בדיקת בעלויות</div>
     <div id="own-morning-body"></div>
@@ -10351,7 +10351,7 @@ let _ownPickupUnsub = null;
 const _OWN_MORNING_HOUR = 8;
 let _ownMorningTimer = null;
 // המצב נשמר בשרת ולא במכשיר, כך שאישור מכל מכשיר תקף לכולם
-let _ownMorningState = null;   // { ackDate, snoozeUntil }
+let _ownMorningState = null;   // { ackDay, snoozeTo }
 
 /* "יום" לצורך התזכורת מתחיל ב-8:00 ולא בחצות. שעה 00:30 שייכת עדיין
    ליום הקודם, כך שדחייה שנעשתה בלילה לא נמחקת בטעות.              */
@@ -10416,33 +10416,32 @@ function _checkOwnMorning() {
   const now = new Date();
   if (now.getHours() < _OWN_MORNING_HOUR) return;                 // עוד לא הגיע הזמן
   const today = _ownToday();
-  if (_ownMorningState.ackDate === today) return;                 // כבר אושר היום
+  if (_ownMorningState.ackDay === today) return;                 // כבר אושר היום
   // דחייה תקפה רק ליום שבו נעשתה. אם התחלף היום — היא כבר לא סופרת,
   // וכך גם אם לא נכנסת יום שלם, בכניסה הבאה תראה את התזכורת.
-  const snooze = _ownMorningState.snoozeDate === today ? Number(_ownMorningState.snoozeUntil || 0) : 0;
+  const snooze = _ownMorningState.snoozeDay === today ? Number(_ownMorningState.snoozeTo || 0) : 0;
   if (snooze && Date.now() < snooze) return;                      // נדחה
   const modal = document.getElementById('modal-own-morning');
   if (modal && modal.classList.contains('open')) return;          // כבר פתוח
   _ownStartWatch();
   _renderOwnMorning();
   openModal('modal-own-morning');
-  // אם לא נלחץ כלום, לא נמשוך אותך למסך כל דקה — נחזור בעוד עשר דקות
-  _ownMorningSet({ snoozeUntil: Date.now() + 10 * 60 * 1000, snoozeDate: today });
-  // אם הבדיקה האחרונה אינה מהיום — מרעננים אותה, כדי שתראה נתונים עדכניים
+  // אין סגירה אוטומטית ואין דחייה מאחורי הקלעים — רק שני הכפתורים
+  // סוגרים את החלונית. אם היא נסגרה בכל זאת, היא תחזור תוך דקה.
   _ownEnsureFresh();
 }
 
 function _ownMorningClose() { closeModal('modal-own-morning'); }
 
 function ownMorningDone() {
-  _ownMorningSet({ ackDate: _ownToday(), snoozeUntil: 0, snoozeDate: '' });
+  _ownMorningSet({ ackDay: _ownToday(), snoozeTo: 0, snoozeDay: '' });
   _ownMorningClose();
   showToast('✅ נסגר עד מחר בבוקר');
 }
 window.ownMorningDone = ownMorningDone;
 
 function ownMorningSnooze() {
-  _ownMorningSet({ snoozeUntil: Date.now() + 60 * 60 * 1000, snoozeDate: _ownToday() });
+  _ownMorningSet({ snoozeTo: Date.now() + 60 * 60 * 1000, snoozeDay: _ownToday() });
   _ownMorningClose();
   showToast('⏰ נחזור אליך בעוד שעה');
 }
