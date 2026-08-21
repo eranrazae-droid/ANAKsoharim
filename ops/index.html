@@ -6618,6 +6618,17 @@ async function submitDriverIntake() {
     }
     showToast('⏳ מקטין את התמונות…', 2000);
   }
+  // מעלים לשרת הקבצים. אם זה לא זמין — נשארים עם התמונות בתוך הרשומה
+  const _base = `intake/${_currentIntakeId}`;
+  for (const key of Object.keys(photoUrls)) {
+    showToast('⏳ מעלה תמונות…', 1500);
+    const urls = await _uploadAll(`${_base}/${key}`, photoUrls[key]);
+    if (urls) photoUrls[key] = urls;
+  }
+  if (batteryB64.length) {
+    const urls = await _uploadAll(`${_base}/battery`, batteryB64);
+    if (urls) batteryB64 = urls;
+  }
   window._batteryPhotoUrls = batteryB64.length ? { battery: batteryB64 } : {};
 
   try {
@@ -7173,6 +7184,32 @@ function _requireNet(what) {
   return false;
 }
 window._requireNet = _requireNet;
+
+/* ── העלאת תמונה לשרת הקבצים ─────────────────────────────────────────
+   התמונה נראית בדיוק אותו דבר בתוך הרשומה — ההבדל הוא רק איפה היא
+   שוכבת. אם ההעלאה לא זמינה, נשארים בשמירה בתוך הרשומה כמו קודם,
+   ואז תקציב הגודל הוא זה ששומר עלינו.                               */
+async function _uploadDataUrl(path, dataUrl) {
+  if (!window._uploadBytes || !window._storageRef || !window._storage) return null;
+  const res = await fetch(dataUrl);
+  const blob = await res.blob();
+  const ref = window._storageRef(window._storage, path);
+  await window._uploadBytes(ref, blob);
+  return await window._getDownloadURL(ref);
+}
+
+// מעלה קבוצת תמונות ומחזירה קישורים. כישלון מחזיר null, ואז נשמר base64
+async function _uploadAll(prefix, b64s) {
+  try {
+    const out = [];
+    for (let i = 0; i < b64s.length; i++) {
+      const url = await _uploadDataUrl(`${prefix}_${i}_${Date.now()}.jpg`, b64s[i]);
+      if (!url) return null;
+      out.push(url);
+    }
+    return out;
+  } catch (e) { console.warn('upload failed, keeping in record', e); return null; }
+}
 
 /* ── תקציב גודל לרשומה ──────────────────────────────────────────────
    התמונות נשמרות בתוך הרשומה עצמה, ולרשומה יש תקרה של מגה־בייט אחד.
