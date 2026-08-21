@@ -2918,6 +2918,10 @@ if ('serviceWorker' in navigator) {
 </div>
 
 <!-- ====== TOAST ====== -->
+<!-- מצב החיבור: פס אדום קבוע כשאין אינטרנט -->
+<div id="net-bar" style="display:none;position:fixed;top:0;right:0;left:0;z-index:9999;background:#dc2626;color:#fff;
+  text-align:center;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;padding:7px 12px;
+  box-shadow:0 2px 10px rgba(0,0,0,.2)">📴 אין חיבור לאינטרנט — שמירות ושליחות חסומות</div>
 <div class="toast" id="toast"></div>
 
 <!-- SheetJS for Excel parsing -->
@@ -6561,38 +6565,48 @@ async function submitDriverIntake() {
     ' · ' + now.toLocaleTimeString('he-IL', { hour:'2-digit', minute:'2-digit' });
 
   if (!_updateDoc || !_docRef) { showToast('שגיאה: Firebase לא אותחל'); return; }
+  // בלי חיבור אין שליחה — אבל הטופס נשמר במלואו וממשיכים ממנו אחר כך
+  if (!_netOnline()) { try { saveIntakeDraft(); saveIntakeDraftPhotos(); } catch (e) {} 
+    _requireNet('הקליטה'); return; }
   showToast('⏳ שולח טופס...');
 
-  // upload photos (non-fatal — form submits even if storage fails)
-  const photoUrls = {};
-  for (const key of _photoKeys) {
-    if ((ciPhotoFiles[key]||[]).length) {
-      try {
-        photoUrls[key] = await uploadPhotos(key);
-      } catch(pe) {
-        console.warn('photo upload failed for', key, pe);
-        showToast(`⚠️ תמונה לא הועלתה (${key}): ${pe.code||pe.message}`, 4000);
-      }
-    }
-  }
-
-  // upload battery photos
-  if (_batteryPhotoFiles?.length) {
-    let _batteryCompressOk = false;
+  // עיבוד התמונות. אם הכל יחד חורג מהתקציב — מנסים שוב בדחיסה חזקה
+  // יותר, ורק אם גם זה לא הספיק עוצרים בלי לשמור כלום.
+  const _steps = [[900, 0.72], [760, 0.6], [640, 0.5]];
+  let photoUrls = {}, batteryB64 = [], _photoCount = 0;
+  for (let si = 0; si < _steps.length; si++) {
+    const [px, q] = _steps[si];
+    photoUrls = {}; batteryB64 = []; _photoCount = 0;
     try {
-      const b64s = [];
-      for (let i = 0; i < _batteryPhotoFiles.length; i++) {
-        showToast(`⏳ מעבד תמונת מצבר ${i+1}/${_batteryPhotoFiles.length}...`);
-        b64s.push(await compressToBase64(_batteryPhotoFiles[i]));
+      for (const key of _photoKeys) {
+        const files = ciPhotoFiles[key] || [];
+        if (!files.length) continue;
+        const b64s = [];
+        for (let i = 0; i < files.length; i++) {
+          showToast(`⏳ מעבד תמונה ${i + 1}/${files.length}...`);
+          b64s.push(await compressToBase64(files[i], px, q));
+        }
+        photoUrls[key] = b64s; _photoCount += b64s.length;
       }
-      window._batteryPhotoUrls = { battery: b64s };
-      _batteryCompressOk = true;
-    } catch(pe) {
-      console.warn('battery photo upload failed', pe);
-      showToast('⚠️ שגיאה בעיבוד תמונת מצבר — נסה שוב', 4000);
+      for (let i = 0; i < (_batteryPhotoFiles || []).length; i++) {
+        showToast(`⏳ מעבד תמונת מצבר ${i + 1}/${_batteryPhotoFiles.length}...`);
+        batteryB64.push(await compressToBase64(_batteryPhotoFiles[i], px, q));
+        _photoCount++;
+      }
+    } catch (pe) {
+      console.warn('photo processing failed', pe);
+      showToast('⚠️ שגיאה בעיבוד התמונות — נסה שוב', 5000);
       return;
     }
+    const bytes = _photosBytes(photoUrls) + batteryB64.reduce((t, b) => t + _b64Size(b), 0);
+    if (bytes <= _DOC_PHOTO_BUDGET) break;
+    if (si === _steps.length - 1) {
+      showToast(`⚠️ יש יותר מדי תמונות בטופס (${_photoCount}). הטופס לא נשלח — מחק כמה תמונות ונסה שוב. כל מה שמילאת נשמר.`, 12000);
+      return;
+    }
+    showToast('⏳ מקטין את התמונות…', 2000);
   }
+  window._batteryPhotoUrls = batteryB64.length ? { battery: batteryB64 } : {};
 
   try {
     await _updateDoc(_docRef('intake_assignments', _currentIntakeId), {
@@ -7123,6 +7137,45 @@ function renderPhotoGrid(key) {
   }
   grid.innerHTML = html;
 }
+
+/* ── מצב חיבור ───────────────────────────────────────────────────────
+   בלי אינטרנט פעולות שמירה לא מתבצעות. במקום להיכשל בשקט, הן נחסמות
+   מראש עם הודעה ברורה, וכל מה שמולא נשמר מקומית כדי להמשיך מאותה
+   נקודה כשהחיבור חוזר.                                              */
+function _netOnline() { return navigator.onLine !== false; }
+
+function _netSyncBar() {
+  const bar = document.getElementById('net-bar');
+  if (bar) bar.style.display = _netOnline() ? 'none' : 'block';
+}
+window.addEventListener('online', () => { _netSyncBar(); showToast('🟢 החיבור חזר — אפשר להמשיך', 4000); });
+window.addEventListener('offline', _netSyncBar);
+document.addEventListener('DOMContentLoaded', _netSyncBar);
+_netSyncBar();
+
+// שומר הסף לכל פעולה ששומרת נתונים
+function _requireNet(what) {
+  if (_netOnline()) return true;
+  _netSyncBar();
+  showToast(`📴 אין חיבור לאינטרנט — ${what || 'הפעולה'} לא בוצעה. כל מה שמילאת נשמר, אפשר להמשיך מאותה נקודה כשהחיבור יחזור.`, 9000);
+  return false;
+}
+window._requireNet = _requireNet;
+
+/* ── תקציב גודל לרשומה ──────────────────────────────────────────────
+   התמונות נשמרות בתוך הרשומה עצמה, ולרשומה יש תקרה של מגה־בייט אחד.
+   לכן לפני השמירה בודקים את הגודל: אם חרגנו, דוחסים חזק יותר, ורק אם
+   גם זה לא הספיק — עוצרים ואומרים למה. שמירה חלקית לא מתרחשת.      */
+const _DOC_PHOTO_BUDGET = 750 * 1024;     // שאר השדות מקבלים את היתרה
+
+// גודל אמיתי של מחרוזת base64 בבתים
+function _b64Size(str) {
+  const i = String(str || '').indexOf(',');
+  const body = i >= 0 ? str.slice(i + 1) : String(str || '');
+  return Math.floor(body.length * 3 / 4);
+}
+const _photosBytes = obj => Object.values(obj || {})
+  .flat().reduce((t, b) => t + _b64Size(b), 0);
 
 function compressToBase64(file, maxPx = 900, quality = 0.72) {
   return new Promise((resolve, reject) => {
@@ -12643,6 +12696,8 @@ window.bsAuditMark = bsAuditMark;
 async function bsAuditSubmit() {
   const rows = _bsAuditRows();
   if (rows.some(r => !_bsAuditMarks[r.id])) return showToast('נא לסמן את כל השורות');
+  // הסימונים נשארים על המסך, אפשר לשלוח שוב כשיהיה חיבור
+  if (!_requireNet('שליחת הבדיקה')) return;
   const btn = document.getElementById('bs-audit-send');
   if (btn) btn.disabled = true;
   const month = _bsAuditMonth();
@@ -19757,6 +19812,13 @@ function _pickupDocThumb(data, mime, name) {
 function previewPickupDoc(input) {
   const file = input.files[0];
   if (!file) return;
+  // המסמך נשמר בתוך הרשומה, ולכן יש לו תקרת גודל. עדיף לומר את זה
+  // בזמן הצירוף מאשר להיכשל בשמירה
+  if (file.size > 700 * 1024) {
+    input.value = '';
+    showToast(`⚠️ הקובץ גדול מדי (${(file.size / 1024 / 1024).toFixed(1)}MB). המקסימום הוא 0.7MB — צלם מחדש או שמור באיכות נמוכה יותר.`, 10000);
+    return;
+  }
   document.getElementById('pickup-doc-name').textContent = file.name;
   _pickupDocMime = file.type;
   const reader = new FileReader();
@@ -19812,6 +19874,8 @@ window.pickupLookupPlate = pickupLookupPlate;
 async function submitPickupCar() {
   const plate = document.getElementById('pickup-plate').value.trim();
   if (!plate) return showToast('נא להזין לוחית רישוי');
+  // הטופס נשאר פתוח עם כל מה שמילאת, ואפשר לשלוח שוב כשהחיבור יחזור
+  if (!_requireNet('שמירת הרכב')) return;
   const btn = document.getElementById('pickup-submit-btn');
   btn.disabled = true;
   const isEdit = !!_pickupEditId;
@@ -21184,6 +21248,7 @@ function collectPickupCar(id) {
 window.collectPickupCar = collectPickupCar;
 
 async function submitCollectPickup() {
+  if (!_requireNet('רישום האיסוף')) return;
   const collectedByText = document.getElementById('collect-pickup-by').value.trim();
   if (!collectedByText) {
     showToast('נא להזין על ידי מי נאסף הרכב');
