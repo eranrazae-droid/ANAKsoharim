@@ -1499,7 +1499,9 @@ async function _runOwnershipScan() {
       rows.push(entry(c, c.status === "ours" ? "back" : "moved", from, c.baalut));
     }
     for (const c of newAndNot) if (!seenLog.has(c.plate)) { seenLog.add(c.plate); rows.push(entry(c, "new_not", "", c.baalut)); }
-    for (const c of goneFromStock) if (!seenLog.has(c.plate)) {
+    // רכב שהוצא מהסריקה אינו "ירד מהמלאי" — לא רושמים עליו כלום
+    const skipNow = await _loadSkipPlates();
+    for (const c of goneFromStock) if (!seenLog.has(c.plate) && !skipNow.has(c.plate)) {
       seenLog.add(c.plate);
       const row = entry(c, "gone", c.baalut, c.movedOnExit ? c.nowBaalut : "");
       row.movedOnExit = !!c.movedOnExit;

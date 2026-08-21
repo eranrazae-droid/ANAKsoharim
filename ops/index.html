@@ -10329,6 +10329,17 @@ let _ownUpdatedAt = '';
 let _ownPickupByPlate = {};
 let _ownPickupUnsub = null;
 
+/* רכבים שאינם נסרקים כלל (רכבי "לפי הזמנה"). הרשימה זהה לזו שבשרת,
+   והיא כאן כדי שלא יוצגו התראות על רכבים שממילא לא נבדקים.        */
+const _SCAN_SKIP_PLATES = new Set([
+  '36805104', '36872304', '41772304', '42339704', '47519104', '49245604',
+  '52807804', '53864404', '55054904', '55378904', '56514104', '56514304',
+  '58684704', '59634904', '60039604', '60727804', '60802504', '61731604',
+  '64244204', '64255104', '64263604', '65805904', '65816904', '65942904',
+  '67148404', '67294504', '67297604', '71544204', '72279204', '72382504',
+  '73093704', '73858803', '74232304', '75278804',
+]);
+
 /* ── רכבים שירדו מהמלאי ──────────────────────────────────────────────
    זה המצב היחיד שדורש אישור שלך. אחרי אישור הרכב לא מוצג שוב.
    כל שאר שינויי הבעלות מוצגים כרגיל ואינם דורשים כלום.            */
@@ -10337,7 +10348,10 @@ let _ownGone = [], _ownGoneUnsub = null;
 function _renderOwnGone() {
   const box = document.getElementById('own-gone');
   if (!box) return;
-  const rows = _ownGone.filter(r => !r.approvedBy);
+  // רכב שאינו נסרק בכלל לא אמור להופיע כאן — הוא "ירד מהמלאי" רק
+  // בגלל שהוצא מהסריקה, ולא בגלל שקרה לו משהו
+  const rows = _ownGone.filter(r => !r.approvedBy
+    && !_SCAN_SKIP_PLATES.has(String(r.plate || '').replace(/\D/g, '')));
   if (!rows.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
   box.style.display = 'block';
   box.innerHTML = `<div style="font-weight:900;font-size:14px;margin-bottom:8px">📤 ירדו מהמלאי — ממתין לאישור (${rows.length})</div>`
