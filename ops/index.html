@@ -2149,6 +2149,15 @@ if ('serviceWorker' in navigator) {
       <button class="btn-submit" id="own-scan-btn" onclick="runOwnershipScan()" style="background:#0d6ab0;color:#fff;margin:0;flex:1">🔄 בדוק עכשיו</button>
     </div>
 
+    <!-- תזכורת הבוקר: מוצגת רק כשהמסך נפתח אוטומטית ב-8:00 -->
+    <div id="own-morning" style="display:none;border:2px solid #0d6ab0;background:#eff6ff;border-radius:14px;padding:12px 14px;margin-bottom:12px">
+      <div style="font-weight:900;font-size:15px;margin-bottom:9px">☀️ בדיקת הבעלויות של הבוקר</div>
+      <div style="display:flex;gap:8px">
+        <button onclick="ownMorningDone()" style="flex:1;background:#16a34a;color:#fff;border:none;border-radius:10px;padding:12px;font-family:Heebo,sans-serif;font-size:14px;font-weight:800;cursor:pointer">✅ הכל תקין</button>
+        <button onclick="ownMorningSnooze()" style="flex:1;background:var(--surface2);color:var(--text);border:2px solid var(--border);border-radius:10px;padding:12px;font-family:Heebo,sans-serif;font-size:14px;font-weight:800;cursor:pointer">⏰ דחה לעוד שעה</button>
+      </div>
+    </div>
+
     <!-- רכבים שירדו מהמלאי — הדבר היחיד שדורש אישור ידני -->
     <div id="own-gone" style="display:none;margin-bottom:14px"></div>
 
@@ -3806,6 +3815,7 @@ function renderHome() {
   if (psBtn) psBtn.style.display = 'none';
   const ownBtn = document.getElementById('menu-card-ownership');
   if (ownBtn) ownBtn.style.display = isManager ? '' : 'none';
+  if (isManager) _startOwnMorning();
   // The parts catalogue is parked, not removed — the screen and everything in it
   // stay exactly as they are. To bring the button back, put the manager check
   // back in place of the 'none' below.
@@ -10328,6 +10338,56 @@ let _ownUpdatedAt = '';
 // בשורה של רכב שאין לו בעלות ונמצא באיסוף
 let _ownPickupByPlate = {};
 let _ownPickupUnsub = null;
+
+/* ── תזכורת הבוקר ────────────────────────────────────────────────────
+   כל בוקר ב-8:00 נפתח אצל המנהל מסך בדיקת הבעלויות, עם שני כפתורים:
+   "הכל תקין" סוגר אותו עד מחר, ו"דחה לעוד שעה" מחזיר אותו בעוד שעה.
+   הכל נשמר מקומית במכשיר, כדי שרענון דף לא יפתח את המסך שוב.     */
+const _OWN_MORNING_HOUR = 8;
+let _ownMorningTimer = null;
+
+const _ownToday = () => new Date().toLocaleDateString('sv-SE');   // YYYY-MM-DD
+
+function _startOwnMorning() {
+  if (_ownMorningTimer) return;
+  _checkOwnMorning();
+  _ownMorningTimer = setInterval(_checkOwnMorning, 60000);
+}
+
+function _checkOwnMorning() {
+  const now = new Date();
+  if (now.getHours() < _OWN_MORNING_HOUR) return;                 // עוד לא הגיע הזמן
+  if (localStorage.getItem('anak_own_ack') === _ownToday()) return;   // כבר אושר היום
+  const snooze = Number(localStorage.getItem('anak_own_snooze') || 0);
+  if (snooze && Date.now() < snooze) return;                      // נדחה לשעה
+  const bar = document.getElementById('own-morning');
+  if (bar && bar.style.display !== 'none') return;                // כבר פתוח
+  openOwnershipScreen();
+  if (bar) bar.style.display = 'block';
+  // אם לא נלחץ כלום, לא נמשוך אותך למסך כל דקה — נחזור בעוד עשר דקות
+  localStorage.setItem('anak_own_snooze', String(Date.now() + 10 * 60 * 1000));
+}
+
+function _ownMorningClose() {
+  const bar = document.getElementById('own-morning');
+  if (bar) bar.style.display = 'none';
+  showScreen('home');
+}
+
+function ownMorningDone() {
+  localStorage.setItem('anak_own_ack', _ownToday());
+  localStorage.removeItem('anak_own_snooze');
+  _ownMorningClose();
+  showToast('✅ נסגר עד מחר בבוקר');
+}
+window.ownMorningDone = ownMorningDone;
+
+function ownMorningSnooze() {
+  localStorage.setItem('anak_own_snooze', String(Date.now() + 60 * 60 * 1000));
+  _ownMorningClose();
+  showToast('⏰ נחזור אליך בעוד שעה');
+}
+window.ownMorningSnooze = ownMorningSnooze;
 
 /* רכבים שאינם נסרקים כלל (רכבי "לפי הזמנה"). הרשימה זהה לזו שבשרת,
    והיא כאן כדי שלא יוצגו התראות על רכבים שממילא לא נבדקים.        */
