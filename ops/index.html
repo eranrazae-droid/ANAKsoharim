@@ -2149,15 +2149,6 @@ if ('serviceWorker' in navigator) {
       <button class="btn-submit" id="own-scan-btn" onclick="runOwnershipScan()" style="background:#0d6ab0;color:#fff;margin:0;flex:1">🔄 בדוק עכשיו</button>
     </div>
 
-    <!-- תזכורת הבוקר: מוצגת רק כשהמסך נפתח אוטומטית ב-8:00 -->
-    <div id="own-morning" style="display:none;border:2px solid #0d6ab0;background:#eff6ff;border-radius:14px;padding:12px 14px;margin-bottom:12px">
-      <div style="font-weight:900;font-size:15px;margin-bottom:9px">☀️ בדיקת הבעלויות של הבוקר</div>
-      <div style="display:flex;gap:8px">
-        <button onclick="ownMorningDone()" style="flex:1;background:#16a34a;color:#fff;border:none;border-radius:10px;padding:12px;font-family:Heebo,sans-serif;font-size:14px;font-weight:800;cursor:pointer">✅ הכל תקין</button>
-        <button onclick="ownMorningSnooze()" style="flex:1;background:var(--surface2);color:var(--text);border:2px solid var(--border);border-radius:10px;padding:12px;font-family:Heebo,sans-serif;font-size:14px;font-weight:800;cursor:pointer">⏰ דחה לעוד שעה</button>
-      </div>
-    </div>
-
     <!-- רכבים שירדו מהמלאי — הדבר היחיד שדורש אישור ידני -->
     <div id="own-gone" style="display:none;margin-bottom:14px"></div>
 
@@ -2614,6 +2605,18 @@ if ('serviceWorker' in navigator) {
 </div>
 
 <!-- ====== MODAL: PICKUP CAR DETAIL (driver view) ====== -->
+<!-- החלונית היומית של בדיקת הבעלויות -->
+<div class="modal-overlay" id="modal-own-morning">
+  <div class="modal-box" style="max-width:430px">
+    <div class="modal-title" style="justify-content:center">📄 בדיקת בעלויות</div>
+    <div id="own-morning-body"></div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button onclick="ownMorningDone()" style="flex:1;background:#16a34a;color:#fff;border:none;border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:15px;font-weight:800;cursor:pointer">✅ הכל תקין</button>
+      <button onclick="ownMorningSnooze()" style="flex:1;background:var(--surface2);color:var(--text);border:2px solid var(--border);border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:15px;font-weight:800;cursor:pointer">⏰ דחה לעוד שעה</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-pickup-detail">
   <div class="modal-box" style="max-height:88vh;overflow-y:auto">
     <div class="modal-title">🚙 פרטי רכב לאיסוף <button class="modal-close" onclick="closeModal('modal-pickup-detail')">✕</button></div>
@@ -10384,6 +10387,30 @@ async function _ownMorningSet(data) {
   catch (e) { showToast('השמירה נכשלה: ' + (e.code || e.message), 6000); }
 }
 
+// תוכן החלונית — סיכום קצר של הבדיקה האחרונה
+function _renderOwnMorning() {
+  const box = document.getElementById('own-morning-body');
+  if (!box) return;
+  const total = _ownCars.length;
+  const not = _ownCars.filter(c => (c.status || 'unknown') === 'not').length;
+  const unk = _ownCars.filter(c => (c.status || 'unknown') === 'unknown').length;
+  if (!total || unk === total) {
+    box.innerHTML = `<div style="text-align:center;background:#fef3c7;border:2px solid #d97706;border-radius:14px;padding:16px">
+      <div style="font-size:34px;line-height:1">❓</div>
+      <div style="font-weight:900;font-size:17px;margin-top:6px;color:#92400e">${total ? 'לא ניתן לבדוק כרגע' : 'הבדיקה עדיין רצה…'}</div>
+    </div>`;
+    return;
+  }
+  const ok = not === 0;
+  box.innerHTML = `<div onclick="closeModal('modal-own-morning');openOwnershipScreen()" style="cursor:pointer;text-align:center;background:${ok ? '#dcfce7' : '#fee2e2'};border:2px solid ${ok ? '#16a34a' : '#dc2626'};border-radius:14px;padding:16px">
+      <div style="font-size:34px;line-height:1">${ok ? '✅' : '⚠️'}</div>
+      <div style="font-weight:900;font-size:19px;margin-top:6px;color:${ok ? '#166534' : '#991b1b'}">${ok ? 'הכל תקין' : (not === 1 ? 'רכב אחד לא על תו סחר' : not + ' רכבים לא על תו סחר')}</div>
+      <div style="font-weight:700;font-size:13px;margin-top:4px;color:${ok ? '#166534' : '#991b1b'}">מתוך ${total} רכבים במלאי</div>
+      ${_ownUpdatedAt ? `<div style="font-size:12px;font-weight:700;color:var(--muted);margin-top:8px">נבדק לאחרונה: ${esc(_ownUpdatedAt)}</div>` : ''}
+      <div style="font-size:12px;font-weight:800;color:#0d6ab0;margin-top:8px">לחץ לפירוט המלא ▶</div>
+    </div>`;
+}
+
 function _checkOwnMorning() {
   if (!_ownMorningState) return;                                  // עוד לא נטען מהשרת
   const now = new Date();
@@ -10394,21 +10421,18 @@ function _checkOwnMorning() {
   // וכך גם אם לא נכנסת יום שלם, בכניסה הבאה תראה את התזכורת.
   const snooze = _ownMorningState.snoozeDate === today ? Number(_ownMorningState.snoozeUntil || 0) : 0;
   if (snooze && Date.now() < snooze) return;                      // נדחה
-  const bar = document.getElementById('own-morning');
-  if (bar && bar.style.display !== 'none') return;                // כבר פתוח
-  openOwnershipScreen();
-  if (bar) bar.style.display = 'block';
+  const modal = document.getElementById('modal-own-morning');
+  if (modal && modal.classList.contains('open')) return;          // כבר פתוח
+  _ownStartWatch();
+  _renderOwnMorning();
+  openModal('modal-own-morning');
   // אם לא נלחץ כלום, לא נמשוך אותך למסך כל דקה — נחזור בעוד עשר דקות
   _ownMorningSet({ snoozeUntil: Date.now() + 10 * 60 * 1000, snoozeDate: today });
   // אם הבדיקה האחרונה אינה מהיום — מרעננים אותה, כדי שתראה נתונים עדכניים
   _ownEnsureFresh();
 }
 
-function _ownMorningClose() {
-  const bar = document.getElementById('own-morning');
-  if (bar) bar.style.display = 'none';
-  showScreen('home');
-}
+function _ownMorningClose() { closeModal('modal-own-morning'); }
 
 function ownMorningDone() {
   _ownMorningSet({ ackDate: _ownToday(), snoozeUntil: 0, snoozeDate: '' });
@@ -10500,19 +10524,25 @@ function _ownAbsorbPickup(snap, state) {
   _ownRender();
 }
 
+// האזנה לתוצאת הבדיקה. רצה גם בלי שמסך הבעלויות נפתח, כדי שהחלונית
+// היומית תדע מה להציג.
+function _ownStartWatch() {
+  if (_ownUnsub) return;
+  _ownUnsub = _onSnap(_docRef('ownership_status', 'current'), snap => {
+    const d = snap.exists() ? snap.data() : null;
+    _ownCars = (d && d.cars) || [];
+    const u = d && d.updatedAt && d.updatedAt.toDate ? d.updatedAt.toDate() : null;
+    _ownUpdatedRaw = u;
+    _ownUpdatedAt = u ? u.toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+    _ownRender();
+    _renderOwnMorning();
+  }, () => {});
+}
+
 function openOwnershipScreen() {
   document.getElementById('own-user-badge').textContent = currentUser.name;
   showScreen('ownership');
-  if (!_ownUnsub) {
-    _ownUnsub = _onSnap(_docRef('ownership_status', 'current'), snap => {
-      const d = snap.exists() ? snap.data() : null;
-      _ownCars = (d && d.cars) || [];
-      const u = d && d.updatedAt && d.updatedAt.toDate ? d.updatedAt.toDate() : null;
-      _ownUpdatedRaw = u;
-      _ownUpdatedAt = u ? u.toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
-      _ownRender();
-    }, () => {});
-  }
+  _ownStartWatch();
   // הספק נלמד גם מהרכבים שממתינים לאיסוף וגם מאלה שכבר נאספו, כדי
   // שרכב שנאסף עדיין יציג מאיזו חברה הוא הגיע
   if (!_ownPickupUnsub) {
