@@ -189,6 +189,10 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
 .pk-drag:active{cursor:grabbing}
 /* גרירת קישור מובנית של הדפדפן מבטלת את גרירת הקובייה — מכבים אותה */
 .pk-tile a,.pk-tile svg{-webkit-user-drag:none;user-drag:none}
+/* לוגו הספק בשורת בדיקת הבעלויות */
+.own-logo{display:inline-flex;align-items:center;justify-content:center;width:86px;height:26px;
+  border-radius:7px;overflow:hidden;flex-shrink:0}
+.own-logo svg{width:100%;height:auto;display:block}
 .pk-tile.pk-dragging{opacity:.28}
 .pk-ghost{position:fixed;z-index:9999;pointer-events:none;box-shadow:0 12px 30px rgba(0,0,0,.28);
   transform:rotate(1.2deg) scale(1.02);opacity:.97;margin:0}
@@ -10318,6 +10322,10 @@ let _ownCars = [];            // רשימת המלאי מהשרת
 let _ownIds = [];             // הח.פ/ת.ז של החברה
 let _ownFilter = 'all';
 let _ownUpdatedAt = '';
+// רכבים שממתינים לאיסוף, לפי מספר רישוי — כדי להציג את לוגו הספק
+// בשורה של רכב שאין לו בעלות ונמצא באיסוף
+let _ownPickupByPlate = {};
+let _ownPickupUnsub = null;
 
 function openOwnershipScreen() {
   document.getElementById('own-user-badge').textContent = currentUser.name;
@@ -10328,6 +10336,17 @@ function openOwnershipScreen() {
       _ownCars = (d && d.cars) || [];
       const u = d && d.updatedAt && d.updatedAt.toDate ? d.updatedAt.toDate() : null;
       _ownUpdatedAt = u ? u.toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+      _ownRender();
+    }, () => {});
+  }
+  if (!_ownPickupUnsub) {
+    _ownPickupUnsub = _onSnap(_colRef('pickup_cars'), snap => {
+      _ownPickupByPlate = {};
+      snap.docs.forEach(d => {
+        const c = d.data();
+        const key = String(c.plate || '').replace(/\D/g, '');
+        if (key) _ownPickupByPlate[key] = c;
+      });
       _ownRender();
     }, () => {});
   }
@@ -10577,10 +10596,18 @@ function _ownRender() {
     const mk = eff(c);
     const col = mk === 'ours' ? '#16a34a' : mk === 'not' ? '#dc2626' : '#6b7280';
     const label = mk === 'ours' ? 'על תו סחר' : mk === 'not' ? 'לא על תו סחר' : 'לא נמצא במרשם';
+    // רכב שאינו על תו סחר וגם ממתין לאיסוף — מציגים מאיזו חברה הוא
+    const pk = mk === 'ours' ? null : _ownPickupByPlate[String(c.plate || '').replace(/\D/g, '')];
+    const pickupTag = (pk && pk.source)
+      ? `<span class="own-logo" style="background:${_pickupSourceColor(pk.source)}" title="ממתין לאיסוף · ${e(pk.source)}">${_PICKUP_LOGOS[pk.source] || ''}</span>`
+      : '';
     return `<div style="border:2px solid var(--border);border-right:6px solid ${col};border-radius:12px;padding:11px 13px;margin-bottom:8px;background:var(--card)">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
         <div style="min-width:0">
-          <div style="font-weight:900;font-size:18px;letter-spacing:1px">${e(c.plate)}</div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="font-weight:900;font-size:18px;letter-spacing:1px">${e(c.plate)}</div>
+            ${pickupTag}
+          </div>
           <div style="font-size:12px;color:var(--muted);font-weight:700">${e([c.tozeret,c.degem,c.shnat].filter(Boolean).join(' · '))}</div>
           <div style="display:inline-block;margin-top:6px;background:${col};color:#fff;border-radius:999px;padding:3px 11px;font-size:12px;font-weight:900">${label}${c.baalut ? ' · ' + e(c.baalut) : ''}</div>
           ${c.baalutChangedAt ? `<div style="font-size:12px;font-weight:800;color:#b45309;margin-top:6px">🕒 שינוי בעלות ב-${e(new Date(c.baalutChangedAt).toLocaleString('he-IL',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}))}${c.baalutFrom ? ` · היה ${e(c.baalutFrom)}` : ''}</div>` : ''}
