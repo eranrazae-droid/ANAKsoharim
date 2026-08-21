@@ -10335,6 +10335,7 @@ let _ownIds = [];             // הח.פ/ת.ז של החברה
 let _ownFilter = 'all';
 let _ownUpdatedAt = '';
 let _ownUpdatedRaw = null;   // מועד הבדיקה האחרונה
+let _ownScanning = false;
 // רכבים שממתינים לאיסוף, לפי מספר רישוי — כדי להציג את לוגו הספק
 // בשורה של רכב שאין לו בעלות ונמצא באיסוף
 let _ownPickupByPlate = {};
@@ -10349,7 +10350,24 @@ let _ownMorningTimer = null;
 // המצב נשמר בשרת ולא במכשיר, כך שאישור מכל מכשיר תקף לכולם
 let _ownMorningState = null;   // { ackDate, snoozeUntil }
 
-const _ownToday = () => new Date().toLocaleDateString('sv-SE');   // YYYY-MM-DD
+/* "יום" לצורך התזכורת מתחיל ב-8:00 ולא בחצות. שעה 00:30 שייכת עדיין
+   ליום הקודם, כך שדחייה שנעשתה בלילה לא נמחקת בטעות.              */
+const _ownToday = () => new Date(Date.now() - _OWN_MORNING_HOUR * 3600000).toLocaleDateString('sv-SE');
+
+// תחילת המחזור הנוכחי — היום ב-8:00, או אתמול ב-8:00 אם עוד לא הגענו לשעה
+function _ownCycleStart() {
+  const d = new Date();
+  d.setHours(_OWN_MORNING_HOUR, 0, 0, 0);
+  if (Date.now() < d.getTime()) d.setDate(d.getDate() - 1);
+  return d;
+}
+
+// הדוח חייב להיות עדכני: אם הבדיקה האחרונה ישנה מתחילת המחזור — מריצים שוב
+function _ownEnsureFresh() {
+  if (_ownScanning) return;
+  if (_ownUpdatedRaw && _ownUpdatedRaw >= _ownCycleStart()) return;
+  runOwnershipScan();
+}
 
 function _startOwnMorning() {
   if (_ownMorningTimer) return;
@@ -10383,8 +10401,7 @@ function _checkOwnMorning() {
   // אם לא נלחץ כלום, לא נמשוך אותך למסך כל דקה — נחזור בעוד עשר דקות
   _ownMorningSet({ snoozeUntil: Date.now() + 10 * 60 * 1000, snoozeDate: today });
   // אם הבדיקה האחרונה אינה מהיום — מרעננים אותה, כדי שתראה נתונים עדכניים
-  const last = _ownUpdatedRaw ? _ownUpdatedRaw.toLocaleDateString('sv-SE') : '';
-  if (last !== today) runOwnershipScan();
+  _ownEnsureFresh();
 }
 
 function _ownMorningClose() {
@@ -10512,6 +10529,8 @@ function openOwnershipScreen() {
     }, () => {});
   }
   _ownLoadConfig();
+  // תמיד מציגים את הדוח העדכני ביותר
+  setTimeout(_ownEnsureFresh, 1200);
 }
 window.openOwnershipScreen = openOwnershipScreen;
 
@@ -10557,6 +10576,8 @@ async function ownSaveOwners() {
 window.ownSaveOwners = ownSaveOwners;
 
 async function runOwnershipScan() {
+  if (_ownScanning) return;
+  _ownScanning = true;
   const btn = document.getElementById('own-scan-btn');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ בודק…'; }
   try {
@@ -10566,7 +10587,7 @@ async function runOwnershipScan() {
     else if (r.reason === 'registry-unreachable') showToast('⚠️ אין כרגע גישה למרשם הרכב של משרד התחבורה — הבדיקה לא בוצעה', 9000);
     else showToast('⚠️ הטעינה נכשלה: ' + (r.reason || r.error || res.status), 7000);
   } catch (e) { showToast('⚠️ שגיאת חיבור לשרת: ' + e.message, 7000); }
-  finally { if (btn) { btn.disabled = false; btn.textContent = '🔄 בדוק עכשיו'; } }
+  finally { _ownScanning = false; if (btn) { btn.disabled = false; btn.textContent = '🔄 בדוק עכשיו'; } }
 }
 window.runOwnershipScan = runOwnershipScan;
 
