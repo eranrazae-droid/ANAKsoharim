@@ -135,6 +135,7 @@
       <div class="nav-item" onclick="showTab('vouchers')"><span class="nav-icon">🎟</span><span>קופונים</span></div>
       <div class="nav-item" onclick="showTab('meta')"><span class="nav-icon">🔗</span><span>מזהי Meta</span></div>
       <div class="nav-item" onclick="showTab('ads')"><span class="nav-icon">📢</span><span>מרכז פרסום</span></div>
+      <div class="nav-item" onclick="showTab('pubtrack')"><span class="nav-icon">📣</span><span>מעקב פרסום</span></div>
     </nav>
     <div class="sidebar-footer">
       <button class="btn btn-line btn-sm" style="width:100%;margin-bottom:8px;background:#0369a1;color:#fff;border:none" onclick="openCloudinarySettings()">☁️ הגדרות Cloudinary</button>
@@ -218,6 +219,20 @@
           </div>
         </div>
         <div id="inventoryList"></div>
+      </div>
+
+      <!-- PUBLISH TRACKER -->
+      <div id="tab-pubtrack" class="hidden">
+        <div class="section-hd">
+          <div><div class="eyebrow">פרסום</div><h2>מעקב פרסום לפי ערוץ</h2></div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <input id="ptSearch" oninput="renderPubTrack()" placeholder="חיפוש רכב..." style="min-width:170px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;font-size:14px"/>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);cursor:pointer"><input type="checkbox" id="ptOnlyMissing" onchange="renderPubTrack()"/> רק לא-מפורסמים</label>
+          </div>
+        </div>
+        <div id="ptStats" class="stats-grid" style="margin-bottom:16px"></div>
+        <div class="card panel" style="overflow-x:auto"><div id="ptWrap"></div></div>
+        <p class="muted" style="font-size:12px;margin-top:10px">לחיצה על תא מסמנת "פורסם" עם תאריך; לחיצה נוספת מבטלת. הנתונים נשמרים בענן על כרטיס הרכב.</p>
       </div>
 
       <!-- ADD CAR -->
@@ -794,8 +809,8 @@
   let leads = JSON.parse(localStorage.getItem('autodealer_leads')||'[]');
   let vouchers = JSON.parse(localStorage.getItem('autodealer_vouchers')||'[]');
 
-  const tabTitles={dashboard:'דשבורד',inventory:'מלאי רכבים',addcar:'הוספת רכב',leads:'לידים',tasks:'משימות',pay:'שכר',vouchers:'קופונים',meta:'מיגרציית מזהי Meta',ads:'מרכז פרסום'};
-  const tabOrder=['dashboard','inventory','addcar','leads','tasks','pay','vouchers','meta','ads'];
+  const tabTitles={dashboard:'דשבורד',inventory:'מלאי רכבים',addcar:'הוספת רכב',leads:'לידים',tasks:'משימות',pay:'שכר',vouchers:'קופונים',meta:'מיגרציית מזהי Meta',ads:'מרכז פרסום',pubtrack:'מעקב פרסום'};
+  const tabOrder=['dashboard','inventory','addcar','leads','tasks','pay','vouchers','meta','ads','pubtrack'];
 
   function login(){
     if(document.getElementById('pwInput').value===PASS){
@@ -889,6 +904,7 @@
     if(id==='pay') loadPay();
     if(id==='meta') renderMissingCatalogImages();
     if(id==='ads') renderAdsCenter();
+    if(id==='pubtrack') renderPubTrack();
     document.querySelectorAll('[id^="tab-"]').forEach(el=>el.classList.add('hidden'));
     document.getElementById('tab-'+id).classList.remove('hidden');
     document.querySelectorAll('.nav-item').forEach((el,i)=>el.classList.toggle('active',tabOrder[i]===id));
@@ -1393,6 +1409,77 @@
   }
 
   function renderAll(){updateStats();renderInventory();renderLeads();renderVouchers();renderDash();renderProfit();}
+
+  // ===== מעקב פרסום =====
+  const PUB_CHANNELS=[
+    {key:'tiktok',label:'טיק טוק ראשי',icon:'🎵'},
+    {key:'ig',label:'אינסטגרם ראשי',icon:'📷'},
+    {key:'mp_mor',label:'מארקטפלייס מור',icon:'🛒'},
+    {key:'mp_hila',label:'מארקטפלייס הילה',icon:'🛒'}
+  ];
+  function ptRows(){
+    return cars
+      .filter(c=>c && !c.hidden && HIDDEN_IDS.indexOf(c.id)<0)
+      .filter(c=>(Number(c.autodealerPriceNumber)||0)>1)
+      .slice()
+      .sort((a,b)=>{
+        const bc=(a.brand||'').localeCompare(b.brand||'','he',{sensitivity:'base'});
+        return bc!==0?bc:(a.model||'').localeCompare(b.model||'','he',{sensitivity:'base'});
+      });
+  }
+  function ptShort(iso){ if(!iso) return ''; try{ const d=new Date(iso); return d.toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit'}); }catch(e){ return ''; } }
+  function togglePub(id,key){
+    const c=cars.find(x=>String(x.id)===String(id)); if(!c) return;
+    if(!c.pub||typeof c.pub!=='object') c.pub={};
+    c.pub[key]=c.pub[key]?null:new Date().toISOString();
+    saveCars();
+    renderPubTrack();
+  }
+  function renderPubTrack(){
+    const wrap=document.getElementById('ptWrap'); if(!wrap) return;
+    const q=((document.getElementById('ptSearch')||{}).value||'').trim().toLowerCase();
+    const onlyMissing=!!(document.getElementById('ptOnlyMissing')||{}).checked;
+    let rows=ptRows();
+    if(q) rows=rows.filter(c=>((c.brand||'')+' '+(c.model||'')).toLowerCase().indexOf(q)>=0);
+    if(onlyMissing) rows=rows.filter(c=>PUB_CHANNELS.some(ch=>!((c.pub||{})[ch.key])));
+    // סטטיסטיקה
+    const all=ptRows();
+    const stats=document.getElementById('ptStats');
+    if(stats){
+      const fullyDone=all.filter(c=>PUB_CHANNELS.every(ch=>(c.pub||{})[ch.key])).length;
+      let cells='<div class="stat-card"><div class="label">סה"כ רכבים</div><div class="value">'+all.length+'</div><div class="sub">פעילים</div></div>'+
+        '<div class="stat-card stat-green"><div class="label">פורסמו בכל הערוצים</div><div class="value">'+fullyDone+'</div><div class="sub">מתוך '+all.length+'</div></div>';
+      PUB_CHANNELS.forEach(ch=>{
+        const done=all.filter(c=>(c.pub||{})[ch.key]).length;
+        cells+='<div class="stat-card"><div class="label">'+ch.icon+' '+_esc(ch.label)+'</div><div class="value">'+done+'</div><div class="sub">חסר '+(all.length-done)+'</div></div>';
+      });
+      stats.innerHTML=cells;
+    }
+    if(!rows.length){ wrap.innerHTML='<div class="muted" style="padding:20px">אין רכבים להצגה.</div>'; return; }
+    let html='<table style="width:100%;border-collapse:collapse;font-size:13px;white-space:nowrap">'+
+      '<thead><tr style="text-align:right;border-bottom:2px solid var(--line);color:var(--muted);font-size:12px">'+
+      '<th style="padding:8px 10px">רכב</th>'+
+      PUB_CHANNELS.map(ch=>'<th style="padding:8px 10px;text-align:center">'+ch.icon+'<br>'+_esc(ch.label)+'</th>').join('')+
+      '<th style="padding:8px 10px;text-align:center">התקדמות</th></tr></thead><tbody>';
+    let curBrand=null;
+    rows.forEach(c=>{
+      if(c.brand!==curBrand){ curBrand=c.brand;
+        html+='<tr style="background:#faf7ef"><td colspan="'+(PUB_CHANNELS.length+2)+'" style="padding:6px 10px;font-weight:900">'+_esc(c.brand||'—')+'</td></tr>';
+      }
+      const doneN=PUB_CHANNELS.filter(ch=>(c.pub||{})[ch.key]).length;
+      html+='<tr style="border-bottom:1px solid #f0f0f0">'+
+        '<td style="padding:8px 10px;font-weight:700">'+_esc(c.model||'')+' <span style="color:var(--muted);font-weight:400">'+_esc(c.year||'')+'</span></td>'+
+        PUB_CHANNELS.map(ch=>{
+          const iso=(c.pub||{})[ch.key];
+          const on=!!iso;
+          return '<td style="padding:6px 8px;text-align:center"><button onclick="togglePub('+JSON.stringify(String(c.id))+',\''+ch.key+'\')" style="border:none;border-radius:999px;padding:5px 12px;font-weight:800;font-size:12px;cursor:pointer;color:#fff;background:'+(on?'#16a34a':'#cbd5e1')+'">'+(on?('✔ '+ptShort(iso)):'סמן')+'</button></td>';
+        }).join('')+
+        '<td style="padding:8px 10px;text-align:center;font-weight:800;color:'+(doneN===PUB_CHANNELS.length?'#15803d':'#a16207')+'">'+doneN+'/'+PUB_CHANNELS.length+'</td>'+
+        '</tr>';
+    });
+    html+='</tbody></table>';
+    wrap.innerHTML=html;
+  }
 
   function updateStats(){
     document.getElementById('st-total').textContent=cars.length;
