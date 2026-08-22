@@ -4689,10 +4689,12 @@ const _DAILY_STORIES = [
 ];
 
 function _todayStory() {
+  // שישי ושבת הם סיפור אחד: הסופר מתקדם בכל יום חוץ משבת, ולכן בשבת
+  // נשאר הסיפור של שישי. 1.1.1970 היה יום חמישי, כך שכל שבת היא d≡2 (mod 7).
   const now = new Date();
-  const start = new Date(now.getFullYear(), 0, 0);
-  const dayOfYear = Math.floor((now - start) / 86400000);
-  return _DAILY_STORIES[(dayOfYear + now.getFullYear()) % _DAILY_STORIES.length];
+  const d = Math.floor(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) / 86400000);
+  const saturdays = Math.floor((d + 5) / 7);
+  return _DAILY_STORIES[(d - saturdays) % _DAILY_STORIES.length];
 }
 
 /* האם הסיפור של היום כבר נקרא. נשמר בשרת, כך שקריאה מהטלפון נספרת
