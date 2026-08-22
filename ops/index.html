@@ -607,10 +607,17 @@ if ('serviceWorker' in navigator) {
     });
   }).catch(() => { /* an unavailable worker must never block the app */ });
 
-  let _swReloading = false;
+  /* רענון אחרי החלפת גרסה — עם שתי הגנות מפני לולאה אינסופית שמשאירה
+     מסך לבן:
+     1. בטעינה הראשונה אין עדיין worker ששולט בדף, וההשתלטות שלו היא
+        חלק תקין מההתקנה — אין סיבה לרענן בגללה.
+     2. הסימון נשמר ל-sessionStorage ולא במשתנה, כי משתנה מתאפס בכל
+        רענון — וזה בדיוק מה שאיפשר ללולאה להימשך בלי סוף. */
+  const _hadController = !!navigator.serviceWorker.controller;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (_swReloading) return;   // guard against a reload loop
-    _swReloading = true;
+    if (!_hadController) return;                       // התקנה ראשונה
+    if (sessionStorage.getItem('anak_sw_reloaded')) return;
+    sessionStorage.setItem('anak_sw_reloaded', '1');
     location.reload();
   });
 }
@@ -3188,6 +3195,15 @@ window.addEventListener('firebase-ready', async () => {
   _realUser = null;
   showScreen('login');
 });
+
+/* רשת ביטחון אחרונה: אם משום מה אף מסך לא נפתח תוך עשר שניות — למשל
+   כשהחיבור ל-Firebase נתקע ואירוע ההתחלה לא הגיע — מציגים את מסך
+   הכניסה בכל מקרה, כדי שהאפליקציה לא תישאר לבנה. */
+setTimeout(() => {
+  if (document.querySelector('.screen.active')) return;
+  try { showScreen('login'); } catch (e) {}
+  try { showToast('החיבור לשרת איטי — אפשר להתחבר בינתיים', 6000); } catch (e) {}
+}, 10000);
 
 function showConfigWarning() {
   const w = document.createElement('div');
