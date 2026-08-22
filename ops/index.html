@@ -2067,7 +2067,17 @@ if ('serviceWorker' in navigator) {
     <div id="dbs-stock"></div>
   </div>
   <div style="position:fixed;bottom:0;right:0;left:0;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:var(--card);border-top:2px solid var(--border);z-index:120">
-    <button class="btn-submit" onclick="openBsIssueModal()" style="margin:0;background:#0ea5e9;color:#fff">🚗 הרכבתי מצבר לרכב</button>
+    <button class="btn-submit" onclick="openBsIssueModal()" style="margin:0;background:#0ea5e9;color:#fff;display:flex;align-items:center;justify-content:center;gap:8px">
+      <!-- אותו איור מצבר שמופיע על הקוביה במסך הבית -->
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" style="flex-shrink:0">
+        <rect x="4.5" y="1.6" width="4" height="2.4" rx="0.7" fill="#dc2626"/>
+        <rect x="15.5" y="1.6" width="4" height="2.4" rx="0.7" fill="#e2e8f0"/>
+        <rect x="2" y="4" width="20" height="16" rx="2.6" fill="#1f3a5f"/>
+        <rect x="3.6" y="5.6" width="16.8" height="8" rx="1.4" fill="#2f5c8f"/>
+        <path d="M6.5 9.6h3M8 8.1v3" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
+        <path d="M14.5 9.6h3" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
+        <rect x="3.6" y="15.2" width="16.8" height="3.2" rx="1.1" fill="#0f2440"/>
+      </svg>הרכבתי מצבר לרכב</button>
   </div>
 </div>
 
@@ -4600,7 +4610,8 @@ function loadStats() {
     _onSnap(_query(_colRef('tasks'), _where('status','!=','done')), snap => {
       document.getElementById('stat-tasks').textContent = snap.size || '0';
       // המספר יושב על קוביית לוח המשימות, במקום קובייה נפרדת
-      _setCardBadge('tasks', snap.size || 0);
+      _tasksOpenCount = snap.size || 0;
+      _syncTasksBadge();
     });
     _onSnap(_colRef('vehicles'), snap => {
       document.getElementById('stat-vehicles').textContent = snap.size;
@@ -4756,6 +4767,13 @@ function _reapplyCardBadges() {
 }
 window._reapplyCardBadges = _reapplyCardBadges;
 
+// קוביית לוח המשימות: המספר הוא סך כל המשימות הפתוחות, והצבע נהיה סגול
+// כשממתינות גם בקשות משימה לאישור.
+let _tasksOpenCount = 0, _tasksReqCount = 0;
+function _syncTasksBadge() {
+  _setCardBadge('tasks', _tasksOpenCount, _tasksReqCount > 0 ? '#7c3aed' : null);
+}
+
 function _setCardBadge(screen, count, color) {
   _badgeCache[screen] = { count, color };
   const card = document.getElementById('menu-card-' + screen);
@@ -4836,11 +4854,13 @@ function loadDriverBadges() {
     const _badgeTaskIds = new Set();
     _onSnap(_query(_colRef('tasks'), _where('assignedTo','==',name)), snap => {
       snap.docs.forEach(d => { if (d.data().status !== 'done') _badgeTaskIds.add(d.id); else _badgeTaskIds.delete(d.id); });
-      _setCardBadge('tasks', _badgeTaskIds.size);
+      _tasksOpenCount = _badgeTaskIds.size;
+      _syncTasksBadge();
     });
     _onSnap(_query(_colRef('tasks'), _where('label','==',name)), snap => {
       snap.docs.forEach(d => { if (d.data().status !== 'done') _badgeTaskIds.add(d.id); else _badgeTaskIds.delete(d.id); });
-      _setCardBadge('tasks', _badgeTaskIds.size);
+      _tasksOpenCount = _badgeTaskIds.size;
+      _syncTasksBadge();
     });
     _onSnap(_query(_colRef('intake_assignments'), _where('assignedTo','==',name)), snap => {
       _driverIntakeDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -5144,7 +5164,9 @@ function loadManagerBadges() {
     });
     listenForTaskDone();
     _onSnap(_query(_colRef('task_requests'), _where('status','==','pending')), snap => {
-      _setCardBadge('tasks', snap.size, snap.size > 0 ? '#7c3aed' : null);
+      // בקשות משימה לא דורסות את מספר המשימות — הן רק צובעות אותו בסגול
+      _tasksReqCount = snap.size || 0;
+      _syncTasksBadge();
     });
     if (currentUser.role === 'manager') _listenTaskRequests();
     _onSnap(_colRef('pickup_cars'), snap => {
