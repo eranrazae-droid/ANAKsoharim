@@ -140,6 +140,8 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
 }
 /* בטלפון צר הכפתור מצטמצם לאייקון, כדי שהכותרת לא תיצפף */
 @media(max-width:430px){#btn-all-screens .as-txt{display:none}}
+/* משפט היום: בכותרת במסך רחב, ומתחת לברכה בטלפון */
+@media(max-width:1000px){#daily-quote{display:none}#daily-quote-m{display:block !important}}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
 .cal-dow{text-align:center;font-size:11px;font-weight:800;color:var(--muted);padding:4px 0}
 .cal-day{text-align:center;padding:4px 0;cursor:pointer;user-select:none}
@@ -692,6 +694,7 @@ if ('serviceWorker' in navigator) {
   <div id="task-notif-stack" style="position:fixed;top:0;left:0;right:0;z-index:9000;display:flex;flex-direction:column;align-items:center;pointer-events:none"></div>
   <div class="app-header">
     <div class="logo">ענק <span>הרכבים</span></div>
+    <div id="daily-quote" style="flex:1;min-width:0;text-align:center;font-size:13px;font-weight:700;color:rgba(255,255,255,.92);padding:0 12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
     <button id="btn-settings" onclick="openSettings()" style="display:none;background:rgba(255,255,255,0.15);border:none;border-radius:999px;color:#fff;font-size:13px;font-weight:700;padding:6px 14px;cursor:pointer;font-family:Heebo,sans-serif">⚙️ הגדרות</button>
     <button id="btn-all-screens" onclick="openAllScreens()" style="display:none;background:var(--gold);border:none;border-radius:999px;color:#000;font-size:13px;font-weight:800;padding:6px 14px;cursor:pointer;font-family:Heebo,sans-serif;white-space:nowrap">☰ <span class="as-txt">כל המסכים</span><span id="all-screens-count" style="display:none;background:#ef4444;color:#fff;border-radius:999px;padding:1px 7px;font-size:11px;font-weight:900;margin-right:5px"></span></button>
     <div class="user-badge" id="home-user-badge" onclick="logout()">יציאה</div>
@@ -700,6 +703,7 @@ if ('serviceWorker' in navigator) {
     <div class="welcome-bar">
       <h2 id="home-welcome">שלום 👋</h2>
       <p id="home-date"></p>
+      <div id="daily-quote-m" style="display:none;margin-top:10px;background:var(--surface2);border-right:4px solid var(--gold);border-radius:10px;padding:10px 12px;font-size:13px;font-weight:700;line-height:1.5"></div>
     </div>
     <div id="home-layout">
       <div id="home-cards-area">
@@ -4030,11 +4034,13 @@ function _cardHtml(m) {
     grid.innerHTML =
       `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;align-items:stretch">${menuItems.map(_cardHtml).join('')}</div>` +
       `<img src="${_GIL_BG}" style="width:100%;border-radius:18px;object-fit:cover;max-height:220px;display:block">`;
+    _reapplyCardBadges();
   } else {
     grid.style.display = '';
     grid.style.flexDirection = '';
     grid.style.gap = '';
     grid.innerHTML = menuItems.map(_cardHtml).join('');
+    _reapplyCardBadges();
   }
 
   // בדיקת הטעינה אינה קובייה גדולה יותר — היא קוביה קטנה למעלה שמופיעה
@@ -4062,6 +4068,7 @@ function _cardHtml(m) {
   if (isManager) _startOwnMorning();
   // כפתור "כל המסכים" מתעדכן לפי התגיות של הכפתורים שמאחוריו
   if (isManager) _dailyChecksListen();
+  _renderDailyQuote();
   _syncAllScreensCount();
   clearInterval(window._allScreensTimer);
   window._allScreensTimer = setInterval(_syncAllScreensCount, 2000);
@@ -4506,9 +4513,83 @@ function _setTdHomeCount(n) {
 // צבע הסימון של קוביות מסך הבית — טורקיז
 const _HOME_CARD_HL = '#0d9488';
 
+
+/* ── משפט היום ───────────────────────────────────────────────────────
+   משפט מתחלף מכל יום, מתוך רשימה קבועה. הבחירה נעשית לפי מספר היום
+   בשנה, כך שכל המכשירים מציגים את אותו משפט, והוא מתחלף בחצות.   */
+const _DAILY_QUOTES = [
+  "איזהו עשיר? השמח בחלקו. (פרקי אבות)",
+  "כל ההתחלות קשות — ומי שממשיך, מגלה שהקושי היה רק בהתחלה.",
+  "לא עליך המלאכה לגמור, ולא אתה בן חורין להיבטל ממנה. (רבי טרפון)",
+  "במקום שאין אנשים — השתדל להיות איש. (הלל הזקן)",
+  "הצלחה היא סכום של מאמצים קטנים שחוזרים על עצמם יום אחרי יום.",
+  "איזהו חכם? הלומד מכל אדם. (פרקי אבות)",
+  "עשה לך רב וקנה לך חבר. (פרקי אבות)",
+  "אם אין אני לי, מי לי? וכשאני לעצמי, מה אני? ואם לא עכשיו, אימתי? (הלל)",
+  "הכל צפוי, והרשות נתונה. (רבי עקיבא)",
+  "גדול הנהנה מיגיע כפיו יותר מירא שמיים. (ברכות)",
+  "יפה שעה אחת של מעשים טובים מכל חיי העולם הבא. (פרקי אבות)",
+  "מי שאין לו סבלנות לפרטים הקטנים — לא יראה את התמונה הגדולה.",
+  "אל תסתכל בקנקן אלא במה שיש בו. (פרקי אבות)",
+  "העולם עומד על שלושה דברים: על האמת, על הדין ועל השלום. (פרקי אבות)",
+  "כשאתה עוזר למישהו לעלות במעלה ההר — גם אתה מגיע גבוה יותר.",
+  "איזהו גיבור? הכובש את יצרו. (פרקי אבות)",
+  "טוב מעט בכוונה מהרבה בלי לב.",
+  "הוי מקבל את כל האדם בסבר פנים יפות. (שמאי)",
+  "מי שלא מוכן להיכשל — לא באמת מנסה.",
+  "אמור מעט ועשה הרבה. (פרקי אבות)",
+  "יגעת ומצאת — תאמין. לא יגעת ומצאת — אל תאמין. (מגילה)",
+  "הדרך היחידה לעשות עבודה נהדרת היא לאהוב את מה שאתה עושה.",
+  "אין דבר העומד בפני הרצון.",
+  "כל יהודי צריך לומר: בשבילי נברא העולם. (משנה סנהדרין)",
+  "מחשבה טובה — הקדוש ברוך הוא מצרפה למעשה. (קידושין)",
+  "מי שקם אחרי כל נפילה — כבר ניצח.",
+  "סוף מעשה במחשבה תחילה.",
+  "אל תדין את חברך עד שתגיע למקומו. (הלל)",
+  "החוכמה היא לדעת מה לעשות; המעלה היא לעשות זאת.",
+  "ההצלחה אינה סופית והכישלון אינו קטלני — האומץ להמשיך הוא הקובע.",
+  "כל מי שיש בו יראת שמיים — דבריו נשמעים. (ברכות)",
+  "העושה מלאכתו באמונה — מלאכתו מתברכת.",
+  "לב שמח ייטיב גהה. (משלי)",
+  "מי שמחפש תירוץ ימצא אותו, ומי שמחפש דרך — ימצא אותה.",
+  "טוב שם משמן טוב. (קהלת)",
+  "החיים הם 10% מה שקורה לך ו-90% איך שאתה מגיב לזה.",
+  "אין שמחה כהתרת הספקות.",
+  "הוי זהיר במצווה קלה כבחמורה. (פרקי אבות)",
+  "עץ שנשבר ברוח היה יבש קודם. גמישות היא כוח.",
+  "אשרי אדם עוז לו בך. (תהילים)",
+  "מי שמתחיל את היום בסדר — מסיים אותו ברוגע.",
+  "כל מקום שנתת בו את ליבך — שם תראה ברכה.",
+  "אין אדם נוגע במוכן לחברו. מה ששלך — יגיע אליך.",
+  "הרוצה להחכים — ידרים, הרוצה להעשיר — יצפין. ובאמת: יעשה את שניהם. (בבא בתרא)",
+  "מעט אור דוחה הרבה חושך."
+];
+
+function _renderDailyQuote() {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), 0, 0);
+  const dayOfYear = Math.floor((now - start) / 86400000);
+  // התחלה שונה בכל שנה, כדי שהסדר לא יחזור על עצמו בדיוק
+  const idx = (dayOfYear + now.getFullYear()) % _DAILY_QUOTES.length;
+  const txt = _DAILY_QUOTES[idx];
+  for (const id of ['daily-quote', 'daily-quote-m']) {
+    const el = document.getElementById(id);
+    if (el) { el.textContent = txt; el.title = txt; }
+  }
+}
+window._renderDailyQuote = _renderDailyQuote;
+
+const _badgeCache = {};
+function _reapplyCardBadges() {
+  for (const [screen, v] of Object.entries(_badgeCache)) _setCardBadge(screen, v.count, v.color);
+}
+window._reapplyCardBadges = _reapplyCardBadges;
+
 function _setCardBadge(screen, count, color) {
+  _badgeCache[screen] = { count, color };
   const card = document.getElementById('menu-card-' + screen);
   const badge = document.getElementById('badge-' + screen);
+  // הקוביות אולי עוד לא נבנו — הערך נשמר ויוחל ברגע שהן ייבנו
   if (!card || !badge) return;
   // הקובייה נשארת לבנה, והמספר יושב בפינה — כך כל הקוביות באותו סגנון
   if (count > 0) {
