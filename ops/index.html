@@ -86,6 +86,34 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
 .menu-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .bs-split{display:grid;grid-template-columns:1fr;gap:18px}
 @media(min-width:860px){.bs-split{grid-template-columns:1fr 1fr;gap:20px;align-items:start}}
+/* ── ארון מצברים: לשוניות מימין, ו"צריך להזמין" תמיד מול העיניים ── */
+.b-main{flex:1;border:none;border-radius:12px;padding:14px 10px;font-family:Heebo,sans-serif;
+  font-weight:800;font-size:14px;cursor:pointer}
+.bs-layout{display:grid;grid-template-columns:1fr;gap:14px}
+@media(min-width:900px){.bs-layout{grid-template-columns:1fr 360px;gap:18px;align-items:start}
+  .bs-orders-panel{position:sticky;top:12px}}
+.bs-tabs{display:flex;gap:4px;background:var(--card);border:2px solid var(--border);border-radius:14px;
+  padding:4px;margin-bottom:12px}
+.bs-tab{flex:1;border:none;border-radius:10px;padding:11px 6px;background:transparent;color:var(--muted);
+  font-family:Heebo,sans-serif;font-size:13.5px;font-weight:800;cursor:pointer;white-space:nowrap}
+.bs-tab.on{background:var(--dark);color:#fff}
+.bs-tab-n{background:#e2e8f0;color:var(--text);border-radius:999px;padding:1px 7px;font-size:11.5px;font-weight:900}
+.bs-tab.on .bs-tab-n{background:rgba(255,255,255,.25);color:#fff}
+.bs-orders-panel{background:var(--card);border:2px solid var(--border);border-radius:16px;overflow:hidden}
+.bs-panel-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;
+  background:#fffbeb;font-size:14px;font-weight:900}
+/* שורת מצבר: הכמות בריבוע צבעוני, השם והמק״ט לידו */
+.bs-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--border)}
+.bs-row:last-child{border-bottom:none}
+.bs-qty{width:42px;height:42px;border-radius:11px;color:#fff;display:flex;align-items:center;
+  justify-content:center;font-size:19px;font-weight:900;flex-shrink:0;font-variant-numeric:tabular-nums}
+.bs-name{font-weight:800;font-size:14.5px}
+.bs-sub{font-size:12px;color:var(--muted);font-weight:700}
+.bs-box{background:var(--card);border:2px solid var(--border);border-radius:16px;overflow:hidden}
+.bs-box-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;
+  background:var(--surface2);font-size:14px;font-weight:900}
+.bs-icon-btn{background:var(--surface2);border:2px solid var(--border);border-radius:9px;width:36px;height:36px;
+  font-size:14px;cursor:pointer;flex-shrink:0}
 /* שורת הפעולות של המצברים: מימין הוספה והרכבה, ובחצי השמאלי שלוש
    הפעולות שהיו קודם כפתורים צפים בתחתית המסך. בטלפון הכל נערם. */
 .bs-topbar{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px}
@@ -1997,44 +2025,51 @@ if ('serviceWorker' in navigator) {
     <div class="logo">🔋 ארון מצברים</div>
     <div class="user-badge" id="bs-user-badge" onclick="logout()"></div>
   </div>
-  <div style="padding:16px 16px 100px">
-    <div class="bs-topbar">
-      <button class="btn-submit" onclick="openModal('modal-bs-addpick')" style="margin-top:0;padding-left:6px;padding-right:6px;font-size:14px">➕ הוספה</button>
-      <button class="btn-submit" onclick="openBsIssueModal()" style="margin-top:0;padding-left:6px;padding-right:6px;font-size:14px;background:#0ea5e9;color:#fff;display:flex;align-items:center;justify-content:center;gap:7px">
-        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" style="flex-shrink:0">
-          <!-- מצבר שיורד לתוך הרכב: קופסה עם קטבים וחץ כלפי מטה אל המכסה -->
-          <rect x="4.2" y="2.4" width="10.6" height="7.2" rx="1.4" fill="#fff" opacity=".95"/>
-          <rect x="6.2" y="1.1" width="2.3" height="1.5" rx=".5" fill="#fff"/>
-          <rect x="10.6" y="1.1" width="2.3" height="1.5" rx=".5" fill="#fff"/>
-          <path d="M6.9 6h2.2M8 4.9v2.2M11 6h2.2" stroke="#0ea5e9" stroke-width="1.2" stroke-linecap="round"/>
-          <path d="M19 3.6v5.2m0 0-1.9-1.9M19 8.8l1.9-1.9" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M2.6 19.4v-3.1l1.9-3.7c.25-.5.75-.8 1.3-.8h10.4c.55 0 1.05.3 1.3.8l1.9 3.7v3.1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-          <circle cx="6.1" cy="19.4" r="1.7" stroke="#fff" stroke-width="1.6"/>
-          <circle cx="15.9" cy="19.4" r="1.7" stroke="#fff" stroke-width="1.6"/>
-        </svg>הרכבתי לרכב</button>
-      <div class="bs-topbar-side">
-        <button class="btn-submit" onclick="openBsHistoryModal()" style="margin-top:0;padding-left:6px;padding-right:6px;font-size:14px;background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff">🧾 היסטוריית הזמנות</button>
-        <button class="btn-submit" onclick="openBsCatalogModal()" style="margin-top:0;padding-left:6px;padding-right:6px;font-size:14px;background:var(--dark);color:#fff">⚙️ מק״טים וסוגי מצברים</button>
-        <button class="btn-submit" onclick="openBatteryStatsScreen()" style="margin-top:0;padding-left:6px;padding-right:6px;font-size:14px;background:linear-gradient(135deg,#0ea5e9,#0369a1);color:#fff">📊 סטטיסטיקה</button>
-        <button class="btn-submit" onclick="openBsAudits()" style="margin-top:0;padding-left:6px;padding-right:6px;font-size:14px;background:linear-gradient(135deg,#16a34a,#15803d);color:#fff">🔋 בדיקות ארון</button>
-      </div>
+  <div style="padding:14px 16px 90px">
+    <!-- שתי הפעולות היומיומיות, והשאר מאחורי כפתור אחד -->
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <button class="b-main" onclick="openModal('modal-bs-addpick')" style="background:var(--gold);color:#000">➕ הוספה</button>
+      <button class="b-main" onclick="openBsIssueModal()" style="background:#0ea5e9;color:#fff">🔋 הרכבתי לרכב</button>
+      <button class="b-main" onclick="openModal('modal-bs-more')" title="עוד פעולות" style="flex:0 0 58px;background:var(--card);border:2px solid var(--border);color:var(--text);font-size:19px">⋯</button>
     </div>
     <input type="file" id="bs-invoice-file" accept="application/pdf,.pdf" style="display:none" onchange="bsImportInvoice(this)">
-    <div class="bs-split">
+
+    <div class="bs-layout">
       <div>
-        <!-- "אפס ארון" הוסר לבקשת המנהל. bsResetStock נשארה בקוד להחזרה. -->
-        <div class="section-title" style="margin-top:0">🔋 יש בארון</div>
-        <div id="bs-stock"></div>
+        <!-- לשוניות: רואים דבר אחד בכל פעם, בלי גלילה ארוכה -->
+        <div class="bs-tabs">
+          <button class="bs-tab on" data-tab="stock"   onclick="bsTab('stock')">הארון <span id="bs-tab-count" class="bs-tab-n"></span></button>
+          <button class="bs-tab"    data-tab="history" onclick="bsTab('history')">הרכבות</button>
+          <button class="bs-tab"    data-tab="audits"  onclick="bsTab('audits')">בדיקות ארון</button>
+        </div>
+        <div id="bs-pane-stock">
+          <div id="bs-stock"></div>
+        </div>
+        <div id="bs-pane-history" style="display:none"><div id="bs-history"></div></div>
+        <div id="bs-pane-audits"  style="display:none"><div id="bs-audits-inline"></div></div>
       </div>
-      <div>
-        <div class="section-title" style="margin-top:0">🧾 צריך להזמין</div>
+
+      <!-- "צריך להזמין" תמיד מול העיניים -->
+      <div class="bs-orders-panel">
+        <div class="bs-panel-head">
+          <span>🧾 צריך להזמין</span>
+          <span id="bs-orders-sum" style="font-size:12.5px;font-weight:900;color:#92400e"></span>
+        </div>
         <div id="bs-orders"></div>
       </div>
     </div>
-    <div class="section-title">הרכבות אחרונות</div>
-    <div id="bs-history"></div>
   </div>
   <!-- שלושת הכפתורים שהיו כאן צפים עברו לשורת הפעולות שבראש המסך -->
+</div>
+
+<!-- עוד פעולות בארון המצברים -->
+<div class="modal-overlay" id="modal-bs-more">
+  <div class="modal-box" style="max-width:380px">
+    <div class="modal-title">⚙️ עוד פעולות <button class="modal-close" onclick="closeModal('modal-bs-more')">✕</button></div>
+    <button class="btn-submit" onclick="closeModal('modal-bs-more');openBsHistoryModal()" style="margin-top:0;background:#7c3aed;color:#fff">🧾 היסטוריית הזמנות</button>
+    <button class="btn-submit" onclick="closeModal('modal-bs-more');openBsCatalogModal()" style="margin-top:10px;background:var(--dark);color:#fff">⚙️ מק״טים וסוגי מצברים</button>
+    <button class="btn-submit" onclick="closeModal('modal-bs-more');openBatteryStatsScreen()" style="margin-top:10px;background:#0369a1;color:#fff">📊 סטטיסטיקה</button>
+  </div>
 </div>
 
 <!-- בחירת דרך ההוספה: קובץ למעלה, ידנית מתחת -->
@@ -13029,8 +13064,9 @@ function openBsAudits() { _bsAuditListen(); _bsRenderAudits(); openModal('modal-
 window.openBsAudits = openBsAudits;
 
 function _bsRenderAudits() {
-  const box = document.getElementById('bs-audits-list');
-  if (!box) return;
+  const boxes = ['bs-audits-list', 'bs-audits-inline'].map(id => document.getElementById(id)).filter(Boolean);
+  if (!boxes.length) return;
+  const box = { set innerHTML(v) { boxes.forEach(b => b.innerHTML = v); } };
   const done = _bsAudits.filter(a => a.status === 'done');
   if (!done.length) {
     box.innerHTML = `<div style="padding:24px;text-align:center;color:var(--muted);font-weight:700">עדיין לא נשלחו בדיקות</div>`;
@@ -13088,11 +13124,25 @@ function _bsListen() {
   });
 }
 
+/* לשוניות הארון: רואים דבר אחד בכל פעם, ו"צריך להזמין" נשאר מול העיניים */
+let _bsTab = 'stock';
+function bsTab(name) {
+  _bsTab = name;
+  ['stock', 'history', 'audits'].forEach(t => {
+    const pane = document.getElementById('bs-pane-' + t);
+    if (pane) pane.style.display = t === name ? '' : 'none';
+  });
+  document.querySelectorAll('.bs-tab').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
+  if (name === 'audits') { _bsAuditListen(); _bsRenderAudits(); }
+}
+window.bsTab = bsTab;
+
 function openBatteryStockScreen() {
   document.getElementById('bs-user-badge').textContent = currentUser.name;
   showScreen('battery-stock');
   _bsListen();
   _bsAuditListen();
+  bsTab(_bsTab);
 }
 window.openBatteryStockScreen = openBatteryStockScreen;
 
@@ -13119,25 +13169,28 @@ function _bsRenderOrders() {
   const c = document.getElementById('bs-orders');
   if (!c) return;
   const lines = _bsOrderLines();
+  const sum = document.getElementById('bs-orders-sum');
   if (!lines.length) {
-    c.innerHTML = `<div style="padding:16px;text-align:center;color:var(--muted)">אין מה להזמין — לא יצאו מצברים מאז ההזמנה האחרונה</div>`;
+    if (sum) sum.textContent = '';
+    c.innerHTML = `<div style="padding:22px 16px;text-align:center;color:var(--muted);font-weight:700">אין מה להזמין</div>`;
     return;
   }
   const total = lines.reduce((s, l) => s + (l.price ? l.price * l.qty : 0), 0);
   const units = lines.reduce((s, l) => s + l.qty, 0);
-  c.innerHTML = lines.map(l => `<div style="display:flex;align-items:center;gap:10px;border:2px solid var(--border);border-radius:12px;padding:11px 13px;margin-bottom:6px;background:var(--card)">
+  if (sum) sum.textContent = `${units} יחידות${total ? ` · ${total.toLocaleString('he-IL')} ₪` : ''}`;
+  c.innerHTML = lines.map(l => `<div class="bs-row">
+      <div class="bs-qty" style="background:#f59e0b;width:36px;height:36px;font-size:17px">${l.qty}</div>
       <div style="flex:1;min-width:0">
-        <div style="font-weight:800;font-size:15px">${esc(l.model || '')}</div>
-        ${l.sku ? `<div style="font-size:12px;color:var(--muted);font-weight:700">מק״ט ${esc(l.sku)}${l.price ? ` · ${Number(l.price).toLocaleString('he-IL')} ₪ ליחידה` : ''}</div>` : ''}
+        <div class="bs-name" style="font-size:14px">${esc(l.model || '')}</div>
+        ${l.sku ? `<div class="bs-sub">מק״ט ${esc(l.sku)}${l.price ? ` · ${Number(l.price).toLocaleString('he-IL')} ₪ ליחידה` : ''}</div>` : ''}
       </div>
-      <div style="font-size:20px;font-weight:900;min-width:34px;text-align:center">${l.qty}</div>
-      ${l.price ? `<div style="font-weight:900;white-space:nowrap;color:var(--gold)">${(l.price * l.qty).toLocaleString('he-IL')} ₪</div>` : ''}
+      ${l.price ? `<div style="font-weight:900;white-space:nowrap;color:var(--muted);font-size:13.5px">${(l.price * l.qty).toLocaleString('he-IL')} ₪</div>` : ''}
     </div>`).join('') +
-    `<div style="display:flex;justify-content:space-between;border-radius:12px;padding:12px 14px;background:var(--dark);color:#fff;font-weight:900;margin-top:4px">
-       <span>סה״כ להזמנה: ${units} יחידות</span>${total ? `<span>${total.toLocaleString('he-IL')} ₪ לפני מע״מ · ${_fmtIls(_incVat(total))} כולל מע״מ</span>` : ''}</div>` +
-    `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-       <button class="btn-submit" onclick="bsMarkOrdered()" style="background:var(--success);color:#fff;padding-left:6px;padding-right:6px;font-size:14px">✅ הזמנתי — נקה</button>
-       <button class="btn-submit" onclick="bsCopyOrderText()" style="background:var(--dark);color:#fff;padding-left:6px;padding-right:6px;font-size:14px">📋 העתק מלל להזמנה</button>
+    (total ? `<div style="padding:10px 14px;background:var(--surface2);font-size:12.5px;font-weight:800;color:var(--muted);text-align:center">
+       ${total.toLocaleString('he-IL')} ₪ לפני מע״מ · ${_fmtIls(_incVat(total))} כולל מע״מ</div>` : '') +
+    `<div style="display:flex;gap:8px;padding:12px 14px">
+       <button class="b-main" onclick="bsMarkOrdered()" style="background:var(--success);color:#fff">✅ הזמנתי</button>
+       <button class="b-main" onclick="bsCopyOrderText()" style="background:var(--dark);color:#fff">📋 העתק מלל</button>
      </div>`;
 }
 
@@ -13196,24 +13249,31 @@ function _bsRenderStock() {
   const rows = _bsStock.filter(r => (r.qty || 0) > 0)
     .sort((a, b) => _bsAmpOf(a) - _bsAmpOf(b) || String(a.model || '').localeCompare(String(b.model || ''), 'he'));
   if (!rows.length) {
-    c.innerHTML = `<div class="empty-state" style="padding:30px 20px;text-align:center;color:var(--muted)">הארון ריק — הוסף מצברים כדי להתחיל</div>`;
+    const cnt0 = document.getElementById('bs-tab-count');
+    if (cnt0) cnt0.textContent = '0';
+    c.innerHTML = `<div class="bs-box"><div class="bs-box-head"><span>🔋 יש בארון</span></div>
+      <div style="padding:30px 20px;text-align:center;color:var(--muted);font-weight:700">הארון ריק — הוסף מצברים כדי להתחיל</div></div>`;
     return;
   }
   const total = rows.reduce((s, r) => s + (r.qty || 0), 0);
-  c.innerHTML = `<div style="font-size:13px;font-weight:800;color:var(--muted);margin-bottom:8px">סה״כ בארון: ${total}</div>` +
+  const cnt = document.getElementById('bs-tab-count');
+  if (cnt) cnt.textContent = total;
+  c.innerHTML = `<div class="bs-box">
+      <div class="bs-box-head"><span>🔋 יש בארון</span>
+        <span style="font-size:12.5px;font-weight:800;color:var(--muted)">${total} יחידות · ${rows.length} סוגים</span></div>` +
     rows.map(r => {
       const q = r.qty || 0;
-      // a cabinet that is nearly empty is the thing worth shouting about
-      const color = q === 0 ? '#ef4444' : q <= 2 ? '#f59e0b' : 'var(--success)';
-      return `<div style="display:flex;align-items:center;gap:10px;border:2px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;background:var(--card)">
+      // ארון שמתרוקן הוא מה שחשוב לראות מיד
+      const color = q === 0 ? '#ef4444' : q <= 1 ? '#f59e0b' : '#16a34a';
+      return `<div class="bs-row">
+        <div class="bs-qty" style="background:${color}">${q}</div>
         <div style="flex:1;min-width:0">
-          <div style="font-weight:800;font-size:15px">${esc(_bsModelOf(r))}</div>
-          ${r.sku ? `<div style="font-size:12px;color:var(--muted);font-weight:700">מק״ט ${esc(r.sku)}${_bsPriceOf(r) ? ` · ${Number(_bsPriceOf(r)).toLocaleString('he-IL')} ₪ (כולל מע״מ ${_fmtIls(_incVat(_bsPriceOf(r)))})` : ''}${r.invoice ? ` · חשבונית ${esc(r.invoice)}` : ''}</div>` : ''}
+          <div class="bs-name">${esc(_bsModelOf(r))}</div>
+          ${r.sku ? `<div class="bs-sub">מק״ט ${esc(r.sku)}${_bsPriceOf(r) ? ` · ${Number(_bsPriceOf(r)).toLocaleString('he-IL')} ₪` : ''}</div>` : ''}
         </div>
-        <div style="font-size:20px;font-weight:900;color:${color};min-width:34px;text-align:center">${q}</div>
-        <button onclick="bsRemoveStock('${r.id}')" title="הורד מהארון" style="background:#ef4444;color:#fff;border:none;border-radius:8px;width:30px;height:30px;font-size:14px;cursor:pointer">🗑</button>
+        <button onclick="bsRemoveStock('${r.id}')" title="הורד מהארון" class="bs-icon-btn">🗑</button>
       </div>`;
-    }).join('');
+    }).join('') + `</div>`;
 }
 
 // Empties the cabinet in one go — for starting a count from scratch. Only the
