@@ -1455,6 +1455,8 @@
     // תצוגת כרטיסים לנייד
     const cardsEl=document.getElementById('profitCards');
     if(cardsEl){
+      if(!rows.length){ cardsEl.innerHTML='<div class="muted" style="padding:16px;text-align:center">אין רכבים להצגה עבור הסינון הזה.</div>'; }
+      else{
       let curB=null;
       cardsEl.innerHTML=rows.map(c=>{
         const sell=Number(c.autodealerPriceNumber)||0;
@@ -1482,6 +1484,7 @@
             '<div class="pc-fin-rest">'+tracks.slice(1).map(o=>'<span>'+_esc(o.l)+': <b>'+fmt(o.m)+'</b></span>').join('')+'</div></div>':'')+
         '</div>';
       }).join('');
+      }
     }
   }
 
@@ -2387,12 +2390,12 @@
     const dl=document.getElementById('dash-leads');
     const dv=document.getElementById('dash-vouchers');
     if(dl){
-      dl.innerHTML=[...leads].sort((a,b)=>b.score-a.score).slice(0,3).map(l=>`
+      dl.innerHTML=[...leads].sort((a,b)=>(b.score||0)-(a.score||0)).slice(0,3).map(l=>`
         <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)">
-          <div><div style="font-weight:700">${l.name}</div><div style="font-size:12px;color:var(--muted)">${l.car}</div></div>
+          <div><div style="font-weight:700">${l.name||'ליד'}</div><div style="font-size:12px;color:var(--muted)">${l.car||''}</div></div>
           <div style="display:flex;align-items:center;gap:8px">
-            <span style="background:${l.score>=80?'#fef2f2':'#fff7ed'};color:${l.score>=80?'#b91c1c':'#c2410c'};padding:4px 10px;border-radius:999px;font-size:12px;font-weight:900">${l.score}</span>
-            <a href="https://wa.me/972${l.phone.replace(/-/g,'').replace(/^0/,'')}" target="_blank" style="background:#25D366;color:#fff;padding:5px 10px;border-radius:8px;font-size:12px;font-weight:900;text-decoration:none">📲</a>
+            ${l.score?`<span style="background:${l.score>=80?'#fef2f2':'#fff7ed'};color:${l.score>=80?'#b91c1c':'#c2410c'};padding:4px 10px;border-radius:999px;font-size:12px;font-weight:900">${l.score}</span>`:''}
+            <a href="https://wa.me/972${(l.phone||'').replace(/-/g,'').replace(/^0/,'')}" target="_blank" style="background:#25D366;color:#fff;padding:5px 10px;border-radius:8px;font-size:12px;font-weight:900;text-decoration:none">📲</a>
           </div>
         </div>`).join('');
     }
