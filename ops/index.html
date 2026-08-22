@@ -4524,16 +4524,30 @@ function _setCardBadge(screen, count, color) {
 // קוביית ארון המצברים: המספר תמיד מופיע מתחת לכותרת, והצבע נדלק רק
 // כשמצטברו שלושה מצברים להזמנה או יותר — כלומר כשכבר שווה להזמין.
 const _BS_CARD_MIN = 3;
-function _setBatteryStockCard(units) {
+/* קוביית ארון המצברים במסך הבית. המלל מסומן בצהוב כשהגיע הזמן להזמין:
+   שלושה מצברים ומעלה בסך הכל, או שניים מאותו סוג. */
+function _setBatteryStockCard(units, maxSameType) {
   const card = document.getElementById('menu-card-battery-stock');
   const sub  = document.getElementById('sub-battery-stock');
   if (!card || !sub) return;
   sub.textContent = !units ? 'אין מה להזמין'
     : units === 1 ? 'מצבר אחד להזמנה' : `${units} מצברים להזמנה`;
-  const on = units >= _BS_CARD_MIN;
-  card.style.background = on ? _HOME_CARD_HL : '';
-  card.style.color = on ? '#fff' : '';
-  card.querySelectorAll('.mc-title,.mc-sub').forEach(el => el.style.color = on ? '#fff' : '');
+  const mark = units >= _BS_CARD_MIN || (maxSameType || 0) >= 2;
+  if (mark) {
+    sub.style.background = '#fde68a';
+    sub.style.color = '#78350f';
+    sub.style.fontWeight = '900';
+    sub.style.borderRadius = '8px';
+    sub.style.padding = '3px 10px';
+    sub.style.display = 'inline-block';
+  } else {
+    sub.style.background = '';
+    sub.style.color = '';
+    sub.style.fontWeight = '';
+    sub.style.borderRadius = '';
+    sub.style.padding = '';
+    sub.style.display = '';
+  }
 }
 
 /* קוביית הפחחות: כמה רכבים שאיברהים סיים עדיין מחכים לעדכון עלויות
@@ -4808,7 +4822,11 @@ function loadManagerBadges() {
     // ארון המצברים: כמה מצברים ממתינים להזמנה — כל מצבר שיצא מהארון ועדיין
     // לא הוזמן חזרה. אותו חישוב בדיוק כמו רשימת ההזמנה שבמסך המצברים.
     _onSnap(_colRef('battery_installs'), snap => {
-      _setBatteryStockCard(snap.docs.filter(d => !d.data().ordered).length);
+      // גם הסך הכל וגם הכמות הגדולה ביותר מאותו סוג — לפי מק״ט או דגם
+      const pend = snap.docs.map(d => d.data()).filter(v => !v.ordered);
+      const by = {};
+      pend.forEach(v => { const k = v.sku || v.model || '—'; by[k] = (by[k] || 0) + 1; });
+      _setBatteryStockCard(pend.length, Math.max(0, ...Object.values(by)));
     });
     // פחחות: רכבים שסיימנו ועדיין לא עודכנו בתוכנה השנייה. נספרים רק
     // רכבים שיושבים כרגע במסך "מכוניות שסיימנו" — סגירת חשבון מסמנת
