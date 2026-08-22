@@ -2101,10 +2101,12 @@ async function _barcaSync() {
   // שנוצרו אוטומטית. משחקים שכבר עברו נשארים כהיסטוריה.
   const today = _barcaLocal(new Date().toISOString()).date;
   let removed = 0;
-  const stale = await db.collection("calendar_events")
-    .where("autoBarca", "==", true).where("date", ">=", today).get();
+  // שאילתה על שדה אחד בלבד — סינון התאריך נעשה כאן, כדי לא לחייב אינדקס מורכב
+  const stale = await db.collection("calendar_events").where("autoBarca", "==", true).get();
   for (const d of stale.docs) {
-    if (!seen.has(d.id)) { await d.ref.delete(); removed++; }
+    if (seen.has(d.id)) continue;
+    if ((d.data().date || "") < today) continue;   // משחקים שעברו נשארים כהיסטוריה
+    await d.ref.delete(); removed++;
   }
 
   await db.doc("config/barca").set(
