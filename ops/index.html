@@ -2039,7 +2039,7 @@ if ('serviceWorker' in navigator) {
         <!-- לשוניות: רואים דבר אחד בכל פעם, בלי גלילה ארוכה -->
         <div class="bs-tabs">
           <button class="bs-tab on" data-tab="stock"   onclick="bsTab('stock')">הארון <span id="bs-tab-count" class="bs-tab-n"></span></button>
-          <button class="bs-tab"    data-tab="history" onclick="bsTab('history')">הרכבות</button>
+          <button class="bs-tab"    data-tab="history" onclick="bsTab('history')">הרכבות <span id="bs-tab-installs" class="bs-tab-n" style="display:none;background:#ef4444;color:#fff"></span></button>
           <button class="bs-tab"    data-tab="audits"  onclick="bsTab('audits')">בדיקות ארון</button>
         </div>
         <div id="bs-pane-stock">
@@ -13444,6 +13444,10 @@ function _bsRenderStats() {
 
 function _bsRenderHistory() {
   const c = document.getElementById('bs-history');
+  // מונה על הלשונית: כמה הרכבות עדיין לא סומנו כעודכנו בתוכנה
+  const pending = _bsInstalls.filter(r => !r.paidSw).length;
+  const nb = document.getElementById('bs-tab-installs');
+  if (nb) { nb.textContent = pending; nb.style.display = pending ? '' : 'none'; }
   if (!c) return;
   const rows = [..._bsInstalls].sort((a, b) => String(b.installedAt).localeCompare(String(a.installedAt))).slice(0, 25);
   if (!rows.length) { c.innerHTML = `<div style="font-size:13px;color:var(--muted)">אין עדיין הרכבות</div>`; return; }
