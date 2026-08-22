@@ -2188,6 +2188,15 @@ if ('serviceWorker' in navigator) {
       <button class="btn-submit" id="own-scan-btn" onclick="runOwnershipScan()" style="background:#0d6ab0;color:#fff;margin:0;flex:1">🔄 בדוק עכשיו</button>
     </div>
 
+    <!-- כפתורי הבדיקה היומית — מופיעים גם כאן, אחרי שנכנסת לפירוט -->
+    <div id="own-morning-bar" style="display:none;border:2px solid #0d6ab0;background:#eff6ff;border-radius:14px;padding:12px 14px;margin-bottom:12px">
+      <div style="font-weight:900;font-size:14px;margin-bottom:9px">☀️ בדיקת הבעלויות של הבוקר</div>
+      <div style="display:flex;gap:8px">
+        <button onclick="ownMorningDone()" style="flex:1;background:#16a34a;color:#fff;border:none;border-radius:10px;padding:13px;font-family:Heebo,sans-serif;font-size:14px;font-weight:800;cursor:pointer">✅ הכל תקין</button>
+        <button onclick="ownMorningSnooze()" style="flex:1;background:var(--surface2);color:var(--text);border:2px solid var(--border);border-radius:10px;padding:13px;font-family:Heebo,sans-serif;font-size:14px;font-weight:800;cursor:pointer">⏰ דחה לעוד שעה</button>
+      </div>
+    </div>
+
     <!-- רכבים שירדו מהמלאי — הדבר היחיד שדורש אישור ידני -->
     <div id="own-gone" style="display:none;margin-bottom:14px"></div>
 
@@ -10725,6 +10734,7 @@ function _startOwnMorning() {
   if (_ownMorningTimer) return;
   _onSnap(_docRef('config', 'own_morning'), snap => {
     _ownMorningState = (snap.exists() ? snap.data() : {}) || {};
+    _syncOwnMorningBar();
     _checkOwnMorning();
   }, () => { _ownMorningState = {}; });
   _ownMorningTimer = setInterval(_checkOwnMorning, 60000);
@@ -10751,7 +10761,7 @@ function _renderOwnMorning() {
     return;
   }
   const ok = not === 0;
-  box.innerHTML = `<div onclick="closeModal('modal-own-morning');openOwnershipScreen()" style="cursor:pointer;text-align:center;background:${ok ? '#dcfce7' : '#fee2e2'};border:2px solid ${ok ? '#16a34a' : '#dc2626'};border-radius:14px;padding:16px">
+  box.innerHTML = `<div onclick="closeModal('modal-own-morning');openOwnershipScreen();_syncOwnMorningBar()" style="cursor:pointer;text-align:center;background:${ok ? '#dcfce7' : '#fee2e2'};border:2px solid ${ok ? '#16a34a' : '#dc2626'};border-radius:14px;padding:16px">
       <div style="font-size:34px;line-height:1">${ok ? '✅' : '⚠️'}</div>
       <div style="font-weight:900;font-size:19px;margin-top:6px;color:${ok ? '#166534' : '#991b1b'}">${ok ? 'הכל תקין' : (not === 1 ? 'רכב אחד לא על תו סחר' : not + ' רכבים לא על תו סחר')}</div>
       <div style="font-weight:700;font-size:13px;margin-top:4px;color:${ok ? '#166534' : '#991b1b'}">מתוך ${total} רכבים במלאי</div>
@@ -10780,7 +10790,21 @@ function _checkOwnMorning() {
   _ownEnsureFresh();
 }
 
-function _ownMorningClose() { closeModal('modal-own-morning'); }
+function _ownMorningClose() {
+  closeModal('modal-own-morning');
+  _syncOwnMorningBar();
+}
+
+// הפס במסך הפירוט מופיע כל עוד לא אישרת את הבדיקה של היום
+function _syncOwnMorningBar() {
+  const bar = document.getElementById('own-morning-bar');
+  if (!bar) return;
+  const due = (currentUser?.role === 'manager')
+    && new Date().getHours() >= _OWN_MORNING_HOUR
+    && _ownMorningState && _ownMorningState.ackDay !== _ownToday();
+  bar.style.display = due ? 'block' : 'none';
+}
+window._syncOwnMorningBar = _syncOwnMorningBar;
 
 function ownMorningDone() {
   _ownMorningSet({ ackDay: _ownToday(), snoozeTo: 0, snoozeDay: '' });
@@ -10907,6 +10931,7 @@ function openOwnershipScreen() {
     }, () => {});
   }
   _ownLoadConfig();
+  _syncOwnMorningBar();
   // תמיד מציגים את הדוח העדכני ביותר
   setTimeout(_ownEnsureFresh, 1200);
 }
