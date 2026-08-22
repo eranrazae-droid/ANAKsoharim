@@ -1520,10 +1520,12 @@ if ('serviceWorker' in navigator) {
     <div class="logo">נסיעות <span>מבחן</span></div>
     <div class="user-badge" id="td-user-badge" onclick="logout()"></div>
   </div>
-  <div style="padding:12px 16px 100px" id="td-list">
+  <div style="padding:12px 16px 0">
+    <button onclick="openNewTestDriveModal()" id="td-fab-new" style="width:100%;background:var(--gold);color:#000;border:none;border-radius:12px;padding:13px;font-family:Heebo,sans-serif;font-size:15px;font-weight:800;cursor:pointer">+ נסיעת מבחן חדשה</button>
+  </div>
+  <div style="padding:12px 16px 24px" id="td-list">
     <div class="loading"><div class="spinner"></div> טוען...</div>
   </div>
-  <button class="fab" onclick="openNewTestDriveModal()" id="td-fab-new">+ נסיעת מבחן חדשה</button>
 </div>
 
 <!-- modal: create test drive (manager) -->
@@ -3749,8 +3751,17 @@ function listenForNewVehicles() {
 function goHome() {
   _bsmHideActions();   // the body-shop buttons float — they must not stay behind
   // "חזרה" מתוך מסך שמתארח בחלונית פשוט סוגר אותה, ומסך הבית כבר מאחוריה
-  if (_hostName) return closeScreenModal();
+  if (_hostName) { closeScreenModal(); return _backToAllScreens(); }
   showScreen('home');
+  _backToAllScreens();
+}
+
+// מסך שנפתח מתוך "כל המסכים" חוזר לרשימה, ולא למסך הבית
+let _cameFromAllScreens = false;
+function _backToAllScreens() {
+  if (!_cameFromAllScreens) return;
+  _cameFromAllScreens = false;
+  setTimeout(openAllScreens, 60);
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -3875,13 +3886,69 @@ const _ALL_SCREENS = [
   { id: 'menu-card-ownership',    icon: '📑', label: 'בדיקת בעלויות',        badge: 'badge-ownership' },
   { id: 'menu-card-recall',       icon: '⚠️', label: 'בדיקת ריקול',          badge: 'recall-home-count' },
   { id: 'menu-card-inventory',    icon: '📦', label: 'בדיקת מלאי',           badge: 'badge-inventory' },
+  { id: 'menu-btn-wash',          icon: '🧽', label: 'פתק שטיפה',            badge: '' },
   { id: 'menu-card-pits',         icon: '🕳️', label: 'בורות',                badge: 'badge-pits' },
   { id: 'menu-card-test-drive',   icon: '🏎️', label: 'נסיעות מבחן',          badge: 'td-home-count' },
   { id: 'menu-card-battery',      icon: '🔋', label: 'בדיקת טעינה',          badge: 'badge-battery' },
   { id: 'menu-card-yard',         icon: '🅿️', label: 'סידור מגרש',           badge: 'badge-yard' },
-  { id: 'menu-btn-wash',          icon: '🧽', label: 'פתק שטיפה',            badge: '' },
   { id: 'menu-card-plate-search', icon: '🔎', label: 'חיפוש רכב לפי לוחית',  badge: '' },
 ];
+
+/* ── מצב הבדיקות של הבוקר ───────────────────────────────────────────
+   ליד בעלויות, ריקול ומלאי נרשם אם הבדיקה בוצעה היום והכל תקין.
+   הכתוב מתאפס בחצות: הוא נשען על תאריך היום, ולכן ב-00:00 הוא כבר
+   לא תואם וחוזר ל"טרם בוצעה היום".                                 */
+const _todayKey = () => new Date().toLocaleDateString('sv-SE');
+let _dailyRecall = null;      // { day, open }
+let _dailyInv = null;         // { day, open }
+
+function _dailyChecksListen() {
+  if (window._dailyUnsub) return;
+  window._dailyUnsub = true;
+  // ריקול: מתי רצה הסריקה האחרונה וכמה ריקולים פתוחים
+  _onSnap(_docRef('recall_status', 'current'), snap => {
+    const d = snap.exists() ? snap.data() : null;
+    const at = d?.updatedAt?.toDate ? d.updatedAt.toDate() : null;
+    _dailyRecall = { day: at ? at.toLocaleDateString('sv-SE') : '', open: (d?.cars || []).filter(c => !c.resolved).length };
+    _syncAllScreensCount();
+  }, () => {});
+  // מלאי: בדיקה שהושלמה היום, וכמה עדיין ממתינות
+  _onSnap(_colRef('inventory_assignments'), snap => {
+    let doneToday = false, open = 0;
+    snap.docs.forEach(x => {
+      const v = x.data();
+      if (v.status !== 'done') { open++; return; }
+      const at = v.completedAt?.toDate ? v.completedAt.toDate() : null;
+      if (at && at.toLocaleDateString('sv-SE') === _todayKey()) doneToday = true;
+    });
+    _dailyInv = { day: doneToday ? _todayKey() : '', open };
+    _syncAllScreensCount();
+  }, () => {});
+}
+
+// הטקסט שמופיע מתחת לשם הפריט
+function _dailyNote(id) {
+  const today = _todayKey();
+  if (id === 'menu-card-ownership') {
+    // ההשוואה לתאריך הקלנדרי, כדי שהכתוב יתאפס בחצות
+    const ok = _ownMorningState && _ownMorningState.ackDay === today;
+    return ok ? { txt: '✅ נבדק הבוקר · אישרת שהכל תקין', ok: true }
+              : { txt: '⏳ טרם אושרה היום', ok: false };
+  }
+  if (id === 'menu-card-recall') {
+    if (!_dailyRecall || _dailyRecall.day !== today) return { txt: '⏳ טרם בוצעה היום', ok: false };
+    return _dailyRecall.open
+      ? { txt: `⚠️ נבדק הבוקר · ${_dailyRecall.open} ריקולים פתוחים`, ok: false }
+      : { txt: '✅ נבדק הבוקר · הכל תקין', ok: true };
+  }
+  if (id === 'menu-card-inventory') {
+    if (!_dailyInv || _dailyInv.day !== today) return { txt: '⏳ טרם בוצעה היום', ok: false };
+    return _dailyInv.open
+      ? { txt: `⚠️ נבדק הבוקר · ${_dailyInv.open} ממתינות`, ok: false }
+      : { txt: '✅ נבדק הבוקר · הכל תקין', ok: true };
+  }
+  return null;
+}
 
 // המספר שמוצג ליד פריט — נלקח מהתגית של הכפתור המקורי
 function _screenBadge(it) {
@@ -3916,10 +3983,13 @@ function _renderAllScreens() {
   const items = _ALL_SCREENS.filter(_screenVisible);
   box.innerHTML = items.map(it => {
     const n = _screenBadge(it);
-    return `<div onclick="closeModal('modal-all-screens');document.getElementById('${it.id}').click()"
+    return `<div onclick="openFromAllScreens('${it.id}')"
       style="display:flex;align-items:center;gap:11px;padding:12px 4px;border-bottom:1px solid var(--border);cursor:pointer">
       <div style="width:38px;height:38px;border-radius:11px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">${it.icon}</div>
-      <div style="flex:1;font-weight:800;font-size:14.5px">${it.label}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:800;font-size:14.5px">${it.label}</div>
+        ${(() => { const d = _dailyNote(it.id); return d ? `<div style="font-size:11.5px;font-weight:800;margin-top:2px;color:${d.ok ? '#16a34a' : 'var(--muted)'}">${d.txt}</div>` : ''; })()}
+      </div>
       ${n ? `<span style="background:#ef4444;color:#fff;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:900">${n}</span>` : ''}
       <span style="color:var(--muted);font-weight:900">‹</span>
     </div>`;
@@ -3927,6 +3997,14 @@ function _renderAllScreens() {
 }
 
 function openAllScreens() { _renderAllScreens(); openModal('modal-all-screens'); }
+
+// פתיחת מסך מתוך הרשימה — כדי שהחזרה תוביל בחזרה לרשימה
+function openFromAllScreens(id) {
+  closeModal('modal-all-screens');
+  _cameFromAllScreens = true;
+  document.getElementById(id)?.click();
+}
+window.openFromAllScreens = openFromAllScreens;
 window.openAllScreens = openAllScreens;
 
 function _cardHtml(m) {
@@ -3983,6 +4061,7 @@ function _cardHtml(m) {
   if (ownBtn) ownBtn.style.display = isManager ? '' : 'none';
   if (isManager) _startOwnMorning();
   // כפתור "כל המסכים" מתעדכן לפי התגיות של הכפתורים שמאחוריו
+  if (isManager) _dailyChecksListen();
   _syncAllScreensCount();
   clearInterval(window._allScreensTimer);
   window._allScreensTimer = setInterval(_syncAllScreensCount, 2000);
@@ -22007,7 +22086,7 @@ window.openTestDriveFromHome = openTestDriveFromHome;
 function openTestDriveScreen() {
   document.getElementById('td-user-badge').textContent = currentUser.name;
   const isManager = currentUser.role === 'manager';
-  document.getElementById('td-fab-new').style.display = isManager ? 'flex' : 'none';
+  document.getElementById('td-fab-new').style.display = isManager ? '' : 'none';
   showScreen('test-drive');
   const list = document.getElementById('td-list');
   list.innerHTML = '<div class="loading"><div class="spinner"></div> טוען...</div>';
