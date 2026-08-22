@@ -3802,113 +3802,6 @@ function _backToAllScreens() {
    which is how we tell "the feature is missing" from "the phone is out of date". */
 const APP_BUILD = '2026-08-09 · 214';
 
-function renderHome() {
-  const isManager = currentUser.role === 'manager';
-  const _bd = document.getElementById('home-build');
-  if (_bd) _bd.textContent = 'גרסה ' + APP_BUILD;
-  const isPickupAgent = currentUser.role === 'pickup_agent';
-  // reset calendar layout — only the manager gets the calendar
-  const _hb = document.querySelector('#screen-home .home-body');
-  if (_hb) _hb.classList.remove('has-calendar');
-  _moveWelcomeBar(false);
-  document.getElementById('home-welcome').textContent =
-    'שלום, ' + currentUser.name + ' 👋';
-  const now = new Date();
-  document.getElementById('home-date').textContent =
-    now.toLocaleDateString('he-IL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  document.getElementById('home-user-badge').textContent = currentUser.name;
-  document.getElementById('stat-vehicles').parentElement.style.display = 'none';
-  const settingsBtn = document.getElementById('btn-settings');
-  if (settingsBtn) settingsBtn.style.display = (currentUser?.role === 'manager') ? 'inline-flex' : 'none';
-
-  // הילה (pickup_driver) — only sees assigned pickup cars
-  if (currentUser.role === 'pickup_driver') {
-    // hide tasks stat, show pickup stat card only
-    const tasksCard = document.querySelector('#stats-row .stat-card:first-child');
-    if (tasksCard) tasksCard.style.display = 'none';
-    const vehiclesCard = document.getElementById('stat-vehicles-card');
-    if (vehiclesCard) vehiclesCard.style.display = 'none';
-    const statsRow = document.getElementById('stats-row');
-    if (statsRow) statsRow.style.display = '';
-    const tdBtn = document.getElementById('menu-card-test-drive');
-    if (tdBtn) tdBtn.style.display = 'none';
-    const rcBtn = document.getElementById('menu-card-recall');
-    if (rcBtn) rcBtn.style.display = 'none';
-    const pcBtn = document.getElementById('btn-parts-home');
-    if (pcBtn) pcBtn.style.display = 'none';
-    document.getElementById('menu-grid').innerHTML = '';
-    _onSnap(_query(_colRef('pickup_cars'), _where('assignedDriver','==',currentUser.name)), snap => {
-      const cars = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const card = document.getElementById('stat-pickup-driver-card');
-      const cnt = document.getElementById('stat-pickup-driver-count');
-      if (card) card.style.display = cars.length ? 'block' : 'none';
-      if (cnt) cnt.textContent = cars.length;
-      _driverPickupCars = cars;
-      const modal = document.getElementById('modal-driver-pickup');
-      if (modal && modal.classList.contains('open')) _renderDriverPickupModal();
-    });
-    return;
-  }
-
-  // משה (pickup_agent) — pickup management + task request button
-  if (isPickupAgent) {
-    // hide stats row and test drive button
-    const statsRow = document.getElementById('stats-row');
-    if (statsRow) statsRow.style.display = 'none';
-    const tdBtn = document.getElementById('menu-card-test-drive');
-    if (tdBtn) tdBtn.style.display = 'none';
-    const rcBtn = document.getElementById('menu-card-recall');
-    if (rcBtn) rcBtn.style.display = 'none';
-    const pcBtn = document.getElementById('btn-parts-home');
-    if (pcBtn) pcBtn.style.display = 'none';
-    document.getElementById('menu-grid').innerHTML =
-      `<div class="menu-card" id="menu-card-pickup" onclick="openPickupScreen()">
-        <div style="position:relative;display:inline-block">
-          <div class="mc-icon">🚙</div>
-          <span id="badge-pickup" style="display:none;position:absolute;top:-6px;right:-10px;background:#ef4444;color:#fff;border-radius:999px;font-size:11px;font-weight:900;padding:1px 6px;min-width:18px;text-align:center"></span>
-        </div>
-        <div class="mc-title">מכוניות לאיסוף</div>
-        <div class="mc-sub" id="sub-pickup">ניהול רכבים לאיסוף</div>
-      </div>
-      <div class="menu-card" onclick="openRequestTaskModal()">
-        <div class="mc-icon">📋</div>
-        <div class="mc-title">הצעת משימה</div>
-        <div class="mc-sub">שלח בקשה למנהל</div>
-      </div>`;
-    loadManagerBadges();
-    return;
-  }
-
-  // There is no car-battery emoji, so the cabinet card uses a drawn icon: a
-  // squat casing with two terminal posts and the + / − markings.
-  const _ICON_CAR_BATTERY = `<svg viewBox="0 0 24 24" width="36" height="36" fill="none" style="display:block;margin:0 auto">
-    <rect x="4.5" y="1.6" width="4" height="2.4" rx="0.7" fill="#dc2626"/>
-    <rect x="15.5" y="1.6" width="4" height="2.4" rx="0.7" fill="#334155"/>
-    <rect x="2" y="4" width="20" height="16" rx="2.6" fill="#1f3a5f"/>
-    <rect x="3.6" y="5.6" width="16.8" height="8" rx="1.4" fill="#2f5c8f"/>
-    <path d="M6.5 9.6h3M8 8.1v3" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
-    <path d="M14.5 9.6h3" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
-    <rect x="3.6" y="15.2" width="16.8" height="3.2" rx="1.1" fill="#0f2440"/>
-  </svg>`;
-
-  const menuItems = isManager
-    ? [
-        { icon: '📋', title: 'לוח משימות', sub: 'ניהול משימות לנהגים', screen: 'tasks' },
-        { icon: '🚗', title: 'קליטות ורענון רכבים', sub: 'קליטה ורענון במסך אחד', screen: 'vehicles' },
-        // row 2
-        { icon: _ICON_CAR_BATTERY, title: 'ארון מצברים', sub: 'מלאי, הרכבות וסטטיסטיקה', screen: 'battery-stock' },
-        // row 3 — recall is not here, it lives on the floating home button
-        { icon: '🚙', title: 'מכוניות לאיסוף', sub: 'ניהול רכבים לאיסוף', screen: 'pickup' },
-        // השטיפה אינה קובייה אצל המנהל — היא כפתור רחב באזור הצדדי
-        { icon: '🔨', title: 'פחחות', sub: 'עבודות, מחירים וחשבון חודשי', screen: 'bodyshop-mgr' },
-      ]
-    : [
-        { icon: '📋', title: 'המשימות שלי', sub: 'משימות שהוקצו לך', screen: 'tasks' },
-        { icon: '🔋', title: 'בדיקת סוללה והטענת רכבים חשמליים', sub: 'מילוי אחוזי טעינה וטווח', screen: 'driver-battery' },
-        { icon: _ICON_CAR_BATTERY, title: 'מצברים', sub: 'רישום מצבר שהורכב לרכב', screen: 'driver-battery-install' },
-        { icon: '🧽', title: 'פתק שטיפה', sub: 'הכנה והדפסה של פתק לרכב', screen: 'wash' },
-      ];
-
   /* ── "כל המסכים" ────────────────────────────────────────────────────
    כל מה שהיה תשעה כפתורים צבעוניים במסך הבית יושב כאן, ברשימה אחת
    אחידה. הכפתורים המקוריים נשארים במקומם ומוסתרים — הרשימה קוראת
@@ -4037,6 +3930,114 @@ function openFromAllScreens(id) {
 }
 window.openFromAllScreens = openFromAllScreens;
 window.openAllScreens = openAllScreens;
+
+function renderHome() {
+  const isManager = currentUser.role === 'manager';
+  const _bd = document.getElementById('home-build');
+  if (_bd) _bd.textContent = 'גרסה ' + APP_BUILD;
+  const isPickupAgent = currentUser.role === 'pickup_agent';
+  // reset calendar layout — only the manager gets the calendar
+  const _hb = document.querySelector('#screen-home .home-body');
+  if (_hb) _hb.classList.remove('has-calendar');
+  _moveWelcomeBar(false);
+  document.getElementById('home-welcome').textContent =
+    'שלום, ' + currentUser.name + ' 👋';
+  const now = new Date();
+  document.getElementById('home-date').textContent =
+    now.toLocaleDateString('he-IL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  document.getElementById('home-user-badge').textContent = currentUser.name;
+  document.getElementById('stat-vehicles').parentElement.style.display = 'none';
+  const settingsBtn = document.getElementById('btn-settings');
+  if (settingsBtn) settingsBtn.style.display = (currentUser?.role === 'manager') ? 'inline-flex' : 'none';
+
+  // הילה (pickup_driver) — only sees assigned pickup cars
+  if (currentUser.role === 'pickup_driver') {
+    // hide tasks stat, show pickup stat card only
+    const tasksCard = document.querySelector('#stats-row .stat-card:first-child');
+    if (tasksCard) tasksCard.style.display = 'none';
+    const vehiclesCard = document.getElementById('stat-vehicles-card');
+    if (vehiclesCard) vehiclesCard.style.display = 'none';
+    const statsRow = document.getElementById('stats-row');
+    if (statsRow) statsRow.style.display = '';
+    const tdBtn = document.getElementById('menu-card-test-drive');
+    if (tdBtn) tdBtn.style.display = 'none';
+    const rcBtn = document.getElementById('menu-card-recall');
+    if (rcBtn) rcBtn.style.display = 'none';
+    const pcBtn = document.getElementById('btn-parts-home');
+    if (pcBtn) pcBtn.style.display = 'none';
+    document.getElementById('menu-grid').innerHTML = '';
+    _onSnap(_query(_colRef('pickup_cars'), _where('assignedDriver','==',currentUser.name)), snap => {
+      const cars = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const card = document.getElementById('stat-pickup-driver-card');
+      const cnt = document.getElementById('stat-pickup-driver-count');
+      if (card) card.style.display = cars.length ? 'block' : 'none';
+      if (cnt) cnt.textContent = cars.length;
+      _driverPickupCars = cars;
+      const modal = document.getElementById('modal-driver-pickup');
+      if (modal && modal.classList.contains('open')) _renderDriverPickupModal();
+    });
+    return;
+  }
+
+  // משה (pickup_agent) — pickup management + task request button
+  if (isPickupAgent) {
+    // hide stats row and test drive button
+    const statsRow = document.getElementById('stats-row');
+    if (statsRow) statsRow.style.display = 'none';
+    const tdBtn = document.getElementById('menu-card-test-drive');
+    if (tdBtn) tdBtn.style.display = 'none';
+    const rcBtn = document.getElementById('menu-card-recall');
+    if (rcBtn) rcBtn.style.display = 'none';
+    const pcBtn = document.getElementById('btn-parts-home');
+    if (pcBtn) pcBtn.style.display = 'none';
+    document.getElementById('menu-grid').innerHTML =
+      `<div class="menu-card" id="menu-card-pickup" onclick="openPickupScreen()">
+        <div style="position:relative;display:inline-block">
+          <div class="mc-icon">🚙</div>
+          <span id="badge-pickup" style="display:none;position:absolute;top:-6px;right:-10px;background:#ef4444;color:#fff;border-radius:999px;font-size:11px;font-weight:900;padding:1px 6px;min-width:18px;text-align:center"></span>
+        </div>
+        <div class="mc-title">מכוניות לאיסוף</div>
+        <div class="mc-sub" id="sub-pickup">ניהול רכבים לאיסוף</div>
+      </div>
+      <div class="menu-card" onclick="openRequestTaskModal()">
+        <div class="mc-icon">📋</div>
+        <div class="mc-title">הצעת משימה</div>
+        <div class="mc-sub">שלח בקשה למנהל</div>
+      </div>`;
+    loadManagerBadges();
+    return;
+  }
+
+  // There is no car-battery emoji, so the cabinet card uses a drawn icon: a
+  // squat casing with two terminal posts and the + / − markings.
+  const _ICON_CAR_BATTERY = `<svg viewBox="0 0 24 24" width="36" height="36" fill="none" style="display:block;margin:0 auto">
+    <rect x="4.5" y="1.6" width="4" height="2.4" rx="0.7" fill="#dc2626"/>
+    <rect x="15.5" y="1.6" width="4" height="2.4" rx="0.7" fill="#334155"/>
+    <rect x="2" y="4" width="20" height="16" rx="2.6" fill="#1f3a5f"/>
+    <rect x="3.6" y="5.6" width="16.8" height="8" rx="1.4" fill="#2f5c8f"/>
+    <path d="M6.5 9.6h3M8 8.1v3" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
+    <path d="M14.5 9.6h3" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
+    <rect x="3.6" y="15.2" width="16.8" height="3.2" rx="1.1" fill="#0f2440"/>
+  </svg>`;
+
+  const menuItems = isManager
+    ? [
+        { icon: '📋', title: 'לוח משימות', sub: 'ניהול משימות לנהגים', screen: 'tasks' },
+        { icon: '🚗', title: 'קליטות ורענון רכבים', sub: 'קליטה ורענון במסך אחד', screen: 'vehicles' },
+        // row 2
+        { icon: _ICON_CAR_BATTERY, title: 'ארון מצברים', sub: 'מלאי, הרכבות וסטטיסטיקה', screen: 'battery-stock' },
+        // row 3 — recall is not here, it lives on the floating home button
+        { icon: '🚙', title: 'מכוניות לאיסוף', sub: 'ניהול רכבים לאיסוף', screen: 'pickup' },
+        // השטיפה אינה קובייה אצל המנהל — היא כפתור רחב באזור הצדדי
+        { icon: '🔨', title: 'פחחות', sub: 'עבודות, מחירים וחשבון חודשי', screen: 'bodyshop-mgr' },
+      ]
+    : [
+        { icon: '📋', title: 'המשימות שלי', sub: 'משימות שהוקצו לך', screen: 'tasks' },
+        { icon: '🔋', title: 'בדיקת סוללה והטענת רכבים חשמליים', sub: 'מילוי אחוזי טעינה וטווח', screen: 'driver-battery' },
+        { icon: _ICON_CAR_BATTERY, title: 'מצברים', sub: 'רישום מצבר שהורכב לרכב', screen: 'driver-battery-install' },
+        { icon: '🧽', title: 'פתק שטיפה', sub: 'הכנה והדפסה של פתק לרכב', screen: 'wash' },
+      ];
+
 
 function _cardHtml(m) {
     const _onclick = m.screen === 'driver-battery' ? "goToScreen('driver-battery-unified')"
