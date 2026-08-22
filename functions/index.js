@@ -1998,6 +1998,8 @@ exports.backupNow = onRequest(
 // המפתח נשמר ב-config/barca (שדה token) דרך מסך ההגדרות באפליקציה.
 // ════════════════════════════════════════════════════════════════════════
 const _BARCA_TEAM_ID = 81;   // FC Barcelona
+const _BARCA_ALERT_MIN = 10 * 60;      // התראה ביום המשחק בשעה 10:00
+const _BARCA_ALERT_TO = ["ליאל"];
 
 // שמות הקבוצות בעברית. מה שלא ברשימה מוצג בשם המקורי.
 const _BARCA_TEAMS = {
@@ -2085,13 +2087,18 @@ async function _barcaSync() {
       barcaMatchId: m.id,
       updatedAt: new Date().toISOString(),
     };
-    // באירוע חדש בלבד מוסיפים שדות תזכורת ריקים, כדי שלא תישלח שום הודעה.
-    // באירוע קיים לא נוגעים בהם — אם המנהל הגדיר תזכורת ידנית היא נשמרת.
-    if (!(await ref.get()).exists) {
-      fields.reminderMinutes = null;
-      fields.reminderTo = [];
+    // תזכורת ביום המשחק בשעה 10:00. השדה נמדד בדקות לפני שריקת הפתיחה,
+    // ולכן הוא מחושב מחדש בכל משיכה — משחק שהוזז לשעה אחרת עדיין יתריע ב-10:00.
+    const [kh, km] = startTime.split(":").map(Number);
+    fields.reminderMinutes = Math.max(0, (kh * 60 + km) - _BARCA_ALERT_MIN);
+    fields.reminderTo = _BARCA_ALERT_TO;
+
+    const prev = await ref.get();
+    const p = prev.exists ? prev.data() : null;
+    // תזכורת נשלחת פעם אחת. אם המשחק הוזז ליום או לשעה אחרת — פותחים אותה מחדש.
+    if (!p || p.date !== date || p.startTime !== startTime) {
       fields.reminderSent = false;
-      fields.createdAt = new Date().toISOString();
+      if (!p) fields.createdAt = new Date().toISOString();
     }
     await ref.set(fields, { merge: true });
     written++;
@@ -2114,9 +2121,10 @@ async function _barcaSync() {
   return { ok: true, written, removed };
 }
 
-// כל שלושה ימים ב-04:00 — מושך את כל המשחקים הידועים קדימה
+// כל בוקר ב-04:00 — מושך את כל המשחקים הידועים קדימה. יומי ולא כל שלושה
+// ימים, כדי שגם שינוי שעה של הרגע האחרון ייקלט לפני התראת ה-10:00.
 exports.barcaFixturesSync = onSchedule(
-  { schedule: "0 4 */3 * *", region: "europe-west1", timeZone: "Asia/Jerusalem", timeoutSeconds: 300 },
+  { schedule: "0 4 * * *", region: "europe-west1", timeZone: "Asia/Jerusalem", timeoutSeconds: 300 },
   async () => { console.log("barcaFixturesSync", JSON.stringify(await _barcaSync())); }
 );
 
