@@ -138,6 +138,8 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
   .home-body.has-calendar #home-side-actions{margin-top:20px;padding-top:0}
   .home-body.has-calendar .menu-grid{grid-template-columns:repeat(2,1fr) !important}
 }
+/* בטלפון צר הכפתור מצטמצם לאייקון, כדי שהכותרת לא תיצפף */
+@media(max-width:430px){#btn-all-screens .as-txt{display:none}}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
 .cal-dow{text-align:center;font-size:11px;font-weight:800;color:var(--muted);padding:4px 0}
 .cal-day{text-align:center;padding:4px 0;cursor:pointer;user-select:none}
@@ -689,6 +691,7 @@ if ('serviceWorker' in navigator) {
   <div class="app-header">
     <div class="logo">ענק <span>הרכבים</span></div>
     <button id="btn-settings" onclick="openSettings()" style="display:none;background:rgba(255,255,255,0.15);border:none;border-radius:999px;color:#fff;font-size:13px;font-weight:700;padding:6px 14px;cursor:pointer;font-family:Heebo,sans-serif">⚙️ הגדרות</button>
+    <button id="btn-all-screens" onclick="openAllScreens()" style="display:none;background:var(--gold);border:none;border-radius:999px;color:#000;font-size:13px;font-weight:800;padding:6px 14px;cursor:pointer;font-family:Heebo,sans-serif;white-space:nowrap">☰ <span class="as-txt">כל המסכים</span><span id="all-screens-count" style="display:none;background:#ef4444;color:#fff;border-radius:999px;padding:1px 7px;font-size:11px;font-weight:900;margin-right:5px"></span></button>
     <div class="user-badge" id="home-user-badge" onclick="logout()">יציאה</div>
   </div>
   <div class="home-body">
@@ -724,7 +727,7 @@ if ('serviceWorker' in navigator) {
           <button onclick="openAddCalEvent()" style="background:var(--gold);color:#000;border:none;border-radius:10px;padding:7px 14px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer;white-space:nowrap">➕ הוסף משימה</button>
         </div>
         <div id="cal-agenda" style="margin-top:10px"></div>
-      <div id="home-side-actions">
+      <div id="home-side-actions" style="display:none">
         <button class="hs-btn hs-search hs-wide" id="menu-card-plate-search" onclick="goToScreen('plate-search')">🔎 חיפוש רכב לפי לוחית</button>
         <button class="hs-btn hs-own hs-wide" id="menu-card-ownership" onclick="goToScreen('ownership')">📑 בדיקת בעלויות<span id="badge-ownership" style="display:none;margin-right:8px;background:rgba(255,255,255,.32);border-radius:999px;padding:2px 11px;font-size:15px;font-weight:900"></span></button>
         <button class="hs-btn hs-wash hs-wide" id="menu-btn-wash" onclick="goToScreen('wash')">🧽 פתק שטיפה</button>
@@ -738,6 +741,14 @@ if ('serviceWorker' in navigator) {
       </div>
     </div>
     <button id="btn-parts-home" onclick="goToScreen('parts-catalog')" style="display:none;position:fixed;bottom:24px;left:16px;z-index:200;width:auto;margin:0;background:linear-gradient(135deg,#0ea5e9,#0369a1);color:#fff;border:none;border-radius:14px;padding:13px 22px;font-family:Heebo,sans-serif;font-size:16px;font-weight:800;cursor:pointer;text-align:center;box-shadow:0 3px 12px rgba(0,0,0,.3)">🔧 קטלוג חלפים</button>
+  </div>
+</div>
+
+<!-- כל המסכים: כל מה שהיה כפתורים במסך הבית -->
+<div class="modal-overlay" id="modal-all-screens">
+  <div class="modal-box" style="max-width:420px">
+    <div class="modal-title">☰ כל המסכים <button class="modal-close" onclick="closeModal('modal-all-screens')">✕</button></div>
+    <div id="all-screens-list"></div>
   </div>
 </div>
 
@@ -3854,7 +3865,69 @@ function renderHome() {
         { icon: '🧽', title: 'פתק שטיפה', sub: 'הכנה והדפסה של פתק לרכב', screen: 'wash' },
       ];
 
-  function _cardHtml(m) {
+  /* ── "כל המסכים" ────────────────────────────────────────────────────
+   כל מה שהיה תשעה כפתורים צבעוניים במסך הבית יושב כאן, ברשימה אחת
+   אחידה. הכפתורים המקוריים נשארים במקומם ומוסתרים — הרשימה קוראת
+   מהם את השם, המספר ומה קורה בלחיצה, כך שאין כפילות של הגדרות.  */
+const _ALL_SCREENS = [
+  { id: 'menu-card-ownership',    icon: '📑', label: 'בדיקת בעלויות',        badge: 'badge-ownership' },
+  { id: 'menu-card-recall',       icon: '⚠️', label: 'בדיקת ריקול',          badge: 'recall-home-count' },
+  { id: 'menu-card-inventory',    icon: '📦', label: 'בדיקת מלאי',           badge: 'badge-inventory' },
+  { id: 'menu-card-pits',         icon: '🕳️', label: 'בורות',                badge: 'badge-pits' },
+  { id: 'menu-card-test-drive',   icon: '🏎️', label: 'נסיעות מבחן',          badge: 'td-home-count' },
+  { id: 'menu-card-battery',      icon: '🔋', label: 'בדיקת טעינה',          badge: 'badge-battery' },
+  { id: 'menu-card-yard',         icon: '🅿️', label: 'סידור מגרש',           badge: 'badge-yard' },
+  { id: 'menu-btn-wash',          icon: '🧽', label: 'פתק שטיפה',            badge: '' },
+  { id: 'menu-card-plate-search', icon: '🔎', label: 'חיפוש רכב לפי לוחית',  badge: '' },
+];
+
+// המספר שמוצג ליד פריט — נלקח מהתגית של הכפתור המקורי
+function _screenBadge(it) {
+  if (!it.badge) return 0;
+  const el = document.getElementById(it.badge);
+  if (!el || el.style.display === 'none') return 0;
+  return parseInt(String(el.textContent).replace(/\D/g, ''), 10) || 0;
+}
+
+// פריט מוצג רק אם הכפתור שמאחוריו פעיל למשתמש הזה
+function _screenVisible(it) {
+  const el = document.getElementById(it.id);
+  return !!el && el.style.display !== 'none';
+}
+
+function _syncAllScreensCount() {
+  const btn = document.getElementById('btn-all-screens');
+  const nb = document.getElementById('all-screens-count');
+  if (!btn || !nb) return;
+  const items = _ALL_SCREENS.filter(_screenVisible);
+  btn.style.display = items.length ? '' : 'none';
+  const total = items.reduce((t, it) => t + _screenBadge(it), 0);
+  nb.textContent = total;
+  nb.style.display = total ? '' : 'none';
+  if (document.getElementById('modal-all-screens')?.classList.contains('open')) _renderAllScreens();
+}
+window._syncAllScreensCount = _syncAllScreensCount;
+
+function _renderAllScreens() {
+  const box = document.getElementById('all-screens-list');
+  if (!box) return;
+  const items = _ALL_SCREENS.filter(_screenVisible);
+  box.innerHTML = items.map(it => {
+    const n = _screenBadge(it);
+    return `<div onclick="closeModal('modal-all-screens');document.getElementById('${it.id}').click()"
+      style="display:flex;align-items:center;gap:11px;padding:12px 4px;border-bottom:1px solid var(--border);cursor:pointer">
+      <div style="width:38px;height:38px;border-radius:11px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">${it.icon}</div>
+      <div style="flex:1;font-weight:800;font-size:14.5px">${it.label}</div>
+      ${n ? `<span style="background:#ef4444;color:#fff;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:900">${n}</span>` : ''}
+      <span style="color:var(--muted);font-weight:900">‹</span>
+    </div>`;
+  }).join('');
+}
+
+function openAllScreens() { _renderAllScreens(); openModal('modal-all-screens'); }
+window.openAllScreens = openAllScreens;
+
+function _cardHtml(m) {
     const _onclick = m.screen === 'driver-battery' ? "goToScreen('driver-battery-unified')"
       : m.screen === 'driver-battery-install' ? "openDriverBatteryInstall()"
       : `goToScreen('${m.screen}')`;
@@ -3891,7 +3964,8 @@ function renderHome() {
   if (dbCard) dbCard.style.display = 'none';
   // restore stats row for manager/drivers (may have been hidden by previous role)
   const statsRowMain = document.getElementById('stats-row');
-  if (statsRowMain) statsRowMain.style.display = '';
+  // אצל המנהל המספרים יושבים על הקוביות עצמן, ולכן שורת הקוביות הקטנות מיותרת
+  if (statsRowMain) statsRowMain.style.display = isManager ? 'none' : '';
   const tdBtn = document.getElementById('menu-card-test-drive');
   if (tdBtn) tdBtn.style.display = isManager ? '' : 'none';
   const rcBtn = document.getElementById('menu-card-recall');
@@ -3906,6 +3980,10 @@ function renderHome() {
   const ownBtn = document.getElementById('menu-card-ownership');
   if (ownBtn) ownBtn.style.display = isManager ? '' : 'none';
   if (isManager) _startOwnMorning();
+  // כפתור "כל המסכים" מתעדכן לפי התגיות של הכפתורים שמאחוריו
+  _syncAllScreensCount();
+  clearInterval(window._allScreensTimer);
+  window._allScreensTimer = setInterval(_syncAllScreensCount, 2000);
   // The parts catalogue is parked, not removed — the screen and everything in it
   // stay exactly as they are. To bring the button back, put the manager check
   // back in place of the 'none' below.
@@ -4308,6 +4386,8 @@ function loadStats() {
   if (isManager) {
     _onSnap(_query(_colRef('tasks'), _where('status','!=','done')), snap => {
       document.getElementById('stat-tasks').textContent = snap.size || '0';
+      // המספר יושב על קוביית לוח המשימות, במקום קובייה נפרדת
+      _setCardBadge('tasks', snap.size || 0);
     });
     _onSnap(_colRef('vehicles'), snap => {
       document.getElementById('stat-vehicles').textContent = snap.size;
