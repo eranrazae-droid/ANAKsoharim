@@ -3097,6 +3097,17 @@ if ('serviceWorker' in navigator) {
         <div id="barca-status" style="font-size:12px;font-weight:700;margin-bottom:8px;color:var(--muted)"></div>
         <button class="btn-submit" onclick="saveBarcaToken()" style="width:100%;margin-top:0;background:var(--dark);color:#fff">💾 שמור מפתח</button>
         <button class="btn-submit" onclick="runBarcaSyncNow()" style="width:100%;margin-top:8px">🔄 משוך משחקים עכשיו</button>
+        <div style="margin-top:16px;border-top:2px solid var(--border);padding-top:14px">
+          <div style="font-weight:800;font-size:14px;margin-bottom:6px">סמל המועדון ביומן</div>
+          <p style="font-size:12px;color:var(--muted);margin-bottom:8px;line-height:1.6">
+            בחר קובץ תמונה של הסמל מהטלפון (PNG עם רקע שקוף מומלץ). הסמל יופיע ביומן בכל יום משחק, בכל המכשירים.</p>
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+            <div id="barca-crest-prev" style="width:52px;height:58px;flex-shrink:0;border-radius:8px;
+              background:var(--fcb-crest) center/contain no-repeat"></div>
+            <input type="file" accept="image/*" id="barca-crest-file" onchange="uploadBarcaCrest(this)" style="flex:1;font-size:12px">
+          </div>
+          <button class="btn-submit" onclick="resetBarcaCrest()" style="width:100%;margin-top:0;background:var(--surface2);color:var(--text)">↩️ חזרה לסמל ברירת המחדל</button>
+        </div>
       </div>
 
     </div>
@@ -4184,6 +4195,7 @@ function _cardHtml(m) {
   // כפתור "כל המסכים" מתעדכן לפי התגיות של הכפתורים שמאחוריו
   if (isManager) _dailyChecksListen();
   _storyListen();
+  _crestListen();
   _renderDailyQuote();
   _syncAllScreensCount();
   clearInterval(window._allScreensTimer);
@@ -4738,6 +4750,17 @@ function _todayStory() {
 /* האם הסיפור של היום כבר נקרא. נשמר בשרת, כך שקריאה מהטלפון נספרת
    גם במחשב. מתאפס בחצות, יחד עם החלפת הסיפור. */
 let _storyReadDay = null;
+
+// הסמל שהמנהל העלה נשמר ב-config/barca ומוחל על כל המכשירים
+function _crestListen() {
+  if (window._crestUnsub) return;
+  window._crestUnsub = true;
+  _onSnap(_docRef('config', 'barca'), snap => {
+    const url = snap.exists() ? (snap.data().crest || '') : '';
+    if (url) document.documentElement.style.setProperty('--fcb-crest', `url("${url}")`);
+    else document.documentElement.style.removeProperty('--fcb-crest');
+  }, () => {});
+}
 
 function _storyListen() {
   if (window._storyUnsub) return;
@@ -17582,6 +17605,53 @@ async function runBarcaSyncNow() {
   _loadBarcaStatus();
 }
 window.runBarcaSyncNow = runBarcaSyncNow;
+
+// שמירת הסמל כ-PNG קטן עם שקיפות. 160 פיקסל מספיקים ליומן ומשקלם זניח.
+function _crestToPng(file, maxPx = 160) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      let w = img.width, h = img.height;
+      if (w > maxPx || h > maxPx) {
+        if (w > h) { h = Math.round(h * maxPx / w); w = maxPx; }
+        else { w = Math.round(w * maxPx / h); h = maxPx; }
+      }
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL('image/png'));
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+async function uploadBarcaCrest(input) {
+  const file = input?.files?.[0];
+  if (!file) return;
+  if (!_requireNet('שמירת הסמל')) { input.value = ''; return; }
+  try {
+    const data = await _crestToPng(file);
+    if (_b64Size(data) > 700 * 1024) return showToast('התמונה גדולה מדי — נסה קובץ קטן יותר', 6000);
+    const { setDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    await setDoc(_docRef('config', 'barca'), { crest: data, crestBy: currentUser.name, crestAt: new Date().toISOString() }, { merge: true });
+    showToast('✅ הסמל נשמר ויופיע ביומן');
+  } catch (e) { showToast('העלאה נכשלה: ' + (e.code || e.message), 6000); }
+  input.value = '';
+}
+window.uploadBarcaCrest = uploadBarcaCrest;
+
+async function resetBarcaCrest() {
+  if (!_requireNet('שחזור הסמל')) return;
+  try {
+    const { setDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    await setDoc(_docRef('config', 'barca'), { crest: '' }, { merge: true });
+    showToast('הסמל חזר לברירת המחדל');
+  } catch (e) { showToast('שמירה נכשלה: ' + (e.code || e.message), 6000); }
+}
+window.resetBarcaCrest = resetBarcaCrest;
 
 // החלפת לשונית (בטלפון). במחשב שלושתן מוצגות יחד ממילא.
 function settingsTab(name) {
