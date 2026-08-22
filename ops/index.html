@@ -2992,6 +2992,7 @@ if ('serviceWorker' in navigator) {
       <button id="stab-users" class="settings-tab" onclick="settingsTab('users')">👥 משתמשים</button>
       <button id="stab-gcal" class="settings-tab" onclick="settingsTab('gcal')">📅 יומן גוגל</button>
       <button id="stab-maps" class="settings-tab" onclick="settingsTab('maps')">🗺️ מפות</button>
+      <button id="stab-barca" class="settings-tab" onclick="settingsTab('barca')">⚽ ברצלונה</button>
     </div>
     <div class="settings-cols">
 
@@ -3045,6 +3046,20 @@ if ('serviceWorker' in navigator) {
           <input class="form-input" id="maps-api-key" autocomplete="off" placeholder="AIza..." style="direction:ltr;text-align:left"></div>
         <div id="maps-key-status" style="font-size:12px;font-weight:700;margin-bottom:8px;color:var(--muted)"></div>
         <button class="btn-submit" onclick="saveMapsKey()" style="width:100%;margin-top:0;background:var(--dark);color:#fff">💾 שמור מפתח מפות</button>
+      </div>
+
+      <div class="settings-panel" id="spanel-barca">
+        <div class="settings-col-title">⚽ משחקי ברצלונה</div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.6">
+          כל שלושה ימים המערכת מושכת מחדש את כל המשחקים הידועים של ברצלונה — ליגה, גביע ואירופה —
+          עם התאריך והשעה המעודכנים בשעון ישראל, ומוסיפה אותם ליומן. משחק שנדחה או ירד מהלוח נמחק מהיומן לבד.<br>
+          כדי להפעיל צריך מפתח חינמי מ-football-data.org: הרשמה עם מייל ← המפתח מגיע במייל ← להדביק כאן.
+        </p>
+        <div class="form-group"><label>מפתח API</label>
+          <input class="form-input" id="barca-token" autocomplete="off" placeholder="מפתח מ-football-data.org" style="direction:ltr;text-align:left"></div>
+        <div id="barca-status" style="font-size:12px;font-weight:700;margin-bottom:8px;color:var(--muted)"></div>
+        <button class="btn-submit" onclick="saveBarcaToken()" style="width:100%;margin-top:0;background:var(--dark);color:#fff">💾 שמור מפתח</button>
+        <button class="btn-submit" onclick="runBarcaSyncNow()" style="width:100%;margin-top:8px">🔄 משוך משחקים עכשיו</button>
       </div>
 
     </div>
@@ -17411,6 +17426,7 @@ async function openSettings() {
   openGcalScreen();
   openUsersScreen();
   _loadMapsKeyStatus();
+  _loadBarcaStatus();
 }
 window.openSettings = openSettings;
 
@@ -17449,9 +17465,55 @@ async function saveMapsKey() {
 }
 window.saveMapsKey = saveMapsKey;
 
+// ── משחקי ברצלונה: המפתח נשמר ב-config/barca, השרת מושך משם כל שלושה ימים ──
+const _BARCA_FN = 'https://europe-west1-anak-soharim.cloudfunctions.net/runBarcaSyncNow';
+
+async function _loadBarcaStatus() {
+  const st = document.getElementById('barca-status');
+  if (!st) return;
+  try {
+    const { getDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const snap = await getDoc(_docRef('config', 'barca'));
+    const d = snap.exists() ? snap.data() : {};
+    if (!d.token) { st.textContent = 'אין מפתח — המשחקים לא נמשכים'; st.style.color = 'var(--muted)'; return; }
+    const when = d.lastSync ? new Date(d.lastSync).toLocaleString('he-IL') : 'עדיין לא רץ';
+    st.textContent = `✅ מפתח מוגדר · משיכה אחרונה: ${when}` + (d.lastCount != null ? ` · ${d.lastCount} משחקים` : '');
+    st.style.color = '#16a34a';
+  } catch (e) { st.textContent = ''; }
+}
+
+async function saveBarcaToken() {
+  const inp = document.getElementById('barca-token');
+  const token = (inp?.value || '').trim();
+  if (!token) return showToast('נא להדביק מפתח');
+  if (!_requireNet('שמירת המפתח')) return;
+  try {
+    const { setDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    await setDoc(_docRef('config', 'barca'), { token, updatedAt: new Date().toISOString(), updatedBy: currentUser.name }, { merge: true });
+    inp.value = '';
+    showToast('✅ המפתח נשמר');
+    _loadBarcaStatus();
+  } catch (e) { showToast('שמירה נכשלה: ' + (e.code || e.message), 6000); }
+}
+window.saveBarcaToken = saveBarcaToken;
+
+async function runBarcaSyncNow() {
+  if (!_requireNet('משיכת המשחקים')) return;
+  const st = document.getElementById('barca-status');
+  if (st) { st.textContent = '⏳ מושך משחקים...'; st.style.color = 'var(--muted)'; }
+  try {
+    const r = await (await fetch(_BARCA_FN)).json();
+    if (r.ok) showToast(`✅ נוספו/עודכנו ${r.written} משחקים` + (r.removed ? ` · ${r.removed} נמחקו` : ''), 6000);
+    else if (r.reason === 'no-token') showToast('אין מפתח שמור — קודם לשמור מפתח', 6000);
+    else showToast('המשיכה נכשלה: ' + (r.reason || r.error || ''), 7000);
+  } catch (e) { showToast('שגיאת חיבור: ' + e.message, 6000); }
+  _loadBarcaStatus();
+}
+window.runBarcaSyncNow = runBarcaSyncNow;
+
 // החלפת לשונית (בטלפון). במחשב שלושתן מוצגות יחד ממילא.
 function settingsTab(name) {
-  ['telegram', 'users', 'gcal', 'maps'].forEach(t => {
+  ['telegram', 'users', 'gcal', 'maps', 'barca'].forEach(t => {
     document.getElementById('stab-' + t)?.classList.toggle('active', t === name);
     document.getElementById('spanel-' + t)?.classList.toggle('active', t === name);
   });

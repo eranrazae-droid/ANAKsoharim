@@ -1989,3 +1989,140 @@ exports.backupNow = onRequest(
     res.status(out.ok ? 200 : 500).json(out);
   },
 );
+
+// ════════════════════════════════════════════════════════════════════════
+// משחקי ברצלונה ביומן
+// המקור: football-data.org — מחזיר את כל המשחקים הקבועים של הקבוצה
+// (ליגה, גביע ואירופה) עם שעת פתיחה מעודכנת ב-UTC. הסנכרון רץ כל שלושה
+// ימים, ולכן שינויי מועד ושעה נקלטים מעצמם.
+// המפתח נשמר ב-config/barca (שדה token) דרך מסך ההגדרות באפליקציה.
+// ════════════════════════════════════════════════════════════════════════
+const _BARCA_TEAM_ID = 81;   // FC Barcelona
+
+// שמות הקבוצות בעברית. מה שלא ברשימה מוצג בשם המקורי.
+const _BARCA_TEAMS = {
+  "FC Barcelona": "ברצלונה", "Real Madrid CF": "ריאל מדריד",
+  "Club Atlético de Madrid": "אתלטיקו מדריד", "Athletic Club": "אתלטיק בילבאו",
+  "Real Sociedad de Fútbol": "ריאל סוסיאדד", "Villarreal CF": "ויאריאל",
+  "Real Betis Balompié": "בטיס", "Sevilla FC": "סביליה",
+  "Valencia CF": "ולנסיה", "RC Celta de Vigo": "סלטה ויגו",
+  "RCD Espanyol de Barcelona": "אספניול", "Rayo Vallecano de Madrid": "ראיו ויאקאנו",
+  "CA Osasuna": "אוססונה", "Getafe CF": "חטאפה", "Girona FC": "ג'ירונה",
+  "RCD Mallorca": "מיורקה", "Deportivo Alavés": "אלאבס", "Elche CF": "אלצ'ה",
+  "Levante UD": "לבאנטה", "Real Oviedo": "אוביידו", "Real Valladolid CF": "ויאדוליד",
+  "UD Las Palmas": "לאס פלמאס", "Real Racing Club": "רסינג סנטנדר",
+  "Málaga CF": "מלאגה", "Cádiz CF": "קאדיס", "UD Almería": "אלמריה",
+  "Granada CF": "גרנדה", "SD Eibar": "אייבר", "Sporting de Gijón": "חיחון",
+  "Manchester City FC": "מנצ'סטר סיטי", "Liverpool FC": "ליברפול",
+  "Arsenal FC": "ארסנל", "Chelsea FC": "צ'לסי", "Manchester United FC": "מנצ'סטר יונייטד",
+  "Tottenham Hotspur FC": "טוטנהאם", "Newcastle United FC": "ניוקאסל",
+  "FC Bayern München": "באיירן מינכן", "Borussia Dortmund": "בורוסיה דורטמונד",
+  "Bayer 04 Leverkusen": "באייר לברקוזן", "RB Leipzig": "לייפציג",
+  "Paris Saint-Germain FC": "פ.ס.ז'.", "Olympique de Marseille": "מארסיי",
+  "Olympique Lyonnais": "ליון", "AS Monaco FC": "מונאקו",
+  "FC Internazionale Milano": "אינטר", "AC Milan": "מילאן",
+  "Juventus FC": "יובנטוס", "SSC Napoli": "נאפולי", "AS Roma": "רומא",
+  "Atalanta BC": "אטלנטה", "SL Benfica": "בנפיקה", "FC Porto": "פורטו",
+  "Sporting Clube de Portugal": "ספורטינג ליסבון", "AFC Ajax": "אייאקס",
+  "PSV": "פ.ס.וו. איינדהובן", "Club Brugge KV": "קלאב ברוז'",
+};
+// שמות המפעלים בעברית
+const _BARCA_COMPS = {
+  "Primera Division": "ליגה ספרדית", "La Liga": "ליגה ספרדית",
+  "Copa del Rey": "גביע המלך", "Supercopa de España": "סופרקאפ ספרד",
+  "UEFA Champions League": "ליגת האלופות", "Club Friendlies": "ידידות",
+  "FIFA Club World Cup": "מונדיאל המועדונים",
+};
+const _barcaName = (t) =>
+  (t && (_BARCA_TEAMS[t.name] || _BARCA_TEAMS[t.shortName] || t.shortName || t.name)) || "";
+
+// ממיר חותמת UTC לתאריך ולשעה בשעון ישראל — בדיוק בפורמט שהיומן שומר
+function _barcaLocal(utcISO) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Jerusalem",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  }).formatToParts(new Date(utcISO));
+  const g = (t) => parts.find((p) => p.type === t).value;
+  const hh = g("hour") === "24" ? "00" : g("hour");
+  return { date: `${g("year")}-${g("month")}-${g("day")}`, startTime: `${hh}:${g("minute")}` };
+}
+
+async function _barcaSync() {
+  const cfgSnap = await db.doc("config/barca").get();
+  const cfg = cfgSnap.exists ? cfgSnap.data() : {};
+  const token = (cfg.token || "").trim();
+  if (!token) return { ok: false, reason: "no-token" };
+  const teamId = cfg.teamId || _BARCA_TEAM_ID;
+
+  const url = `https://api.football-data.org/v4/teams/${teamId}/matches?status=SCHEDULED&limit=200`;
+  const res = await fetch(url, { headers: { "X-Auth-Token": token } });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    return { ok: false, reason: `http-${res.status}`, body: body.slice(0, 200) };
+  }
+  const data = await res.json();
+  const matches = Array.isArray(data.matches) ? data.matches : [];
+
+  const seen = new Set();
+  let written = 0;
+  for (const m of matches) {
+    if (!m.utcDate || !m.id) continue;
+    const { date, startTime } = _barcaLocal(m.utcDate);
+    const home = _barcaName(m.homeTeam);
+    const away = _barcaName(m.awayTeam);
+    if (!home || !away) continue;
+    const comp = _BARCA_COMPS[m.competition?.name] || m.competition?.name || "";
+    const id = `barca_${m.id}`;
+    seen.add(id);
+    const ref = db.doc(`calendar_events/${id}`);
+    const fields = {
+      title: `⚽ ${home} – ${away}`,
+      date, startTime, endTime: "",
+      notes: comp,
+      repeat: "none",
+      autoBarca: true,
+      barcaMatchId: m.id,
+      updatedAt: new Date().toISOString(),
+    };
+    // באירוע חדש בלבד מוסיפים שדות תזכורת ריקים, כדי שלא תישלח שום הודעה.
+    // באירוע קיים לא נוגעים בהם — אם המנהל הגדיר תזכורת ידנית היא נשמרת.
+    if (!(await ref.get()).exists) {
+      fields.reminderMinutes = null;
+      fields.reminderTo = [];
+      fields.reminderSent = false;
+      fields.createdAt = new Date().toISOString();
+    }
+    await ref.set(fields, { merge: true });
+    written++;
+  }
+
+  // משחק שנדחה או ירד מהלוח — נמחק מהיומן, אבל רק אירועים עתידיים
+  // שנוצרו אוטומטית. משחקים שכבר עברו נשארים כהיסטוריה.
+  const today = _barcaLocal(new Date().toISOString()).date;
+  let removed = 0;
+  const stale = await db.collection("calendar_events")
+    .where("autoBarca", "==", true).where("date", ">=", today).get();
+  for (const d of stale.docs) {
+    if (!seen.has(d.id)) { await d.ref.delete(); removed++; }
+  }
+
+  await db.doc("config/barca").set(
+    { lastSync: new Date().toISOString(), lastCount: written, lastRemoved: removed }, { merge: true });
+  return { ok: true, written, removed };
+}
+
+// כל שלושה ימים ב-04:00 — מושך את כל המשחקים הידועים קדימה
+exports.barcaFixturesSync = onSchedule(
+  { schedule: "0 4 */3 * *", region: "europe-west1", timeZone: "Asia/Jerusalem", timeoutSeconds: 300 },
+  async () => { console.log("barcaFixturesSync", JSON.stringify(await _barcaSync())); }
+);
+
+// משיכה ידנית מתוך מסך ההגדרות
+exports.runBarcaSyncNow = onRequest(
+  { cors: true, region: "europe-west1", timeoutSeconds: 300 },
+  async (req, res) => {
+    try { res.json(await _barcaSync()); }
+    catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+  }
+);
