@@ -724,7 +724,10 @@ if ('serviceWorker' in navigator) {
       <div id="home-calendar-area" style="display:none">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
           <button onclick="calNav(-1)" style="background:var(--surface2);border:none;border-radius:8px;width:32px;height:32px;font-size:18px;font-weight:900;cursor:pointer">‹</button>
-          <div id="cal-title" style="font-weight:900;font-size:16px"></div>
+          <div style="text-align:center">
+            <div id="cal-title" style="font-weight:900;font-size:16px"></div>
+            <div id="cal-title-heb" style="font-size:12px;font-weight:800;color:var(--muted);margin-top:2px"></div>
+          </div>
           <button onclick="calNav(1)" style="background:var(--surface2);border:none;border-radius:8px;width:32px;height:32px;font-size:18px;font-weight:900;cursor:pointer">›</button>
         </div>
         <div id="cal-body"></div>
@@ -4138,6 +4141,20 @@ function _calOccursOn(e, ds) {
   return ds === e.date;
 }
 
+/* שם החודש העברי שמתאים לחודש הלועזי המוצג. אם החודש הלועזי משתרע על
+   שני חודשים עבריים — מוצגים שניהם. אם הדפדפן לא תומך, לא מוצג כלום. */
+function _hebMonthLabel(y, m) {
+  try {
+    const f = new Intl.DateTimeFormat('he-u-ca-hebrew', { month: 'long', year: 'numeric' });
+    const a = f.format(new Date(y, m, 1));
+    const b = f.format(new Date(y, m + 1, 0));
+    if (a === b) return a;
+    // אותה שנה עברית — מציגים אותה פעם אחת בסוף
+    const [ma, ya] = a.split(' '), [mb, yb] = b.split(' ');
+    return ya === yb ? `${ma}–${mb} ${ya}` : `${a} – ${b}`;
+  } catch (e) { return ''; }
+}
+
 function renderCalendar() {
   const title = document.getElementById('cal-title');
   const body = document.getElementById('cal-body');
@@ -4145,6 +4162,9 @@ function renderCalendar() {
   const y = _calMonth.getFullYear(), m = _calMonth.getMonth();
   const monthNames = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
   if (title) title.textContent = monthNames[m] + ' ' + y;
+  // התאריך העברי: חודש לועזי אחד נופל על שני חודשים עבריים, ולכן מוצג טווח
+  const heb = document.getElementById('cal-title-heb');
+  if (heb) heb.textContent = _hebMonthLabel(y, m);
   const startDow = new Date(y, m, 1).getDay();
   const daysInMonth = new Date(y, m+1, 0).getDate();
   const dows = ['א','ב','ג','ד','ה','ו','ש'];
