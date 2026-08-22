@@ -100,15 +100,9 @@
       .content{padding:16px}
       .card.panel{padding:12px}
       .stats-grid{grid-template-columns:1fr 1fr}
-      /* מעקב פרסום: כרטיסים במקום טבלה */
-      .pt-table{display:none}
-      .pt-cards{display:block}
-      /* דשבורד מחירים: עמודת השם נתקעת בצד + גופן קומפקטי */
-      #profitTableBody,#tab-dashboard table{font-size:12px}
-      #profitTableBody td,#tab-dashboard table th,#tab-dashboard table td{padding:6px 6px!important}
-      #profitTableBody input{width:78px!important;font-size:12px!important;padding:5px 6px!important}
-      #tab-dashboard table thead th:first-child,#profitTableBody td:first-child{
-        position:sticky;right:0;background:#fff;z-index:2;box-shadow:-5px 0 6px -4px rgba(0,0,0,.18)}
+      /* מעקב פרסום + לוח מחירים: כרטיסים במקום טבלה */
+      .pt-table,.pc-table{display:none}
+      .pt-cards,.pc-cards{display:block}
     }
     /* כרטיסי מעקב פרסום */
     .pt-cards{display:none}
@@ -122,6 +116,24 @@
     .pt-chan-btn{display:flex;flex-direction:column;align-items:center;gap:4px;border:none;border-radius:12px;padding:12px 6px;cursor:pointer;font-size:12px;line-height:1.3;text-align:center}
     .pt-chan-btn span{font-weight:600}
     .pt-chan-btn b{font-size:13px}
+    /* כרטיסי מחירים והחזר חודשי */
+    .pc-cards{display:none}
+    .pc-brand{font-weight:900;font-size:15px;margin:14px 2px 8px;color:#000}
+    .pc-card{border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+    .pc-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+    .pc-name{font-weight:800;font-size:15px}
+    .pc-tog{display:flex;gap:6px}
+    .pc-tog button{border:none;border-radius:999px;padding:6px 12px;font-weight:900;font-size:12px;cursor:pointer;color:#fff}
+    .pc-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .pc-fields label{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--muted);font-weight:600}
+    .pc-fields input{padding:8px;font-size:14px;border:1px solid var(--line);border-radius:8px;text-align:right;width:100%}
+    .pc-total{grid-column:span 2;display:flex;align-items:center;justify-content:space-between;background:#fffbeb;border-radius:8px;padding:8px 10px;margin-top:2px}
+    .pc-total span{font-size:12px;color:#92400e;font-weight:600}.pc-total b{font-size:16px;color:#a16207}
+    .pc-fin{margin-top:10px;border-top:1px dashed var(--line);padding-top:10px}
+    .pc-fin-low{display:flex;align-items:baseline;gap:8px;background:#f0fdf4;border-radius:10px;padding:8px 12px}
+    .pc-fin-low span{font-size:12px;color:#166534}.pc-fin-low b{font-size:20px;color:#15803d;font-weight:900}.pc-fin-low small{color:#6b7280;font-size:11px}
+    .pc-fin-rest{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;font-size:11px;color:#6b7280}
+    .pc-fin-rest b{color:#374151}
     #profitTableBody tr{transition:background .12s}
     #profitTableBody tr:hover{background:#fff8e1!important}
   </style>
@@ -199,7 +211,7 @@
             <div><div class="eyebrow">מחירים</div><h2 style="font-size:18px">מחירים והחזר חודשי לכל רכב</h2></div>
             <select id="profitBrandFilter" onchange="renderProfit()" style="width:7cm;min-width:0;flex:0 0 auto"><option value="">כל היצרנים</option></select>
           </div>
-          <div style="overflow-x:auto">
+          <div class="pc-table" style="overflow-x:auto">
             <table style="width:100%;border-collapse:collapse;min-width:1240px;font-size:13px">
               <thead><tr style="text-align:right;color:var(--muted);font-size:12px;border-bottom:2px solid var(--line)">
                 <th style="padding:10px 8px">רכב</th>
@@ -214,6 +226,7 @@
               <tbody id="profitTableBody"></tbody>
             </table>
           </div>
+          <div id="profitCards" class="pc-cards"></div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
           <div class="card panel">
@@ -1429,6 +1442,38 @@
         ${sell>1?finTracks(sell+lic).map((m,i)=>({m,l:FIN_LABELS[i]})).sort((a,b)=>a.m-b.m).map((o,idx)=>`<td style="padding:9px 8px;text-align:center;${idx===0?'background:#f0fdf4':''}"><div style="font-size:10px;color:#6b7280">${o.l}</div><div style="font-weight:800;color:${idx===0?'#15803d':'#374151'}">${fmt(o.m)}</div></td>`).join(''):'<td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>'}
       </tr>`;
     }).join('');
+
+    // תצוגת כרטיסים לנייד
+    const cardsEl=document.getElementById('profitCards');
+    if(cardsEl){
+      let curB=null;
+      cardsEl.innerHTML=rows.map(c=>{
+        const sell=Number(c.autodealerPriceNumber)||0;
+        const lic=Number(c.licenseFee)||0;
+        const cat=Number(c.catalogPriceNumber)||0;
+        const incomplete=!(sell>1)||!(lic>0);
+        const tracks=sell>1?finTracks(sell+lic).map((m,i)=>({m,l:FIN_LABELS[i]})).sort((a,b)=>a.m-b.m):[];
+        const low=tracks.length?tracks[0]:null;
+        let head='';
+        if(c.brand!==curB){ curB=c.brand; head='<div class="pc-brand">'+_esc(c.brand||'—')+'</div>'; }
+        return head+
+        '<div class="pc-card" style="'+(c.reviewed?'border-color:#16a34a;background:#f6fef9':(incomplete?'background:#faf5ff':''))+'">'+
+          '<div class="pc-hd"><div class="pc-name">'+(c.reviewed?'✅ ':(incomplete?'🟣 ':''))+_esc(c.model||'')+'</div>'+
+            '<div class="pc-tog">'+
+              '<button onclick="toggleReviewed('+c.id+')" style="background:'+(c.reviewed?'#16a34a':'#cbd5e1')+'">'+(c.reviewed?'✔ נבדק':'סמן')+'</button>'+
+              '<button onclick="toggleSiteVisible('+c.id+')" style="background:'+(c.hidden?'#9ca3af':'#16a34a')+'">'+(c.hidden?'OFF':'ON')+'</button>'+
+            '</div></div>'+
+          '<div class="pc-fields">'+
+            '<label>מחירון יבואן<input type="number" value="'+(cat>1?cat:'')+'" onchange="updateImporterPrice('+c.id+',this.value)" placeholder="מחירון"></label>'+
+            '<label>מחיר מכירה<input type="number" value="'+(sell>1?sell:'')+'" onchange="updateSellPrice('+c.id+',this.value)" placeholder="מחיר"></label>'+
+            '<label>אגרת רישוי<input type="number" value="'+(lic||'')+'" onchange="updateLicenseFee('+c.id+',this.value)" placeholder="אגרה"></label>'+
+            '<div class="pc-total"><span>מחיר כולל רישוי</span><b>'+(sell>1?fmt(sell+lic):'-')+'</b></div>'+
+          '</div>'+
+          (low?'<div class="pc-fin"><div class="pc-fin-low"><span>החזר חודשי מ-</span><b>'+fmt(low.m)+'</b><small>'+_esc(low.l)+'</small></div>'+
+            '<div class="pc-fin-rest">'+tracks.slice(1).map(o=>'<span>'+_esc(o.l)+': <b>'+fmt(o.m)+'</b></span>').join('')+'</div></div>':'')+
+        '</div>';
+      }).join('');
+    }
   }
 
   function renderAll(){updateStats();renderInventory();renderLeads();renderVouchers();renderDash();renderProfit();}
