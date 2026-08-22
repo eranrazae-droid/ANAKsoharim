@@ -4150,17 +4150,36 @@ function _calOccursOn(e, ds) {
   return ds === e.date;
 }
 
+/* ממיר שנה עברית (מספר, למשל 5786) לאותיות עבריות מקובלות: ה'תשפ"ו.
+   פרטי הגימטריה: ט״ו וט״ז נכתבים טו/טז כדי לא לפגוע בשם ה', וכל
+   ארבע מאות נספרות כ-ת נוספת. */
+function _hebYearLetters(y) {
+  const hundredLetters = ['', 'ק', 'ר', 'ש', 'ת'];
+  const tenLetters = ['', 'י', 'כ', 'ל', 'מ', 'נ', 'ס', 'ע', 'פ', 'צ'];
+  const oneLetters = ['', 'א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ז', 'ח', 'ט'];
+  const thousandLetters = ['', 'א', 'ב', 'ג', 'ד', 'ה', 'ו'];
+  const thousands = Math.floor(y / 1000);
+  let hundreds = Math.floor((y % 1000) / 100), rest = y % 100;
+  let letters = '';
+  while (hundreds > 4) { letters += 'ת'; hundreds -= 4; }
+  letters += hundredLetters[hundreds];
+  if (rest === 15) letters += 'טו';
+  else if (rest === 16) letters += 'טז';
+  else { letters += tenLetters[Math.floor(rest / 10)]; letters += oneLetters[rest % 10]; }
+  const withGershayim = letters.length <= 1 ? letters + "'" : letters.slice(0, -1) + '"' + letters.slice(-1);
+  return thousandLetters[thousands] + "'" + withGershayim;
+}
+
 /* שם החודש העברי שמתאים לחודש הלועזי המוצג. אם החודש הלועזי משתרע על
    שני חודשים עבריים — מוצגים שניהם. אם הדפדפן לא תומך, לא מוצג כלום. */
 function _hebMonthLabel(y, m) {
   try {
     const f = new Intl.DateTimeFormat('he-u-ca-hebrew', { month: 'long', year: 'numeric' });
-    const a = f.format(new Date(y, m, 1));
-    const b = f.format(new Date(y, m + 1, 0));
-    if (a === b) return a;
-    // אותה שנה עברית — מציגים אותה פעם אחת בסוף
-    const [ma, ya] = a.split(' '), [mb, yb] = b.split(' ');
-    return ya === yb ? `${ma}–${mb} ${ya}` : `${a} – ${b}`;
+    const parse = s => { const [mo, yr] = s.split(' '); return { mo, yr: _hebYearLetters(parseInt(yr, 10)) }; };
+    const a = parse(f.format(new Date(y, m, 1)));
+    const b = parse(f.format(new Date(y, m + 1, 0)));
+    if (a.mo === b.mo && a.yr === b.yr) return `${a.mo} ${a.yr}`;
+    return a.yr === b.yr ? `${a.mo}–${b.mo} ${a.yr}` : `${a.mo} ${a.yr} – ${b.mo} ${b.yr}`;
   } catch (e) { return ''; }
 }
 
