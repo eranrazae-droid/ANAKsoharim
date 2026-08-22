@@ -356,6 +356,25 @@ body.modal-open{overflow:hidden}
 .bsm-fab-gold{background:var(--gold);color:#000}
 .bsm-fab-dark{background:var(--dark);color:#fff}
 .bsm-fab-red{background:#ef4444;color:#fff}
+.bsm-fab-blue{background:#0ea5e9;color:#fff}
+/* לשוניות מסך הפחחות של המנהל */
+.bsm-tabs{display:flex;gap:4px;background:var(--card);border:2px solid var(--border);border-radius:14px;
+  padding:4px;margin-bottom:14px;overflow-x:auto}
+.bsm-tabs::-webkit-scrollbar{display:none}
+.bsm-tab{flex:1;border:none;border-radius:11px;padding:11px 8px;background:transparent;color:var(--muted);
+  font-family:Heebo,sans-serif;font-size:13.5px;font-weight:800;cursor:pointer;white-space:nowrap}
+.bsm-tab.on{background:var(--dark);color:#fff}
+.bsm-tab .bsm-cnt{margin-right:5px}
+/* במחשב ארבע הפעולות מתקפלות לכפתור "פעולות" אחד בפינה */
+@media(min-width:900px){
+  #bsm-actions-stack{display:none;flex-direction:column;gap:10px;align-items:flex-start}
+  #bsm-top-actions.open #bsm-actions-stack{display:flex}
+}
+/* בטלפון הכפתורים גלויים כמו היום, וכפתור "פעולות" מיותר */
+@media(max-width:899px){
+  #bsm-actions-toggle{display:none}
+  #bsm-actions-stack{display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+}
 @media(max-width:600px){
   #bsm-top-actions{bottom:14px;left:10px;gap:8px}
   .bsm-fab{width:168px;padding:11px 10px;font-size:14px;border-radius:12px}
@@ -1845,23 +1864,26 @@ if ('serviceWorker' in navigator) {
 <div id="screen-bodyshop-mgr" class="screen">
   <div class="app-header" style="position:relative">
     <button class="back-btn" onclick="goHome()">→</button>
-    <button onclick="toggleBsmMenu()" aria-label="תפריט פחחות" style="background:rgba(255,255,255,.14);border:none;border-radius:12px;width:42px;height:42px;color:#fff;font-size:20px;font-weight:900;cursor:pointer;line-height:1;flex-shrink:0;margin-left:8px">☰</button>
     <div class="logo">🔨 פחחות</div>
     <div class="user-badge" id="bsm-user-badge" onclick="logout()"></div>
-    <div id="bsm-menu" style="display:none;position:absolute;top:calc(100% - 6px);right:12px;z-index:150;background:var(--card);border:2px solid var(--border);border-radius:14px;padding:8px;min-width:240px;box-shadow:0 10px 30px rgba(0,0,0,.28)">
-      <button onclick="bsmShowView('draft')" class="bshop-menu-item">📝 פתקים שממתינים לשליחה <span id="bsm-cnt-draft" class="bsm-cnt"></span></button>
-      <button onclick="bsmShowView('open')" class="bshop-menu-item">🔨 אצל הפחח <span id="bsm-cnt-open" class="bsm-cnt"></span></button>
-      <button onclick="bsmShowView('done')" class="bshop-menu-item">✅ מכוניות שסיימנו <span id="bsm-cnt-done" class="bsm-cnt"></span></button>
-      <button onclick="bsmShowView('arc')" class="bshop-menu-item">🗄️ ארכיון תשלומים</button>
-      <button onclick="bsmShowView('stats')" class="bshop-menu-item">📊 סטטיסטיקה</button>
-      <button onclick="bsmCopyLink(true)" class="bshop-menu-item">🔗 העתק קישור לפחח</button>
-    </div>
   </div>
   <div class="bshop-wrap" style="padding:16px 16px 100px">
+    <!-- לשוניות במקום התפריט הנפתח — רואים איפה נמצאים ומה מחכה בלי לפתוח כלום -->
+    <div class="bsm-tabs">
+      <button class="bsm-tab" data-view="draft" onclick="bsmShowView('draft')">📝 ממתינים לשליחה <span id="bsm-cnt-draft" class="bsm-cnt"></span></button>
+      <button class="bsm-tab" data-view="open"  onclick="bsmShowView('open')">🔨 אצל הפחח <span id="bsm-cnt-open" class="bsm-cnt"></span></button>
+      <button class="bsm-tab" data-view="done"  onclick="bsmShowView('done')">✅ מכוניות שסיימנו <span id="bsm-cnt-done" class="bsm-cnt"></span></button>
+      <button class="bsm-tab" data-view="arc"   onclick="bsmShowView('arc')">🗄️ ארכיון</button>
+      <button class="bsm-tab" data-view="stats" onclick="bsmShowView('stats')">📊 סטטיסטיקה</button>
+    </div>
     <div id="bsm-top-actions">
-      <button class="bsm-fab bsm-fab-gold" onclick="openBsmSendModal()">➕ יצירת פתק</button>
-      <button class="bsm-fab bsm-fab-dark" onclick="openBsmItemsModal()">⚙️ רשימת חלקים</button>
-      <button class="bsm-fab bsm-fab-red" onclick="openBsmDelete()">🗑 מחק פתק</button>
+      <div id="bsm-actions-stack">
+        <button class="bsm-fab bsm-fab-gold" onclick="openBsmSendModal()">➕ יצירת פתק</button>
+        <button class="bsm-fab bsm-fab-dark" onclick="openBsmItemsModal()">⚙️ רשימת חלקים</button>
+        <button class="bsm-fab bsm-fab-red" onclick="openBsmDelete()">🗑 מחק פתק</button>
+        <button class="bsm-fab bsm-fab-blue" onclick="bsmCopyLink()">🔗 קישור לפחח</button>
+      </div>
+      <button id="bsm-actions-toggle" class="bsm-fab bsm-fab-gold" onclick="bsmToggleActions()">⚡ פעולות</button>
       <input type="file" accept="image/*" capture="environment" id="bsm-addphoto-file" style="display:none" onchange="bsmAddPhotoPicked(this)">
     </div>
     <div id="bsm-summary" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px;align-items:stretch">
@@ -10696,6 +10718,19 @@ const _BSM_VIEWS = { draft: 1, open: 1, done: 1, arc: 1, stats: 1 };
 let _bsmView = 'open';
 let _bsmAutoView = false;   // pick the opening screen once, on entry
 
+// קיפול ופתיחה של ערמת הפעולות במחשב
+function bsmToggleActions() {
+  document.getElementById('bsm-top-actions')?.classList.toggle('open');
+}
+// לחיצה על אחת הפעולות סוגרת את הערמה, כדי שלא תישאר פתוחה מעל המסך
+document.addEventListener('click', e => {
+  const stack = document.getElementById('bsm-actions-stack');
+  const wrap = document.getElementById('bsm-top-actions');
+  if (!stack || !wrap || !wrap.classList.contains('open')) return;
+  if (e.target.closest('#bsm-actions-stack .bsm-fab')) wrap.classList.remove('open');
+});
+window.bsmToggleActions = bsmToggleActions;
+
 function toggleBsmMenu(force) {
   const m = document.getElementById('bsm-menu');
   if (!m) return;
@@ -10842,8 +10877,8 @@ function bsmShowView(name) {
     const el = document.getElementById('bsm-view-' + k);
     if (el) el.style.display = k === _bsmView ? '' : 'none';
   }
-  document.querySelectorAll('#bsm-menu .bshop-menu-item').forEach((b, i) => {
-    b.classList.toggle('active', Object.keys(_BSM_VIEWS)[i] === _bsmView);
+  document.querySelectorAll('.bsm-tab').forEach(b => {
+    b.classList.toggle('on', b.dataset.view === _bsmView);
   });
   /* Each screen carries only the header it needs: the payment box belongs to
      the finished cars, the buttons and the counter belong to the rest, and the
