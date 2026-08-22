@@ -125,16 +125,16 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
 /* Manager home with calendar */
 .home-body.has-calendar #home-layout{display:flex;gap:20px;align-items:flex-start}
 .home-body.has-calendar #home-cards-area{flex:1;min-width:0}
-.home-body.has-calendar #home-calendar-area{display:block !important;width:340px;flex-shrink:0;border-right:2px solid var(--border);padding-right:20px}
+.home-body.has-calendar #home-calendar-area{display:block !important;width:340px;flex-shrink:0;
+  background:var(--card);border:2px solid var(--border);border-radius:18px;padding:14px 16px;
+  box-shadow:0 2px 10px rgba(0,0,0,.05)}
 .home-body.has-calendar #cal-agenda{max-height:none}
-/* the six buttons sit at the very bottom of the calendar column, whatever the
-   month or the number of tasks above them */
-.home-body.has-calendar #home-calendar-area{display:flex !important;flex-direction:column;min-height:calc(100vh - 190px)}
-.home-body.has-calendar #home-side-actions{margin-top:auto;padding-top:20px}
+/* הכפתורים עברו לכפתור "כל המסכים", ולכן היומן נגמר בגובה התוכן שלו */
+.home-body.has-calendar #home-calendar-area{display:block !important}
 .home-body.has-calendar .menu-grid{grid-template-columns:repeat(3,1fr) !important}
 @media (max-width:900px){
   .home-body.has-calendar #home-layout{flex-direction:column}
-  .home-body.has-calendar #home-calendar-area{width:auto;border-right:none;border-top:2px solid var(--border);padding-right:0;padding-top:16px;margin-top:8px;min-height:0}
+  .home-body.has-calendar #home-calendar-area{width:auto;margin-top:12px;min-height:0}
   .home-body.has-calendar #home-side-actions{margin-top:20px;padding-top:0}
   .home-body.has-calendar .menu-grid{grid-template-columns:repeat(2,1fr) !important}
 }
@@ -144,10 +144,11 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
 .cal-dow{text-align:center;font-size:11px;font-weight:800;color:var(--muted);padding:4px 0}
 .cal-day{text-align:center;padding:4px 0;cursor:pointer;user-select:none}
 .cal-day.empty{cursor:default;pointer-events:none}
-.cal-num{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;font-size:14px;font-weight:700;box-sizing:border-box}
+.cal-num{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;
+  font-size:14px;font-weight:700;box-sizing:border-box}
 .cal-day:hover .cal-num{background:var(--surface2)}
-.cal-day.today .cal-num{color:var(--gold)}
-.cal-day.has-ev .cal-num{background:#7c3aed;color:#fff}
+.cal-day.today .cal-num{color:var(--gold);font-weight:900}
+.cal-day.has-ev .cal-num{background:#ede9fe;color:#4c1d95;font-weight:900}
 .cal-day.selected .cal-num{background:var(--dark);color:#fff}
 .user-bg-active,.user-bg-active .screen{background-color:transparent !important}
 .user-bg-active .app-header{background:rgba(10,10,30,0.55) !important;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
@@ -161,11 +162,12 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
 .user-bg-active .welcome-bar h2,.user-bg-active .welcome-bar p{color:#fff !important;text-shadow:0 1px 4px rgba(0,0,0,0.6)}
 .user-bg-active .ftab{background:rgba(0,0,0,0.3) !important;color:#fff !important;border-color:rgba(255,255,255,0.2) !important}
 .user-bg-active .ftab.active{background:var(--gold) !important;color:#000 !important}
-.menu-card{background:var(--card);border-radius:18px;padding:22px 16px;box-shadow:0 2px 10px rgba(0,0,0,.07);cursor:pointer;transition:all .2s;border:2px solid transparent;text-decoration:none;color:inherit}
+.menu-card{background:var(--card);border:2px solid var(--border);border-radius:18px;padding:20px 14px;text-align:center;
+  box-shadow:0 2px 10px rgba(0,0,0,.05);cursor:pointer;transition:all .15s;text-decoration:none;color:inherit;position:relative}
 .menu-card:hover{border-color:var(--gold);transform:translateY(-2px)}
-.menu-card .mc-icon{font-size:34px;margin-bottom:10px}
-.menu-card .mc-title{font-size:15px;font-weight:900}
-.menu-card .mc-sub{font-size:12px;color:var(--muted);margin-top:4px}
+.menu-card .mc-icon{font-size:32px;margin-bottom:0;line-height:1}
+.menu-card .mc-title{font-size:15px;font-weight:900;margin-top:9px}
+.menu-card .mc-sub{font-size:12px;color:var(--muted);font-weight:600;margin-top:3px;line-height:1.35}
 .menu-card .mc-badge{display:inline-block;background:var(--danger);color:#fff;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:700;margin-top:8px}
 .menu-card .mc-badge.green{background:var(--success)}
 .menu-card .mc-badge.orange{background:var(--warning)}
@@ -4429,18 +4431,13 @@ function _setCardBadge(screen, count, color) {
   const card = document.getElementById('menu-card-' + screen);
   const badge = document.getElementById('badge-' + screen);
   if (!card || !badge) return;
+  // הקובייה נשארת לבנה, והמספר יושב בפינה — כך כל הקוביות באותו סגנון
   if (count > 0) {
-    card.style.background = color || _HOME_CARD_HL;
-    card.style.color = '#fff';
-    card.querySelectorAll('.mc-title,.mc-sub').forEach(el => el.style.color = '#fff');
     badge.style.display = 'inline-block';
     badge.textContent = count;
-    if (color) badge.style.background = color;
+    badge.style.background = color || '#ef4444';
   } else {
-    card.style.background = '';
-    card.style.color = '';
     badge.style.background = '';
-    card.querySelectorAll('.mc-title,.mc-sub').forEach(el => el.style.color = '');
     badge.style.display = 'none';
   }
 }
