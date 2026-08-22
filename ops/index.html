@@ -4079,6 +4079,7 @@ function _cardHtml(m) {
   if (isManager) _startOwnMorning();
   // כפתור "כל המסכים" מתעדכן לפי התגיות של הכפתורים שמאחוריו
   if (isManager) _dailyChecksListen();
+  _storyListen();
   _renderDailyQuote();
   _syncAllScreensCount();
   clearInterval(window._allScreensTimer);
@@ -4587,21 +4588,41 @@ function _todayStory() {
   return _DAILY_STORIES[(dayOfYear + now.getFullYear()) % _DAILY_STORIES.length];
 }
 
+/* האם הסיפור של היום כבר נקרא. נשמר בשרת, כך שקריאה מהטלפון נספרת
+   גם במחשב. מתאפס בחצות, יחד עם החלפת הסיפור. */
+let _storyReadDay = null;
+
+function _storyListen() {
+  if (window._storyUnsub) return;
+  window._storyUnsub = true;
+  _onSnap(_docRef('config', 'daily_story'), snap => {
+    _storyReadDay = (snap.exists() ? snap.data().readDay : '') || '';
+    _renderDailyQuote();
+  }, () => {});
+}
+
 function _renderDailyQuote() {
   const st = _todayStory();
   if (!st) return;
+  const read = _storyReadDay === _todayKey();
+  const line = read ? `📖 סיפור היום: ${st.t}` : '📖 סיפור היום — עדיין לא קראת, הגיע הזמן לקרוא';
   const head = document.getElementById('daily-quote');
   if (head) {
-    head.textContent = `📖 ${st.t} — ${st.m}`;
-    head.title = 'לחץ לקריאת הסיפור';
+    head.textContent = line;
+    head.title = read ? 'לחץ לקריאה חוזרת' : 'לחץ לקריאת הסיפור';
     head.style.cursor = 'pointer';
+    head.style.color = read ? 'rgba(255,255,255,.85)' : 'var(--gold)';
+    head.style.fontWeight = read ? '700' : '900';
     head.onclick = openDailyStory;
   }
   const box = document.getElementById('daily-quote-m');
   if (box) {
-    box.innerHTML = `<div style="font-weight:900;font-size:13.5px;margin-bottom:2px">📖 ${esc(st.t)}</div>
-      <div style="font-weight:700;color:var(--muted)">${esc(st.m)}</div>
-      <div style="font-size:12px;font-weight:800;color:#0d6ab0;margin-top:6px">לקריאת הסיפור ▶</div>`;
+    box.innerHTML = read
+      ? `<div style="font-weight:900;font-size:13.5px">📖 סיפור היום: ${esc(st.t)}</div>
+         <div style="font-size:12px;font-weight:800;color:#0d6ab0;margin-top:6px">לקריאה חוזרת ▶</div>`
+      : `<div style="font-weight:900;font-size:13.5px">📖 סיפור היום</div>
+         <div style="font-weight:700;color:var(--muted);margin-top:2px">עדיין לא קראת — הגיע הזמן לקרוא</div>
+         <div style="font-size:12px;font-weight:800;color:#0d6ab0;margin-top:6px">לקריאת הסיפור ▶</div>`;
     box.style.cursor = 'pointer';
     box.onclick = openDailyStory;
   }
@@ -4623,6 +4644,13 @@ function openDailyStory() {
       <div style="font-size:15px;font-weight:800;line-height:1.7">${esc(st.m)}</div>
     </div>`;
   openModal('modal-daily-story');
+  // מסמנים שנקרא היום
+  if (_storyReadDay !== _todayKey()) {
+    _storyReadDay = _todayKey();
+    _renderDailyQuote();
+    try { window._setDoc(_docRef('config', 'daily_story'), { readDay: _storyReadDay }, { merge: true }); }
+    catch (e) {}
+  }
 }
 window.openDailyStory = openDailyStory;
 
