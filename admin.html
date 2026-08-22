@@ -98,19 +98,30 @@
       .inv-item{grid-template-columns:1fr}
       .inv-item img{width:100%;height:150px}
       .content{padding:16px}
-      /* טבלאות רחבות (מעקב פרסום / לוח מחירים) - קומפקטיות וקריאות בנייד */
       .card.panel{padding:12px}
-      #ptWrap table,#profitTableBody,#tab-dashboard table{font-size:12px}
-      #ptWrap th,#ptWrap td,#profitTableBody td,#tab-dashboard table th,#tab-dashboard table td{padding:6px 6px!important}
-      #ptWrap button{padding:5px 8px!important;font-size:11px!important}
+      .stats-grid{grid-template-columns:1fr 1fr}
+      /* מעקב פרסום: כרטיסים במקום טבלה */
+      .pt-table{display:none}
+      .pt-cards{display:block}
+      /* דשבורד מחירים: עמודת השם נתקעת בצד + גופן קומפקטי */
+      #profitTableBody,#tab-dashboard table{font-size:12px}
+      #profitTableBody td,#tab-dashboard table th,#tab-dashboard table td{padding:6px 6px!important}
       #profitTableBody input{width:78px!important;font-size:12px!important;padding:5px 6px!important}
-      /* עמודת שם הרכב "נתקעת" בצד ימין בזמן גלילה אופקית */
-      #ptWrap table th:first-child,#ptWrap table td:first-child,
       #tab-dashboard table thead th:first-child,#profitTableBody td:first-child{
         position:sticky;right:0;background:#fff;z-index:2;box-shadow:-5px 0 6px -4px rgba(0,0,0,.18)}
-      #ptWrap table tr[style*="faf7ef"] td:first-child{background:#faf7ef}
-      .stats-grid{grid-template-columns:1fr 1fr}
     }
+    /* כרטיסי מעקב פרסום */
+    .pt-cards{display:none}
+    .pt-cbrand{font-weight:900;font-size:15px;margin:14px 2px 8px;color:#000}
+    .pt-card{border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+    .pt-card-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+    .pt-card-name{font-weight:800;font-size:15px}
+    .pt-card-name span{color:var(--muted);font-weight:400;font-size:13px}
+    .pt-card-badge{font-weight:900;font-size:13px;border-radius:999px;padding:3px 12px}
+    .pt-chan-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .pt-chan-btn{display:flex;flex-direction:column;align-items:center;gap:4px;border:none;border-radius:12px;padding:12px 6px;cursor:pointer;font-size:12px;line-height:1.3;text-align:center}
+    .pt-chan-btn span{font-weight:600}
+    .pt-chan-btn b{font-size:13px}
     #profitTableBody tr{transition:background .12s}
     #profitTableBody tr:hover{background:#fff8e1!important}
   </style>
@@ -1490,7 +1501,26 @@
         '</tr>';
     });
     html+='</tbody></table>';
-    wrap.innerHTML=html;
+
+    // תצוגת כרטיסים לנייד
+    let cards='';
+    let curB=null;
+    rows.forEach(c=>{
+      if(c.brand!==curB){ curB=c.brand; cards+='<div class="pt-cbrand">'+_esc(c.brand||'—')+'</div>'; }
+      const doneN=PUB_CHANNELS.filter(ch=>(c.pub||{})[ch.key]).length;
+      const full=doneN===PUB_CHANNELS.length;
+      cards+='<div class="pt-card">'+
+        '<div class="pt-card-hd"><div class="pt-card-name">'+_esc(c.model||'')+' <span>'+_esc(c.year||'')+'</span></div>'+
+        '<div class="pt-card-badge" style="background:'+(full?'#dcfce7':'#fef3c7')+';color:'+(full?'#15803d':'#a16207')+'">'+doneN+'/'+PUB_CHANNELS.length+'</div></div>'+
+        '<div class="pt-chan-grid">'+
+        PUB_CHANNELS.map(ch=>{
+          const iso=(c.pub||{})[ch.key]; const on=!!iso;
+          return '<button onclick="togglePub(\''+c.id+'\',\''+ch.key+'\')" class="pt-chan-btn" style="background:'+(on?'#16a34a':'#f1f5f9')+';color:'+(on?'#fff':'#475569')+'"><span>'+ch.icon+' '+_esc(ch.label)+'</span><b>'+(on?('✔ '+ptShort(iso)):'סמן')+'</b></button>';
+        }).join('')+
+        '</div></div>';
+    });
+
+    wrap.innerHTML='<div class="pt-table">'+html+'</div><div class="pt-cards">'+cards+'</div>';
   }
 
   function updateStats(){
