@@ -1891,6 +1891,50 @@ async function _notifyManager(text) {
   } catch (err) { console.error("manager notify failed", err); }
 }
 
+
+// ── תזכורת ראש חודש ────────────────────────────────────────────────
+// כל בוקר ב-00:05 בודקים אם היום ראש חודש עברי (יום אחד או שניים),
+// ואם כן יוצרים אירוע ביומן לשעה 06:00 שמזכיר את זה למנהל בטלגרם —
+// דרך אותו מנגנון checkReminders שכבר קיים לכל אירועי היומן.
+function _hebDay(d) {
+  const f = new Intl.DateTimeFormat("en-u-ca-hebrew", { day: "numeric" });
+  return +f.formatToParts(d).find((p) => p.type === "day").value;
+}
+function _hebMonthName(d) {
+  return new Intl.DateTimeFormat("he-u-ca-hebrew", { month: "long" }).format(d);
+}
+function _isRoshChodesh(d) {
+  const day = _hebDay(d);
+  if (day === 1) return true;
+  if (day === 30) return _hebDay(new Date(d.getTime() + 86400000)) === 1;
+  return false;
+}
+
+exports.roshChodeshReminder = onSchedule(
+  { schedule: "5 0 * * *", region: "europe-west1", timeZone: "Asia/Jerusalem" },
+  async () => {
+    const now = nowIsraelAsUtcPretend();
+    if (!_isRoshChodesh(now)) return;
+    // שם החודש: אם זה היום השני של ר"ח דו-יומי, השם כבר מתאים; אם זה היום
+    // הראשון מתוך שניים, השם הנכון הוא של המחר
+    const monthDate = _hebDay(now) === 30 ? new Date(now.getTime() + 86400000) : now;
+    const monthName = _hebMonthName(monthDate);
+    const dateStr = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-${String(now.getUTCDate()).padStart(2, "0")}`;
+
+    // מונעים כפילות אם הפונקציה רצה פעמיים באותו יום
+    const existing = await db.collection("calendar_events")
+      .where("date", "==", dateStr).where("autoRoshChodesh", "==", true).limit(1).get();
+    if (!existing.empty) return;
+
+    await db.collection("calendar_events").add({
+      title: `🌙 ראש חודש ${monthName}`,
+      date: dateStr, startTime: "06:00", endTime: "", notes: "",
+      repeat: "none", reminderMinutes: 0, reminderTo: ["ליאל"], reminderSent: false,
+      autoRoshChodesh: true, createdAt: new Date(),
+    });
+  }
+);
+
 exports.retryBlockedScans = onSchedule(
   { schedule: "*/5 * * * *", region: "europe-west1", timeZone: "Asia/Jerusalem", timeoutSeconds: 540, memory: "512MiB" },
   async () => {
