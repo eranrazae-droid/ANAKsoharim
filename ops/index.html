@@ -8267,7 +8267,26 @@ async function saveIntakeDraftPhotos() {
   }
 }
 
+// תמונות שהגיעו עם הטיוטה (למשל מנסיעת מבחן) נטענות לטופס כקבצים,
+// כך שהנהג רואה אותן ויכול להוסיף או להסיר לפני השליחה
+function _applyDraftPhotos(photos) {
+  if (!photos) return;
+  Object.entries(photos).forEach(([key, b64s]) => {
+    if (!Array.isArray(b64s) || !b64s.length) return;
+    if ((ciPhotoFiles[key] || []).length) return;   // כבר יש תמונות — לא דורסים
+    ciPhotoFiles[key] = [];
+    b64s.forEach(b64 => {
+      fetch(b64).then(r => r.blob()).then(blob => {
+        ciPhotoFiles[key].push(new File([blob], 'photo.jpg', { type: blob.type }));
+        renderPhotoGrid(key);
+        scheduleIntakePhotoDraft();
+      }).catch(() => {});
+    });
+  });
+}
+
 function _applyIntakeDraftObj(draft) {
+  _applyDraftPhotos(draft.photos);
   Object.entries(draft.checks || {}).forEach(([key, val]) => {
     document.querySelectorAll(`#modal-driver-intake .ci-box[data-key="${key}"]`).forEach(b => b.classList.remove('v-active','x-active'));
     const btn = document.querySelector(`#modal-driver-intake .ci-box[data-key="${key}"][data-val="${val}"]`);
@@ -22749,12 +22768,50 @@ function openFillTestDriveModal(id) {
   openModal('modal-fill-test-drive');
   // restore draft if exists
   if (f.draft) setTimeout(() => _tdRestoreAll(f.draft), 50);
+  // התמונות מוחזרות אחרי שהשורות נבנו מחדש
+  setTimeout(() => _tdRestorePhotoDraft(document.getElementById('tdf-id')?.value), 120);
 }
 window.openFillTestDriveModal = openFillTestDriveModal;
 
-let _tdAutoSaveTimer = null;
+let _tdAutoSaveTimer = null, _tdPhotoDraftTimer = null;
+
+// התמונות נשמרות מקומית ודחוסות — יציאה מהטופס לא מאבדת אותן
+async function _tdSavePhotoDraft(id) {
+  if (!id) return;
+  try {
+    const out = {};
+    for (const k of Object.keys(tdPhotoFiles)) {
+      const files = tdPhotoFiles[k] || [];
+      if (files.length) out[k] = await Promise.all(files.map(f => compressToBase64(f, _INTAKE_DRAFT_PX, _INTAKE_DRAFT_Q)));
+    }
+    if (Object.keys(out).length) localStorage.setItem('td_draft_photos_' + id, JSON.stringify(out));
+    else localStorage.removeItem('td_draft_photos_' + id);
+  } catch (e) { console.warn('td photo draft', e); }
+}
+
+function _tdRestorePhotoDraft(id) {
+  tdPhotoFiles = {};
+  let raw = null;
+  try { raw = localStorage.getItem('td_draft_photos_' + id); } catch (e) {}
+  if (!raw) return;
+  try {
+    Object.entries(JSON.parse(raw)).forEach(([key, b64s]) => {
+      tdPhotoFiles[key] = [];
+      b64s.forEach(b64 => {
+        fetch(b64).then(r => r.blob()).then(blob => {
+          tdPhotoFiles[key].push(new File([blob], 'photo.jpg', { type: blob.type }));
+          tdRenderPhotoGrid(key);
+        }).catch(() => {});
+      });
+    });
+  } catch (e) {}
+}
+
 function _autoSaveTd() {
   clearTimeout(_tdAutoSaveTimer);
+  clearTimeout(_tdPhotoDraftTimer);
+  const pid = document.getElementById('tdf-id')?.value;
+  _tdPhotoDraftTimer = setTimeout(() => _tdSavePhotoDraft(pid), 500);
   _tdAutoSaveTimer = setTimeout(async () => {
     const id = document.getElementById('tdf-id')?.value;
     if (!id) return;
@@ -22798,7 +22855,7 @@ function _tdRestoreAll(draft) {
   if (draft.checks) {
     Object.entries(draft.checks).forEach(([key, val]) => {
       const btn = document.querySelector(`#modal-fill-test-drive .ci-box[data-key="${key}"][data-val="${val}"]`);
-      if (btn) { btn.classList.add(val === 'v' ? 'v-active' : 'x-active'); if (val === 'x' && key !== 'td-dashboard') _showTdNoteFor(key, btn); }
+      if (btn) { btn.classList.add(val === 'v' ? 'v-active' : 'x-active'); if (val === 'x') _showTdNoteFor(key, btn); }
     });
   }
   if (draft.notes) {
@@ -22815,6 +22872,64 @@ function _tdRestoreAll(draft) {
   if (draft.extraIssues) { document.getElementById('td-extra-text').value = draft.extraIssues; document.getElementById('td-extra-yes').style.display = 'block'; }
 }
 
+/* סעיפים שבקליטה דורשים תמונה — אותם סעיפים דורשים תמונה גם בנסיעת מבחן,
+   והתמונות עוברות לקליטה כשמעבירים את הרכב. */
+const _TD_PHOTO_KEYS = {
+  'td-oil':'c-oil','td-coolant':'c-coolant','td-lights':'c-lights-break',
+  'td-glass':'c-glass-break','td-lights-burnt':'c-bulbs','td-windows':'c-windows',
+  'td-sunroof':'c-sunroof','td-ac':'c-ac','td-dashboard':'c-dashboard',
+};
+const _TD_MAX_PHOTOS = 4;
+let tdPhotoFiles = {};
+
+function tdAddPhotos(key, input) {
+  if (!tdPhotoFiles[key]) tdPhotoFiles[key] = [];
+  const files = [...input.files].slice(0, _TD_MAX_PHOTOS - tdPhotoFiles[key].length);
+  tdPhotoFiles[key].push(...files);
+  input.value = '';
+  tdRenderPhotoGrid(key);
+  _autoSaveTd();
+}
+window.tdAddPhotos = tdAddPhotos;
+
+function tdRemovePhoto(key, idx) {
+  (tdPhotoFiles[key] || []).splice(idx, 1);
+  tdRenderPhotoGrid(key);
+  _autoSaveTd();
+}
+window.tdRemovePhoto = tdRemovePhoto;
+
+function tdRenderPhotoGrid(key) {
+  const grid = document.getElementById('td-photos-' + key);
+  if (!grid) return;
+  const files = tdPhotoFiles[key] || [];
+  let html = files.map((f, i) => `<div class="ci-photo-box">
+      <img src="${URL.createObjectURL(f)}">
+      <button class="rm-btn" onclick="tdRemovePhoto('${key}',${i})">✕</button>
+    </div>`).join('');
+  if (files.length < _TD_MAX_PHOTOS) {
+    html += `<button type="button" onclick="document.getElementById('td-file-${key}').click()" style="width:100%;background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:10px;font-family:Heebo,sans-serif;font-weight:700;font-size:14px;cursor:pointer;margin-top:4px">📷 צלם תמונה</button>`;
+  }
+  grid.innerHTML = html;
+}
+
+/* דחיסה מדורגת עד שהתמונות נכנסות במקום המותר לרשומה — בדיוק כמו בקליטה.
+   אם גם אחרי הדחיסה חורגים, השליחה נעצרת ולא נשמרת רשומה חלקית. */
+async function _tdBuildPhotos() {
+  const keys = Object.keys(tdPhotoFiles).filter(k => (tdPhotoFiles[k] || []).length);
+  if (!keys.length) return {};
+  for (const [px, q] of [[900, 0.72], [760, 0.6], [640, 0.5]]) {
+    const out = {};
+    for (const k of keys) {
+      out[k] = await Promise.all(tdPhotoFiles[k].map(f => compressToBase64(f, px, q)));
+    }
+    const bytes = Object.values(out).flat().reduce((t, b) => t + _b64Size(b), 0);
+    if (bytes <= _DOC_PHOTO_BUDGET) return out;
+  }
+  showToast('⚠️ התמונות כבדות מדי — הסר תמונה אחת ונסה שוב', 7000);
+  return null;
+}
+
 function _showTdNoteFor(key, btn) {
   const item = btn?.closest('.checklist-item');
   let noteDiv = document.getElementById(`td-note-wrap-${key}`);
@@ -22823,8 +22938,16 @@ function _showTdNoteFor(key, btn) {
     noteDiv.id = `td-note-wrap-${key}`;
     noteDiv.className = 'td-note-wrap';
     noteDiv.style.cssText = 'margin-bottom:8px;';
-    noteDiv.innerHTML = `<textarea class="form-textarea" id="td-note-text-${key}" placeholder="פרט את הבעיה (חובה)..." rows="2" oninput="_autoSaveTd()"></textarea>`;
+    const photoPart = _TD_PHOTO_KEYS[key] ? `
+      <div style="font-size:12px;color:#dc2626;font-weight:700;margin:6px 0 4px">חובה לצרף תמונה <span style="color:#ef4444">*</span></div>
+      <div class="ci-photos" id="td-photos-${key}"></div>
+      <input type="file" accept="image/*" capture="environment" id="td-file-${key}" style="display:none" onchange="tdAddPhotos('${key}',this)">` : '';
+    // בלוח שעונים הפירוט כבר נעשה בתיבות הסימון — שם מבקשים רק תמונה
+    const textPart = key === 'td-dashboard' ? ''
+      : `<textarea class="form-textarea" id="td-note-text-${key}" placeholder="פרט את הבעיה (חובה)..." rows="2" oninput="_autoSaveTd()"></textarea>`;
+    noteDiv.innerHTML = textPart + photoPart;
     if (item) item.insertAdjacentElement('afterend', noteDiv);
+    if (_TD_PHOTO_KEYS[key]) tdRenderPhotoGrid(key);
   }
   noteDiv.style.display = 'block';
 }
@@ -22840,7 +22963,7 @@ function tdCiClick(btn) {
   document.querySelectorAll(`#modal-fill-test-drive .ci-box[data-key="${key}"]`).forEach(b => b.classList.remove('v-active','x-active'));
   if (alreadyActive) { _hideTdNoteFor(key); _autoSaveTd(); return; }
   btn.classList.add(val === 'v' ? 'v-active' : 'x-active');
-  if (val === 'x' && key !== 'td-dashboard') _showTdNoteFor(key, btn); else _hideTdNoteFor(key);
+  if (val === 'x') _showTdNoteFor(key, btn); else _hideTdNoteFor(key);
   _autoSaveTd();
 }
 window.tdCiClick = tdCiClick;
@@ -22951,19 +23074,42 @@ async function submitTestDriveForm() {
       noteEl.focus();
       return;
     }
+    // אותם סעיפים שדורשים תמונה בקליטה דורשים תמונה גם כאן
+    if (_TD_PHOTO_KEYS[key] && !(tdPhotoFiles[key] || []).length) {
+      const label = _TD_CHECK_LABELS[key] || key;
+      showToast(`⚠️ חובה לצרף תמונה עבור: ${label}`);
+      document.getElementById(`td-note-wrap-${key}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
   }
+  if (!_requireNet('שליחת נסיעת המבחן')) return;
   const all = _tdCollectAll();
+
+  // התמונות נשמרות בתוך הרשומה, ומועברות לקליטה כשמעבירים את הרכב
+  let photos = {};
+  try {
+    photos = await _tdBuildPhotos();
+  } catch (e) {
+    console.error('td photos', e);
+    showToast('⚠️ עיבוד התמונות נכשל — הטופס לא נשלח', 7000);
+    return;
+  }
+  if (photos === null) return;   // חרגו מהמקום המותר, הודעה כבר הוצגה
+
   const data = {
     status: 'done',
     completedBy: currentUser.name,
     completedAt: _serverTs(),
     ...all,
+    photos,
     draft: null,
   };
   try {
     const { updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
     await updateDoc(doc(window._db, 'test_drives', id), data);
   } catch(e) { showToast('⚠️ שגיאה בשליחה, נסה שוב'); console.error('submitTD', e); return; }
+  tdPhotoFiles = {};
+  try { localStorage.removeItem('td_draft_photos_' + id); } catch (e) {}
   localStorage.removeItem('anak_td_active');
   try { const done = JSON.parse(localStorage.getItem('anak_td_done')||'[]'); done.push(id); localStorage.setItem('anak_td_done', JSON.stringify(done.slice(-20))); } catch {}
   showToast('✅ הטופס נשלח בהצלחה');
@@ -23147,10 +23293,18 @@ async function _tdConvertToIntake(tdId, data) {
     // גם הליקויים הנוספים שפירט עוברים, להערות הכלליות של הקליטה.
     const tdCode = data.code || data.draft?.code || '';
     const tdExtra = data.extraIssues || data.draft?.extraIssues || '';
+    // התמונות שצולמו בנסיעת המבחן עוברות לסעיפים המקבילים בקליטה
+    const tdPhotos = data.photos || {};
+    const intakePhotos = {};
+    Object.entries(tdPhotos).forEach(([k, arr]) => {
+      const ik = tdToIntake[k];
+      if (ik && Array.isArray(arr) && arr.length) intakePhotos[ik] = arr;
+    });
     const intakeDraft = {
       checks: intakeChecks, notes: intakeNotes, dashChecks: intakeDash,
       km: data.km || data.draft?.km || '',
       code: tdCode,
+      ...(Object.keys(intakePhotos).length ? { photos: intakePhotos } : {}),
       ...(tdExtra ? { general: tdExtra } : {}),
     };
     console.log('[TD→INTAKE] intakeDraft:', JSON.stringify(intakeDraft));
