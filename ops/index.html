@@ -3943,6 +3943,7 @@ const _ALL_SCREENS = [
 const _todayKey = () => new Date().toLocaleDateString('sv-SE');
 let _dailyRecall = null;      // { day, open }
 let _dailyInv = null;         // { day, open }
+let _dailyInvMark = null;     // { day, missing } — נשמר בנפרד ושורד מחיקה
 
 function _dailyChecksListen() {
   if (window._dailyUnsub) return;
@@ -3966,6 +3967,12 @@ function _dailyChecksListen() {
     _dailyInv = { day: doneToday ? _todayKey() : '', open };
     _syncAllScreensCount();
   }, () => {});
+  // הסימון שהנהג רושם בשליחה — נשאר גם אחרי שהבדיקה נמחקת
+  _onSnap(_docRef('config', 'daily_checks'), snap => {
+    const d = snap.exists() ? snap.data() : null;
+    _dailyInvMark = d?.invDay ? { day: d.invDay, missing: d.invMissing || 0 } : null;
+    _syncAllScreensCount();
+  }, () => {});
 }
 
 // הטקסט שמופיע מתחת לשם הפריט
@@ -3984,10 +3991,13 @@ function _dailyNote(id) {
       : { txt: '✅ נבדק הבוקר · הכל תקין', ok: true };
   }
   if (id === 'menu-card-inventory') {
-    if (!_dailyInv || _dailyInv.day !== today) return { txt: '⏳ טרם בוצעה היום', ok: false };
-    return _dailyInv.open
-      ? { txt: `⚠️ נבדק הבוקר · ${_dailyInv.open} ממתינות`, ok: false }
-      : { txt: '✅ נבדק הבוקר · הכל תקין', ok: true };
+    // הבדיקה נחשבת שבוצעה גם אם המנהל כבר מחק אותה — הסימון היומי נשמר בנפרד
+    const marked = _dailyInvMark && _dailyInvMark.day === today;
+    const done = (_dailyInv && _dailyInv.day === today) || marked;
+    if (!done) return { txt: '⏳ טרם בוצעה היום', ok: false };
+    if (_dailyInv && _dailyInv.open) return { txt: `⚠️ נבדק הבוקר · ${_dailyInv.open} ממתינות`, ok: false };
+    if (marked && _dailyInvMark.missing) return { txt: `⚠️ נבדק הבוקר · ${_dailyInvMark.missing} חסרים`, ok: false };
+    return { txt: '✅ נבדק הבוקר · הבדיקה תקינה', ok: true };
   }
   return null;
 }
@@ -9240,6 +9250,13 @@ async function submitDriverInv() {
       status: 'done', completedBy: currentUser.name, completedAt: _serverTs(), present, absent,
       ...(notes ? { notes } : {})
     });
+    // סימון יומי נפרד מהבדיקה עצמה — כדי שהמנהל יראה "נבדק הבוקר"
+    // במסך הבית גם אחרי שהוא מוחק את הבדיקה שהנהג שלח
+    try {
+      await window._setDoc(_docRef('config', 'daily_checks'), {
+        invDay: _todayKey(), invMissing: absent.length, invBy: currentUser.name,
+      }, { merge: true });
+    } catch (e) { console.warn('daily_checks mark failed', e); }
     localStorage.removeItem('_dinvProgress_' + _driverInvDocId);
     _setCardBadge('driver-inventory', 0);
     _driverInvDocId = null;
