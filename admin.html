@@ -231,6 +231,7 @@
                 <th style="padding:10px 8px">אגרת רישוי</th>
                 <th style="padding:10px 8px">מחיר אוטודילר כולל רישוי</th>
                 <th style="padding:10px 8px" colspan="5">מסלולי מימון · מהזול (מימין) ליקר (משמאל) ←</th>
+                <th style="padding:10px 8px">הערות</th>
               </tr></thead>
               <tbody id="profitTableBody"></tbody>
             </table>
@@ -1393,6 +1394,14 @@
     renderProfit();
   }
 
+  let _noteTimer=null;
+  function updateNote(id, val){
+    const c = cars.find(x=>String(x.id)===String(id)); if(!c) return;
+    c.note = String(val||'');
+    clearTimeout(_noteTimer);
+    _noteTimer=setTimeout(()=>{ saveCars(); saveCarToDB(c); }, 700); // שמירה עם השהיה קלה כדי לא לשמור על כל תו
+  }
+
   function resetReviewed(){
     if(!confirm('לאפס את כל הסימונים "נבדק"?')) return;
     cars.forEach(c=>{ c.reviewed = false; });
@@ -1449,6 +1458,7 @@
         <td style="padding:9px 8px"><input type="number" value="${lic||''}" onchange="updateLicenseFee(${c.id}, this.value)" style="width:90px;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:8px;text-align:right" placeholder="אגרה"></td>
         <td style="padding:9px 8px;font-weight:900;color:#a16207">${sell>1?fmt(sell+lic):'-'}</td>
         ${sell>1?finTracks(sell+lic).map((m,i)=>({m,l:FIN_LABELS[i]})).sort((a,b)=>a.m-b.m).map((o,idx)=>`<td style="padding:9px 8px;text-align:center;${idx===0?'background:#f0fdf4':''}"><div style="font-size:10px;color:#6b7280">${o.l}</div><div style="font-weight:800;color:${idx===0?'#15803d':'#374151'}">${fmt(o.m)}</div></td>`).join(''):'<td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>'}
+        <td style="padding:9px 8px"><input type="text" value="${_esc(c.note||'')}" onchange="updateNote(${c.id}, this.value)" oninput="updateNote(${c.id}, this.value)" style="width:150px;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:8px;text-align:right" placeholder="הערה..."></td>
       </tr>`;
     }).join('');
 
@@ -1482,6 +1492,7 @@
           '</div>'+
           (low?'<div class="pc-fin"><div class="pc-fin-low"><span>החזר חודשי מ-</span><b>'+fmt(low.m)+'</b><small>'+_esc(low.l)+'</small></div>'+
             '<div class="pc-fin-rest">'+tracks.slice(1).map(o=>'<span>'+_esc(o.l)+': <b>'+fmt(o.m)+'</b></span>').join('')+'</div></div>':'')+
+          '<input type="text" value="'+_esc(c.note||'')+'" oninput="updateNote('+c.id+',this.value)" placeholder="הערה..." style="width:100%;margin-top:8px;padding:8px;font-size:13px;border:1px solid var(--line);border-radius:8px;text-align:right">'+
         '</div>';
       }).join('');
       }
