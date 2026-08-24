@@ -20166,28 +20166,95 @@ function _pickupAddrBookRows() {
     (a.city || '').localeCompare(b.city || '', 'he') || (a.address || '').localeCompare(b.address || '', 'he'));
 }
 
+/* התצוגה: כרטיס לכל כתובת — העיר קטנה מעל, הכתובת גדולה, ואנשי הקשר
+   כשבבים שאפשר להתקשר אליהם. כפתור עיפרון פותח עריכה במקום. */
+let _pkAddrRows = [];
+
 function _renderPickupAddrBook() {
   const box = document.getElementById('pk-addr-book');
   if (!box) return;
   const q = (document.getElementById('pk-addr-search')?.value || '').trim();
-  let rows = _pickupAddrBookRows();
+  _pkAddrRows = _pickupAddrBookRows();
+  let rows = _pkAddrRows.map((r, i) => ({ ...r, _i: i }));
   if (q) rows = rows.filter(r => [r.city, r.address, (r.others || []).join(' '), (r.sources || []).join(' '), r.contacts.join(' ')].join(' ').includes(q));
   if (!rows.length) {
     box.innerHTML = '<div style="color:var(--muted);text-align:center;padding:16px;font-size:13px">אין עדיין כתובות עם אנשי קשר</div>';
     return;
   }
+  const chip = t => {
+    const phone = String(t).replace(/\D/g, '');
+    const name = String(t).replace(/[\d\-\s]+$/, '').trim();
+    return `<a href="tel:${esc(phone)}" onclick="event.stopPropagation()" style="display:inline-flex;align-items:center;gap:5px;background:var(--surface2);border:1.5px solid var(--border);border-radius:999px;padding:3px 10px;font-size:12.5px;font-weight:800;color:var(--text);text-decoration:none">
+      ${name ? `<span>${esc(name)}</span>` : ''}<span style="color:#1d4ed8;direction:ltr">${esc(phone)}</span></a>`;
+  };
   box.innerHTML = rows.map(r => `
-    <div style="display:flex;align-items:flex-start;gap:8px;padding:9px 4px;border-bottom:1px solid var(--border)">
-      <div style="flex:1;min-width:0">
-        <div style="font-size:13.5px;font-weight:800">${esc(r.address || '—')}${r.city ? `<span style="color:var(--muted);font-weight:700"> · ${esc(r.city)}</span>` : ''}</div>
-        <div style="font-size:12.5px;color:#1d4ed8;font-weight:700;margin-top:2px">👤 ${esc(r.contacts.join(' · '))}</div>
+    <div style="background:var(--card);border:2px solid var(--border);border-radius:14px;padding:11px 12px;margin-bottom:9px">
+      <div style="display:flex;align-items:flex-start;gap:8px">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:11.5px;font-weight:800;color:var(--muted)">${esc(r.city || '')}</div>
+          <div style="font-size:15px;font-weight:900;margin-top:1px">${esc(r.address || '—')}</div>
+        </div>
+        <div style="flex-shrink:0;display:flex;align-items:center;gap:6px">
+          ${(r.sources || []).map(src => `<span style="font-size:11px;font-weight:800;color:#fff;background:${_pickupSourceColor(src)};border-radius:7px;padding:2px 8px;white-space:nowrap">${esc(src)}</span>`).join('')}
+          <button onclick="pkAddrEdit(${r._i})" title="עריכת אנשי הקשר" style="background:var(--surface2);border:1.5px solid var(--border);border-radius:9px;width:32px;height:32px;font-size:15px;cursor:pointer">✏️</button>
+        </div>
       </div>
-      <div style="flex-shrink:0;display:flex;flex-direction:column;gap:3px;align-items:flex-end">
-        ${(r.sources || []).map(src => `<div style="font-size:11px;font-weight:800;color:#fff;background:${_pickupSourceColor(src)};border-radius:7px;padding:2px 8px;white-space:nowrap">${esc(src)}</div>`).join('')}
-        ${(r.others || []).length ? `<div style="font-size:10.5px;color:var(--muted);font-weight:700" title="${esc(r.others.join(' | '))}">+${r.others.length} ניסוחים</div>` : ''}
+      <div id="pk-addr-view-${r._i}" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">${r.contacts.map(chip).join('')}</div>
+      <div id="pk-addr-edit-${r._i}" style="display:none;margin-top:8px">
+        <input type="text" id="pk-addr-input-${r._i}" value="${esc(r.contacts.join(' · '))}"
+          style="width:100%;padding:8px 10px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;box-sizing:border-box">
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">שם ומספר, מופרדים בנקודה: <b>שרית 0525816341 · לירון 0523358981</b></div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button onclick="pkAddrSave(${r._i})" style="flex:1;background:#16a34a;color:#fff;border:none;border-radius:10px;padding:9px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">💾 שמור בכל המקומות</button>
+          <button onclick="pkAddrEdit(${r._i},true)" style="background:var(--surface2);color:var(--text);border:1.5px solid var(--border);border-radius:10px;padding:9px 14px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">ביטול</button>
+        </div>
       </div>
+      ${(r.others || []).length ? `<div style="font-size:11px;color:var(--muted);font-weight:700;margin-top:7px" title="${esc(r.others.join(' | '))}">מאחד ${r.others.length + 1} ניסוחים של אותה כתובת</div>` : ''}
     </div>`).join('');
 }
+
+function pkAddrEdit(i, cancel) {
+  const view = document.getElementById('pk-addr-view-' + i);
+  const edit = document.getElementById('pk-addr-edit-' + i);
+  if (!view || !edit) return;
+  const open = edit.style.display === 'none' && !cancel;
+  edit.style.display = open ? 'block' : 'none';
+  view.style.display = open ? 'none' : 'flex';
+  if (open) document.getElementById('pk-addr-input-' + i)?.focus();
+}
+window.pkAddrEdit = pkAddrEdit;
+
+/* שמירה: מעדכנת את זיכרון הכתובת ואת כל הרכבים באותה כתובת — פעילים
+   וארכיון — כך שהשינוי תופס בכל מקום ולא חוזר מהזיכרון בסיבוב הבא. */
+async function pkAddrSave(i) {
+  const row = _pkAddrRows[i];
+  const inp = document.getElementById('pk-addr-input-' + i);
+  if (!row || !inp) return;
+  if (!_requireNet('עדכון אנשי הקשר')) return;
+  const value = _dedupContacts(inp.value.trim());
+  const names = _addrTokens(row.city, row.address).names;
+  const match = c => {
+    const city = String(_pickupCity(c) || '').trim();
+    if (city !== row.city) return false;
+    const t = _addrTokens(city, c.address);
+    return t.names.some(n => names.includes(n));
+  };
+  try {
+    await _setAddrContacts(row.city, row.address, value);
+    const { updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const jobs = [];
+    (_pickupAllCars || []).filter(match).forEach(c =>
+      jobs.push(updateDoc(doc(window._db, 'pickup_cars', c.id), { contact: value }).catch(() => {})));
+    (_pickupArchiveCars || []).filter(match).forEach(c =>
+      jobs.push(updateDoc(doc(window._db, 'pickup_archive', c.id), { contact: value }).catch(() => {})));
+    await Promise.all(jobs);
+    showToast(`✅ עודכן ב-${jobs.length} רכבים ובזיכרון הכתובת`);
+    _renderPickupAddrBook();
+  } catch (e) {
+    showToast('שמירה נכשלה: ' + (e.code || e.message), 6000);
+  }
+}
+window.pkAddrSave = pkAddrSave;
 window._renderPickupAddrBook = _renderPickupAddrBook;
 window.openPickupActions = openPickupActions;
 
