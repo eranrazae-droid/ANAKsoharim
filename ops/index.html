@@ -7215,18 +7215,25 @@ function openDriverIntake(id) {
   const hasLocalChecks = Object.keys(localChecks).length > 0;
   restoreIntakeDraft(id);
   openModal('modal-driver-intake');
-  // fetch from Firestore only if local has no checks — handles TD→intake pre-fill
-  if (!hasLocalChecks && window._CONFIG_DONE) {
+  /* סנכרון בין מכשירים: מה שנשמר בשרת מנצח כשהוא חדש יותר ממה שיש
+     במכשיר הזה. כך קליטה שנהג התחיל בטלפון שלו נפתחת מלאה — כולל
+     התמונות — גם כשנכנסים אליה ממכשיר אחר. */
+  if (window._CONFIG_DONE) {
+    const localAt = localDraftStr ? (JSON.parse(localDraftStr)._savedAt || 0) : 0;
     import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(({ getDoc, doc }) => {
       getDoc(doc(window._db, 'intake_assignments', id)).then(snap => {
         if (!snap.exists()) return;
-        const fd = snap.data().draft;
-        if (!fd || !Object.keys(fd.checks || {}).length) return;
+        const v = snap.data();
+        const remoteAt = v.liveUpdatedAt ? Date.parse(v.liveUpdatedAt) : 0;
+        const remote = (remoteAt && remoteAt > localAt) ? (v.liveDraft || null) : null;
+        const fd = remote || ((!hasLocalChecks && v.draft && Object.keys(v.draft.checks || {}).length) ? v.draft : null);
+        if (!fd) return;
         _applyIntakeDraftObj(fd);
         if (fd.dashChecks?.['dash-other']) {
           const req = document.getElementById('dash-other-req'); if (req) req.style.display = 'block';
         }
-        try { localStorage.setItem('intake_draft_' + id, JSON.stringify(fd)); } catch {}
+        if (remote) _applyLivePhotos(v.livePhotos, v.liveBatteryPhotos);
+        try { localStorage.setItem('intake_draft_' + id, JSON.stringify({ ...fd, _savedAt: remoteAt || Date.now() })); } catch {}
       }).catch(()=>{});
     });
   }
@@ -8220,6 +8227,7 @@ evSelection: document.getElementById('di-ev-v')?.classList.contains('v-active') 
     evCharge:   document.getElementById('di-ev-charge')?.value  || '',
     evRange:    document.getElementById('di-ev-range')?.value   || '',
   };
+  draft._savedAt = Date.now();
   try { localStorage.setItem('intake_draft_' + _currentIntakeId, JSON.stringify(draft)); } catch(e) {}
   // sync draft to Firestore for real-time manager view (debounced)
   clearTimeout(window._draftSyncTimer);
@@ -8266,6 +8274,18 @@ async function saveIntakeDraftPhotos() {
     if (id !== _currentIntakeId) return;   // a different intake was opened meanwhile
     _put('intake_draft_battery_' + id, batt);
     _put('intake_draft_photos_' + id, photos);
+    // סנכרון לשרת: כך אותה קליטה נפתחת מלאה גם ממכשיר אחר. אם התמונות
+    // כבדות מדי לרשומה — הן נשארות מקומיות בלבד ולא נשלחות חלקית.
+    try {
+      const bytes = [...Object.values(photoData).flat(), ...(batt ? JSON.parse(batt) : [])]
+        .reduce((t, b) => t + _b64Size(b), 0);
+      if (_updateDoc && _docRef && bytes <= _DOC_PHOTO_BUDGET) {
+        await _updateDoc(_docRef('intake_assignments', id), {
+          livePhotos: photoData, liveBatteryPhotos: batt ? JSON.parse(batt) : [],
+          liveUpdatedAt: new Date().toISOString(),
+        });
+      }
+    } catch (e) { console.warn('live photo sync', e); }
   } catch(e) {
     console.warn('photo draft save error', e);
     // the driver must know, rather than discover it when he comes back
@@ -8289,6 +8309,32 @@ function _applyDraftPhotos(photos) {
       }).catch(() => {});
     });
   });
+}
+
+/* התמונות שסונכרנו מהשרת נטענות כקבצים, כך שהן נראות וניתנות להסרה
+   בדיוק כמו תמונות שצולמו במכשיר הזה. */
+function _applyLivePhotos(photos, batteryB64) {
+  if (photos && typeof photos === 'object') {
+    Object.entries(photos).forEach(([key, b64s]) => {
+      if (!Array.isArray(b64s) || !b64s.length) return;
+      ciPhotoFiles[key] = [];
+      b64s.forEach(b64 => {
+        fetch(b64).then(r => r.blob()).then(blob => {
+          ciPhotoFiles[key].push(new File([blob], 'photo.jpg', { type: blob.type }));
+          renderPhotoGrid(key);
+        }).catch(() => {});
+      });
+    });
+  }
+  if (Array.isArray(batteryB64) && batteryB64.length && !(_batteryPhotoFiles || []).length) {
+    _batteryPhotoFiles = [];
+    batteryB64.forEach(b64 => {
+      fetch(b64).then(r => r.blob()).then(blob => {
+        _batteryPhotoFiles.push(new File([blob], 'battery.jpg', { type: blob.type }));
+        addBatteryPhoto({ files: [] });
+      }).catch(() => {});
+    });
+  }
 }
 
 function _applyIntakeDraftObj(draft) {
