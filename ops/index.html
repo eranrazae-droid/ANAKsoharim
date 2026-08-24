@@ -22096,15 +22096,47 @@ function _parsePickupBlock(lines) {
 function _freetextSetSource(i, name) {
   if (!_freetextParsed[i]) return;
   _freetextParsed[i].source = _freetextParsed[i].source === name ? '' : name;
+  // הכתובת ואיש הקשר תלויים בחברה — החלפת חברה מחשבת אותם מחדש
+  _freetextFillAddresses();
+  _freetextFillContacts();
   _renderFreetextPreview();
 }
 window._freetextSetSource = _freetextSetSource;
 
-/* אנשי הקשר שנלמדו לכתובת מולאים כבר בחלונית התצוגה המקדימה, כדי שיהיה
+/* אנשי קשר מרכבים שכבר טיפלנו בהם, לפי חברה ועיר. זה המקור שעובד גם
+   כשאין מספר בית — למשל מגרש שנרשם בשם ולא בכתובת. אותה עיר בשתי חברות
+   שונות לא מתערבבת, כי החברה היא חלק מהתנאי. */
+function _historyContactsFor(car) {
+  const city = _pickupCity(car), src = String(car.source || '').trim();
+  if (!city || !src) return [];
+  const pool = [...(_pickupArchiveCars || []), ...(_pickupAllCars || [])];
+  const same = pool.filter(c =>
+    String(c.source || '').trim() === src &&
+    _pickupCity(c) === city &&
+    String(c.contact || '').trim());
+  if (!same.length) return [];
+  const tally = {};
+  same.forEach(c => _contactParts(c.contact).forEach(t => { tally[t] = (tally[t] || 0) + 1; }));
+  return Object.entries(tally).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([t]) => t);
+}
+
+/* משלים כתובת למגרש שנרשם בשם בלבד: אותה חברה, אותה עיר, כתובת עם מספר
+   בית. כך רכב מנשר או מעכו מקבל את הכתובת שכבר אספנו ממנה בעבר. */
+function _freetextFillAddresses() {
+  for (const c of _freetextParsed) {
+    const city = _pickupCity(c);
+    if (!city || /\d/.test(String(c.address || ''))) continue;
+    const learned = _yardAddrFromHistory(c.source, city, c.address);
+    if (learned && learned.address) { c.address = learned.address; c._addrFromHistory = true; }
+  }
+}
+
+/* אנשי הקשר שנלמדו מולאים כבר בחלונית התצוגה המקדימה, כדי שיהיה
    אפשר לראות ולתקן אותם לפני שהרכבים עולים — ולא רק אחרי. */
 function _freetextFillContacts() {
   for (const c of _freetextParsed) {
-    const known = _knownContactsFor(c);
+    let known = _knownContactsFor(c);
+    if (!known.length) known = _historyContactsFor(c);
     if (!known.length) { c._knownContacts = ''; continue; }
     c._knownContacts = known.join(' · ');
     c.contact = _dedupContacts([c.contact || '', ...known].join(' · '));
@@ -22161,6 +22193,7 @@ async function parseFreeTextPickup(readyCars) {
   for (const c of _freetextParsed) {
     if (c.city && c.address) c.address = _snapAddressToStreets(c.city, c.address);
   }
+  _freetextFillAddresses();
   _freetextFillContacts();
 
   const preview = document.getElementById('freetext-pickup-preview');
