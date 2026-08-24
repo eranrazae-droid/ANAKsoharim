@@ -20705,9 +20705,10 @@ function _pickupNavUrl(c) {
   const dest = exact ? `${c.lat},${c.lng}`
     : [c.address, _pickupCity(c), 'ישראל'].filter(Boolean).join(', ');
   if (!dest || (!exact && !c.address && !_pickupCity(c))) return '';
+  /* נקודת המוצא נשלחת כשם התחנה ולא כנקודת ציון: הנקודות ברשימה הן
+     קירוב, וגוגל היה פותח בכתובת שכנה. שם התחנה מדויק אצלו. */
   const st = _stationDisplay(c, ll);
-  const origin = st && st.lat && st.lng ? `${st.lat},${st.lng}`
-    : st && st.name ? `תחנת רכבת ${st.name}, ישראל` : '';
+  const origin = st && st.name ? `תחנת רכבת ${st.name}` : '';
   return 'https://www.google.com/maps/dir/?api=1&travelmode=walking'
     + (origin ? '&origin=' + encodeURIComponent(origin) : '')
     + '&destination=' + encodeURIComponent(dest);
