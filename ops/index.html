@@ -19027,12 +19027,15 @@ function _loadLeaflet() {
 // שהשתנתה תומר מחדש וכתובת שלא השתנתה לא תיגע בשירות
 // גרסת המפתח מזהה גם את מקור הנתונים: ברגע שמפתח גוגל מוגדר, כל
 // הנקודות והמרחקים השמורים מחושבים מחדש דרך גוגל — פעם אחת לרכב
-const _geoKeyOf = car => `v2${_mapsHasKey ? 'g' : ''}|${(car.address || '').trim()}|${_pickupCity(car).trim()}`;
+const _geoKeyOf = car => `v2${_mapsHasKey ? 'g' : ''}|${_cleanStreet(car.address)}|${_pickupCity(car).trim()}`;
 
 // הכתובת נכתבת בשדה חופשי, ולכן נגררות אליה הערות כמו "קומה 2" או
 // "ליד הדואר". השירות מוצא רחוב ומספר, לא הערות — אז הן יורדות לפני החיפוש
 function _cleanStreet(addr) {
   let s = String(addr || '').trim();
+  // "סיבים3" נכתב לפעמים בלי רווח, ואז שירות המפות לא מוצא את הרחוב
+  // ונופל למרכז העיר. מפרידים בין שם הרחוב למספר הבית.
+  s = s.replace(/([א-ת])(\d)/g, '$1 $2');
   s = s.replace(/\(.*?\)/g, ' ');
   // גבול־מילה של JS לא עובד על עברית, ולכן ההפרדה נעשית לפי רווחים
   s = s.replace(/(^|\s)(קומה|דירה|כניסה|ליד|מול|בניין|חניון|מרתף)(\s|$)[\s\S]*$/u, ' ');
@@ -22571,6 +22574,7 @@ async function parseFreeTextPickup(readyCars) {
   _streetAcLoad();
   if (_streetsLoading) await _streetsLoading.catch(() => {});
   for (const c of _freetextParsed) {
+    c.address = String(c.address || '').replace(/([א-ת])(\d)/g, '$1 $2').trim();
     if (c.city && c.address) c.address = _snapAddressToStreets(c.city, c.address);
   }
   _freetextFillAddresses();
