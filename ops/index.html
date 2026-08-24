@@ -22564,7 +22564,21 @@ function collectPickupCar(id) {
 }
 window.collectPickupCar = collectPickupCar;
 
+/* האיסוף כותב לארכיון ומוחק מהרשימה — שתי פניות לשרת. ברשת סלולרית זה
+   נמשך כמה שניות, ולכן: הכפתור ננעל ומראה שהוא עובד, הרכב נעלם מהרשימה
+   מיד, ובאיסוף מרובה כל הרכבים נכתבים במקביל ולא זה אחר זה. */
+let _collectBusy = false;
+
+function _collectBtnState(busy) {
+  const btn = document.querySelector('#modal-collect-pickup .btn-submit');
+  if (!btn) return;
+  btn.disabled = busy;
+  btn.style.opacity = busy ? '.6' : '';
+  btn.textContent = busy ? '⏳ מעביר לארכיון...' : 'אישור והעברה לארכיון ✅';
+}
+
 async function submitCollectPickup() {
+  if (_collectBusy) return;                       // לחיצה שנייה לא יוצרת כפילות
   if (!_requireNet('רישום האיסוף')) return;
   const collectedByText = document.getElementById('collect-pickup-by').value.trim();
   if (!collectedByText) {
@@ -22572,41 +22586,54 @@ async function submitCollectPickup() {
     document.getElementById('collect-pickup-by')?.focus();
     return;
   }
-  const { addDoc, deleteDoc, doc, collection } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  _collectBusy = true;
+  _collectBtnState(true);
+  try {
+    const { addDoc, deleteDoc, doc, collection } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const archive = async (car, id) => {
+      await addDoc(collection(window._db, 'pickup_archive'), { ...car, collectedAt: _serverTs(), collectedBy: currentUser.name, collectedByText });
+      await deleteDoc(doc(window._db, 'pickup_cars', id));
+      _notifyPickupCollected(car, collectedByText);
+    };
 
-  // batch mode — several cars collected in one action
-  if (_pendingCollectBatch && _pendingCollectBatch.length) {
-    const ids = _pendingCollectBatch;
-    let ok = 0;
-    for (const id of ids) {
-      const car = _pickupAllCars.find(c => c.id === id);
-      if (!car) continue;
-      try {
-        await addDoc(collection(window._db, 'pickup_archive'), { ...car, collectedAt: _serverTs(), collectedBy: currentUser.name, collectedByText });
-        await deleteDoc(doc(window._db, 'pickup_cars', id));
-        _notifyPickupCollected(car, collectedByText);
-        ok++;
-      } catch (err) { console.error('batch collect failed for', id, err); }
+    // batch mode — several cars collected in one action
+    if (_pendingCollectBatch && _pendingCollectBatch.length) {
+      const ids = _pendingCollectBatch;
+      const jobs = ids.map(id => {
+        const car = _pickupAllCars.find(c => c.id === id);
+        return car ? archive(car, id).then(() => true).catch(err => { console.error('batch collect failed for', id, err); return false; }) : Promise.resolve(false);
+      });
+      const ok = (await Promise.all(jobs)).filter(Boolean).length;
+      closeModal('modal-collect-pickup');
+      _pendingCollectBatch = null;
+      clearPickupSelection();
+      showToast(ok === ids.length ? `✅ ${ok} רכבים הועברו לארכיון`
+                                  : `✅ ${ok} מתוך ${ids.length} הועברו — נסה שוב את השאר`, 6000);
+      return;
     }
-    closeModal('modal-collect-pickup');
-    _pendingCollectBatch = null;
-    clearPickupSelection();
-    showToast(`✅ ${ok} רכבים הועברו לארכיון`);
-    return;
-  }
 
-  const id = _pendingCollectId;
-  if (!id) return;
-  const cars = _pendingCollectFromHome ? _driverPickupCars : _pickupAllCars;
-  const car = cars.find(c => c.id === id) || {};
-  await addDoc(collection(window._db, 'pickup_archive'), { ...car, collectedAt: _serverTs(), collectedBy: currentUser.name, collectedByText });
-  await deleteDoc(doc(window._db, 'pickup_cars', id));
-  closeModal('modal-collect-pickup');
-  _pendingCollectId = null;
-  if (_pendingCollectFromHome) { closeModal('modal-driver-pickup'); loadStats(); }
-  showToast('✅ הרכב הועבר לארכיון');
-  _notifyPickupCollected(car, collectedByText);
-  _askTasksHandled(car);
+    const id = _pendingCollectId;
+    if (!id) return;
+    const cars = _pendingCollectFromHome ? _driverPickupCars : _pickupAllCars;
+    const car = cars.find(c => c.id === id) || {};
+    // הרכב נעלם מהמסך מיד; אם השמירה תיכשל הוא יחזור מהשרת בסנכרון הבא
+    _pickupAllCars = _pickupAllCars.filter(c => c.id !== id);
+    try { renderPickupCars(); } catch (e) {}
+    closeModal('modal-collect-pickup');
+    _pendingCollectId = null;
+    if (_pendingCollectFromHome) { closeModal('modal-driver-pickup'); loadStats(); }
+    try {
+      await archive(car, id);
+      showToast('✅ הרכב הועבר לארכיון');
+      _askTasksHandled(car);
+    } catch (err) {
+      console.error('collect failed', err);
+      showToast('⚠️ ההעברה לארכיון נכשלה — הרכב נשאר ברשימה', 7000);
+    }
+  } finally {
+    _collectBusy = false;
+    _collectBtnState(false);
+  }
 }
 window.submitCollectPickup = submitCollectPickup;
 
