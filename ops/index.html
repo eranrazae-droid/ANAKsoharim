@@ -18890,8 +18890,11 @@ async function _stationRouteInfo(latlng) {
 // מה שמוצג בפועל: מסלול אמיתי אם כבר נשמר על הרכב, אחרת הנוסחה
 function _stationDisplay(car, latlng) {
   if (car && car.stRouteKm != null && car.stName && car.geoKey === _geoKeyOf(car)) {
+    // הנקודה של התחנה נשלפת מהרשימה, כדי שגם ניווט יוכל לצאת ממנה
+    const row = _TRAIN_STATIONS.find(([n]) => n === car.stName);
     return {
       name: car.stName, km: car.stRouteKm, min: car.stDriveMin,
+      lat: row ? row[1] : null, lng: row ? row[2] : null,
       walkMin: car.stRouteKm <= _WALK_MAX_KM ? car.stWalkMin : null, route: true,
     };
   }
@@ -20458,15 +20461,22 @@ function _pickupRegionTasksHtml(c, e) {
 }
 
 /* ניווט הליכה ליעד. היעד הוא הנקודה המדויקת אם היא כבר חושבה, אחרת
-   הכתובת כטקסט. נקודת המוצא נשארת ריקה בכוונה — גוגל לוקח את המיקום
-   הנוכחי של הנהג, כך שזה עובד גם כשהוא יורד מהרכבת וגם מכל מקום אחר. */
+   הכתובת כטקסט. נקודת המוצא היא תחנת הרכבת הקרובה ביותר לכתובת — כך
+   הנהג רואה מיד את המסלול מהתחנה שממנה הוא יורד ועד לרכב. אם אין נקודה
+   מחושבת ואי אפשר לדעת מהי התחנה, המוצא נשאר ריק וגוגל לוקח את המיקום
+   הנוכחי. */
 function _pickupNavUrl(c) {
   const ll = _pickupLatLng(c);
   const exact = c.lat && c.lng && c.geoKey === _geoKeyOf(c);
   const dest = exact ? `${c.lat},${c.lng}`
     : [c.address, _pickupCity(c), 'ישראל'].filter(Boolean).join(', ');
   if (!dest || (!exact && !c.address && !_pickupCity(c))) return '';
-  return 'https://www.google.com/maps/dir/?api=1&travelmode=walking&destination=' + encodeURIComponent(dest);
+  const st = _stationDisplay(c, ll);
+  const origin = st && st.lat && st.lng ? `${st.lat},${st.lng}`
+    : st && st.name ? `תחנת רכבת ${st.name}, ישראל` : '';
+  return 'https://www.google.com/maps/dir/?api=1&travelmode=walking'
+    + (origin ? '&origin=' + encodeURIComponent(origin) : '')
+    + '&destination=' + encodeURIComponent(dest);
 }
 
 // תחנת הרכבת הקרובה לרכב — מוצגת בתוך הכרטיס, לנהג שמגיע או חוזר ברכבת
@@ -21760,17 +21770,54 @@ const _SHENKAR = { city: 'פתח תקווה', address: 'שנקר 15' };
 ─────────────────────────────────────────────────────────────────────── */
 
 // כתובות המגרשים — למלא פעם אחת, ומשם כל דוח נקלט עם ניווט לנהג
-/* שם המגרש בדוח אינו כתובת. מה שידוע כאן ממלא לפחות את העיר, וכשתמסור
-   רחוב ומספר בית — משלימים גם address וזיכרון אנשי הקשר יתפוס לבד. */
-const _YARD_ADDR = {
-  'המפרץ':     { city: 'עכו',  address: '' },
-  'עין המפרץ': { city: 'עכו',  address: '' },
-  'מפרץ':      { city: 'עכו',  address: '' },
-  'נשר':       { city: 'נשר',  address: '' },
-  // 'ניר צבי':        { city: '', address: '' },
-  // 'גלילות':         { city: '', address: '' },
-  // 'ראשון לציון':    { city: '', address: '' },
+/* שם המגרש בדוח אינו כתובת. הטבלה מופרדת לפי חברה — לכלמוביל וליורודרייב
+   יכולים להיות סניפים באותה עיר בכתובות שונות, ולכן אסור לערבב ביניהן.
+   כתובת שאינה רשומה כאן נלמדת לבד מרכבים שכבר נאספו מאותו מגרש ואותה
+   חברה (ראה _yardAddrFromHistory). */
+const _YARD_ADDR_BY_SOURCE = {
+  'כלמוביל': {
+    'המפרץ':     { city: 'עכו', address: '' },
+    'עין המפרץ': { city: 'עכו', address: '' },
+    'מפרץ':      { city: 'עכו', address: '' },
+    'עכו':       { city: 'עכו', address: '' },
+    'נשר':       { city: 'נשר', address: '' },
+  },
+  'יורודרייב': {},
 };
+
+/* לומד את הכתובת של מגרש מרכבים קודמים: אותה חברה, אותה עיר, כתובת עם
+   מספר בית. כך מגרש שכבר אספנו ממנו מקבל את הכתובת שלו בלי להזין אותה. */
+function _yardAddrFromHistory(source, city, yard) {
+  const pool = [...(_pickupArchiveCars || []), ...(_pickupAllCars || [])];
+  const norm = t => String(t || '').trim();
+  const cand = pool.filter(c =>
+    norm(c.source) === norm(source) &&
+    (city ? norm(_pickupCity(c)) === norm(city) : norm(c.address).includes(norm(yard))) &&
+    /\d/.test(norm(c.address)));
+  if (!cand.length) return null;
+  // הכתובת שחוזרת הכי הרבה פעמים היא הכתובת האמיתית של המגרש
+  const tally = {};
+  cand.forEach(c => { const a = _cleanStreet(c.address); tally[a] = (tally[a] || 0) + 1; });
+  const best = Object.entries(tally).sort((a, b) => b[1] - a[1])[0];
+  const hit = cand.find(c => _cleanStreet(c.address) === best[0]);
+  return { city: _pickupCity(hit) || city, address: best[0] };
+}
+
+/* מחזיר עיר וכתובת למגרש, לפי החברה. קודם הטבלה הקבועה, ואם אין בה
+   כתובת — משלימים מההיסטוריה. */
+function _yardLookup(source, yard) {
+  const table = _YARD_ADDR_BY_SOURCE[source] || {};
+  const key = Object.keys(table).find(k => String(yard || '').includes(k));
+  const base = key ? { ...table[key] } : { city: '', address: '' };
+  // שם המגרש הוא לפעמים שם העיר עצמה — אז זו העיר, גם בלי רשומה בטבלה
+  if (!base.city && _IL_CITIES.includes(String(yard || '').trim())) base.city = String(yard).trim();
+  if (!base.address) {
+    const learned = _yardAddrFromHistory(source, base.city, yard);
+    if (learned) { base.city = base.city || learned.city; base.address = learned.address; }
+  }
+  if (!base.address && yard) base.address = yard;
+  return base.city || base.address ? base : null;
+}
 
 const _zivNum = t => Number(String(t).replace(/,/g, ''));
 const _zivIsNum = t => /^[\d,]+$/.test(t);
@@ -21830,8 +21877,8 @@ function _parseZivLine(line) {
 
   // המגרש הוא שם ולא כתובת — עד שממלאים את הטבלה למעלה, השם נשמר
   // בשדה הכתובת כדי שלא ילך לאיבוד, והמנהל יכול להשלים ידנית
-  const known = Object.keys(_YARD_ADDR).find(k => yard.includes(k));
-  if (known) { car.city = _YARD_ADDR[known].city; car.address = _YARD_ADDR[known].address || yard; }
+  const yl = _yardLookup(car.source, yard);
+  if (yl) { car.city = yl.city; car.address = yl.address; }
   else if (yard) car.address = yard;
   // סוג המרכב והמנוע כבר מופיעים בשם הרכב — אין צורך בהערה נוספת
   return car;
@@ -21870,8 +21917,8 @@ function _parseZivSheet(rows) {
       km: col.km >= 0 && cells[col.km] ? _fmtKm(cells[col.km].replace(/,/g, '')) : '',
       contact: '', city: '', address: '', note: '', source: 'יורודרייב',
     };
-    const known = Object.keys(_YARD_ADDR).find(k => yard.includes(k));
-    if (known) { car.city = _YARD_ADDR[known].city; car.address = _YARD_ADDR[known].address || yard; }
+    const yl = _yardLookup(car.source, yard);
+    if (yl) { car.city = yl.city; car.address = yl.address; }
     else if (yard) car.address = yard;
     cars.push(car);
   }
