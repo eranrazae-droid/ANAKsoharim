@@ -4875,13 +4875,49 @@ function _syncTasksBadge() {
   _setCardBadge('tasks', _tasksOpenCount, _tasksReqCount > 0 ? '#7c3aed' : null);
 }
 
+/* קוביה שיש בה משהו שמחכה נצבעת בצבע הקבוע שלה. קוביה ריקה נשארת לבנה,
+   כך שהצבע עצמו הוא הסימן שיש שם עבודה. */
+const _HOME_CARD_TINT = {
+  'battery-stock': '#1e3a8a',   // ארון מצברים — כחול כהה
+  'pickup':        '#0d9488',   // מכוניות לאיסוף — טורקיז
+  'vehicles':      '#dc2626',   // קליטות ורענון — אדום
+  'bodyshop-mgr':  '#b45309',   // פחחות — כתום־חום, בצבע העבודה
+  'tasks':         '#6d28d9',   // לוח משימות — סגול
+};
+
+function _paintHomeCard(card, tint) {
+  if (!card) return;
+  const title = card.querySelector('.mc-title');
+  const sub   = card.querySelector('.mc-sub');
+  const icon = card.querySelector('.mc-icon');
+  if (tint) {
+    if (icon) {
+      icon.style.background = 'rgba(255,255,255,.92)';
+      icon.style.borderRadius = '14px';
+      icon.style.padding = '6px 10px';
+      icon.style.display = 'inline-block';
+    }
+    card.style.background = tint;
+    card.style.borderColor = tint;
+    card.style.color = '#fff';
+    if (title) title.style.color = '#fff';
+    if (sub)   sub.style.color = 'rgba(255,255,255,.93)';
+  } else {
+    if (icon) { icon.style.background = ''; icon.style.borderRadius = ''; icon.style.padding = ''; icon.style.display = ''; }
+    card.style.background = '';
+    card.style.borderColor = '';
+    card.style.color = '';
+    if (title) title.style.color = '';
+    if (sub)   sub.style.color = '';
+  }
+}
+
 function _setCardBadge(screen, count, color) {
   _badgeCache[screen] = { count, color };
   const card = document.getElementById('menu-card-' + screen);
   const badge = document.getElementById('badge-' + screen);
   // הקוביות אולי עוד לא נבנו — הערך נשמר ויוחל ברגע שהן ייבנו
   if (!card || !badge) return;
-  // הקובייה נשארת לבנה, והמספר יושב בפינה — כך כל הקוביות באותו סגנון
   if (count > 0) {
     badge.style.display = 'inline-block';
     badge.textContent = count;
@@ -4890,6 +4926,7 @@ function _setCardBadge(screen, count, color) {
     badge.style.background = '';
     badge.style.display = 'none';
   }
+  _paintHomeCard(card, count > 0 ? _HOME_CARD_TINT[screen] : null);
 }
 
 // קוביית ארון המצברים: המספר תמיד מופיע מתחת לכותרת, והצבע נדלק רק
@@ -4903,6 +4940,7 @@ function _setBatteryStockCard(units, maxSameType) {
   if (!card || !sub) return;
   sub.textContent = !units ? 'אין מה להזמין'
     : units === 1 ? 'מצבר אחד להזמנה' : `${units} מצברים להזמנה`;
+  _paintHomeCard(card, units > 0 ? _HOME_CARD_TINT['battery-stock'] : null);
   const mark = units >= _BS_CARD_MIN || (maxSameType || 0) >= 2;
   if (mark) {
     sub.style.background = '#fde68a';
@@ -4913,7 +4951,7 @@ function _setBatteryStockCard(units, maxSameType) {
     sub.style.display = 'inline-block';
   } else {
     sub.style.background = '';
-    sub.style.color = '';
+    sub.style.color = units > 0 ? 'rgba(255,255,255,.93)' : '';
     sub.style.fontWeight = '';
     sub.style.borderRadius = '';
     sub.style.padding = '';
