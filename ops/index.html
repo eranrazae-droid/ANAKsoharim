@@ -21830,11 +21830,16 @@ const _SHENKAR = { city: 'פתח תקווה', address: 'שנקר 15' };
    חברה (ראה _yardAddrFromHistory). */
 const _YARD_ADDR_BY_SOURCE = {
   'כלמוביל': {
-    'המפרץ':     { city: 'עכו', address: '' },
-    'עין המפרץ': { city: 'עכו', address: '' },
-    'מפרץ':      { city: 'עכו', address: '' },
-    'עכו':       { city: 'עכו', address: '' },
-    'נשר':       { city: 'נשר', address: '' },
+    // מגרש נשר נרשם בדוח כ"טרייד" או "טרייד נשר" — הכתובת אחת ויחידה
+    'טרייד':     { city: 'נשר', address: 'השיש 10' },
+    'נשר':       { city: 'נשר', address: 'השיש 10' },
+    // מגרש עכו נרשם כ"גפי" או כ"טסט"
+    'גפי':       { city: 'עכו', address: 'החרש 3' },
+    'טסט':       { city: 'עכו', address: 'החרש 3' },
+    'עכו':       { city: 'עכו', address: 'החרש 3' },
+    'המפרץ':     { city: 'עכו', address: 'החרש 3' },
+    'עין המפרץ': { city: 'עכו', address: 'החרש 3' },
+    'מפרץ':      { city: 'עכו', address: 'החרש 3' },
   },
   'יורודרייב': {},
 };
@@ -22174,12 +22179,25 @@ function _historyContactsFor(car) {
   return Object.entries(tally).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([t]) => t);
 }
 
-/* משלים כתובת למגרש שנרשם בשם בלבד: אותה חברה, אותה עיר, כתובת עם מספר
-   בית. כך רכב מנשר או מעכו מקבל את הכתובת שכבר אספנו ממנה בעבר. */
+/* משלים כתובת למגרש שנרשם בשם בלבד. קודם הטבלה הקבועה של החברה (שם
+   מגרש → כתובת מלאה), ואם אין — לומדים מרכבים שכבר נאספו מאותה חברה
+   ואותה עיר. שם המגרש נבדק גם מול הכתובת וגם מול העיר שזוהתה, כי בדוח
+   הוא יכול להופיע בשני המקומות ("טרייד" / "טרייד נשר"). */
 function _freetextFillAddresses() {
+  const table = k => _YARD_ADDR_BY_SOURCE[String(k || '').trim()] || {};
   for (const c of _freetextParsed) {
+    if (/\d/.test(String(c.address || ''))) continue;   // כבר כתובת מלאה
+    const hay = [c.address, c.city].filter(Boolean).join(' ');
+    const t = table(c.source);
+    const key = Object.keys(t).find(k => hay.includes(k));
+    if (key && t[key].address) {
+      c.city = t[key].city || c.city;
+      c.address = t[key].address;
+      c._addrFromHistory = true;
+      continue;
+    }
     const city = _pickupCity(c);
-    if (!city || /\d/.test(String(c.address || ''))) continue;
+    if (!city) continue;
     const learned = _yardAddrFromHistory(c.source, city, c.address);
     if (learned && learned.address) { c.address = learned.address; c._addrFromHistory = true; }
   }
