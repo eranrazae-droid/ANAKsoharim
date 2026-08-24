@@ -21054,7 +21054,13 @@ async function _savePickupOrder() {
 
 /* כמה רכבים באותה כתובת מקבלים את אותו צבע בשורת המיקום, כדי לראות
    במבט אחד מה אפשר לאסוף באותה נסיעה. כתובת יחידה נשארת בכחול הרגיל. */
-const _PK_ADDR_COLORS = ['#7c3aed','#0f766e','#b45309','#be185d','#1d4ed8','#4d7c0f','#9333ea','#0e7490','#a16207','#c2410c'];
+/* צבע נפרד לכל כתובת. כל הצבעים כהים מספיק לטקסט לבן, ושונים זה מזה
+   כדי שאפשר יהיה להבדיל ביניהם במבט אחד. הכחול הרגיל שמור לרכב בלי כתובת. */
+const _PK_ADDR_COLORS = [
+  '#7c3aed','#0f766e','#b45309','#be185d','#15803d','#c2410c','#0e7490','#4338ca',
+  '#a16207','#9d174d','#1e40af','#4d7c0f','#b91c1c','#6d28d9','#047857','#92400e',
+  '#0369a1','#7e22ce','#065f46','#831843',
+];
 let _pkAddrColor = {};
 
 /* הקיבוץ זהה לזה של פנקס הכתובות: אותה עיר, אותו מספר בית ומילת רחוב
@@ -21072,11 +21078,10 @@ function _pkGroupAddresses(cars) {
     tok.names.forEach(n => { if (!g.tok.names.includes(n)) g.tok.names.push(n); });
     g.ids.push(c.id);
   }
-  // הצבע נקבע לפי סדר ההופעה, כך שהוא יציב בכל ציור מחדש של אותה רשימה
-  let i = 0;
-  clusters.forEach(g => {
-    if (g.ids.length < 2) return;
-    const color = _PK_ADDR_COLORS[i++ % _PK_ADDR_COLORS.length];
+  // כל כתובת מקבלת צבע משלה — גם כתובת עם רכב אחד. הצבע נקבע לפי סדר
+  // ההופעה ברשימה, ולכן הוא יציב בכל ציור מחדש של אותה רשימה.
+  clusters.forEach((g, i) => {
+    const color = _PK_ADDR_COLORS[i % _PK_ADDR_COLORS.length];
     g.ids.forEach(id => { _pkAddrColor[id] = color; });
   });
 }
