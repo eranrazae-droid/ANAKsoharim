@@ -20621,6 +20621,7 @@ function renderPickupCars() {
   // ציור מחדש באמצע גרירה הורס את הקובייה שנגררת ומחזיר את הסדר.
   // דוחים אותו עד שהגרירה מסתיימת.
   if (_pkDrag || _pkPressing) { _pkPendingRender = true; return; }
+  _pkGroupAddresses(cars);
   list.innerHTML = cars.map(_pickupCardHtml).join('');
   _pickupFitRows();
   _pickupEnableDrag();
@@ -20984,6 +20985,35 @@ async function _savePickupOrder() {
   }
 }
 
+/* כמה רכבים באותה כתובת מקבלים את אותו צבע בשורת המיקום, כדי לראות
+   במבט אחד מה אפשר לאסוף באותה נסיעה. כתובת יחידה נשארת בכחול הרגיל. */
+const _PK_ADDR_COLORS = ['#7c3aed','#0f766e','#b45309','#be185d','#1d4ed8','#4d7c0f','#9333ea','#0e7490','#a16207','#c2410c'];
+let _pkAddrColor = {};
+
+/* הקיבוץ זהה לזה של פנקס הכתובות: אותה עיר, אותו מספר בית ומילת רחוב
+   משותפת. כך "שנקר 15" ו"שנקר אריה 15" נחשבים אותו מקום. */
+function _pkGroupAddresses(cars) {
+  _pkAddrColor = {};
+  const clusters = [];
+  for (const c of cars) {
+    const city = String(_pickupCity(c) || '').trim();
+    const tok = { city, ..._addrTokens(city, c.address) };
+    if (!tok.names.length) continue;
+    let g = clusters.find(x => _sameAddress(x.tok, tok));
+    if (!g) { g = { tok, ids: [] }; clusters.push(g); }
+    if (tok.num && !g.tok.num) g.tok.num = tok.num;
+    tok.names.forEach(n => { if (!g.tok.names.includes(n)) g.tok.names.push(n); });
+    g.ids.push(c.id);
+  }
+  // הצבע נקבע לפי סדר ההופעה, כך שהוא יציב בכל ציור מחדש של אותה רשימה
+  let i = 0;
+  clusters.forEach(g => {
+    if (g.ids.length < 2) return;
+    const color = _PK_ADDR_COLORS[i++ % _PK_ADDR_COLORS.length];
+    g.ids.forEach(id => { _pkAddrColor[id] = color; });
+  });
+}
+
 function _pickupCardHtml(c) {
   const e = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const km = c.km ? _fmtKm(c.km) : '';
@@ -20999,6 +21029,8 @@ function _pickupCardHtml(c) {
   const place = [c.address || '', c.address && _city && !c.address.includes(_city) ? _city : (c.address ? '' : _city)]
     .filter(Boolean).join(', ');
   const nav = _pickupNavUrl(c);
+  const groupColor = _pkAddrColor[c.id] || '';
+  const addrStyle = groupColor ? ` style="background:${groupColor}"` : '';
   const sent = !!c.assignedDriver;
   // רכב שנשלח לנהג מקבל רקע צהוב; רכב שסומן — ירוק, והסימון גובר
   const bg = checked ? 'background:#dcfce7;border-color:#059669;' : sent ? 'background:#fef9c3;border-color:#eab308;' : '';
@@ -21027,8 +21059,8 @@ function _pickupCardHtml(c) {
 
     <div class="pk-lines">
       ${place ? (nav
-        ? `<a class="pk-line pk-nav" href="${nav}" target="_blank" rel="noopener" onclick="event.stopPropagation()">📍 ${e(place)} <span style="margin-right:auto;font-size:11px">🚶 ניווט</span></a>`
-        : `<div class="pk-line">📍 ${e(place)}</div>`) : `<div class="pk-line" style="color:var(--muted)">📍 אין כתובת</div>`}
+        ? `<a class="pk-line pk-nav" href="${nav}" target="_blank" rel="noopener"${addrStyle} onclick="event.stopPropagation()">📍 ${e(place)} <span style="margin-right:auto;font-size:11px">🚶 ניווט</span></a>`
+        : `<div class="pk-line pk-nav"${addrStyle}>📍 ${e(place)}</div>`) : `<div class="pk-line" style="color:var(--muted)">📍 אין כתובת</div>`}
       <div class="pk-line" style="display:flex;align-items:center;gap:6px">
         <span style="${expired ? 'color:#dc2626;font-weight:900' : ''};flex-shrink:0">🔧 טסט: ${c.test ? e(c.test) : '—'}${expired ? ' · פג תוקף' : ''}</span>
         ${c.contact ? `<span title="${e(c.contact)}" style="margin-right:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-weight:700">👤 ${e(c.contact)}</span>` : ''}
