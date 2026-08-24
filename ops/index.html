@@ -21596,6 +21596,7 @@ function _levenshtein(a, b) {
 // To add more: { alias: 'שם היישוב', city: 'העיר המשויכת' }
 const _CITY_ALIASES = [
   { alias: 'שנקר', city: 'פתח תקווה' },
+  { alias: 'סיבים', city: 'פתח תקווה' },
   // one spelling only, so the same town never appears twice in a list
   { alias: 'טירת כרמל', city: 'טירת הכרמל' },
   { alias: 'עין המפרץ', city: 'עכו' },
@@ -22047,6 +22048,17 @@ function _freetextSetSource(i, name) {
 }
 window._freetextSetSource = _freetextSetSource;
 
+/* אנשי הקשר שנלמדו לכתובת מולאים כבר בחלונית התצוגה המקדימה, כדי שיהיה
+   אפשר לראות ולתקן אותם לפני שהרכבים עולים — ולא רק אחרי. */
+function _freetextFillContacts() {
+  for (const c of _freetextParsed) {
+    const known = _knownContactsFor(c);
+    if (!known.length) { c._knownContacts = ''; continue; }
+    c._knownContacts = known.join(' · ');
+    c.contact = _dedupContacts([c.contact || '', ...known].join(' · '));
+  }
+}
+
 function _renderFreetextPreview() {
   const preview = document.getElementById('freetext-pickup-preview');
   preview.innerHTML = _freetextParsed.map((c, i) => `
@@ -22068,6 +22080,7 @@ function _renderFreetextPreview() {
               style="width:100%;padding:5px 7px;border-radius:7px;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;box-sizing:border-box">
           </div>`).join('')}
       </div>
+      ${c._knownContacts ? `<div style="margin-top:6px;font-size:12px;font-weight:800;color:#1d4ed8">👤 מולא לפי הכתובת: ${esc(c._knownContacts)}</div>` : ''}
       ${c.note ? `<div style="margin-top:8px;background:#fef08a;color:#000;border-right:5px solid #eab308;border-radius:8px;padding:8px 10px;font-size:13px;font-weight:800">📝 ${esc(c.note)}</div>
         <input type="text" value="${(c.note||'').replace(/"/g,'&quot;')}" oninput="_freetextParsed[${i}].note=this.value"
           style="width:100%;margin-top:6px;padding:5px 7px;border-radius:7px;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;box-sizing:border-box">` : ''}
@@ -22096,6 +22109,7 @@ async function parseFreeTextPickup(readyCars) {
   for (const c of _freetextParsed) {
     if (c.city && c.address) c.address = _snapAddressToStreets(c.city, c.address);
   }
+  _freetextFillContacts();
 
   const preview = document.getElementById('freetext-pickup-preview');
   if (!_freetextParsed.length) { preview.innerHTML = '<div style="color:var(--muted);text-align:center;padding:20px">לא זוהו רכבים</div>'; return; }
