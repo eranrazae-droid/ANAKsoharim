@@ -21760,9 +21760,14 @@ const _SHENKAR = { city: 'פתח תקווה', address: 'שנקר 15' };
 ─────────────────────────────────────────────────────────────────────── */
 
 // כתובות המגרשים — למלא פעם אחת, ומשם כל דוח נקלט עם ניווט לנהג
+/* שם המגרש בדוח אינו כתובת. מה שידוע כאן ממלא לפחות את העיר, וכשתמסור
+   רחוב ומספר בית — משלימים גם address וזיכרון אנשי הקשר יתפוס לבד. */
 const _YARD_ADDR = {
+  'המפרץ':     { city: 'עכו',  address: '' },
+  'עין המפרץ': { city: 'עכו',  address: '' },
+  'מפרץ':      { city: 'עכו',  address: '' },
+  'נשר':       { city: 'נשר',  address: '' },
   // 'ניר צבי':        { city: '', address: '' },
-  // 'חיפה':           { city: '', address: '' },
   // 'גלילות':         { city: '', address: '' },
   // 'ראשון לציון':    { city: '', address: '' },
 };
@@ -21826,7 +21831,7 @@ function _parseZivLine(line) {
   // המגרש הוא שם ולא כתובת — עד שממלאים את הטבלה למעלה, השם נשמר
   // בשדה הכתובת כדי שלא ילך לאיבוד, והמנהל יכול להשלים ידנית
   const known = Object.keys(_YARD_ADDR).find(k => yard.includes(k));
-  if (known) { car.city = _YARD_ADDR[known].city; car.address = _YARD_ADDR[known].address; }
+  if (known) { car.city = _YARD_ADDR[known].city; car.address = _YARD_ADDR[known].address || yard; }
   else if (yard) car.address = yard;
   // סוג המרכב והמנוע כבר מופיעים בשם הרכב — אין צורך בהערה נוספת
   return car;
@@ -21866,7 +21871,7 @@ function _parseZivSheet(rows) {
       contact: '', city: '', address: '', note: '', source: 'יורודרייב',
     };
     const known = Object.keys(_YARD_ADDR).find(k => yard.includes(k));
-    if (known) { car.city = _YARD_ADDR[known].city; car.address = _YARD_ADDR[known].address; }
+    if (known) { car.city = _YARD_ADDR[known].city; car.address = _YARD_ADDR[known].address || yard; }
     else if (yard) car.address = yard;
     cars.push(car);
   }
