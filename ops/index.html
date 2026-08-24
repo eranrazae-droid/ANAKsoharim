@@ -2596,7 +2596,7 @@ if ('serviceWorker' in navigator) {
   <div style="padding:12px 16px 0;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
     <input type="text" id="pickup-search-plate" placeholder="🔎 חפש מספר רכב" inputmode="numeric" oninput="renderPickupCars()" style="flex:1;min-width:150px;padding:9px 12px;border-radius:999px;border:2px solid var(--border);background:var(--card);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:700">
     <button id="pickup-filter-btn" onclick="openPickupFilters()" style="flex:1;min-width:140px;padding:9px 14px;border-radius:999px;border:none;background:#0d9488;color:#fff;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer">⚙️ מיון וסינון</button>
-    <button onclick="openPickupActions()" style="flex:1;min-width:110px;padding:9px 14px;border-radius:999px;border:none;background:var(--gold);color:#000;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer">➕ פעולות</button>
+    <button onclick="openPickupActions()" style="flex:1;min-width:110px;padding:9px 14px;border-radius:999px;border:none;background:var(--gold);color:#000;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer">➕ פעולות ומידע</button>
     <button id="pickup-map-toggle" onclick="togglePickupMap()" style="flex:1;min-width:110px;padding:9px 14px;border-radius:999px;border:none;background:var(--dark);color:#fff;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer">🗺️ הצג מפה</button>
   </div>
   <!-- שני שלישים ימניים לרשימה, שליש שמאלי למפה (במסך רחב בלבד) -->
@@ -2654,11 +2654,20 @@ if ('serviceWorker' in navigator) {
 <!-- ====== MODAL: PICKUP ACTIONS ====== -->
 <div class="modal-overlay" id="modal-pickup-actions">
   <div class="modal-box">
-    <div class="modal-title"><span>➕ פעולות</span> <button class="modal-close" onclick="closeModal('modal-pickup-actions')">✕</button></div>
+    <div class="modal-title"><span>➕ פעולות ומידע</span> <button class="modal-close" onclick="closeModal('modal-pickup-actions')">✕</button></div>
     <div style="display:flex;flex-direction:column;gap:10px">
       <button onclick="closeModal('modal-pickup-actions');openFreeTextPickupModal()" style="background:var(--gold);color:#000;border:none;border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:15px;font-weight:800;cursor:pointer">🖼️ הוספה לפי תמונה</button>
       <button onclick="closeModal('modal-pickup-actions');openTextPickupModal()" style="background:#7c3aed;color:#fff;border:none;border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:15px;font-weight:800;cursor:pointer">📝 הוספה לפי מלל</button>
       <button onclick="closeModal('modal-pickup-actions');openOwnershipModal()" style="background:#2563eb;color:#fff;border:none;border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:15px;font-weight:800;cursor:pointer">📤 העלאת בעלויות</button>
+    </div>
+    <!-- כל הכתובות שהמערכת מכירה, עם אנשי הקשר המשויכים להן -->
+    <div style="margin-top:18px;border-top:2px solid var(--border);padding-top:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px">
+        <div style="font-weight:900;font-size:15px">📍 כתובות ואנשי קשר</div>
+        <input type="text" id="pk-addr-search" oninput="_renderPickupAddrBook()" placeholder="חיפוש עיר / כתובת / איש קשר"
+          style="flex:1;max-width:220px;padding:6px 10px;border-radius:9px;border:1.5px solid var(--border);background:var(--card);color:var(--text);font-family:Heebo,sans-serif;font-size:13px">
+      </div>
+      <div id="pk-addr-book" style="max-height:46vh;overflow-y:auto"></div>
     </div>
   </div>
 </div>
@@ -19954,7 +19963,52 @@ const _PICKUP_SORTS = [
   '📍 לפי מרחק — מהקרוב לרחוק',
 ];
 
-function openPickupActions() { openModal('modal-pickup-actions'); }
+function openPickupActions() { openModal('modal-pickup-actions'); _renderPickupAddrBook(); }
+
+/* פנקס הכתובות: מאחד את מה שנלמד בזיכרון הכתובות עם מה שמופיע ברכבים
+   עצמם ובארכיון, ומציג שורה לכל עיר+כתובת עם אנשי הקשר שלה. */
+function _pickupAddrBookRows() {
+  const rows = {};
+  const add = (city, address, source, contact) => {
+    city = String(city || '').trim();
+    address = _cleanStreet(address || '');
+    if (!city && !address) return;
+    const k = `${city}|${address}|${String(source || '').trim()}`;
+    if (!rows[k]) rows[k] = { city, address, source: String(source || '').trim(), contacts: [], cars: 0 };
+    _contactParts(contact || '').forEach(t => { if (!rows[k].contacts.includes(t)) rows[k].contacts.push(t); });
+  };
+  Object.values(_addrContacts || {}).forEach(v => add(v.city, v.address, '', (v.contacts || []).join(' · ')));
+  [...(_pickupAllCars || []), ...(_pickupArchiveCars || [])].forEach(c => {
+    add(_pickupCity(c), c.address, c.source, c.contact);
+    const k = `${String(_pickupCity(c) || '').trim()}|${_cleanStreet(c.address || '')}|${String(c.source || '').trim()}`;
+    if (rows[k]) rows[k].cars++;
+  });
+  return Object.values(rows).sort((a, b) =>
+    (a.city || '').localeCompare(b.city || '', 'he') || (a.address || '').localeCompare(b.address || '', 'he'));
+}
+
+function _renderPickupAddrBook() {
+  const box = document.getElementById('pk-addr-book');
+  if (!box) return;
+  const q = (document.getElementById('pk-addr-search')?.value || '').trim();
+  let rows = _pickupAddrBookRows();
+  if (q) rows = rows.filter(r => [r.city, r.address, r.source, r.contacts.join(' ')].join(' ').includes(q));
+  if (!rows.length) {
+    box.innerHTML = '<div style="color:var(--muted);text-align:center;padding:16px;font-size:13px">אין עדיין כתובות שמורות</div>';
+    return;
+  }
+  box.innerHTML = rows.map(r => `
+    <div style="display:flex;align-items:flex-start;gap:8px;padding:9px 4px;border-bottom:1px solid var(--border)">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13.5px;font-weight:800">${esc(r.address || '—')}${r.city ? `<span style="color:var(--muted);font-weight:700"> · ${esc(r.city)}</span>` : ''}</div>
+        <div style="font-size:12.5px;color:${r.contacts.length ? '#1d4ed8' : 'var(--muted)'};font-weight:700;margin-top:2px">
+          ${r.contacts.length ? '👤 ' + esc(r.contacts.join(' · ')) : 'אין איש קשר'}
+        </div>
+      </div>
+      ${r.source ? `<div style="flex-shrink:0;font-size:11px;font-weight:800;color:#fff;background:${_pickupSourceColor(r.source)};border-radius:7px;padding:2px 8px;white-space:nowrap">${esc(r.source)}</div>` : ''}
+    </div>`).join('');
+}
+window._renderPickupAddrBook = _renderPickupAddrBook;
 window.openPickupActions = openPickupActions;
 
 function openPickupFilters() {
