@@ -20031,6 +20031,10 @@ function _pickupAddrBookRows() {
     city = String(city || '').trim();
     address = _cleanStreet(address || '');
     if (!city && !address) return;
+    // רישום חופשי מתורגם לכתובת הקבועה של המגרש, כדי שכל הניסוחים
+    // יתאחדו לשורה אחת עם הכתובת האמיתית
+    const canon = _yardCanon(source, city, address);
+    if (canon) { city = canon.city; address = canon.address; }
     raws.push({ city, address, source: String(source || '').trim(), contact: contact || '' });
   };
   Object.values(_addrContacts || {}).forEach(v => add(v.city, v.address, '', (v.contacts || []).join(' · ')));
@@ -21928,21 +21932,51 @@ const _SHENKAR = { city: 'פתח תקווה', address: 'שנקר 15' };
    יכולים להיות סניפים באותה עיר בכתובות שונות, ולכן אסור לערבב ביניהן.
    כתובת שאינה רשומה כאן נלמדת לבד מרכבים שכבר נאספו מאותו מגרש ואותה
    חברה (ראה _yardAddrFromHistory). */
+/* המפתח הוא הצירוף שמופיע בדוח או ברישום החופשי. strong=true מחליף את
+   הכתובת תמיד; בלעדיו ההחלפה נעשית רק כשאין כתובת תקינה משלה. הסדר חשוב:
+   הצירוף הארוך והמדויק נבדק לפני שם עיר בודד. */
 const _YARD_ADDR_BY_SOURCE = {
   'כלמוביל': {
-    // מגרש נשר נרשם בדוח כ"טרייד" או "טרייד נשר" — הכתובת אחת ויחידה
-    'טרייד':     { city: 'נשר', address: 'השיש 10' },
-    'נשר':       { city: 'נשר', address: 'השיש 10' },
-    // מגרש עכו נרשם כ"גפי" או כ"טסט"
-    'גפי':       { city: 'עכו', address: 'החרש 3' },
-    'טסט':       { city: 'עכו', address: 'החרש 3' },
-    'עכו':       { city: 'עכו', address: 'החרש 3' },
-    'המפרץ':     { city: 'עכו', address: 'החרש 3' },
-    'עין המפרץ': { city: 'עכו', address: 'החרש 3' },
-    'מפרץ':      { city: 'עכו', address: 'החרש 3' },
+    'טרייד ירושלים': { city: 'ירושלים', address: 'גנרל פייר קניג 36', strong: true },
+    'טרייד נתניה':   { city: 'נתניה',   address: 'אורג 16',           strong: true },
+    'טרייד עפולה':   { city: 'עפולה',   address: 'קדרון 1',           strong: true },
+    'טרייד נשר':     { city: 'נשר',     address: 'השיש 10',           strong: true },
+    'עין המפרץ':     { city: 'עכו',     address: 'החרש 3',            strong: true },
+    // מגרש עכו נרשם כ"גפי", "ג.פ.י" או "טסט"
+    'ג.פ.י':         { city: 'עכו',     address: 'החרש 3',            strong: true },
+    'גפי':           { city: 'עכו',     address: 'החרש 3',            strong: true },
+    'טסט':           { city: 'עכו',     address: 'החרש 3',            strong: true },
+    'המפרץ':         { city: 'עכו',     address: 'החרש 3',            strong: true },
+    'מפרץ':          { city: 'עכו',     address: 'החרש 3',            strong: true },
+    // שם עיר בלבד — משמש רק כשאין כתובת תקינה ברישום
+    'עכו':           { city: 'עכו',     address: 'החרש 3' },
+    'נשר':           { city: 'נשר',     address: 'השיש 10' },
+    'ירושלים':       { city: 'ירושלים', address: 'גנרל פייר קניג 36' },
+    'מודיעין':       { city: 'מודיעין מכבים רעות', address: 'המכונאי 21' },
+    'עפולה':         { city: 'עפולה',   address: 'קדרון 1' },
+    // "טרייד" לבדו הוא מגרש נשר, אבל רק כשאין ברישום כתובת משלו —
+    // אחרת הוא היה חוטף גם רישומים כמו "כלמוביל טרייד - הנופר 6 רעננה"
+    'טרייד':         { city: 'נשר',     address: 'השיש 10' },
   },
   'יורודרייב': {},
 };
+
+/* מתרגם רישום חופשי לכתובת הקבועה של המגרש. מחזיר null כשאין התאמה. */
+function _yardCanon(source, city, address) {
+  const src = String(source || '').trim();
+  // רישום ישן נשמר לעיתים בלי חברה — המגרשים שלנו הם של כלמוביל
+  const t = _YARD_ADDR_BY_SOURCE[src] || (src ? null : _YARD_ADDR_BY_SOURCE['כלמוביל']);
+  if (!t) return null;
+  const hay = [address, city].filter(Boolean).join(' ');
+  const tok = _addrTokens(city, address);
+  const hasOwnAddress = !!(tok.num && tok.names.length);
+  for (const k of Object.keys(t)) {
+    if (!hay.includes(k)) continue;
+    if (!t[k].strong && hasOwnAddress) continue;
+    return { city: t[k].city, address: t[k].address };
+  }
+  return null;
+}
 
 /* לומד את הכתובת של מגרש מרכבים קודמים: אותה חברה, אותה עיר, כתובת עם
    מספר בית. כך מגרש שכבר אספנו ממנו מקבל את הכתובת שלו בלי להזין אותה. */
@@ -22284,18 +22318,10 @@ function _historyContactsFor(car) {
    ואותה עיר. שם המגרש נבדק גם מול הכתובת וגם מול העיר שזוהתה, כי בדוח
    הוא יכול להופיע בשני המקומות ("טרייד" / "טרייד נשר"). */
 function _freetextFillAddresses() {
-  const table = k => _YARD_ADDR_BY_SOURCE[String(k || '').trim()] || {};
   for (const c of _freetextParsed) {
+    const canon = _yardCanon(c.source, c.city, c.address);
+    if (canon) { c.city = canon.city; c.address = canon.address; c._addrFromHistory = true; continue; }
     if (/\d/.test(String(c.address || ''))) continue;   // כבר כתובת מלאה
-    const hay = [c.address, c.city].filter(Boolean).join(' ');
-    const t = table(c.source);
-    const key = Object.keys(t).find(k => hay.includes(k));
-    if (key && t[key].address) {
-      c.city = t[key].city || c.city;
-      c.address = t[key].address;
-      c._addrFromHistory = true;
-      continue;
-    }
     const city = _pickupCity(c);
     if (!city) continue;
     const learned = _yardAddrFromHistory(c.source, city, c.address);
