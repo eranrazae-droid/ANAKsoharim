@@ -1820,6 +1820,7 @@ if ('serviceWorker' in navigator) {
         </button>
         <input type="file" id="inv-file-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleInventoryFile(this)">
       </div>
+      <button id="inv-finish-btn" onclick="finishInventoryCheck()" style="display:none;flex-shrink:0;width:56px;background:#f0fdf4;border:2px solid #22c55e;border-radius:16px;font-size:22px;cursor:pointer;color:#16a34a" title="סיום הבדיקה — הטבלה מתאפסת ומסומן שהבדיקה בוצעה היום">✅</button>
       <button id="inv-delete-btn" onclick="deleteInventoryTable()" style="flex-shrink:0;width:56px;background:#fff0f0;border:2px solid #ef4444;border-radius:16px;font-size:22px;cursor:pointer;color:#ef4444" title="מחק טבלה">🗑️</button>
     </div>
     <!-- Vehicle list -->
@@ -8749,6 +8750,9 @@ function loadLastInventoryAssignment() {
     // Shrink upload zone to a small button
     document.getElementById('inv-upload-zone').style.padding = '10px 16px';
     document.getElementById('inv-delete-btn').dataset.docId = last.id;
+    // כפתור הסיום מופיע רק כשהנהג כבר החזיר את הבדיקה
+    const finBtn = document.getElementById('inv-finish-btn');
+    if (finBtn) { finBtn.dataset.docId = last.id; finBtn.style.display = last.status === 'done' ? '' : 'none'; }
 
     const rows = last.rowsJson ? JSON.parse(last.rowsJson) : (last.rows || []);
     const headers = last.headers || [];
@@ -8789,6 +8793,8 @@ function loadLastInventoryAssignment() {
 
 function _clearInventoryUI() {
   document.getElementById('inv-delete-btn').dataset.docId = '';
+  const _finBtn = document.getElementById('inv-finish-btn');
+  if (_finBtn) { _finBtn.dataset.docId = ''; _finBtn.style.display = 'none'; }
   document.getElementById('inv-list').innerHTML = '';
   document.getElementById('inv-status-banner').style.display = 'none';
   document.getElementById('inv-upload-zone').style.padding = '28px 20px';
@@ -8798,6 +8804,30 @@ function _clearInventoryUI() {
   _invMode = 'live';
   window._lastInvStatus = null;
 }
+
+/* סיום הבדיקה: הליקויים טופלו, הטבלה מתאפסת, ובמסך הבית נרשם שהבדיקה
+   בוצעה היום והכל תקין — גם אחרי שהטבלה עצמה נמחקת. */
+async function finishInventoryCheck() {
+  const btn = document.getElementById('inv-finish-btn');
+  const docId = btn?.dataset.docId;
+  if (!docId) return;
+  if (!confirm('לסיים את בדיקת המלאי? הטבלה תימחק ובמסך הבית יירשם שהבדיקה בוצעה היום.')) return;
+  if (!_requireNet('סיום הבדיקה')) return;
+  btn.disabled = true;
+  try {
+    await window._setDoc(_docRef('config', 'daily_checks'), {
+      invDay: _todayKey(), invMissing: 0, invBy: currentUser.name, invFinishedAt: new Date().toISOString(),
+    }, { merge: true });
+    const { deleteDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    await deleteDoc(doc(window._db, 'inventory_assignments', docId));
+    _clearInventoryUI();
+    showToast('✅ הבדיקה הסתיימה — נרשם שבוצעה היום');
+  } catch (e) {
+    showToast('שגיאה בסיום הבדיקה: ' + (e.code || e.message), 6000);
+  }
+  btn.disabled = false;
+}
+window.finishInventoryCheck = finishInventoryCheck;
 
 async function deleteInventoryTable() {
   const btn = document.getElementById('inv-delete-btn');
