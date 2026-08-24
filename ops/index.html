@@ -19965,25 +19965,116 @@ const _PICKUP_SORTS = [
 
 function openPickupActions() { openModal('modal-pickup-actions'); _renderPickupAddrBook(); }
 
-/* פנקס הכתובות: מאחד את מה שנלמד בזיכרון הכתובות עם מה שמופיע ברכבים
-   עצמם ובארכיון, ומציג שורה לכל עיר+כתובת עם אנשי הקשר שלה. */
+/* ── פנקס הכתובות ────────────────────────────────────────────────────
+   אותה כתובת נרשמה לאורך השנים בעשרות ניסוחים חופשיים ("טסט עכו",
+   "נמצא בג.פ.י אצל אבו סלאח", "החרש 3 עכו"). כאן מזהים שכולן אותו מקום
+   ומאחדים אותן לשורה אחת: אותה עיר + אותו מספר בית + מילת רחוב משותפת.
+   אנשי הקשר מאוחדים לפי מספר הטלפון, כך שגם רישום קטוע לא מופיע פעמיים. */
+
+// מנקה ניסוח חופשי ומשאיר את שם הרחוב ומספר הבית
+function _addrTokens(city, address) {
+  let t = _cleanStreet(address || '')
+    .replace(/["'`׳״’‘“”.]/g, ' ')
+    .replace(/[,\-]/g, ' ');
+  if (city) t = t.split(String(city)).join(' ');
+  t = t
+    .replace(/נמצא(ים|ת)?/g, ' ')
+    .replace(/(^|\s)(אצל|רחוב|רח|ב)(\s)/g, ' ')
+    .replace(/\s+/g, ' ').trim();
+  const words = t.split(' ').filter(Boolean);
+  // מספר הבית הוא המספר הראשון שבא אחרי שם רחוב — "עוצמה 11 1" הוא 11
+  let num = '', seenName = false;
+  const names = [];
+  for (const w of words) {
+    if (/^[א-ת]{3,}$/.test(w)) {
+      seenName = true;
+      // ה"א/ב"ית הידיעה לא אמורה לפצל בין "עמל" ל"העמל"
+      const bare = w.replace(/^[הבלומ](?=[א-ת]{3,})/, '');
+      if (!names.includes(bare)) names.push(bare);
+    } else if (/^\d{1,3}$/.test(w) && seenName && !num) num = w;
+  }
+  return { num, names };
+}
+
+// שני רישומים הם אותו מקום אם העיר זהה, מספר הבית זהה, ויש מילת רחוב משותפת
+function _sameAddress(a, b) {
+  if (a.city !== b.city) return false;
+  if (a.num && b.num && a.num !== b.num) return false;
+  if (!a.names.length || !b.names.length) return false;
+  return a.names.some(n => b.names.includes(n));
+}
+
+// איחוד אנשי קשר לפי הטלפון: רישום קטוע נבלע ברישום המלא, ושם מנצח מספר לבד
+function _mergeContacts(list) {
+  const out = [];
+  for (const raw of list) {
+    const t = String(raw || '').trim();
+    if (!t) continue;
+    const d = t.replace(/\D/g, '');
+    if (!d) { if (!out.some(o => o.text === t)) out.push({ text: t, digits: '' }); continue; }
+    const hit = out.find(o => o.digits && (o.digits.startsWith(d) || d.startsWith(o.digits)));
+    if (!hit) { out.push({ text: t, digits: d }); continue; }
+    // שומרים את הרישום העשיר יותר — עם שם ועם מספר שלם
+    const better = (d.length > hit.digits.length) || (d.length === hit.digits.length && t.length > hit.text.length);
+    if (better) { hit.text = t; hit.digits = d; }
+  }
+  return out.map(o => o.text);
+}
+
 function _pickupAddrBookRows() {
-  const rows = {};
+  const raws = [];
   const add = (city, address, source, contact) => {
     city = String(city || '').trim();
     address = _cleanStreet(address || '');
     if (!city && !address) return;
-    const k = `${city}|${address}|${String(source || '').trim()}`;
-    if (!rows[k]) rows[k] = { city, address, source: String(source || '').trim(), contacts: [], cars: 0 };
-    _contactParts(contact || '').forEach(t => { if (!rows[k].contacts.includes(t)) rows[k].contacts.push(t); });
+    raws.push({ city, address, source: String(source || '').trim(), contact: contact || '' });
   };
   Object.values(_addrContacts || {}).forEach(v => add(v.city, v.address, '', (v.contacts || []).join(' · ')));
-  [...(_pickupAllCars || []), ...(_pickupArchiveCars || [])].forEach(c => {
-    add(_pickupCity(c), c.address, c.source, c.contact);
-    const k = `${String(_pickupCity(c) || '').trim()}|${_cleanStreet(c.address || '')}|${String(c.source || '').trim()}`;
-    if (rows[k]) rows[k].cars++;
-  });
-  return Object.values(rows).sort((a, b) =>
+  [...(_pickupAllCars || []), ...(_pickupArchiveCars || [])].forEach(c => add(_pickupCity(c), c.address, c.source, c.contact));
+
+  const groups = [];
+  for (const r of raws) {
+    const tok = { city: r.city, ..._addrTokens(r.city, r.address) };
+    let g = groups.find(x => _sameAddress(x.tok, tok));
+    if (!g) { g = { tok, city: r.city, variants: [], sources: [], contacts: [] }; groups.push(g); }
+    if (tok.num && !g.tok.num) g.tok.num = tok.num;
+    tok.names.forEach(n => { if (!g.tok.names.includes(n)) g.tok.names.push(n); });
+    if (r.address && !g.variants.includes(r.address)) g.variants.push(r.address);
+    if (r.source && !g.sources.includes(r.source)) g.sources.push(r.source);
+    _contactParts(r.contact).forEach(t => g.contacts.push(t));
+  }
+
+  // מעבר שני: אותה עיר ואותו מספר טלפון — אותו מקום, גם אם הניסוח שונה
+  // לגמרי ואין אף מילת רחוב משותפת ("טסט עכו" מול "החרש 3 עכו").
+  const phones = g => new Set(g.contacts.map(t => String(t).replace(/\D/g, '')).filter(d => d.length >= 9));
+  for (let i = 0; i < groups.length; i++) {
+    for (let j = groups.length - 1; j > i; j--) {
+      if (groups[i].city !== groups[j].city) continue;
+      // שתי כתובות תקינות ושונות באותה עיר נשארות נפרדות, גם אם יש להן
+      // אותו איש קשר. האיחוד לפי טלפון נועד רק לרישום חופשי בלי כתובת.
+      const clean = g => !!(g.tok.num && g.tok.names.length);
+      if (clean(groups[i]) && clean(groups[j]) && groups[i].tok.num !== groups[j].tok.num) continue;
+      const a = phones(groups[i]), b2 = phones(groups[j]);
+      if (![...a].some(d => [...b2].some(e => d.startsWith(e) || e.startsWith(d)))) continue;
+      groups[j].variants.forEach(v => { if (!groups[i].variants.includes(v)) groups[i].variants.push(v); });
+      groups[j].sources.forEach(v => { if (!groups[i].sources.includes(v)) groups[i].sources.push(v); });
+      groups[i].contacts.push(...groups[j].contacts);
+      if (!groups[i].tok.num && groups[j].tok.num) groups[i].tok.num = groups[j].tok.num;
+      groups.splice(j, 1);
+    }
+  }
+
+  return groups.map(g => {
+    // השם המוצג: הניסוח הקצר ביותר שמתחיל בעברית ומכיל מספר בית
+    const clean = g.variants.filter(v => /\d/.test(v) && /^[א-ת]/.test(v.trim()));
+    const pool = clean.length ? clean : g.variants;
+    const address = pool.slice().sort((a, b) => a.length - b.length)[0] || '';
+    return {
+      city: g.city, address, sources: g.sources,
+      contacts: _mergeContacts(g.contacts),
+      others: g.variants.filter(v => v !== address),
+    };
+  }).sort((a, b) =>
     (a.city || '').localeCompare(b.city || '', 'he') || (a.address || '').localeCompare(b.address || '', 'he'));
 }
 
@@ -19992,7 +20083,7 @@ function _renderPickupAddrBook() {
   if (!box) return;
   const q = (document.getElementById('pk-addr-search')?.value || '').trim();
   let rows = _pickupAddrBookRows();
-  if (q) rows = rows.filter(r => [r.city, r.address, r.source, r.contacts.join(' ')].join(' ').includes(q));
+  if (q) rows = rows.filter(r => [r.city, r.address, (r.others || []).join(' '), (r.sources || []).join(' '), r.contacts.join(' ')].join(' ').includes(q));
   if (!rows.length) {
     box.innerHTML = '<div style="color:var(--muted);text-align:center;padding:16px;font-size:13px">אין עדיין כתובות שמורות</div>';
     return;
@@ -20005,7 +20096,10 @@ function _renderPickupAddrBook() {
           ${r.contacts.length ? '👤 ' + esc(r.contacts.join(' · ')) : 'אין איש קשר'}
         </div>
       </div>
-      ${r.source ? `<div style="flex-shrink:0;font-size:11px;font-weight:800;color:#fff;background:${_pickupSourceColor(r.source)};border-radius:7px;padding:2px 8px;white-space:nowrap">${esc(r.source)}</div>` : ''}
+      <div style="flex-shrink:0;display:flex;flex-direction:column;gap:3px;align-items:flex-end">
+        ${(r.sources || []).map(src => `<div style="font-size:11px;font-weight:800;color:#fff;background:${_pickupSourceColor(src)};border-radius:7px;padding:2px 8px;white-space:nowrap">${esc(src)}</div>`).join('')}
+        ${(r.others || []).length ? `<div style="font-size:10.5px;color:var(--muted);font-weight:700" title="${esc(r.others.join(' | '))}">+${r.others.length} ניסוחים</div>` : ''}
+      </div>
     </div>`).join('');
 }
 window._renderPickupAddrBook = _renderPickupAddrBook;
