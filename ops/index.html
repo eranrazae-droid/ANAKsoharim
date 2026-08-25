@@ -11818,6 +11818,17 @@ async function msRollSnooze() {
 }
 window.msRollSnooze = msRollSnooze;
 
+/* פתיחה ידנית של חלונית החלוקה — לבדיקה, או כשמישהו עזב באמצע היום
+   וצריך לחלק מחדש. אותה חלונית שקופצת לבד ב-08:00. */
+function msOpenRoll() {
+  if (currentUser?.role !== 'manager') return;
+  if (_msThirdOf() === null) return showToast('שבת — אין הנעות היום');
+  _msPresent = null;
+  _msRenderRoll();
+  openModal('modal-morning-roll');
+}
+window.msOpenRoll = msOpenRoll;
+
 // ── מסך ההנעות ──
 function openMorningStartsScreen() {
   const badge = document.getElementById('ms-user-badge');
@@ -11839,8 +11850,9 @@ function _msRenderScreen() {
     return;
   }
   const dayName = new Date().toLocaleDateString('he-IL', { weekday: 'long' });
-  head.innerHTML = `<div style="background:var(--card);border:2px solid var(--border);border-radius:14px;padding:12px 14px;font-weight:800;font-size:14px">
-      ${esc(dayName)} · ${esc(_MS_THIRD_NAMES[third])}
+  head.innerHTML = `<div style="background:var(--card);border:2px solid var(--border);border-radius:14px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+      <div style="font-weight:800;font-size:14px">${esc(dayName)} · ${esc(_MS_THIRD_NAMES[third])}</div>
+      ${isManager ? `<button onclick="msOpenRoll()" style="background:var(--gold);color:#000;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer;white-space:nowrap">🔁 חלק מחדש</button>` : ''}
     </div>`;
   if (!_msToday || _msToday.day !== _msDayKey()) {
     body.innerHTML = `<div style="text-align:center;color:var(--muted);padding:40px 20px;font-weight:700">
