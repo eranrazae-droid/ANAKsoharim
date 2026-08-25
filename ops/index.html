@@ -11586,7 +11586,16 @@ function _renderOwnMorning() {
    החלוקה בין הנהגים נעשית לפי מספר חניה רצוף, ועופר תמיד באמצע.
    כשמגיעים רק שניים — עופר לוקח את החצי הגבוה.
    ═══════════════════════════════════════════════════════════════════ */
-const _MS_DRIVERS = ['גיל', 'עופר', 'איתי'];   // מהנמוך לגבוה, עופר באמצע
+const _MS_DRIVERS = ['גיל', 'עופר', 'איתי'];
+
+/* סדר הנהגים בתוך אזור היום, מהחניה הנמוכה לגבוהה. עופר תמיד באמצע.
+   בראשון, שני, רביעי וחמישי איתי פותח את האזור; בשלישי ושישי גיל פותח. */
+const _MS_ORDER_ITAY_FIRST = ['איתי', 'עופר', 'גיל'];
+const _MS_ORDER_GIL_FIRST  = ['גיל', 'עופר', 'איתי'];
+const _msOrderFor = date => {
+  const day = (date || new Date()).getDay();               // 0=ראשון
+  return (day === 0 || day === 1 || day === 3 || day === 4) ? _MS_ORDER_ITAY_FIRST : _MS_ORDER_GIL_FIRST;
+};
 const _MS_HOUR = 8;
 /* השלישים מוגדרים לפי המראה של המגרש ולא לפי ספירת רכבים:
    1–34 הצד השמאלי · 40–67 הצד הימני ליד הכניסה · 68–93 הצד הימני בסוף. */
@@ -11665,8 +11674,8 @@ function _msChunks(list, parts) {
    שלושה — לפי הסדר גיל, עופר, איתי, כך שעופר תמיד באמצע.
    שניים — עופר מקבל את החצי הגבוה; בלי עופר, לפי הסדר הקבוע.
    אחד — הכול עליו.                                                  */
-function _msDivide(present, spots) {
-  const drivers = _MS_DRIVERS.filter(d => present.includes(d));
+function _msDivide(present, spots, date) {
+  const drivers = _msOrderFor(date).filter(d => present.includes(d));
   const byDriver = {};
   drivers.forEach(d => { byDriver[d] = []; });
   if (!drivers.length || !spots.length) return byDriver;
@@ -11689,7 +11698,7 @@ function _msPlanFor(present, date) {
   if (third === null) return { third: null, spots: [], byDriver: {} };
   const z = _MS_ZONES[third];
   const spots = _msAllSpots().filter(x => x.spot >= z.min && x.spot <= z.max);
-  return { third, spots, byDriver: _msDivide(present, spots) };
+  return { third, spots, byDriver: _msDivide(present, spots, date) };
 }
 
 function _msListen() {
