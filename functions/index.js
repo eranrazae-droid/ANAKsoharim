@@ -2176,6 +2176,8 @@ exports.scheduledNotifications = onSchedule(
       const times = Array.isArray(t.times) ? t.times : [];
       const to = Array.isArray(t.to) ? t.to : [];
       if (!days.length || !times.length || !to.length || !t.message) continue;
+      // התראה מוקפאת אינה נשלחת. הקפאה עד תאריך פגה מעצמה למחרת.
+      if (t.frozen && (!t.frozenUntil || day <= t.frozenUntil)) continue;
       if (!days.includes(dow)) continue;
 
       for (const hhmm of times) {
