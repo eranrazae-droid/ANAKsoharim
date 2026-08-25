@@ -216,13 +216,11 @@ body.has-crest .cal-day.barca.selected .cal-num{box-shadow:0 0 0 2px var(--dark)
 .drv-morning-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;
   font-weight:900;font-size:14px;margin-bottom:8px}
 .drv-morning-empty{color:var(--muted);font-weight:700;font-size:13px;text-align:center;padding:14px 0}
-.drv-morning-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:6px;
+/* רק מספרי החניות — זה כל מה שהנהג צריך בבוקר */
+.drv-morning-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(48px,1fr));gap:6px;
   max-height:19vh;overflow-y:auto}
-.drv-morning-cell{display:flex;align-items:center;gap:7px;background:var(--surface2);
-  border:1.5px solid var(--border);border-radius:10px;padding:6px 8px}
-.drv-morning-spot{background:var(--dark);color:#fff;border-radius:7px;min-width:26px;text-align:center;
-  font-size:11.5px;font-weight:900;padding:2px 5px}
-.drv-morning-plate{font-size:13.5px;font-weight:900;letter-spacing:.3px;white-space:nowrap}
+.drv-morning-cell{background:var(--dark);color:#fff;border-radius:10px;padding:8px 4px;
+  text-align:center;font-size:16px;font-weight:900}
 @media(min-width:700px){
   .drv-row{gap:14px}
   .drv-row .menu-card{padding:18px 10px}
@@ -11710,6 +11708,46 @@ function _msChunks(list, parts) {
   return out;
 }
 
+/* בצד הימני כל תור בנוי משתי שורות — בפנים ובחוץ — ושתיהן שייכות לאותו
+   נהג. אחרת נהג אחד היה מניע רכב בשורה האחורית ונהג אחר את הרכב שחוסם
+   אותו מלפנים. לכן החלוקה נעשית בתורים שלמים ולא בחניות בודדות. */
+function _msUnits(spots) {
+  const byRow = new Map();
+  const units = [];
+  spots.forEach(sp => {
+    const row = RIGHT_ROWS.find(r => r && r.includes(String(sp.spot)));
+    if (!row) { units.push([sp]); return; }          // צד שמאל — חניה בודדת
+    const key = row.join('-');
+    if (!byRow.has(key)) { const u = []; byRow.set(key, u); units.push(u); }
+    byRow.get(key).push(sp);
+  });
+  return units;
+}
+
+/* מחלק תורים שלמים לחלקים רצופים, כך שמספר החניות בכל חלק קרוב ככל
+   האפשר לשווה. החיתוך נעשה בגבול התור שהכי קרוב ליעד. */
+function _msSplitUnits(units, parts) {
+  const out = Array.from({ length: parts }, () => []);
+  const total = units.reduce((t, u) => t + u.length, 0);
+  if (!total) return out;
+  let idx = 0, acc = 0;
+  for (let p = 0; p < parts - 1; p++) {
+    const target = total * (p + 1) / parts;
+    while (idx < units.length) {
+      const before = Math.abs(acc - target);
+      const after = Math.abs(acc + units[idx].length - target);
+      // נשארים חלקים לכל שאר הנהגים
+      if (after > before && units.length - idx > parts - 1 - p) break;
+      out[p].push(...units[idx]);
+      acc += units[idx].length;
+      idx++;
+      if (units.length - idx <= parts - 1 - p) break;
+    }
+  }
+  for (; idx < units.length; idx++) out[parts - 1].push(...units[idx]);
+  return out;
+}
+
 /* מחלק את חניות היום בין הנהגים שהגיעו.
    שלושה — לפי הסדר גיל, עופר, איתי, כך שעופר תמיד באמצע.
    שניים — עופר מקבל את החצי הגבוה; בלי עופר, לפי הסדר הקבוע.
@@ -11720,14 +11758,15 @@ function _msDivide(present, spots, date) {
   drivers.forEach(d => { byDriver[d] = []; });
   if (!drivers.length || !spots.length) return byDriver;
 
+  const units = _msUnits(spots);
   if (drivers.length === 2 && drivers.includes('עופר')) {
     const other = drivers.find(d => d !== 'עופר');
-    const [low, high] = _msChunks(spots, 2);
+    const [low, high] = _msSplitUnits(units, 2);
     byDriver[other] = low;
     byDriver['עופר'] = high;                               // עופר על החצי הגבוה
     return byDriver;
   }
-  const chunks = _msChunks(spots, drivers.length);
+  const chunks = _msSplitUnits(units, drivers.length);
   drivers.forEach((d, i) => { byDriver[d] = chunks[i]; });
   return byDriver;
 }
@@ -11923,11 +11962,8 @@ function _msRenderScreen() {
         <div style="font-weight:900;font-size:16px">${esc(name)}</div>
         <div style="font-size:12.5px;font-weight:800;color:var(--muted)">${list.length} רכבים${list.length ? ` · חניות ${list[0].spot}–${list[list.length - 1].spot}` : ''}</div>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:7px">
-        ${list.map(x => `<div style="background:var(--surface2);border:1.5px solid var(--border);border-radius:10px;padding:7px 9px">
-          <div style="font-size:11.5px;font-weight:800;color:var(--muted)">חניה ${x.spot}</div>
-          <div style="font-size:14px;font-weight:900;letter-spacing:.4px">${esc(x.plate)}</div>
-        </div>`).join('')}
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:6px">
+        ${list.map(x => `<div style="background:var(--dark);color:#fff;border-radius:10px;padding:8px 4px;text-align:center;font-size:16px;font-weight:900">${x.spot}</div>`).join('')}
       </div>
     </div>`;
   }).join('');
@@ -11962,10 +11998,7 @@ function _msRenderHome() {
       <span style="font-weight:800;color:var(--muted);font-size:12px">${list.length} רכבים · חניות ${list[0].spot}–${list[list.length - 1].spot}</span>
     </div>
     <div class="drv-morning-grid">
-      ${list.map(x => `<div class="drv-morning-cell">
-        <span class="drv-morning-spot">${x.spot}</span>
-        <span class="drv-morning-plate">${esc(x.plate)}</span>
-      </div>`).join('')}
+      ${list.map(x => `<div class="drv-morning-cell">${x.spot}</div>`).join('')}
     </div>
   </div>`;
 }
