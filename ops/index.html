@@ -218,6 +218,8 @@ body.has-crest .cal-day.barca.selected .cal-num{box-shadow:0 0 0 2px var(--dark)
 .drv-morning-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;
   font-weight:900;font-size:14px;margin-bottom:8px}
 .drv-morning-empty{color:var(--muted);font-weight:700;font-size:13px;text-align:center;padding:14px 0}
+.drv-morning-range{font-size:26px;font-weight:900;letter-spacing:.5px;direction:ltr;text-align:center;
+  background:var(--dark);color:#fff;border-radius:12px;padding:8px 10px;margin-bottom:9px}
 /* רק מספרי החניות — זה כל מה שהנהג צריך בבוקר */
 .drv-morning-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(48px,1fr));gap:6px;
   max-height:19vh;overflow-y:auto}
@@ -11985,6 +11987,22 @@ async function nmDeleteTemplate(id) {
 }
 window.nmDeleteTemplate = nmDeleteTemplate;
 
+/* מציג רשימת חניות כטווחים: 1,2,3,...,12 הופך ל-"1–12", ורצפים נפרדים
+   מופרדים בפסיק. זה מה שהנהג צריך לראות בבוקר. */
+function _msRange(list) {
+  const nums = [...new Set((list || []).map(x => Number(x.spot ?? x)))].sort((a, b) => a - b);
+  if (!nums.length) return '';
+  const runs = [];
+  let start = nums[0], prev = nums[0];
+  for (let i = 1; i <= nums.length; i++) {
+    const n = nums[i];
+    if (n === prev + 1) { prev = n; continue; }
+    runs.push(start === prev ? `${start}` : `${start}–${prev}`);
+    start = prev = n;
+  }
+  return runs.join(', ');
+}
+
 function _msListen() {
   if (_msTimer) return;
   _onSnap(_docRef('config', 'morning_roll'), snap => {
@@ -12044,16 +12062,18 @@ function _msRenderRoll() {
     ${!plan.spots.length ? `<div style="background:#fef3c7;border:2px solid #f59e0b;border-radius:12px;padding:11px 13px;margin-bottom:10px;font-size:13px;font-weight:700;color:#78350f">
       ⚠️ לא נמצאו רכבים באזור של היום (חניות ${zone.min}–${zone.max}).<br>
       ${allCount ? `בסידור המגרש יש ${allCount} רכבים, אבל אף אחד מהם לא באזור הזה.`
-                 : 'סידור המגרש ריק — מלא אותו במסך "סידור מגרש" והנתונים ייכנסו לכאן לבד.'}
+                 : `סידור המגרש ריק — מלא אותו במסך "סידור מגרש" והנתונים ייכנסו לכאן לבד.
+                    <span style="font-weight:600">(נקראו ${Object.keys(_msYard || {}).length} שדות מהמגרש${_msYard && Object.keys(_msYard).length ? ', לדוגמה: ' + esc(Object.keys(_msYard)[0]) : ''})</span>`}
     </div>` : ''}
     <div style="font-size:13px;font-weight:800;margin-bottom:7px">מי הגיע היום?</div>
     <div style="display:flex;flex-direction:column;gap:8px">
       ${_MS_DRIVERS.map(d => {
         const on = _msPresent.includes(d);
         const cnt = (plan.byDriver[d] || []).length;
-        return `<button onclick="msTogglePresent('${d}')" style="display:flex;align-items:center;justify-content:space-between;gap:8px;background:${on ? '#dcfce7' : 'var(--surface2)'};border:2px solid ${on ? '#16a34a' : 'var(--border)'};border-radius:12px;padding:11px 13px;font-family:Heebo,sans-serif;font-size:15px;font-weight:800;cursor:pointer;color:var(--text)">
+        const rng = _msRange(plan.byDriver[d]);
+        return `<button onclick="msTogglePresent('${d}')" style="display:flex;align-items:center;justify-content:space-between;gap:8px;background:${on ? '#dcfce7' : 'var(--surface2)'};border:2px solid ${on ? '#16a34a' : 'var(--border)'};border-radius:12px;padding:11px 13px;font-family:Heebo,sans-serif;font-size:15px;font-weight:800;cursor:pointer;color:var(--text);text-align:right">
           <span>${on ? '✅' : '⬜'} ${d}</span>
-          <span style="font-size:12.5px;font-weight:800;color:var(--muted)">${on ? cnt + ' רכבים' : 'לא הגיע'}</span>
+          <span style="font-size:13.5px;font-weight:900;color:${on && rng ? 'var(--text)' : 'var(--muted)'};direction:ltr">${on ? (rng || '—') : 'לא הגיע'}</span>
         </button>`;
       }).join('')}
     </div>
@@ -12165,7 +12185,7 @@ function _msRenderScreen() {
     return `<div style="background:var(--card);border:2px solid var(--border);border-radius:14px;padding:12px 14px;margin-bottom:12px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
         <div style="font-weight:900;font-size:16px">${esc(name)}</div>
-        <div style="font-size:12.5px;font-weight:800;color:var(--muted)">${list.length} רכבים${list.length ? ` · חניות ${list[0].spot}–${list[list.length - 1].spot}` : ''}</div>
+        <div style="font-size:13.5px;font-weight:900;direction:ltr">${esc(_msRange(list))}<span style="font-size:12px;font-weight:800;color:var(--muted);margin-right:6px">${list.length} רכבים</span></div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:6px">
         ${list.map(x => `<div style="background:var(--dark);color:#fff;border-radius:10px;padding:8px 4px;text-align:center;font-size:16px;font-weight:900">${x.spot}</div>`).join('')}
@@ -12199,9 +12219,11 @@ function _msRenderHome() {
     return;
   }
   box.innerHTML = `<div class="drv-morning">
-    <div class="drv-morning-head">🔑 הרכבים שעליך להניע הבוקר
-      <span style="font-weight:800;color:var(--muted);font-size:12px">${list.length} רכבים · חניות ${list[0].spot}–${list[list.length - 1].spot}</span>
+    <div class="drv-morning-head">🔑 בוקר טוב, ${esc(currentUser.name)}
+      <span style="font-weight:800;color:var(--muted);font-size:12px">${list.length} רכבים</span>
     </div>
+    <div style="font-size:13px;font-weight:700;color:var(--muted);margin-bottom:4px">המכוניות שלך להיום הן</div>
+    <div class="drv-morning-range">${esc(_msRange(list))}</div>
     <div class="drv-morning-grid">
       ${list.map(x => `<div class="drv-morning-cell">${x.spot}</div>`).join('')}
     </div>
