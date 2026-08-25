@@ -2640,7 +2640,7 @@ if ('serviceWorker' in navigator) {
 <div class="modal-overlay" id="modal-pickup-share">
   <div class="modal-box" style="max-height:90vh;display:flex;flex-direction:column">
     <div class="modal-title"><span>📤 שיתוף עם אישורים</span> <button class="modal-close" onclick="closeModal('modal-pickup-share')">✕</button></div>
-    <div style="font-size:13px;color:var(--muted);margin-bottom:10px">המלל כבר הועתק. עכשיו העתק את האישורים והדבק בצ׳אט עם Ctrl+V — הכל נכנס באותה הודעה.</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:10px">המלל כבר הועתק. את כל האישורים אפשר להוריד כקובץ PDF אחד בכפתור שלמטה.</div>
 
     <button class="btn-submit" onclick="_shareCopyText()" style="background:var(--dark);color:#fff;width:100%;margin:0 0 8px">📋 העתק את המלל</button>
     <a id="share-open-wa" href="https://web.whatsapp.com" target="_blank" rel="noopener" class="btn-submit" style="background:#25d366;color:#fff;width:100%;margin:0 0 12px;display:block;text-align:center;text-decoration:none;box-sizing:border-box">💬 פתח וואטסאפ ווב</a>
@@ -19701,26 +19701,6 @@ async function _docsToImages(cars) {
   return { images, failed };
 }
 
-// תמונה אחת ארוכה מכל האישורים — להדבקה אחת בוואטסאפ ווב
-async function _combineImages(blobs) {
-  const bitmaps = [];
-  for (const b of blobs) bitmaps.push(await createImageBitmap(b));
-  const width = Math.max(...bitmaps.map(b => b.width));
-  const gap = 16;
-  const height = bitmaps.reduce((sum, b) => sum + Math.round(b.height * (width / b.width)), 0) + gap * (bitmaps.length - 1);
-  const cv = document.createElement('canvas');
-  cv.width = width; cv.height = height;
-  const ctx = cv.getContext('2d');
-  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, width, height);
-  let y = 0;
-  for (const b of bitmaps) {
-    const h = Math.round(b.height * (width / b.width));
-    ctx.drawImage(b, 0, y, width, h);
-    y += h + gap;
-  }
-  return await new Promise(res => cv.toBlob(res, 'image/jpeg', 0.9));
-}
-
 // כפתור אחד: המלל מועתק, וכל האישורים יורדים כקובץ PDF אחד.
 // בטלפון שתומך בשיתוף — הכל יוצא בהודעה אחת עם הקובץ המאוחד.
 async function batchExportPickup() {
@@ -19791,8 +19771,6 @@ function _openImageShare(text, images, cars) {
   const box = document.getElementById('share-docs');
   if (box) {
     box.innerHTML =
-      `<button onclick="_shareCopyAllImages(this)" style="background:#0d9488;color:#fff;border:none;border-radius:10px;padding:12px;font-family:Heebo,sans-serif;font-weight:900;font-size:14px;cursor:pointer">🖼️ העתק את כל האישורים כתמונה אחת</button>
-       <div style="font-size:12px;color:var(--muted);font-weight:600;margin:-2px 0 6px">אחרי ההעתקה — Ctrl+V בצ׳אט, והכל נכנס בהודעה אחת</div>` +
       images.map((im, i) => `<div style="display:flex;align-items:center;gap:10px;border:2px solid var(--border);border-radius:12px;padding:9px 11px;background:var(--card)">
         <img src="${URL.createObjectURL(im.blob)}" style="width:56px;height:56px;object-fit:cover;border-radius:8px;flex-shrink:0">
         <div style="flex:1;min-width:0">
@@ -19817,20 +19795,6 @@ async function _copyBlobToClipboard(blob) {
   await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]);
 }
 
-async function _shareCopyAllImages(btn) {
-  try {
-    const blob = _shareImages.length === 1
-      ? _shareImages[0].blob
-      : await _combineImages(_shareImages.map(i => i.blob));
-    await _copyBlobToClipboard(blob);
-    if (btn) { const t = btn.textContent; btn.textContent = '✅ הועתק — הדבק בוואטסאפ'; setTimeout(() => btn.textContent = t, 3000); }
-    showToast('🖼️ כל האישורים הועתקו — Ctrl+V בצ׳אט', 7000);
-  } catch (e) {
-    console.warn('copy all failed', e);
-    showToast('הדפדפן לא אפשר העתקה — נסה להוריד את הקובץ', 6000);
-  }
-}
-window._shareCopyAllImages = _shareCopyAllImages;
 
 async function _shareCopyOneImage(i, btn) {
   const im = _shareImages[i];
