@@ -11710,6 +11710,9 @@ function _msListen() {
   // סידור המגרש נקרא כאן בנפרד, כדי שהחלוקה תעבוד גם בלי לפתוח את מסך המגרש
   _onSnap(_docRef('yard', 'current'), snap => {
     _msYard = snap.exists() ? (snap.data().data || {}) : {};
+    // החלונית אולי נפתחה לפני שהמגרש הגיע — מציירים אותה מחדש עם הנתונים
+    if (document.getElementById('modal-morning-roll')?.classList.contains('open')) _msRenderRoll();
+    if (document.getElementById('screen-morning-starts')?.classList.contains('active')) _msRenderScreen();
   }, () => {});
   _onSnap(_docRef('morning_starts', _msDayKey()), snap => {
     _msToday = snap.exists() ? snap.data() : null;
@@ -11747,10 +11750,17 @@ function _msRenderRoll() {
   const third = _msThirdOf(now);
   const plan = _msPlanFor(_msPresent, now);
   const dayName = now.toLocaleDateString('he-IL', { weekday: 'long' });
+  const allCount = _msAllSpots().length;
+  const zone = _MS_ZONES[third] || {};
   box.innerHTML = `
     <div style="text-align:center;font-size:13.5px;font-weight:800;color:var(--muted);margin-bottom:10px">
       ${esc(dayName)} · ${esc(_MS_THIRD_NAMES[third] || '')} · ${plan.spots.length} רכבים
     </div>
+    ${!plan.spots.length ? `<div style="background:#fef3c7;border:2px solid #f59e0b;border-radius:12px;padding:11px 13px;margin-bottom:10px;font-size:13px;font-weight:700;color:#78350f">
+      ⚠️ לא נמצאו רכבים באזור של היום (חניות ${zone.min}–${zone.max}).<br>
+      ${allCount ? `בסידור המגרש יש ${allCount} רכבים, אבל אף אחד מהם לא באזור הזה.`
+                 : 'סידור המגרש ריק — מלא אותו במסך "סידור מגרש" והנתונים ייכנסו לכאן לבד.'}
+    </div>` : ''}
     <div style="font-size:13px;font-weight:800;margin-bottom:7px">מי הגיע היום?</div>
     <div style="display:flex;flex-direction:column;gap:8px">
       ${_MS_DRIVERS.map(d => {
