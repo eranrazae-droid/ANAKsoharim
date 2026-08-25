@@ -1812,6 +1812,10 @@ if ('serviceWorker' in navigator) {
       <textarea id="nm-msg" rows="3" class="form-textarea" placeholder="מה לשלוח?" style="width:100%;box-sizing:border-box"></textarea>
       <div style="font-size:12.5px;font-weight:800;color:var(--muted);margin:10px 0 6px">למי לשלוח</div>
       <div id="nm-recipients" style="display:flex;flex-wrap:wrap;gap:7px"></div>
+      <div style="font-size:12.5px;font-weight:800;color:var(--muted);margin:12px 0 6px">באילו ימים <span style="font-weight:600">(אם לא נבחר יום — ההתראה נשלחת רק ידנית)</span></div>
+      <div id="nm-days" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+      <div style="font-size:12.5px;font-weight:800;color:var(--muted);margin:12px 0 6px">באילו שעות</div>
+      <div id="nm-times" style="display:flex;flex-wrap:wrap;gap:7px;align-items:center"></div>
       <div style="display:flex;gap:8px;margin-top:12px">
         <button class="btn-submit" style="flex:1;margin:0" onclick="_runOnce('nmSend', this, '⏳ שולח...', nmSendNow)">📨 שלח עכשיו</button>
         <button class="btn-submit" style="margin:0;background:var(--surface2);color:var(--text);border:2px solid var(--border)" onclick="nmSaveTemplate()">💾 שמור כהתראה</button>
@@ -11712,20 +11716,13 @@ function _msThirdOf(date) {
 
 /* כל החניות שמניעים בהן: חניה תפוסה שאינה על הכביש. הצד השמאלי הוא
    שדה "כניסה", והצד הימני "בפנים"/"בחוץ". שדות "כביש" מדולגים. */
-let _msYard = null;   // עותק עצמאי של המגרש, כדי שהחלוקה תעבוד גם בלי להיכנס למסך
-
+/* מספרי החניות ומיקומן קבועים במגרש ואינם תלויים במה שחונה בהן:
+   1–34 בצד השמאלי, ו-40–93 בצד הימני. ההנעות מחולקות לפי החניות עצמן. */
 function _msAllSpots() {
-  const data = _msYard || (typeof yardData === 'object' && yardData) || {};
   const out = [];
-  Object.keys(data).forEach(k => {
-    const plate = String(data[k] || '').trim();
-    if (!plate) return;
-    if (k.includes('כביש')) return;                        // על הכביש לא מניעים
-    const m = k.match(/^[LR]_(\d+)_/);
-    if (!m) return;
-    out.push({ spot: Number(m[1]), key: k, plate });
-  });
-  return out.sort((a, b) => a.spot - b.spot || a.key.localeCompare(b.key));
+  LEFT_SPOTS.forEach(n => out.push({ spot: Number(n) }));
+  RIGHT_ROWS.forEach(r => { if (r) r.forEach(n => out.push({ spot: Number(n) })); });
+  return out.sort((a, b) => a.spot - b.spot);
 }
 
 // חלוקה לחלקים רצופים בגודל דומה, לפי הסדר
@@ -11820,8 +11817,11 @@ function _msPlanFor(present, date) {
    מסך אחד לשליחת הודעה לכל מי שהטלגרם שלו מקושר, ולשמירת התראות
    חוזרות שאפשר לערוך ולשלוח שוב בלחיצה.
    ═══════════════════════════════════════════════════════════════════ */
+const _NM_DAYS = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
 let _nmTemplates = [];
 let _nmTo = new Set();
+let _nmDays = new Set();     // אינדקסים 0=ראשון
+let _nmTimes = [];           // "HH:MM"
 let _nmEditId = null;
 let _nmUnsub = null;
 
@@ -11839,6 +11839,8 @@ async function openNotifyMgr() {
   if (badge) badge.textContent = currentUser.name;
   showScreen('notify-mgr');
   _nmRenderPeople();
+  _nmRenderDays();
+  _nmRenderTimes();
   if (!_nmUnsub) {
     _nmUnsub = _onSnap(_colRef('notif_templates'), snap => {
       _nmTemplates = snap.docs.map(d => ({ id: d.id, ...d.data() }))
@@ -11866,6 +11868,55 @@ async function _nmRenderPeople() {
       return `<button onclick="nmTogglePerson('${esc(n)}')" style="background:${on ? '#16a34a' : 'var(--surface2)'};color:${on ? '#fff' : 'var(--text)'};border:2px solid ${on ? '#16a34a' : 'var(--border)'};border-radius:999px;padding:6px 13px;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer">${esc(n)}</button>`;
     }).join('');
 }
+
+function _nmRenderDays() {
+  const box = document.getElementById('nm-days');
+  if (!box) return;
+  box.innerHTML = _NM_DAYS.map((d, i) => {
+    const on = _nmDays.has(i);
+    return `<button onclick="nmToggleDay(${i})" style="background:${on ? '#1d4ed8' : 'var(--surface2)'};color:${on ? '#fff' : 'var(--text)'};border:2px solid ${on ? '#1d4ed8' : 'var(--border)'};border-radius:10px;padding:6px 11px;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer">${d}</button>`;
+  }).join('');
+}
+
+function nmToggleDay(i) {
+  if (_nmDays.has(i)) _nmDays.delete(i); else _nmDays.add(i);
+  _nmRenderDays();
+}
+window.nmToggleDay = nmToggleDay;
+
+/* השעות נוספות אחת אחת, ולא כטווח. הקלדה של 2345 הופכת ל-23:45,
+   בדיוק כמו בהוספת משימה ליומן. */
+function _nmRenderTimes() {
+  const box = document.getElementById('nm-times');
+  if (!box) return;
+  box.innerHTML = _nmTimes.map((t, i) =>
+    `<span style="display:inline-flex;align-items:center;gap:6px;background:var(--dark);color:#fff;border-radius:999px;padding:5px 8px 5px 12px;font-size:13.5px;font-weight:900;direction:ltr">
+      ${esc(t)}
+      <button onclick="nmRemoveTime(${i})" title="הסר" style="background:rgba(255,255,255,.25);border:none;color:#fff;border-radius:999px;width:19px;height:19px;line-height:1;font-size:12px;font-weight:900;cursor:pointer">✕</button>
+    </span>`).join('') +
+    `<input id="nm-time-input" type="text" inputmode="numeric" maxlength="5" placeholder="2345 ← 23:45"
+       oninput="this.value=this.value.replace(/\D/g,'').slice(0,4)"
+       onkeydown="if(event.key==='Enter'){event.preventDefault();nmAddTime();}"
+       style="width:118px;padding:6px 9px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;direction:ltr;text-align:center">
+     <button onclick="nmAddTime()" style="background:var(--gold);color:#000;border:none;border-radius:10px;padding:6px 12px;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer">➕ הוסף שעה</button>`;
+}
+
+function nmAddTime() {
+  const inp = document.getElementById('nm-time-input');
+  const t = _normalizeTime(inp?.value || '');
+  if (!t) return showToast('שעה לא תקינה — לדוגמה 2345');
+  if (_nmTimes.includes(t)) { inp.value = ''; return showToast('השעה כבר ברשימה'); }
+  _nmTimes = [..._nmTimes, t].sort();
+  _nmRenderTimes();
+  document.getElementById('nm-time-input')?.focus();
+}
+window.nmAddTime = nmAddTime;
+
+function nmRemoveTime(i) {
+  _nmTimes.splice(i, 1);
+  _nmRenderTimes();
+}
+window.nmRemoveTime = nmRemoveTime;
 
 async function nmToggleAll() {
   const people = await _nmPeople();
@@ -11897,6 +11948,9 @@ function _nmRenderList() {
           <div style="font-weight:900;font-size:14.5px">${esc(t.title || 'התראה')}</div>
           <div style="font-size:13px;color:var(--text);margin-top:3px;white-space:pre-wrap">${esc(t.message || '')}</div>
           <div style="font-size:12px;color:var(--muted);font-weight:700;margin-top:5px">👤 ${esc((t.to || []).join(' · ')) || 'לא נבחרו נמענים'}</div>
+          ${(t.days || []).length || (t.times || []).length
+            ? `<div style="font-size:12px;color:#1d4ed8;font-weight:800;margin-top:3px">🕒 ${esc((t.days || []).map(d => _NM_DAYS[d]).join(', ') || 'כל יום')}${(t.times || []).length ? ' · ' + esc(t.times.join(' · ')) : ''}</div>`
+            : '<div style="font-size:12px;color:var(--muted);font-weight:700;margin-top:3px">🕒 שליחה ידנית בלבד</div>'}
         </div>
       </div>
       <div style="display:flex;gap:7px;margin-top:10px;flex-wrap:wrap">
@@ -11946,7 +12000,9 @@ async function nmSaveTemplate() {
   const title = prompt('שם ההתראה (כדי למצוא אותה אחר כך):', _nmEditId ? (_nmTemplates.find(t => t.id === _nmEditId)?.title || '') : '');
   if (title === null) return;
   if (!_requireNet('שמירת ההתראה')) return;
-  const data = { title: title.trim() || 'התראה', message, to: [..._nmTo], updatedAt: new Date().toISOString(), updatedBy: currentUser.name };
+  const data = { title: title.trim() || 'התראה', message, to: [..._nmTo],
+    days: [..._nmDays].sort((a, b) => a - b), times: [..._nmTimes],
+    updatedAt: new Date().toISOString(), updatedBy: currentUser.name };
   try {
     if (_nmEditId) {
       await _updateDoc(_docRef('notif_templates', _nmEditId), data);
@@ -11958,8 +12014,8 @@ async function nmSaveTemplate() {
   } catch (e) { return showToast('שמירה נכשלה: ' + (e.code || e.message), 6000); }
   _nmEditId = null;
   document.getElementById('nm-msg').value = '';
-  _nmTo.clear();
-  _nmRenderPeople();
+  _nmTo.clear(); _nmDays.clear(); _nmTimes = [];
+  _nmRenderPeople(); _nmRenderDays(); _nmRenderTimes();
 }
 window.nmSaveTemplate = nmSaveTemplate;
 
@@ -11969,7 +12025,9 @@ function nmEditTemplate(id) {
   _nmEditId = id;
   document.getElementById('nm-msg').value = t.message || '';
   _nmTo = new Set(t.to || []);
-  _nmRenderPeople();
+  _nmDays = new Set(t.days || []);
+  _nmTimes = [...(t.times || [])];
+  _nmRenderPeople(); _nmRenderDays(); _nmRenderTimes();
   document.getElementById('nm-msg').scrollIntoView({ behavior: 'smooth', block: 'center' });
   showToast('✏️ עורך — לחץ "שמור כהתראה" כדי לעדכן');
 }
@@ -12009,13 +12067,6 @@ function _msListen() {
     _msState = (snap.exists() ? snap.data() : {}) || {};
     _msCheck();
   }, () => { _msState = {}; });
-  // סידור המגרש נקרא כאן בנפרד, כדי שהחלוקה תעבוד גם בלי לפתוח את מסך המגרש
-  _onSnap(_docRef('yard', 'current'), snap => {
-    _msYard = snap.exists() ? (snap.data().data || {}) : {};
-    // החלונית אולי נפתחה לפני שהמגרש הגיע — מציירים אותה מחדש עם הנתונים
-    if (document.getElementById('modal-morning-roll')?.classList.contains('open')) _msRenderRoll();
-    if (document.getElementById('screen-morning-starts')?.classList.contains('active')) _msRenderScreen();
-  }, () => {});
   _onSnap(_docRef('morning_starts', _msDayKey()), snap => {
     _msToday = snap.exists() ? snap.data() : null;
     _msSyncCard();
@@ -12053,18 +12104,10 @@ function _msRenderRoll() {
   const third = _msThirdOf(now);
   const plan = _msPlanFor(_msPresent, now);
   const dayName = now.toLocaleDateString('he-IL', { weekday: 'long' });
-  const allCount = _msAllSpots().length;
-  const zone = _MS_ZONES[third] || {};
   box.innerHTML = `
     <div style="text-align:center;font-size:13.5px;font-weight:800;color:var(--muted);margin-bottom:10px">
-      ${esc(dayName)} · ${esc(_MS_THIRD_NAMES[third] || '')} · ${plan.spots.length} רכבים
+      ${esc(dayName)} · ${esc(_MS_THIRD_NAMES[third] || '')} · ${plan.spots.length} חניות
     </div>
-    ${!plan.spots.length ? `<div style="background:#fef3c7;border:2px solid #f59e0b;border-radius:12px;padding:11px 13px;margin-bottom:10px;font-size:13px;font-weight:700;color:#78350f">
-      ⚠️ לא נמצאו רכבים באזור של היום (חניות ${zone.min}–${zone.max}).<br>
-      ${allCount ? `בסידור המגרש יש ${allCount} רכבים, אבל אף אחד מהם לא באזור הזה.`
-                 : `סידור המגרש ריק — מלא אותו במסך "סידור מגרש" והנתונים ייכנסו לכאן לבד.
-                    <span style="font-weight:600">(נקראו ${Object.keys(_msYard || {}).length} שדות מהמגרש${_msYard && Object.keys(_msYard).length ? ', לדוגמה: ' + esc(Object.keys(_msYard)[0]) : ''})</span>`}
-    </div>` : ''}
     <div style="font-size:13px;font-weight:800;margin-bottom:7px">מי הגיע היום?</div>
     <div style="display:flex;flex-direction:column;gap:8px">
       ${_MS_DRIVERS.map(d => {
@@ -12118,7 +12161,7 @@ async function msRollConfirm() {
   closeModal('modal-morning-roll');
   present.forEach(d => {
     const n = (plan.byDriver[d] || []).length;
-    if (n) _notifyDriver(d, `🔑 הנעות הבוקר — ${n} רכבים. הרשימה מחכה לך באפליקציה.`);
+    if (n) _notifyDriver(d, `🔑 הנעות הבוקר — חניות ${_msRange(plan.byDriver[d])}`);
   });
   showToast(`✅ ההנעות חולקו ל-${present.length} נהגים`);
   _msSyncCard();
@@ -12185,7 +12228,7 @@ function _msRenderScreen() {
     return `<div style="background:var(--card);border:2px solid var(--border);border-radius:14px;padding:12px 14px;margin-bottom:12px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
         <div style="font-weight:900;font-size:16px">${esc(name)}</div>
-        <div style="font-size:13.5px;font-weight:900;direction:ltr">${esc(_msRange(list))}<span style="font-size:12px;font-weight:800;color:var(--muted);margin-right:6px">${list.length} רכבים</span></div>
+        <div style="font-size:13.5px;font-weight:900;direction:ltr">${esc(_msRange(list))}<span style="font-size:12px;font-weight:800;color:var(--muted);margin-right:6px">${list.length} חניות</span></div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:6px">
         ${list.map(x => `<div style="background:var(--dark);color:#fff;border-radius:10px;padding:8px 4px;text-align:center;font-size:16px;font-weight:900">${x.spot}</div>`).join('')}
@@ -12220,9 +12263,9 @@ function _msRenderHome() {
   }
   box.innerHTML = `<div class="drv-morning">
     <div class="drv-morning-head">🔑 בוקר טוב, ${esc(currentUser.name)}
-      <span style="font-weight:800;color:var(--muted);font-size:12px">${list.length} רכבים</span>
+      <span style="font-weight:800;color:var(--muted);font-size:12px">${list.length} חניות</span>
     </div>
-    <div style="font-size:13px;font-weight:700;color:var(--muted);margin-bottom:4px">המכוניות שלך להיום הן</div>
+    <div style="font-size:13px;font-weight:700;color:var(--muted);margin-bottom:4px">החניות שלך להיום הן</div>
     <div class="drv-morning-range">${esc(_msRange(list))}</div>
     <div class="drv-morning-grid">
       ${list.map(x => `<div class="drv-morning-cell">${x.spot}</div>`).join('')}

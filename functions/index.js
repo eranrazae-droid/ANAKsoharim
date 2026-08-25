@@ -2136,3 +2136,74 @@ exports.runBarcaSyncNow = onRequest(
     catch (err) { res.status(500).json({ ok: false, error: err.message }); }
   }
 );
+
+// ════════════════════════════════════════════════════════════════════════
+// התראות מתוזמנות
+// המנהל מגדיר במסך "ניהול התראות" הודעה, נמענים, ימים ושעות. כאן נשלחות
+// ההודעות בזמן שנקבע, גם כשהאפליקציה סגורה. כל שעה נשלחת פעם אחת ביום.
+// ════════════════════════════════════════════════════════════════════════
+function _israelParts() {
+  const p = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Jerusalem", weekday: "short",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  }).formatToParts(new Date());
+  const g = (t) => p.find((x) => x.type === t).value;
+  const dows = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  const hh = g("hour") === "24" ? "00" : g("hour");
+  return {
+    day: `${g("year")}-${g("month")}-${g("day")}`,
+    dow: dows[g("weekday")],
+    minutes: (+hh) * 60 + (+g("minute")),
+  };
+}
+
+exports.scheduledNotifications = onSchedule(
+  { schedule: "every 5 minutes", region: "europe-west1", timeZone: "Asia/Jerusalem" },
+  async () => {
+    const { day, dow, minutes } = _israelParts();
+    const snap = await db.collection("notif_templates").get();
+    if (snap.empty) return;
+
+    const contactsSnap = await db.collection("config").doc("driver_contacts").get();
+    const contacts = contactsSnap.exists ? contactsSnap.data() : {};
+    const token = contacts["_telegramToken"]?.value || "";
+    if (!token) return;
+
+    for (const docSnap of snap.docs) {
+      const t = docSnap.data();
+      const days = Array.isArray(t.days) ? t.days : [];
+      const times = Array.isArray(t.times) ? t.times : [];
+      const to = Array.isArray(t.to) ? t.to : [];
+      if (!days.length || !times.length || !to.length || !t.message) continue;
+      if (!days.includes(dow)) continue;
+
+      for (const hhmm of times) {
+        const [h, m] = String(hhmm).split(":").map(Number);
+        if (isNaN(h) || isNaN(m)) continue;
+        const due = h * 60 + m;
+        // חלון של חמש דקות — בדיוק תדירות ההרצה, כך שכל שעה נתפסת פעם אחת
+        if (minutes < due || minutes >= due + 5) continue;
+        const key = `${day} ${hhmm}`;
+        if ((t.sentLog || {})[key]) continue;
+
+        for (const name of to) {
+          const chatId = contacts[name]?.telegramId;
+          if (!chatId) continue;
+          try {
+            await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ chat_id: chatId, text: t.message }),
+            });
+          } catch (err) { console.error("scheduled notif send failed", name, err); }
+        }
+        // רישום מצומצם: רק המפתחות של היום, כדי שהמסמך לא יתנפח
+        const log = Object.fromEntries(
+          Object.entries(t.sentLog || {}).filter(([k]) => k.startsWith(day)));
+        log[key] = true;
+        await docSnap.ref.set({ sentLog: log }, { merge: true });
+      }
+    }
+  }
+);
