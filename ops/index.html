@@ -19654,7 +19654,7 @@ async function _mergeDocsToPdf(cars) {
   return { blob: new Blob([bytes], { type: 'application/pdf' }), failed };
 }
 
-/* ── המרת האישורים לתמונות ──────────────────────────────────────────
+/* ── הכנת האישורים לתצוגה ולשיתוף בטלפון ────────────────────────────
    וואטסאפ מציג תמונות בתוך השיחה, ובמחשב אפשר להדביק תמונה ישר לצ׳אט.
    לכן כל עמוד PDF מצויר לתמונה, ואפשר גם לאחד את כולן לתמונה אחת
    ארוכה — כדי שהדבקה אחת תכניס את כל האישורים.
@@ -19731,15 +19731,15 @@ async function batchExportPickup() {
 
   if (!withDoc.length) { showToast('📋 המלל הועתק — לאף רכב שסומן אין אישור', 6000); return; }
 
-  showToast('⏳ ממיר את האישורים לתמונות...', 4000);
+  showToast('⏳ מכין את האישורים...', 4000);
   let imgs;
   try { imgs = await _docsToImages(withDoc); }
   catch (e) {
     console.error('images error', e);
-    showToast('לא הצלחתי להמיר את האישורים — מוריד אותם כמו שהם', 6000);
+    showToast('לא הצלחתי להכין את האישורים — מוריד אותם כמו שהם', 6000);
     return _openDesktopShare(text, withDoc);
   }
-  if (!imgs.images.length) { showToast('לא נמצאו אישורים להמרה', 6000); return _openDesktopShare(text, withDoc); }
+  if (!imgs.images.length) { showToast('לא נמצאו אישורים', 6000); return _openDesktopShare(text, withDoc); }
 
   // בטלפון: הודעה אחת עם המלל וכל התמונות
   const files = imgs.images.map(im => new File([im.blob], im.name, { type: 'image/jpeg' }));
@@ -19753,9 +19753,9 @@ async function batchExportPickup() {
 }
 window.batchExportPickup = batchExportPickup;
 
-/* ── חלון השיתוף במחשב: תמונות ─────────────────────────────────────
-   הדבקה אחת בוואטסאפ ווב מכניסה את כל האישורים, ולכן ברירת המחדל היא
-   תמונה אחת מאוחדת. אפשר גם להוריד את התמונות או את ה-PDF המאוחד.
+/* ── חלון השיתוף במחשב ──────────────────────────────────────────────
+   המלל מועתק, ומתחתיו רשימת האישורים עם תצוגה מקדימה. הדרך המרכזית
+   להוציא את כולם היא כפתור ה-PDF המאוחד; אפשר גם להעתיק אישור בודד.
 ─────────────────────────────────────────────────────────────────────── */
 let _shareImages = [];
 let _shareDocCars = [];
