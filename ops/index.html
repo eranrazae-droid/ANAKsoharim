@@ -556,6 +556,18 @@ body.modal-open{overflow:hidden}
   body.td-panel-open #btn-parts-home{left:calc(min(420px,38vw) + 16px)}
   body.td-panel-open #task-list-container{width:100%;min-width:0}
 }
+/* מצב מוקטן: הפאנל מתכווץ לפס צר בתחתית המסך, וממשיך להתעדכן ברקע.
+   כך אפשר לעבוד במסכים אחרים בלי לסגור את השידור. */
+#td-live-panel.td-min{top:auto;bottom:0;height:auto;width:auto;left:12px;right:12px;
+  border-radius:14px;box-shadow:0 -4px 20px rgba(0,0,0,.28);overflow:hidden}
+#td-live-panel.td-min #td-live-vehicle-info,
+#td-live-panel.td-min #td-live-content,
+#td-live-panel.td-min #td-live-footer,
+#td-live-panel.td-min #td-delete-btn{display:none !important}
+body.td-panel-min .screen.active{margin-left:0 !important;width:auto !important}
+@media(min-width:700px){
+  #td-live-panel.td-min{left:auto;right:auto;width:min(420px,38vw);border-right:none}
+}
 .td-lp-ci{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;border:2px solid var(--border);background:var(--surface2);font-size:16px;font-weight:900;cursor:pointer;transition:.15s}
 .td-lp-ci.v-active{background:#16a34a;border-color:#16a34a;color:#fff}
 .td-lp-ci.x-active{background:#dc2626;border-color:#dc2626;color:#fff}
@@ -955,6 +967,7 @@ if ('serviceWorker' in navigator) {
   <div style="background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
     <span style="font-weight:800;font-size:15px">🏎️ נסיעת מבחן — שידור חי</span>
     <div style="display:flex;align-items:center;gap:8px">
+      <button id="td-min-btn" onclick="toggleTdLivePanelMin()" title="הקטן / הגדל" style="background:rgba(255,255,255,.22);color:#fff;border:none;border-radius:8px;padding:4px 11px;font-size:15px;font-weight:900;cursor:pointer;line-height:1.2">▁</button>
       <button id="td-delete-btn" onclick="deleteTdLivePanel()" style="display:none;background:#dc2626;color:#fff;border:none;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer">🗑 מחק נסיעה</button>
       <span id="td-live-status-badge" style="font-size:12px;font-weight:700;background:rgba(255,255,255,.2);border-radius:8px;padding:3px 10px">⏳ ממתין</span>
     </div>
@@ -23715,6 +23728,20 @@ let _tdLivePanelId = null;
 let _tdLivePanelUnsub = null;
 let _tdLivePanelData = null;
 
+/* הקטנה והגדלה של פאנל השידור. המצב נשמר, כך שהוא נפתח אחרי רענון
+   באותו מצב שהשארת אותו. */
+function toggleTdLivePanelMin(force) {
+  const panel = document.getElementById('td-live-panel');
+  if (!panel) return;
+  const min = force === undefined ? !panel.classList.contains('td-min') : !!force;
+  panel.classList.toggle('td-min', min);
+  document.body.classList.toggle('td-panel-min', min);
+  const btn = document.getElementById('td-min-btn');
+  if (btn) { btn.textContent = min ? '▲' : '▁'; btn.title = min ? 'הגדל' : 'הקטן'; }
+  try { localStorage.setItem('anak_td_panel_min', min ? '1' : ''); } catch (e) {}
+}
+window.toggleTdLivePanelMin = toggleTdLivePanelMin;
+
 function openTdLivePanel(id, initialData) {
   if (_tdLivePanelUnsub) { _tdLivePanelUnsub(); _tdLivePanelUnsub = null; }
   _tdLivePanelId = id;
@@ -23722,6 +23749,9 @@ function openTdLivePanel(id, initialData) {
   const panel = document.getElementById('td-live-panel');
   panel.style.display = 'flex';
   document.body.classList.add('td-panel-open');
+  let wasMin = '';
+  try { wasMin = localStorage.getItem('anak_td_panel_min') || ''; } catch (e) {}
+  toggleTdLivePanelMin(!!wasMin);
   const delBtn = document.getElementById('td-delete-btn');
   if (delBtn) delBtn.style.display = currentUser?.role === 'manager' ? '' : 'none';
   if (initialData) { _tdLivePanelData = initialData; _renderTdLivePanel(initialData); }
@@ -23967,6 +23997,8 @@ async function completeTdLivePanel() {
   _tdLivePanelData = null;
   localStorage.removeItem('anak_td_mgr_panel');
   document.getElementById('td-live-panel').style.display = 'none';
+  document.body.classList.remove('td-panel-min');
+  document.getElementById('td-live-panel').classList.remove('td-min');
   document.body.classList.remove('td-panel-open');
   showToast('✅ הרכב הועבר לקליטה');
 }
@@ -23988,6 +24020,8 @@ async function deleteTdLivePanel() {
   _tdLivePanelData = null;
   localStorage.removeItem('anak_td_mgr_panel');
   document.getElementById('td-live-panel').style.display = 'none';
+  document.body.classList.remove('td-panel-min');
+  document.getElementById('td-live-panel').classList.remove('td-min');
   document.body.classList.remove('td-panel-open');
   showToast('🗑 נסיעת המבחן נמחקה');
 }
@@ -24001,6 +24035,8 @@ function parkTdLivePanel() {
   _tdLivePanelData = null;
   localStorage.removeItem('anak_td_mgr_panel'); // don't auto-reopen on next load
   document.getElementById('td-live-panel').style.display = 'none';
+  document.body.classList.remove('td-panel-min');
+  document.getElementById('td-live-panel').classList.remove('td-min');
   document.body.classList.remove('td-panel-open');
   showToast('⏳ הנסיעה במצב המתנה — שמורה במסך נסיעות מבחן');
 }
