@@ -492,7 +492,10 @@
       <div id="tab-ads" class="hidden">
         <div class="section-hd" style="margin-bottom:12px">
           <div><div class="eyebrow">שיווק</div><h2>📢 מרכז פרסום</h2></div>
-          <input id="adsSearch" oninput="renderAdsCenter()" placeholder="חיפוש רכב..." style="width:220px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;font-size:14px">
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <select id="adsBrandFilter" onchange="renderAdsCenter()" style="min-width:160px"><option value="">כל היצרנים</option></select>
+            <input id="adsSearch" oninput="renderAdsCenter()" placeholder="חיפוש רכב..." style="width:200px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;font-size:14px">
+          </div>
         </div>
         <div class="card panel" style="margin-bottom:16px">
           <p style="color:var(--muted);font-size:14px;line-height:1.7">לכל רכב - לחיצה על "✨ צור פרסום" מייצרת מיד 3 טקסטים מוכנים להעתקה: <b>מודעת Marketplace</b>, <b>סקריפט טיקטוק</b>, ו<b>מודעת Meta</b> - כולל קישור לרכב, טלפון ווואטסאפ.</p>
@@ -1872,8 +1875,16 @@
   }
   function renderAdsCenter(){
     var el=document.getElementById('adsList'); if(!el) return;
+    var base=cars.filter(function(c){ return c && !c.hidden; });
+    var bsel=document.getElementById('adsBrandFilter');
+    if(bsel){
+      var brands=[...new Set(base.map(function(c){return c.brand;}).filter(Boolean))].sort(function(a,b){return a.localeCompare(b,'he');});
+      var cur=bsel.value;
+      bsel.innerHTML='<option value="">כל היצרנים</option>'+brands.map(function(b){ return '<option value="'+b+'"'+(b===cur?' selected':'')+'>'+b+' ('+base.filter(function(c){return c.brand===b;}).length+')</option>'; }).join('');
+    }
+    var fBrand=bsel?bsel.value:'';
     var q=((document.getElementById('adsSearch')||{}).value||'').toLowerCase();
-    var list=cars.filter(function(c){ return c && !c.hidden && (((c.brand||'')+' '+(c.model||'')).toLowerCase().indexOf(q)>=0); })
+    var list=base.filter(function(c){ return (!fBrand||c.brand===fBrand) && (((c.brand||'')+' '+(c.model||'')).toLowerCase().indexOf(q)>=0); })
       .sort(function(a,b){ return ((a.brand||'')+(a.model||'')).localeCompare((b.brand||'')+(b.model||''),'he'); });
     el.innerHTML = list.map(function(c){
       return '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid var(--line)">'+
