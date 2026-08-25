@@ -19923,13 +19923,23 @@ async function batchDeletePickup() {
 window.batchDeletePickup = batchDeletePickup;
 
 // batch send-to-driver: reuse the same driver-picker modal
+// מי משויך כרגע לכל הרכבים שסומנו — אם כולם לאותו יעד, לחיצה עליו מבטלת
+function _batchCurrentTarget() {
+  const cars = [..._pickupSelected].map(id => _pickupAllCars.find(c => c.id === id)).filter(Boolean);
+  if (!cars.length) return '';
+  const first = cars[0].assignedDriver || '';
+  return first && cars.every(c => (c.assignedDriver || '') === first) ? first : '';
+}
+
 function batchSendPickupToDriver() {
   if (!_pickupSelected.size) { showToast('לא נבחרו רכבים'); return; }
+  const cur = _batchCurrentTarget();
   const list = document.getElementById('pickup-driver-list');
   list.innerHTML = _PICKUP_DRIVER_LIST.map(name =>
-    `<button onclick="_batchSendToDriver('${name}')" style="background:var(--surface2);color:var(--text);border:1.5px solid var(--border);border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:15px;font-weight:700;cursor:pointer;text-align:right">${name}</button>`
+    `<button onclick="_batchSendToDriver('${name}')" style="background:${cur===name?'#1e40af':'var(--surface2)'};color:${cur===name?'#fff':'var(--text)'};border:1.5px solid var(--border);border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:15px;font-weight:700;cursor:pointer;text-align:right">${cur===name?'✅ ':''}${name}</button>`
   ).join('') +
-    `<button onclick="_batchSendToDriver('${_TOW_NAME}')" style="background:#ede9fe;color:#5b21b6;border:1.5px solid #7c3aed;border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:15px;font-weight:800;cursor:pointer;text-align:right">🚛 ${_TOW_NAME}</button>`;
+    `<button onclick="_batchSendToDriver('${_TOW_NAME}')" style="background:${cur===_TOW_NAME?'#7c3aed':'#ede9fe'};color:${cur===_TOW_NAME?'#fff':'#5b21b6'};border:1.5px solid #7c3aed;border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:15px;font-weight:800;cursor:pointer;text-align:right">${cur===_TOW_NAME?'✅ ':'🚛 '}${_TOW_NAME}</button>` +
+    (cur ? `<div style="font-size:12.5px;color:var(--muted);font-weight:700;text-align:center;margin-top:2px">לחיצה על ${esc(cur)} תבטל את השליחה · לחיצה על יעד אחר תעביר אליו</div>` : '');
   openModal('modal-send-pickup-driver');
 }
 window.batchSendPickupToDriver = batchSendPickupToDriver;
@@ -19939,6 +19949,23 @@ async function _batchSendToDriver(driverName) {
   const ids = [..._pickupSelected];
   if (!ids.length) return;
   const { updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+
+  // לחיצה על היעד שכבר משויך לכל הרכבים = ביטול השליחה, בדיוק כמו בכרטיס
+  if (_batchCurrentTarget() === driverName) {
+    let cleared = 0;
+    for (const id of ids) {
+      try {
+        await updateDoc(doc(window._db, 'pickup_cars', id), { assignedDriver: '' });
+        const car = _pickupAllCars.find(c => c.id === id);
+        if (car) car.assignedDriver = '';
+        cleared++;
+      } catch (e) { console.error('batch unsend', id, e); }
+    }
+    clearPickupSelection();
+    showToast(`בוטלה השליחה ל${driverName} · ${cleared} רכבים`);
+    return;
+  }
+
   let ok = 0;
   for (const id of ids) {
     try {
