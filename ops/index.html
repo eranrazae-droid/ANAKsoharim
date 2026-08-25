@@ -4940,8 +4940,10 @@ function _setBatteryStockCard(units, maxSameType) {
   if (!card || !sub) return;
   sub.textContent = !units ? 'אין מה להזמין'
     : units === 1 ? 'מצבר אחד להזמנה' : `${units} מצברים להזמנה`;
-  _paintHomeCard(card, units > 0 ? _HOME_CARD_TINT['battery-stock'] : null);
+  // הצביעה נדלקת רק כשבאמת שווה להזמין: שלושה מצברים בסך הכל, או שניים
+  // מאותו סוג. מצבר בודד אינו סיבה לצבוע את הקוביה.
   const mark = units >= _BS_CARD_MIN || (maxSameType || 0) >= 2;
+  _paintHomeCard(card, mark ? _HOME_CARD_TINT['battery-stock'] : null);
   if (mark) {
     sub.style.background = '#fde68a';
     sub.style.color = '#78350f';
@@ -4951,7 +4953,7 @@ function _setBatteryStockCard(units, maxSameType) {
     sub.style.display = 'inline-block';
   } else {
     sub.style.background = '';
-    sub.style.color = units > 0 ? 'rgba(255,255,255,.93)' : '';
+    sub.style.color = '';
     sub.style.fontWeight = '';
     sub.style.borderRadius = '';
     sub.style.padding = '';
