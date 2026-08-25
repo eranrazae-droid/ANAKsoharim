@@ -11588,7 +11588,14 @@ function _renderOwnMorning() {
    ═══════════════════════════════════════════════════════════════════ */
 const _MS_DRIVERS = ['גיל', 'עופר', 'איתי'];   // מהנמוך לגבוה, עופר באמצע
 const _MS_HOUR = 8;
-const _MS_THIRD_NAMES = ['השליש הנמוך', 'השליש האמצעי', 'השליש הגבוה'];
+/* השלישים מוגדרים לפי המראה של המגרש ולא לפי ספירת רכבים:
+   1–34 הצד השמאלי · 40–67 הצד הימני ליד הכניסה · 68–93 הצד הימני בסוף. */
+const _MS_ZONES = [
+  { name: 'הצד השמאלי (1–34)',            min: 1,  max: 34 },
+  { name: 'הצד הימני ליד הכניסה (40–67)', min: 40, max: 67 },
+  { name: 'הצד הימני בסוף המגרש (68–93)', min: 68, max: 93 },
+];
+const _MS_THIRD_NAMES = _MS_ZONES.map(z => z.name);
 const _MS_ITAY_ANCHOR = 35;   // השבוע של 25.8.2026 — שבוע שבו איתי עובד
 
 let _msState = null;      // config/morning_roll — { itayWeek, itayAnchor, snoozeDay, snoozeTo }
@@ -11680,8 +11687,8 @@ function _msDivide(present, spots) {
 function _msPlanFor(present, date) {
   const third = _msThirdOf(date);
   if (third === null) return { third: null, spots: [], byDriver: {} };
-  const all = _msAllSpots();
-  const spots = _msChunks(all, 3)[third] || [];
+  const z = _MS_ZONES[third];
+  const spots = _msAllSpots().filter(x => x.spot >= z.min && x.spot <= z.max);
   return { third, spots, byDriver: _msDivide(present, spots) };
 }
 
