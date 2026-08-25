@@ -273,6 +273,7 @@
         <div class="section-hd">
           <div><div class="eyebrow">פרסום</div><h2>מעקב פרסום לפי ערוץ</h2></div>
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <select id="ptBrandFilter" onchange="renderPubTrack()" style="min-width:160px"><option value="">כל היצרנים</option></select>
             <input id="ptSearch" oninput="renderPubTrack()" placeholder="חיפוש רכב..." style="min-width:170px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;font-size:14px"/>
             <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);cursor:pointer"><input type="checkbox" id="ptOnlyMissing" onchange="renderPubTrack()"/> רק לא-מפורסמים</label>
           </div>
@@ -1537,9 +1538,18 @@
   }
   function renderPubTrack(){
     const wrap=document.getElementById('ptWrap'); if(!wrap) return;
+    // דרופדאון יצרנים
+    const bsel=document.getElementById('ptBrandFilter');
+    if(bsel){
+      const brands=[...new Set(ptRows().map(c=>c.brand).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'he'));
+      const cur=bsel.value;
+      bsel.innerHTML='<option value="">כל היצרנים</option>'+brands.map(b=>'<option value="'+b+'"'+(b===cur?' selected':'')+'>'+b+' ('+ptRows().filter(c=>c.brand===b).length+')</option>').join('');
+    }
+    const fBrand=bsel?bsel.value:'';
     const q=((document.getElementById('ptSearch')||{}).value||'').trim().toLowerCase();
     const onlyMissing=!!(document.getElementById('ptOnlyMissing')||{}).checked;
     let rows=ptRows();
+    if(fBrand) rows=rows.filter(c=>c.brand===fBrand);
     if(q) rows=rows.filter(c=>((c.brand||'')+' '+(c.model||'')).toLowerCase().indexOf(q)>=0);
     if(onlyMissing) rows=rows.filter(c=>PUB_CHANNELS.some(ch=>!((c.pub||{})[ch.key])));
     // סטטיסטיקה
