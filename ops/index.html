@@ -11589,6 +11589,7 @@ function _renderOwnMorning() {
 const _MS_DRIVERS = ['גיל', 'עופר', 'איתי'];   // מהנמוך לגבוה, עופר באמצע
 const _MS_HOUR = 8;
 const _MS_THIRD_NAMES = ['השליש הנמוך', 'השליש האמצעי', 'השליש הגבוה'];
+const _MS_ITAY_ANCHOR = 35;   // השבוע של 25.8.2026 — שבוע שבו איתי עובד
 
 let _msState = null;      // config/morning_roll — { itayWeek, itayAnchor, snoozeDay, snoozeTo }
 let _msToday = null;      // morning_starts/<יום> — { present, byDriver, third }
@@ -11608,8 +11609,9 @@ function _msWeekNum(d) {
 function _msItayWorks(date) {
   const d = date || new Date();
   if (d.getDay() === 5) return true;                       // שישי — תמיד
-  const anchor = _msState && _msState.itayAnchor;
-  if (!anchor) return true;                                // עוד לא נקבע — ברירת מחדל שהוא עובד
+  // ברירת המחדל נקבעה לפי השבוע של 25.8.2026, שבו איתי עובד. אם המנהל
+  // לוחץ "שנה" נשמר עוגן משלו והוא גובר.
+  const anchor = (_msState && _msState.itayAnchor) || _MS_ITAY_ANCHOR;
   return (_msWeekNum(d) - Number(anchor)) % 2 === 0;
 }
 
