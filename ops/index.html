@@ -14011,7 +14011,14 @@ function _bsRenderStock() {
         <div class="bs-qty" style="background:${color}">${q}</div>
         <div style="flex:1;min-width:0">
           <div class="bs-name">${esc(_bsModelOf(r))}</div>
-          ${r.sku ? `<div class="bs-sub">מק״ט ${esc(r.sku)}${_bsPriceOf(r) ? ` · ${Number(_bsPriceOf(r)).toLocaleString('he-IL')} ₪` : ''}</div>` : ''}
+          ${(() => {
+            // העלות מוצגת תמיד: מחיר ליחידה, ובכמות גדולה מאחת גם הסכום הכולל
+            const price = Number(_bsPriceOf(r) || 0);
+            const money = price
+              ? `${price.toLocaleString('he-IL')} ₪ ליחידה${q > 1 ? ` · סה״כ ${(price * q).toLocaleString('he-IL')} ₪` : ''}`
+              : '<span style="color:#b45309">מחיר לא הוגדר</span>';
+            return `<div class="bs-sub">${r.sku ? `מק״ט ${esc(r.sku)} · ` : ''}${money}</div>`;
+          })()}
         </div>
         <button onclick="bsRemoveStock('${r.id}')" title="הורד מהארון" class="bs-icon-btn">🗑</button>
       </div>`;
