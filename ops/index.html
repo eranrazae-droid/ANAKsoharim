@@ -1806,12 +1806,26 @@ if ('serviceWorker' in navigator) {
     <div class="logo">🔔 ניהול התראות</div>
     <div class="user-badge" id="nm-user-badge" onclick="logout()"></div>
   </div>
-  <div style="padding:14px 16px 90px;max-width:760px;margin:0 auto">
+  <div style="padding:14px 16px 90px;max-width:1100px;width:100%;margin:0 auto;box-sizing:border-box">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px">
       <div style="font-weight:900;font-size:16px">📋 ההתראות שלי <span id="nm-count" style="font-size:12.5px;font-weight:800;color:var(--muted)"></span></div>
       <button onclick="nmOpenNew()" style="background:var(--gold);color:#000;border:none;border-radius:12px;padding:10px 16px;font-family:Heebo,sans-serif;font-weight:900;font-size:14px;cursor:pointer;white-space:nowrap">➕ התראה חדשה</button>
     </div>
-    <div id="nm-list"></div>
+    <div id="nm-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;align-items:start"></div>
+  </div>
+</div>
+
+<!-- ====== MODAL: FREEZE NOTIFICATION ====== -->
+<div class="modal-overlay" id="modal-nm-freeze">
+  <div class="modal-box" style="max-width:400px">
+    <div class="modal-title"><span>❄️ הקפאת התראה</span> <button class="modal-close" onclick="closeModal('modal-nm-freeze')">✕</button></div>
+    <div style="font-size:13.5px;font-weight:800;margin-bottom:12px">"<span id="nm-freeze-name"></span>" לא תישלח אוטומטית עד שתופשר.</div>
+    <label style="font-size:12.5px;font-weight:800;color:var(--muted);display:block;margin-bottom:5px">עד תאריך</label>
+    <input type="date" id="nm-freeze-date" class="form-input" style="width:100%;box-sizing:border-box">
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn-submit" style="flex:1;margin:0" onclick="nmFreezeApply(false)">❄️ הקפא עד התאריך</button>
+      <button class="btn-submit" style="margin:0;background:var(--surface2);color:var(--text);border:2px solid var(--border)" onclick="nmFreezeApply(true)">♾️ ללא הגבלת זמן</button>
+    </div>
   </div>
 </div>
 
@@ -11953,25 +11967,45 @@ function _nmFrozen(t) {
   return _todayKey() <= t.frozenUntil;                   // עד התאריך כולל
 }
 
+let _nmFreezeId = null;
+
 async function nmToggleFreeze(id) {
   const t = _nmTemplates.find(x => x.id === id);
   if (!t) return;
   if (!_requireNet('עדכון ההתראה')) return;
-  try {
-    if (_nmFrozen(t)) {
+  if (_nmFrozen(t)) {
+    try {
       await _updateDoc(_docRef('notif_templates', id), { frozen: false, frozenUntil: '' });
-      showToast('▶️ ההתראה הופשרה');
-      return;
-    }
-    const ans = prompt('להקפיא עד תאריך מסוים?\n\nהקלד תאריך בפורמט YYYY-MM-DD,\nאו השאר ריק להקפאה ללא הגבלת זמן.', '');
-    if (ans === null) return;
-    const until = ans.trim();
-    if (until && !/^\d{4}-\d{2}-\d{2}$/.test(until)) return showToast('תאריך לא תקין — לדוגמה 2026-09-30', 6000);
-    await _updateDoc(_docRef('notif_templates', id), { frozen: true, frozenUntil: until });
-    showToast(until ? `⏸ מוקפאת עד ${until}` : '⏸ ההתראה מוקפאת ללא הגבלת זמן');
-  } catch (e) { showToast('העדכון נכשל: ' + (e.code || e.message), 6000); }
+      showToast('☀️ ההתראה הופשרה');
+    } catch (e) { showToast('העדכון נכשל: ' + (e.code || e.message), 6000); }
+    return;
+  }
+  _nmFreezeId = id;
+  const name = document.getElementById('nm-freeze-name');
+  if (name) name.textContent = t.title || 'ההתראה';
+  const inp = document.getElementById('nm-freeze-date');
+  if (inp) {
+    const d = new Date(); d.setDate(d.getDate() + 7);      // ברירת מחדל: שבוע קדימה
+    inp.value = d.toLocaleDateString('sv-SE');
+    inp.min = _todayKey();
+  }
+  openModal('modal-nm-freeze');
 }
 window.nmToggleFreeze = nmToggleFreeze;
+
+async function nmFreezeApply(forever) {
+  const id = _nmFreezeId;
+  if (!id) return;
+  const until = forever ? '' : (document.getElementById('nm-freeze-date')?.value || '');
+  if (!forever && !until) return showToast('נא לבחור תאריך');
+  try {
+    await _updateDoc(_docRef('notif_templates', id), { frozen: true, frozenUntil: until });
+    closeModal('modal-nm-freeze');
+    _nmFreezeId = null;
+    showToast(until ? `❄️ מוקפאת עד ${until}` : '❄️ ההתראה מוקפאת ללא הגבלת זמן');
+  } catch (e) { showToast('העדכון נכשל: ' + (e.code || e.message), 6000); }
+}
+window.nmFreezeApply = nmFreezeApply;
 
 function _nmRenderList() {
   const box = document.getElementById('nm-list');
@@ -11979,16 +12013,16 @@ function _nmRenderList() {
   if (!box) return;
   if (cnt) cnt.textContent = _nmTemplates.length ? `${_nmTemplates.length} התראות` : '';
   if (!_nmTemplates.length) {
-    box.innerHTML = '<div style="text-align:center;color:var(--muted);padding:26px 16px;font-weight:700;font-size:13px">אין עדיין התראות. לחץ "➕ התראה חדשה" כדי ליצור אחת.</div>';
+    box.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--muted);padding:26px 16px;font-weight:700;font-size:13px">אין עדיין התראות. לחץ "➕ התראה חדשה" כדי ליצור אחת.</div>';
     return;
   }
   box.innerHTML = _nmTemplates.map(t => {
     const frozen = _nmFrozen(t);
     return `
-    <div style="background:var(--card);border:2px solid ${frozen ? '#94a3b8' : 'var(--border)'};border-radius:14px;padding:12px 13px;margin-bottom:10px;${frozen ? 'opacity:.72' : ''}">
+    <div style="background:var(--card);border:2px solid ${frozen ? '#94a3b8' : 'var(--border)'};border-radius:14px;padding:12px 13px;${frozen ? 'opacity:.72' : ''}">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
         <div style="flex:1;min-width:0">
-          <div style="font-weight:900;font-size:14.5px">${esc(t.title || 'התראה')}${frozen ? `<span style="font-size:11.5px;font-weight:800;color:#fff;background:#64748b;border-radius:7px;padding:2px 8px;margin-right:7px">⏸ מוקפאת${t.frozenUntil ? ' עד ' + esc(t.frozenUntil) : ''}</span>` : ''}</div>
+          <div style="font-weight:900;font-size:14.5px">${esc(t.title || 'התראה')}${frozen ? `<span style="font-size:11.5px;font-weight:800;color:#fff;background:#64748b;border-radius:7px;padding:2px 8px;margin-right:7px">❄️ מוקפאת${t.frozenUntil ? ' עד ' + esc(t.frozenUntil) : ''}</span>` : ''}</div>
           <div style="font-size:13px;color:var(--text);margin-top:3px;white-space:pre-wrap">${esc(t.message || '')}</div>
           <div style="font-size:12px;color:var(--muted);font-weight:700;margin-top:5px">👤 ${esc((t.to || []).join(' · ')) || 'לא נבחרו נמענים'}</div>
           ${(t.days || []).length || (t.times || []).length
@@ -11999,7 +12033,7 @@ function _nmRenderList() {
       <div style="display:flex;gap:7px;margin-top:10px;flex-wrap:wrap">
         <button onclick="_runOnce('nmSendT-${t.id}', this, '⏳ שולח...', () => nmSendTemplate('${t.id}'))" style="flex:1;min-width:110px;background:#16a34a;color:#fff;border:none;border-radius:10px;padding:9px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">📨 שלח</button>
         <button onclick="nmEditTemplate('${t.id}')" style="background:var(--surface2);color:var(--text);border:2px solid var(--border);border-radius:10px;padding:9px 14px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">✏️ ערוך</button>
-        <button onclick="nmToggleFreeze('${t.id}')" style="background:var(--surface2);color:var(--text);border:2px solid var(--border);border-radius:10px;padding:9px 14px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">${frozen ? '▶️ הפשר' : '⏸ הקפא'}</button>
+        <button onclick="nmToggleFreeze('${t.id}')" style="background:${frozen ? '#bae6fd' : 'var(--surface2)'};color:${frozen ? '#075985' : 'var(--text)'};border:2px solid ${frozen ? '#38bdf8' : 'var(--border)'};border-radius:10px;padding:9px 14px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">${frozen ? '☀️ הפשר' : '❄️ הקפא'}</button>
         <button onclick="nmDeleteTemplate('${t.id}')" style="background:#fff0f0;color:#dc2626;border:2px solid #ef4444;border-radius:10px;padding:9px 14px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">🗑</button>
       </div>
     </div>`; }).join('');
