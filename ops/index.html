@@ -1769,6 +1769,19 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
+<!-- ====== SCREEN: MORNING STARTS ====== -->
+<div id="screen-morning-starts" class="screen">
+  <div class="app-header">
+    <button class="back-btn" onclick="goHome()">→</button>
+    <div class="logo">🔑 הנעות הבוקר</div>
+    <div class="user-badge" id="ms-user-badge" onclick="logout()"></div>
+  </div>
+  <div style="padding:14px 16px 90px">
+    <div id="ms-head" style="margin-bottom:12px"></div>
+    <div id="ms-body"></div>
+  </div>
+</div>
+
 <!-- ====== SCREEN: YARD ====== -->
 <div id="screen-yard" class="screen">
   <div class="app-header">
@@ -2844,6 +2857,18 @@ if ('serviceWorker' in navigator) {
     <div style="display:flex;gap:8px;margin-top:14px">
       <button onclick="ownMorningDone()" style="flex:1;background:#16a34a;color:#fff;border:none;border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:15px;font-weight:800;cursor:pointer">✅ הכל תקין</button>
       <button onclick="ownMorningSnooze()" style="flex:1;background:var(--surface2);color:var(--text);border:2px solid var(--border);border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:15px;font-weight:800;cursor:pointer">⏰ דחה לעוד שעה</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== MODAL: MORNING START ROLL CALL ====== -->
+<div class="modal-overlay" id="modal-morning-roll" data-locked="1">
+  <div class="modal-box" style="max-width:440px">
+    <div class="modal-title" style="justify-content:center">🔑 הנעות הבוקר</div>
+    <div id="ms-roll-body"></div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button onclick="_runOnce('msRoll', this, '⏳ מחלק...', msRollConfirm)" style="flex:1;background:#16a34a;color:#fff;border:none;border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:15px;font-weight:800;cursor:pointer">✅ חלק את ההנעות</button>
+      <button onclick="msRollSnooze()" style="flex:1;background:var(--surface2);color:var(--text);border:2px solid var(--border);border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:15px;font-weight:800;cursor:pointer">⏰ דחה לעוד שעה</button>
     </div>
   </div>
 </div>
@@ -4172,6 +4197,7 @@ function renderHome() {
         { icon: '📋', title: 'לוח משימות', sub: 'ניהול משימות לנהגים', screen: 'tasks' },
         { icon: '🚗', title: 'קליטות ורענון רכבים', sub: 'קליטה ורענון במסך אחד', screen: 'vehicles' },
         // row 2
+        { icon: '🔑', title: 'הנעות הבוקר', sub: 'חלוקת המגרש בין הנהגים', screen: 'morning-starts' },
         { icon: _ICON_CAR_BATTERY, title: 'ארון מצברים', sub: 'מלאי, הרכבות וסטטיסטיקה', screen: 'battery-stock' },
         // row 3 — recall is not here, it lives on the floating home button
         { icon: '🚙', title: 'מכוניות לאיסוף', sub: 'ניהול רכבים לאיסוף', screen: 'pickup' },
@@ -4179,6 +4205,7 @@ function renderHome() {
         { icon: '🔨', title: 'פחחות', sub: 'עבודות, מחירים וחשבון חודשי', screen: 'bodyshop-mgr' },
       ]
     : [
+        { icon: '🔑', title: 'הנעות הבוקר', sub: 'הרכבים שעליך להניע', screen: 'morning-starts' },
         { icon: '📋', title: 'המשימות שלי', sub: 'משימות שהוקצו לך', screen: 'tasks' },
         { icon: '🔋', title: 'בדיקת סוללה והטענת רכבים חשמליים', sub: 'מילוי אחוזי טעינה וטווח', screen: 'driver-battery' },
         { icon: _ICON_CAR_BATTERY, title: 'מצברים', sub: 'רישום מצבר שהורכב לרכב', screen: 'driver-battery-install' },
@@ -4245,6 +4272,7 @@ function _cardHtml(m) {
   if (isManager) _dailyChecksListen();
   _storyListen();
   _crestListen();
+  _msListen();
   _renderDailyQuote();
   _syncAllScreensCount();
   clearInterval(window._allScreensTimer);
@@ -4655,6 +4683,7 @@ function goToScreen(name) {
   else if (name === 'vehicles') openVehiclesScreen();
   else if (name === 'parts') openPartsScreen();
   else if (name === 'yard') openYardScreen();
+  else if (name === 'morning-starts') openMorningStartsScreen();
   else if (name === 'inventory') openInventoryScreen();
   else if (name === 'battery') openBatteryScreen();
   else if (name === 'driver-battery') openDriverBatteryScreen();
@@ -4896,6 +4925,7 @@ const _HOME_CARD_TINT = {
   'vehicles':      '#dc2626',   // קליטות ורענון — אדום
   'bodyshop-mgr':  '#b45309',   // פחחות — כתום־חום, בצבע העבודה
   'tasks':         '#6d28d9',   // לוח משימות — סגול
+  'morning-starts':'#0369a1',   // הנעות הבוקר — כחול בהיר
 };
 
 function _paintHomeCard(card, tint) {
@@ -11545,6 +11575,292 @@ function _renderOwnMorning() {
       ${_ownUpdatedAt ? `<div style="font-size:12px;font-weight:700;color:var(--muted);margin-top:8px">נבדק לאחרונה: ${esc(_ownUpdatedAt)}</div>` : ''}
       <div style="font-size:12px;font-weight:800;color:#0d6ab0;margin-top:8px">לחץ לפירוט המלא ▶</div>
     </div>`;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   הנעות הבוקר
+   כל בוקר מניעים שליש מהמגרש, לפי מספרי החניות. ראשון ורביעי — השליש
+   הנמוך, שני וחמישי — האמצעי, שלישי ושישי — הגבוה. כך כל שליש מונע
+   פעמיים בשבוע. רכב שעומד על הכביש אינו מונע.
+   החלוקה בין הנהגים נעשית לפי מספר חניה רצוף, ועופר תמיד באמצע.
+   כשמגיעים רק שניים — עופר לוקח את החצי הגבוה.
+   ═══════════════════════════════════════════════════════════════════ */
+const _MS_DRIVERS = ['גיל', 'עופר', 'איתי'];   // מהנמוך לגבוה, עופר באמצע
+const _MS_HOUR = 8;
+const _MS_THIRD_NAMES = ['השליש הנמוך', 'השליש האמצעי', 'השליש הגבוה'];
+
+let _msState = null;      // config/morning_roll — { itayWeek, itayAnchor, snoozeDay, snoozeTo }
+let _msToday = null;      // morning_starts/<יום> — { present, byDriver, third }
+let _msTimer = null;
+
+const _msDayKey = () => new Date(Date.now() - _MS_HOUR * 3600000).toLocaleDateString('sv-SE');
+
+// מספר השבוע בשנה — משמש לחישוב שבוע כן / שבוע לא של איתי
+function _msWeekNum(d) {
+  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  t.setUTCDate(t.getUTCDate() + 4 - (t.getUTCDay() || 7));
+  return Math.ceil(((t - Date.UTC(t.getUTCFullYear(), 0, 1)) / 86400000 + 1) / 7);
+}
+
+/* איתי עובד שבוע כן שבוע לא, ראשון עד חמישי. בשישי הוא תמיד מגיע.
+   העוגן נשמר פעם אחת: השבוע שבו סומן שהוא עובד, ומשם זה מתחלף לבד. */
+function _msItayWorks(date) {
+  const d = date || new Date();
+  if (d.getDay() === 5) return true;                       // שישי — תמיד
+  const anchor = _msState && _msState.itayAnchor;
+  if (!anchor) return true;                                // עוד לא נקבע — ברירת מחדל שהוא עובד
+  return (_msWeekNum(d) - Number(anchor)) % 2 === 0;
+}
+
+// השליש של היום. שבת מחזירה null — אין הנעות.
+function _msThirdOf(date) {
+  const day = (date || new Date()).getDay();               // 0=ראשון
+  if (day === 6) return null;
+  return day % 3;                                          // א,ד=0 · ב,ה=1 · ג,ו=2
+}
+
+/* כל החניות שמניעים בהן: חניה תפוסה שאינה על הכביש. הצד השמאלי הוא
+   שדה "כניסה", והצד הימני "בפנים"/"בחוץ". שדות "כביש" מדולגים. */
+let _msYard = null;   // עותק עצמאי של המגרש, כדי שהחלוקה תעבוד גם בלי להיכנס למסך
+
+function _msAllSpots() {
+  const data = _msYard || (typeof yardData === 'object' && yardData) || {};
+  const out = [];
+  Object.keys(data).forEach(k => {
+    const plate = String(data[k] || '').trim();
+    if (!plate) return;
+    if (k.includes('כביש')) return;                        // על הכביש לא מניעים
+    const m = k.match(/^[LR]_(\d+)_/);
+    if (!m) return;
+    out.push({ spot: Number(m[1]), key: k, plate });
+  });
+  return out.sort((a, b) => a.spot - b.spot || a.key.localeCompare(b.key));
+}
+
+// חלוקה לחלקים רצופים בגודל דומה, לפי הסדר
+function _msChunks(list, parts) {
+  const out = Array.from({ length: parts }, () => []);
+  if (!list.length) return out;
+  const base = Math.floor(list.length / parts), extra = list.length % parts;
+  let i = 0;
+  for (let p = 0; p < parts; p++) {
+    const take = base + (p < extra ? 1 : 0);
+    out[p] = list.slice(i, i + take);
+    i += take;
+  }
+  return out;
+}
+
+/* מחלק את חניות היום בין הנהגים שהגיעו.
+   שלושה — לפי הסדר גיל, עופר, איתי, כך שעופר תמיד באמצע.
+   שניים — עופר מקבל את החצי הגבוה; בלי עופר, לפי הסדר הקבוע.
+   אחד — הכול עליו.                                                  */
+function _msDivide(present, spots) {
+  const drivers = _MS_DRIVERS.filter(d => present.includes(d));
+  const byDriver = {};
+  drivers.forEach(d => { byDriver[d] = []; });
+  if (!drivers.length || !spots.length) return byDriver;
+
+  if (drivers.length === 2 && drivers.includes('עופר')) {
+    const other = drivers.find(d => d !== 'עופר');
+    const [low, high] = _msChunks(spots, 2);
+    byDriver[other] = low;
+    byDriver['עופר'] = high;                               // עופר על החצי הגבוה
+    return byDriver;
+  }
+  const chunks = _msChunks(spots, drivers.length);
+  drivers.forEach((d, i) => { byDriver[d] = chunks[i]; });
+  return byDriver;
+}
+
+// כל מה שצריך כדי להציג ולחלק את היום
+function _msPlanFor(present, date) {
+  const third = _msThirdOf(date);
+  if (third === null) return { third: null, spots: [], byDriver: {} };
+  const all = _msAllSpots();
+  const spots = _msChunks(all, 3)[third] || [];
+  return { third, spots, byDriver: _msDivide(present, spots) };
+}
+
+function _msListen() {
+  if (_msTimer) return;
+  _onSnap(_docRef('config', 'morning_roll'), snap => {
+    _msState = (snap.exists() ? snap.data() : {}) || {};
+    _msCheck();
+  }, () => { _msState = {}; });
+  // סידור המגרש נקרא כאן בנפרד, כדי שהחלוקה תעבוד גם בלי לפתוח את מסך המגרש
+  _onSnap(_docRef('yard', 'current'), snap => {
+    _msYard = snap.exists() ? (snap.data().data || {}) : {};
+  }, () => {});
+  _onSnap(_docRef('morning_starts', _msDayKey()), snap => {
+    _msToday = snap.exists() ? snap.data() : null;
+    _msSyncCard();
+    if (document.getElementById('screen-morning-starts')?.classList.contains('active')) _msRenderScreen();
+  }, () => {});
+  _msTimer = setInterval(_msCheck, 60000);
+}
+
+// החלונית קופצת למנהל מ-08:00, עד שהחלוקה של היום נשמרה
+function _msCheck() {
+  if (currentUser?.role !== 'manager') return;
+  if (!_msState) return;
+  if (new Date().getHours() < _MS_HOUR) return;
+  if (_msThirdOf() === null) return;                        // שבת
+  if (_msToday && _msToday.day === _msDayKey()) return;     // כבר חולק היום
+  const snooze = _msState.snoozeDay === _msDayKey() ? Number(_msState.snoozeTo || 0) : 0;
+  if (snooze && Date.now() < snooze) return;
+  const modal = document.getElementById('modal-morning-roll');
+  if (modal && modal.classList.contains('open')) return;
+  _msRenderRoll();
+  openModal('modal-morning-roll');
+}
+
+let _msPresent = null;
+
+function _msRenderRoll() {
+  const box = document.getElementById('ms-roll-body');
+  if (!box) return;
+  const now = new Date();
+  if (!_msPresent) {
+    // ברירת מחדל: כולם, פרט לאיתי בשבוע שהוא לא עובד
+    _msPresent = _MS_DRIVERS.filter(d => d !== 'איתי' || _msItayWorks(now));
+  }
+  const third = _msThirdOf(now);
+  const plan = _msPlanFor(_msPresent, now);
+  const dayName = now.toLocaleDateString('he-IL', { weekday: 'long' });
+  box.innerHTML = `
+    <div style="text-align:center;font-size:13.5px;font-weight:800;color:var(--muted);margin-bottom:10px">
+      ${esc(dayName)} · ${esc(_MS_THIRD_NAMES[third] || '')} · ${plan.spots.length} רכבים
+    </div>
+    <div style="font-size:13px;font-weight:800;margin-bottom:7px">מי הגיע היום?</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      ${_MS_DRIVERS.map(d => {
+        const on = _msPresent.includes(d);
+        const cnt = (plan.byDriver[d] || []).length;
+        return `<button onclick="msTogglePresent('${d}')" style="display:flex;align-items:center;justify-content:space-between;gap:8px;background:${on ? '#dcfce7' : 'var(--surface2)'};border:2px solid ${on ? '#16a34a' : 'var(--border)'};border-radius:12px;padding:11px 13px;font-family:Heebo,sans-serif;font-size:15px;font-weight:800;cursor:pointer;color:var(--text)">
+          <span>${on ? '✅' : '⬜'} ${d}</span>
+          <span style="font-size:12.5px;font-weight:800;color:var(--muted)">${on ? cnt + ' רכבים' : 'לא הגיע'}</span>
+        </button>`;
+      }).join('')}
+    </div>
+    <div style="margin-top:10px;font-size:12px;color:var(--muted);font-weight:700;text-align:center">
+      ${_msItayWorks(now) ? 'לפי הסבב — השבוע איתי עובד' : 'לפי הסבב — השבוע איתי לא עובד'}
+      · <a href="#" onclick="event.preventDefault();msFlipItayWeek()" style="color:#1d4ed8;font-weight:800">שנה</a>
+    </div>`;
+}
+
+function msTogglePresent(name) {
+  if (!_msPresent) _msPresent = [];
+  _msPresent = _msPresent.includes(name) ? _msPresent.filter(d => d !== name) : [..._msPresent, name];
+  _msRenderRoll();
+}
+window.msTogglePresent = msTogglePresent;
+
+// מתקן את הסבב של איתי: השבוע הנוכחי נשמר כעוגן וממנו מתחלף לבד
+async function msFlipItayWeek() {
+  const w = _msWeekNum(new Date());
+  const anchor = _msItayWorks(new Date()) ? w + 1 : w;
+  _msState = { ...(_msState || {}), itayAnchor: anchor };
+  try { await window._setDoc(_docRef('config', 'morning_roll'), { itayAnchor: anchor }, { merge: true }); } catch (e) {}
+  _msPresent = null;
+  _msRenderRoll();
+}
+window.msFlipItayWeek = msFlipItayWeek;
+
+async function msRollConfirm() {
+  if (!_requireNet('חלוקת ההנעות')) return;
+  const present = (_msPresent || []).slice();
+  if (!present.length) return showToast('נא לסמן לפחות נהג אחד');
+  const now = new Date();
+  const plan = _msPlanFor(present, now);
+  const payload = {
+    day: _msDayKey(), third: plan.third, present,
+    byDriver: Object.fromEntries(Object.entries(plan.byDriver).map(([d, list]) =>
+      [d, list.map(x => ({ spot: x.spot, plate: x.plate }))])),
+    createdAt: new Date().toISOString(), createdBy: currentUser.name,
+  };
+  await window._setDoc(_docRef('morning_starts', payload.day), payload, { merge: true });
+  _msToday = payload;
+  closeModal('modal-morning-roll');
+  present.forEach(d => {
+    const n = (plan.byDriver[d] || []).length;
+    if (n) _notifyDriver(d, `🔑 הנעות הבוקר — ${n} רכבים. הרשימה מחכה לך באפליקציה.`);
+  });
+  showToast(`✅ ההנעות חולקו ל-${present.length} נהגים`);
+  _msSyncCard();
+}
+window.msRollConfirm = msRollConfirm;
+
+async function msRollSnooze() {
+  const data = { snoozeDay: _msDayKey(), snoozeTo: Date.now() + 3600000 };
+  _msState = { ...(_msState || {}), ...data };
+  closeModal('modal-morning-roll');
+  try { await window._setDoc(_docRef('config', 'morning_roll'), data, { merge: true }); } catch (e) {}
+}
+window.msRollSnooze = msRollSnooze;
+
+// ── מסך ההנעות ──
+function openMorningStartsScreen() {
+  const badge = document.getElementById('ms-user-badge');
+  if (badge) badge.textContent = currentUser.name;
+  showScreen('morning-starts');
+  _msRenderScreen();
+}
+window.openMorningStartsScreen = openMorningStartsScreen;
+
+function _msRenderScreen() {
+  const head = document.getElementById('ms-head');
+  const body = document.getElementById('ms-body');
+  if (!head || !body) return;
+  const isManager = currentUser?.role === 'manager';
+  const third = _msThirdOf();
+  if (third === null) {
+    head.innerHTML = '';
+    body.innerHTML = '<div style="text-align:center;color:var(--muted);padding:40px 20px;font-weight:700">שבת — אין הנעות היום</div>';
+    return;
+  }
+  const dayName = new Date().toLocaleDateString('he-IL', { weekday: 'long' });
+  head.innerHTML = `<div style="background:var(--card);border:2px solid var(--border);border-radius:14px;padding:12px 14px;font-weight:800;font-size:14px">
+      ${esc(dayName)} · ${esc(_MS_THIRD_NAMES[third])}
+    </div>`;
+  if (!_msToday || _msToday.day !== _msDayKey()) {
+    body.innerHTML = `<div style="text-align:center;color:var(--muted);padding:40px 20px;font-weight:700">
+      ${isManager ? 'עוד לא חולקו ההנעות של היום' : 'המנהל עדיין לא חילק את ההנעות של הבוקר'}</div>`;
+    return;
+  }
+  const by = _msToday.byDriver || {};
+  const names = isManager ? Object.keys(by) : [currentUser.name].filter(n => by[n]);
+  if (!names.length) {
+    body.innerHTML = '<div style="text-align:center;color:var(--muted);padding:40px 20px;font-weight:700">אין לך רכבים להנעה הבוקר</div>';
+    return;
+  }
+  body.innerHTML = names.map(name => {
+    const list = by[name] || [];
+    return `<div style="background:var(--card);border:2px solid var(--border);border-radius:14px;padding:12px 14px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div style="font-weight:900;font-size:16px">${esc(name)}</div>
+        <div style="font-size:12.5px;font-weight:800;color:var(--muted)">${list.length} רכבים${list.length ? ` · חניות ${list[0].spot}–${list[list.length - 1].spot}` : ''}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:7px">
+        ${list.map(x => `<div style="background:var(--surface2);border:1.5px solid var(--border);border-radius:10px;padding:7px 9px">
+          <div style="font-size:11.5px;font-weight:800;color:var(--muted)">חניה ${x.spot}</div>
+          <div style="font-size:14px;font-weight:900;letter-spacing:.4px">${esc(x.plate)}</div>
+        </div>`).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// המונה על הקוביה במסך הבית — כמה רכבים נשארו לנהג הזה הבוקר
+function _msSyncCard() {
+  const isManager = currentUser?.role === 'manager';
+  const ok = _msToday && _msToday.day === _msDayKey();
+  const by = (ok && _msToday.byDriver) || {};
+  const count = isManager
+    ? Object.values(by).reduce((t, l) => t + l.length, 0)
+    : (by[currentUser?.name] || []).length;
+  _setCardBadge('morning-starts', count);
 }
 
 function _checkOwnMorning() {
