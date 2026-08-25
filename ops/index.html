@@ -825,6 +825,7 @@ if ('serviceWorker' in navigator) {
           <div class="stat-card" id="stat-battery-driver-card" style="display:none;cursor:pointer;background:linear-gradient(135deg,#0891b2,#0e7490);color:#fff" onclick="goToScreen('driver-battery-unified')"><div class="num" id="stat-battery-driver-count" style="color:#fff">0</div><div class="lbl" id="stat-battery-driver-lbl" style="color:rgba(255,255,255,.8)">🔋 בדיקת טעינה</div></div>
           <div class="stat-card" id="stat-intake-driver-card" style="display:none;cursor:pointer;background:linear-gradient(135deg,#047857,#065f46);color:#fff" onclick="goToScreen('vehicles')"><div class="num" id="stat-intake-driver-count" style="color:#fff">0</div><div class="lbl" style="color:rgba(255,255,255,.8)">🚗 קליטות ורענון</div></div>
           <div class="stat-card" id="stat-pits-driver-card" style="display:none;cursor:pointer;background:linear-gradient(135deg,#0f766e,#115e59);color:#fff" onclick="goToScreen('pits')"><div class="num" id="stat-pits-driver-count" style="color:#fff">0</div><div class="lbl" style="color:rgba(255,255,255,.8)">🕳️ בורות</div></div>
+          <div class="stat-card" id="stat-td-driver-card" style="display:none;cursor:pointer;background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff" onclick="openTestDriveFromHome()"><div class="num" id="stat-td-driver-count" style="color:#fff">0</div><div class="lbl" style="color:rgba(255,255,255,.8)">🏎️ נסיעת מבחן</div></div>
           <div class="stat-card" id="stat-yard-driver-card" style="display:none;cursor:pointer;background:linear-gradient(135deg,#b45309,#92400e);color:#fff" onclick="goToScreen('yard')"><div class="num" id="stat-yard-driver-count" style="color:#fff">0</div><div class="lbl" style="color:rgba(255,255,255,.8)">🅿️ סידור מגרש</div></div>
           <div style="display:none"><div id="stat-parts">—</div></div>
         </div>
@@ -4090,6 +4091,9 @@ function _syncAllScreensCount() {
   const btn = document.getElementById('btn-all-screens');
   const nb = document.getElementById('all-screens-count');
   if (!btn || !nb) return;
+  // אצל הנהג אין כפתור "כל המסכים" — מה שפתוח לו מוצג בקוביות הקטנות
+  // שליד מספר המשימות, וכל השאר לא אמור להופיע לו בכלל.
+  if (currentUser?.role !== 'manager') { btn.style.display = 'none'; return; }
   const items = _ALL_SCREENS.filter(_screenVisible);
   btn.style.display = items.length ? '' : 'none';
   const total = items.reduce((t, it) => t + _screenBadge(it), 0);
@@ -5209,6 +5213,11 @@ function loadDriverBadges() {
       const badge = document.getElementById('badge-test-drive');
       if (badge) { badge.textContent = snap.size; badge.style.display = snap.size ? 'block' : 'none'; }
       _setTdHomeCount(snap.size);
+      // הקוביה הקטנה ליד מספר המשימות — מופיעה רק כשיש נסיעה שממתינה
+      const tdCard = document.getElementById('stat-td-driver-card');
+      const tdCnt = document.getElementById('stat-td-driver-count');
+      if (tdCard) tdCard.style.display = snap.size ? 'block' : 'none';
+      if (tdCnt) tdCnt.textContent = snap.size;
       if (!snap.size) {
         const cancelledId = localStorage.getItem('anak_td_active');
         localStorage.removeItem('anak_td_active');
