@@ -155,6 +155,8 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
 }
 /* בטלפון צר הכפתור מצטמצם לאייקון, כדי שהכותרת לא תיצפף */
 @media(max-width:430px){#btn-all-screens .as-txt{display:none}}
+/* בטלפון צר נשאר רק הפעמון, כדי שהכותרת לא תיצפף */
+@media(max-width:560px){#btn-notify-mgr .nm-txt{display:none}}
 /* משפט היום: בכותרת במסך רחב, ומתחת לברכה בטלפון */
 @media(max-width:1000px){#daily-quote{display:none}#daily-quote-m{display:block !important}}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
@@ -803,6 +805,7 @@ if ('serviceWorker' in navigator) {
   <div class="app-header">
     <div class="logo">ענק <span>הרכבים</span></div>
     <div id="daily-quote" style="flex:1;min-width:0;text-align:center;font-size:13px;font-weight:700;color:rgba(255,255,255,.92);padding:0 12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
+    <button id="btn-notify-mgr" onclick="openNotifyMgr()" style="display:none;background:rgba(255,255,255,0.15);border:none;border-radius:999px;color:#fff;font-size:13px;font-weight:700;padding:6px 14px;cursor:pointer;font-family:Heebo,sans-serif;white-space:nowrap">🔔 <span class="nm-txt">ניהול התראות</span></button>
     <button id="btn-settings" onclick="openSettings()" style="display:none;background:rgba(255,255,255,0.15);border:none;border-radius:999px;color:#fff;font-size:13px;font-weight:700;padding:6px 14px;cursor:pointer;font-family:Heebo,sans-serif">⚙️ הגדרות</button>
     <button id="btn-all-screens" onclick="openAllScreens()" style="display:none;background:var(--gold);border:none;border-radius:999px;color:#000;font-size:13px;font-weight:800;padding:6px 14px;cursor:pointer;font-family:Heebo,sans-serif;white-space:nowrap">☰ <span class="as-txt">כל המסכים</span><span id="all-screens-count" style="display:none;background:#ef4444;color:#fff;border-radius:999px;padding:1px 7px;font-size:11px;font-weight:900;margin-right:5px"></span></button>
     <div class="user-badge" id="home-user-badge" onclick="logout()">יציאה</div>
@@ -1791,6 +1794,32 @@ if ('serviceWorker' in navigator) {
       </div>
       <button onclick="addPitCheck()" style="background:var(--dark);color:#fff;border:none;border-radius:12px;padding:12px;font-family:Heebo,sans-serif;font-weight:700;font-size:15px;cursor:pointer;margin-top:4px">✅ הוסף</button>
     </div>
+  </div>
+</div>
+
+<!-- ====== SCREEN: NOTIFICATION MANAGER ====== -->
+<div id="screen-notify-mgr" class="screen">
+  <div class="app-header">
+    <button class="back-btn" onclick="goHome()">→</button>
+    <div class="logo">🔔 ניהול התראות</div>
+    <div class="user-badge" id="nm-user-badge" onclick="logout()"></div>
+  </div>
+  <div style="padding:14px 16px 90px;max-width:760px;margin:0 auto">
+    <div style="background:var(--card);border:2px solid var(--border);border-radius:16px;padding:13px 14px;margin-bottom:14px">
+      <div style="font-weight:900;font-size:15px;margin-bottom:9px">✉️ שליחת התראה</div>
+      <textarea id="nm-msg" rows="3" class="form-textarea" placeholder="מה לשלוח?" style="width:100%;box-sizing:border-box"></textarea>
+      <div style="font-size:12.5px;font-weight:800;color:var(--muted);margin:10px 0 6px">למי לשלוח</div>
+      <div id="nm-recipients" style="display:flex;flex-wrap:wrap;gap:7px"></div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn-submit" style="flex:1;margin:0" onclick="_runOnce('nmSend', this, '⏳ שולח...', nmSendNow)">📨 שלח עכשיו</button>
+        <button class="btn-submit" style="margin:0;background:var(--surface2);color:var(--text);border:2px solid var(--border)" onclick="nmSaveTemplate()">💾 שמור כהתראה</button>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div style="font-weight:900;font-size:15px">📋 התראות שמורות</div>
+      <span id="nm-count" style="font-size:12.5px;font-weight:800;color:var(--muted)"></span>
+    </div>
+    <div id="nm-list"></div>
   </div>
 </div>
 
@@ -4149,6 +4178,8 @@ function renderHome() {
   document.getElementById('stat-vehicles').parentElement.style.display = 'none';
   const settingsBtn = document.getElementById('btn-settings');
   if (settingsBtn) settingsBtn.style.display = (currentUser?.role === 'manager') ? 'inline-flex' : 'none';
+  const notifyBtn = document.getElementById('btn-notify-mgr');
+  if (notifyBtn) notifyBtn.style.display = (currentUser?.role === 'manager') ? 'inline-flex' : 'none';
 
   // הילה (pickup_driver) — only sees assigned pickup cars
   if (currentUser.role === 'pickup_driver') {
@@ -4717,6 +4748,7 @@ function goToScreen(name) {
   else if (name === 'parts') openPartsScreen();
   else if (name === 'yard') openYardScreen();
   else if (name === 'morning-starts') openMorningStartsScreen();
+  else if (name === 'notify-mgr') openNotifyMgr();
   else if (name === 'inventory') openInventoryScreen();
   else if (name === 'battery') openBatteryScreen();
   else if (name === 'driver-battery') openDriverBatteryScreen();
@@ -11779,6 +11811,179 @@ function _msPlanFor(present, date) {
   const spots = _msAllSpots().filter(x => x.spot >= z.min && x.spot <= z.max);
   return { third, spots, byDriver: _msDivide(present, spots, date) };
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   ניהול התראות
+   מסך אחד לשליחת הודעה לכל מי שהטלגרם שלו מקושר, ולשמירת התראות
+   חוזרות שאפשר לערוך ולשלוח שוב בלחיצה.
+   ═══════════════════════════════════════════════════════════════════ */
+let _nmTemplates = [];
+let _nmTo = new Set();
+let _nmEditId = null;
+let _nmUnsub = null;
+
+// כל מי שיש לו טלגרם מקושר. שדות שמתחילים בקו תחתון הם הגדרות ולא אנשים.
+async function _nmPeople() {
+  const contacts = await _loadDriverContacts();
+  return Object.entries(contacts || {})
+    .filter(([k, c]) => !k.startsWith('_') && c && c.telegramId)
+    .map(([k]) => k);
+}
+
+async function openNotifyMgr() {
+  if (currentUser?.role !== 'manager') return;
+  const badge = document.getElementById('nm-user-badge');
+  if (badge) badge.textContent = currentUser.name;
+  showScreen('notify-mgr');
+  _nmRenderPeople();
+  if (!_nmUnsub) {
+    _nmUnsub = _onSnap(_colRef('notif_templates'), snap => {
+      _nmTemplates = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => String(a.title || '').localeCompare(String(b.title || ''), 'he'));
+      _nmRenderList();
+    }, () => {});
+  }
+  _nmRenderList();
+}
+window.openNotifyMgr = openNotifyMgr;
+
+async function _nmRenderPeople() {
+  const box = document.getElementById('nm-recipients');
+  if (!box) return;
+  const people = await _nmPeople();
+  if (!people.length) {
+    box.innerHTML = '<div style="font-size:12.5px;color:#b45309;font-weight:800">אין אף אחד עם טלגרם מקושר — חבר אנשים בהגדרות ← טלגרם</div>';
+    return;
+  }
+  const allOn = people.every(n => _nmTo.has(n));
+  box.innerHTML =
+    `<button onclick="nmToggleAll()" style="background:${allOn ? 'var(--dark)' : 'var(--surface2)'};color:${allOn ? '#fff' : 'var(--text)'};border:2px solid var(--border);border-radius:999px;padding:6px 13px;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer">${allOn ? '✅' : '⬜'} כולם</button>` +
+    people.map(n => {
+      const on = _nmTo.has(n);
+      return `<button onclick="nmTogglePerson('${esc(n)}')" style="background:${on ? '#16a34a' : 'var(--surface2)'};color:${on ? '#fff' : 'var(--text)'};border:2px solid ${on ? '#16a34a' : 'var(--border)'};border-radius:999px;padding:6px 13px;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer">${esc(n)}</button>`;
+    }).join('');
+}
+
+async function nmToggleAll() {
+  const people = await _nmPeople();
+  if (people.every(n => _nmTo.has(n))) _nmTo.clear();
+  else people.forEach(n => _nmTo.add(n));
+  _nmRenderPeople();
+}
+window.nmToggleAll = nmToggleAll;
+
+function nmTogglePerson(name) {
+  if (_nmTo.has(name)) _nmTo.delete(name); else _nmTo.add(name);
+  _nmRenderPeople();
+}
+window.nmTogglePerson = nmTogglePerson;
+
+function _nmRenderList() {
+  const box = document.getElementById('nm-list');
+  const cnt = document.getElementById('nm-count');
+  if (!box) return;
+  if (cnt) cnt.textContent = _nmTemplates.length ? `${_nmTemplates.length} התראות` : '';
+  if (!_nmTemplates.length) {
+    box.innerHTML = '<div style="text-align:center;color:var(--muted);padding:26px 16px;font-weight:700;font-size:13px">אין עדיין התראות שמורות. כתוב הודעה למעלה ולחץ "שמור כהתראה".</div>';
+    return;
+  }
+  box.innerHTML = _nmTemplates.map(t => `
+    <div style="background:var(--card);border:2px solid var(--border);border-radius:14px;padding:12px 13px;margin-bottom:10px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:900;font-size:14.5px">${esc(t.title || 'התראה')}</div>
+          <div style="font-size:13px;color:var(--text);margin-top:3px;white-space:pre-wrap">${esc(t.message || '')}</div>
+          <div style="font-size:12px;color:var(--muted);font-weight:700;margin-top:5px">👤 ${esc((t.to || []).join(' · ')) || 'לא נבחרו נמענים'}</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:7px;margin-top:10px;flex-wrap:wrap">
+        <button onclick="_runOnce('nmSendT-${t.id}', this, '⏳ שולח...', () => nmSendTemplate('${t.id}'))" style="flex:1;min-width:110px;background:#16a34a;color:#fff;border:none;border-radius:10px;padding:9px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">📨 שלח</button>
+        <button onclick="nmEditTemplate('${t.id}')" style="background:var(--surface2);color:var(--text);border:2px solid var(--border);border-radius:10px;padding:9px 14px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">✏️ ערוך</button>
+        <button onclick="nmDeleteTemplate('${t.id}')" style="background:#fff0f0;color:#dc2626;border:2px solid #ef4444;border-radius:10px;padding:9px 14px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">🗑</button>
+      </div>
+    </div>`).join('');
+}
+
+// שליחה בפועל — רק למי שיש לו טלגרם מקושר
+async function _nmDeliver(message, to) {
+  const contacts = await _loadDriverContacts();
+  let ok = 0, fail = 0;
+  for (const name of to) {
+    const id = contacts[name]?.telegramId;
+    if (!id) { fail++; continue; }
+    const sent = await _sendTelegram(id, message);
+    sent ? ok++ : fail++;
+  }
+  return { ok, fail };
+}
+
+async function nmSendNow() {
+  const message = (document.getElementById('nm-msg')?.value || '').trim();
+  if (!message) return showToast('נא לכתוב הודעה');
+  if (!_nmTo.size) return showToast('נא לבחור למי לשלוח');
+  if (!_requireNet('שליחת ההתראה')) return;
+  const { ok, fail } = await _nmDeliver(message, [..._nmTo]);
+  showToast(fail ? `📨 נשלח ל-${ok} · ${fail} נכשלו` : `✅ ההתראה נשלחה ל-${ok}`, 6000);
+}
+window.nmSendNow = nmSendNow;
+
+async function nmSendTemplate(id) {
+  const t = _nmTemplates.find(x => x.id === id);
+  if (!t) return;
+  if (!(t.to || []).length) return showToast('להתראה הזו אין נמענים — ערוך אותה');
+  if (!_requireNet('שליחת ההתראה')) return;
+  const { ok, fail } = await _nmDeliver(t.message || '', t.to);
+  showToast(fail ? `📨 נשלח ל-${ok} · ${fail} נכשלו` : `✅ "${t.title || 'התראה'}" נשלחה ל-${ok}`, 6000);
+}
+window.nmSendTemplate = nmSendTemplate;
+
+async function nmSaveTemplate() {
+  const message = (document.getElementById('nm-msg')?.value || '').trim();
+  if (!message) return showToast('נא לכתוב הודעה');
+  const title = prompt('שם ההתראה (כדי למצוא אותה אחר כך):', _nmEditId ? (_nmTemplates.find(t => t.id === _nmEditId)?.title || '') : '');
+  if (title === null) return;
+  if (!_requireNet('שמירת ההתראה')) return;
+  const data = { title: title.trim() || 'התראה', message, to: [..._nmTo], updatedAt: new Date().toISOString(), updatedBy: currentUser.name };
+  try {
+    if (_nmEditId) {
+      await _updateDoc(_docRef('notif_templates', _nmEditId), data);
+      showToast('✅ ההתראה עודכנה');
+    } else {
+      await _addDoc(_colRef('notif_templates'), { ...data, createdAt: _serverTs() });
+      showToast('✅ ההתראה נשמרה');
+    }
+  } catch (e) { return showToast('שמירה נכשלה: ' + (e.code || e.message), 6000); }
+  _nmEditId = null;
+  document.getElementById('nm-msg').value = '';
+  _nmTo.clear();
+  _nmRenderPeople();
+}
+window.nmSaveTemplate = nmSaveTemplate;
+
+function nmEditTemplate(id) {
+  const t = _nmTemplates.find(x => x.id === id);
+  if (!t) return;
+  _nmEditId = id;
+  document.getElementById('nm-msg').value = t.message || '';
+  _nmTo = new Set(t.to || []);
+  _nmRenderPeople();
+  document.getElementById('nm-msg').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  showToast('✏️ עורך — לחץ "שמור כהתראה" כדי לעדכן');
+}
+window.nmEditTemplate = nmEditTemplate;
+
+async function nmDeleteTemplate(id) {
+  const t = _nmTemplates.find(x => x.id === id);
+  if (!t) return;
+  if (!confirm(`למחוק את ההתראה "${t.title || ''}"?`)) return;
+  try {
+    const { deleteDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    await deleteDoc(_docRef('notif_templates', id));
+    showToast('🗑 ההתראה נמחקה');
+  } catch (e) { showToast('מחיקה נכשלה: ' + (e.code || e.message), 6000); }
+}
+window.nmDeleteTemplate = nmDeleteTemplate;
 
 function _msListen() {
   if (_msTimer) return;
