@@ -19928,7 +19928,8 @@ function batchSendPickupToDriver() {
   const list = document.getElementById('pickup-driver-list');
   list.innerHTML = _PICKUP_DRIVER_LIST.map(name =>
     `<button onclick="_batchSendToDriver('${name}')" style="background:var(--surface2);color:var(--text);border:1.5px solid var(--border);border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:15px;font-weight:700;cursor:pointer;text-align:right">${name}</button>`
-  ).join('');
+  ).join('') +
+    `<button onclick="_batchSendToDriver('${_TOW_NAME}')" style="background:#ede9fe;color:#5b21b6;border:1.5px solid #7c3aed;border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:15px;font-weight:800;cursor:pointer;text-align:right">🚛 ${_TOW_NAME}</button>`;
   openModal('modal-send-pickup-driver');
 }
 window.batchSendPickupToDriver = batchSendPickupToDriver;
@@ -19946,6 +19947,14 @@ async function _batchSendToDriver(driverName) {
       if (car) car.assignedDriver = driverName;
       ok++;
     } catch (e) { console.error('batch send', id, e); }
+  }
+  if (driverName === _TOW_NAME) {
+    // הגרר אינו נהג במערכת ולכן אין למי לשלוח התראה — במקום זה נפתחת
+    // חלונית השיתוף עם האישורים של אותם רכבים
+    showToast(`🚛 ${ok} רכבים סומנו לגרר`);
+    try { await batchExportPickup(); } catch (e) { console.error('tow share', e); }
+    clearPickupSelection();
+    return;
   }
   _notifyDriver(driverName, `🚙 הוקצו לך ${ok} רכבים לאיסוף. כנס לאפליקציה לפרטים.`);
   clearPickupSelection();
@@ -21137,7 +21146,11 @@ function _pickupCardHtml(c) {
   const addrStyle = groupColor ? ` style="background:${groupColor}"` : '';
   const sent = !!c.assignedDriver;
   // רכב שנשלח לנהג מקבל רקע צהוב; רכב שסומן — ירוק, והסימון גובר
-  const bg = checked ? 'background:#dcfce7;border-color:#059669;' : sent ? 'background:#fef9c3;border-color:#eab308;' : '';
+  // רכב שנשלח לגרר מקבל סגול, נהג רגיל צהוב, וסימון ידני ירוק שגובר על שניהם
+  const toTow = c.assignedDriver === _TOW_NAME;
+  const bg = checked ? 'background:#dcfce7;border-color:#059669;'
+    : toTow ? 'background:#ede9fe;border-color:#7c3aed;'
+    : sent ? 'background:#fef9c3;border-color:#eab308;' : '';
 
   return `<div class="pk-tile" data-id="${e(c.id)}" style="border-top:4px solid ${waitColor};${bg}" onclick="openEditPickupModal('${e(c.id)}')">
     <div class="pk-tile-top">
@@ -21174,7 +21187,7 @@ function _pickupCardHtml(c) {
     <div class="pk-status">
       <span class="pk-badge" style="background:${waitColor};color:#fff">⏱ ${waitLabel || 'חדש'}</span>
       ${sent
-        ? `<span class="pk-badge" style="background:#1e40af;color:#fff">🚗 ${e(c.assignedDriver)}</span>`
+        ? `<span class="pk-badge" style="background:${toTow ? '#7c3aed' : '#1e40af'};color:#fff">${toTow ? '🚛' : '🚗'} ${e(c.assignedDriver)}</span>`
         : `<span class="pk-badge" style="border:2px dashed var(--border);color:var(--muted)">לא נשלח לנהג</span>`}
     </div>
 
@@ -22676,6 +22689,9 @@ function _showPickupDupBanner(dupExists, dupCollected) {
 
 // ── Send pickup car to driver ──
 const _PICKUP_DRIVER_LIST = ['עופר', 'גיל', 'איתי', 'הילה'];
+// הגרר אינו נהג במערכת — הוא יעד איסוף חיצוני. רכב שנשלח אליו מסומן
+// בקוביה בצבע נפרד, וחלונית השיתוף נפתחת מיד כדי לשלוח לו את האישורים.
+const _TOW_NAME = 'גרר';
 
 let _pendingSendCarId = null;
 
@@ -22700,7 +22716,10 @@ function _showDriverPicker(car) {
     `<button onclick="sendPickupToDriver('${id}','${name}')" style="background:${car.assignedDriver===name?'#1e40af':'var(--surface2)'};color:${car.assignedDriver===name?'#fff':'var(--text)'};border:1.5px solid var(--border);border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:15px;font-weight:700;cursor:pointer;text-align:right">
       ${car.assignedDriver===name?'✅ ':''} ${name}
     </button>`
-  ).join('');
+  ).join('') +
+    `<button onclick="sendPickupToDriver('${id}','${_TOW_NAME}')" style="background:${car.assignedDriver===_TOW_NAME?'#7c3aed':'#ede9fe'};color:${car.assignedDriver===_TOW_NAME?'#fff':'#5b21b6'};border:1.5px solid #7c3aed;border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:15px;font-weight:800;cursor:pointer;text-align:right">
+      ${car.assignedDriver===_TOW_NAME?'✅ ':'🚛 '}${_TOW_NAME}
+    </button>`;
   openModal('modal-send-pickup-driver');
 }
 
@@ -22744,6 +22763,16 @@ async function sendPickupToDriver(id, driverName) {
   if (car) car.assignedDriver = driverName;
   const plate = car?.plate || '';
   const desc = [car?.type, car?.city].filter(Boolean).join(' · ');
+  if (driverName === _TOW_NAME) {
+    showToast(`🚛 ${plate} סומן לגרר`);
+    // חלונית השיתוף עובדת על הרכבים המסומנים — מסמנים את הרכב הזה בלבד
+    const prev = new Set(_pickupSelected);
+    _pickupSelected.clear(); _pickupSelected.add(id);
+    try { await batchExportPickup(); } catch (e) { console.error('tow share', e); }
+    _pickupSelected.clear(); prev.forEach(x => _pickupSelected.add(x));
+    _updatePickupBatchBar(); _syncSelectAllLabel(); renderPickupCars();
+    return;
+  }
   _notifyDriver(driverName, `🚙 יש לך רכב ממתין לאיסוף — ${plate}${desc ? ' · ' + desc : ''}. כנס לאפליקציה לפרטים.`);
   showToast(`✅ נשלחה התראה ל${driverName}`);
 }
