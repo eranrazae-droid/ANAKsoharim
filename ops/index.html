@@ -4940,7 +4940,42 @@ function _storyListen() {
   }, () => {});
 }
 
+/* בין 07:00 ל-10:00 שורת סיפור היום מוחלפת בחניות שהנהג צריך להניע הבוקר.
+   מ-10:00 ואילך חוזר סיפור היום, ולמחרת ב-07:00 שוב החניות. */
+function _msQuoteSlot() {
+  if (currentUser?.role === 'manager') return null;
+  const h = new Date().getHours();
+  if (h < 7 || h >= 10) return null;
+  if (_msThirdOf() === null) return { empty: 'שבת — אין הנעות היום' };
+  if (!(_msToday && _msToday.day === _msDayKey())) return { empty: 'המנהל עדיין לא חילק את ההנעות' };
+  const list = (_msToday.byDriver && _msToday.byDriver[currentUser?.name]) || [];
+  if (!list.length) return { empty: 'אין לך רכבים להנעה הבוקר' };
+  return { list };
+}
+
 function _renderDailyQuote() {
+  const ms = _msQuoteSlot();
+  if (ms) {
+    const head = document.getElementById('daily-quote');
+    if (head) {
+      head.textContent = ms.empty ? `\u{1F511} \u05d4\u05e0\u05e2\u05d5\u05ea \u05d4\u05d1\u05d5\u05e7\u05e8 — ${ms.empty}` : `\u{1F511} \u05d4\u05d7\u05e0\u05d9\u05d5\u05ea \u05e9\u05dc\u05da \u05dc\u05d4\u05d9\u05d5\u05dd: ${_msRange(ms.list)}`;
+      head.title = ''; head.style.cursor = 'default';
+      head.style.color = 'var(--gold)'; head.style.fontWeight = '900';
+      head.onclick = null;
+    }
+    const box = document.getElementById('daily-quote-m');
+    if (box) {
+      box.innerHTML = ms.empty
+        ? `<div style="font-weight:900;font-size:13.5px">\u{1F511} \u05d4\u05e0\u05e2\u05d5\u05ea \u05d4\u05d1\u05d5\u05e7\u05e8</div>
+           <div style="font-weight:700;color:var(--muted);margin-top:2px">${esc(ms.empty)}</div>`
+        : `<div style="font-weight:900;font-size:13.5px">\u{1F511} \u05d4\u05d7\u05e0\u05d9\u05d5\u05ea \u05e9\u05dc\u05da \u05dc\u05d4\u05d9\u05d5\u05dd</div>
+           <div style="font-weight:900;font-size:15px;direction:ltr;text-align:right;margin-top:4px">${esc(_msRange(ms.list))}</div>
+           <div style="font-size:12px;font-weight:700;color:var(--muted);margin-top:3px">${ms.list.length} \u05d7\u05e0\u05d9\u05d5\u05ea</div>`;
+      box.style.cursor = 'default';
+      box.onclick = null;
+    }
+    return;
+  }
   const st = _todayStory();
   if (!st) return;
   const read = _storyReadDay === _todayKey();
@@ -11638,7 +11673,7 @@ function _startOwnMorning() {
     _syncOwnMorningBar();
     _checkOwnMorning();
   }, () => { _ownMorningState = {}; });
-  _ownMorningTimer = setInterval(_checkOwnMorning, 60000);
+  _ownMorningTimer = setInterval(() => { _checkOwnMorning(); try { _renderDailyQuote(); } catch (e) {} }, 60000);
 }
 
 async function _ownMorningSet(data) {
@@ -12153,9 +12188,10 @@ function _msListen() {
     _msToday = snap.exists() ? snap.data() : null;
     _msSyncCard();
     _msRenderHome();
+    try { _renderDailyQuote(); } catch (e) {}
     if (document.getElementById('screen-morning-starts')?.classList.contains('active')) _msRenderScreen();
   }, () => {});
-  _msTimer = setInterval(_msCheck, 60000);
+  _msTimer = setInterval(() => { _msCheck(); try { _renderDailyQuote(); } catch (e) {} }, 60000);
 }
 
 // החלונית קופצת למנהל מ-08:00, עד שהחלוקה של היום נשמרה
