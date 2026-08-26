@@ -7903,11 +7903,15 @@ async function markChecked(id) {
 }
 
 async function viewIntakeForm(id) {
+  // פתיחה מיידית מהרשימה שכבר בזיכרון — בלי לחכות לרשת
+  const hit = (_intakeCache || []).find(v => v.id === id);
+  if (hit) return _renderViewIntakeModal(hit);
   const { getDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
   const snap = await getDoc(doc(window._db, 'intake_assignments', id));
   if (!snap.exists()) return showToast('לא נמצאה קליטה');
   _renderViewIntakeModal({ id, ...snap.data() });
 }
+window.viewIntakeForm = viewIntakeForm;
 
 function _renderViewIntakeModal(v) {
   const checklistLabels = {
@@ -8745,6 +8749,41 @@ async function fetchVehicleData() {
    פעולה שכותבת לשרת נמשכת כמה שניות ברשת סלולרית. בלי מגן, לחיצה נוספת
    מפעילה אותה שוב ונוצרות כפילויות. הכפתור ננעל, מראה שהוא עובד, ומשתחרר
    בסוף — גם כשהפעולה נכשלת.                                        */
+/* פתיחת טופס שנכשלת ברשת נראית למשתמש כאילו הלחיצה לא נקלטה — כלום לא קורה.
+   העטיפה נותנת חיווי, מודיעה על תקלה במקום להיעלם בשקט, ומונעת פתיחות כפולות. */
+const _openBusy = new Set();
+function _wrapOpen(name, label) {
+  const fn = window[name];
+  if (typeof fn !== 'function' || fn._openWrapped) return;
+  const w = async function (...args) {
+    const key = name + '|' + String(args[0] ?? '');
+    if (_openBusy.has(key)) return;
+    _openBusy.add(key);
+    const slow = setTimeout(() => showToast('⏳ פותח ' + label + '…', 4000), 600);
+    try { return await fn.apply(this, args); }
+    catch (e) {
+      console.error('open failed', name, e);
+      showToast('❌ ' + label + ' לא נפתח (' + (e.code || e.message) + ') — אפשר לנסות שוב', 7000);
+    }
+    finally { clearTimeout(slow); _openBusy.delete(key); }
+  };
+  w._openWrapped = true;
+  window[name] = w;
+}
+const _OPEN_GUARDED = [
+  ['viewIntakeForm', 'טופס הקליטה'],
+  ['viewArchivedIntake', 'הקליטה מהארכיון'],
+  ['openManagerIntakeLive', 'צפייה בזמן אמת'],
+  ['openDriverIntake', 'טופס הקליטה'],
+  ['openEditIntake', 'עריכת הקליטה'],
+  ['openRefreshForm', 'טופס הרענון'],
+  ['openEditRefresh', 'עריכת הרענון'],
+  ['openEditTask', 'עריכת המשימה'],
+  ['restorePrevIntake', 'שחזור הקליטה הקודמת'],
+  ['resendIntake', 'שליחה מחדש'],
+];
+window.addEventListener('load', () => _OPEN_GUARDED.forEach(([n, l]) => _wrapOpen(n, l)));
+
 const _busyActions = new Set();
 async function _runOnce(key, btn, busyText, fn) {
   if (_busyActions.has(key)) return;
