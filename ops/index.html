@@ -20895,11 +20895,14 @@ async function _batchSendToDriver(driverName) {
   }
 
   let ok = 0;
+  let front = _pkFrontIndex(ids.length);
   for (const id of ids) {
     try {
-      await updateDoc(doc(window._db, 'pickup_cars', id), { assignedDriver: driverName });
+      const data = { assignedDriver: driverName };
+      if (front !== null) data.sortIndex = front++;
+      await updateDoc(doc(window._db, 'pickup_cars', id), data);
       const car = _pickupAllCars.find(c => c.id === id);
-      if (car) car.assignedDriver = driverName;
+      if (car) Object.assign(car, data);
       ok++;
     } catch (e) { console.error('batch send', id, e); }
   }
@@ -21027,6 +21030,14 @@ function _pickupDays(car) {
 ─────────────────────────────────────────────────────────────────────── */
 let _pickupCompany = '';          // '' = כל החברות
 let _pickupManualOrder = false;   // סדר שנקבע בגרירה
+
+/* רכב שנשלח לנהג או לגרר עולה לתחילת הרשימה. כשאין סדר ידני המיון הרגיל
+   כבר מרים רכבים משויכים למעלה, ולכן מחזירים null ולא נוגעים בכלום. */
+function _pkFrontIndex(count) {
+  const idx = (_pickupAllCars || []).map(c => c.sortIndex).filter(n => typeof n === 'number');
+  if (!idx.length) return null;
+  return Math.min(...idx) - (count || 1);
+}
 
 const _PICKUP_SORTS = [
   'החדשים ביותר קודם',
@@ -23721,8 +23732,11 @@ async function sendPickupToDriver(id, driverName) {
     showToast(`בוטלה השליחה ל${driverName}`);
     return;
   }
-  await updateDoc(doc(window._db, 'pickup_cars', id), { assignedDriver: driverName });
-  if (car) car.assignedDriver = driverName;
+  const data = { assignedDriver: driverName };
+  const front = _pkFrontIndex(1);
+  if (front !== null) data.sortIndex = front;
+  await updateDoc(doc(window._db, 'pickup_cars', id), data);
+  if (car) Object.assign(car, data);
   const plate = car?.plate || '';
   const desc = [car?.type, car?.city].filter(Boolean).join(' · ');
   if (driverName === _TOW_NAME) {
