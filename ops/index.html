@@ -2946,7 +2946,7 @@ if ('serviceWorker' in navigator) {
     <div id="ms-roll-body"></div>
     <div style="display:flex;gap:8px;margin-top:14px">
       <button onclick="_runOnce('msRoll', this, '⏳ מחלק...', msRollConfirm)" style="flex:1;background:#16a34a;color:#fff;border:none;border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:15px;font-weight:800;cursor:pointer">✅ חלק את ההנעות</button>
-      <button onclick="msRollSnooze()" style="flex:1;background:var(--surface2);color:var(--text);border:2px solid var(--border);border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:15px;font-weight:800;cursor:pointer">⏰ דחה לעוד שעה</button>
+      <button onclick="msRollSnooze()" style="flex:1;background:var(--surface2);color:var(--text);border:2px solid var(--border);border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:15px;font-weight:800;cursor:pointer">⏰ דחה ל-30 דקות</button>
     </div>
   </div>
 </div>
@@ -11639,7 +11639,7 @@ let _ownPickupUnsub = null;
 
 /* ── תזכורת הבוקר ────────────────────────────────────────────────────
    כל בוקר ב-8:00 נפתח אצל המנהל מסך בדיקת הבעלויות, עם שני כפתורים:
-   "הכל תקין" סוגר אותו עד מחר, ו"דחה לעוד שעה" מחזיר אותו בעוד שעה.
+   "הכל תקין" סוגר אותו עד מחר, ו"דחה" מחזיר אותו מאוחר יותר.
    הכל נשמר מקומית במכשיר, כדי שרענון דף לא יפתח את המסך שוב.     */
 const _OWN_MORNING_HOUR = 8;
 let _ownMorningTimer = null;
@@ -11724,7 +11724,8 @@ const _msOrderFor = date => {
   const day = (date || new Date()).getDay();               // 0=ראשון
   return (day === 0 || day === 1 || day === 3 || day === 4) ? _MS_ORDER_ITAY_FIRST : _MS_ORDER_GIL_FIRST;
 };
-const _MS_HOUR = 8;
+const _MS_HOUR = 7;            // היום מתחלף ב-07:00
+const _MS_POPUP_MIN = 7 * 60 + 30;   // החלונית קופצת פעם ביום ב-07:30
 /* השלישים מוגדרים לפי המראה של המגרש ולא לפי ספירת רכבים:
    1–34 הצד השמאלי · 40–67 הצד הימני ליד הכניסה · 68–93 הצד הימני בסוף. */
 const _MS_ZONES = [
@@ -12193,19 +12194,23 @@ function _msListen() {
   _msTimer = setInterval(() => { _msCheck(); try { _renderDailyQuote(); } catch (e) {} }, 60000);
 }
 
-// החלונית קופצת למנהל מ-08:00, עד שהחלוקה של היום נשמרה
+// החלונית קופצת למנהל פעם ביום מ-07:30, עד שהחלוקה של היום נשמרה
 function _msCheck() {
   if (currentUser?.role !== 'manager') return;
   if (!_msState) return;
-  if (new Date().getHours() < _MS_HOUR) return;
+  const now = new Date();
+  if (now.getHours() * 60 + now.getMinutes() < _MS_POPUP_MIN) return;
   if (_msThirdOf() === null) return;                        // שבת
   if (_msToday && _msToday.day === _msDayKey()) return;     // כבר חולק היום
   const snooze = _msState.snoozeDay === _msDayKey() ? Number(_msState.snoozeTo || 0) : 0;
-  if (snooze && Date.now() < snooze) return;
+  if (snooze && Date.now() < snooze) return;                // נדחתה
+  // קופצת פעם אחת ביום בלבד — רענון של הדף לא מחזיר אותה
+  if (!snooze && _msState.shownDay === _msDayKey()) return;
   const modal = document.getElementById('modal-morning-roll');
   if (modal && modal.classList.contains('open')) return;
   _msRenderRoll();
   openModal('modal-morning-roll');
+  _msMarkShown();
 }
 
 let _msPresent = null;
@@ -12286,8 +12291,17 @@ async function msRollConfirm() {
 }
 window.msRollConfirm = msRollConfirm;
 
+// סימון שהחלונית כבר קפצה היום, כדי שלא תחזור בכל רענון
+async function _msMarkShown() {
+  const day = _msDayKey();
+  const data = { shownDay: day, snoozeDay: '', snoozeTo: 0 };
+  if (_msState && _msState.shownDay === day && !_msState.snoozeTo) return;
+  _msState = { ...(_msState || {}), ...data };
+  try { await window._setDoc(_docRef('config', 'morning_roll'), data, { merge: true }); } catch (e) {}
+}
+
 async function msRollSnooze() {
-  const data = { snoozeDay: _msDayKey(), snoozeTo: Date.now() + 3600000 };
+  const data = { snoozeDay: _msDayKey(), snoozeTo: Date.now() + 30 * 60000, shownDay: _msDayKey() };
   _msState = { ...(_msState || {}), ...data };
   closeModal('modal-morning-roll');
   try { await window._setDoc(_docRef('config', 'morning_roll'), data, { merge: true }); } catch (e) {}
