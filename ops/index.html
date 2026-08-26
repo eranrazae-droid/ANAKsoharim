@@ -23083,6 +23083,10 @@ const _YARD_ADDR_BY_SOURCE = {
     'טרייד נתניה':   { city: 'נתניה',   address: 'אורג 16',           strong: true },
     'טרייד עפולה':   { city: 'עפולה',   address: 'קדרון 1',           strong: true },
     'טרייד נשר':     { city: 'נשר',     address: 'השיש 10',           strong: true },
+    // מגרש רעננה נרשם כ"אוטורן" / "טרייד אין אוטורן"
+    'אוטורן':        { city: 'רעננה',   address: 'הנופר 6',           strong: true },
+    'אוטו רן':       { city: 'רעננה',   address: 'הנופר 6',           strong: true },
+    'רעננה':         { city: 'רעננה',   address: 'הנופר 6',           strong: true },
     'עין המפרץ':     { city: 'עכו',     address: 'החרש 3',            strong: true },
     // מגרש עכו נרשם כ"גפי", "ג.פ.י" או "טסט"
     'ג.פ.י':         { city: 'עכו',     address: 'החרש 3',            strong: true },
@@ -23090,6 +23094,7 @@ const _YARD_ADDR_BY_SOURCE = {
     'טסט':           { city: 'עכו',     address: 'החרש 3',            strong: true },
     'המפרץ':         { city: 'עכו',     address: 'החרש 3',            strong: true },
     'מפרץ':          { city: 'עכו',     address: 'החרש 3',            strong: true },
+    'גאקו':          { city: 'עכו',     address: 'החרש 3',            strong: true },
     // שם עיר בלבד — משמש רק כשאין כתובת תקינה ברישום
     'עכו':           { city: 'עכו',     address: 'החרש 3' },
     'נשר':           { city: 'נשר',     address: 'השיש 10' },
@@ -23109,7 +23114,9 @@ function _yardCanon(source, city, address) {
   // רישום ישן נשמר לעיתים בלי חברה — המגרשים שלנו הם של כלמוביל
   const t = _YARD_ADDR_BY_SOURCE[src] || (src ? null : _YARD_ADDR_BY_SOURCE['כלמוביל']);
   if (!t) return null;
-  const hay = [address, city].filter(Boolean).join(' ');
+  // "טרייד אין נתניה" זהה ל"טרייד נתניה" — המילה "אין" היא חלק מהשם המסחרי
+  const hay = [address, city].filter(Boolean).join(' ')
+    .replace(/\u05d0\u05d9\u05df/g, ' ').replace(/\s+/g, ' ').trim();
   const tok = _addrTokens(city, address);
   const hasOwnAddress = !!(tok.num && tok.names.length);
   for (const k of Object.keys(t)) {
