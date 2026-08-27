@@ -3917,6 +3917,7 @@ function _mountHostScreen(name) {
 
 function closeScreenModal() {
   if (!_hostName) return;
+  const wasOwnership = _hostName === 'ownership';
   const el = document.getElementById('screen-' + _hostName);
   _hostName = null;
   if (el) el.classList.remove('active');
@@ -3926,6 +3927,9 @@ function closeScreenModal() {
   }
   _hostReturn = null;
   closeModal('modal-screen-host');
+  // התזכורת לא קופצת בזמן שנמצאים בבדיקת הבעלויות — רק ביציאה ממנה,
+  // ורק אם לא סומן "הכל תקין"
+  if (wasOwnership) setTimeout(() => { try { _checkOwnMorning(); } catch (e) {} }, 300);
 }
 window.closeScreenModal = closeScreenModal;
 
@@ -12457,6 +12461,7 @@ function _msSyncCard() {
 
 function _checkOwnMorning() {
   if (!_ownMorningState) return;                                  // עוד לא נטען מהשרת
+  if (_hostName === 'ownership') return;                          // נמצאים בתוך הבדיקה
   const now = new Date();
   if (now.getHours() < _OWN_MORNING_HOUR) return;                 // עוד לא הגיע הזמן
   const today = _ownToday();
