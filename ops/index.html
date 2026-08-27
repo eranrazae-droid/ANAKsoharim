@@ -2191,6 +2191,8 @@ if ('serviceWorker' in navigator) {
       <button onclick="bsmAddCatalogItem()" style="background:var(--gold);color:#000;border:none;border-radius:10px;padding:0 18px;font-family:'Heebo',sans-serif;font-weight:800;cursor:pointer">הוסף</button>
     </div>
     <div id="bsm-items-list"></div>
+    <button onclick="bsmRecoverItemsFromJobs()" style="width:100%;margin-top:14px;background:#0f766e;color:#fff;border:none;border-radius:11px;padding:12px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:800;cursor:pointer">♻️ שחזר חלקים שנעלמו מהפתקים</button>
+    <div style="font-size:11.5px;color:var(--muted);margin-top:6px;text-align:center">סורק את כל הפתקים והארכיון ומחזיר כל חלק שנרשם אי פעם</div>
   </div>
 </div>
 
@@ -14510,7 +14512,8 @@ function _bsmRenderCatalog() {
         _bshopGroupTitle(g) + `<div class="bsm-cat-box">${list.map(row).join('')}</div>`).join('')
     : `<div style="text-align:center;padding:18px 10px">
         <div style="color:var(--muted);font-size:14px;font-weight:700;margin-bottom:12px">הרשימה ריקה</div>
-        <button onclick="bsmRestoreDefaultItems()" class="btn-submit" style="margin-top:0;background:var(--dark);color:#fff">↩️ שחזר את רשימת החלקים המקורית</button>
+        <button onclick="bsmRecoverItemsFromJobs()" class="btn-submit" style="margin-top:0;background:#0f766e;color:#fff">♻️ שחזר את כל החלקים מהפתקים</button>
+        <button onclick="bsmRestoreDefaultItems()" class="btn-submit" style="margin-top:8px;background:var(--dark);color:#fff">↩️ שחזר רק את הרשימה המקורית</button>
       </div>`;
   // the category picker — filled once, keeps whatever was chosen
   const sel = document.getElementById('bsm-new-cat');
@@ -14595,6 +14598,38 @@ async function bsmRestoreDefaultItems() {
   } catch (e) { console.error('restore parts', e); showToast('שגיאה בשחזור'); }
 }
 window.bsmRestoreDefaultItems = bsmRestoreDefaultItems;
+
+/* שחזור מלא: שמות החלקים נשמרים גם בתוך כל פתק ובכל תיקיית ארכיון, ולכן
+   אפשר להרכיב מהם מחדש את הרשימה גם אם הקטלוג עצמו התרוקן. */
+async function bsmRecoverItemsFromJobs() {
+  if (!_requireNet('שחזור הרשימה')) return;
+  showToast('⏳ סורק את הפתקים…', 4000);
+  const found = [];
+  const add = n => {
+    const v = String(n || '').trim();
+    if (v && !found.includes(v)) found.push(v);
+  };
+  try {
+    const { getDocs } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const jobs = await getDocs(_colRef('bodyshop_jobs'));
+    jobs.forEach(d => (d.data().items || []).forEach(it => add(it?.name)));
+    const arc = await getDocs(_colRef('bodyshop_archive'));
+    arc.forEach(d => (d.data().cars || []).forEach(c => (c?.items || []).forEach(it => add(it?.name))));
+  } catch (e) {
+    console.error('recover parts', e);
+    return showToast('שגיאה בסריקה: ' + (e.code || e.message), 6000);
+  }
+  const extra = found.filter(n => !_BSHOP_DEFAULT_ITEMS.includes(n));
+  const next = [..._BSHOP_DEFAULT_ITEMS, ...extra];
+  if (!confirm(`נמצאו ${extra.length} חלקים נוספים בפתקים. לשחזר רשימה של ${next.length} חלקים?`)) return;
+  try {
+    await _bsmSaveCatalog(next);
+    _bshopItems = next;
+    _bsmRenderCatalog();
+    showToast(`✅ שוחזרו ${next.length} חלקים`);
+  } catch (e) { console.error('recover save', e); showToast('שגיאה בשמירה'); }
+}
+window.bsmRecoverItemsFromJobs = bsmRecoverItemsFromJobs;
 
 async function bsmAddCatalogItem() {
   const el = document.getElementById('bsm-new-item');
