@@ -1795,7 +1795,7 @@
     if(welcomeShown) return;
     if(sessionStorage.getItem('ad_auth')!=='1') return;
     welcomeShown = true;
-    const openCount = tasksData.filter(t=>!t.done).length;
+    const openCount = tasksData.filter(t=>!t.done && !isTaskAutoDone(t)).length;
     let lastSeen = 0; try{ lastSeen = Number(localStorage.getItem('leads_seen_at')||0); }catch(e){}
     const newLeads = (typeof leads!=='undefined'?leads:[]).filter(l=>{ const t=l.created_at?new Date(l.created_at).getTime():0; return t>lastSeen; }).length;
     try{ localStorage.setItem('leads_seen_at', String(Date.now())); }catch(e){}
@@ -1844,6 +1844,12 @@
   }
   async function toggleTask(id,done){ try{ const c=sbClient(); if(c) await c.from('tasks').update({done:!done}).eq('id',id); }catch(e){} loadTasks(); }
   // זיהוי הרכב שאליו מתייחסת המשימה, לפי התאמת הדגם לשם המשימה
+  // האם העבודה של המשימה כבר בוצעה בפועל (הרכב קיבל תמונה + מפרט) - גם אם לא סומן ✓
+  function _taskHasRealImage(c){ return !!((c.catalog_image && String(c.catalog_image).trim()) || (c.image && !String(c.image).startsWith('data:'))); }
+  function isTaskAutoDone(t){
+    const c=taskFindCar(t.title); if(!c) return false;
+    return _taskHasRealImage(c) && specFieldCount(c)>=20;
+  }
   function taskFindCar(title){
     const tn=_mnorm(title||''); let best=null, bestLen=0;
     cars.forEach(c=>{
@@ -1881,7 +1887,7 @@
   async function deleteTask(id){ if(!confirm('למחוק משימה?'))return; try{ const c=sbClient(); if(c) await c.from('tasks').delete().eq('id',id); }catch(e){} loadTasks(); }
   function renderTasks(){
     const el=document.getElementById('tasksList'); if(!el) return;
-    const open=tasksData.filter(t=>!t.done);
+    const open=tasksData.filter(t=>!t.done && !isTaskAutoDone(t));
     if(!open.length){ el.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)">כל המשימות בוצעו! 🎉</div>'; return; }
     el.innerHTML=open.map(t=>{
       const _car=taskFindCar(t.title);
