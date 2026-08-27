@@ -336,11 +336,11 @@ body.has-crest .cal-day.barca.selected .cal-num{box-shadow:0 0 0 2px var(--dark)
   background:var(--dark);gap:8px}
 .task-col-title{font-size:14px;font-weight:900;color:#fff !important}
 .task-col-count{background:rgba(255,255,255,.25);color:#fff;border-radius:999px;padding:1px 10px;font-size:12.5px;font-weight:900}
-.task-col-cards{overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px;flex:1}
+.task-col-cards{overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:0;flex:1}
 .task-col-cards::-webkit-scrollbar{width:3px}
 .task-col-cards::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
 .task-card{background:var(--card);border:2px solid var(--border);border-radius:12px;padding:10px 11px;
-  box-shadow:0 1px 4px rgba(0,0,0,.05);transition:box-shadow .15s;cursor:grab;overflow:hidden}
+  box-shadow:0 1px 4px rgba(0,0,0,.05);transition:box-shadow .15s;cursor:grab;overflow:hidden;margin-bottom:6px}
 .task-card:hover{box-shadow:0 3px 12px rgba(0,0,0,.12)}
 /* פס הצבע בראש הכרטיס — במקום לצבוע את כולו, כך שהכותרת תמיד נקראת */
 .task-strip{height:4px;margin:-10px -11px 9px;background:var(--strip,var(--border))}
@@ -391,7 +391,7 @@ body.has-crest .cal-day.barca.selected .cal-num{box-shadow:0 0 0 2px var(--dark)
 .task-title{font-size:14.5px;font-weight:900;flex:1;line-height:1.35}
 .task-done-btn{background:none;border:2px solid var(--border);border-radius:999px;width:24px;height:24px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;transition:all .15s}
 .task-done-btn.done{background:var(--success);border-color:var(--success);color:#fff}
-.task-meta{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.task-meta{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-top:5px}
 /* keep task-list class for fallback */
 .task-list{padding:16px;display:flex;flex-direction:column;gap:12px;padding-bottom:100px}
 .tag{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700}
@@ -5974,8 +5974,10 @@ function renderTasksFromCache() {
       card.addEventListener('click', e => { if (!e.target.closest('button')) openEditTask(t.id); });
       card.style.cursor = 'pointer';
     }
-    // שם המבצע מוצג רק כשהוא אינו זהה לשם העמודה — אין טעם לחזור עליו
-    const showWho = t.assignedTo && String(t.assignedTo).trim() !== String(colLabel || '').trim();
+    /* שם המבצע מוצג רק כשהוא באמת מוסיף מידע: לא כשהוא זהה לשם העמודה
+       ולא כש"כולם". סטטוס "פתוחה" ירד מהכרטיס — הוא נכון לכל משימה פתוחה. */
+    const who = String(t.assignedTo || '').trim();
+    const showWho = who && who !== 'כולם' && who !== String(colLabel || '').trim();
     // כפתורי הפעולה: אייקון עם שם מתחתיו, בגודל אחיד
     const act = (fn, icon, label, bg) =>
       `<button onclick="event.stopPropagation();${fn}" title="${label}" style="background:${bg}">${icon}<b>${label}</b></button>`;
@@ -5992,10 +5994,10 @@ function renderTasksFromCache() {
       </div>
       ${t.notes ? `<div class="task-notes" style="font-size:12.5px;color:var(--muted);margin:0 0 7px">${esc(t.notes)}</div>` : ''}
       ${Array.isArray(t.photos) && t.photos.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:7px">${t.photos.map(p => `<img src="${p}" onclick="event.stopPropagation();openLightbox(this.src)" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:2px solid var(--border);cursor:pointer">`).join('')}</div>` : ''}
-      <div class="task-meta">
-        ${showWho ? `<span class="tag assignee" style="font-size:11px">👤 ${esc(t.assignedTo)}</span>` : ''}
-        <span class="tag status-${t.status}" style="font-size:11px">${statusLabel[t.status]||t.status}</span>
-      </div>
+      ${showWho || done ? `<div class="task-meta">
+        ${showWho ? `<span class="tag assignee" style="font-size:11px">👤 ${esc(who)}</span>` : ''}
+        ${done ? `<span class="tag status-done" style="font-size:11px">${statusLabel.done}</span>` : ''}
+      </div>` : ''}
       ${acts.length ? `<div class="task-acts" style="grid-template-columns:repeat(${acts.length},1fr)">${acts.join('')}</div>` : ''}`;
     return card;
   }
