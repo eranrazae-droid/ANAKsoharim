@@ -12247,13 +12247,13 @@ function _msCheck() {
   if (_msToday && _msToday.day === _msDayKey()) return;     // כבר חולק היום
   const snooze = _msState.snoozeDay === _msDayKey() ? Number(_msState.snoozeTo || 0) : 0;
   if (snooze && Date.now() < snooze) return;                // נדחתה
-  // קופצת פעם אחת ביום בלבד — רענון של הדף לא מחזיר אותה
-  if (!snooze && _msState.shownDay === _msDayKey()) return;
+  if (_msState.handledDay === _msDayKey()) return;           // כבר טופלה היום
   const modal = document.getElementById('modal-morning-roll');
   if (modal && modal.classList.contains('open')) return;
+  // חלונית אחרת פתוחה — נחכה לתור. אחרת היא מכסה את זו ואי אפשר לראותה
+  if (document.querySelector('.modal-overlay.open')) return;
   _msRenderRoll();
   openModal('modal-morning-roll');
-  _msMarkShown();
 }
 
 let _msPresent = null;
@@ -12330,21 +12330,22 @@ async function msRollConfirm() {
     if (n) _notifyDriver(d, `🔑 הנעות הבוקר — חניות ${_msRange(plan.byDriver[d])}`);
   });
   showToast(`✅ ההנעות חולקו ל-${present.length} נהגים`);
+  _msMarkHandled();
   _msSyncCard();
 }
 window.msRollConfirm = msRollConfirm;
 
-// סימון שהחלונית כבר קפצה היום, כדי שלא תחזור בכל רענון
-async function _msMarkShown() {
+// אחרי שהמנהל חילק — החלונית לא חוזרת היום
+async function _msMarkHandled() {
   const day = _msDayKey();
-  const data = { shownDay: day, snoozeDay: '', snoozeTo: 0 };
-  if (_msState && _msState.shownDay === day && !_msState.snoozeTo) return;
+  const data = { handledDay: day, snoozeDay: '', snoozeTo: 0 };
+  if (_msState && _msState.handledDay === day) return;
   _msState = { ...(_msState || {}), ...data };
   try { await window._setDoc(_docRef('config', 'morning_roll'), data, { merge: true }); } catch (e) {}
 }
 
 async function msRollSnooze() {
-  const data = { snoozeDay: _msDayKey(), snoozeTo: Date.now() + 30 * 60000, shownDay: _msDayKey() };
+  const data = { snoozeDay: _msDayKey(), snoozeTo: Date.now() + 30 * 60000 };
   _msState = { ...(_msState || {}), ...data };
   closeModal('modal-morning-roll');
   try { await window._setDoc(_docRef('config', 'morning_roll'), data, { merge: true }); } catch (e) {}
