@@ -2191,6 +2191,18 @@ if ('serviceWorker' in navigator) {
       <button onclick="bsmAddCatalogItem()" style="background:var(--gold);color:#000;border:none;border-radius:10px;padding:0 18px;font-family:'Heebo',sans-serif;font-weight:800;cursor:pointer">הוסף</button>
     </div>
     <div id="bsm-items-list"></div>
+    <button onclick="bsmScanOldItems()" style="width:100%;margin-top:14px;background:#0f766e;color:#fff;border:none;border-radius:11px;padding:12px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:800;cursor:pointer">♻️ חלקים שהיו ברשימה וחסרים</button>
+  </div>
+</div>
+
+<!-- ====== MODAL: PICK BACK OLD PARTS ====== -->
+<div class="modal-overlay" id="modal-bsm-oldparts">
+  <div class="modal-box" style="max-width:520px;max-height:86vh;overflow-y:auto">
+    <div class="modal-title"><span>♻️ חלקים שחסרים ברשימה</span> <button class="modal-close" onclick="closeModal('modal-bsm-oldparts')">✕</button></div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:10px">כל שם חלק שנרשם אי פעם בפתק ואינו ברשימה הקבועה, לפי כמה פעמים הופיע.
+      חלק שהופיע פעם אחת הוא כנראה חד־פעמי — הוא לא מסומן. סמן מה להחזיר.</div>
+    <div id="bsm-oldparts-list"></div>
+    <button onclick="bsmAddPickedOldItems()" class="btn-submit" style="width:100%;margin-top:12px">➕ הוסף את המסומנים לרשימה</button>
   </div>
 </div>
 
@@ -14513,8 +14525,7 @@ function _bsmRenderCatalog() {
         _bshopGroupTitle(g) + `<div class="bsm-cat-box">${list.map(row).join('')}</div>`).join('')
     : `<div style="text-align:center;padding:18px 10px">
         <div style="color:var(--muted);font-size:14px;font-weight:700;margin-bottom:12px">הרשימה ריקה</div>
-        <button onclick="bsmRecoverItemsFromJobs()" class="btn-submit" style="margin-top:0;background:#0f766e;color:#fff">♻️ שחזר את כל החלקים מהפתקים</button>
-        <button onclick="bsmRestoreDefaultItems()" class="btn-submit" style="margin-top:8px;background:var(--dark);color:#fff">↩️ שחזר רק את הרשימה המקורית</button>
+        <button onclick="bsmRestoreDefaultItems()" class="btn-submit" style="margin-top:0;background:var(--dark);color:#fff">↩️ שחזר את רשימת החלקים המקורית</button>
       </div>`;
   // the category picker — filled once, keeps whatever was chosen
   const sel = document.getElementById('bsm-new-cat');
@@ -14600,16 +14611,16 @@ async function bsmRestoreDefaultItems() {
 }
 window.bsmRestoreDefaultItems = bsmRestoreDefaultItems;
 
-/* שחזור מלא: שמות החלקים נשמרים גם בתוך כל פתק ובכל תיקיית ארכיון, ולכן
-   אפשר להרכיב מהם מחדש את הרשימה גם אם הקטלוג עצמו התרוקן. */
-async function bsmRecoverItemsFromJobs() {
-  if (!_requireNet('שחזור הרשימה')) return;
-  showToast('⏳ סורק את הפתקים…', 4000);
-  const found = [];
-  const add = n => {
-    const v = String(n || '').trim();
-    if (v && !found.includes(v)) found.push(v);
-  };
+/* שמות החלקים נשמרים גם בתוך כל פתק ובכל תיקיית ארכיון. הסריקה מציעה את מה
+   שחסר ברשימה הקבועה — ואתה בוחר, כדי שחלק חד־פעמי לא ייכנס לרשימה. */
+async function bsmScanOldItems() {
+  if (!_requireNet('סריקת הפתקים')) return;
+  const box = document.getElementById('bsm-oldparts-list');
+  if (!box) return;
+  box.innerHTML = '<div style="text-align:center;color:var(--muted);padding:26px;font-weight:700">⏳ סורק…</div>';
+  openModal('modal-bsm-oldparts');
+  const tally = {};
+  const add = n => { const v = String(n || '').trim(); if (v) tally[v] = (tally[v] || 0) + 1; };
   try {
     const { getDocs } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
     const jobs = await getDocs(_colRef('bodyshop_jobs'));
@@ -14617,20 +14628,39 @@ async function bsmRecoverItemsFromJobs() {
     const arc = await getDocs(_colRef('bodyshop_archive'));
     arc.forEach(d => (d.data().cars || []).forEach(c => (c?.items || []).forEach(it => add(it?.name))));
   } catch (e) {
-    console.error('recover parts', e);
-    return showToast('שגיאה בסריקה: ' + (e.code || e.message), 6000);
+    console.error('scan parts', e);
+    box.innerHTML = `<div style="text-align:center;color:#ef4444;padding:26px;font-weight:700">שגיאה בסריקה: ${esc(e.code || e.message)}</div>`;
+    return;
   }
-  const extra = found.filter(n => !_BSHOP_DEFAULT_ITEMS.includes(n));
-  const next = [..._BSHOP_DEFAULT_ITEMS, ...extra];
-  if (!confirm(`נמצאו ${extra.length} חלקים נוספים בפתקים. לשחזר רשימה של ${next.length} חלקים?`)) return;
+  const rows = Object.entries(tally)
+    .filter(([n]) => !_bshopItems.includes(n))
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'he'));
+  if (!rows.length) {
+    box.innerHTML = '<div style="text-align:center;color:var(--muted);padding:26px;font-weight:700">כל החלקים שמופיעים בפתקים כבר ברשימה</div>';
+    return;
+  }
+  box.innerHTML = rows.map(([n, c]) => `<label style="display:flex;align-items:center;gap:10px;border:2px solid var(--border);border-radius:10px;padding:9px 12px;margin-bottom:6px;background:var(--card);cursor:pointer">
+      <input type="checkbox" class="bsm-oldpart" value="${esc(n)}" ${c > 1 ? 'checked' : ''} style="width:18px;height:18px">
+      <span style="flex:1;font-size:14px;font-weight:700">${esc(n)}</span>
+      <span style="font-size:12px;font-weight:800;color:var(--muted);white-space:nowrap">${c} ${c === 1 ? 'פעם' : 'פעמים'}</span>
+    </label>`).join('');
+}
+window.bsmScanOldItems = bsmScanOldItems;
+
+async function bsmAddPickedOldItems() {
+  const picked = [...document.querySelectorAll('.bsm-oldpart:checked')].map(x => x.value);
+  if (!picked.length) return showToast('לא סומן אף חלק');
+  if (!_requireNet('הוספת החלקים')) return;
+  const next = [..._bshopItems, ...picked.filter(n => !_bshopItems.includes(n))];
   try {
     await _bsmSaveCatalog(next);
     _bshopItems = next;
+    closeModal('modal-bsm-oldparts');
     _bsmRenderCatalog();
-    showToast(`✅ שוחזרו ${next.length} חלקים`);
-  } catch (e) { console.error('recover save', e); showToast('שגיאה בשמירה'); }
+    showToast(`✅ נוספו ${picked.length} חלקים`);
+  } catch (e) { console.error('add old parts', e); showToast('שגיאה בשמירה'); }
 }
-window.bsmRecoverItemsFromJobs = bsmRecoverItemsFromJobs;
+window.bsmAddPickedOldItems = bsmAddPickedOldItems;
 
 async function bsmAddCatalogItem() {
   const el = document.getElementById('bsm-new-item');
