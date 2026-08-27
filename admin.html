@@ -1838,9 +1838,9 @@
   async function deleteTask(id){ if(!confirm('למחוק משימה?'))return; try{ const c=sbClient(); if(c) await c.from('tasks').delete().eq('id',id); }catch(e){} loadTasks(); }
   function renderTasks(){
     const el=document.getElementById('tasksList'); if(!el) return;
-    if(!tasksData.length){ el.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)">אין משימות כרגע 🎉</div>'; return; }
-    const open=tasksData.filter(t=>!t.done), done=tasksData.filter(t=>t.done);
-    el.innerHTML=[...open,...done].map(t=>{
+    const open=tasksData.filter(t=>!t.done);
+    if(!open.length){ el.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)">כל המשימות בוצעו! 🎉</div>'; return; }
+    el.innerHTML=open.map(t=>{
       const _car=taskFindCar(t.title);
       const siteBtn = _car ? `<a href="https://autodealer.co.il/?car=${_car.id}" target="_blank" rel="noreferrer" title="פתח את הרכב באתר" style="border:1.5px solid #16a34a;background:#f0fdf4;color:#15803d;border-radius:999px;padding:6px 14px;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap;flex-shrink:0;text-decoration:none">🔗 באתר</a>` : '';
       return `<div class="card panel" style="margin-bottom:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;${t.done?'opacity:.55':''}">
