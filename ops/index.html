@@ -2033,6 +2033,7 @@ if ('serviceWorker' in navigator) {
         <button class="bsm-fab bsm-fab-red" onclick="openBsmDelete()">🗑 מחק פתק</button>
         <button class="bsm-fab bsm-fab-dark" onclick="openBsmItemsModal()">⚙️ רשימת חלקים</button>
         <button class="bsm-fab bsm-fab-blue" onclick="bsmCopyLink()">🔗 קישור לפחח</button>
+        <button class="bsm-fab bsm-fab-dark" onclick="openBsmTrips()">🚗 תיעוד נסיעות</button>
       </div>
       <button id="bsm-actions-toggle" class="bsm-fab bsm-fab-gold" onclick="bsmToggleActions()">⚡ פעולות</button>
       <input type="file" accept="image/*" capture="environment" id="bsm-addphoto-file" style="display:none" onchange="bsmAddPhotoPicked(this)">
@@ -2964,6 +2965,30 @@ if ('serviceWorker' in navigator) {
     <div class="modal-title">📲 שלח לנהג <button class="modal-close" onclick="closeModal('modal-send-pickup-driver')">✕</button></div>
     <div style="font-size:14px;color:var(--muted);margin-bottom:14px">בחר נהג שישלח אליו התראה על הרכב הממתין לאיסוף:</div>
     <div id="pickup-driver-list" style="display:flex;flex-direction:column;gap:10px"></div>
+  </div>
+</div>
+
+<!-- ====== MODAL: WHO TOOK THE CAR TO IBRAHIM ====== -->
+<div class="modal-overlay" id="modal-bsm-driver">
+  <div class="modal-box" style="max-width:420px">
+    <div class="modal-title">🚗 מי לוקח את הרכב? <button class="modal-close" onclick="closeModal('modal-bsm-driver')">✕</button></div>
+    <div id="bsm-driver-car" style="font-size:14px;font-weight:800;margin-bottom:12px"></div>
+    <div id="bsm-driver-list" style="display:flex;flex-direction:column;gap:9px"></div>
+    <div style="margin-top:12px">
+      <label style="font-size:12.5px;font-weight:800;color:var(--muted)">מישהו אחר</label>
+      <div style="display:flex;gap:8px;margin-top:5px">
+        <input id="bsm-driver-other" placeholder="שם מלא" style="flex:1;padding:11px;border-radius:10px;border:2px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:14px;font-weight:700">
+        <button onclick="bsmSendWithDriver('')" style="background:var(--dark);color:#fff;border:none;border-radius:10px;padding:0 16px;font-family:Heebo,sans-serif;font-size:14px;font-weight:800;cursor:pointer">שלח</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ====== MODAL: TRIP LOG ====== -->
+<div class="modal-overlay" id="modal-bsm-trips">
+  <div class="modal-box" style="max-width:620px;max-height:88vh;overflow-y:auto">
+    <div class="modal-title">🚗 תיעוד נסיעות לאיברהים <button class="modal-close" onclick="closeModal('modal-bsm-trips')">✕</button></div>
+    <div id="bsm-trips-body"></div>
   </div>
 </div>
 
@@ -11533,16 +11558,82 @@ window.bsmOpenJob = bsmOpenJob;
 
 // a note stays with the manager until this is pressed — only then does the
 // panel beater see the car on his screen
-async function bsmSendToShop(id) {
+/* לפני שהפתק עובר לאיברהים נרשם מי לקח את הרכב. התיעוד נשמר גם על הפתק
+   וגם ביומן נפרד, כדי שהוא יישאר גם אם הפתק יימחק. */
+const _BSM_DRIVERS = ['עופר', 'גיל', 'איתי'];
+let _bsmSendId = null;
+
+function bsmSendToShop(id) {
   const j = _bshopJobs.find(x => x.id === id);
   if (!j || j.status !== 'draft') return;
-  if (!confirm(`לשלוח את הרכב ${j.plate} לאיברהים?`)) return;
-  try {
-    await _updateDoc(_docRef('bodyshop_jobs', id), { status: 'at_shop', sentAt: new Date().toISOString() });
-    showToast('📤 נשלח לאיברהים');
-  } catch (e) { showToast('שגיאה בשליחה — נסה שוב'); }
+  _bsmSendId = id;
+  const car = document.getElementById('bsm-driver-car');
+  if (car) car.innerHTML = `${esc(j.plate || '')}${j.desc ? ` <span style="font-weight:700;color:var(--muted)">· ${esc(j.desc)}</span>` : ''}`;
+  const list = document.getElementById('bsm-driver-list');
+  if (list) list.innerHTML = _BSM_DRIVERS.map(n =>
+    `<button onclick="bsmSendWithDriver('${esc(n)}')" style="background:var(--surface2);color:var(--text);border:2px solid var(--border);border-radius:12px;padding:13px;font-family:Heebo,sans-serif;font-size:15px;font-weight:800;cursor:pointer;text-align:right">👤 ${esc(n)}</button>`).join('');
+  const other = document.getElementById('bsm-driver-other');
+  if (other) other.value = '';
+  openModal('modal-bsm-driver');
 }
 window.bsmSendToShop = bsmSendToShop;
+
+async function bsmSendWithDriver(name) {
+  const id = _bsmSendId;
+  const j = _bshopJobs.find(x => x.id === id);
+  if (!id || !j) return;
+  const driver = String(name || document.getElementById('bsm-driver-other')?.value || '').trim();
+  if (!driver) return showToast('צריך לבחור נהג או לרשום שם');
+  if (!_requireNet('שליחת הפתק')) return;
+  const at = new Date().toISOString();
+  try {
+    await _updateDoc(_docRef('bodyshop_jobs', id), { status: 'at_shop', sentAt: at, takenBy: driver });
+    try {
+      await window._addDoc(_colRef('bodyshop_trips'), {
+        jobId: id, plate: j.plate || '', desc: j.desc || '',
+        driver, at, by: currentUser?.name || '',
+      });
+    } catch (e) { console.error('trip log', e); }
+    closeModal('modal-bsm-driver');
+    _bsmSendId = null;
+    showToast(`📤 נשלח לאיברהים · ${driver}`);
+  } catch (e) { showToast('שגיאה בשליחה — נסה שוב'); }
+}
+window.bsmSendWithDriver = bsmSendWithDriver;
+
+// יומן הנסיעות — מי לקח כל רכב לאיברהים ומתי
+async function openBsmTrips() {
+  const box = document.getElementById('bsm-trips-body');
+  if (!box) return;
+  box.innerHTML = '<div style="text-align:center;color:var(--muted);padding:30px">טוען…</div>';
+  openModal('modal-bsm-trips');
+  let rows = [];
+  try {
+    const { getDocs } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const snap = await getDocs(_colRef('bodyshop_trips'));
+    snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
+  } catch (e) {
+    box.innerHTML = `<div style="text-align:center;color:#ef4444;padding:30px;font-weight:700">שגיאה בטעינה: ${esc(e.code || e.message)}</div>`;
+    return;
+  }
+  rows.sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
+  if (!rows.length) {
+    box.innerHTML = '<div style="text-align:center;color:var(--muted);padding:34px;font-weight:700">עדיין לא נרשמו נסיעות</div>';
+    return;
+  }
+  box.innerHTML = rows.map(r => {
+    const when = r.at ? new Date(r.at).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+    return `<div style="background:var(--card);border:2px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+        <div style="font-size:16px;font-weight:900">${esc(r.plate || '—')}</div>
+        <span style="background:var(--dark);color:#fff;border-radius:999px;padding:3px 12px;font-size:12.5px;font-weight:800;white-space:nowrap">👤 ${esc(r.driver || '—')}</span>
+      </div>
+      ${r.desc ? `<div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:3px">${esc(r.desc)}</div>` : ''}
+      <div style="font-size:12px;font-weight:700;color:var(--muted);margin-top:4px">${esc(when)}</div>
+    </div>`;
+  }).join('');
+}
+window.openBsmTrips = openBsmTrips;
 
 // the yard can close a car too — same effect as the beater pressing finish,
 // and it is what stops the day counter
