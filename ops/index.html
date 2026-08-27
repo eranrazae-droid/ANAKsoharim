@@ -10594,16 +10594,21 @@ function _bshopListen(onChange) {
     _bshopCats = (d.cats && typeof d.cats === 'object') ? d.cats : {};
     // an empty saved list is treated as no list at all, otherwise the form
     // would offer nothing to pick
-    const fresh = d.v === _BSHOP_CATALOG_VERSION && Array.isArray(d.items) && d.items.length > 0;
-    const raw = fresh ? d.items : _BSHOP_DEFAULT_ITEMS;
-    // keep the walk-around order for known parts; anything you added yourself
-    // stays at the end, in the order you added it
+    const saved = Array.isArray(d.items)
+      ? d.items.filter(n => typeof n === 'string' && n.trim())
+      : [];
+    const fresh = d.v === _BSHOP_CATALOG_VERSION && saved.length > 0;
     if (fresh) {
-      _bshopItems = raw;   // saved by us — this is the order the manager set
+      _bshopItems = saved;   // saved by us — this is the order the manager set
+    } else if (saved.length) {
+      // רשימה שנשמרה בגרסה ישנה של הקטלוג — משלבים אותה ולא משליכים אותה.
+      // סדר ההליכה סביב הרכב קודם, וכל מה שהוסיפו נשאר אחריו לפי הסדר שנשמר.
+      _bshopItems = [
+        ..._BSHOP_DEFAULT_ITEMS,
+        ...saved.filter(n => !_BSHOP_DEFAULT_ITEMS.includes(n)),
+      ];
     } else {
-      const known = raw.filter(n => _BSHOP_DEFAULT_ITEMS.includes(n))
-        .sort((a, b) => _BSHOP_DEFAULT_ITEMS.indexOf(a) - _BSHOP_DEFAULT_ITEMS.indexOf(b));
-      _bshopItems = [...known, ...raw.filter(n => !_BSHOP_DEFAULT_ITEMS.includes(n))];
+      _bshopItems = [..._BSHOP_DEFAULT_ITEMS];
     }
     onChange();
     // the parts-list modal must refresh too, otherwise add/delete looks like it did nothing
