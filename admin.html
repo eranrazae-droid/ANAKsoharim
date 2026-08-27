@@ -1578,12 +1578,16 @@
     const myCh=PUB_CHANNELS.filter(ch=>ch.owner===who);
     // כל הרכבים שחסר להם פרסום באחד הערוצים שלי
     const pending=all.filter(c=>myCh.some(ch=>!((c.pub||{})[ch.key])));
-    // בחירה רנדומלית - נשארת יציבה עד שמסיימים את הרכב, ואז קופצת לרכב אקראי אחר
-    window._nextTaskCache=window._nextTaskCache||{};
-    let next=null;
-    const cachedId=window._nextTaskCache[who];
+    // בחירה רנדומלית - נשמרת ב-localStorage ולא משתנה (גם אחרי רענון) עד שמסיימים את הרכב
+    const cacheKey='nextTask_'+who;
+    let next=null, cachedId=null;
+    try{ cachedId=localStorage.getItem(cacheKey); }catch(e){}
     if(cachedId!=null) next=pending.find(c=>String(c.id)===String(cachedId))||null;
-    if(!next && pending.length){ next=pending[Math.floor(Math.random()*pending.length)]; window._nextTaskCache[who]=next.id; }
+    if(!next && pending.length){
+      next=pending[Math.floor(Math.random()*pending.length)];
+      try{ localStorage.setItem(cacheKey, String(next.id)); }catch(e){}
+    }
+    if(!next){ try{ localStorage.removeItem(cacheKey); }catch(e){} }
     if(!next){
       el.innerHTML='<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:16px;padding:20px;text-align:center;margin-bottom:16px"><div style="font-size:38px">🏆</div><div style="font-weight:900;font-size:17px;color:#15803d;margin-top:6px">'+_esc(who)+', סיימת הכל!</div><div style="color:#166534;font-size:14px;margin-top:4px">כל הרכבים פורסמו בערוצים שלך. כל הכבוד!</div></div>';
       return;
