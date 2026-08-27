@@ -11,6 +11,22 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      # אפליקציית התפעול (ops/) היא פרויקט נפרד ומנוהלת אך ורק בענף שלה.
+      # לפני כל פרסום מכאן מושכים ממנו את הגרסה העדכנית, כדי שפרסום של
+      # שאר האתר לא יחזיר את האפליקציה לגרסה ישנה. אם המשיכה נכשלת —
+      # ה-Job נכשל ולא מתפרסם כלום, במקום לפרסם אפליקציה לא נכונה.
+      - name: Sync ops app from its own branch
+        run: |
+          set -euo pipefail
+          BRANCH=claude/charming-archimedes-nlfl58
+          git fetch --depth 1 origin "$BRANCH"
+          rm -rf ops
+          git checkout FETCH_HEAD -- ops
+          test -s ops/index.html
+          test -s ops/sw.js
+          test -s ops/js/utils.js
+          echo "ops synced from $BRANCH ($(git rev-parse --short FETCH_HEAD)) — $(wc -l < ops/index.html) lines"
+
       - name: Deploy to Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
