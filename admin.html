@@ -1427,6 +1427,33 @@
     renderProfit();
   }
 
+  async function downloadCarImages(id){
+    const c=cars.find(x=>String(x.id)===String(id)); if(!c) return;
+    const imgs=[];
+    const add=u=>{ if(u && String(u).trim() && !String(u).startsWith('data:image/svg') && imgs.indexOf(u)<0) imgs.push(u); };
+    add(c.image); (c.gallery||[]).forEach(add); add(c.catalog_image);
+    if(!imgs.length){ toast('אין תמונות לרכב זה'); return; }
+    const base=((c.brand||'')+'-'+(c.model||'')).replace(/[^\w֐-׿]+/g,'_');
+    toast('⬇️ מוריד '+imgs.length+' תמונות...');
+    for(let i=0;i<imgs.length;i++){
+      try{
+        const res=await fetch(imgs[i],{mode:'cors'});
+        const blob=await res.blob();
+        const ext=((blob.type.split('/')[1]||'jpg').split('+')[0])||'jpg';
+        const a=document.createElement('a');
+        a.href=URL.createObjectURL(blob);
+        a.download=base+'_'+(i+1)+'.'+ext;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+      }catch(e){
+        let u=imgs[i];
+        if(u.indexOf('/upload/')>=0) u=u.replace('/upload/','/upload/fl_attachment/'); // Cloudinary: כפיית הורדה
+        window.open(u,'_blank');
+      }
+      await new Promise(r=>setTimeout(r,350));
+    }
+  }
+
   let _noteTimer=null;
   function updateNote(id, val){
     const c = cars.find(x=>String(x.id)===String(id)); if(!c) return;
@@ -1485,7 +1512,7 @@
       return `<tr style="border-bottom:1px solid var(--line)${rowBg?';background:'+rowBg:''}">
         <td style="padding:9px 8px;font-weight:700">${c.reviewed?'✅ ':(incomplete?'🟣 ':'')}${c.brand} ${c.model}</td>
         <td style="padding:9px 8px"><input type="text" value="${_esc(c.note||'')}" oninput="updateNote(${c.id}, this.value)" style="width:300px;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:8px;text-align:right" placeholder="הערה..."></td>
-        <td style="padding:9px 8px;text-align:center"><a href="https://autodealer.co.il/?car=${encodeURIComponent(c.id)}" target="_blank" title="צפה בעמוד הרכב באתר" style="display:inline-block;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;border-radius:8px;padding:5px 10px;font-size:12px;font-weight:700;text-decoration:none;white-space:nowrap">🔗 באתר</a></td>
+        <td style="padding:9px 8px;text-align:center;white-space:nowrap"><a href="https://autodealer.co.il/?car=${encodeURIComponent(c.id)}" target="_blank" title="צפה בעמוד הרכב באתר" style="display:inline-block;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;border-radius:8px;padding:5px 10px;font-size:12px;font-weight:700;text-decoration:none">🔗 באתר</a> <button onclick="downloadCarImages(${c.id})" title="הורד את כל תמונות הרכב" style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:8px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer">⬇️ תמונות</button></td>
         <td style="padding:9px 8px;text-align:center"><button onclick="toggleReviewed(${c.id})" style="border:none;border-radius:999px;padding:5px 12px;font-weight:900;font-size:12px;cursor:pointer;color:#fff;background:${c.reviewed?'#16a34a':'#cbd5e1'}">${c.reviewed?'✔ נבדק':'סמן'}</button></td>
         <td style="padding:9px 8px;text-align:center"><button onclick="toggleSiteVisible(${c.id})" style="border:none;border-radius:999px;padding:5px 12px;font-weight:900;font-size:12px;cursor:pointer;color:#fff;background:${c.hidden?'#9ca3af':'#16a34a'}">${c.hidden?'OFF':'ON'}</button></td>
         <td style="padding:9px 8px"><input type="number" value="${cat>1?cat:''}" onchange="updateImporterPrice(${c.id}, this.value)" style="width:110px;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:8px;text-align:right" placeholder="מחירון יבואן"></td>
@@ -1530,6 +1557,7 @@
             '<div style="flex:1"><div style="font-size:10px;color:var(--muted);font-weight:600;margin-bottom:3px">הערה</div>'+
             '<input type="text" value="'+_esc(c.note||'')+'" oninput="updateNote('+c.id+',this.value)" placeholder="הערה..." style="width:100%;padding:9px;font-size:14px;border:1px solid var(--line);border-radius:8px;text-align:right;background:#fffef5"></div>'+
             '<a href="https://autodealer.co.il/?car='+encodeURIComponent(c.id)+'" target="_blank" style="background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:700;text-decoration:none;white-space:nowrap">🔗 באתר</a>'+
+            '<button onclick="downloadCarImages('+c.id+')" style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:700;white-space:nowrap;cursor:pointer">⬇️ תמונות</button>'+
           '</div>'+
         '</div>';
       }).join('');
