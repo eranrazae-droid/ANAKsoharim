@@ -2105,6 +2105,12 @@ if ('serviceWorker' in navigator) {
         <input class="form-input" id="bsm-extra" placeholder="כתוב חלק..." onkeydown="if(event.key==='Enter'){event.preventDefault();bsmAddExtra();}">
         <button onclick="bsmAddExtra()" style="background:var(--dark);color:#fff;border:none;border-radius:10px;padding:0 18px;font-family:'Heebo',sans-serif;font-weight:800;cursor:pointer">הוסף</button>
       </div></div>
+    <div class="form-group"><label>צריך ולאדי?</label>
+      <div style="display:flex;gap:8px">
+        <button type="button" id="bsm-vladi-yes" onclick="bsmVladiOpen()" style="flex:1;background:var(--bg);color:var(--text);border:2px solid var(--border);border-radius:11px;padding:11px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:800;cursor:pointer">כן</button>
+        <button type="button" id="bsm-vladi-no" onclick="bsmVladiClear()" style="flex:1;background:var(--bg);color:var(--text);border:2px solid var(--border);border-radius:11px;padding:11px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:800;cursor:pointer">לא</button>
+      </div>
+      <div id="bsm-vladi-sum" style="font-size:13px;font-weight:700;color:var(--muted);margin-top:7px"></div></div>
     <div class="form-group"><label>הערה לפחח</label>
       <input class="form-input" id="bsm-note" placeholder="לא חובה"></div>
     <button class="btn-submit" id="bsm-submit-btn" onclick="submitBsmSend()">📝 צור פתק</button>
@@ -2195,6 +2201,21 @@ if ('serviceWorker' in navigator) {
     </div>
     <div id="bsm-items-list"></div>
     <button onclick="bsmScanOldItems()" style="width:100%;margin-top:14px;background:#0f766e;color:#fff;border:none;border-radius:11px;padding:12px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:800;cursor:pointer">♻️ חלקים שהיו ברשימה וחסרים</button>
+  </div>
+</div>
+
+<!-- ====== MODAL: PARTS FOR VLADI ====== -->
+<div class="modal-overlay" id="modal-bsm-vladi">
+  <div class="modal-box" style="max-width:560px">
+    <div class="modal-title"><span>🧰 חלקים לולאדי</span> <button class="modal-close" onclick="closeModal('modal-bsm-vladi')">✕</button></div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:10px">סמן את החלקים שולאדי צריך לטפל בהם. הבחירה כאן נפרדת לגמרי מהחלקים של הפחח.</div>
+    <div id="bsm-vladi-pick"></div>
+    <div class="form-group" style="margin-top:12px"><label>הוסף חלק שלא ברשימה</label>
+      <div style="display:flex;gap:6px">
+        <input class="form-input" id="bsm-vladi-extra" placeholder="כתוב חלק..." onkeydown="if(event.key==='Enter'){event.preventDefault();bsmVladiAddExtra();}">
+        <button onclick="bsmVladiAddExtra()" style="background:var(--dark);color:#fff;border:none;border-radius:10px;padding:0 18px;font-family:'Heebo',sans-serif;font-weight:800;cursor:pointer">הוסף</button>
+      </div></div>
+    <button class="btn-submit" onclick="bsmVladiDone()" style="width:100%">✅ סיום</button>
   </div>
 </div>
 
@@ -10578,6 +10599,8 @@ let _bshopItems = [];       // the fixed catalogue of parts
 let _bshopUnsubJobs = null, _bshopUnsubCfg = null, _bshopUnsubArc = null;
 let _bshopArchive = [];   // one folder per payment to Ibrahim
 let _bsmPicked = [];        // parts selected while composing a new job
+let _bsmVladi = [];         // parts for Vladi — a separate list, never mixed
+let _bsmVladiAsked = false; // whether "צריך ולאדי?" was answered on this note
 let _bsmFocus = null;       // where the number plate sits in the photo, 0..1
 let _bshopFillId = null;
 
@@ -13654,6 +13677,8 @@ window.washDelete = washDelete;
 
 function openBsmSendModal() {
   _bsmPicked = [];
+  _bsmVladi = [];
+  _bsmVladiAsked = false;
   _bsmFocus = null;
   document.getElementById('bsm-plate').value = '';
   document.getElementById('bsm-desc').value = '';
@@ -13669,9 +13694,89 @@ function openBsmSendModal() {
   _bsmRenderVideo();
   _bsmRenderPhoto();
   _bsmRenderPicker();
+  _bsmVladiSyncForm();
   openModal('modal-bsm-send');
 }
 window.openBsmSendModal = openBsmSendModal;
+
+/* ── ולאדי ─────────────────────────────────────────────────────────────
+   בחירה נפרדת לחלוטין מהחלקים של הפחח: מערך משלה, חלונית משלה ובחירה
+   שנשמרת רק אל תוך המשימה של ולאדי. הפתק של איברהים אינו מושפע. */
+function _bsmVladiSyncForm() {
+  const yes = document.getElementById('bsm-vladi-yes');
+  const no  = document.getElementById('bsm-vladi-no');
+  const sum = document.getElementById('bsm-vladi-sum');
+  const on  = _bsmVladi.length > 0;
+  const off = _bsmVladiAsked && !on;
+  if (yes) {
+    yes.style.background = on ? '#16a34a' : 'var(--bg)';
+    yes.style.color = on ? '#fff' : 'var(--text)';
+    yes.style.borderColor = on ? '#16a34a' : 'var(--border)';
+  }
+  if (no) {
+    no.style.background = off ? 'var(--dark)' : 'var(--bg)';
+    no.style.color = off ? '#fff' : 'var(--text)';
+    no.style.borderColor = off ? 'var(--dark)' : 'var(--border)';
+  }
+  if (sum) sum.textContent = on
+    ? `נבחרו ${_bsmVladi.length} חלקים לולאדי: ${_bshopSortNames(_bsmVladi).join(', ')}`
+    : (off ? 'לא נפתחת משימה לולאדי' : '');
+}
+
+function bsmVladiOpen() {
+  _bsmVladiAsked = true;
+  const el = document.getElementById('bsm-vladi-extra');
+  if (el) el.value = '';
+  _bsmVladiRender();
+  openModal('modal-bsm-vladi');
+}
+window.bsmVladiOpen = bsmVladiOpen;
+
+function bsmVladiClear() {
+  _bsmVladiAsked = true;
+  _bsmVladi = [];
+  _bsmVladiSyncForm();
+}
+window.bsmVladiClear = bsmVladiClear;
+
+function _bsmVladiRender() {
+  const c = document.getElementById('bsm-vladi-pick');
+  if (!c) return;
+  const all = [..._bshopItems, ..._bsmVladi.filter(p => !_bshopItems.includes(p))];
+  const btn = name => {
+    const on = _bsmVladi.includes(name);
+    return `<button type="button" onclick="bsmVladiToggle(this.dataset.n)" data-n="${esc(name)}"
+      style="background:${on ? '#1d4ed8' : 'var(--bg)'};color:${on ? '#fff' : 'var(--text)'};border:2px solid ${on ? '#1d4ed8' : 'var(--border)'};border-radius:999px;padding:7px 13px;font-family:'Heebo',sans-serif;font-size:13px;font-weight:700;cursor:pointer">${esc(name)}</button>`;
+  };
+  c.innerHTML = all.length
+    ? _bshopByGroup(all).map(([g, list]) =>
+        _bshopGroupTitle(g, '#1d4ed8') + `<div style="display:flex;flex-wrap:wrap;gap:6px">${list.map(btn).join('')}</div>`
+      ).join('')
+    : `<div style="padding:14px;text-align:center;color:var(--muted);font-size:13px">רשימת החלקים עדיין נטענת</div>`;
+}
+
+function bsmVladiToggle(name) {
+  _bsmVladi = _bsmVladi.includes(name) ? _bsmVladi.filter(n => n !== name) : [..._bsmVladi, name];
+  _bsmVladiRender();
+}
+window.bsmVladiToggle = bsmVladiToggle;
+
+function bsmVladiAddExtra() {
+  const el = document.getElementById('bsm-vladi-extra');
+  const v = (el?.value || '').trim();
+  if (!v) return;
+  if (!_bsmVladi.includes(v)) _bsmVladi = [..._bsmVladi, v];
+  el.value = '';
+  _bsmVladiRender();
+}
+window.bsmVladiAddExtra = bsmVladiAddExtra;
+
+function bsmVladiDone() {
+  closeModal('modal-bsm-vladi');
+  _bsmVladiSyncForm();
+  if (_bsmVladi.length) showToast(`🧰 נשמרו ${_bsmVladi.length} חלקים לולאדי`);
+}
+window.bsmVladiDone = bsmVladiDone;
 
 function _bsmRenderPicker() {
   const c = document.getElementById('bsm-items-pick');
@@ -14254,7 +14359,11 @@ async function submitBsmSend() {
     plate, desc, note, maker: _bsmMaker,
     thumb: _bsmThumb, focus: _bsmFocus, photo: _bsmPhoto,
     items: _bshopSortNames(_bsmPicked).map(name => ({ name, price: null })),
+    // רשימה נפרדת לגמרי — היא לא נכנסת ל-items של הפחח
+    vladi: _bshopSortNames(_bsmVladi),
   };
+  _bsmVladi = [];
+  _bsmVladiAsked = false;
   closeModal('modal-bsm-send');
   showToast('✅ הסרטון נשלח והפתק נוצר');
 
@@ -14265,9 +14374,29 @@ async function submitBsmSend() {
       ...(snap.thumb ? { photoThumb: snap.thumb } : {}),
       ...(snap.focus ? { photoFocus: snap.focus } : {}),
       items: snap.items,
+      ...(snap.vladi.length ? { vladiItems: snap.vladi } : {}),
       status: 'draft', paidAt: null, sentAt: null,
       createdBy: currentUser.name, createdAt: _serverTs()
     });
+    // משימה לולאדי — נפתחת רק כשסומנו חלקים, ואינה נוגעת בפתק של הפחח
+    if (snap.vladi.length) {
+      try {
+        await _addDoc(_colRef('tasks'), {
+          title: [snap.plate, snap.desc].filter(Boolean).join(' · '),
+          notes: 'חלקים לולאדי: ' + snap.vladi.join(', '),
+          assignedTo: 'ולאדי',
+          label: 'ולאדי',
+          status: 'open',
+          fromBodyshop: ref?.id || '',
+          createdBy: currentUser.name,
+          createdAt: _serverTs(),
+        });
+        showToast('🧰 נפתחה משימה לולאדי');
+      } catch (e) {
+        console.error('vladi task', e);
+        showToast('⚠️ הפתק נוצר אבל המשימה לולאדי נכשלה — אפשר לפתוח אותה ידנית', 8000);
+      }
+    }
     // התמונה המלאה במסמך נפרד, נטענת רק כשפותחים רכב
     if (snap.photo && ref?.id) {
       const { setDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
