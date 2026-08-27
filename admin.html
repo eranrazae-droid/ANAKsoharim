@@ -291,6 +291,7 @@
             <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);cursor:pointer"><input type="checkbox" id="ptOnlyMissing" onchange="renderPubTrack()"/> רק לא-מפורסמים</label>
           </div>
         </div>
+        <div id="ptMotivator"></div>
         <div style="display:flex;justify-content:center;margin-bottom:16px">
           <select id="ptBrandFilter" onchange="renderPubTrack()" style="width:7cm;max-width:100%"><option value="">כל היצרנים</option></select>
         </div>
@@ -1572,6 +1573,32 @@
     if(onlyMissing) rows=rows.filter(c=>PUB_CHANNELS.some(ch=>!((c.pub||{})[ch.key])));
     // סטטיסטיקה
     const all=ptRows();
+    // מד השלמה מגמיש - דוחף לסיים את הלוח
+    const mot=document.getElementById('ptMotivator');
+    if(mot){
+      const totalCells=all.length*PUB_CHANNELS.length;
+      let doneCells=0; all.forEach(c=>PUB_CHANNELS.forEach(ch=>{ if((c.pub||{})[ch.key]) doneCells++; }));
+      const remaining=totalCells-doneCells;
+      const pct=totalCells?Math.round(doneCells/totalCells*100):0;
+      let face,msg,col;
+      if(pct>=100){ face='🏆'; msg='כל הכבוד! הלוח מלא — כל רכב פורסם בכל ערוץ!'; col='#15803d'; }
+      else if(pct>=80){ face='🔥'; msg='כמעט שם! עוד '+remaining+' פרסומים וסיימנו את הלוח'; col='#ea580c'; }
+      else if(pct>=50){ face='😃'; msg='בקצב מעולה! ממשיכים לדחוף — נשארו '+remaining+' פרסומים'; col='#ca8a04'; }
+      else if(pct>=20){ face='🙂'; msg='יש התחלה טובה! קדימה נמלא את הלוח — '+remaining+' פרסומים נשארו'; col='#0891b2'; }
+      else { face='😴'; msg='בוא נתחיל לפרסם! כל פרסום מקרב אותנו למכירה'; col='#6b7280'; }
+      mot.innerHTML='<div style="background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px 18px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.05)">'+
+        '<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">'+
+          '<div style="font-size:42px;line-height:1">'+face+'</div>'+
+          '<div style="flex:1;min-width:180px">'+
+            '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">'+
+              '<div style="font-weight:900;font-size:16px;color:'+col+'">'+pct+'% מהלוח הושלם</div>'+
+              '<div style="font-size:13px;color:var(--muted)">'+doneCells+'/'+totalCells+' פרסומים</div>'+
+            '</div>'+
+            '<div style="height:12px;background:#f1f5f9;border-radius:999px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:linear-gradient(90deg,#D4A017,'+col+');border-radius:999px;transition:width .4s"></div></div>'+
+            '<div style="margin-top:8px;font-size:14px;font-weight:600;color:#374151">'+msg+'</div>'+
+          '</div>'+
+        '</div></div>';
+    }
     const stats=document.getElementById('ptStats');
     if(stats){
       const fullyDone=all.filter(c=>PUB_CHANNELS.every(ch=>(c.pub||{})[ch.key])).length;
