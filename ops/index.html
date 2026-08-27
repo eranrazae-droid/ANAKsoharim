@@ -5659,7 +5659,7 @@ function _tkEnableDrag(board) {
     if (ev.pointerType === 'mouse' && ev.button !== 0) { cancelPress(); return; }
     const card = ev.target.closest('.task-card');
     if (!card || card.closest('.task-col-driver')) { cancelPress(); return; }
-    pressInfo = { card, x: ev.clientX, y: ev.clientY, id: ev.pointerId };
+    pressInfo = { card, x: ev.clientX, y: ev.clientY, id: ev.pointerId, mouse: ev.pointerType === 'mouse' };
     _tkPressing = true;
     clearTimeout(pressTimer);
     pressTimer = setTimeout(() => {
@@ -5669,11 +5669,20 @@ function _tkEnableDrag(board) {
     }, 350);
   });
 
-  // תזוזה לפני שהלחיצה הבשילה = גלילה
+  /* בעכבר הגרירה מתחילה ברגע שמזיזים — אין סיבה להחזיק לחוץ, וזה מה
+     שנתן תחושה שהגרירה לא עובדת. באצבע נשארת ההחזקה, אחרת אי אפשר לגלול. */
   board.addEventListener('pointermove', ev => {
     if (!pressInfo || _tkDrag) return;
+    const far = Math.abs(ev.clientX - pressInfo.x) > 6 || Math.abs(ev.clientY - pressInfo.y) > 6;
+    if (!far) return;
+    if (pressInfo.mouse) {
+      clearTimeout(pressTimer); pressTimer = null;
+      beginDrag(pressInfo.card, ev.clientX, ev.clientY, pressInfo.id);
+      pressInfo = null;
+      return;
+    }
     if (Math.abs(ev.clientX - pressInfo.x) > 12 || Math.abs(ev.clientY - pressInfo.y) > 12) cancelPress();
-  }, { passive: true });
+  });
 
   document.addEventListener('pointerup', cancelPress);
   document.addEventListener('pointercancel', cancelPress);
