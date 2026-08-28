@@ -820,6 +820,7 @@ if ('serviceWorker' in navigator) {
       <h2 id="home-welcome">שלום 👋</h2>
       <p id="home-date"></p>
       <div id="daily-quote-m" style="display:none;margin-top:10px;background:var(--surface2);border-right:4px solid var(--gold);border-radius:10px;padding:10px 12px;font-size:13px;font-weight:700;line-height:1.5"></div>
+      <button id="ms-home-alert" onclick="msOpenRoll()" style="display:none;width:100%;margin-top:10px;background:#0369a1;color:#fff;border:none;border-radius:12px;padding:13px 14px;font-family:Heebo,sans-serif;font-size:14.5px;font-weight:800;cursor:pointer;text-align:right">🔑 עוד לא חולקו ההנעות של הבוקר — לחץ לחלוקה</button>
     </div>
     <div id="home-layout">
       <div id="home-cards-area">
@@ -12379,10 +12380,16 @@ function _msListen() {
     _msToday = snap.exists() ? snap.data() : null;
     _msSyncCard();
     _msRenderHome();
+    _msSyncHomeAlert();
     try { _renderDailyQuote(); } catch (e) {}
     if (document.getElementById('screen-morning-starts')?.classList.contains('active')) _msRenderScreen();
   }, () => {});
-  _msTimer = setInterval(() => { _msCheck(); try { _renderDailyQuote(); } catch (e) {} }, 60000);
+  _msSyncHomeAlert();
+  _msTimer = setInterval(() => {
+    _msCheck();
+    _msSyncHomeAlert();
+    try { _renderDailyQuote(); } catch (e) {}
+  }, 60000);
 }
 
 // החלונית קופצת למנהל פעם ביום מ-07:30, עד שהחלוקה של היום נשמרה
@@ -12398,11 +12405,27 @@ function _msCheck() {
   if (_msState.handledDay === _msDayKey()) return;           // כבר טופלה היום
   const modal = document.getElementById('modal-morning-roll');
   if (modal && modal.classList.contains('open')) return;
-  // חלונית אחרת פתוחה — נחכה לתור. אחרת היא מכסה את זו ואי אפשר לראותה
-  if (document.querySelector('.modal-overlay.open')) return;
+  // רק חלונית בדיקת הבעלויות נעולה גם היא ולכן תכסה את זו — מחכים שתיסגר.
+  // כל שאר החלוניות נפתחו ביוזמת המנהל ואפשר להיפתח מעליהן.
+  const own = document.getElementById('modal-own-morning');
+  if (own && own.classList.contains('open')) return;
   _msRenderRoll();
   openModal('modal-morning-roll');
 }
+
+/* רשת ביטחון: גם אם החלונית לא קפצה מסיבה כלשהי, הכפתור במסך הבית
+   מופיע כל עוד ההנעות של היום לא חולקו — כך תמיד יש דרך לחלק. */
+function _msSyncHomeAlert() {
+  const el = document.getElementById('ms-home-alert');
+  if (!el) return;
+  const now = new Date();
+  const show = currentUser?.role === 'manager'
+    && _msThirdOf() !== null
+    && now.getHours() * 60 + now.getMinutes() >= _MS_POPUP_MIN
+    && !(_msToday && _msToday.day === _msDayKey());
+  el.style.display = show ? 'block' : 'none';
+}
+window._msSyncHomeAlert = _msSyncHomeAlert;
 
 let _msPresent = null;
 
@@ -12479,6 +12502,7 @@ async function msRollConfirm() {
   });
   showToast(`✅ ההנעות חולקו ל-${present.length} נהגים`);
   _msMarkHandled();
+  _msSyncHomeAlert();
   _msSyncCard();
 }
 window.msRollConfirm = msRollConfirm;
