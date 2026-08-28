@@ -4122,6 +4122,9 @@ const _ALL_SCREENS = [
   { id: 'menu-card-battery',      icon: '🔋', label: 'בדיקת טעינה',          badge: 'badge-battery' },
   { id: 'menu-card-yard',         icon: '🅿️', label: 'סידור מגרש',           badge: 'badge-yard' },
   { id: 'menu-card-plate-search', icon: '🔎', label: 'חיפוש רכב לפי לוחית',  badge: '' },
+  // פריט שאין מאחוריו קובייה — הוא מריץ פעולה ישירות. כך אפשר לשנות את
+  // חלוקת ההנעות בכל רגע, גם אחרי שהיא כבר נעשתה היום.
+  { id: 'ms-roll', icon: '🔑', label: 'חלוקת הנעות הבוקר', badge: '', action: 'msOpenRoll()' },
 ];
 
 /* ── מצב הבדיקות של הבוקר ───────────────────────────────────────────
@@ -4200,6 +4203,8 @@ function _screenBadge(it) {
 
 // פריט מוצג רק אם הכפתור שמאחוריו פעיל למשתמש הזה
 function _screenVisible(it) {
+  // פריט פעולה אינו נשען על קובייה — הוא של המנהל בלבד
+  if (it.action) return currentUser?.role === 'manager';
   const el = document.getElementById(it.id);
   return !!el && el.style.display !== 'none';
 }
@@ -4226,7 +4231,7 @@ function _renderAllScreens() {
   const items = _ALL_SCREENS.filter(_screenVisible);
   box.innerHTML = items.map(it => {
     const n = _screenBadge(it);
-    return `<div onclick="openFromAllScreens('${it.id}')"
+    return `<div onclick="${it.action ? `_allScreensAction(&quot;${it.action}&quot;)` : `openFromAllScreens('${it.id}')`}"
       style="display:flex;align-items:center;gap:11px;padding:12px 4px;border-bottom:1px solid var(--border);cursor:pointer">
       <div style="width:38px;height:38px;border-radius:11px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">${it.icon}</div>
       <div style="flex:1;min-width:0">
@@ -4248,6 +4253,13 @@ function openFromAllScreens(id) {
   document.getElementById(id)?.click();
 }
 window.openFromAllScreens = openFromAllScreens;
+
+// פריט שמריץ פעולה במקום לפתוח מסך
+function _allScreensAction(fn) {
+  closeModal('modal-all-screens');
+  setTimeout(() => { try { (new Function(fn))(); } catch (e) { console.error('all-screens action', fn, e); } }, 80);
+}
+window._allScreensAction = _allScreensAction;
 window.openAllScreens = openAllScreens;
 
 function renderHome() {
