@@ -275,6 +275,7 @@
           <div><div class="eyebrow">מלאי</div><h2>רכבים קיימים</h2></div>
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
             <button class="btn btn-line btn-sm" onclick="showMissingSpecs()">📋 רשימת מפרט חסר</button>
+            <button class="btn btn-line btn-sm" onclick="exportInventoryExcel()" style="background:#f0fdf4;color:#15803d;border-color:#bbf7d0">📊 ייצוא לאקסל</button>
             <button class="btn btn-black" onclick="showTab('addcar')">+ הוסף רכב</button>
           </div>
         </div>
@@ -1454,8 +1455,35 @@
     }
   }
 
-  let _noteTimer=null;
-  function updateNote(id, val){
+  function exportInventoryExcel(){
+    const rows=cars.slice().sort((a,b)=>{
+      const bc=(a.brand||'').localeCompare(b.brand||'','he',{sensitivity:'base'});
+      return bc!==0?bc:(a.model||'').localeCompare(b.model||'','he',{sensitivity:'base'});
+    });
+    const cols=['יצרן','דגם','שנה','מנוע','מחיר מחירון','מחיר אוטודילר','אגרת רישוי','מחיר כולל רישוי','החזר חודשי מ-','סטטוס מלאי','מוצג באתר','הערה','קישור'];
+    const cell=v=>{ v=(v==null?'':String(v)).replace(/"/g,'""').replace(/[\r\n]+/g,' '); return '"'+v+'"'; };
+    const lines=[cols.map(cell).join(',')];
+    rows.forEach(c=>{
+      const sell=Number(c.autodealerPriceNumber)||0, lic=Number(c.licenseFee)||0, cat=Number(c.catalogPriceNumber)||0;
+      const mon=sell>1?Math.round(lowestMonthly(sell+lic)):'';
+      lines.push([
+        c.brand||'', c.model||'', c.year||'', c.engine||'',
+        cat>1?cat:'', sell>1?sell:'', lic||'', sell>1?(sell+lic):'',
+        mon, c.stockStatus||'זמין מיידי', c.hidden?'לא':'כן', c.note||'',
+        'https://autodealer.co.il/?car='+c.id
+      ].map(cell).join(','));
+    });
+    const csv='﻿'+lines.join('\r\n'); // BOM לתמיכה בעברית באקסל
+    const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='מלאי_אוטודילר_'+new Date().toISOString().slice(0,10)+'.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+    toast('📊 קובץ המלאי הורד ('+rows.length+' רכבים)');
+  }
+
+  async function downloadCarImages(id){
     const c = cars.find(x=>String(x.id)===String(id)); if(!c) return;
     c.note = String(val||'');
     clearTimeout(_noteTimer);
