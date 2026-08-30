@@ -23578,6 +23578,15 @@ const _YARD_ADDR_BY_SOURCE = {
   'יורודרייב': {},
 };
 
+/* איש קשר קבוע למגרש מוכר. ההיסטוריה לא תמיד מספיקה — כשהרישום מגיע
+   בלי שם חברה אין ממה ללמוד, ואז הכתובת מולאה בלי איש קשר. */
+const _YARD_CONTACT = {
+  'עכו|החרש 3': 'סלאח',
+};
+function _yardContactFor(city, address) {
+  return _YARD_CONTACT[`${String(city || '').trim()}|${String(address || '').trim()}`] || '';
+}
+
 /* מתרגם רישום חופשי לכתובת הקבועה של המגרש. מחזיר null כשאין התאמה. */
 function _yardCanon(source, city, address) {
   const src = String(source || '').trim();
@@ -23938,13 +23947,17 @@ function _historyContactsFor(car) {
    הוא יכול להופיע בשני המקומות ("טרייד" / "טרייד נשר"). */
 function _freetextFillAddresses() {
   for (const c of _freetextParsed) {
+    c._unknownYard = '';
+    const raw = String(c.address || '').trim();
     const canon = _yardCanon(c.source, c.city, c.address);
     if (canon) { c.city = canon.city; c.address = canon.address; c._addrFromHistory = true; continue; }
-    if (/\d/.test(String(c.address || ''))) continue;   // כבר כתובת מלאה
+    if (/\d/.test(raw)) continue;   // כבר כתובת מלאה
     const city = _pickupCity(c);
-    if (!city) continue;
+    if (!city) { if (raw) c._unknownYard = raw; continue; }
     const learned = _yardAddrFromHistory(c.source, city, c.address);
-    if (learned && learned.address) { c.address = learned.address; c._addrFromHistory = true; }
+    if (learned && learned.address) { c.address = learned.address; c._addrFromHistory = true; continue; }
+    // מגרש שנרשם בשם, לא מוכר בטבלה ולא נאסף ממנו בעבר — צריך את תשומת ליבך
+    if (raw) c._unknownYard = raw;
   }
 }
 
@@ -23954,6 +23967,10 @@ function _freetextFillContacts() {
   for (const c of _freetextParsed) {
     let known = _knownContactsFor(c);
     if (!known.length) known = _historyContactsFor(c);
+    if (!known.length) {
+      const fixed = _yardContactFor(_pickupCity(c), c.address);
+      if (fixed) known = [fixed];
+    }
     if (!known.length) { c._knownContacts = ''; continue; }
     c._knownContacts = known.join(' · ');
     c.contact = _dedupContacts([c.contact || '', ...known].join(' · '));
@@ -23962,8 +23979,19 @@ function _freetextFillContacts() {
 
 function _renderFreetextPreview() {
   const preview = document.getElementById('freetext-pickup-preview');
-  preview.innerHTML = _freetextParsed.map((c, i) => `
-    <div style="background:var(--surface2);border:1.5px solid var(--border);border-radius:12px;padding:12px;margin-bottom:10px">
+  // מגרשים שלא זוהו — מוצגים למעלה כדי שלא יעלו רכבים עם כתובת חסרה
+  const unknown = [...new Set(_freetextParsed.filter(c => c._unknownYard).map(c => c._unknownYard))];
+  const warn = unknown.length
+    ? `<div style="background:#fef3c7;border:2px solid #f59e0b;border-radius:12px;padding:11px 13px;margin-bottom:12px">
+         <div style="font-size:14px;font-weight:900;color:#92400e">⚠️ מגרש חדש שאיני מזהה</div>
+         <div style="font-size:13px;font-weight:700;color:#92400e;margin-top:4px">
+           ${unknown.map(u => `<span style="background:#fff;border-radius:999px;padding:3px 10px;margin-left:5px;display:inline-block">${esc(u)}</span>`).join('')}
+         </div>
+         <div style="font-size:12.5px;font-weight:700;color:#92400e;margin-top:6px">אין לו כתובת קבועה ולא אספנו ממנו בעבר. תשלים כתובת ואיש קשר בשדות למטה, או תגיד לי לאיזו כתובת לשייך אותו והוא ייקלט אוטומטית מהפעם הבאה.</div>
+       </div>`
+    : '';
+  preview.innerHTML = warn + _freetextParsed.map((c, i) => `
+    <div style="background:var(--surface2);border:1.5px solid ${c._unknownYard ? '#f59e0b' : 'var(--border)'};border-radius:12px;padding:12px;margin-bottom:10px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px">
         <div style="font-size:11px;font-weight:700;color:var(--muted)">רכב ${i+1}${c._fetched ? ' ✅' : c._fetching ? ' ⏳' : ''}</div>
         <div style="display:flex;gap:5px">
@@ -23982,6 +24010,7 @@ function _renderFreetextPreview() {
               style="width:100%;padding:5px 7px;border-radius:7px;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;box-sizing:border-box">
           </div>`).join('')}
       </div>
+      ${c._unknownYard ? `<div style="margin-top:6px;font-size:12.5px;font-weight:800;color:#92400e">⚠️ "${esc(c._unknownYard)}" — מגרש שאיני מזהה, השלם כתובת ואיש קשר</div>` : ''}
       ${c._knownContacts ? `<div style="margin-top:6px;font-size:12px;font-weight:800;color:#1d4ed8">👤 מולא לפי הכתובת: ${esc(c._knownContacts)}</div>` : ''}
       ${c.note ? `<div style="margin-top:8px;background:#fef08a;color:#000;border-right:5px solid #eab308;border-radius:8px;padding:8px 10px;font-size:13px;font-weight:800">📝 ${esc(c.note)}</div>
         <input type="text" value="${(c.note||'').replace(/"/g,'&quot;')}" oninput="_freetextParsed[${i}].note=this.value"
