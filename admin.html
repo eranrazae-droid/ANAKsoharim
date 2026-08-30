@@ -255,6 +255,13 @@
           </div>
           <div id="profitCards" class="pc-cards"></div>
         </div>
+        <div class="card panel" style="margin-bottom:20px">
+          <div class="section-hd" style="margin-bottom:12px">
+            <div><div class="eyebrow">שיווק</div><h2 style="font-size:18px">📊 מאיפה מגיעים הלקוחות</h2></div>
+            <button class="btn btn-line btn-sm" onclick="showAskSource(true)">➕ תעד לקוח</button>
+          </div>
+          <div id="sourceMetricDash"></div>
+        </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
           <div class="card panel">
             <div class="eyebrow">לידים</div>
@@ -553,13 +560,25 @@
 <div id="askSourceModal" class="hidden" onclick="if(event.target===this)closeAskSource()" style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:120;display:flex;align-items:center;justify-content:center;padding:16px">
   <div style="background:linear-gradient(160deg,#f8fbff,#eef6ff);border:2px solid #2563eb;border-radius:24px;padding:34px 28px;width:100%;max-width:440px;text-align:center;direction:rtl;box-shadow:0 20px 60px rgba(0,0,0,.35);position:relative">
     <button onclick="closeAskSource()" style="position:absolute;top:14px;left:14px;background:#f1f5f9;border:none;border-radius:50%;width:34px;height:34px;font-size:18px;cursor:pointer">✕</button>
-    <div style="font-size:56px;line-height:1">📣</div>
-    <div style="font-size:14px;font-weight:800;color:#2563eb;letter-spacing:1px;margin-top:8px">תזכורת חשובה</div>
-    <h2 style="font-size:26px;font-weight:900;margin:8px 0;color:#0d0d0d">שאלו כל לקוח:<br><span style="color:#2563eb">"מאיפה הגעת אלינו?"</span></h2>
-    <p style="font-size:15px;color:#374151;line-height:1.7;margin:14px 0 10px">כדי שנדע איזה ערוץ שיווק עובד — שאלו כל פונה:<br>טיק טוק · אינסטגרם · פייסבוק · גוגל · מארקטפלייס · המלצה</p>
-    <div style="font-size:13px;color:#64748b;margin-bottom:20px">ותרשמו את זה בכרטיס הליד 📝</div>
-    <button onclick="closeAskSource()" style="background:#2563eb;color:#fff;border:none;border-radius:12px;padding:13px 34px;font-size:16px;font-weight:800;cursor:pointer">הבנתי 👍</button>
-    <div style="margin-top:14px"><label style="font-size:12px;color:var(--muted);cursor:pointer"><input type="checkbox" id="sourceHideToday" style="width:auto;margin-left:5px"> אל תציג שוב היום</label></div>
+    <div style="font-size:48px;line-height:1">📣</div>
+    <h2 style="font-size:23px;font-weight:900;margin:6px 0 4px;color:#0d0d0d">מאיפה הגיע הלקוח?</h2>
+    <p style="font-size:13px;color:#64748b;margin-bottom:12px">רשמו טלפון + לחצו על המקור</p>
+    <input id="sourcePhone" type="tel" inputmode="tel" placeholder="📱 טלפון הלקוח (לא חובה)" style="width:100%;padding:11px;font-size:15px;border:1px solid var(--line);border-radius:10px;text-align:right;margin-bottom:12px"/>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+      <button onclick="recordSource('פייסבוק')" style="background:#1877F2;color:#fff;border:none;border-radius:10px;padding:11px;font-size:14px;font-weight:800;cursor:pointer">👍 פייסבוק</button>
+      <button onclick="recordSource('אינסטגרם')" style="background:#E1306C;color:#fff;border:none;border-radius:10px;padding:11px;font-size:14px;font-weight:800;cursor:pointer">📷 אינסטגרם</button>
+      <button onclick="recordSource('מארקטפלייס')" style="background:#0d9488;color:#fff;border:none;border-radius:10px;padding:11px;font-size:14px;font-weight:800;cursor:pointer">🛒 מארקטפלייס</button>
+      <button onclick="recordSource('טיקטוק')" style="background:#0d0d0d;color:#fff;border:none;border-radius:10px;padding:11px;font-size:14px;font-weight:800;cursor:pointer">🎵 טיקטוק</button>
+      <button onclick="recordSource('ווצאפ')" style="background:#25D366;color:#fff;border:none;border-radius:10px;padding:11px;font-size:14px;font-weight:800;cursor:pointer">💬 ווצאפ</button>
+      <button onclick="recordSource('המלצה')" style="background:#D4A017;color:#000;border:none;border-radius:10px;padding:11px;font-size:14px;font-weight:800;cursor:pointer">⭐ המלצה</button>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:14px">
+      <input id="sourceFree" placeholder="מקור אחר..." style="flex:1;padding:10px;font-size:14px;border:1px solid var(--line);border-radius:10px;text-align:right" onkeydown="if(event.key==='Enter')recordSourceFree()"/>
+      <button onclick="recordSourceFree()" style="background:#0d0d0d;color:#fff;border:none;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:800;cursor:pointer">הוסף</button>
+    </div>
+    <div id="sourceMetricPopup" style="text-align:right;margin-bottom:14px"></div>
+    <button onclick="closeAskSource()" style="background:#2563eb;color:#fff;border:none;border-radius:12px;padding:12px 34px;font-size:15px;font-weight:800;cursor:pointer">סגור</button>
+    <div style="margin-top:12px"><label style="font-size:12px;color:var(--muted);cursor:pointer"><input type="checkbox" id="sourceHideToday" style="width:auto;margin-left:5px"> אל תציג שוב היום</label></div>
   </div>
 </div>
 
@@ -995,14 +1014,53 @@
     const m=document.getElementById('holidayPromoModal'); if(m) m.classList.add('hidden');
     setTimeout(showAskSource, 350); // אחרי סגירת המבצע - תזכורת לשאול מקור הגעה
   }
-  function showAskSource(){
-    try{ if(localStorage.getItem('sourceHideDay')===new Date().toDateString()) return; }catch(e){}
+  function showAskSource(force){
+    renderSourceMetric();
+    if(!force){ try{ if(localStorage.getItem('sourceHideDay')===new Date().toDateString()) return; }catch(e){} }
     const m=document.getElementById('askSourceModal'); if(m) m.classList.remove('hidden');
   }
   function closeAskSource(){
     const cb=document.getElementById('sourceHideToday');
     if(cb&&cb.checked){ try{ localStorage.setItem('sourceHideDay', new Date().toDateString()); }catch(e){} }
     const m=document.getElementById('askSourceModal'); if(m) m.classList.add('hidden');
+  }
+  // ===== תיעוד מקור הגעה של לקוחות =====
+  function _sourceLog(){ try{ return JSON.parse(localStorage.getItem('sourceLog')||'[]'); }catch(e){ return []; } }
+  function recordSource(src){
+    const phone=((document.getElementById('sourcePhone')||{}).value||'').trim();
+    const log=_sourceLog();
+    log.push({ source:src, phone:phone, ts:new Date().toISOString() });
+    try{ localStorage.setItem('sourceLog', JSON.stringify(log)); }catch(e){}
+    const pf=document.getElementById('sourcePhone'); if(pf) pf.value='';
+    renderSourceMetric();
+    toast('✅ נרשם: '+src+(phone?(' · '+phone):''));
+  }
+  function recordSourceFree(){
+    const v=((document.getElementById('sourceFree')||{}).value||'').trim();
+    if(!v){ return; }
+    recordSource(v);
+    const f=document.getElementById('sourceFree'); if(f) f.value='';
+  }
+  const _SRC_META={'פייסבוק':'#1877F2','אינסטגרם':'#E1306C','מארקטפלייס':'#0d9488','טיקטוק':'#0d0d0d','ווצאפ':'#25D366','המלצה':'#D4A017'};
+  function _sourceCounts(){
+    const log=_sourceLog(); const counts={};
+    log.forEach(r=>{ const s=r.source||'אחר'; counts[s]=(counts[s]||0)+1; });
+    return { counts, total:log.length };
+  }
+  function renderSourceMetric(){
+    const {counts,total}=_sourceCounts();
+    const entries=Object.keys(counts).map(k=>({k,n:counts[k]})).sort((a,b)=>b.n-a.n);
+    const bars=el=>{
+      if(!total){ el.innerHTML='<div style="color:var(--muted);font-size:13px;text-align:center;padding:8px">עדיין אין נתונים — כל לחיצה תופיע כאן.</div>'; return; }
+      el.innerHTML='<div style="font-weight:800;font-size:13px;margin-bottom:8px">📊 מקורות הגעה ('+total+' לקוחות)</div>'+
+        entries.map(e=>{
+          const pct=Math.round(e.n/total*100); const col=_SRC_META[e.k]||'#64748b';
+          return '<div style="margin-bottom:7px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px"><span style="font-weight:700">'+_esc(e.k)+'</span><span style="color:var(--muted)">'+e.n+' · '+pct+'%</span></div>'+
+            '<div style="height:9px;background:#f1f5f9;border-radius:999px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:'+col+';border-radius:999px"></div></div></div>';
+        }).join('');
+    };
+    const p=document.getElementById('sourceMetricPopup'); if(p) bars(p);
+    const d=document.getElementById('sourceMetricDash'); if(d) bars(d);
   }
 
   // Realtime - עדכון מיידי בין מכשירים (לא מרענן בזמן עריכה כדי לא לשבש)
@@ -2686,6 +2744,7 @@
 
   function renderDash(){
     renderIncomplete();
+    renderSourceMetric();
     const dl=document.getElementById('dash-leads');
     const dv=document.getElementById('dash-vouchers');
     if(dl){
