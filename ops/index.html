@@ -22527,6 +22527,8 @@ function _pickupCardHtml(c) {
   const _city = _pickupCity(c) || '';
   const place = [c.address || '', c.address && _city && !c.address.includes(_city) ? _city : (c.address ? '' : _city)]
     .filter(Boolean).join(', ');
+  // שם המקום מוצג מעל הכתובת — כך רואים מאיזה מגרש הרכב בלי לזכור כתובות
+  const yardName = String(c.yard || _yardNameFor(_city, c.address) || '').trim();
   const nav = _pickupNavUrl(c);
   const groupColor = _pkAddrColor[c.id] || '';
   const addrStyle = groupColor ? ` style="background:${groupColor}"` : '';
@@ -22561,6 +22563,7 @@ function _pickupCardHtml(c) {
     </div>
 
     <div class="pk-lines">
+      ${yardName ? `<div class="pk-line" style="font-weight:900">🏢 ${e(yardName)}</div>` : ''}
       ${place ? (nav
         ? `<a class="pk-line pk-nav" href="${nav}" target="_blank" rel="noopener"${addrStyle} onclick="event.stopPropagation()">📍 ${e(place)} <span style="margin-right:auto;font-size:11px">🚶 ניווט</span></a>`
         : `<div class="pk-line pk-nav"${addrStyle}>📍 ${e(place)}</div>`) : `<div class="pk-line" style="color:var(--muted)">📍 אין כתובת</div>`}
@@ -23578,14 +23581,22 @@ const _YARD_ADDR_BY_SOURCE = {
   'יורודרייב': {},
 };
 
-/* איש קשר קבוע למגרש מוכר. ההיסטוריה לא תמיד מספיקה — כשהרישום מגיע
-   בלי שם חברה אין ממה ללמוד, ואז הכתובת מולאה בלי איש קשר. */
-const _YARD_CONTACT = {
-  'עכו|החרש 3': 'סלאח',
+/* שם המגרש ואיש הקשר הקבוע שלו, לפי עיר וכתובת. ההיסטוריה לא תמיד
+   מספיקה — כשהרישום מגיע בלי שם חברה אין ממה ללמוד — ולכן המידע הזה
+   יושב במקום אחד, ומשם הוא מגיע לכרטיס הרכב ולפנקס הכתובות. */
+const _YARD_INFO = {
+  'ירושלים|גנרל פייר קניג 36':      { name: 'כלמוביל טרייד אין ירושלים' },
+  'נתניה|אורג 16':                  { name: 'כלמוביל טרייד אין נתניה' },
+  'עפולה|קדרון 1':                  { name: 'כלמוביל טרייד אין עפולה' },
+  'נשר|השיש 10':                    { name: 'כלמוביל טרייד אין נשר' },
+  'רעננה|הנופר 6':                  { name: 'כלמוביל טרייד אין אוטורן' },
+  'מודיעין מכבים רעות|המכונאי 21':  { name: 'כלמוביל מודיעין' },
+  'עכו|החרש 3':                     { name: 'גאקו עכו', contact: 'סלאח' },
 };
-function _yardContactFor(city, address) {
-  return _YARD_CONTACT[`${String(city || '').trim()}|${String(address || '').trim()}`] || '';
-}
+const _yardInfoFor = (city, address) =>
+  _YARD_INFO[`${String(city || '').trim()}|${String(address || '').trim()}`] || null;
+const _yardContactFor = (city, address) => _yardInfoFor(city, address)?.contact || '';
+const _yardNameFor = (city, address) => _yardInfoFor(city, address)?.name || '';
 
 /* מתרגם רישום חופשי לכתובת הקבועה של המגרש. מחזיר null כשאין התאמה. */
 function _yardCanon(source, city, address) {
@@ -23950,14 +23961,22 @@ function _freetextFillAddresses() {
     c._unknownYard = '';
     const raw = String(c.address || '').trim();
     const canon = _yardCanon(c.source, c.city, c.address);
-    if (canon) { c.city = canon.city; c.address = canon.address; c._addrFromHistory = true; continue; }
+    if (canon) {
+      c.city = canon.city; c.address = canon.address; c._addrFromHistory = true;
+      // שם המגרש: מהטבלה אם הוא מוכר, אחרת מה שנרשם בפועל
+      c.yard = _yardNameFor(canon.city, canon.address) || c.yard || raw;
+      continue;
+    }
     if (/\d/.test(raw)) continue;   // כבר כתובת מלאה
     const city = _pickupCity(c);
     if (!city) { if (raw) c._unknownYard = raw; continue; }
     const learned = _yardAddrFromHistory(c.source, city, c.address);
-    if (learned && learned.address) { c.address = learned.address; c._addrFromHistory = true; continue; }
+    if (learned && learned.address) {
+      c.yard = c.yard || raw;
+      c.address = learned.address; c._addrFromHistory = true; continue;
+    }
     // מגרש שנרשם בשם, לא מוכר בטבלה ולא נאסף ממנו בעבר — צריך את תשומת ליבך
-    if (raw) c._unknownYard = raw;
+    if (raw) { c._unknownYard = raw; c.yard = c.yard || raw; }
   }
 }
 
@@ -24002,7 +24021,8 @@ function _renderFreetextPreview() {
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
         ${[
           ['לוחית','plate'],['סוג','type'],['שנה','year'],['צבע','color'],
-          ['קמ','km'],['תוקף טסט','test'],['איש קשר','contact'],['עיר','city'],['כתובת','address']
+          ['קמ','km'],['תוקף טסט','test'],['איש קשר','contact'],['שם המקום','yard'],
+          ['עיר','city'],['כתובת','address']
         ].map(([label,key]) => `
           <div>
             <div style="font-size:10px;color:var(--muted)">${label}</div>
@@ -24086,7 +24106,9 @@ async function saveFreeTextPickup() {
       if (!pn) continue;
       if (archived.some(c => _norm(c.plate) === pn)) { dupCollected.push(car); continue; }
       if (active.some(c => _norm(c.plate) === pn)) { dupExists.push(car); continue; }
-      await _addDoc(_colRef('pickup_cars'), { ...car, createdBy: currentUser.name, createdAt: _serverTs() });
+      // שדות עבודה פנימיים (מתחילים ב-_) נשארים במסך ולא נכתבים למסד
+      const clean = Object.fromEntries(Object.entries(car).filter(([k]) => !k.startsWith('_')));
+      await _addDoc(_colRef('pickup_cars'), { ...clean, createdBy: currentUser.name, createdAt: _serverTs() });
       added++;
     }
     closeModal('modal-freetext-pickup');
