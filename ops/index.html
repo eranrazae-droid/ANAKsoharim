@@ -10025,13 +10025,42 @@ function _renderRecallScanInfo(data) {
   const clean = total ? Math.max(0, total - cars.length) : null;
   const date = ts.toLocaleDateString('he-IL', { day:'numeric', month:'numeric', year:'numeric' });
   const time = ts.toLocaleTimeString('he-IL', { hour:'2-digit', minute:'2-digit' });
+  // כמה רכבים היו במלאי וכמה דולגו — בלי זה "נסרקו 85" נראה כמו רכבים חסרים
+  const inv = data.inventoryCount || 0;
+  const skipped = data.skippedCount || 0;
+  const skippedPlates = data.skippedPlates || [];
   box.innerHTML =
     `<div style="font-weight:900;margin-bottom:4px">🔄 בוצעה סריקה · ${date} בשעה ${time}</div>` +
-    (total ? `<div>נסרקו <b>${total}</b> רכבים</div>` : '') +
+    (total ? `<div>נסרקו <b>${total}</b> רכבים${inv ? ` מתוך <b>${inv}</b> במלאי` : ''}</div>` : '') +
+    (skipped ? `<div style="color:#92400e">⏭️ <b>${skipped}</b> רכבים דולגו — הם מסומנים כ"לפי הזמנה"
+        <button onclick="recallToggleSkipped()" style="background:none;border:none;color:#0d6ab0;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer;padding:0 4px">הצג</button></div>
+      <div id="recall-skipped-box" style="display:none;margin:6px 0 2px;padding:9px 11px;background:var(--card);border:2px solid var(--border);border-radius:10px">
+        <div style="font-size:12.5px;font-weight:700;color:var(--muted);margin-bottom:6px">הרכבים האלה אינם נסרקים לריקולים ולבעלויות:</div>
+        <div style="display:flex;flex-wrap:wrap;gap:5px">${skippedPlates.map(p => `<span style="background:var(--surface2);border-radius:999px;padding:3px 10px;font-size:12.5px;font-weight:800;direction:ltr">${esc(p)}</span>`).join('')}</div>
+        <button onclick="recallClearSkip()" style="margin-top:9px;background:#0d6ab0;color:#fff;border:none;border-radius:9px;padding:8px 14px;font-family:Heebo,sans-serif;font-size:12.5px;font-weight:800;cursor:pointer">✅ הרכבים כבר הגיעו — סרוק את כולם</button>
+      </div>` : '') +
     (clean !== null ? `<div style="color:#166534">✅ <b>${clean}</b> רכבים ללא ריקול</div>` : '') +
     `<div style="color:${withRecall ? '#991b1b' : '#166534'}">${withRecall ? '⚠️' : '✅'} <b>${withRecall}</b> רכבים עם ריקול פתוח</div>` +
     (resolved ? `<div style="color:#166534">🔧 <b>${resolved}</b> טופלו — ממתינים להסרה ע״י משרד התחבורה</div>` : '');
 }
+
+function recallToggleSkipped() {
+  const el = document.getElementById('recall-skipped-box');
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+window.recallToggleSkipped = recallToggleSkipped;
+
+/* רשימת הדילוג נבנתה מרכבים "לפי הזמנה" שטרם הגיעו. משהגיעו, אין סיבה
+   להמשיך לדלג עליהם. הריקון נשמר בשרת ותופס בסריקה הבאה. */
+async function recallClearSkip() {
+  if (!confirm('לסרוק מעכשיו את כל הרכבים במלאי, בלי דילוג?')) return;
+  if (!_requireNet('עדכון רשימת הדילוג')) return;
+  try {
+    await window._setDoc(_docRef('config', 'scan_filter'), { skipPlates: [] }, { merge: true });
+    showToast('✅ הדילוג בוטל — הרץ סריקה עכשיו כדי לראות את כל הרכבים', 7000);
+  } catch (e) { showToast('העדכון נכשל: ' + (e.code || e.message), 6000); }
+}
+window.recallClearSkip = recallClearSkip;
 
 // persists the open-recall list to Firestore — this is what the daily
 // automatic scan, the home-screen badge, and the 8:30 reminder all read.

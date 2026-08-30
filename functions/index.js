@@ -191,11 +191,19 @@ async function _loadSkipPlates() {
   return _skipPlates;
 }
 
-// מסננת מהמלאי את הרכבים שברשימת הדילוג
+// מסננת מהמלאי את הרכבים שברשימת הדילוג. המספרים נשמרים כדי שבמסך
+// יהיה אפשר לראות כמה רכבים היו במלאי וכמה דולגו — אחרת "נסרקו 85"
+// נראה כאילו חסרים רכבים בלי שום הסבר.
+let _lastScanCounts = { inventory: 0, skipped: 0, skippedPlates: [] };
 async function _filterScannable(cars) {
   const skip = await _loadSkipPlates();
-  if (!skip.size) return cars;
-  return cars.filter((c) => !skip.has(c.plate));
+  const out = skip.size ? cars.filter((c) => !skip.has(c.plate)) : cars;
+  _lastScanCounts = {
+    inventory: cars.length,
+    skipped: cars.length - out.length,
+    skippedPlates: cars.filter((c) => skip.has(c.plate)).map((c) => c.plate),
+  };
+  return out;
 }
 
 // מושכת את המלאי הפעיל ומחזירה רשימת רכבים אחידה לשתי הסריקות
@@ -454,7 +462,12 @@ async function _runRecallScanInner() {
       const prev = prevByPlate[c.plate];
       return { ...c, resolved: !!prev?.resolved, taskId: prev?.taskId || null };
     });
-    await statusRef.set({ cars: finalCars, updatedAt: new Date(), checkedCount: cars.length });
+    await statusRef.set({
+      cars: finalCars, updatedAt: new Date(), checkedCount: cars.length,
+      inventoryCount: _lastScanCounts.inventory,
+      skippedCount: _lastScanCounts.skipped,
+      skippedPlates: _lastScanCounts.skippedPlates,
+    });
     return { ok: true, checked: cars.length, withRecall: finalCars.length, usedFreeText: useQ };
 }
 
