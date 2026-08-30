@@ -2058,10 +2058,41 @@
     window._adsTexts={ mp:genMarketplace(c), tt:genTikTok(c), reels:genReels(c), meta:genMeta(c) };
     document.getElementById('adsModalTitle').textContent='פרסום - '+(c.brand+' '+c.model);
     var block=function(key,label){ return '<div style="margin-bottom:16px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><b>'+label+'</b><button onclick="copyAds(\''+key+'\',this)" style="background:#0d0d0d;color:#fff;border:none;border-radius:8px;padding:5px 14px;font-size:12px;font-weight:800;cursor:pointer">📋 העתק</button></div><textarea readonly style="width:100%;height:160px;font-size:12.5px;border:1px solid #e5e7eb;border-radius:10px;padding:10px;direction:rtl;font-family:inherit">'+_esc(window._adsTexts[key])+'</textarea></div>'; };
-    document.getElementById('adsModalBody').innerHTML = block('mp','🛒 מודעת Marketplace') + block('tt','🎬 סקריפט טיקטוק') + block('reels','🎥 תסריט רילס (Instagram)') + block('meta','📣 מודעת Meta');
+    var hasImg = !!((c.catalog_image&&c.catalog_image.trim())||(c.image&&!c.image.startsWith('data:')));
+    var autoBar='<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:12px;padding:12px;margin-bottom:16px">'+
+      '<div style="font-weight:900;margin-bottom:8px">🚀 פרסום אוטומטי (Meta)</div>'+
+      (hasImg?'<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+        '<button onclick="socialPublish('+c.id+',\'photo\',[\'ig\',\'fb\'],this)" style="background:#1877F2;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:800;cursor:pointer">📷 פרסם תמונה לאינסטגרם + פייסבוק</button>'+
+        '<button onclick="socialPublish('+c.id+',\'photo\',[\'ig\'],this)" style="background:#E1306C;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:800;cursor:pointer">📷 אינסטגרם בלבד</button>'+
+      '</div><div id="socialMsg" style="font-size:12px;color:#64748b;margin-top:8px"></div>'
+      :'<div style="font-size:13px;color:#b45309">⚠️ אין תמונת קטלוג לרכב זה - הוסף תמונה כדי לפרסם אוטומטית.</div>')+
+    '</div>';
+    document.getElementById('adsModalBody').innerHTML = autoBar + block('mp','🛒 מודעת Marketplace') + block('tt','🎬 סקריפט טיקטוק') + block('reels','🎥 תסריט רילס (Instagram)') + block('meta','📣 מודעת Meta');
     document.getElementById('adsModal').classList.remove('hidden');
   }
   function copyAds(key,btn){ var t=(window._adsTexts||{})[key]||''; try{ if(navigator.clipboard){ navigator.clipboard.writeText(t).then(function(){ btn.textContent='✅ הועתק'; setTimeout(function(){btn.textContent='📋 העתק';},1500); }); } }catch(e){} }
+  async function socialPublish(carId, type, targets, btn){
+    let token=''; try{ token=sessionStorage.getItem('socialToken')||''; }catch(e){}
+    if(!token){ token=prompt('הזן את סוד הפרסום (SOCIAL_PUBLISH_TOKEN שהוגדר ב-Netlify):')||''; if(!token) return; try{ sessionStorage.setItem('socialToken',token); }catch(e){} }
+    const msg=document.getElementById('socialMsg'); const orig=btn?btn.textContent:'';
+    if(btn){ btn.disabled=true; btn.textContent='⏳ מפרסם...'; }
+    if(msg) msg.textContent='⏳ שולח ל-Meta...';
+    try{
+      const r=await fetch('/admin-api/social-publish',{ method:'POST', headers:{'Content-Type':'application/json','x-admin-token':token}, body:JSON.stringify({carId, type, targets}) });
+      const d=await r.json();
+      if(r.status===403){ try{sessionStorage.removeItem('socialToken');}catch(e){} if(msg) msg.textContent='❌ סוד שגוי או ה-endpoint מושבת (בדוק משתני סביבה ב-Netlify).'; }
+      else if(d.ok){
+        if(msg) msg.innerHTML='✅ פורסם! '+Object.keys(d.results||{}).map(k=>k+': '+(d.results[k].ok?'✔':'�’שגיאה')).join(' · ');
+        // סימון אוטומטי במעקב פרסום
+        const c=cars.find(x=>String(x.id)===String(carId));
+        if(c){ if(!c.pub)c.pub={}; if(d.results.ig&&d.results.ig.ok) c.pub['ig_photo']=new Date().toISOString(); saveCars(); }
+        toast('✅ הרכב פורסם ברשתות');
+      } else {
+        if(msg) msg.textContent='❌ הפרסום נכשל: '+JSON.stringify(d.results||d.reason||d);
+      }
+    }catch(e){ if(msg) msg.textContent='❌ שגיאת רשת: '+String(e); }
+    if(btn){ btn.disabled=false; btn.textContent=orig; }
+  }
 
   // ===== שכר =====
   let payData = [];
