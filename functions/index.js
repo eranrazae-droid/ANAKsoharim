@@ -164,17 +164,12 @@ function _carwizName(desc) {
 }
 
 // ── רכבים שלא נסרקים ──────────────────────────────────────────────────
-// רכבים "לפי הזמנה" שעדיין לא הגיעו בפועל. הם מופיעים במלאי אבל אין
-// טעם לבדוק להם ריקולים או בעלויות. הרשימה כאן היא ברירת המחדל, וניתן
-// לעדכן אותה בלי לשנות קוד דרך Firestore: config/scan_filter → skipPlates.
-const _SCAN_SKIP_PLATES = [
-  "36805104", "36872304", "41772304", "42339704", "47519104", "49245604",
-  "52807804", "53864404", "55054904", "55378904", "56514104", "56514304",
-  "58684704", "59634904", "60039604", "60727804", "60802504", "61731604",
-  "64244204", "64255104", "64263604", "65805904", "65816904", "65942904",
-  "67148404", "67294504", "67297604", "71544204", "72279204", "72382504",
-  "73093704", "73858803", "74232304", "75278804",
-];
+// רכב "לפי הזמנה" שטרם הגיע נרשם במלאי בלי מספר רישוי אמיתי ("הזמנה-021"),
+// ולכן הוא ממילא אינו נכנס לסריקה — אין לו לוחית לבדוק. אין צורך ברשימת
+// דילוג ידנית, וכל רכב עם מספר רישוי אמיתי נסרק.
+// אם בכל זאת צריך להוציא רכב מסוים מהסריקה, אפשר להוסיף אותו ב-Firestore:
+// config/scan_filter → skipPlates. הרשימה שם גוברת על הקוד.
+const _SCAN_SKIP_PLATES = [];
 let _skipPlates = null;      // מטמון קצר, כדי שעדכון הרשימה ייכנס מיד
 let _skipPlatesAt = 0;
 
@@ -202,26 +197,41 @@ async function _filterScannable(cars) {
     inventory: cars.length,
     skipped: cars.length - out.length,
     skippedPlates: cars.filter((c) => skip.has(c.plate)).map((c) => c.plate),
+    feedBlocks: _lastFeedCounts.blocks,
+    badPlateCount: _lastFeedCounts.blocks - _lastFeedCounts.valid,
+    badPlates: _lastFeedCounts.badPlates,
   };
   return out;
 }
 
 // מושכת את המלאי הפעיל ומחזירה רשימת רכבים אחידה לשתי הסריקות
 // (ריקולים ובעלויות), כדי ששתיהן תמיד יעבדו על אותו מלאי.
+// כמה רכבים הגיעו מהפיד וכמה נפלו בדרך — בלי המספרים האלה אי אפשר לדעת
+// אם רכב חסר בגלל הפיד, בגלל לוחית לא תקינה או בגלל רשימת הדילוג.
+let _lastFeedCounts = { blocks: 0, valid: 0, badPlates: [] };
 async function _fetchInventory() {
   const res = await fetch(_INVENTORY_URL);
   if (!res.ok) throw new Error("HTTP " + res.status);
   const xml = await res.text();
   const blocks = xml.match(/<CAR>[\s\S]*?<\/CAR>/gi) || [];
-  return blocks.map((b) => {
+  const all = blocks.map((b) => {
     const { tozeret, degem } = _carwizName(_xmlTag(b, "Description"));
     return {
       plate: _xmlTag(b, "CarNumber").replace(/\D/g, ""),
       tozeret,
       degem,
       shnat: _xmlTag(b, "ManufactureYear"),
+      rawPlate: _xmlTag(b, "CarNumber"),
     };
-  }).filter((c) => c.plate.length === 7 || c.plate.length === 8);
+  });
+  const valid = all.filter((c) => c.plate.length === 7 || c.plate.length === 8);
+  _lastFeedCounts = {
+    blocks: blocks.length,
+    valid: valid.length,
+    badPlates: all.filter((c) => c.plate.length !== 7 && c.plate.length !== 8)
+      .map((c) => c.rawPlate).slice(0, 40),
+  };
+  return valid;
 }
 
 async function _recallLearnField() {
@@ -467,6 +477,9 @@ async function _runRecallScanInner() {
       inventoryCount: _lastScanCounts.inventory,
       skippedCount: _lastScanCounts.skipped,
       skippedPlates: _lastScanCounts.skippedPlates,
+      feedCount: _lastScanCounts.feedBlocks || 0,
+      badPlateCount: _lastScanCounts.badPlateCount || 0,
+      badPlates: _lastScanCounts.badPlates || [],
     });
     return { ok: true, checked: cars.length, withRecall: finalCars.length, usedFreeText: useQ };
 }
