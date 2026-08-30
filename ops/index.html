@@ -1985,7 +1985,7 @@ if ('serviceWorker' in navigator) {
 
 <div class="modal-overlay" id="modal-bshop-fill">
   <div class="modal-box">
-    <div class="modal-title"><span id="bshop-fill-title">רכב</span> <button class="modal-close" onclick="_bshopAutoSave(true);closeModal('modal-bshop-fill')">✕</button></div>
+    <div class="modal-title"><span id="bshop-fill-title">רכב</span> <button class="modal-close" onclick="_bshopAutoSave(true);closeModal('modal-bshop-fill');_bshopFillClosed()">✕</button></div>
     <div id="bshop-fill-hint" style="font-size:13px;color:var(--muted);margin-bottom:12px">רשום מחיר ליד כל חלק שצבעת. חלק שלא עשית — השאר ריק.</div>
     <div id="bshop-fill-photo"></div>
     <div id="bshop-fill-note"></div>
@@ -10995,12 +10995,30 @@ function _bshopRenderWorkerArchive() {
     : `<div class="bshop-span" style="padding:16px;text-align:center;color:var(--muted)">עדיין לא נסגר חשבון</div>`;
 }
 
-function _bshopRenderWorker() {
+/* חתימה של מה שבאמת מצויר על המסך של הפחח. כל כתיבה במסד — גם כזו שלא
+   נוגעת בו — הפעילה ציור מחדש, והמסך "קפץ" באמצע עבודה. עכשיו הציור רץ
+   רק כשמשהו שהוא רואה השתנה באמת. */
+function _bshopWorkerSig(jobs) {
+  return JSON.stringify(jobs.map(j => [
+    j.id, j.plate, j.desc, j.status, j.note, j.photoThumb ? 1 : 0, j.swUpdated ? 1 : 0,
+    (j.items || []).map(it => `${it.name}:${it.price ?? ''}`).join('|'),
+  ]));
+}
+let _bshopWorkerSigLast = null;
+let _bshopWorkerPending = false;
+
+function _bshopRenderWorker(force) {
   const openC = document.getElementById('bshop-open');
   const retC  = document.getElementById('bshop-returned');
   if (!openC || !retC) return;
   const open = _bshopJobs.filter(j => j.status === 'at_shop');
   const ret  = _bshopJobs.filter(j => j.status === 'returned');
+  // בזמן שהפתק פתוח לעריכה לא מציירים מחדש מתחתיו — הציור מחכה לסגירה
+  const fill = document.getElementById('modal-bshop-fill');
+  if (!force && fill && fill.classList.contains('open')) { _bshopWorkerPending = true; return; }
+  const sig = _bshopWorkerSig(_bshopJobs);
+  if (!force && sig === _bshopWorkerSigLast) return;   // שום דבר לא השתנה
+  _bshopWorkerSigLast = sig;
   openC.innerHTML = open.length ? open.map(j => _bshopJobCard(j, true)).join('')
     : `<div class="bshop-span" style="padding:24px;text-align:center;color:var(--muted)">${
         _bshopJobs.length ? 'אין רכבים אצלך כרגע' : 'לא התקבלו פתקים מהשרת — בדוק חיבור'}</div>`;
@@ -11016,6 +11034,15 @@ function _bshopRenderWorker() {
   _bshopUpgradeCardPhotos();
   _bshopRenderWorkerArchive();
 }
+
+// הציור שנדחה בזמן שהפתק היה פתוח מתבצע ברגע שהוא נסגר
+function _bshopFillClosed() {
+  _bshopFillId = null;
+  if (!_bshopWorkerPending) return;
+  _bshopWorkerPending = false;
+  _bshopRenderWorker(true);
+}
+window._bshopFillClosed = _bshopFillClosed;
 
 let _bshopFillMgr = false;   // the manager edits the same note, with more freedom
 
@@ -11374,6 +11401,7 @@ async function bshopSave(markDone, silent) {
     else if (j.reportFailed && j.status === 'returned') _bshopReportDone({ ...j, items }, _bshopFillId);
     if (silent) { _bshopSetSaved('✓ נשמר'); return; }
     closeModal('modal-bshop-fill');
+    _bshopFillClosed();
     showToast(markDone ? '✅ הרכב סומן כמוכן' : '💾 נשמר');
   } catch (e) {
     if (silent) { _bshopSetSaved('⚠️ לא נשמר — בדוק חיבור'); return; }
