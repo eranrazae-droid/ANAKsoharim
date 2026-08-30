@@ -949,6 +949,7 @@
         renderAll();
       });
       Promise.all([loadTasks(), loadLeadsFromCloud()]).then(function(){ setTimeout(showWelcome, 500); });
+      loadSourceLog().then(renderSourceMetric);
       setTimeout(showHolidayPromo, 900);
     } else {
       document.getElementById('loginErr').classList.remove('hidden');
@@ -1000,6 +1001,7 @@
       if(Date.now() >= _localSaveMuteUntil && data && data.length > 0) { cars = cleanCars(data); localStorage.setItem(STORAGE_KEY, JSON.stringify(cars)); }
       renderAll();
     });
+    loadSourceLog().then(renderSourceMetric);
     setTimeout(showHolidayPromo, 900);
   }
 
@@ -1015,6 +1017,7 @@
     setTimeout(showAskSource, 350); // אחרי סגירת המבצע - תזכורת לשאול מקור הגעה
   }
   function showAskSource(force){
+    loadSourceLog().then(renderSourceMetric);
     renderSourceMetric();
     if(!force){ try{ if(localStorage.getItem('sourceHideDay')===new Date().toDateString()) return; }catch(e){} }
     const m=document.getElementById('askSourceModal'); if(m) m.classList.remove('hidden');
@@ -1024,16 +1027,33 @@
     if(cb&&cb.checked){ try{ localStorage.setItem('sourceHideDay', new Date().toDateString()); }catch(e){} }
     const m=document.getElementById('askSourceModal'); if(m) m.classList.add('hidden');
   }
-  // ===== תיעוד מקור הגעה של לקוחות =====
-  function _sourceLog(){ try{ return JSON.parse(localStorage.getItem('sourceLog')||'[]'); }catch(e){ return []; } }
-  function recordSource(src){
+  // ===== תיעוד מקור הגעה של לקוחות (מסונכרן בענן - inventory שורה 2) =====
+  let _srcLog=null; // מטמון בזיכרון
+  function _srcLogLocal(){ try{ return JSON.parse(localStorage.getItem('sourceLog')||'[]'); }catch(e){ return []; } }
+  function _sourceLog(){ return _srcLog!=null?_srcLog:_srcLogLocal(); }
+  async function loadSourceLog(){
+    const c=sbClient(); if(!c) return _sourceLog();
+    try{
+      const { data } = await c.from('inventory').select('data').eq('id',2).maybeSingle();
+      const arr=(data && Array.isArray(data.data))?data.data:[];
+      _srcLog=arr;
+      try{ localStorage.setItem('sourceLog', JSON.stringify(arr)); }catch(e){}
+      return arr;
+    }catch(e){ return _sourceLog(); }
+  }
+  async function recordSource(src){
     const phone=((document.getElementById('sourcePhone')||{}).value||'').trim();
-    const log=_sourceLog();
-    log.push({ source:src, phone:phone, ts:new Date().toISOString() });
-    try{ localStorage.setItem('sourceLog', JSON.stringify(log)); }catch(e){}
+    const rec={ source:src, phone:phone, ts:new Date().toISOString() };
+    const c=sbClient();
+    let arr=_sourceLog().slice();
+    if(c){ try{ const { data }=await c.from('inventory').select('data').eq('id',2).maybeSingle(); if(data && Array.isArray(data.data)) arr=data.data.slice(); }catch(e){} }
+    arr.push(rec);
+    _srcLog=arr;
+    try{ localStorage.setItem('sourceLog', JSON.stringify(arr)); }catch(e){}
+    if(c){ try{ await c.from('inventory').upsert({ id:2, data:arr, updated_at:new Date().toISOString() }); }catch(e){} }
     const pf=document.getElementById('sourcePhone'); if(pf) pf.value='';
     renderSourceMetric();
-    toast('✅ נרשם: '+src+(phone?(' · '+phone):''));
+    toast('✅ נרשם: '+src+(phone?(' · '+phone):'')+' (סונכרן)');
   }
   function recordSourceFree(){
     const v=((document.getElementById('sourceFree')||{}).value||'').trim();
@@ -1068,6 +1088,13 @@
     const c = sbClient(); if(!c){ setTimeout(adminRealtime, 1500); return; }
     try{
       c.channel('inv-admin').on('postgres_changes', {event:'*', schema:'public', table:'inventory'}, function(payload){
+        const rowId = payload && payload.new && payload.new.id;
+        if(rowId===2){ // שורת מקורות הגעה - לא רכבים
+          const s = payload.new.data;
+          if(Array.isArray(s)){ _srcLog=s; try{ localStorage.setItem('sourceLog', JSON.stringify(s)); }catch(e){} renderSourceMetric(); }
+          return;
+        }
+        if(rowId!=null && rowId!==1) return; // מטפלים רק במלאי (שורה 1)
         const arr = payload && payload.new && payload.new.data;
         if(!Array.isArray(arr) || !arr.length) return;
         const editing = !document.getElementById('editModal').classList.contains('hidden');
