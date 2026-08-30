@@ -3008,7 +3008,7 @@ if ('serviceWorker' in navigator) {
 <!-- ====== MODAL: WHO TOOK THE CAR TO IBRAHIM ====== -->
 <div class="modal-overlay" id="modal-bsm-driver">
   <div class="modal-box" style="max-width:420px">
-    <div class="modal-title">🚗 מי לוקח את הרכב? <button class="modal-close" onclick="closeModal('modal-bsm-driver')">✕</button></div>
+    <div class="modal-title"><span id="bsm-driver-title">🚗 מי לוקח את הרכב?</span> <button class="modal-close" onclick="closeModal('modal-bsm-driver')">✕</button></div>
     <div id="bsm-driver-car" style="font-size:14px;font-weight:800;margin-bottom:12px"></div>
     <div id="bsm-driver-list" style="display:flex;flex-direction:column;gap:9px"></div>
     <div style="margin-top:12px">
@@ -11657,23 +11657,64 @@ window.bsmOpenJob = bsmOpenJob;
    וגם ביומן נפרד, כדי שהוא יישאר גם אם הפתק יימחק. */
 const _BSM_DRIVERS = ['עופר', 'גיל', 'איתי'];
 let _bsmSendId = null;
+let _bsmTripEdit = null;   // תיעוד נסיעה שנערך כרגע — במקום שליחת פתק חדש
+
+// אותה חלונית משמשת גם לשליחה וגם לתיקון תיעוד קיים
+function _bsmDriverPicker(title, carHtml, current) {
+  const t = document.getElementById('bsm-driver-title');
+  if (t) t.textContent = title;
+  const car = document.getElementById('bsm-driver-car');
+  if (car) car.innerHTML = carHtml;
+  const list = document.getElementById('bsm-driver-list');
+  if (list) list.innerHTML = _BSM_DRIVERS.map(n => {
+    const on = current && n === current;
+    return `<button onclick="bsmSendWithDriver('${esc(n)}')" style="background:${on ? 'var(--dark)' : 'var(--surface2)'};color:${on ? '#fff' : 'var(--text)'};border:2px solid ${on ? 'var(--dark)' : 'var(--border)'};border-radius:12px;padding:13px;font-family:Heebo,sans-serif;font-size:15px;font-weight:800;cursor:pointer;text-align:right">👤 ${esc(n)}${on ? ' ✓' : ''}</button>`;
+  }).join('');
+  const other = document.getElementById('bsm-driver-other');
+  if (other) other.value = (current && !_BSM_DRIVERS.includes(current)) ? current : '';
+  openModal('modal-bsm-driver');
+}
 
 function bsmSendToShop(id) {
   const j = _bshopJobs.find(x => x.id === id);
   if (!j || j.status !== 'draft') return;
   _bsmSendId = id;
-  const car = document.getElementById('bsm-driver-car');
-  if (car) car.innerHTML = `${esc(j.plate || '')}${j.desc ? ` <span style="font-weight:700;color:var(--muted)">· ${esc(j.desc)}</span>` : ''}`;
-  const list = document.getElementById('bsm-driver-list');
-  if (list) list.innerHTML = _BSM_DRIVERS.map(n =>
-    `<button onclick="bsmSendWithDriver('${esc(n)}')" style="background:var(--surface2);color:var(--text);border:2px solid var(--border);border-radius:12px;padding:13px;font-family:Heebo,sans-serif;font-size:15px;font-weight:800;cursor:pointer;text-align:right">👤 ${esc(n)}</button>`).join('');
-  const other = document.getElementById('bsm-driver-other');
-  if (other) other.value = '';
-  openModal('modal-bsm-driver');
+  _bsmTripEdit = null;
+  _bsmDriverPicker('🚗 מי לוקח את הרכב?',
+    `${esc(j.plate || '')}${j.desc ? ` <span style="font-weight:700;color:var(--muted)">· ${esc(j.desc)}</span>` : ''}`, '');
 }
 window.bsmSendToShop = bsmSendToShop;
 
+/* לחיצה על שם הנהג בתיעוד הנסיעות פותחת את אותה בחירה, כדי לתקן
+   מי באמת לקח את הרכב. התיקון נשמר גם ביומן וגם על הפתק עצמו. */
+function bsmTripEditDriver(tripId, plate, desc, driver, jobId) {
+  _bsmSendId = null;
+  _bsmTripEdit = { id: tripId, plate, desc, driver, jobId };
+  _bsmDriverPicker('✏️ מי לקח את הרכב?',
+    `${esc(plate || '')}${desc ? ` <span style="font-weight:700;color:var(--muted)">· ${esc(desc)}</span>` : ''}`, driver);
+}
+window.bsmTripEditDriver = bsmTripEditDriver;
+
 async function bsmSendWithDriver(name) {
+  // תיקון תיעוד קיים
+  if (_bsmTripEdit) {
+    const driver = String(name || document.getElementById('bsm-driver-other')?.value || '').trim();
+    if (!driver) return showToast('צריך לבחור נהג או לרשום שם');
+    if (driver === _bsmTripEdit.driver) { closeModal('modal-bsm-driver'); _bsmTripEdit = null; return; }
+    if (!_requireNet('עדכון התיעוד')) return;
+    const trip = _bsmTripEdit;
+    try {
+      await _updateDoc(_docRef('bodyshop_trips', trip.id), { driver, editedBy: currentUser?.name || '', editedAt: new Date().toISOString() });
+      // הפתק עצמו מחזיק גם הוא את השם, כדי שלא ייווצר פער בין השניים
+      const jobId = trip.jobId;
+      if (jobId) { try { await _updateDoc(_docRef('bodyshop_jobs', jobId), { takenBy: driver }); } catch (e) { console.error('job takenBy', e); } }
+      closeModal('modal-bsm-driver');
+      _bsmTripEdit = null;
+      showToast(`✅ עודכן — ${driver}`);
+      openBsmTrips();
+    } catch (e) { showToast('העדכון נכשל: ' + (e.code || e.message), 6000); }
+    return;
+  }
   const id = _bsmSendId;
   const j = _bshopJobs.find(x => x.id === id);
   if (!id || !j) return;
@@ -11721,7 +11762,7 @@ async function openBsmTrips() {
     return `<div style="background:var(--card);border:2px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:8px">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
         <div style="font-size:16px;font-weight:900">${esc(r.plate || '—')}</div>
-        <span style="background:var(--dark);color:#fff;border-radius:999px;padding:3px 12px;font-size:12.5px;font-weight:800;white-space:nowrap">👤 ${esc(r.driver || '—')}</span>
+        <button onclick="bsmTripEditDriver('${esc(r.id)}','${esc(r.plate || '')}','${esc(r.desc || '')}','${esc(r.driver || '')}','${esc(r.jobId || '')}')" title="לחץ לשינוי הנהג" style="background:var(--dark);color:#fff;border:none;border-radius:999px;padding:5px 13px;font-family:Heebo,sans-serif;font-size:12.5px;font-weight:800;white-space:nowrap;cursor:pointer">👤 ${esc(r.driver || '—')} ✏️</button>
       </div>
       ${r.desc ? `<div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:3px">${esc(r.desc)}</div>` : ''}
       <div style="font-size:12px;font-weight:700;color:var(--muted);margin-top:4px">${esc(when)}</div>
