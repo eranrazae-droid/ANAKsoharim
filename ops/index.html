@@ -276,6 +276,14 @@ body.has-crest .cal-day.barca.selected .cal-num{box-shadow:0 0 0 2px var(--dark)
 .pk-nav{display:flex;align-items:center;gap:6px;background:#1d4ed8;color:#fff;border-radius:8px;padding:5px 9px;
   text-decoration:none}
 .pk-status{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:auto}
+/* פנקס הכתובות: במסך רחב הכרטיסים נפרסים לעמודות והכפתורים לשורה */
+#pk-addr-book{display:grid;grid-template-columns:1fr;gap:8px;align-content:start}
+#pk-addr-book>div{margin-bottom:0 !important}
+@media(min-width:760px){
+  .pk-act-btns{grid-template-columns:repeat(3,1fr) !important}
+  #pk-addr-book{grid-template-columns:repeat(2,1fr)}
+}
+@media(min-width:1100px){ #pk-addr-book{grid-template-columns:repeat(3,1fr)} }
 .pk-badge{display:flex;align-items:center;justify-content:center;height:28px;border-radius:8px;font-size:11.5px;
   font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 6px}
 .pk-acts{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
@@ -2796,9 +2804,9 @@ if ('serviceWorker' in navigator) {
 
 <!-- ====== MODAL: PICKUP ACTIONS ====== -->
 <div class="modal-overlay" id="modal-pickup-actions">
-  <div class="modal-box">
+  <div class="modal-box" style="max-width:1000px;max-height:94vh">
     <div class="modal-title"><span>➕ פעולות ומידע</span> <button class="modal-close" onclick="closeModal('modal-pickup-actions')">✕</button></div>
-    <div style="display:flex;flex-direction:column;gap:10px">
+    <div class="pk-act-btns" style="display:grid;grid-template-columns:1fr;gap:10px">
       <button onclick="closeModal('modal-pickup-actions');openFreeTextPickupModal()" style="background:var(--gold);color:#000;border:none;border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:15px;font-weight:800;cursor:pointer">🖼️ הוספה לפי תמונה</button>
       <button onclick="closeModal('modal-pickup-actions');openTextPickupModal()" style="background:#7c3aed;color:#fff;border:none;border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:15px;font-weight:800;cursor:pointer">📝 הוספה לפי מלל</button>
       <button onclick="closeModal('modal-pickup-actions');openOwnershipModal()" style="background:#2563eb;color:#fff;border:none;border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:15px;font-weight:800;cursor:pointer">📤 העלאת בעלויות</button>
@@ -2810,7 +2818,7 @@ if ('serviceWorker' in navigator) {
         <input type="text" id="pk-addr-search" oninput="_renderPickupAddrBook()" placeholder="חיפוש עיר / כתובת / איש קשר"
           style="flex:1;max-width:220px;padding:6px 10px;border-radius:9px;border:1.5px solid var(--border);background:var(--card);color:var(--text);font-family:Heebo,sans-serif;font-size:13px">
       </div>
-      <div id="pk-addr-book" style="max-height:46vh;overflow-y:auto"></div>
+      <div id="pk-addr-book" style="max-height:68vh;overflow-y:auto"></div>
     </div>
   </div>
 </div>
@@ -21641,7 +21649,8 @@ function _pickupAddrBookRows() {
 }
 
 /* התצוגה: כרטיס לכל כתובת — העיר קטנה מעל, הכתובת גדולה, ואנשי הקשר
-   כשבבים שאפשר להתקשר אליהם. כפתור עיפרון פותח עריכה במקום. */
+   כשבבים שאפשר להתקשר אליהם. כפתור עיפרון פותח עריכה במקום.
+   במסך רחב הכרטיסים נפרסים לשתיים-שלוש עמודות, כדי לראות הרבה בבת אחת. */
 let _pkAddrRows = [];
 
 function _renderPickupAddrBook() {
