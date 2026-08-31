@@ -129,7 +129,8 @@ exports.govilProxy = onRequest({ cors: true, region: "europe-west1" }, async (re
     const data = await govRes.json();
     res.status(govRes.ok ? 200 : govRes.status).json(data);
   } catch (err) {
-    res.status(502).json({ error: "upstream fetch failed", message: err.message });
+    // מצרפים את מה שקרה בפועל, כדי שאפשר יהיה לאבחן מהקונסול
+    res.status(502).json({ error: "upstream fetch failed", message: err.message, last: _govLast });
   }
 });
 
@@ -1323,22 +1324,40 @@ let _govLast = { status: 0, body: "" };
 // לכן יש ממסר בשרת של גוגל בתל אביב (me-west1) — משם הפנייה יוצאת
 // מכתובת ישראלית ועוברת. קודם מנסים ישירות, ואם נחסם — דרך הממסר.
 const _GOV_RELAY = "https://me-west1-anak-soharim.cloudfunctions.net/govRelay";
+// פנייה עם מגבלת זמן — חיבור שנתקע לא מבזבז את כל זמן הבקשה
+async function _fetchTimeout(url, opts, ms) {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), ms || 15000);
+  try { return await fetch(url, { ...(opts || {}), signal: ctl.signal }); }
+  finally { clearTimeout(t); }
+}
+
 async function _govFetch(url) {
-  let res;
+  let res = null, thrown = null;
   for (let attempt = 0; attempt < 2; attempt++) {
-    res = await fetch(url, { headers: _GOV_HEADERS });
-    if (res.ok) { _govLast = { status: res.status, body: "" }; return res; }
-    _govLast = { status: res.status, body: (await res.text().catch(() => "")).slice(0, 200) };
-    if (res.status !== 403 && res.status < 500) break;
+    try {
+      res = await _fetchTimeout(url, { headers: _GOV_HEADERS });
+      if (res.ok) { _govLast = { status: res.status, body: "" }; return res; }
+      _govLast = { status: res.status, body: (await res.text().catch(() => "")).slice(0, 200) };
+      if (res.status !== 403 && res.status < 500) break;
+    } catch (err) {
+      /* הפנייה הישירה נפלה ברמת הרשת — זו בדיוק החסימה מחו״ל. חייבים
+         להמשיך לממסר הישראלי ולא לזרוק החוצה, אחרת הוא לא נוסה בכלל. */
+      thrown = err;
+      _govLast = { status: 0, body: String(err && err.message || err).slice(0, 200) };
+    }
     if (attempt < 1) await _sleep2(1500);
   }
   // נחסמנו — מנסים דרך הממסר הישראלי
   try {
-    const relayed = await fetch(`${_GOV_RELAY}?url=${encodeURIComponent(url)}`);
+    const relayed = await _fetchTimeout(`${_GOV_RELAY}?url=${encodeURIComponent(url)}`, null, 30000);
     if (relayed.ok) { _govLast = { status: relayed.status, body: "", via: "relay" }; return relayed; }
     _govLast = { status: relayed.status, body: (await relayed.text().catch(() => "")).slice(0, 200), via: "relay" };
-  } catch (err) { /* הממסר לא זמין — נשארים עם התשובה הישירה */ }
-  return res;
+    if (res) return res;
+    return relayed;
+  } catch (err) { /* הממסר לא זמין */ }
+  if (res) return res;
+  throw thrown || new Error("gov fetch failed");
 }
 
 // הממסר עצמו: רץ בתל אביב ומעביר הלאה רק כתובות של data.gov.il
