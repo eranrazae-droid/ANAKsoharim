@@ -10347,11 +10347,28 @@ function _pcFetch(url, ms) {
   return fetch(url, { signal: ctl.signal }).finally(() => clearTimeout(t));
 }
 
+/* מרשם הרכב חוסם ומאט מדי פעם, ואז שש שניות לא מספיקות והחיפוש נראה
+   כאילו הוא לא עובד. ניסיון שני עם המתנה קצרה פותר את רוב המקרים. */
+async function _pcFetchRetry(url) {
+  let last;
+  for (let i = 0; i < 3; i++) {
+    try {
+      const res = await _pcFetch(url, 12000);
+      if (res.ok) return res;
+      last = new Error('HTTP ' + res.status);
+      if (res.status < 500 && res.status !== 429) throw last;   // תשובה אמיתית — אין טעם לנסות שוב
+    } catch (e) {
+      last = (e && e.name === 'AbortError') ? new Error('התשובה לא הגיעה בזמן') : e;
+    }
+    if (i < 2) await new Promise(r => setTimeout(r, 800 * (i + 1)));
+  }
+  throw last || new Error('שגיאה לא ידועה');
+}
+
 // one filtered registry query; returns the record only if the plate matches exactly
 async function _pcFilterLookup(plate, value) {
   const filters = encodeURIComponent(JSON.stringify({ mispar_rechev: value }));
-  const res = await _pcFetch(`https://europe-west1-anak-soharim.cloudfunctions.net/govilProxy?resource_id=${_PC_REGISTRY}&filters=${filters}&limit=1`);
-  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const res = await _pcFetchRetry(`https://europe-west1-anak-soharim.cloudfunctions.net/govilProxy?resource_id=${_PC_REGISTRY}&filters=${filters}&limit=1`);
   const json = await res.json();
   const rec = json?.result?.records?.[0];
   return (rec && _pcNormalizePlate(rec['mispar_rechev']) === plate) ? rec : null;
@@ -13972,7 +13989,9 @@ async function _bsmLookupPlate(manual) {
     // echo what came back so a wrong plate is obvious at a glance
     say('✅ נמצא: ' + parts.join(' · '));
   } catch (e) {
-    say(manual ? 'לא הצלחנו למשוך פרטים — אפשר למלא ידנית' : '');
+    console.error('plate lookup failed', e);
+    // הסיבה נכתבת על המסך — בלעדיה אי אפשר לדעת אם זו רשת, חסימה או תקלה
+    say(manual ? `לא הצלחנו למשוך פרטים (${e.message || e}) — אפשר למלא ידנית` : '');
   }
 }
 window._bsmLookupPlate = _bsmLookupPlate;
