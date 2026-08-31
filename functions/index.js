@@ -2254,3 +2254,5 @@ exports.scheduledNotifications = onSchedule(
     }
   }
 );
+
+// פריסה חוזרת — הריצה הקודמת נפלה על שגיאת API זמנית של גוגל
