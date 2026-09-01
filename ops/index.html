@@ -1363,7 +1363,7 @@ if ('serviceWorker' in navigator) {
   <div class="modal-box">
     <div class="modal-title">
       <span id="di-title">קליטת רכב</span>
-      <button class="modal-close" onclick="saveIntakeDraft();saveIntakeDraftPhotos();if(_diHeaderUnsub){_diHeaderUnsub();_diHeaderUnsub=null;}if(_mgLiveUnsub){_mgLiveUnsub();_mgLiveUnsub=null;}_mgLiveMode=false;const _lb2=document.getElementById('di-live-banner');if(_lb2)_lb2.style.display='none';const _sb2=document.querySelector('#modal-driver-intake .btn-submit');if(_sb2)_sb2.style.display='';closeModal('modal-driver-intake')">✕</button>
+      <button class="modal-close" onclick="saveIntakeDraft();saveIntakeDraftPhotos();if(_diHeaderUnsub){_diHeaderUnsub();_diHeaderUnsub=null;}if(_mgLiveUnsub){_mgLiveUnsub();_mgLiveUnsub=null;}if(_diLiveUnsub){_diLiveUnsub();_diLiveUnsub=null;}_mgLiveMode=false;const _lb2=document.getElementById('di-live-banner');if(_lb2)_lb2.style.display='none';const _sb2=document.querySelector('#modal-driver-intake .btn-submit');if(_sb2)_sb2.style.display='';closeModal('modal-driver-intake')">✕</button>
     </div>
     <div id="di-vehicle-info" style="background:#f0f2ff;border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:14px;line-height:1.8"></div>
     <div id="di-live-banner" style="display:none;background:#dcfce7;border:2px solid #16a34a;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;font-weight:700;color:#166534;text-align:center">🟢 מעקב חי — הטופס מתעדכן בזמן אמת לפי הנהג. אפשר גם לסמן בעצמך.</div>
@@ -7486,6 +7486,8 @@ function openDriverIntake(id) {
   _intakeInputController = new AbortController();
   _currentIntakeId = id;
   if (_mgLiveUnsub) { _mgLiveUnsub(); _mgLiveUnsub = null; }
+  if (_diLiveUnsub) { _diLiveUnsub(); _diLiveUnsub = null; }
+  _diLastEdit = 0; _diAppliedAt = 0;
   const _lb = document.getElementById('di-live-banner'); if (_lb) _lb.style.display = 'none';
   const _sb = document.querySelector('#modal-driver-intake .btn-submit'); if (_sb) _sb.style.display = '';
   // clear checklist
@@ -7534,7 +7536,8 @@ function openDriverIntake(id) {
         if (!snap.exists()) return;
         const v = snap.data();
         const remoteAt = v.liveUpdatedAt ? Date.parse(v.liveUpdatedAt) : 0;
-        const remote = (remoteAt && remoteAt > localAt) ? (v.liveDraft || null) : null;
+        const localObj = localDraftStr ? (() => { try { return JSON.parse(localDraftStr); } catch (e) { return null; } })() : null;
+        const remote = _pickFreshestDraft(localObj, localAt, v.liveDraft, remoteAt);
         const fd = remote || ((!hasLocalChecks && v.draft && Object.keys(v.draft.checks || {}).length) ? v.draft : null);
         if (!fd) return;
         _applyIntakeDraftObj(fd);
@@ -7544,6 +7547,25 @@ function openDriverIntake(id) {
         if (remote) _applyLivePhotos(v.livePhotos, v.liveBatteryPhotos);
         try { localStorage.setItem('intake_draft_' + id, JSON.stringify({ ...fd, _savedAt: remoteAt || Date.now() })); } catch {}
       }).catch(()=>{});
+    });
+  }
+  /* מאזין חי: מה שממלאים במכשיר אחד מופיע בשני בזמן אמת. מה שהמשתמש
+     הזה הקליד בשלוש השניות האחרונות מנצח, כדי שלא נדרוס לו את ההקלדה. */
+  if (window._CONFIG_DONE) {
+    if (_diLiveUnsub) { _diLiveUnsub(); _diLiveUnsub = null; }
+    import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(({ onSnapshot, doc }) => {
+      if (_currentIntakeId !== id) return;      // נפתחה קליטה אחרת בינתיים
+      _diLiveUnsub = onSnapshot(doc(window._db, 'intake_assignments', id), snap => {
+        if (!snap.exists() || _currentIntakeId !== id) return;
+        if (Date.now() - _diLastEdit < 3000) return;       // המשתמש מקליד עכשיו
+        const v = snap.data();
+        const remoteAt = v.liveUpdatedAt ? Date.parse(v.liveUpdatedAt) : 0;
+        if (!remoteAt || remoteAt <= _diAppliedAt) return;  // כבר הוחל
+        if (!_draftWeight(v.liveDraft)) return;
+        _diAppliedAt = remoteAt;
+        _applyIntakeDraftObj(v.liveDraft);
+        _applyLivePhotos(v.livePhotos, v.liveBatteryPhotos);
+      }, () => {});
     });
   }
   // auto-save on any text input — signal ensures old listeners are removed on next intake open
@@ -7821,6 +7843,8 @@ async function submitDriverIntake() {
   const bndcb = document.getElementById('battery-no-date-cb'); if (bndcb) bndcb.checked = false;
   if (_diHeaderUnsub) { _diHeaderUnsub(); _diHeaderUnsub = null; }
   if (_mgLiveUnsub) { _mgLiveUnsub(); _mgLiveUnsub = null; }
+  if (_diLiveUnsub) { _diLiveUnsub(); _diLiveUnsub = null; }
+  _diLastEdit = 0; _diAppliedAt = 0;
   _mgLiveMode = false;
   showToast('✅ הטופס נשלח בהצלחה!');
   _notifyDriver('ליאל', `✅ ${_doneDriver} סיים קליטת רכב — ${_donePlate}`);
@@ -8549,6 +8573,8 @@ evSelection: document.getElementById('di-ev-v')?.classList.contains('v-active') 
     evRange:    document.getElementById('di-ev-range')?.value   || '',
   };
   draft._savedAt = Date.now();
+  _diLastEdit = Date.now();          // המשתמש הזה נגע בטופס עכשיו
+  _diAppliedAt = Date.now();         // ומה שהוא כתב הוא המצב העדכני
   try { localStorage.setItem('intake_draft_' + _currentIntakeId, JSON.stringify(draft)); } catch(e) {}
   // sync draft to Firestore for real-time manager view (debounced)
   clearTimeout(window._draftSyncTimer);
@@ -8658,6 +8684,32 @@ function _applyLivePhotos(photos, batteryB64) {
   }
 }
 
+/* ── בחירת הטיוטה הנכונה בין המכשירים ──────────────────────────────
+   כמה תוכן יש בטיוטה. טיוטה ריקה לא מנצחת טיוטה מלאה רק בגלל שהיא
+   נשמרה מאוחר יותר — זה בדיוק מה שגרם לטופס להיראות ריק במכשיר שני. */
+function _draftWeight(d) {
+  if (!d || typeof d !== 'object') return 0;
+  let n = Object.keys(d.checks || {}).length;
+  ['km', 'code', 'general', 'batteryMonth', 'evSelection', 'evCharge', 'evRange'].forEach(k => {
+    if (String(d[k] || '').trim()) n++;
+  });
+  Object.values(d.notes || {}).forEach(t => { if (String(t || '').trim()) n++; });
+  Object.values(d.photos || {}).forEach(a => { if (Array.isArray(a) && a.length) n++; });
+  if (Object.keys(d.dashChecks || {}).length) n++;
+  return n;
+}
+
+/* מי מנצח: מה שיש בו תוכן. כששניהם מלאים — המאוחר יותר. כששניהם ריקים
+   אין מה להחיל. מחזיר את הטיוטה שיש להחיל, או null. */
+function _pickFreshestDraft(local, localAt, remote, remoteAt) {
+  const lw = _draftWeight(local), rw = _draftWeight(remote);
+  if (!rw) return null;                       // אין תוכן בשרת
+  if (!lw) return remote;                     // מקומי ריק — השרת מנצח תמיד
+  return (remoteAt || 0) > (localAt || 0) ? remote : null;
+}
+window._draftWeight = _draftWeight;
+window._pickFreshestDraft = _pickFreshestDraft;
+
 function _applyIntakeDraftObj(draft) {
   _applyDraftPhotos(draft.photos);
   Object.entries(draft.checks || {}).forEach(([key, val]) => {
@@ -8716,6 +8768,8 @@ async function openManagerIntakeLive(id) {
   // live header
   if (_diHeaderUnsub) { _diHeaderUnsub(); _diHeaderUnsub = null; }
   if (_mgLiveUnsub) { _mgLiveUnsub(); _mgLiveUnsub = null; }
+  if (_diLiveUnsub) { _diLiveUnsub(); _diLiveUnsub = null; }
+  _diLastEdit = 0; _diAppliedAt = 0;
 
   if (window._CONFIG_DONE) {
     import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(({ onSnapshot, doc }) => {
@@ -8751,6 +8805,10 @@ async function openManagerIntakeLive(id) {
   });
 }
 window.openManagerIntakeLive = openManagerIntakeLive;
+
+/* מצב המאזין החי של טופס הקליטה: המנוי עצמו, מתי המשתמש הקליד לאחרונה
+   ומה כבר הוחל — כדי לא לצייר את אותו עדכון פעמיים ולא לדרוס הקלדה. */
+let _diLiveUnsub = null, _diLastEdit = 0, _diAppliedAt = 0;
 
 function restoreIntakeDraft(id) {
   try {
@@ -19974,7 +20032,10 @@ async function openRefreshForm(id) {
   if (r.status !== 'done') {
     const draftKey = 'rf_draft_' + id;
     const localDraft = localStorage.getItem(draftKey);
-    const draft = localDraft ? (() => { try { return JSON.parse(localDraft); } catch(e) { return null; } })() : r.liveDraft || null;
+    const localObj = localDraft ? (() => { try { return JSON.parse(localDraft); } catch(e) { return null; } })() : null;
+    /* טיוטה מקומית ריקה לא מנצחת טיוטה מלאה מהשרת — אחרת הטופס נראה
+       ריק במכשיר שני למרות שמישהו כבר מילא אותו. */
+    const draft = _draftWeight(localObj) ? localObj : (r.liveDraft || localObj);
     if (draft && Object.keys(draft.checks||{}).length) {
       _applyRfDraft(draft);
       const bar = document.createElement('div');
