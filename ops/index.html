@@ -4905,23 +4905,41 @@ function goToScreen(name) {
   }
 }
 
+/* ── מאזינים שנפתחים מחדש בכל כניסה למסך הבית ובכל החלפת משתמש ──────
+   שלוש הפונקציות שמזינות את המונים פותחות עשרות חיבורים לשרת. עד כה הן
+   לא סגרו את הקודמים, והחיבורים נערמו זה על זה: אותם נתונים ירדו כמה
+   פעמים במקביל, הסוללה של הנהגים נשחקה, והמסכים צוירו מחדש שוב ושוב.
+   עכשיו כל קבוצה נסגרת לפני שהיא נפתחת שוב. ההתנהגות על המסך זהה. */
+const _reSubs = {};
+function _reSnapReset(group) {
+  (_reSubs[group] || []).forEach(un => { try { un(); } catch (e) {} });
+  _reSubs[group] = [];
+}
+function _reSnap(group, ...args) {
+  if (!window._onSnap) return () => {};
+  const un = window._onSnap(...args);
+  (_reSubs[group] = _reSubs[group] || []).push(un);
+  return un;
+}
+
 function loadStats() {
   if (!window._CONFIG_DONE) {
     document.getElementById('stat-tasks').textContent = '—';
     return;
   }
+  _reSnapReset('stats');   // סוגר את המאזינים מהכניסה הקודמת
   const isManager = currentUser?.role === 'manager';
   if (isManager) {
-    _onSnap(_query(_colRef('tasks'), _where('status','!=','done')), snap => {
+    _reSnap('stats', _query(_colRef('tasks'), _where('status','!=','done')), snap => {
       document.getElementById('stat-tasks').textContent = snap.size || '0';
       // המספר יושב על קוביית לוח המשימות, במקום קובייה נפרדת
       _tasksOpenCount = snap.size || 0;
       _syncTasksBadge();
     });
-    _onSnap(_colRef('vehicles'), snap => {
+    _reSnap('stats', _colRef('vehicles'), snap => {
       document.getElementById('stat-vehicles').textContent = snap.size;
     });
-    _onSnap(_query(_colRef('parts'), _where('status','==','pending')), snap => {
+    _reSnap('stats', _query(_colRef('parts'), _where('status','==','pending')), snap => {
       document.getElementById('stat-parts').textContent = snap.size;
     });
   } else {
@@ -4932,11 +4950,11 @@ function loadStats() {
       document.getElementById('stat-tasks').textContent = _taskIds.size || '0';
     };
     const _taskIds = new Set();
-    _onSnap(_query(_colRef('tasks'), _where('assignedTo','==',name)), snap => {
+    _reSnap('stats', _query(_colRef('tasks'), _where('assignedTo','==',name)), snap => {
       snap.docs.forEach(d => { if (d.data().status !== 'done') _taskIds.add(d.id); else _taskIds.delete(d.id); });
       update();
     });
-    _onSnap(_query(_colRef('tasks'), _where('label','==',name)), snap => {
+    _reSnap('stats', _query(_colRef('tasks'), _where('label','==',name)), snap => {
       snap.docs.forEach(d => { if (d.data().status !== 'done') _taskIds.add(d.id); else _taskIds.delete(d.id); });
       update();
     });
@@ -5263,20 +5281,21 @@ function _setDriverVehiclesBadge() {
 
 function loadDriverBadges() {
   if (!window._CONFIG_DONE || !currentUser) return;
+  _reSnapReset('driverBadges');   // סוגר את המאזינים מהכניסה הקודמת
   const name = currentUser.name;
   try {
     const _badgeTaskIds = new Set();
-    _onSnap(_query(_colRef('tasks'), _where('assignedTo','==',name)), snap => {
+    _reSnap('driverBadges', _query(_colRef('tasks'), _where('assignedTo','==',name)), snap => {
       snap.docs.forEach(d => { if (d.data().status !== 'done') _badgeTaskIds.add(d.id); else _badgeTaskIds.delete(d.id); });
       _tasksOpenCount = _badgeTaskIds.size;
       _syncTasksBadge();
     });
-    _onSnap(_query(_colRef('tasks'), _where('label','==',name)), snap => {
+    _reSnap('driverBadges', _query(_colRef('tasks'), _where('label','==',name)), snap => {
       snap.docs.forEach(d => { if (d.data().status !== 'done') _badgeTaskIds.add(d.id); else _badgeTaskIds.delete(d.id); });
       _tasksOpenCount = _badgeTaskIds.size;
       _syncTasksBadge();
     });
-    _onSnap(_query(_colRef('intake_assignments'), _where('assignedTo','==',name)), snap => {
+    _reSnap('driverBadges', _query(_colRef('intake_assignments'), _where('assignedTo','==',name)), snap => {
       _driverIntakeDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       _setDriverVehiclesBadge();
       const screen = document.getElementById('screen-vehicles');
@@ -5285,7 +5304,7 @@ function loadDriverBadges() {
         _renderIntakeList(_driverIntakeDocs);
       }
     });
-    _onSnap(_query(_colRef('refreshes'), _where('assignedTo','==',name)), snap => {
+    _reSnap('driverBadges', _query(_colRef('refreshes'), _where('assignedTo','==',name)), snap => {
       _refreshCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       _setDriverVehiclesBadge();
       const screen = document.getElementById('screen-vehicles');
@@ -5294,7 +5313,7 @@ function loadDriverBadges() {
       }
     });
     // בדיקת מלאי — קוביה קטנה שמופיעה רק כשיש מלאי שהוקצה לנהג ונעלמת כששלח
-    _onSnap(_query(_colRef('inventory_assignments'), _where('assignedTo','==',name)), snap => {
+    _reSnap('driverBadges', _query(_colRef('inventory_assignments'), _where('assignedTo','==',name)), snap => {
       const pending = snap.docs.filter(d => d.data().status === 'pending').length;
       const card = document.getElementById('stat-inventory-driver-card');
       const cnt  = document.getElementById('stat-inventory-driver-count');
@@ -5349,7 +5368,7 @@ function loadDriverBadges() {
         _battTile(0, null);
       }
     }
-    _onSnap(_query(_colRef('battery_assignments'), _where('assignedTo','==',name)), snap => {
+    _reSnap('driverBadges', _query(_colRef('battery_assignments'), _where('assignedTo','==',name)), snap => {
       const pending  = snap.docs.filter(d => d.data().status === 'pending' && !d.data().converted).length;
       const awaiting = snap.docs.filter(d => d.data().status === 'done'    && !d.data().converted).length;
       const card  = document.getElementById('menu-card-driver-battery');
@@ -5366,12 +5385,12 @@ function loadDriverBadges() {
         _renderUnifiedBatteryCard();
       }
     });
-    _onSnap(_query(_colRef('charging_tasks'), _where('status','==','active')), snap => {
+    _reSnap('driverBadges', _query(_colRef('charging_tasks'), _where('status','==','active')), snap => {
       snap.docs.forEach(d => { _dcTasks[d.id] = d.data().carsJson ? JSON.parse(d.data().carsJson) : []; });
       snap.docChanges().filter(c => c.type === 'removed').forEach(c => delete _dcTasks[c.doc.id]);
       _renderUnifiedBatteryCard();
     });
-    _onSnap(_query(_colRef('charging_tasks'), _where('status','==','done')), snap => {
+    _reSnap('driverBadges', _query(_colRef('charging_tasks'), _where('status','==','done')), snap => {
       snap.docs.forEach(d => { _dcTasks[d.id] = d.data().carsJson ? JSON.parse(d.data().carsJson) : []; });
       snap.docChanges().filter(c => c.type === 'removed').forEach(c => delete _dcTasks[c.doc.id]);
       _renderUnifiedBatteryCard();
@@ -5384,15 +5403,15 @@ function loadDriverBadges() {
       if (cnt) cnt.textContent = count;
       _setCardBadge(screen, count);
     };
-    _onSnap(_docRef('yard','current'), snap => {
+    _reSnap('driverBadges', _docRef('yard','current'), snap => {
       const status = snap.exists() ? snap.data().status : null;
       _showSmall('yard', status === 'pending' ? 1 : 0, 'yard');
     });
-    _onSnap(_query(_colRef('pit_checks'), _where('status','==','pending')), snap => {
+    _reSnap('driverBadges', _query(_colRef('pit_checks'), _where('status','==','pending')), snap => {
       _showSmall('pits', snap.size, 'pits');
     });
     // pickup cars assigned to this driver
-    _onSnap(_query(_colRef('pickup_cars'), _where('assignedDriver','==',name)), snap => {
+    _reSnap('driverBadges', _query(_colRef('pickup_cars'), _where('assignedDriver','==',name)), snap => {
       const cars = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       const card = document.getElementById('stat-pickup-driver-card');
       const cnt = document.getElementById('stat-pickup-driver-count');
@@ -5404,7 +5423,7 @@ function loadDriverBadges() {
       if (modal && modal.classList.contains('open')) _renderDriverPickupModal();
     });
     // test drive assigned — auto-open fill modal, persist across refresh
-    _onSnap(_query(_colRef('test_drives'), _where('assignedTo','==',name), _where('status','==','pending')), snap => {
+    _reSnap('driverBadges', _query(_colRef('test_drives'), _where('assignedTo','==',name), _where('status','==','pending')), snap => {
       const badge = document.getElementById('badge-test-drive');
       if (badge) { badge.textContent = snap.size; badge.style.display = snap.size ? 'block' : 'none'; }
       _setTdHomeCount(snap.size);
@@ -5493,9 +5512,10 @@ function listenForTaskDone() {
 
 function loadManagerBadges() {
   if (!window._CONFIG_DONE) return;
+  _reSnapReset('mgrBadges');   // סוגר את המאזינים מהכניסה הקודמת
   try {
     // מאזין מלא: מחמם את _intakeCache כדי שמסך קליטת רכב ייטען מיידית, וגם מזין את ה-badge
-    _onSnap(_colRef('intake_assignments'), snap => {
+    _reSnap('mgrBadges', _colRef('intake_assignments'), snap => {
       _intakeCache = snap.docs.map(d => ({ id: d.id, ...d.data() }))
         .sort((a,b) => (b.createdAt?.toMillis?.()??0) - (a.createdAt?.toMillis?.()??0));
       _setCardBadge('vehicles', _intakeCache.filter(v => v.status === 'done').length);
@@ -5504,15 +5524,15 @@ function loadManagerBadges() {
         _renderIntakeList(_intakeCache);
       }
     });
-    _onSnap(_query(_colRef('pit_checks'), _where('status','==','sent')), snap => {
+    _reSnap('mgrBadges', _query(_colRef('pit_checks'), _where('status','==','sent')), snap => {
       _setCardBadge('pits', snap.size);
     });
-    _onSnap(_query(_colRef('inventory_assignments'), _where('status','==','done')), snap => {
+    _reSnap('mgrBadges', _query(_colRef('inventory_assignments'), _where('status','==','done')), snap => {
       _setCardBadge('inventory', snap.size);
     });
     // ארון המצברים: כמה מצברים ממתינים להזמנה — כל מצבר שיצא מהארון ועדיין
     // לא הוזמן חזרה. אותו חישוב בדיוק כמו רשימת ההזמנה שבמסך המצברים.
-    _onSnap(_colRef('battery_installs'), snap => {
+    _reSnap('mgrBadges', _colRef('battery_installs'), snap => {
       // גם הסך הכל וגם הכמות הגדולה ביותר מאותו סוג — לפי מק״ט או דגם
       const pend = snap.docs.map(d => d.data()).filter(v => !v.ordered);
       const by = {};
@@ -5523,13 +5543,13 @@ function loadManagerBadges() {
     // רכבים שיושבים כרגע במסך "מכוניות שסיימנו" — סגירת חשבון מסמנת
     // paidAt ומשאירה את הסטטוס, ולכן בלי הסינון הזה רכבים ששולמו
     // מזמן ממשיכים להיספר לנצח.
-    _onSnap(_query(_colRef('bodyshop_jobs'), _where('paidAt', '==', null)), snap => {
+    _reSnap('mgrBadges', _query(_colRef('bodyshop_jobs'), _where('paidAt', '==', null)), snap => {
       _setBodyshopSwCard(snap.docs.filter(d => {
         const j = d.data();
         return j.status === 'returned' && !j.swUpdated;
       }).length);
     });
-    _onSnap(_docRef('recall_status', 'current'), snap => {
+    _reSnap('mgrBadges', _docRef('recall_status', 'current'), snap => {
       const cars = snap.exists() ? (snap.data().cars || []) : [];
       const openRecalls = cars.filter(c => !c.resolved).length;
       _setCardBadge('recall', openRecalls, '#ef4444');
@@ -5558,22 +5578,22 @@ function loadManagerBadges() {
         if (badge) { badge.style.display = _batteryAssignmentsDone > 0 ? 'inline-block' : 'none'; if (_batteryAssignmentsDone > 0) badge.textContent = _batteryAssignmentsDone; }
       }
     }
-    _onSnap(_query(_colRef('battery_assignments'), _where('status','==','done')), snap => {
+    _reSnap('mgrBadges', _query(_colRef('battery_assignments'), _where('status','==','done')), snap => {
       _batteryAssignmentsDone = snap.size;
       _renderMgrChargingCard();
     });
-    _onSnap(_query(_colRef('charging_tasks'), _where('status','==','active')), snap => {
+    _reSnap('mgrBadges', _query(_colRef('charging_tasks'), _where('status','==','active')), snap => {
       snap.docs.forEach(d => { _mcTasks[d.id] = d.data().carsJson ? JSON.parse(d.data().carsJson) : []; });
       snap.docChanges().filter(c => c.type === 'removed').forEach(c => delete _mcTasks[c.doc.id]);
       _renderMgrChargingCard();
     });
-    _onSnap(_query(_colRef('charging_tasks'), _where('status','==','done')), snap => {
+    _reSnap('mgrBadges', _query(_colRef('charging_tasks'), _where('status','==','done')), snap => {
       snap.docs.forEach(d => { _mcTasks[d.id] = d.data().carsJson ? JSON.parse(d.data().carsJson) : []; });
       snap.docChanges().filter(c => c.type === 'removed').forEach(c => delete _mcTasks[c.doc.id]);
       _renderMgrChargingCard();
     });
     // מאזין מלא לרענונים: מחמם את _refreshCache למסך המאוחד ומרנדר אם המסך פעיל
-    _onSnap(_colRef('refreshes'), snap => {
+    _reSnap('mgrBadges', _colRef('refreshes'), snap => {
       _refreshCache = snap.docs.map(d => ({ id: d.id, ...d.data() }))
         .sort((a,b) => (b.createdAt?.toMillis?.()??0) - (a.createdAt?.toMillis?.()??0));
       const screen = document.getElementById('screen-vehicles');
@@ -5582,18 +5602,18 @@ function loadManagerBadges() {
       }
     });
     listenForTaskDone();
-    _onSnap(_query(_colRef('task_requests'), _where('status','==','pending')), snap => {
+    _reSnap('mgrBadges', _query(_colRef('task_requests'), _where('status','==','pending')), snap => {
       // בקשות משימה לא דורסות את מספר המשימות — הן רק צובעות אותו בסגול
       _tasksReqCount = snap.size || 0;
       _syncTasksBadge();
     });
     if (currentUser.role === 'manager') _listenTaskRequests();
-    _onSnap(_colRef('pickup_cars'), snap => {
+    _reSnap('mgrBadges', _colRef('pickup_cars'), snap => {
       _setCardBadge('pickup', snap.size, snap.size > 0 ? _HOME_CARD_HL : null);
     });
     // test drive badge — red badge = still being filled, button count = every
     // drive that still needs the manager (being filled OR awaiting his decision)
-    _onSnap(_colRef('test_drives'), snap => {
+    _reSnap('mgrBadges', _colRef('test_drives'), snap => {
       const all = snap.docs.map(d => d.data());
       const pending = all.filter(d => d.status === 'pending').length;
       const active = all.filter(d => d.status === 'pending' || d.status === 'done').length;
@@ -5603,7 +5623,7 @@ function loadManagerBadges() {
     });
     // listen for submitted test drives
     let _tdMgrSeen = new Set(), _tdMgrFirst = true;
-    _onSnap(_query(_colRef('test_drives'), _where('status','==','done')), snap => {
+    _reSnap('mgrBadges', _query(_colRef('test_drives'), _where('status','==','done')), snap => {
       if (_tdMgrFirst) { snap.docs.forEach(d => _tdMgrSeen.add(d.id)); _tdMgrFirst = false; return; }
       snap.docs.forEach(d => {
         if (!_tdMgrSeen.has(d.id)) {
