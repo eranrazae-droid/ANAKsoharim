@@ -11868,7 +11868,9 @@ async function bsmSendWithDriver(name) {
     if (!_requireNet('עדכון התיעוד')) return;
     const trip = _bsmTripEdit;
     try {
-      await _updateDoc(_docRef('bodyshop_trips', trip.id), { driver, editedBy: currentUser?.name || '', editedAt: new Date().toISOString() });
+      // עדכון הנהג הוא רישום מחדש של הנסיעה — התאריך והשעה הם של רגע העדכון
+      const nowIso = new Date().toISOString();
+      await _updateDoc(_docRef('bodyshop_trips', trip.id), { driver, at: nowIso, editedBy: currentUser?.name || '', editedAt: nowIso });
       // הפתק עצמו מחזיק גם הוא את השם, כדי שלא ייווצר פער בין השניים
       const jobId = trip.jobId;
       if (jobId) { try { await _updateDoc(_docRef('bodyshop_jobs', jobId), { takenBy: driver }); } catch (e) { console.error('job takenBy', e); } }
