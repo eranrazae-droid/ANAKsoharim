@@ -8060,6 +8060,24 @@ async function markChecked(id) {
   showToast('✅ הועבר לארכיון');
 }
 
+/* העברה לארכיון מתוך חלונית הצפייה. אותה פעולה בדיוק של הכפתור ברשימה,
+   רק שהיא גם סוגרת את החלונית כשהיא מסתיימת בהצלחה. */
+async function archiveIntakeFromView(id) {
+  const btn = document.getElementById('view-intake-archive-btn');
+  if (btn?.disabled) return;
+  if (!confirm('להעביר את הקליטה לארכיון?')) return;
+  if (!_requireNet('העברה לארכיון')) return;
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ מעביר לארכיון...'; }
+  try {
+    await markChecked(id);
+    closeModal('modal-view-intake');
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = '📁 העבר לארכיון'; }
+    showToast('ההעברה נכשלה — נסה שוב', 6000);
+  }
+}
+window.archiveIntakeFromView = archiveIntakeFromView;
+
 async function viewIntakeForm(id) {
   // פתיחה מיידית מהרשימה שכבר בזיכרון — בלי לחכות לרשת
   const hit = (_intakeCache || []).find(v => v.id === id);
@@ -8171,7 +8189,14 @@ function _renderViewIntakeModal(v) {
       ? `<div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:14px;font-weight:700;color:#15803d">⚡ רכב חשמלי${v.evCharge !== '' && v.evCharge != null ? ` · אחוז טעינה: ${esc(String(v.evCharge))}%` : ''}${v.evRange ? ` · טווח נסיעה: ${esc(String(v.evRange))} ק״מ` : ''}</div>`
       : `<div style="background:var(--surface2);border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:14px;font-weight:700;color:var(--muted)">⚡ רכב חשמלי: לא</div>`;
 
+  // הקליטה כבר בארכיון מגיעה עם status 'checked' — אז הכפתור לא מוצג שוב
+  const arcBtn = (v.status === 'done' && currentUser?.role === 'manager')
+    ? `<button id="view-intake-archive-btn" onclick="archiveIntakeFromView('${v.id}')"
+        style="width:100%;background:var(--dark);color:#fff;border:none;border-radius:12px;padding:12px;margin-bottom:14px;font-family:Heebo,sans-serif;font-size:15px;font-weight:900;cursor:pointer">📁 העבר לארכיון</button>`
+    : '';
+
   document.getElementById('view-intake-content').innerHTML = `
+    ${arcBtn}
     <div style="background:#f0f2ff;border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:13px;line-height:2">
       <strong>${esc(v.plate)}</strong> · ${esc(v.brand||'')} ${esc(v.model||'')} ${esc(v.year||'')}<br>
       צבע: ${esc(v.color||'')} · חניה: ${esc(v.spot||'')}${km ? '<br>' + km + code : ''}<br>
