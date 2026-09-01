@@ -1037,7 +1037,8 @@
     const c=sbClient(); if(!c){ _srcLog=local; window._srcCloudOk=false; return local; }
     try{
       const { data, error } = await c.from('sources').select('source,phone,ts').order('ts',{ascending:true});
-      if(error){ window._srcCloudOk=false; _srcLog=local; return local; }
+      if(error){ window._srcCloudOk=false; window._srcErr=(error.message||error.code||JSON.stringify(error)); _srcLog=local; return local; }
+      window._srcErr='';
       window._srcCloudOk = true;
       let cloud = Array.isArray(data) ? data.slice() : [];
       // מיזוג חד-פעמי: רישומים מקומיים ישנים שעדיין לא בענן - נדחפים
@@ -1091,7 +1092,7 @@
     const p=document.getElementById('sourceMetricPopup'); if(p) bars(p);
     const d=document.getElementById('sourceMetricDash'); if(d) bars(d);
     const st=document.getElementById('srcStatus');
-    if(st){ st.textContent = (window._srcCloudOk===true) ? ('☁️ מסונכרן בענן · '+total+' לקוחות') : (window._srcCloudOk===false ? '⚠️ לא מחובר לענן - נשמר מקומית בלבד' : ''); }
+    if(st){ st.textContent = (window._srcCloudOk===true) ? ('☁️ מסונכרן בענן · '+total+' לקוחות') : (window._srcCloudOk===false ? ('⚠️ לא מחובר לענן'+(window._srcErr?(' — '+window._srcErr):'')) : ''); }
   }
 
   // Realtime - עדכון מיידי בין מכשירים (לא מרענן בזמן עריכה כדי לא לשבש)
