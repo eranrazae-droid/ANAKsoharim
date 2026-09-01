@@ -8,9 +8,13 @@ jobs:
   run:
     runs-on: ubuntu-latest
     steps:
-      - name: ספירה בלבד - כמה תמונות יעברו ואיזה נפח
+      - name: העברת התמונות למסמך נפרד
         run: |
-          curl -sS -m 540 "https://europe-west1-anak-soharim.cloudfunctions.net/moveIntakePhotos?dry=1&col=intake_archive" \
-            | python3 -m json.tool
-
-      # ריצה אחרי פריסת הפונקציה
+          F="https://europe-west1-anak-soharim.cloudfunctions.net"
+          echo "===== ההעברה עצמה ====="
+          curl -sS -m 540 "$F/moveIntakePhotos?col=intake_archive" | python3 -m json.tool
+          echo "===== אימות: הרצה חוזרת צריכה להראות 0 להעברה ====="
+          curl -sS -m 540 "$F/moveIntakePhotos?dry=1&col=intake_archive" | python3 -m json.tool
+          echo "===== נפח המסד אחרי ====="
+          curl -sS -m 540 "$F/dbSizes?only=intake_archive,intake_photos,intake_assignments,bodyshop_jobs" \
+            | python3 -c "import sys,json;d=json.load(sys.stdin);print('סה\"כ:',d['totalMb'],'MB');[print(f\"{c['col']:<22}{c.get('docs','-'):>6} מסמכים{c.get('mb','-'):>9} MB\") for c in d['collections']]"
