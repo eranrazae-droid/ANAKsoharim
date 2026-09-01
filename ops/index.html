@@ -14780,6 +14780,20 @@ async function bsmSettle() {
 }
 window.bsmSettle = bsmSettle;
 
+/* הסכום כמשוואה אחת בשורה: לפני מע״מ + מע״מ = כולל מע״מ.
+   כל מספר עם התווית שלו מתחתיו, כדי שברור מה כל אחד מהם. */
+function _bsmVatEquation(total) {
+  const base = Number(total) || 0, vat = base * _VAT_RATE;
+  const part = (val, label, gold) => `<div style="text-align:center">
+      <div style="font-size:15.5px;font-weight:900${gold ? ';color:var(--gold)' : ''}">${_fmtIls(val)}</div>
+      <div style="font-size:10px;font-weight:700;color:var(--muted);margin-top:-1px">${label}</div>
+    </div>`;
+  const sign = op => `<div style="font-size:15px;font-weight:900;color:var(--muted)">${op}</div>`;
+  return `<div style="display:flex;align-items:flex-start;justify-content:flex-start;gap:6px;white-space:nowrap;flex:0 0 auto;margin-inline-start:auto">
+    ${part(base, 'לפני מע״מ', true)}${sign('+')}${part(vat, `מע״מ ${Math.round(_VAT_RATE * 100)}%`, false)}${sign('=')}${part(base + vat, 'כולל מע״מ', true)}
+  </div>`;
+}
+
 /* ---- payment archive: one folder per payment, each holding the cars ---- */
 function _bsmRenderArchive() {
   const c = document.getElementById('bsm-archive');
@@ -14789,18 +14803,13 @@ function _bsmRenderArchive() {
     return;
   }
   c.innerHTML = _bshopArchive.map(a => `<div onclick="bsmOpenArchive('${a.id}')"
-      style="display:flex;align-items:center;gap:10px;border:2px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px;background:var(--card);cursor:pointer">
+      style="display:flex;align-items:center;flex-wrap:wrap;gap:10px;border:2px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px;background:var(--card);cursor:pointer">
     <div style="font-size:26px">📁</div>
-    <div style="flex:1;min-width:0">
+    <div style="flex:1 1 110px;min-width:0">
       <div style="font-weight:900;font-size:16px">${esc(a.title || '')}</div>
       <div style="font-size:13px;color:var(--muted)">${(a.cars || []).length} רכבים</div>
     </div>
-    <div style="text-align:left;white-space:nowrap">
-      <div style="font-size:17px;font-weight:900;color:var(--gold)">${Number(a.total || 0).toLocaleString('he-IL')} ₪</div>
-      <div style="font-size:10.5px;font-weight:700;color:var(--muted);margin-top:-2px">לפני מע״מ</div>
-      <div style="font-size:13.5px;font-weight:900;margin-top:3px">${_fmtIls(_incVat(a.total || 0))}</div>
-      <div style="font-size:10.5px;font-weight:700;color:var(--muted);margin-top:-2px">כולל מע״מ</div>
-    </div>
+    ${_bsmVatEquation(a.total)}
     <button onclick="event.stopPropagation();bsmDeleteArchive('${a.id}')" title="מחק תיקייה" style="background:#ef4444;color:#fff;border:none;border-radius:8px;width:30px;height:30px;font-size:14px;cursor:pointer">🗑</button>
   </div>`).join('');
 }
