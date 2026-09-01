@@ -1334,15 +1334,18 @@ async function _fetchTimeout(url, opts, ms) {
 
 async function _govFetch(url) {
   let res = null, thrown = null;
+  /* תשובה שנרשמת ביומן נקראת מעותק (clone) — קריאה מהגוף עצמו הייתה
+     משאירה תשובה "מרוקנת", ומי שקיבל אותה נפל על
+     "Body has already been read". */
+  const peek = async (r) => { try { return (await r.clone().text()).slice(0, 200); } catch (e) { return ""; } };
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       res = await _fetchTimeout(url, { headers: _GOV_HEADERS });
       if (res.ok) { _govLast = { status: res.status, body: "" }; return res; }
-      _govLast = { status: res.status, body: (await res.text().catch(() => "")).slice(0, 200) };
+      _govLast = { status: res.status, body: await peek(res) };
       if (res.status !== 403 && res.status < 500) break;
     } catch (err) {
-      /* הפנייה הישירה נפלה ברמת הרשת — זו בדיוק החסימה מחו״ל. חייבים
-         להמשיך לממסר הישראלי ולא לזרוק החוצה, אחרת הוא לא נוסה בכלל. */
+      /* הפנייה הישירה נפלה ברמת הרשת — ממשיכים לממסר הישראלי */
       thrown = err;
       _govLast = { status: 0, body: String(err && err.message || err).slice(0, 200) };
     }
@@ -1352,7 +1355,7 @@ async function _govFetch(url) {
   try {
     const relayed = await _fetchTimeout(`${_GOV_RELAY}?url=${encodeURIComponent(url)}`, null, 30000);
     if (relayed.ok) { _govLast = { status: relayed.status, body: "", via: "relay" }; return relayed; }
-    _govLast = { status: relayed.status, body: (await relayed.text().catch(() => "")).slice(0, 200), via: "relay" };
+    _govLast = { status: relayed.status, body: await peek(relayed), via: "relay" };
     if (res) return res;
     return relayed;
   } catch (err) { /* הממסר לא זמין */ }
