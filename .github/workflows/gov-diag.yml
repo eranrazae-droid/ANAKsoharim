@@ -36,13 +36,7 @@ jobs:
           curl -sS -m 60 "https://europe-west1-anak-soharim.cloudfunctions.net/govilProxy?resource_id=$RES&limit=1&include_total=true" \
             | python3 -c "import sys,json;d=json.load(sys.stdin).get('result',{});print('total:',d.get('total'),'| records:',len(d.get('records',[])))"
           echo "===== 7. אילו קבצים יש היום בדאטהסט של כלי הרכב? ====="
-          curl -sS -m 60 "https://data.gov.il/api/3/action/package_show?id=private-and-commercial-vehicles" \
-            | python3 -c "
-import sys,json
-d=json.load(sys.stdin)
-for r in d.get('result',{}).get('resources',[]):
-    print(r.get('id'), '|', r.get('name','')[:40], '| שונה:', r.get('last_modified',''))
-" || true
+          curl -sS -m 60 "https://data.gov.il/api/3/action/package_show?id=private-and-commercial-vehicles" | python3 -c "import sys,json;[print(r.get('id'),'|',r.get('name','')[:40],'| שונה:',r.get('last_modified','')) for r in json.load(sys.stdin).get('result',{}).get('resources',[])]" || true
           echo; echo "===== 4. govRelay בתל אביב ישירות ====="
           curl -sS -m 60 -w "\nHTTP %{http_code} in %{time_total}s\n" \
             "https://me-west1-anak-soharim.cloudfunctions.net/govRelay?url=https%3A%2F%2Fdata.gov.il%2Fapi%2F3%2Faction%2Fdatastore_search%3Fresource_id%3D$RES%26limit%3D1" | head -c 700 || true
