@@ -1376,9 +1376,12 @@ function loadManagerBadges() {
     });
     // ארון המצברים: כמה מצברים ממתינים להזמנה — כל מצבר שיצא מהארון ועדיין
     // לא הוזמן חזרה. אותו חישוב בדיוק כמו רשימת ההזמנה שבמסך המצברים.
-    _reSnap('mgrBadges', _colRef('battery_installs'), snap => {
+    // השרת מחזיר רק את מה שעוד לא הוזמן, במקום את כל היסטוריית ההרכבות.
+    // כל הרכבה נשמרת עם ordered:false, ולכן הסינון בשרת מחזיר בדיוק את
+    // מה שהסינון באפליקציה החזיר קודם.
+    _reSnap('mgrBadges', _query(_colRef('battery_installs'), _where('ordered', '==', false)), snap => {
       // גם הסך הכל וגם הכמות הגדולה ביותר מאותו סוג — לפי מק״ט או דגם
-      const pend = snap.docs.map(d => d.data()).filter(v => !v.ordered);
+      const pend = snap.docs.map(d => d.data());
       const by = {};
       pend.forEach(v => { const k = v.sku || v.model || '—'; by[k] = (by[k] || 0) + 1; });
       _setBatteryStockCard(pend.length, Math.max(0, ...Object.values(by)));

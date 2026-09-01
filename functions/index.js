@@ -1652,6 +1652,38 @@ exports.runOwnershipScanNow = onRequest(
   }
 );
 
+/* ── מדידה: כמה מסמכים ואיזה נפח יש בכל אוסף ─────────────────────────
+   כדי להחליט מה כדאי לשפר לפי מספרים ולא לפי הערכה. מחזיר לכל אוסף
+   את מספר המסמכים, הנפח הכולל, והמסמך הכבד ביותר.                     */
+exports.dbSizes = onRequest(
+  { cors: true, region: "europe-west1", timeoutSeconds: 540, memory: "1GiB" },
+  async (req, res) => {
+    const only = String(req.query.only || "").split(",").filter(Boolean);
+    const cols = only.length ? only : [
+      "intake_archive", "intake_assignments", "bodyshop_jobs", "bodyshop_archive",
+      "tasks", "tasks_archive", "pickup_cars", "pickup_archive", "wash_notes",
+      "ownership_log", "battery_installs", "battery_stock", "vehicles", "refreshes",
+      "pit_checks", "parts", "test_drives", "bodyshop_trips", "plate_cache",
+    ];
+    const out = [];
+    for (const c of cols) {
+      try {
+        const snap = await db.collection(c).get();
+        let bytes = 0, max = 0, maxId = "";
+        for (const d of snap.docs) {
+          const n = Buffer.byteLength(JSON.stringify(d.data()));
+          bytes += n;
+          if (n > max) { max = n; maxId = d.id; }
+        }
+        out.push({ col: c, docs: snap.size, mb: +(bytes / 1048576).toFixed(2),
+          biggestKb: Math.round(max / 1024), biggestId: maxId });
+      } catch (err) { out.push({ col: c, error: err.message }); }
+    }
+    out.sort((a, b) => (b.mb || 0) - (a.mb || 0));
+    res.json({ ok: true, totalMb: +out.reduce((t, x) => t + (x.mb || 0), 0).toFixed(2), collections: out });
+  }
+);
+
 /* ── השלמה חד־פעמית: ordered=false על הרכבות ישנות ──────────────────
    מונה "צריך להזמין" משך את כל אוסף ההרכבות בכל טעינה, רק כדי לספור
    כמה עוד לא הוזמנו. כדי לתת לשרת לסנן במקום, כל רשומה צריכה את השדה

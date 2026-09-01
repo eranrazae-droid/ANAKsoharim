@@ -8,8 +8,7 @@ jobs:
   run:
     runs-on: ubuntu-latest
     steps:
-      - name: השלמת ordered על הרכבות מצברים
+      - name: מדידת נפח האוספים
         run: |
-          B="https://europe-west1-anak-soharim.cloudfunctions.net/backfillBatteryOrdered"
-          echo "===== ספירה בלבד (בלי לכתוב כלום) ====="
-          curl -sS -m 540 "$B?dry=1" | python3 -m json.tool
+          curl -sS -m 540 "https://europe-west1-anak-soharim.cloudfunctions.net/dbSizes" \
+            | python3 -c "import sys,json;d=json.load(sys.stdin);print('סה\"כ:',d['totalMb'],'MB');print(f\"{'אוסף':<24}{'מסמכים':>9}{'MB':>9}{'הכבד ביותר KB':>16}\");[print(f\"{c['col']:<24}{c.get('docs','-'):>9}{c.get('mb','-'):>9}{c.get('biggestKb','-'):>16}\") for c in d['collections']]"
