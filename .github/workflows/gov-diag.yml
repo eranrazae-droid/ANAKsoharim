@@ -1,0 +1,27 @@
+# בדיקת גישה למרשם הרכב: רצה ידנית או בדחיפה של הקובץ הזה, ומדפיסה
+# ללוג מה מחזירה כל חוליה בשרשרת — משם אפשר לאבחן תקלות במשיכת נתונים.
+name: Gov Registry Diagnostics
+on:
+  workflow_dispatch:
+  push:
+    paths: ['.github/workflows/gov-diag.yml']
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe all paths
+        run: |
+          RES="053cea08-09bc-40ec-8f7a-156f0677aff3"
+          FILTERS='%7B%22mispar_rechev%22%3A%228915874%22%7D'
+          echo "===== 1. data.gov.il ישירות מהשרת של GitHub ====="
+          curl -sS -m 25 -w "\nHTTP %{http_code} in %{time_total}s\n" \
+            "https://data.gov.il/api/3/action/datastore_search?resource_id=$RES&limit=1" | head -c 700 || true
+          echo; echo "===== 2. govProbe — כל השרשרת מהפונקציה בבלגיה ====="
+          curl -sS -m 120 -w "\nHTTP %{http_code} in %{time_total}s\n" \
+            "https://europe-west1-anak-soharim.cloudfunctions.net/govProbe" || true
+          echo; echo "===== 3. govilProxy — מה שהאפליקציה באמת קוראת ====="
+          curl -sS -m 60 -w "\nHTTP %{http_code} in %{time_total}s\n" \
+            "https://europe-west1-anak-soharim.cloudfunctions.net/govilProxy?resource_id=$RES&filters=$FILTERS&limit=1" | head -c 700 || true
+          echo; echo "===== 4. govRelay בתל אביב ישירות ====="
+          curl -sS -m 60 -w "\nHTTP %{http_code} in %{time_total}s\n" \
+            "https://me-west1-anak-soharim.cloudfunctions.net/govRelay?url=https%3A%2F%2Fdata.gov.il%2Fapi%2F3%2Faction%2Fdatastore_search%3Fresource_id%3D$RES%26limit%3D1" | head -c 700 || true

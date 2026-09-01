@@ -1374,6 +1374,35 @@ exports.govRelay = onRequest(
   }
 );
 
+/* נקודת אבחון: בודקת כל חוליה בשרשרת בנפרד — פנייה ישירה מבלגיה,
+   הממסר בתל אביב, והמסלול המלא — ומחזירה מה בדיוק קרה בכל אחת.
+   כך תקלה במשיכת נתונים מאובחנת מראיות ולא מניחושים. */
+exports.govProbe = onRequest(
+  { cors: true, region: "europe-west1", timeoutSeconds: 120 },
+  async (req, res) => {
+    const RES = "053cea08-09bc-40ec-8f7a-156f0677aff3";   // מרשם הרכב
+    const url = `https://data.gov.il/api/3/action/datastore_search?resource_id=${RES}&limit=1`;
+    const out = { at: new Date().toISOString(), region: "europe-west1" };
+    const step = async (name, fn) => {
+      const t0 = Date.now();
+      try {
+        const r = await fn();
+        const body = await r.text();
+        let records = null;
+        try { records = JSON.parse(body)?.result?.records?.length ?? null; } catch (e) {}
+        out[name] = { status: r.status, ms: Date.now() - t0, records, head: body.slice(0, 160) };
+      } catch (err) {
+        out[name] = { error: String(err && err.message || err), ms: Date.now() - t0 };
+      }
+    };
+    await step("direct", () => _fetchTimeout(url, { headers: _GOV_HEADERS }, 20000));
+    await step("relay", () => _fetchTimeout(`${_GOV_RELAY}?url=${encodeURIComponent(url)}`, null, 30000));
+    await step("full_chain", () => _govFetch(url));
+    out.govLast = _govLast;
+    res.json(out);
+  }
+);
+
 async function _ownRegistryBaalut(plates) {
   const out = {};
   const BATCH = 40;
