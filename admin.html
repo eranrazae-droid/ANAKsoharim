@@ -1032,14 +1032,21 @@
   function _srcLogLocal(){ try{ return JSON.parse(localStorage.getItem('sourceLog')||'[]'); }catch(e){ return []; } }
   function _sourceLog(){ return _srcLog!=null?_srcLog:_srcLogLocal(); }
   async function loadSourceLog(){
-    const c=sbClient(); if(!c) return _sourceLog();
+    const local=_srcLogLocal();
+    const c=sbClient(); if(!c){ _srcLog=local; return local; }
     try{
       const { data } = await c.from('inventory').select('data').eq('id',2).maybeSingle();
-      const arr=(data && Array.isArray(data.data))?data.data:[];
-      _srcLog=arr;
-      try{ localStorage.setItem('sourceLog', JSON.stringify(arr)); }catch(e){}
-      return arr;
-    }catch(e){ return _sourceLog(); }
+      let cloud=(data && Array.isArray(data.data))?data.data:[];
+      // מיזוג: כל רישום מקומי שעדיין לא בענן - נדחף (מתקן נתונים ישנים שנשמרו מקומית בלבד)
+      const sig=r=>((r.ts||'')+'|'+(r.source||'')+'|'+(r.phone||''));
+      const seen=new Set(cloud.map(sig));
+      let changed=false;
+      local.forEach(r=>{ if(!seen.has(sig(r))){ cloud.push(r); seen.add(sig(r)); changed=true; } });
+      if(changed){ try{ await c.from('inventory').upsert({ id:2, data:cloud, updated_at:new Date().toISOString() }); }catch(e){ toast('⚠️ סנכרון מקורות נכשל - בדוק חיבור'); } }
+      _srcLog=cloud;
+      try{ localStorage.setItem('sourceLog', JSON.stringify(cloud)); }catch(e){}
+      return cloud;
+    }catch(e){ _srcLog=local; return local; }
   }
   async function recordSource(src){
     const phone=((document.getElementById('sourcePhone')||{}).value||'').trim();
@@ -1050,10 +1057,11 @@
     arr.push(rec);
     _srcLog=arr;
     try{ localStorage.setItem('sourceLog', JSON.stringify(arr)); }catch(e){}
-    if(c){ try{ await c.from('inventory').upsert({ id:2, data:arr, updated_at:new Date().toISOString() }); }catch(e){} }
+    let synced=false;
+    if(c){ try{ const { error }=await c.from('inventory').upsert({ id:2, data:arr, updated_at:new Date().toISOString() }); synced=!error; }catch(e){} }
     const pf=document.getElementById('sourcePhone'); if(pf) pf.value='';
     renderSourceMetric();
-    toast('✅ נרשם: '+src+(phone?(' · '+phone):'')+' (סונכרן)');
+    toast('✅ נרשם: '+src+(phone?(' · '+phone):'')+(synced?' (סונכרן ☁️)':' (מקומי - בדוק חיבור)'));
   }
   function recordSourceFree(){
     const v=((document.getElementById('sourceFree')||{}).value||'').trim();
