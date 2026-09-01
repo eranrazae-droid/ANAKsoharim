@@ -1036,15 +1036,17 @@
     const local=_srcLogLocal();
     const c=sbClient(); if(!c){ _srcLog=local; window._srcCloudOk=false; return local; }
     try{
-      const { data, error } = await c.from('inventory').select('data').eq('id',2).maybeSingle();
-      window._srcCloudOk = !error;
-      let cloud=(data && Array.isArray(data.data))?data.data:[];
-      // מיזוג: כל רישום מקומי שעדיין לא בענן - נדחף (מתקן נתונים ישנים שנשמרו מקומית בלבד)
-      const sig=r=>((r.ts||'')+'|'+(r.source||'')+'|'+(r.phone||''));
+      const { data, error } = await c.from('sources').select('source,phone,ts').order('ts',{ascending:true});
+      if(error){ window._srcCloudOk=false; _srcLog=local; return local; }
+      window._srcCloudOk = true;
+      let cloud = Array.isArray(data) ? data.slice() : [];
+      // מיזוג חד-פעמי: רישומים מקומיים ישנים שעדיין לא בענן - נדחפים
+      const sig=r=>((r.source||'')+'|'+(r.phone||''));
       const seen=new Set(cloud.map(sig));
-      let changed=false;
-      local.forEach(r=>{ if(!seen.has(sig(r))){ cloud.push(r); seen.add(sig(r)); changed=true; } });
-      if(changed){ try{ await c.from('inventory').upsert({ id:2, data:cloud, updated_at:new Date().toISOString() }); }catch(e){ toast('⚠️ סנכרון מקורות נכשל - בדוק חיבור'); } }
+      const toPush=local.filter(r=>!seen.has(sig(r)));
+      if(toPush.length){
+        try{ await c.from('sources').insert(toPush.map(r=>({source:r.source,phone:r.phone,ts:r.ts||new Date().toISOString()}))); cloud=cloud.concat(toPush); }catch(e){}
+      }
       _srcLog=cloud;
       try{ localStorage.setItem('sourceLog', JSON.stringify(cloud)); }catch(e){}
       return cloud;
@@ -1054,16 +1056,13 @@
     const phone=((document.getElementById('sourcePhone')||{}).value||'').trim();
     const rec={ source:src, phone:phone, ts:new Date().toISOString() };
     const c=sbClient();
-    let arr=_sourceLog().slice();
-    if(c){ try{ const { data }=await c.from('inventory').select('data').eq('id',2).maybeSingle(); if(data && Array.isArray(data.data)) arr=data.data.slice(); }catch(e){} }
-    arr.push(rec);
-    _srcLog=arr;
-    try{ localStorage.setItem('sourceLog', JSON.stringify(arr)); }catch(e){}
     let synced=false;
-    if(c){ try{ const { error }=await c.from('inventory').upsert({ id:2, data:arr, updated_at:new Date().toISOString() }); synced=!error; }catch(e){} }
+    if(c){ try{ const { error }=await c.from('sources').insert(rec); synced=!error; window._srcCloudOk=!error; }catch(e){} }
+    const arr=_sourceLog().slice(); arr.push(rec); _srcLog=arr;
+    try{ localStorage.setItem('sourceLog', JSON.stringify(arr)); }catch(e){}
     const pf=document.getElementById('sourcePhone'); if(pf) pf.value='';
     renderSourceMetric();
-    toast('✅ נרשם: '+src+(phone?(' · '+phone):'')+(synced?' (סונכרן ☁️)':' (מקומי - בדוק חיבור)'));
+    toast('✅ נרשם: '+src+(phone?(' · '+phone):'')+(synced?' (סונכרן ☁️)':' (מקומי - הרץ את ה-SQL)'));
   }
   function recordSourceFree(){
     const v=((document.getElementById('sourceFree')||{}).value||'').trim();
@@ -1119,6 +1118,8 @@
       // לידים חדשים בזמן אמת
       loadLeadsFromCloud();
       c.channel('leads-admin').on('postgres_changes', {event:'INSERT', schema:'public', table:'leads'}, function(){ loadLeadsFromCloud(); }).subscribe();
+      // מקורות הגעה - סנכרון חי בין מכשירים
+      c.channel('sources-admin').on('postgres_changes', {event:'*', schema:'public', table:'sources'}, function(){ loadSourceLog().then(renderSourceMetric); }).subscribe();
       Promise.all([loadTasks(), loadLeadsFromCloud()]).then(function(){ setTimeout(showWelcome, 600); }); loadPay();
       c.channel('tasks-admin').on('postgres_changes', {event:'*', schema:'public', table:'tasks'}, function(){ loadTasks(); }).subscribe();
       c.channel('earnings-admin').on('postgres_changes', {event:'*', schema:'public', table:'earnings'}, function(){ loadPay(); }).subscribe();
