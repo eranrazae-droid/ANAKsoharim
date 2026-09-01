@@ -15294,13 +15294,32 @@ function _bsAuditHomeSync() {
     : 'רישום מצבר שהורכב לרכב';
 }
 
+/* הסימונים נשמרים במכשיר עד לשליחה, כדי שיציאה מהטופס וחזרה אליו
+   לא תמחק עבודה של חצי ארון. המפתח הוא לפי חודש, ולכן בדיקה של חודש
+   חדש תמיד מתחילה נקייה. */
+const _bsAuditKey = () => '_bsAuditProgress_' + _bsAuditMonth();
+function _bsAuditSave() {
+  try { localStorage.setItem(_bsAuditKey(), JSON.stringify({ marks: _bsAuditMarks, have: _bsAuditHave })); }
+  catch (e) {}
+}
+function _bsAuditRestore() {
+  _bsAuditMarks = {};
+  _bsAuditHave = {};
+  try {
+    const raw = localStorage.getItem(_bsAuditKey());
+    if (!raw) return;
+    const d = JSON.parse(raw);
+    _bsAuditMarks = d?.marks || {};
+    _bsAuditHave = d?.have || {};
+  } catch (e) {}
+}
+
 function _bsMaybeOpenAudit() {
   if (!_bsAuditDue()) return;
   if (!_bsAuditRows().length) return;                 // הארון עוד לא נטען
   const modal = document.getElementById('modal-bs-audit');
   if (modal && modal.classList.contains('open')) return;
-  _bsAuditMarks = {};
-  _bsAuditHave = {};
+  _bsAuditRestore();
   _bsRenderAuditForm();
   openModal('modal-bs-audit');
 }
@@ -15346,11 +15365,18 @@ function _bsRenderAuditForm() {
 }
 
 function bsAuditMark(id, val) {
-  _bsAuditMarks[id] = val;
-  if (val === 'partial' && _bsAuditHave[id] == null) {
-    const row = _bsAuditRows().find(r => r.id === id);
-    _bsAuditHave[id] = Math.max(1, (row?.qty || 0) - 1);   // חסרה אחת — המקרה הנפוץ
+  // לחיצה על סימון שכבר נבחר מבטלת אותו
+  if (_bsAuditMarks[id] === val) {
+    delete _bsAuditMarks[id];
+    delete _bsAuditHave[id];
+  } else {
+    _bsAuditMarks[id] = val;
+    if (val === 'partial' && _bsAuditHave[id] == null) {
+      const row = _bsAuditRows().find(r => r.id === id);
+      _bsAuditHave[id] = Math.max(1, (row?.qty || 0) - 1);   // חסרה אחת — המקרה הנפוץ
+    }
   }
+  _bsAuditSave();
   _bsRenderAuditForm();
 }
 window.bsAuditMark = bsAuditMark;
@@ -15362,6 +15388,7 @@ function bsAuditHave(id, delta) {
   const max = Math.max(1, (row?.qty || 0) - 1);
   const cur = _bsAuditHave[id] ?? max;
   _bsAuditHave[id] = Math.min(max, Math.max(1, cur + delta));
+  _bsAuditSave();
   _bsRenderAuditForm();
 }
 window.bsAuditHave = bsAuditHave;
@@ -15395,6 +15422,8 @@ async function bsAuditSubmit() {
   };
   try {
     await window._setDoc(_docRef('battery_audits', month), data, { merge: true });
+    try { localStorage.removeItem(_bsAuditKey()); } catch (e) {}
+    _bsAuditMarks = {}; _bsAuditHave = {};
     closeModal('modal-bs-audit');
     showToast('✅ הבדיקה נשלחה — תודה', 4000);
   } catch (e) {
