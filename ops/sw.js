@@ -1,4 +1,4 @@
-// v322 — force update
+// v323 — force update
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', e => e.waitUntil(clients.claim()));
 

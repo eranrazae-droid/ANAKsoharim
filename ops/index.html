@@ -6589,6 +6589,33 @@ function _plateCacheSet(plate, v) {
   try { localStorage.setItem('plate:' + plate, JSON.stringify({ t: Date.now(), v })); } catch (e) {}
 }
 
+// ---- מטמון מרשם משלנו (plate_cache ב-Firestore) ----
+// משרד התחבורה מרוקן את המאגר בכל טעינה לילית ולפעמים הוא נשאר ריק שעות.
+// סריקת הבעלויות היומית שומרת עותק של כל רכב במלאי, וכאן נופלים אליו
+// כשהמרשם הממשלתי לא מחזיר כלום.
+window._plateRegistryEmpty = false;
+const _regCacheMem = new Map();
+async function _regCacheGet(plate) {
+  if (_regCacheMem.has(plate)) return _regCacheMem.get(plate);
+  let rec = null;
+  try {
+    const s = await window._getDoc(_docRef('plate_cache', plate));
+    rec = (s.exists() && s.data().rec) ? s.data().rec : null;
+  } catch (e) {}
+  _regCacheMem.set(plate, rec);
+  return rec;
+}
+function _regCacheSet(plate, rec) {
+  if (!plate || !rec) return;
+  const slim = {};
+  for (const k of ['mispar_rechev','tozeret_nm','kinuy_mishari','degem_nm','ramat_gimur',
+                   'tzeva_rechev','shnat_yitzur','tokef_dt','baalut','misgeret','degem_cd','tozeret_cd']) {
+    if (rec[k] !== undefined && rec[k] !== null) slim[k] = rec[k];
+  }
+  _regCacheMem.set(plate, slim);
+  try { setDoc(_docRef('plate_cache', plate), { rec: slim, at: new Date() }, { merge: true }).catch(() => {}); } catch (e) {}
+}
+
 // null = לא נמצא. זריקת שגיאה = תקלת רשת, כדי שאפשר יהיה להבדיל ביניהן.
 async function _plateLookup(plateRaw) {
   const plate = String(plateRaw || '').replace(/\D/g, '');
@@ -6604,8 +6631,16 @@ async function _plateLookup(plateRaw) {
       const filters = encodeURIComponent(JSON.stringify({ mispar_rechev: plate }));
       const res = await fetch(`https://europe-west1-anak-soharim.cloudfunctions.net/govilProxy?resource_id=${_PLATE_DS}&filters=${filters}&limit=1`, { signal: ctrl.signal });
       if (!res.ok) throw new Error('network');
-      const rec = (await res.json())?.result?.records?.[0];
-      if (!rec) { _plateCacheSet(plate, null); return null; }
+      const j = await res.json();
+      if (j && 'registryEmpty' in j) window._plateRegistryEmpty = !!j.registryEmpty;
+      let rec = j?.result?.records?.[0];
+      let fromCache = false;
+      if (!rec) {
+        rec = await _regCacheGet(plate);
+        fromCache = !!rec;
+        if (!rec) { _plateCacheSet(plate, null); return null; }
+      }
+      if (!fromCache) _regCacheSet(plate, rec);
       const v = {
         plate,
         maker: _cleanMaker(rec.tozeret_nm || ''),
@@ -6615,6 +6650,7 @@ async function _plateLookup(plateRaw) {
         year: rec.shnat_yitzur || '',
         testDate: rec.tokef_dt || '',
       };
+      if (fromCache) v.fromCache = true;
       _plateCacheSet(plate, v);
       return v;
     } finally {
@@ -8896,7 +8932,7 @@ async function fetchVehicleData() {
   btn.disabled = true;
   try {
     const rec = await _plateLookup(raw);
-    if (!rec) { status.style.color='var(--danger)'; status.textContent = '❌ לא נמצא רכב עם מספר זה'; return; }
+    if (!rec) { status.style.color='var(--danger)'; status.textContent = window._plateRegistryEmpty ? '⏳ מאגר משרד התחבורה בעדכון כרגע — נסו שוב מאוחר יותר או מלאו ידנית' : '❌ לא נמצא רכב עם מספר זה'; return; }
     document.getElementById('v-brand').value = rec.maker;
     document.getElementById('v-model').value = rec.model;
     document.getElementById('v-color').value = rec.color;
@@ -10446,8 +10482,13 @@ async function _pcFilterLookup(plate, value) {
   const filters = encodeURIComponent(JSON.stringify({ mispar_rechev: value }));
   const res = await _pcFetchRetry(`https://europe-west1-anak-soharim.cloudfunctions.net/govilProxy?resource_id=${_PC_REGISTRY}&filters=${filters}&limit=1`);
   const json = await res.json();
+  if (json && 'registryEmpty' in json) window._plateRegistryEmpty = !!json.registryEmpty;
   const rec = json?.result?.records?.[0];
-  return (rec && _pcNormalizePlate(rec['mispar_rechev']) === plate) ? rec : null;
+  if (rec && _pcNormalizePlate(rec['mispar_rechev']) === plate) { _regCacheSet(plate, rec); return rec; }
+  // המרשם הממשלתי ריק/חסר — ננסה את המטמון שלנו
+  const cached = await _regCacheGet(plate);
+  if (cached && _pcNormalizePlate(cached['mispar_rechev']) === plate) return cached;
+  return null;
 }
 
 async function lookupPartsPlate() {
@@ -10499,7 +10540,9 @@ async function lookupPartsPlate() {
       st.style.color = '#dc2626';
       st.textContent = netFailed
         ? '❌ שגיאה בחיפוש — בדוק חיבור לאינטרנט ונסה שוב'
-        : '❌ הרכב לא נמצא במאגר משרד התחבורה';
+        : (window._plateRegistryEmpty
+          ? '⏳ מאגר משרד התחבורה בעדכון כרגע — נסו שוב מאוחר יותר'
+          : '❌ הרכב לא נמצא במאגר משרד התחבורה');
       return;
     }
 
@@ -14058,7 +14101,7 @@ async function _bsmLookupPlate(manual) {
     const model = rec ? (rec['kinuy_mishari'] || rec['degem_nm'] || '') : '';
     // a record with no make and no model is not a real match — never report it
     // as found, otherwise a made-up plate looks like a real car
-    if (!rec || !(maker || model)) return say('לא נמצא רכב במספר הזה — אפשר למלא ידנית');
+    if (!rec || !(maker || model)) return say(window._plateRegistryEmpty ? 'מאגר משרד התחבורה בעדכון כרגע — אפשר למלא ידנית' : 'לא נמצא רכב במספר הזה — אפשר למלא ידנית');
     _bsmMaker = maker;
     const parts = [maker, model, rec['shnat_yitzur'] || '', rec['tzeva_rechev'] || ''].filter(Boolean);
     descEl.value = parts.join(' ');
@@ -16326,7 +16369,7 @@ async function bsIssueLookupPlate() {
     const rec = await _pcFilterLookup(plate, plate);
     const maker = rec ? _cleanMaker(rec['tozeret_nm'] || '') : '';
     const model = rec ? (rec['kinuy_mishari'] || rec['degem_nm'] || '') : '';
-    if (!rec || !(maker || model)) return say('לא נמצא רכב במספר הזה — אפשר למלא ידנית');
+    if (!rec || !(maker || model)) return say(window._plateRegistryEmpty ? 'מאגר משרד התחבורה בעדכון כרגע — אפשר למלא ידנית' : 'לא נמצא רכב במספר הזה — אפשר למלא ידנית');
     const parts = [maker, model, rec['shnat_yitzur'] || '', rec['tzeva_rechev'] || ''].filter(Boolean);
     carEl.value = parts.join(' ');
     say('✅ נמצא: ' + parts.join(' · '));
@@ -18528,7 +18571,7 @@ async function fetchPitVehicle() {
   btn.disabled = true; info.style.display = 'none';
   try {
     const rec = await _plateLookup(raw);
-    if (!rec) { status.style.color='var(--danger)'; status.textContent='❌ לא נמצא רכב עם מספר זה'; return; }
+    if (!rec) { status.style.color='var(--danger)'; status.textContent = window._plateRegistryEmpty ? '⏳ מאגר משרד התחבורה בעדכון כרגע — נסו שוב מאוחר יותר או מלאו ידנית' : '❌ לא נמצא רכב עם מספר זה'; return; }
     window._pitVehicleData = { brand: rec.maker, model: rec.model, color: rec.color, year: rec.year };
     status.style.color='var(--success)'; status.textContent='✅ פרטים נטענו';
     info.style.display='block';
@@ -19926,7 +19969,7 @@ async function rfFetchVehicle() {
   status.style.color = 'var(--muted)'; status.textContent = '⏳ מחפש...'; btn.disabled = true;
   try {
     const rec = await _plateLookup(raw);
-    if (!rec) { status.style.color='var(--danger)'; status.textContent='❌ לא נמצא רכב עם מספר זה'; return; }
+    if (!rec) { status.style.color='var(--danger)'; status.textContent = window._plateRegistryEmpty ? '⏳ מאגר משרד התחבורה בעדכון כרגע — נסו שוב מאוחר יותר או מלאו ידנית' : '❌ לא נמצא רכב עם מספר זה'; return; }
     document.getElementById('ra-type').value = [rec.maker, rec.model].filter(Boolean).join(' ');
     document.getElementById('ra-year').value  = rec.year;
     document.getElementById('ra-color').value = rec.color;

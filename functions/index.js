@@ -115,6 +115,19 @@ exports.checkReminders = onSchedule(
 // data.gov.il's recall dataset (unlike the main vehicle registry dataset)
 // doesn't send CORS headers, so the browser can't call it directly — this
 // relays the request server-side, where CORS doesn't apply.
+/* האם המרשם הראשי ריק כרגע (קורה בעדכוני הלילה של הממשלה)? נבדק לכל
+   היותר אחת לחמש דקות, כדי שכל חיפוש כושל לא יגרור בדיקה נוספת. */
+let _regEmptyCache = { at: 0, empty: false };
+async function _registryLooksEmpty() {
+  if (Date.now() - _regEmptyCache.at < 5 * 60000) return _regEmptyCache.empty;
+  try {
+    const r = await _govFetch("https://data.gov.il/api/3/action/datastore_search?resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3&limit=1");
+    const j = await r.clone().json().catch(() => null);
+    _regEmptyCache = { at: Date.now(), empty: !(j?.result?.records?.length) };
+  } catch (err) { _regEmptyCache = { at: Date.now(), empty: false }; }
+  return _regEmptyCache.empty;
+}
+
 exports.govilProxy = onRequest({ cors: true, region: "europe-west1" }, async (req, res) => {
   const resourceId = req.query.resource_id;
   if (!resourceId || typeof resourceId !== "string") {
@@ -127,6 +140,11 @@ exports.govilProxy = onRequest({ cors: true, region: "europe-west1" }, async (re
   try {
     const govRes = await _govFetch(`https://data.gov.il/api/3/action/datastore_search?${params.toString()}`);
     const data = await govRes.json();
+    // חיפוש שחזר ריק במרשם הראשי: מבדילים בין "אין רכב כזה" ל"המרשם ריק"
+    if (govRes.ok && resourceId === "053cea08-09bc-40ec-8f7a-156f0677aff3" &&
+        data?.success && !(data.result?.records?.length) && (req.query.filters || req.query.q)) {
+      data.registryEmpty = await _registryLooksEmpty();
+    }
     res.status(govRes.ok ? 200 : govRes.status).json(data);
   } catch (err) {
     // מצרפים את מה שקרה בפועל, כדי שאפשר יהיה לאבחן מהקונסול
@@ -1428,6 +1446,21 @@ async function _ownRegistryBaalut(plates) {
       const p = String(r.mispar_rechev).replace(/\D/g, "");
       out[p] = String(r.baalut || "").trim();
     }
+    /* מטמון המרשם: המרשם הממשלתי מתרוקן מדי פעם בעדכוני הלילה שלו, ואז
+       שום משיכת פרטי רכב לא עובדת. הרשומות כבר בידינו כאן — שמירה שלהן
+       מאפשרת לטפסים למלא פרטים גם כשהמרשם ריק. */
+    try {
+      await Promise.all(recs.map((r) => {
+        const p = String(r.mispar_rechev).replace(/\D/g, "");
+        if (!p) return null;
+        const slim = {};
+        for (const k of ["mispar_rechev", "tozeret_nm", "kinuy_mishari", "degem_nm", "ramat_gimur",
+                         "tzeva_rechev", "shnat_yitzur", "tokef_dt", "baalut", "misgeret", "degem_cd", "tozeret_cd"]) {
+          if (r[k] !== undefined && r[k] !== null) slim[k] = r[k];
+        }
+        return db.collection("plate_cache").doc(p).set({ rec: slim, at: new Date() }, { merge: true });
+      }));
+    } catch (err) { console.warn("plate_cache write failed", err.message); }
     // אבחון חד-פעמי: רושם אילו שדות בכלל קיימים במאגר, כדי לדעת אם יש
     // שדה של תאריך העברה / מספר בעלים שיאפשר לזהות כל העברת בעלות.
     if (i === 0 && recs[0]) {
