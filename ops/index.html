@@ -15249,8 +15249,8 @@ function _bsRenderDriverStock() {
    התיעוד נשמר ב-battery_audits: תאריך ושעה, המלאי שהיה, והסימונים. */
 const _BS_AUDIT_USER = 'גיל';
 let _bsAudits = [], _bsAuditUnsub = null, _bsAuditMarks = {};
-// כשיש כמה יחידות מאותו סוג ורק חלקן בארון — כאן נשמר כמה באמת נמצאו
-let _bsAuditHave = {};
+// כשיש כמה יחידות מאותו סוג ורק חלקן חסרות — כאן נשמר כמה חסרים
+let _bsAuditShort = {};
 
 const _bsAuditMonth = () => new Date().toLocaleDateString('sv-SE').slice(0, 7);   // YYYY-MM
 const _bsMonthLabel = m => {
@@ -15297,20 +15297,20 @@ function _bsAuditHomeSync() {
 /* הסימונים נשמרים במכשיר עד לשליחה, כדי שיציאה מהטופס וחזרה אליו
    לא תמחק עבודה של חצי ארון. המפתח הוא לפי חודש, ולכן בדיקה של חודש
    חדש תמיד מתחילה נקייה. */
-const _bsAuditKey = () => '_bsAuditProgress_' + _bsAuditMonth();
+const _bsAuditKey = () => '_bsAuditProgress2_' + _bsAuditMonth();
 function _bsAuditSave() {
-  try { localStorage.setItem(_bsAuditKey(), JSON.stringify({ marks: _bsAuditMarks, have: _bsAuditHave })); }
+  try { localStorage.setItem(_bsAuditKey(), JSON.stringify({ marks: _bsAuditMarks, short: _bsAuditShort })); }
   catch (e) {}
 }
 function _bsAuditRestore() {
   _bsAuditMarks = {};
-  _bsAuditHave = {};
+  _bsAuditShort = {};
   try {
     const raw = localStorage.getItem(_bsAuditKey());
     if (!raw) return;
     const d = JSON.parse(raw);
     _bsAuditMarks = d?.marks || {};
-    _bsAuditHave = d?.have || {};
+    _bsAuditShort = d?.short || {};
   } catch (e) {}
 }
 
@@ -15334,14 +15334,16 @@ function _bsRenderAuditForm() {
   box.innerHTML = rows.map(r => {
     const mark = _bsAuditMarks[r.id];
     const btn = (val, label, color) => `<button onclick="bsAuditMark('${r.id}','${val}')" style="flex:1;background:${mark === val ? color : 'var(--surface2)'};color:${mark === val ? '#fff' : 'var(--muted)'};border:2px solid ${mark === val ? color : 'var(--border)'};border-radius:10px;padding:9px 0;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer">${label}</button>`;
-    const brd = mark === 'ok' ? '#16a34a' : mark === 'partial' ? '#f59e0b' : mark === 'missing' ? '#dc2626' : 'var(--border)';
-    // "חלקי" רלוונטי רק כשיש יותר מיחידה אחת מאותו סוג בארון
-    const many = (r.qty || 0) > 1;
-    const have = _bsAuditHave[r.id] ?? Math.max(1, (r.qty || 0) - 1);
-    const step = `<div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-top:8px;background:#fffbeb;border:2px solid #f59e0b;border-radius:10px;padding:7px">
-        <button onclick="bsAuditHave('${r.id}',-1)" ${have <= 1 ? 'disabled' : ''} style="width:34px;height:34px;border-radius:8px;border:2px solid #f59e0b;background:#fff;font-size:19px;font-weight:900;color:#b45309;cursor:pointer;opacity:${have <= 1 ? .4 : 1}">−</button>
-        <div style="font-size:14px;font-weight:900;color:#92400e;min-width:96px;text-align:center">יש בארון ${have} מתוך ${r.qty || 0}</div>
-        <button onclick="bsAuditHave('${r.id}',1)" ${have >= (r.qty || 0) - 1 ? 'disabled' : ''} style="width:34px;height:34px;border-radius:8px;border:2px solid #f59e0b;background:#fff;font-size:19px;font-weight:900;color:#b45309;cursor:pointer;opacity:${have >= (r.qty || 0) - 1 ? .4 : 1}">+</button>
+    const qty = r.qty || 0;
+    const many = qty > 1;                       // בורר הכמות רלוונטי רק מיותר מאחד
+    const short = _bsAuditShort[r.id] ?? 1;     // ברירת המחדל: חסר אחד
+    const all = mark === 'missing' && short >= qty;
+    // חסר חלקי נצבע כתום, וחסר מלא נשאר אדום — כדי שההבדל בולט לעין
+    const brd = mark === 'ok' ? '#16a34a' : mark === 'missing' ? (all ? '#dc2626' : '#f59e0b') : 'var(--border)';
+    const step = `<div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-top:8px;background:${all ? '#fef2f2' : '#fffbeb'};border:2px solid ${all ? '#dc2626' : '#f59e0b'};border-radius:10px;padding:7px">
+        <button onclick="bsAuditShort('${r.id}',-1)" ${short <= 1 ? 'disabled' : ''} style="width:34px;height:34px;border-radius:8px;border:2px solid ${all ? '#dc2626' : '#f59e0b'};background:#fff;font-size:19px;font-weight:900;color:${all ? '#991b1b' : '#b45309'};cursor:pointer;opacity:${short <= 1 ? .4 : 1}">−</button>
+        <div style="font-size:14px;font-weight:900;color:${all ? '#991b1b' : '#92400e'};min-width:104px;text-align:center">חסרים ${short} מתוך ${qty}</div>
+        <button onclick="bsAuditShort('${r.id}',1)" ${short >= qty ? 'disabled' : ''} style="width:34px;height:34px;border-radius:8px;border:2px solid ${all ? '#dc2626' : '#f59e0b'};background:#fff;font-size:19px;font-weight:900;color:${all ? '#991b1b' : '#b45309'};cursor:pointer;opacity:${short >= qty ? .4 : 1}">+</button>
       </div>`;
     return `<div style="border:2px solid ${brd};border-radius:12px;padding:10px 12px;margin-bottom:8px;background:var(--card)">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
@@ -15351,8 +15353,8 @@ function _bsRenderAuditForm() {
         </div>
         <div style="font-size:19px;font-weight:900;min-width:32px;text-align:center">${r.qty || 0}</div>
       </div>
-      <div style="display:flex;gap:8px">${btn('ok', '✅ קיים', '#16a34a')}${many ? btn('partial', '🔢 חלקי', '#f59e0b') : ''}${btn('missing', '❌ חסר', '#dc2626')}</div>
-      ${mark === 'partial' ? step : ''}
+      <div style="display:flex;gap:8px">${btn('ok', '✅ קיים', '#16a34a')}${btn('missing', '❌ חסר', all ? '#dc2626' : '#f59e0b')}</div>
+      ${mark === 'missing' && many ? step : ''}
     </div>`;
   }).join('');
   const send = document.getElementById('bs-audit-send');
@@ -15368,12 +15370,15 @@ function bsAuditMark(id, val) {
   // לחיצה על סימון שכבר נבחר מבטלת אותו
   if (_bsAuditMarks[id] === val) {
     delete _bsAuditMarks[id];
-    delete _bsAuditHave[id];
+    delete _bsAuditShort[id];
   } else {
     _bsAuditMarks[id] = val;
-    if (val === 'partial' && _bsAuditHave[id] == null) {
+    if (val === 'missing') {
       const row = _bsAuditRows().find(r => r.id === id);
-      _bsAuditHave[id] = Math.max(1, (row?.qty || 0) - 1);   // חסרה אחת — המקרה הנפוץ
+      // בארון של יחידה אחת אין מה לחלק; ביותר מאחת מתחילים מ"חסר אחד"
+      if (_bsAuditShort[id] == null) _bsAuditShort[id] = (row?.qty || 0) > 1 ? 1 : (row?.qty || 0);
+    } else {
+      delete _bsAuditShort[id];
     }
   }
   _bsAuditSave();
@@ -15381,17 +15386,16 @@ function bsAuditMark(id, val) {
 }
 window.bsAuditMark = bsAuditMark;
 
-// שינוי הכמות שנמצאה בפועל. 0 הוא "חסר" והמלא הוא "קיים", ולכן הבורר
-// נשאר בין 1 לבין הכמות פחות אחת ולא כופל את שני המצבים האחרים.
-function bsAuditHave(id, delta) {
+// כמה יחידות חסרות מתוך מה שאמור להיות בארון — בין אחת לכמות המלאה.
+function bsAuditShort(id, delta) {
   const row = _bsAuditRows().find(r => r.id === id);
-  const max = Math.max(1, (row?.qty || 0) - 1);
-  const cur = _bsAuditHave[id] ?? max;
-  _bsAuditHave[id] = Math.min(max, Math.max(1, cur + delta));
+  const max = Math.max(1, row?.qty || 0);
+  const cur = _bsAuditShort[id] ?? 1;
+  _bsAuditShort[id] = Math.min(max, Math.max(1, cur + delta));
   _bsAuditSave();
   _bsRenderAuditForm();
 }
-window.bsAuditHave = bsAuditHave;
+window.bsAuditShort = bsAuditShort;
 
 async function bsAuditSubmit() {
   const rows = _bsAuditRows();
@@ -15403,12 +15407,11 @@ async function bsAuditSubmit() {
   const month = _bsAuditMonth();
   const lines = rows.map(r => {
     const m = _bsAuditMarks[r.id], qty = r.qty || 0;
-    const have = m === 'ok' ? qty : m === 'missing' ? 0
-      : Math.min(Math.max(1, _bsAuditHave[r.id] ?? Math.max(1, qty - 1)), Math.max(1, qty - 1));
+    const short = m === 'ok' ? 0 : Math.min(Math.max(1, _bsAuditShort[r.id] ?? 1), Math.max(1, qty));
     return {
       model: _bsModelOf(r) || '', sku: r.sku || '', qty,
-      mark: m === 'ok' ? 'קיים' : m === 'partial' ? 'חלקי' : 'חסר',
-      have, short: qty - have,
+      mark: m === 'ok' ? 'קיים' : 'חסר',
+      have: qty - short, short,
     };
   });
   const data = {
@@ -15416,14 +15419,14 @@ async function bsAuditSubmit() {
     submittedBy: currentUser?.name || '', submittedAt: new Date().toISOString(),
     totalTypes: lines.length,
     totalUnits: lines.reduce((t, l) => t + l.qty, 0),
-    missingCount: lines.filter(l => l.mark !== 'קיים').length,
+    missingCount: lines.filter(l => (l.short || 0) > 0).length,
     shortUnits: lines.reduce((t, l) => t + (l.short || 0), 0),
     lines,
   };
   try {
     await window._setDoc(_docRef('battery_audits', month), data, { merge: true });
     try { localStorage.removeItem(_bsAuditKey()); } catch (e) {}
-    _bsAuditMarks = {}; _bsAuditHave = {};
+    _bsAuditMarks = {}; _bsAuditShort = {};
     closeModal('modal-bs-audit');
     showToast('✅ הבדיקה נשלחה — תודה', 4000);
   } catch (e) {
@@ -15461,7 +15464,12 @@ function _bsRenderAudits() {
         ${(a.lines || []).map(l => `<div style="display:flex;align-items:center;gap:8px;border-top:1px solid var(--border);padding:7px 0">
           <div style="flex:1;min-width:0;font-size:13px;font-weight:700">${esc(l.model)}${l.sku ? `<span style="color:var(--muted);font-weight:600"> · ${esc(l.sku)}</span>` : ''}</div>
           <div style="font-size:13px;font-weight:900;min-width:26px;text-align:center">${l.qty}</div>
-          <div style="font-size:12px;font-weight:900;color:${l.mark === 'קיים' ? '#16a34a' : l.mark === 'חלקי' ? '#b45309' : '#dc2626'};min-width:44px;text-align:center">${esc(l.mark)}${l.mark === 'חלקי' ? `<div style="font-size:10.5px;font-weight:800">${l.have}/${l.qty}</div>` : ''}</div>
+          ${(() => {
+            const sh = l.short != null ? l.short : (l.mark === 'קיים' ? 0 : l.qty);
+            const part = sh > 0 && sh < l.qty;   // חסר חלקי — כתום, ומראה כמה מתוך כמה
+            const col = sh === 0 ? '#16a34a' : part ? '#b45309' : '#dc2626';
+            return `<div style="font-size:12px;font-weight:900;color:${col};min-width:52px;text-align:center">${sh === 0 ? 'קיים' : 'חסר'}${part ? `<div style="font-size:10.5px;font-weight:800">${sh} מתוך ${l.qty}</div>` : ''}</div>`;
+          })()}
         </div>`).join('')}
       </div>
     </details>`;
