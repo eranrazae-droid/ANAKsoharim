@@ -8226,24 +8226,32 @@ function batteryNoDateToggle(cb) {
 }
 window.batteryNoDateToggle = batteryNoDateToggle;
 
-function evClick(val) {
+// המצב הנוכחי של סימון הרכב החשמלי: 'v' / 'x' / '' (לא סומן)
+function _evGet() {
+  if (document.getElementById('di-ev-v')?.classList.contains('v-active')) return 'v';
+  if (document.getElementById('di-ev-x')?.classList.contains('x-active')) return 'x';
+  return '';
+}
+
+/* קביעת מצב מוחלטת — לא החלפה. שחזור טיוטה חייב *לקבוע* את הסימון ולא
+   "ללחוץ" עליו: לחיצה על סימון שכבר פעיל מבטלת אותו, ולכן שחזור שחוזר
+   על עצמו (סנכרון חי בין מכשירים) היה מכבה את ה-✕ שהנהג הרגע סימן. */
+function _evSet(val) {
   const vBtn = document.getElementById('di-ev-v');
   const xBtn = document.getElementById('di-ev-x');
   const fields = document.getElementById('di-ev-fields');
-  const clicked = val === 'v' ? vBtn : xBtn;
-  const alreadyActive = clicked.classList.contains('v-active') || clicked.classList.contains('x-active');
-  // reset both
-  vBtn.classList.remove('v-active','x-active'); vBtn.style.color='transparent';
-  xBtn.classList.remove('v-active','x-active'); xBtn.style.color='transparent';
-  if (alreadyActive) {
-    // לחיצה חוזרת על אותה תיבה מבטלת את הבחירה
-    if (fields) fields.style.display = 'none';
-    saveIntakeDraft();
-    return;
-  }
-  if (val === 'v') { vBtn.classList.add('v-active'); vBtn.style.color=''; }
-  else             { xBtn.classList.add('x-active'); xBtn.style.color=''; }
+  if (!vBtn || !xBtn) return;
+  vBtn.classList.remove('v-active','x-active'); vBtn.style.color = 'transparent';
+  xBtn.classList.remove('v-active','x-active'); xBtn.style.color = 'transparent';
+  if (val === 'v') { vBtn.classList.add('v-active'); vBtn.style.color = ''; }
+  else if (val === 'x') { xBtn.classList.add('x-active'); xBtn.style.color = ''; }
   if (fields) fields.style.display = (val === 'v') ? 'block' : 'none';
+}
+window._evSet = _evSet;
+
+function evClick(val) {
+  // לחיצה חוזרת על אותה תיבה מבטלת את הבחירה
+  _evSet(_evGet() === val ? '' : val);
   saveIntakeDraft();
 }
 window.evClick = evClick;
@@ -8669,7 +8677,9 @@ function _applyIntakeDraftObj(draft) {
   if (draft.code)    { const el = document.getElementById('di-code');  if (el) el.value = draft.code; }
   if (draft.general) { const el = document.getElementById('di-notes'); if (el) el.value = draft.general; }
   if (draft.batteryMonth) { const el = document.getElementById('di-battery-month'); if (el) el.value = draft.batteryMonth; }
-  if (draft.evSelection === 'v') evClick('v'); else if (draft.evSelection === 'x') evClick('x'); else if (draft.isElectric === true) evClick('v');
+  // קביעה ישירה, לא לחיצה — אחרת סנכרון חוזר הופך את הסימון
+  _evSet(draft.evSelection === 'v' || draft.isElectric === true ? 'v'
+       : draft.evSelection === 'x' ? 'x' : '');
   if (draft.evCharge) { const el = document.getElementById('di-ev-charge'); if (el) el.value = draft.evCharge; }
   if (draft.evRange)  { const el = document.getElementById('di-ev-range');  if (el) el.value = draft.evRange; }
   Object.entries(draft.dashChecks || {}).forEach(([id, checked]) => {
