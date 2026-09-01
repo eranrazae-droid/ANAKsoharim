@@ -2315,6 +2315,9 @@ async function submitBsIssue() {
     await _addDoc(_colRef('battery_installs'), {
       model: row.model, sku: row.sku || '', price: row.price ?? null, stockId: id, plate, car,
       installedAt: date || new Date().toISOString().slice(0, 10),
+      // ordered נכתב כבר עכשיו כדי שהשרת יוכל לסנן את "צריך להזמין"
+      // במקום שהאפליקציה תמשוך את כל ההיסטוריה ותסנן בעצמה
+      ordered: false,
       note, createdBy: currentUser.name, createdAt: _serverTs()
     });
     await _updateDoc(_docRef('battery_stock', id), { qty: Math.max(0, (row.qty || 0) - 1), updatedAt: _serverTs() });

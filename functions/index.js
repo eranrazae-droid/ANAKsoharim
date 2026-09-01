@@ -1652,6 +1652,43 @@ exports.runOwnershipScanNow = onRequest(
   }
 );
 
+/* ── השלמה חד־פעמית: ordered=false על הרכבות ישנות ──────────────────
+   מונה "צריך להזמין" משך את כל אוסף ההרכבות בכל טעינה, רק כדי לספור
+   כמה עוד לא הוזמנו. כדי לתת לשרת לסנן במקום, כל רשומה צריכה את השדה
+   ordered. רשומות ישנות נוצרו בלעדיו, ולכן סינון בשרת היה מחמיץ אותן.
+   הפונקציה משלימה להן ordered=false ואינה נוגעת ברשומות שכבר הוזמנו.
+   אפשר להריץ אותה שוב ושוב — היא מדלגת על מה שכבר תקין.
+   dry=1 סופר בלבד ולא כותב.                                          */
+exports.backfillBatteryOrdered = onRequest(
+  { cors: true, region: "europe-west1", timeoutSeconds: 540 },
+  async (req, res) => {
+    const dry = String(req.query.dry || "") === "1";
+    try {
+      const snap = await db.collection("battery_installs").get();
+      let missing = 0, already = 0, isOrdered = 0, written = 0;
+      let batch = db.batch(), inBatch = 0;
+      for (const doc of snap.docs) {
+        const v = doc.data();
+        if (v.ordered === true) { isOrdered++; continue; }
+        if (v.ordered === false) { already++; continue; }
+        missing++;
+        if (dry) continue;
+        batch.update(doc.ref, { ordered: false });
+        if (++inBatch >= 400) { await batch.commit(); written += inBatch; batch = db.batch(); inBatch = 0; }
+      }
+      if (!dry && inBatch) { await batch.commit(); written += inBatch; }
+      res.json({
+        ok: true, dry, total: snap.size,
+        alreadyOrderedTrue: isOrdered, alreadyFalse: already,
+        wasMissingField: missing, written,
+        pendingAfter: already + missing,   // מה שהמונה אמור להראות
+      });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  }
+);
+
 /* ── גשר לגוגל מפות ──────────────────────────────────────────────────
    כתובות, מרחקים וזמני הליכה מדויקים — ישירות מגוגל, אותם מספרים כמו
    באפליקציית גוגל מפות. המפתח נשמר ב-config/maps (שדה key) ולא נחשף
