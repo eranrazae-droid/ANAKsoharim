@@ -319,6 +319,9 @@ body.has-crest .cal-day.barca.selected .cal-num{box-shadow:0 0 0 2px var(--dark)
 }
 .driver-battery-awaiting{background:#0891b2 !important;color:#fff !important}
 .driver-battery-awaiting .mc-title,.driver-battery-awaiting .mc-sub{color:#fff !important}
+/* הקובייה של המצברים אצל גיל, כל עוד בדיקת הארון החודשית לא נשלחה */
+.bs-audit-due{background:#dc2626 !important;color:#fff !important}
+.bs-audit-due .mc-title,.bs-audit-due .mc-sub{color:#fff !important}
 
 /* ===== TASKS ===== */
 .page-body{flex:1;overflow-y:auto;padding:16px}
@@ -4410,6 +4413,9 @@ function _cardHtml(m) {
       `<div id="home-morning"></div>`;
     _reapplyCardBadges();
     _msRenderHome();
+    // גיל צריך לראות כבר מהבית שבדיקת ארון המצברים החודשית ממתינה לו
+    if (currentUser.name === _BS_AUDIT_USER) _bsAuditListen();
+    _bsAuditHomeSync();
   } else {
     grid.style.display = '';
     grid.style.flexDirection = '';
@@ -15243,6 +15249,8 @@ function _bsRenderDriverStock() {
    התיעוד נשמר ב-battery_audits: תאריך ושעה, המלאי שהיה, והסימונים. */
 const _BS_AUDIT_USER = 'גיל';
 let _bsAudits = [], _bsAuditUnsub = null, _bsAuditMarks = {};
+// כשיש כמה יחידות מאותו סוג ורק חלקן בארון — כאן נשמר כמה באמת נמצאו
+let _bsAuditHave = {};
 
 const _bsAuditMonth = () => new Date().toLocaleDateString('sv-SE').slice(0, 7);   // YYYY-MM
 const _bsMonthLabel = m => {
@@ -15256,6 +15264,7 @@ function _bsAuditListen() {
     _bsAudits = snap.docs.map(d => ({ id: d.id, ...d.data() }))
       .sort((a, b) => String(b.month || '').localeCompare(String(a.month || '')));
     _bsRenderAudits();
+    _bsAuditHomeSync();
   }, () => {});
 }
 
@@ -15272,12 +15281,26 @@ function _bsAuditDue() {
   return !_bsAudits.some(a => a.month === m && a.status === 'done');
 }
 
+/* הקובייה של המצברים אצל גיל נצבעת אדום כל עוד בדיקת הארון של החודש
+   לא נשלחה, ומתנקה מעצמה ברגע שהיא נשלחת — המאזין מצייר מחדש. */
+function _bsAuditHomeSync() {
+  const card = document.getElementById('menu-card-driver-battery-install');
+  if (!card) return;
+  const due = _bsAuditDue();
+  card.classList.toggle('bs-audit-due', due);
+  const sub = document.getElementById('sub-driver-battery-install');
+  if (sub) sub.textContent = due
+    ? `בדיקת ארון ${_bsMonthLabel(_bsAuditMonth())} ממתינה`
+    : 'רישום מצבר שהורכב לרכב';
+}
+
 function _bsMaybeOpenAudit() {
   if (!_bsAuditDue()) return;
   if (!_bsAuditRows().length) return;                 // הארון עוד לא נטען
   const modal = document.getElementById('modal-bs-audit');
   if (modal && modal.classList.contains('open')) return;
   _bsAuditMarks = {};
+  _bsAuditHave = {};
   _bsRenderAuditForm();
   openModal('modal-bs-audit');
 }
@@ -15292,7 +15315,16 @@ function _bsRenderAuditForm() {
   box.innerHTML = rows.map(r => {
     const mark = _bsAuditMarks[r.id];
     const btn = (val, label, color) => `<button onclick="bsAuditMark('${r.id}','${val}')" style="flex:1;background:${mark === val ? color : 'var(--surface2)'};color:${mark === val ? '#fff' : 'var(--muted)'};border:2px solid ${mark === val ? color : 'var(--border)'};border-radius:10px;padding:9px 0;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer">${label}</button>`;
-    return `<div style="border:2px solid ${mark ? (mark === 'ok' ? '#16a34a' : '#dc2626') : 'var(--border)'};border-radius:12px;padding:10px 12px;margin-bottom:8px;background:var(--card)">
+    const brd = mark === 'ok' ? '#16a34a' : mark === 'partial' ? '#f59e0b' : mark === 'missing' ? '#dc2626' : 'var(--border)';
+    // "חלקי" רלוונטי רק כשיש יותר מיחידה אחת מאותו סוג בארון
+    const many = (r.qty || 0) > 1;
+    const have = _bsAuditHave[r.id] ?? Math.max(1, (r.qty || 0) - 1);
+    const step = `<div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-top:8px;background:#fffbeb;border:2px solid #f59e0b;border-radius:10px;padding:7px">
+        <button onclick="bsAuditHave('${r.id}',-1)" ${have <= 1 ? 'disabled' : ''} style="width:34px;height:34px;border-radius:8px;border:2px solid #f59e0b;background:#fff;font-size:19px;font-weight:900;color:#b45309;cursor:pointer;opacity:${have <= 1 ? .4 : 1}">−</button>
+        <div style="font-size:14px;font-weight:900;color:#92400e;min-width:96px;text-align:center">יש בארון ${have} מתוך ${r.qty || 0}</div>
+        <button onclick="bsAuditHave('${r.id}',1)" ${have >= (r.qty || 0) - 1 ? 'disabled' : ''} style="width:34px;height:34px;border-radius:8px;border:2px solid #f59e0b;background:#fff;font-size:19px;font-weight:900;color:#b45309;cursor:pointer;opacity:${have >= (r.qty || 0) - 1 ? .4 : 1}">+</button>
+      </div>`;
+    return `<div style="border:2px solid ${brd};border-radius:12px;padding:10px 12px;margin-bottom:8px;background:var(--card)">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
         <div style="flex:1;min-width:0">
           <div style="font-weight:800;font-size:14px">${esc(_bsModelOf(r))}</div>
@@ -15300,7 +15332,8 @@ function _bsRenderAuditForm() {
         </div>
         <div style="font-size:19px;font-weight:900;min-width:32px;text-align:center">${r.qty || 0}</div>
       </div>
-      <div style="display:flex;gap:8px">${btn('ok', '✅ קיים', '#16a34a')}${btn('missing', '❌ חסר', '#dc2626')}</div>
+      <div style="display:flex;gap:8px">${btn('ok', '✅ קיים', '#16a34a')}${many ? btn('partial', '🔢 חלקי', '#f59e0b') : ''}${btn('missing', '❌ חסר', '#dc2626')}</div>
+      ${mark === 'partial' ? step : ''}
     </div>`;
   }).join('');
   const send = document.getElementById('bs-audit-send');
@@ -15314,9 +15347,24 @@ function _bsRenderAuditForm() {
 
 function bsAuditMark(id, val) {
   _bsAuditMarks[id] = val;
+  if (val === 'partial' && _bsAuditHave[id] == null) {
+    const row = _bsAuditRows().find(r => r.id === id);
+    _bsAuditHave[id] = Math.max(1, (row?.qty || 0) - 1);   // חסרה אחת — המקרה הנפוץ
+  }
   _bsRenderAuditForm();
 }
 window.bsAuditMark = bsAuditMark;
+
+// שינוי הכמות שנמצאה בפועל. 0 הוא "חסר" והמלא הוא "קיים", ולכן הבורר
+// נשאר בין 1 לבין הכמות פחות אחת ולא כופל את שני המצבים האחרים.
+function bsAuditHave(id, delta) {
+  const row = _bsAuditRows().find(r => r.id === id);
+  const max = Math.max(1, (row?.qty || 0) - 1);
+  const cur = _bsAuditHave[id] ?? max;
+  _bsAuditHave[id] = Math.min(max, Math.max(1, cur + delta));
+  _bsRenderAuditForm();
+}
+window.bsAuditHave = bsAuditHave;
 
 async function bsAuditSubmit() {
   const rows = _bsAuditRows();
@@ -15326,16 +15374,23 @@ async function bsAuditSubmit() {
   const btn = document.getElementById('bs-audit-send');
   if (btn) btn.disabled = true;
   const month = _bsAuditMonth();
-  const lines = rows.map(r => ({
-    model: _bsModelOf(r) || '', sku: r.sku || '', qty: r.qty || 0,
-    mark: _bsAuditMarks[r.id] === 'ok' ? 'קיים' : 'חסר',
-  }));
+  const lines = rows.map(r => {
+    const m = _bsAuditMarks[r.id], qty = r.qty || 0;
+    const have = m === 'ok' ? qty : m === 'missing' ? 0
+      : Math.min(Math.max(1, _bsAuditHave[r.id] ?? Math.max(1, qty - 1)), Math.max(1, qty - 1));
+    return {
+      model: _bsModelOf(r) || '', sku: r.sku || '', qty,
+      mark: m === 'ok' ? 'קיים' : m === 'partial' ? 'חלקי' : 'חסר',
+      have, short: qty - have,
+    };
+  });
   const data = {
     month, status: 'done',
     submittedBy: currentUser?.name || '', submittedAt: new Date().toISOString(),
     totalTypes: lines.length,
     totalUnits: lines.reduce((t, l) => t + l.qty, 0),
-    missingCount: lines.filter(l => l.mark === 'חסר').length,
+    missingCount: lines.filter(l => l.mark !== 'קיים').length,
+    shortUnits: lines.reduce((t, l) => t + (l.short || 0), 0),
     lines,
   };
   try {
@@ -15371,13 +15426,13 @@ function _bsRenderAudits() {
         ${esc(_bsMonthLabel(a.month))} · ${esc(a.submittedBy || '')}
         <span style="font-weight:700;font-size:12px;color:var(--muted)"> · ${esc(when)}</span>
         <div style="font-size:12.5px;font-weight:800;color:${bad ? '#dc2626' : '#16a34a'};margin-top:3px">
-          ${bad ? `${bad} שורות חסרות` : 'הכל נמצא'} · ${a.totalTypes || 0} סוגים · ${a.totalUnits || 0} יחידות</div>
+          ${bad ? `${bad} שורות חסרות${a.shortUnits ? ` · ${a.shortUnits} יחידות` : ''}` : 'הכל נמצא'} · ${a.totalTypes || 0} סוגים · ${a.totalUnits || 0} יחידות</div>
       </summary>
       <div style="padding:0 13px 12px">
         ${(a.lines || []).map(l => `<div style="display:flex;align-items:center;gap:8px;border-top:1px solid var(--border);padding:7px 0">
           <div style="flex:1;min-width:0;font-size:13px;font-weight:700">${esc(l.model)}${l.sku ? `<span style="color:var(--muted);font-weight:600"> · ${esc(l.sku)}</span>` : ''}</div>
           <div style="font-size:13px;font-weight:900;min-width:26px;text-align:center">${l.qty}</div>
-          <div style="font-size:12px;font-weight:900;color:${l.mark === 'חסר' ? '#dc2626' : '#16a34a'};min-width:44px;text-align:center">${esc(l.mark)}</div>
+          <div style="font-size:12px;font-weight:900;color:${l.mark === 'קיים' ? '#16a34a' : l.mark === 'חלקי' ? '#b45309' : '#dc2626'};min-width:44px;text-align:center">${esc(l.mark)}${l.mark === 'חלקי' ? `<div style="font-size:10.5px;font-weight:800">${l.have}/${l.qty}</div>` : ''}</div>
         </div>`).join('')}
       </div>
     </details>`;
