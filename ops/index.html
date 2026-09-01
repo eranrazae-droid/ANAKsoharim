@@ -650,6 +650,12 @@ body.td-panel-min .screen.active{margin-left:0 !important;width:auto !important}
 .bshop-grid .bshop-span{grid-column:1/-1}
 @media(min-width:700px){.bshop-grid{grid-template-columns:repeat(3,1fr)}}
 @media(min-width:1080px){.bshop-grid{grid-template-columns:repeat(4,1fr)}}
+/* חלונית ההמתנה: שתי קוביות בשורה בטלפון, שלוש במסך רחב, וגובה
+   שמראה כשלוש שורות לפני שמתחילים לגלול */
+.bsm-hold-box{max-width:min(96vw,880px);width:100%;display:flex;flex-direction:column;max-height:88vh}
+.bsm-hold-grid{overflow-y:auto;max-height:72vh;padding:2px;align-content:start}
+@media(min-width:700px){.bsm-hold-grid{grid-template-columns:repeat(3,1fr)}}
+@media(min-width:1080px){.bsm-hold-grid{grid-template-columns:repeat(3,1fr)}}
 /* compact card — the panel beater's screen only */
 .bshop-card-sm{padding:10px !important}
 .bshop-card-sm .bs-plate{font-size:15px !important}
@@ -2049,6 +2055,7 @@ if ('serviceWorker' in navigator) {
         <button class="bsm-fab bsm-fab-dark" onclick="openBsmItemsModal()">⚙️ רשימת חלקים</button>
         <button class="bsm-fab bsm-fab-blue" onclick="bsmCopyLink()">🔗 קישור לפחח</button>
         <button class="bsm-fab bsm-fab-dark" onclick="openBsmTrips()">🚗 תיעוד נסיעות</button>
+        <button class="bsm-fab bsm-fab-dark" onclick="openBsmHold()">⏸️ בהמתנה <span id="bsm-hold-cnt" class="bsm-cnt"></span></button>
       </div>
       <button id="bsm-actions-toggle" class="bsm-fab bsm-fab-gold" onclick="bsmToggleActions()">⚡ פעולות</button>
       <input type="file" accept="image/*" capture="environment" id="bsm-addphoto-file" style="display:none" onchange="bsmAddPhotoPicked(this)">
@@ -3033,6 +3040,14 @@ if ('serviceWorker' in navigator) {
 </div>
 
 <!-- ====== MODAL: TRIP LOG ====== -->
+<!-- פתקים שהוצאו זמנית מהמסך הרגיל -->
+<div class="modal-overlay" id="modal-bsm-hold">
+  <div class="modal-box bsm-hold-box">
+    <div class="modal-title">⏸️ פתקים בהמתנה <button class="modal-close" onclick="closeModal('modal-bsm-hold')">✕</button></div>
+    <div id="bsm-hold-body" class="bshop-grid bsm-hold-grid"></div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-bsm-trips">
   <div class="modal-box" style="max-width:620px;max-height:88vh;overflow-y:auto">
     <div class="modal-title">🚗 תיעוד נסיעות לאיברהים <button class="modal-close" onclick="closeModal('modal-bsm-trips')">✕</button></div>
@@ -11092,7 +11107,7 @@ async function bsmDeleteOne(key) {
 }
 window.bsmDeleteOne = bsmDeleteOne;
 
-function _bshopJobCard(j, forWorker) {
+function _bshopJobCard(j, forWorker, held) {
   const total = _bshopTotal(j);
   const filled = (j.items || []).filter(it => Number(it.price) > 0).length;
   const desc = [j.desc].filter(Boolean).join(' ');
@@ -11128,20 +11143,24 @@ function _bshopJobCard(j, forWorker) {
       return `<div class="bs-note" style="margin-top:6px;background:#fee2e2;color:#991b1b;border-right:5px solid #dc2626;border-radius:8px;padding:6px 9px;font-size:12px;font-weight:900">⚠️ ${all ? 'לא עודכן תשלום' : 'חסר מחיר לחלק בפתק'}</div>`;
     })()}
     ${(j.photoThumb || j.photo) ? `<img id="bshop-card-img-${j.id}" src="${j.photo || j.photoThumb}" alt="" loading="lazy" style="margin-top:8px;width:100%;max-height:150px;object-fit:cover;object-position:${_bshopFocusCss(j)};border-radius:10px;display:block">`
-      : (!forWorker ? `<button onclick="event.stopPropagation();bsmAddPhoto('${j.id}')" style="margin-top:8px;width:100%;background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:9px;font-family:'Heebo',sans-serif;font-size:13px;font-weight:800;cursor:pointer">📷 הוסף תמונה</button>` : '')}
-    ${!forWorker && j.status === 'returned' ? (j.swUpdated
+      : (!held && !forWorker ? `<button onclick="event.stopPropagation();bsmAddPhoto('${j.id}')" style="margin-top:8px;width:100%;background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:9px;font-family:'Heebo',sans-serif;font-size:13px;font-weight:800;cursor:pointer">📷 הוסף תמונה</button>` : '')}
+    ${held ? `<button onclick="event.stopPropagation();bsmSetHold('${j.id}',false)"
+      style="margin-top:10px;width:100%;background:var(--success);color:#fff;border:none;border-radius:10px;padding:11px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:900;cursor:pointer">▶️ החזר לפעילות</button>` : ''}
+    ${!held && !forWorker && j.status === 'returned' ? (j.swUpdated
       ? `<button onclick="event.stopPropagation();bsmSetSwUpdated('${j.id}',false)" title="בטל סימון"
           style="margin-top:10px;width:100%;background:var(--success);color:#fff;border:none;border-radius:10px;padding:10px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:900;cursor:pointer">✅ עודכן בתוכנה</button>`
       : `<button onclick="event.stopPropagation();bsmSetSwUpdated('${j.id}',true)"
           style="margin-top:10px;width:100%;background:#b45309;color:#fff;border:none;border-radius:10px;padding:10px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:900;cursor:pointer">💳 עדכנתי בתוכנה</button>`) : ''}
-    ${!forWorker && j.status === 'at_shop' ? `<button onclick="event.stopPropagation();bsmMarkReturned('${j.id}')"
+    ${!held && !forWorker && j.status === 'at_shop' ? `<button onclick="event.stopPropagation();bsmMarkReturned('${j.id}')"
       style="margin-top:10px;width:100%;background:var(--dark);color:#fff;border:none;border-radius:10px;padding:10px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:900;cursor:pointer">✅ סיימנו עם הרכב</button>` : ''}
-    ${!forWorker && j.status === 'draft' ? `<div style="display:flex;gap:8px;margin-top:10px">
+    ${!held && !forWorker && j.status === 'draft' ? `<div style="display:flex;gap:8px;margin-top:10px">
       <button onclick="event.stopPropagation();bsmSendToShop('${j.id}')"
         style="flex:1;background:var(--success);color:#fff;border:none;border-radius:10px;padding:11px 6px;font-family:'Heebo',sans-serif;font-size:15px;font-weight:900;cursor:pointer">📤 שלח לאיברהים</button>
       <button onclick="event.stopPropagation();bsmPrint('${j.id}')"
         style="flex:1;background:var(--dark);color:#fff;border:none;border-radius:10px;padding:11px 6px;font-family:'Heebo',sans-serif;font-size:15px;font-weight:900;cursor:pointer">🖨️ הדפס פתק</button>
     </div>` : ''}
+    ${!held && !forWorker ? `<button onclick="event.stopPropagation();bsmSetHold('${j.id}',true)" title="הוצא מהמסך עד שתחזיר אותו"
+      style="margin-top:8px;width:100%;background:transparent;color:var(--muted);border:2px solid var(--border);border-radius:10px;padding:7px;font-family:'Heebo',sans-serif;font-size:12.5px;font-weight:800;cursor:pointer">⏸️ העבר להמתנה</button>` : ''}
   </div>`;
 }
 
@@ -11796,9 +11815,12 @@ function _bshopRenderMgr() {
   const retC  = document.getElementById('bsm-returned');
   const sumC  = document.getElementById('bsm-summary');
   if (!openC || !retC) return;
-  const draft = _bshopJobs.filter(j => j.status === 'draft');
-  const open = _bshopJobs.filter(j => j.status === 'at_shop');
-  const ret  = _bshopJobs.filter(j => j.status === 'returned');
+  // פתק בהמתנה יוצא מהמסך הרגיל עד שמחזירים אותו — הסטטוס שלו לא משתנה,
+  // ולכן הוא חוזר בדיוק לאותו מקום שממנו יצא
+  const live = _bshopJobs.filter(j => !j.onHold);
+  const draft = live.filter(j => j.status === 'draft');
+  const open = live.filter(j => j.status === 'at_shop');
+  const ret  = live.filter(j => j.status === 'returned');
   const sum  = ret.reduce((s, j) => s + _bshopTotal(j), 0);
   const openSum = open.reduce((s, j) => s + _bshopTotal(j), 0);
 
@@ -11826,6 +11848,7 @@ function _bshopRenderMgr() {
     : `<div class="bshop-span" style="padding:16px;text-align:center;color:var(--muted)">אין רכבים שממתינים לתשלום</div>`;
   const payWrap = document.getElementById('bsm-pay-wrap');
   if (payWrap) payWrap.style.display = ret.length ? 'flex' : 'none';
+  _bsmRenderHold();
   // entering the screen lands on the notes waiting to be sent; with none
   // waiting there is nothing to do there, so it lands on the cars at the shop
   if (_bsmAutoView) {
@@ -11933,6 +11956,43 @@ async function bsmSendWithDriver(name) {
   } catch (e) { showToast('שגיאה בשליחה — נסה שוב'); }
 }
 window.bsmSendWithDriver = bsmSendWithDriver;
+
+/* ── פתקים בהמתנה ──────────────────────────────────────────────────
+   פתק שאין מה לעשות איתו כרגע יוצא מהמסך הרגיל בלי לאבד את הסטטוס
+   שלו. הוא יושב בחלונית נפרדת, וברגע שמחזירים אותו הוא חוזר בדיוק
+   לעמודה שממנה יצא. */
+async function bsmSetHold(id, val) {
+  const j = _bshopJobs.find(x => x.id === id);
+  if (!j) return;
+  if (!_requireNet(val ? 'העברה להמתנה' : 'החזרה לפעילות')) return;
+  j.onHold = val;                       // תגובה מיידית על המסך
+  _bshopRenderMgr();
+  _bsmRenderHold();
+  try {
+    await _updateDoc(_docRef('bodyshop_jobs', id), { onHold: val });
+    showToast(val ? '⏸️ הפתק הועבר להמתנה' : '▶️ הפתק חזר לפעילות');
+  } catch (e) {
+    j.onHold = !val;                    // כשל — חזרה למצב הקודם
+    _bshopRenderMgr();
+    _bsmRenderHold();
+    showToast('הפעולה נכשלה — נסה שוב', 6000);
+  }
+}
+window.bsmSetHold = bsmSetHold;
+
+function _bsmRenderHold() {
+  const held = _bshopJobs.filter(j => j.onHold);
+  const cnt = document.getElementById('bsm-hold-cnt');
+  if (cnt) cnt.textContent = held.length || '';
+  const box = document.getElementById('bsm-hold-body');
+  if (!box) return;
+  box.innerHTML = held.length
+    ? held.map(j => _bshopJobCard(j, false, true)).join('')
+    : `<div class="bshop-span" style="padding:30px 16px;text-align:center;color:var(--muted);font-weight:700">אין פתקים בהמתנה</div>`;
+}
+
+function openBsmHold() { _bsmRenderHold(); openModal('modal-bsm-hold'); }
+window.openBsmHold = openBsmHold;
 
 // יומן הנסיעות — מי לקח כל רכב לאיברהים ומתי
 async function openBsmTrips() {
