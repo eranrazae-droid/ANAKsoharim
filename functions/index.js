@@ -1,7 +1,7 @@
 const { onRequest } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { initializeApp } = require("firebase-admin/app");
-const { getFirestore } = require("firebase-admin/firestore");
+const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 
 initializeApp();
 // the app uses a named database called "default" (not the reserved "(default)"
@@ -1649,6 +1649,73 @@ exports.runOwnershipScanNow = onRequest(
     if (out.reason === "registry-unreachable") await _setScanBlocked("own", true);
     else if (out.ok) await _setScanBlocked("own", false);
     res.status(out.ok ? 200 : 500).json(out);
+  }
+);
+
+/* ── העברת תמונות הקליטה למסמך נפרד ─────────────────────────────────
+   ארכיון הקליטות שוקל עשרות מגה־בייט כי התמונות יושבות בתוך הרשומות,
+   והרשימה מושכת את כולן למרות שהיא אינה מציגה תמונה אחת. הפונקציה
+   מעתיקה את התמונות ל-intake_photos ורק אחרי שההעתקה אושרה מוחקת
+   אותן מהרשומה המקורית. שום תמונה לא נמחקת לפני שיש לה עותק.
+   dry=1 מדווח בלבד. col=... לבחירת אוסף. undo=1 מחזיר את המצב לאחור. */
+async function _movePhotos(col, { dry, undo }) {
+  const snap = await db.collection(col).get();
+  let moved = 0, skipped = 0, restored = 0, bytes = 0;
+  for (const doc of snap.docs) {
+    const v = doc.data();
+    const key = v.originalId || doc.id;
+    const pRef = db.collection("intake_photos").doc(key);
+
+    if (undo) {
+      if (!v.photosId && !(v.photoUrls || v.batteryPhotoUrls)) {
+        const p = await pRef.get();
+        if (!p.exists) { skipped++; continue; }
+        if (!dry) await doc.ref.update({
+          photoUrls: p.data().photoUrls || {},
+          batteryPhotoUrls: p.data().batteryPhotoUrls || {},
+          photosId: FieldValue.delete(),
+        });
+        restored++;
+      } else skipped++;
+      continue;
+    }
+
+    const hasPhotos = Object.keys(v.photoUrls || {}).length ||
+                      Object.keys(v.batteryPhotoUrls || {}).length;
+    if (!hasPhotos) { skipped++; continue; }
+    bytes += Buffer.byteLength(JSON.stringify({ a: v.photoUrls, b: v.batteryPhotoUrls }));
+    if (dry) { moved++; continue; }
+    // קודם עותק, ורק אחריו מחיקה מהמקור
+    await pRef.set({
+      photoUrls: v.photoUrls || {},
+      batteryPhotoUrls: v.batteryPhotoUrls || {},
+      movedAt: new Date().toISOString(), from: col, fromId: doc.id,
+    }, { merge: true });
+    const check = await pRef.get();
+    if (!check.exists) { skipped++; continue; }        // לא נכתב — לא נוגעים במקור
+    await doc.ref.update({
+      photosId: key,
+      photoUrls: FieldValue.delete(),
+      batteryPhotoUrls: FieldValue.delete(),
+    });
+    moved++;
+  }
+  return { col, docs: snap.size, moved, restored, skipped, mb: +(bytes / 1048576).toFixed(2) };
+}
+
+exports.moveIntakePhotos = onRequest(
+  { cors: true, region: "europe-west1", timeoutSeconds: 540, memory: "1GiB" },
+  async (req, res) => {
+    const dry = String(req.query.dry || "") === "1";
+    const undo = String(req.query.undo || "") === "1";
+    const cols = String(req.query.col || "intake_archive").split(",").filter(Boolean);
+    try {
+      const out = [];
+      for (const c of cols) out.push(await _movePhotos(c, { dry, undo }));
+      res.json({ ok: true, dry, undo, results: out });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: err.message });
+    }
   }
 );
 

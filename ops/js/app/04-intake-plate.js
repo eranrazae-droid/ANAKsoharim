@@ -598,7 +598,7 @@ async function viewArchivedIntake(id) {
   const { getDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
   const snap = await getDoc(doc(window._db, 'intake_archive', id));
   if (!snap.exists()) return showToast('לא נמצאה קליטה בארכיון');
-  _renderViewIntakeModal({ id, ...snap.data() });
+  _renderViewIntakeModal(await _intakeLoadPhotos({ id, ...snap.data() }));
 }
 window.viewArchivedIntake = viewArchivedIntake;
 
@@ -1491,7 +1491,10 @@ async function markChecked(id) {
   const { getDoc, doc, deleteDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
   const snap = await getDoc(doc(window._db, 'intake_assignments', id));
   if (!snap.exists()) return;
-  const data = { ...snap.data(), status: 'checked', checkedAt: _serverTs(), originalId: id };
+  // התמונות עוברות למסמך נפרד לפי המזהה המקורי, כדי שרשימת הארכיון
+  // לא תמשוך אותן. אם ההפרדה נכשלה הן פשוט נשמרות כמו קודם.
+  const raw = { ...snap.data(), status: 'checked', checkedAt: _serverTs(), originalId: id };
+  const data = await _intakeSplitPhotos(id, raw);
   await _addDoc(_colRef('intake_archive'), data);
   await deleteDoc(doc(window._db, 'intake_assignments', id));
   showToast('✅ הועבר לארכיון');
@@ -1515,14 +1518,61 @@ async function archiveIntakeFromView(id) {
 }
 window.archiveIntakeFromView = archiveIntakeFromView;
 
+/* ── תמונות הקליטה יושבות במסמך נפרד ─────────────────────────────────
+   רשימת הקליטות והארכיון אינן מציגות תמונות בכלל, ולכן אין סיבה שהן
+   יירדו יחד עם הרשימה. התמונות נשמרות ב-intake_photos ונטענות רק
+   כשפותחים קליטה אחת לצפייה.
+   מסמכים ישנים עדיין מחזיקים את התמונות בתוכם — הקריאה מעדיפה תמיד את
+   מה שנמצא במסמך עצמו, ורק אם אין שם כלום פונה למסמך הנפרד. כך שום
+   קליטה לא מאבדת את התמונות שלה, לא לפני המעבר ולא אחריו.           */
+const _intakePhotoCache = new Map();
+const _hasPhotos = v => Object.keys(v?.photoUrls || {}).length
+                     || Object.keys(v?.batteryPhotoUrls || {}).length;
+
+async function _intakeLoadPhotos(v) {
+  if (!v || _hasPhotos(v)) return v;                 // התמונות כבר כאן
+  const key = v.photosId || v.originalId || v.id;
+  if (!key || !window._getDoc) return v;
+  if (_intakePhotoCache.has(key)) return { ...v, ...(_intakePhotoCache.get(key)) };
+  try {
+    const snap = await window._getDoc(_docRef('intake_photos', key));
+    const d = snap.exists() ? snap.data() : null;
+    const got = d ? { photoUrls: d.photoUrls || {}, batteryPhotoUrls: d.batteryPhotoUrls || {} } : {};
+    _intakePhotoCache.set(key, got);
+    return { ...v, ...got };
+  } catch (e) { console.warn('intake photos', e); return v; }
+}
+
+/* מפריד את התמונות מהמסמך: כותב אותן למסמך הנפרד ומחזיר את הנתונים
+   בלעדיהן. אם הכתיבה נכשלה — מוחזרים הנתונים המקוריים עם התמונות,
+   כדי שלא תיווצר קליטה בלי תמונות בשום מצב. */
+async function _intakeSplitPhotos(photoKey, data) {
+  if (!_hasPhotos(data)) return data;
+  try {
+    await window._setDoc(_docRef('intake_photos', photoKey), {
+      photoUrls: data.photoUrls || {},
+      batteryPhotoUrls: data.batteryPhotoUrls || {},
+      movedAt: new Date().toISOString(),
+    }, { merge: true });
+    _intakePhotoCache.delete(photoKey);
+    const out = { ...data, photosId: photoKey };
+    delete out.photoUrls;
+    delete out.batteryPhotoUrls;
+    return out;
+  } catch (e) {
+    console.warn('intake photo split failed', e);
+    return data;                                     // נשמר כמו קודם
+  }
+}
+
 async function viewIntakeForm(id) {
   // פתיחה מיידית מהרשימה שכבר בזיכרון — בלי לחכות לרשת
   const hit = (_intakeCache || []).find(v => v.id === id);
-  if (hit) return _renderViewIntakeModal(hit);
+  if (hit) return _renderViewIntakeModal(await _intakeLoadPhotos(hit));
   const { getDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
   const snap = await getDoc(doc(window._db, 'intake_assignments', id));
   if (!snap.exists()) return showToast('לא נמצאה קליטה');
-  _renderViewIntakeModal({ id, ...snap.data() });
+  _renderViewIntakeModal(await _intakeLoadPhotos({ id, ...snap.data() }));
 }
 window.viewIntakeForm = viewIntakeForm;
 
