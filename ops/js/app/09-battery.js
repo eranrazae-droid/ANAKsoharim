@@ -1618,12 +1618,10 @@ function _bsRenderHistory() {
         <div style="font-size:12px;color:var(--muted)">${esc(_bsModelOf(r))}${r.note ? ' · ' + esc(r.note) : ''}</div>
       </div>
       ${(() => {
-        // המחיר מגיע מהקטלוג לפי המק״ט, ואם אין שם — מהמחיר שנשמר על ההרכבה
+        // המחיר מגיע מהקטלוג לפי המק״ט, ואם אין שם — מהמחיר שנשמר על ההרכבה.
+        // המשוואה היא בדיוק זו שבארכיון הפחחות — אותה פונקציה, אותו מראה.
         const pr = Number(_bsPriceOf(r));
-        return pr ? `<div style="text-align:center;white-space:nowrap;flex-shrink:0">
-            <div style="font-size:17px;font-weight:900;color:var(--gold);line-height:1.1">${pr.toLocaleString('he-IL')} ₪</div>
-            <div style="font-size:10px;font-weight:700;color:var(--muted)">לפני מע״מ</div>
-          </div>`
+        return pr ? _bsmVatEquation(pr)
         : `<div style="font-size:12px;font-weight:800;color:var(--muted);white-space:nowrap;flex-shrink:0">אין מחיר</div>`;
       })()}
       <div style="font-size:12px;color:var(--muted);white-space:nowrap">${esc(ds)}</div>
