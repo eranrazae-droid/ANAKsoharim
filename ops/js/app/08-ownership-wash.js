@@ -709,73 +709,63 @@ function washPrintNotes(list, onDone) {
   const pages = [];
   for (let i = 0; i < list.length; i += PER) pages.push(list.slice(i, i + PER));
 
-  const slot = (f, n) => {
-    const when = new Date().toLocaleDateString('he-IL') + ' · ' +
-      new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
-    const desc = [f.maker, f.model, f.subModel, f.color, f.year].filter(Boolean).join(' ') || f.desc || '';
-    return `<div class="slot s${n}">
-      <div class="head"><span class="ttl">פתק לשטיפה</span><span class="sub">ענק הרכבים · מאסטר קלין</span></div>
-      <div class="body">
-        <div class="right">
-          <div class="plate">${esc(f.plate)}</div>
-          ${desc ? `<div class="desc">${esc(desc)}</div>` : ''}
-          ${f.note ? `<div class="note"><b>הערה</b> ${esc(f.note)}</div>` : ''}
-        </div>
-        <div class="left">
-          <div class="type-l">סוג שטיפה</div>
-          <div class="type">${esc(f.type)}</div>
-          <div class="stamp"><span>חותמת ואישור ביצוע</span></div>
-        </div>
-      </div>
-      <div class="foot">${esc(f.createdBy || currentUser.name)} · ${esc(when)}</div>
-    </div>`;
-  };
-
   const html = `<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8">
 <title>פתקי שטיפה (${list.length})</title>
 <style>
-  /* כל עמוד מחולק שווה בשווה בין הפתקים שבו: כל פתק מקבל flex:1 מתוך
-     גובה העמוד, ולכן שניים מקבלים חצי כל אחד ושלושה שליש כל אחד. */
+  /* אותו פתק בדיוק כמו בהדפסה בודדת — אותו נוסח ואותו מבנה. ההבדל
+     היחיד הוא שהעמוד מחולק שווה בשווה בין הפתקים שבו, והכתב מוקטן
+     בהתאם כדי שהכל ייכנס. */
   @page { size: A4; margin: 8mm; }
-  html, body { margin:0; height:auto; }
-  body { font-family: Arial, "Segoe UI", sans-serif; color:#222;
+  html, body { height:auto; margin:0; }
+  body { font-family: Arial, "Segoe UI", sans-serif; color:#222; text-align:center;
          -webkit-print-color-adjust:exact; }
-  .page { display:flex; flex-direction:column; height:281mm; page-break-after:always; break-after:page; }
+  .page { display:flex; flex-direction:column; height:281mm; gap:5mm;
+          page-break-after:always; break-after:page; }
   .page:last-child { page-break-after:auto; break-after:auto; }
-  .slot { flex:1 1 0; min-height:0; display:flex; flex-direction:column;
-          border:1px solid #ccc; border-radius:8px; padding:6mm 7mm; margin-bottom:4mm;
-          page-break-inside:avoid; break-inside:avoid; }
-  .slot:last-child { margin-bottom:0; }
-  .head { display:flex; justify-content:space-between; align-items:baseline;
-          border-bottom:1px solid #ddd; padding-bottom:3mm; }
-  .ttl { font-size:15px; letter-spacing:3px; color:#444; }
-  .sub { font-size:11px; letter-spacing:2px; color:#999; }
-  .body { flex:1; display:flex; gap:7mm; align-items:stretch; padding-top:4mm; min-height:0; }
-  .right { flex:1.1; text-align:right; min-width:0; }
-  .left  { flex:1; display:flex; flex-direction:column; min-width:0; }
-  .plate { font-weight:bold; color:#111; line-height:1.05; letter-spacing:3px; }
-  .desc { color:#555; margin-top:2mm; }
-  .note { border:1px solid #ddd; border-radius:8px; padding:2mm 3mm; margin-top:3mm;
-          color:#333; line-height:1.4; }
-  .note b { color:#999; font-weight:normal; letter-spacing:1px; }
-  .type-l { letter-spacing:2px; color:#888; margin-bottom:1.5mm; font-size:11px; }
-  .type { font-weight:bold; color:#111; border:1px solid #bbb; border-radius:8px;
-          padding:3mm 2mm; text-align:center; }
-  .stamp { flex:1; border:1px solid #ccc; border-radius:8px; margin-top:3mm;
-           position:relative; min-height:14mm; }
-  .stamp span { position:absolute; top:2mm; right:3mm; font-size:10px;
-                letter-spacing:1px; color:#aaa; }
-  .foot { border-top:1px solid #eee; padding-top:2mm; margin-top:3mm;
-          font-size:10px; letter-spacing:1px; color:#aaa; text-align:center; }
-  /* ככל שיש יותר פתקים בעמוד, כך הכתב קטן — כדי שהכל ייכנס יפה */
-  .s1 .plate { font-size:44px; } .s1 .type { font-size:27px; } .s1 .desc,.s1 .note { font-size:15px; }
-  .s2 .plate { font-size:34px; } .s2 .type { font-size:21px; } .s2 .desc,.s2 .note { font-size:13px; }
-  .s3 .plate { font-size:27px; } .s3 .type { font-size:17px; } .s3 .desc,.s3 .note { font-size:11.5px; }
+  .sheet { flex:1 1 0; min-height:0; display:flex; flex-direction:column;
+           border:1px solid #d5d5d5; border-radius:8px; padding:5mm 7mm;
+           page-break-inside:avoid; break-inside:avoid; }
+  h1 { font-weight:normal; letter-spacing:4px; color:#444; margin:0; }
+  .sub { letter-spacing:3px; color:#888; margin:3px 0 0; }
+  .rule { border:0; border-top:1px solid #d5d5d5; margin:6px 0 8px; }
+  table.info { border-collapse:collapse; width:100%; margin-bottom:8px; }
+  table.info td { border-bottom:1px solid #e2e2e2; padding:4px 4px; text-align:right; }
+  table.info tr:last-child td { border-bottom:0; }
+  table.info td.l { width:32%; color:#888; letter-spacing:1px; }
+  table.info td.v { font-weight:bold; color:#111; }
+  table.info tr.plate td { border-bottom:2px solid #999; padding:5px 4px 7px; }
+  table.info tr.plate td.v { letter-spacing:4px; line-height:1.1; }
+  .type-l { letter-spacing:3px; color:#888; margin-bottom:3px; }
+  .type { font-weight:bold; color:#111; border:1px solid #bbb;
+          border-radius:10px; padding:6px 10px; }
+  .note { border:1px solid #ddd; border-radius:10px; padding:5px 10px; margin-top:6px;
+          text-align:right; color:#333; line-height:1.4; }
+  .note b { color:#888; font-weight:normal; letter-spacing:1px; }
+  .stamp { flex:1; min-height:12mm; border:1px solid #ccc; border-radius:10px;
+           margin-top:7px; position:relative; }
+  .stamp span { position:absolute; top:5px; right:10px; letter-spacing:2px; color:#999; }
+  .foot { margin-top:6px; letter-spacing:1px; color:#999;
+          border-top:1px solid #e2e2e2; padding-top:5px; }
+  /* שני פתקים בעמוד */
+  .n2 h1 { font-size:16px; } .n2 .sub { font-size:11px; }
+  .n2 table.info td { font-size:13px; } .n2 table.info td.l { font-size:11px; }
+  .n2 table.info tr.plate td.v { font-size:33px; }
+  .n2 .type-l { font-size:11px; } .n2 .type { font-size:23px; }
+  .n2 .note { font-size:12.5px; } .n2 .note b { font-size:11px; }
+  .n2 .stamp span,.n2 .foot { font-size:10px; }
+  /* שלושה פתקים בעמוד */
+  .n3 h1 { font-size:14px; } .n3 .sub { font-size:10px; }
+  .n3 table.info td { font-size:11.5px; padding:2.5px 4px; } .n3 table.info td.l { font-size:10px; }
+  .n3 table.info tr.plate td.v { font-size:25px; }
+  .n3 .type-l { font-size:10px; } .n3 .type { font-size:18px; padding:4px 8px; }
+  .n3 .note { font-size:11px; padding:4px 8px; } .n3 .note b { font-size:10px; }
+  .n3 .stamp { min-height:9mm; } .n3 .stamp span,.n3 .foot { font-size:9px; }
 </style></head><body>
-${pages.map(pg => `<div class="page">${pg.map(f => slot(f, pg.length)).join('')}</div>`).join('')}
+${pages.map(pg => `<div class="page n${pg.length}">${pg.map(_washSheet).join('')}</div>`).join('')}
 </body></html>`;
   _printHtml(html, 'wash print batch', 'שגיאה בהדפסה', onDone);
 }
+
 
 /* ── רכבים שמורים לשטיפה ────────────────────────────────────────────
    רכבים שחוזרים על עצמם. הרשימה גלויה לכולם וכל אחד יכול לבחור ממנה
@@ -974,7 +964,9 @@ function _washClear() {
 }
 
 // הפתק נתלה על הרכב, ולכן הכל גדול: מספר הרישוי ענק וסוג השטיפה מתחתיו
-function washPrintNote(f, onDone) {
+/* גוף הפתק — מקום אחד לנוסח. גם הדפסת פתק בודד וגם הדפסה של כמה
+   בעמוד משתמשות בו, ולכן הנוסח זהה תמיד ולא יכול להתפצל. */
+function _washSheet(f) {
   // בהדפסה חוזרת מוצג התאריך שבו הפתק נוצר, לא תאריך ההדפסה
   const now = f.createdAt?.toDate ? f.createdAt.toDate() : new Date();
   const when = now.toLocaleDateString('he-IL') + ' · ' + now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
@@ -985,6 +977,20 @@ function washPrintNote(f, onDone) {
     ([f.maker, f.model, f.subModel, f.color, f.year].some(Boolean)
       ? `${row('יצרן', f.maker)}${row('דגם', f.model)}${row('תת דגם', f.subModel)}${row('צבע', f.color)}${row('שנה', f.year)}`
       : row('רכב', f.desc));
+  return ` <div class="sheet">
+  <h1>פתק לשטיפה</h1>
+  <div class="sub">ענק הרכבים · מאסטר קלין</div>
+  <hr class="rule">
+  <table class="info">${details}</table>
+  <div class="type-l">סוג שטיפה</div>
+  <div class="type">${esc(f.type)}</div>
+  ${f.note ? `<div class="note"><b>הערה</b><br>${esc(f.note)}</div>` : ''}
+  <div class="stamp"><span>חותמת ואישור ביצוע</span></div>
+  <div class="foot">${esc(f.createdBy || currentUser.name)} · ${esc(when)}</div>
+ </div>`;
+}
+
+function washPrintNote(f, onDone) {
   _printHtml(`<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8">
 <title>פתק שטיפה ${esc(f.plate)}</title>
 <style>
@@ -1020,17 +1026,7 @@ function washPrintNote(f, onDone) {
   .foot { margin-top:12px; font-size:12px; letter-spacing:1px; color:#999;
           border-top:1px solid #e2e2e2; padding-top:8px; }
 </style></head><body>
- <div class="sheet">
-  <h1>פתק לשטיפה</h1>
-  <div class="sub">ענק הרכבים · מאסטר קלין</div>
-  <hr class="rule">
-  <table class="info">${details}</table>
-  <div class="type-l">סוג שטיפה</div>
-  <div class="type">${esc(f.type)}</div>
-  ${f.note ? `<div class="note"><b>הערה</b><br>${esc(f.note)}</div>` : ''}
-  <div class="stamp"><span>חותמת ואישור ביצוע</span></div>
-  <div class="foot">${esc(f.createdBy || currentUser.name)} · ${esc(when)}</div>
- </div>
+${_washSheet(f)}
 </body></html>`, 'wash print', 'שגיאה בהדפסה', onDone);
 }
 
