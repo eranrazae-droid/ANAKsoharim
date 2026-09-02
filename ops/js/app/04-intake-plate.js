@@ -1438,7 +1438,9 @@ async function resendIntake(id) {
   const { getDoc, updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
   const ref = doc(window._db, 'intake_assignments', id);
   const snap = await getDoc(ref);
-  const d = snap.exists() ? snap.data() : {};
+  // התמונות עשויות לשבת במסמך הנפרד — טוענים אותן לפני שמכינים את
+  // העותק לשחזור, אחרת השחזור היה מחזיר קליטה בלי תמונות
+  const d = await _intakeLoadPhotos({ id, ...(snap.exists() ? snap.data() : {}) });
   const previousIntake = {
     checklist: d.checklist || {}, notes: d.notes || '', km: d.km || '', code: d.code || '',
     photoUrls: d.photoUrls || {}, batteryPhotoUrls: d.batteryPhotoUrls || {},

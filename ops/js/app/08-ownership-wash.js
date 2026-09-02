@@ -604,6 +604,8 @@ function openWashScreen() {
   // הסיכום הוא כלי ניהולי — הנהג מכין ומדפיס פתקים בלבד
   const sumBtn = document.getElementById('wash-summary-btn');
   if (sumBtn) sumBtn.style.display = currentUser.role === 'manager' ? '' : 'none';
+  _washBatch = [];            // כניסה למסך מתחילה טופס נקי
+  _washRenderBatch();
   _washClear();
   if (!_washUnsub) {
     _washUnsub = _onSnap(_colRef('wash_notes'), snap => {
@@ -662,6 +664,255 @@ async function washLookupPlate() {
 }
 window.washLookupPlate = washLookupPlate;
 
+/* ── כמה פתקים בטופס אחד ─────────────────────────────────────────────
+   "פתק נוסף" מעביר את הרכב שבטופס לרשימת המתנה ומנקה את הטופס לרכב
+   הבא. "שמור והדפס" שומר כל רכב כפתק נפרד — בדיוק כמו פתק בודד, ולכן
+   ברשימה ובסיכום כל רכב מופיע בשורה משלו — ומדפיס עד שלושה בעמוד,
+   כשהעמוד מחולק שווה בשווה ביניהם.                                    */
+let _washBatch = [];
+
+function _washRenderBatch() {
+  const box = document.getElementById('wash-batch');
+  if (!box) return;
+  if (!_washBatch.length) { box.innerHTML = ''; box.style.display = 'none'; return; }
+  box.style.display = '';
+  box.innerHTML = `<div style="font-size:12.5px;font-weight:900;color:var(--muted);margin-bottom:6px">
+      ממתינים בטופס — ${_washBatch.length} ${_washBatch.length === 1 ? 'רכב' : 'רכבים'}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px">${_washBatch.map((f, i) => `
+      <span style="display:inline-flex;align-items:center;gap:6px;background:var(--surface2);border:2px solid var(--border);border-radius:999px;padding:5px 10px;font-size:12.5px;font-weight:800">
+        ${esc(f.plate)} · ${esc(f.type)}
+        <button onclick="washBatchRemove(${i})" title="הסר" style="background:#ef4444;color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:11px;line-height:1;cursor:pointer">✕</button>
+      </span>`).join('')}</div>`;
+}
+
+function washBatchRemove(i) { _washBatch.splice(i, 1); _washRenderBatch(); }
+window.washBatchRemove = washBatchRemove;
+
+// מוסיף את הרכב שבטופס לרשימת ההמתנה ומנקה את הטופס לרכב הבא
+function washAddAnother() {
+  const f = _washForm();
+  if (!f) return;
+  if (_washBatch.some(x => x.plate === f.plate)) return showToast('הרכב כבר ברשימה');
+  _washBatch.push(f);
+  _washClear();
+  _washRenderBatch();
+  showToast(`➕ ${f.plate} נוסף · סה״כ ${_washBatch.length}`);
+}
+window.washAddAnother = washAddAnother;
+
+/* הדפסת כמה פתקים: עד שלושה בעמוד, והעמוד מחולק שווה בשווה ביניהם.
+   פתק בודד ממשיך לעבור במסלול הישן, כדי שההדפסה הרגילה לא תשתנה. */
+function washPrintNotes(list, onDone) {
+  if (!list.length) return onDone && onDone();
+  if (list.length === 1) return washPrintNote(list[0], onDone);
+  const PER = 3;
+  const pages = [];
+  for (let i = 0; i < list.length; i += PER) pages.push(list.slice(i, i + PER));
+
+  const slot = (f, n) => {
+    const when = new Date().toLocaleDateString('he-IL') + ' · ' +
+      new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+    const desc = [f.maker, f.model, f.subModel, f.color, f.year].filter(Boolean).join(' ') || f.desc || '';
+    return `<div class="slot s${n}">
+      <div class="head"><span class="ttl">פתק לשטיפה</span><span class="sub">ענק הרכבים · מאסטר קלין</span></div>
+      <div class="body">
+        <div class="right">
+          <div class="plate">${esc(f.plate)}</div>
+          ${desc ? `<div class="desc">${esc(desc)}</div>` : ''}
+          ${f.note ? `<div class="note"><b>הערה</b> ${esc(f.note)}</div>` : ''}
+        </div>
+        <div class="left">
+          <div class="type-l">סוג שטיפה</div>
+          <div class="type">${esc(f.type)}</div>
+          <div class="stamp"><span>חותמת ואישור ביצוע</span></div>
+        </div>
+      </div>
+      <div class="foot">${esc(f.createdBy || currentUser.name)} · ${esc(when)}</div>
+    </div>`;
+  };
+
+  const html = `<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8">
+<title>פתקי שטיפה (${list.length})</title>
+<style>
+  /* כל עמוד מחולק שווה בשווה בין הפתקים שבו: כל פתק מקבל flex:1 מתוך
+     גובה העמוד, ולכן שניים מקבלים חצי כל אחד ושלושה שליש כל אחד. */
+  @page { size: A4; margin: 8mm; }
+  html, body { margin:0; height:auto; }
+  body { font-family: Arial, "Segoe UI", sans-serif; color:#222;
+         -webkit-print-color-adjust:exact; }
+  .page { display:flex; flex-direction:column; height:281mm; page-break-after:always; break-after:page; }
+  .page:last-child { page-break-after:auto; break-after:auto; }
+  .slot { flex:1 1 0; min-height:0; display:flex; flex-direction:column;
+          border:1px solid #ccc; border-radius:8px; padding:6mm 7mm; margin-bottom:4mm;
+          page-break-inside:avoid; break-inside:avoid; }
+  .slot:last-child { margin-bottom:0; }
+  .head { display:flex; justify-content:space-between; align-items:baseline;
+          border-bottom:1px solid #ddd; padding-bottom:3mm; }
+  .ttl { font-size:15px; letter-spacing:3px; color:#444; }
+  .sub { font-size:11px; letter-spacing:2px; color:#999; }
+  .body { flex:1; display:flex; gap:7mm; align-items:stretch; padding-top:4mm; min-height:0; }
+  .right { flex:1.1; text-align:right; min-width:0; }
+  .left  { flex:1; display:flex; flex-direction:column; min-width:0; }
+  .plate { font-weight:bold; color:#111; line-height:1.05; letter-spacing:3px; }
+  .desc { color:#555; margin-top:2mm; }
+  .note { border:1px solid #ddd; border-radius:8px; padding:2mm 3mm; margin-top:3mm;
+          color:#333; line-height:1.4; }
+  .note b { color:#999; font-weight:normal; letter-spacing:1px; }
+  .type-l { letter-spacing:2px; color:#888; margin-bottom:1.5mm; font-size:11px; }
+  .type { font-weight:bold; color:#111; border:1px solid #bbb; border-radius:8px;
+          padding:3mm 2mm; text-align:center; }
+  .stamp { flex:1; border:1px solid #ccc; border-radius:8px; margin-top:3mm;
+           position:relative; min-height:14mm; }
+  .stamp span { position:absolute; top:2mm; right:3mm; font-size:10px;
+                letter-spacing:1px; color:#aaa; }
+  .foot { border-top:1px solid #eee; padding-top:2mm; margin-top:3mm;
+          font-size:10px; letter-spacing:1px; color:#aaa; text-align:center; }
+  /* ככל שיש יותר פתקים בעמוד, כך הכתב קטן — כדי שהכל ייכנס יפה */
+  .s1 .plate { font-size:44px; } .s1 .type { font-size:27px; } .s1 .desc,.s1 .note { font-size:15px; }
+  .s2 .plate { font-size:34px; } .s2 .type { font-size:21px; } .s2 .desc,.s2 .note { font-size:13px; }
+  .s3 .plate { font-size:27px; } .s3 .type { font-size:17px; } .s3 .desc,.s3 .note { font-size:11.5px; }
+</style></head><body>
+${pages.map(pg => `<div class="page">${pg.map(f => slot(f, pg.length)).join('')}</div>`).join('')}
+</body></html>`;
+  _printHtml(html, 'wash print batch', 'שגיאה בהדפסה', onDone);
+}
+
+/* ── רכבים שמורים לשטיפה ────────────────────────────────────────────
+   רכבים שחוזרים על עצמם. הרשימה גלויה לכולם וכל אחד יכול לבחור ממנה
+   כדי למלא את הטופס בלחיצה. הוספה ומחיקה — למנהל בלבד.               */
+let _washSaved = [], _washSavedUnsub = null;
+
+function _washSavedListen() {
+  if (_washSavedUnsub) return;
+  _washSavedUnsub = _onSnap(_colRef('wash_vehicles'), snap => {
+    _washSaved = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => String(a.plate || '').localeCompare(String(b.plate || '')));
+    _washRenderSaved();
+  }, () => {});
+}
+
+function openWashSaved() {
+  const mgr = currentUser?.role === 'manager';
+  const box = document.getElementById('wash-saved-add');
+  if (box) box.style.display = mgr ? '' : 'none';   // הוספה רק למנהל
+  const q = document.getElementById('wash-saved-search');
+  if (q) q.value = '';
+  _washSavedListen();
+  _washRenderSaved();
+  openModal('modal-wash-saved');
+}
+window.openWashSaved = openWashSaved;
+
+function _washRenderSaved() {
+  const box = document.getElementById('wash-saved-list');
+  if (!box) return;
+  const mgr = currentUser?.role === 'manager';
+  const term = (document.getElementById('wash-saved-search')?.value || '').trim().toLowerCase();
+  const rows = _washSaved.filter(v => !term ||
+    String(v.plate || '').includes(term.replace(/\D/g, '')) ||
+    [v.maker, v.model, v.subModel, v.label].filter(Boolean).join(' ').toLowerCase().includes(term));
+  if (!rows.length) {
+    box.innerHTML = `<div style="padding:26px;text-align:center;color:var(--muted);font-weight:700">${
+      _washSaved.length ? 'לא נמצא רכב' : 'עדיין אין רכבים שמורים'}</div>`;
+    return;
+  }
+  box.innerHTML = rows.map(v => {
+    const desc = [v.maker, v.model, v.subModel, v.color, v.year].filter(Boolean).join(' ');
+    return `<div style="display:flex;align-items:center;gap:8px;border:2px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:8px;background:var(--card)">
+      <div onclick="washPickSaved('${esc(v.id)}')" style="flex:1;min-width:0;cursor:pointer">
+        <div style="font-weight:900;font-size:15px">${esc(v.plate || '')}${v.label ? ` <span style="font-size:12px;font-weight:800;color:var(--muted)">· ${esc(v.label)}</span>` : ''}</div>
+        ${desc ? `<div style="font-size:12.5px;font-weight:700;color:var(--muted)">${esc(desc)}</div>` : ''}
+      </div>
+      <button onclick="washPickSaved('${esc(v.id)}')" style="background:var(--dark);color:#fff;border:none;border-radius:9px;padding:8px 14px;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap">בחר</button>
+      ${mgr ? `<button onclick="washSavedDelete('${esc(v.id)}')" title="הסר מהרשימה" style="background:#ef4444;color:#fff;border:none;border-radius:9px;width:34px;height:34px;font-size:14px;cursor:pointer">🗑</button>` : ''}
+    </div>`;
+  }).join('');
+}
+window._washRenderSaved = _washRenderSaved;
+
+// בחירה מהרשימה ממלאת את הטופס בדיוק כמו מילוי ידני
+function washPickSaved(id) {
+  const v = _washSaved.find(x => x.id === id);
+  if (!v) return;
+  const set = (el, val) => { const e = document.getElementById(el); if (e) e.value = val || ''; };
+  set('wash-plate', v.plate); set('wash-maker', v.maker); set('wash-model', v.model);
+  set('wash-submodel', v.subModel); set('wash-color', v.color); set('wash-year', v.year);
+  const msg = document.getElementById('wash-lookup-msg');
+  if (msg) { msg.textContent = ''; msg.style.color = 'var(--muted)'; }
+  closeModal('modal-wash-saved');
+  showToast(`🚗 ${v.plate}`);
+}
+window.washPickSaved = washPickSaved;
+
+// משיכת הפרטים ממשרד התחבורה כדי לא להקליד ידנית
+async function washSavedLookup() {
+  const plate = (document.getElementById('ws-plate')?.value || '').replace(/\D/g, '');
+  const msg = document.getElementById('ws-msg');
+  const btn = document.getElementById('ws-lookup');
+  if (!plate) { if (msg) { msg.style.color = '#dc2626'; msg.textContent = 'נא להזין מספר רישוי'; } return; }
+  if (btn) btn.disabled = true;
+  if (msg) { msg.style.color = 'var(--muted)'; msg.textContent = '⏳ מחפש...'; }
+  try {
+    const rec = await _plateLookup(plate);
+    const set = (el, val) => { const e = document.getElementById(el); if (e) e.value = val || ''; };
+    if (rec) {
+      set('ws-maker', rec.maker); set('ws-model', rec.model); set('ws-submodel', rec.subModel);
+      set('ws-color', rec.color); set('ws-year', rec.year);
+      if (msg) { msg.style.color = 'var(--success,#16a34a)'; msg.textContent = `✅ ${rec.maker} ${rec.model}`; }
+    } else if (msg) {
+      msg.style.color = '#b45309';
+      msg.textContent = window._plateRegistryEmpty
+        ? 'מאגר משרד התחבורה בעדכון — אפשר למלא ידנית'
+        : 'לא נמצא רכב במספר הזה — אפשר למלא ידנית';
+    }
+  } catch (e) {
+    if (msg) { msg.style.color = '#dc2626'; msg.textContent = 'שגיאה בחיפוש — אפשר למלא ידנית'; }
+  } finally { if (btn) btn.disabled = false; }
+}
+window.washSavedLookup = washSavedLookup;
+
+async function washSavedAdd() {
+  if (currentUser?.role !== 'manager') return;
+  const val = id => (document.getElementById(id)?.value || '').trim();
+  const plate = val('ws-plate').replace(/\D/g, '');
+  const msg = document.getElementById('ws-msg');
+  if (!plate) { if (msg) { msg.style.color = '#dc2626'; msg.textContent = 'נא להזין מספר רישוי'; } return; }
+  if (_washSaved.some(v => v.plate === plate)) {
+    if (msg) { msg.style.color = '#b45309'; msg.textContent = 'הרכב כבר ברשימה'; }
+    return;
+  }
+  if (!_requireNet('הוספת רכב')) return;
+  const btn = document.getElementById('ws-save');
+  if (btn) btn.disabled = true;
+  try {
+    await window._addDoc(_colRef('wash_vehicles'), {
+      plate, maker: val('ws-maker'), model: val('ws-model'), subModel: val('ws-submodel'),
+      color: val('ws-color'), year: val('ws-year'), label: val('ws-label'),
+      addedBy: currentUser.name, createdAt: _serverTs(),
+    });
+    ['ws-plate','ws-maker','ws-model','ws-submodel','ws-color','ws-year','ws-label']
+      .forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+    if (msg) { msg.style.color = 'var(--success,#16a34a)'; msg.textContent = '✅ נוסף לרשימה'; }
+    showToast('✅ הרכב נוסף לרשימה');
+  } catch (e) {
+    if (msg) { msg.style.color = '#dc2626'; msg.textContent = 'השמירה נכשלה — נסה שוב'; }
+  } finally { if (btn) btn.disabled = false; }
+}
+window.washSavedAdd = washSavedAdd;
+
+async function washSavedDelete(id) {
+  if (currentUser?.role !== 'manager') return;
+  const v = _washSaved.find(x => x.id === id);
+  if (!v || !confirm(`להסיר את ${v.plate} מהרשימה?`)) return;
+  if (!_requireNet('הסרת רכב')) return;
+  try {
+    const { deleteDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    await deleteDoc(_docRef('wash_vehicles', id));
+    showToast('🗑 הוסר מהרשימה');
+  } catch (e) { showToast('ההסרה נכשלה — נסה שוב'); }
+}
+window.washSavedDelete = washSavedDelete;
+
 function _washForm() {
   const plate = (document.getElementById('wash-plate').value || '').trim();
   if (!plate) { showToast('נא להזין מספר רישוי'); return null; }
@@ -686,16 +937,30 @@ async function _washStore(f) {
 
 // קודם מוקפץ מסך ההדפסה, ורק כשהוא נסגר הפתק נשמר והטופס מתנקה
 function washSaveAndPrint() {
-  const f = _washForm(); if (!f) return;
+  // הרכב שבטופס מצטרף לאלה שכבר ממתינים. אם הטופס ריק והרשימה מלאה —
+  // מדפיסים את מי שברשימה בלבד.
+  const plateVal = (document.getElementById('wash-plate')?.value || '').trim();
+  let cur = null;
+  if (plateVal || _washType) {          // הטופס התחיל להתמלא — חייב להיות שלם
+    cur = _washForm();
+    if (!cur) return;                   // _washForm כבר אמר מה חסר
+  }
+  const list = [..._washBatch, ...(cur ? [cur] : [])];
+  if (!list.length) { _washForm(); return; }   // אין כלום — מציג "נא להזין מספר רישוי"
   const btn = document.getElementById('wash-print-btn');
   if (btn) btn.disabled = true;
-  washPrintNote(f, async () => {
-    try {
-      await _washStore(f);
-      _washClear();
-      showToast('✅ הפתק נשמר');
-    } catch (e) { showToast('שגיאה בשמירה — הפתק לא נשמר'); }
-    finally { if (btn) btn.disabled = false; }
+  washPrintNotes(list, async () => {
+    let ok = 0;
+    for (const f of list) {
+      try { await _washStore(f); ok++; } catch (e) { console.error('wash store', e); }
+    }
+    if (ok === list.length) {
+      _washBatch = []; _washRenderBatch(); _washClear();
+      showToast(ok === 1 ? '✅ הפתק נשמר' : `✅ ${ok} פתקים נשמרו`);
+    } else {
+      showToast(`שגיאה בשמירה — נשמרו ${ok} מתוך ${list.length}`, 7000);
+    }
+    if (btn) btn.disabled = false;
   });
 }
 window.washSaveAndPrint = washSaveAndPrint;

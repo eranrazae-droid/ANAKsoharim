@@ -317,6 +317,11 @@ body.has-crest .cal-day.barca.selected .cal-num{box-shadow:0 0 0 2px var(--dark)
   .pk-acts button{font-size:15px;padding:5px 0 4px}
   .pk-acts button b{font-size:10px}
 }
+/* כפתורי מסך השטיפה: כולם ברוחב שווה. שניים בשורה בטלפון,
+   וכולם בשורה אחת ברגע שיש מקום. */
+#wash-actions{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+#wash-actions .btn-submit{font-size:14px;padding-left:6px;padding-right:6px;width:100%;margin:0}
+@media(min-width:620px){#wash-actions{grid-template-columns:repeat(4,1fr)}}
 .driver-battery-awaiting{background:#0891b2 !important;color:#fff !important}
 .driver-battery-awaiting .mc-title,.driver-battery-awaiting .mc-sub{color:#fff !important}
 /* הקובייה של המצברים אצל גיל, כל עוד בדיקת הארון החודשית לא נשלחה */
@@ -2580,8 +2585,14 @@ if ('serviceWorker' in navigator) {
     <div class="section-title">הערה</div>
     <textarea class="form-input" id="wash-note" rows="2" placeholder="הערה לשוטף (לא חובה)" style="margin-bottom:14px"></textarea>
 
-    <button class="btn-submit" id="wash-print-btn" onclick="washSaveAndPrint()" style="background:var(--dark);color:#fff;margin:0;width:100%">🖨️ שמור והדפס</button>
-    <button class="btn-submit" id="wash-summary-btn" onclick="openWashSummary()" style="display:none;background:#0d9488;color:#fff;margin:8px 0 0;width:100%">📊 הוצאת סיכום</button>
+    <div id="wash-batch" style="display:none;margin-bottom:10px"></div>
+    <!-- כל הכפתורים ברוחב שווה. במסך צר הם יורדים לשתי שורות, ועדיין שווים. -->
+    <div id="wash-actions">
+      <button class="btn-submit" id="wash-print-btn" onclick="washSaveAndPrint()" style="background:var(--dark);color:#fff;margin:0;width:100%">🖨️ שמור והדפס</button>
+      <button class="btn-submit" id="wash-add-btn" onclick="washAddAnother()" style="background:#b45309;color:#fff;margin:0;width:100%">➕ פתק נוסף</button>
+      <button class="btn-submit" id="wash-saved-btn" onclick="openWashSaved()" style="background:#6366f1;color:#fff;margin:0;width:100%">🚗 בחר רכב</button>
+      <button class="btn-submit" id="wash-summary-btn" onclick="openWashSummary()" style="display:none;background:#0d9488;color:#fff;margin:0;width:100%">📊 הוצאת סיכום</button>
+    </div>
 
     <div class="section-title">פתקי שטיפה אחרונים</div>
     <div id="wash-list"></div>
@@ -3041,6 +3052,32 @@ if ('serviceWorker' in navigator) {
 
 <!-- ====== MODAL: TRIP LOG ====== -->
 <!-- פתקים שהוצאו זמנית מהמסך הרגיל -->
+<!-- רכבים שחוזרים על עצמם בשטיפה -->
+<div class="modal-overlay" id="modal-wash-saved">
+  <div class="modal-box" style="max-width:min(96vw,620px);display:flex;flex-direction:column;max-height:88vh">
+    <div class="modal-title">🚗 רכבים שמורים <button class="modal-close" onclick="closeModal('modal-wash-saved')">✕</button></div>
+    <input class="form-input" id="wash-saved-search" placeholder="🔎 חפש מספר רישוי או דגם" oninput="_washRenderSaved()" style="margin-bottom:10px">
+    <div id="wash-saved-add" style="display:none;border:2px solid var(--border);border-radius:12px;padding:10px;margin-bottom:10px;background:var(--surface2)">
+      <div style="font-weight:900;font-size:13px;margin-bottom:8px">➕ הוספת רכב לרשימה</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <input class="form-input" id="ws-plate" inputmode="numeric" placeholder="מספר רישוי" style="flex:1;margin:0">
+        <button onclick="washSavedLookup()" id="ws-lookup" style="background:var(--dark);color:#fff;border:none;border-radius:10px;padding:0 16px;font-family:Heebo,sans-serif;font-size:14px;font-weight:800;cursor:pointer;white-space:nowrap">🔎 משוך</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <input class="form-input" id="ws-maker" placeholder="יצרן" style="margin:0">
+        <input class="form-input" id="ws-model" placeholder="דגם" style="margin:0">
+        <input class="form-input" id="ws-submodel" placeholder="תת דגם" style="margin:0">
+        <input class="form-input" id="ws-color" placeholder="צבע" style="margin:0">
+        <input class="form-input" id="ws-year" placeholder="שנה" style="margin:0">
+        <input class="form-input" id="ws-label" placeholder="כינוי (לא חובה)" style="margin:0">
+      </div>
+      <div id="ws-msg" style="font-size:12.5px;font-weight:700;color:var(--muted);margin-bottom:8px;min-height:16px"></div>
+      <button class="btn-submit" id="ws-save" onclick="washSavedAdd()" style="margin:0;width:100%;background:var(--success);color:#fff">✅ הוסף לרשימה</button>
+    </div>
+    <div id="wash-saved-list" style="overflow-y:auto;flex:1"></div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-bsm-hold">
   <div class="modal-box bsm-hold-box">
     <div class="modal-title">⏸️ פתקים בהמתנה <button class="modal-close" onclick="closeModal('modal-bsm-hold')">✕</button></div>
@@ -3450,19 +3487,19 @@ window.dispatchEvent(new Event('firebase-ready'));
 </script>
 
 <script src="js/utils.js?v=214"></script>
-<script src="js/app/01-core.js?v=336"></script>
-<script src="js/app/02-home-calendar.js?v=336"></script>
-<script src="js/app/03-tasks.js?v=336"></script>
-<script src="js/app/04-intake-plate.js?v=336"></script>
-<script src="js/app/05-intake-forms.js?v=336"></script>
-<script src="js/app/06-recall-inventory.js?v=336"></script>
-<script src="js/app/07-bodyshop.js?v=336"></script>
-<script src="js/app/08-ownership-wash.js?v=336"></script>
-<script src="js/app/09-battery.js?v=336"></script>
-<script src="js/app/10-battery-plate.js?v=336"></script>
-<script src="js/app/11-yard-telegram.js?v=336"></script>
-<script src="js/app/12-pickup.js?v=336"></script>
-<script src="js/app/13-reports.js?v=336"></script>
+<script src="js/app/01-core.js?v=337"></script>
+<script src="js/app/02-home-calendar.js?v=337"></script>
+<script src="js/app/03-tasks.js?v=337"></script>
+<script src="js/app/04-intake-plate.js?v=337"></script>
+<script src="js/app/05-intake-forms.js?v=337"></script>
+<script src="js/app/06-recall-inventory.js?v=337"></script>
+<script src="js/app/07-bodyshop.js?v=337"></script>
+<script src="js/app/08-ownership-wash.js?v=337"></script>
+<script src="js/app/09-battery.js?v=337"></script>
+<script src="js/app/10-battery-plate.js?v=337"></script>
+<script src="js/app/11-yard-telegram.js?v=337"></script>
+<script src="js/app/12-pickup.js?v=337"></script>
+<script src="js/app/13-reports.js?v=337"></script>
 
 <!-- ═══ רענון רכב modals ═══ -->
 <div class="modal-overlay" id="modal-refresh-edit">
