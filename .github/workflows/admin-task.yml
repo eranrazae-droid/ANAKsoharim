@@ -1,4 +1,10 @@
-# פעולות תחזוקה חד־פעמיות. אחרי הרצה מחזירים את הקובץ למצב קריאה בלבד.
+# פעולות תחזוקה חד־פעמיות. הקובץ נשאר במצב קריאה בלבד: ריצה רגילה רק
+# מדווחת מצב ואינה משנה נתונים. להרצת פעולה מוסיפים אותה כאן במפורש.
+#
+#   moveIntakePhotos?dry=1&col=<אוסף>   ספירה בלבד
+#   moveIntakePhotos?col=<אוסף>         העברה בפועל
+#   moveIntakePhotos?undo=1&col=<אוסף>  החזרת התמונות למסמך המקורי
+#   dbSizes[?only=a,b]                  נפח האוספים
 name: Admin Task
 on:
   workflow_dispatch:
@@ -8,15 +14,7 @@ jobs:
   run:
     runs-on: ubuntu-latest
     steps:
-      - name: העברת תמונות הקליטות הפעילות
+      - name: דיווח מצב בלבד
         run: |
-          F="https://europe-west1-anak-soharim.cloudfunctions.net"
-          echo "===== ספירה ====="
-          curl -sS -m 540 "$F/moveIntakePhotos?dry=1&col=intake_assignments" | python3 -m json.tool
-          echo "===== ההעברה ====="
-          curl -sS -m 540 "$F/moveIntakePhotos?col=intake_assignments" | python3 -m json.tool
-          echo "===== אימות ====="
-          curl -sS -m 540 "$F/moveIntakePhotos?dry=1&col=intake_assignments" | python3 -m json.tool
-          echo "===== נפח אחרי ====="
-          curl -sS -m 540 "$F/dbSizes" \
-            | python3 -c "import sys,json;d=json.load(sys.stdin);print('סה\"כ:',d['totalMb'],'MB');[print(f\"{c['col']:<22}{c.get('docs','-'):>6}{c.get('mb','-'):>9} MB\") for c in d['collections'] if c.get('mb')]"
+          curl -sS -m 540 "https://europe-west1-anak-soharim.cloudfunctions.net/dbSizes?only=intake_archive,intake_assignments,intake_photos,bodyshop_jobs,pickup_archive,wash_notes,wash_vehicles" \
+            | python3 -c "import sys,json;d=json.load(sys.stdin);print('סה\"כ:',d['totalMb'],'MB');[print(f\"{c['col']:<22}{c.get('docs','-'):>6}{c.get('mb','-'):>9} MB\") for c in d['collections']]"
