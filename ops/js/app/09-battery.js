@@ -1612,11 +1612,20 @@ function _bsRenderHistory() {
     const payBtn = paid
       ? `<button onclick="bsSetSwPaid('${r.id}',false)" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:6px 10px;font-family:Heebo,sans-serif;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap" title="בטל סימון">✅ עודכן בתוכנה</button>`
       : `<button onclick="bsSetSwPaid('${r.id}',true)" style="background:#0d6ab0;color:#fff;border:none;border-radius:8px;padding:6px 10px;font-family:Heebo,sans-serif;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap">💳 עדכנתי תשלום בתוכנה</button>`;
-    return `<div style="display:flex;align-items:center;gap:10px;border-radius:12px;padding:10px 14px;margin-bottom:8px;${rowStyle}">
-      <div style="flex:1;min-width:0">
+    return `<div style="display:flex;align-items:center;flex-wrap:wrap;gap:10px;border-radius:12px;padding:10px 14px;margin-bottom:8px;${rowStyle}">
+      <div style="flex:1 1 150px;min-width:0">
         <div style="font-weight:800;font-size:14px">🚗 <span onclick="bsmCopyPlate('${esc(r.plate)}')" title="העתק מספר רכב" style="cursor:pointer;border-bottom:1px dashed var(--border)">${esc(r.plate)}</span>${r.car ? ` <span style="font-weight:700;color:var(--muted);font-size:12px">· ${esc(r.car)}</span>` : ''}</div>
         <div style="font-size:12px;color:var(--muted)">${esc(_bsModelOf(r))}${r.note ? ' · ' + esc(r.note) : ''}</div>
       </div>
+      ${(() => {
+        // המחיר מגיע מהקטלוג לפי המק״ט, ואם אין שם — מהמחיר שנשמר על ההרכבה
+        const pr = Number(_bsPriceOf(r));
+        return pr ? `<div style="text-align:center;white-space:nowrap;flex-shrink:0">
+            <div style="font-size:17px;font-weight:900;color:var(--gold);line-height:1.1">${pr.toLocaleString('he-IL')} ₪</div>
+            <div style="font-size:10px;font-weight:700;color:var(--muted)">לפני מע״מ</div>
+          </div>`
+        : `<div style="font-size:12px;font-weight:800;color:var(--muted);white-space:nowrap;flex-shrink:0">אין מחיר</div>`;
+      })()}
       <div style="font-size:12px;color:var(--muted);white-space:nowrap">${esc(ds)}</div>
       ${payBtn}
       <button onclick="bsDeleteInstall('${r.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:8px;width:28px;height:28px;cursor:pointer;flex-shrink:0" title="מחק">🗑</button>
