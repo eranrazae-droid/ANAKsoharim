@@ -1,10 +1,4 @@
-# פעולות תחזוקה חד־פעמיות. הקובץ נשאר במצב קריאה בלבד: ריצה רגילה רק
-# מדווחת מצב ואינה משנה נתונים. להרצת פעולה מוסיפים אותה כאן במפורש.
-#
-#   moveIntakePhotos?dry=1&col=<אוסף>   ספירה בלבד
-#   moveIntakePhotos?col=<אוסף>         העברה בפועל
-#   moveIntakePhotos?undo=1&col=<אוסף>  החזרת התמונות למסמך המקורי
-#   dbSizes[?only=a,b]                  נפח האוספים
+# פעולות תחזוקה חד־פעמיות. קריאה בלבד אלא אם נוספה פעולה במפורש.
 name: Admin Task
 on:
   workflow_dispatch:
@@ -14,7 +8,7 @@ jobs:
   run:
     runs-on: ubuntu-latest
     steps:
-      - name: דיווח מצב בלבד
+      - name: פירוט הנפח לפי שדה
         run: |
-          curl -sS -m 540 "https://europe-west1-anak-soharim.cloudfunctions.net/dbSizes?only=intake_archive,intake_assignments,intake_photos,bodyshop_jobs,pickup_archive,wash_notes,wash_vehicles" \
-            | python3 -c "import sys,json;d=json.load(sys.stdin);print('סה\"כ:',d['totalMb'],'MB');[print(f\"{c['col']:<22}{c.get('docs','-'):>6}{c.get('mb','-'):>9} MB\") for c in d['collections']]"
+          curl -sS -m 540 "https://europe-west1-anak-soharim.cloudfunctions.net/dbSizes?fields=1&only=bodyshop_jobs,pickup_archive,pickup_cars,intake_archive" \
+            | python3 -c "import sys,json;d=json.load(sys.stdin);[print(f\"{c['col']} — {c.get('docs')} מסמכים, {c.get('mb')}MB, הכבד ביותר {c.get('biggestKb')}KB\n   \"+'\n   '.join(c.get('fields',[]))+'\n') for c in d['collections']]"

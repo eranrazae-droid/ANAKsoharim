@@ -1742,8 +1742,21 @@ exports.dbSizes = onRequest(
           bytes += n;
           if (n > max) { max = n; maxId = d.id; }
         }
-        out.push({ col: c, docs: snap.size, mb: +(bytes / 1048576).toFixed(2),
-          biggestKb: Math.round(max / 1024), biggestId: maxId });
+        const row = { col: c, docs: snap.size, mb: +(bytes / 1048576).toFixed(2),
+          biggestKb: Math.round(max / 1024), biggestId: maxId };
+        // פירוט לפי שדה: איזה שדה תופס את רוב הנפח באוסף
+        if (String(req.query.fields || "") === "1") {
+          const per = {};
+          for (const d of snap.docs) {
+            const v = d.data();
+            for (const k of Object.keys(v)) {
+              per[k] = (per[k] || 0) + Buffer.byteLength(JSON.stringify(v[k] ?? null));
+            }
+          }
+          row.fields = Object.entries(per).sort((a, b) => b[1] - a[1]).slice(0, 6)
+            .map(([k, n]) => `${k}: ${(n / 1048576).toFixed(2)}MB`);
+        }
+        out.push(row);
       } catch (err) { out.push({ col: c, error: err.message }); }
     }
     out.sort((a, b) => (b.mb || 0) - (a.mb || 0));
