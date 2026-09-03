@@ -1056,21 +1056,21 @@
   let _srcLog=null; // מטמון בזיכרון
   function _srcLogLocal(){ try{ return JSON.parse(localStorage.getItem('sourceLog')||'[]'); }catch(e){ return []; } }
   function _sourceLog(){ return _srcLog!=null?_srcLog:_srcLogLocal(); }
+  const SRC_MARK='__מקור_הגעה__'; // סימון שמפריד רשומות תיעוד מקור מלידים רגילים
   async function loadSourceLog(){
     const local=_srcLogLocal();
     const c=sbClient(); if(!c){ _srcLog=local; window._srcCloudOk=false; return local; }
     try{
-      const { data, error } = await c.from('sources').select('source,phone,ts').order('ts',{ascending:true});
+      const { data, error } = await c.from('leads').select('source,phone,created_at,action').eq('action',SRC_MARK).order('created_at',{ascending:true});
       if(error){ window._srcCloudOk=false; window._srcErr=(error.message||error.code||JSON.stringify(error)); _srcLog=local; return local; }
-      window._srcErr='';
-      window._srcCloudOk = true;
-      let cloud = Array.isArray(data) ? data.slice() : [];
+      window._srcErr=''; window._srcCloudOk=true;
+      let cloud = Array.isArray(data) ? data.map(l=>({source:l.source||'אחר',phone:l.phone||'',ts:l.created_at})) : [];
       // מיזוג חד-פעמי: רישומים מקומיים ישנים שעדיין לא בענן - נדחפים
       const sig=r=>((r.source||'')+'|'+(r.phone||''));
       const seen=new Set(cloud.map(sig));
       const toPush=local.filter(r=>!seen.has(sig(r)));
       if(toPush.length){
-        try{ await c.from('sources').insert(toPush.map(r=>({source:r.source,phone:r.phone,ts:r.ts||new Date().toISOString()}))); cloud=cloud.concat(toPush); }catch(e){}
+        try{ await c.from('leads').insert(toPush.map(r=>({ name:'תיעוד מקור', action:SRC_MARK, source:r.source, phone:r.phone, created_at:r.ts||new Date().toISOString() }))); cloud=cloud.concat(toPush); }catch(e){}
       }
       _srcLog=cloud;
       try{ localStorage.setItem('sourceLog', JSON.stringify(cloud)); }catch(e){}
@@ -1079,15 +1079,15 @@
   }
   async function recordSource(src){
     const phone=((document.getElementById('sourcePhone')||{}).value||'').trim();
-    const rec={ source:src, phone:phone, ts:new Date().toISOString() };
+    const ts=new Date().toISOString();
     const c=sbClient();
     let synced=false;
-    if(c){ try{ const { error }=await c.from('sources').insert(rec); synced=!error; window._srcCloudOk=!error; }catch(e){} }
-    const arr=_sourceLog().slice(); arr.push(rec); _srcLog=arr;
+    if(c){ try{ const { error }=await c.from('leads').insert({ name:'תיעוד מקור', action:SRC_MARK, source:src, phone:phone, created_at:ts }); synced=!error; window._srcCloudOk=!error; if(error) window._srcErr=error.message; }catch(e){} }
+    const arr=_sourceLog().slice(); arr.push({ source:src, phone:phone, ts:ts }); _srcLog=arr;
     try{ localStorage.setItem('sourceLog', JSON.stringify(arr)); }catch(e){}
     const pf=document.getElementById('sourcePhone'); if(pf) pf.value='';
     renderSourceMetric();
-    toast('✅ נרשם: '+src+(phone?(' · '+phone):'')+(synced?' (סונכרן ☁️)':' (מקומי - הרץ את ה-SQL)'));
+    toast('✅ נרשם: '+src+(phone?(' · '+phone):'')+(synced?' (סונכרן ☁️)':' (מקומי - בדוק חיבור)'));
   }
   function recordSourceFree(){
     const v=((document.getElementById('sourceFree')||{}).value||'').trim();
@@ -2390,7 +2390,14 @@
       const c=sbClient(); if(!c) return;
       const {data,error}=await c.from('leads').select('*').order('created_at',{ascending:false}).limit(500);
       if(error){ console.warn('leads load', error.message); return; }
-      if(Array.isArray(data)){ leads=data; renderLeads(); }
+      if(Array.isArray(data)){
+        // רשומות תיעוד מקור הגעה מסומנות ב-action ומופרדות מרשימת הלידים
+        leads=data.filter(l=>l.action!==SRC_MARK);
+        _srcLog=data.filter(l=>l.action===SRC_MARK).map(l=>({source:l.source||'אחר',phone:l.phone||'',ts:l.created_at}));
+        try{ localStorage.setItem('sourceLog', JSON.stringify(_srcLog)); }catch(e){}
+        window._srcCloudOk=true;
+        renderLeads(); renderSourceMetric();
+      }
     }catch(e){ console.warn('leads load ex', e); }
   }
 
