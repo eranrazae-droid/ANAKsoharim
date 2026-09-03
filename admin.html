@@ -1065,12 +1065,11 @@
       if(error){ window._srcCloudOk=false; window._srcErr=(error.message||error.code||JSON.stringify(error)); _srcLog=local; return local; }
       window._srcErr=''; window._srcCloudOk=true;
       let cloud = Array.isArray(data) ? data.map(l=>({source:l.source||'אחר',phone:l.phone||'',ts:l.created_at})) : [];
-      // מיזוג חד-פעמי: רישומים מקומיים ישנים שעדיין לא בענן - נדחפים
-      const sig=r=>((r.source||'')+'|'+(r.phone||''));
-      const seen=new Set(cloud.map(sig));
-      const toPush=local.filter(r=>!seen.has(sig(r)));
+      // מיזוג לפי חותמת-זמן ייחודית (כך שכל לקוח נספר בנפרד, גם אותו מקור בלי טלפון)
+      const seen=new Set(cloud.map(r=>r.ts));
+      const toPush=local.filter(r=>r.ts && !seen.has(r.ts));
       if(toPush.length){
-        try{ await c.from('leads').insert(toPush.map(r=>({ name:'תיעוד מקור', action:SRC_MARK, source:r.source, phone:r.phone, created_at:r.ts||new Date().toISOString() }))); cloud=cloud.concat(toPush); }catch(e){}
+        try{ await c.from('leads').insert(toPush.map(r=>({ name:'תיעוד מקור', action:SRC_MARK, source:r.source, phone:r.phone, created_at:r.ts }))); cloud=cloud.concat(toPush); }catch(e){}
       }
       _srcLog=cloud;
       try{ localStorage.setItem('sourceLog', JSON.stringify(cloud)); }catch(e){}
