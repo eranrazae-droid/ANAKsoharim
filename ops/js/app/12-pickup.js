@@ -1470,8 +1470,14 @@ function _pickupAddrBookRows() {
     const clean = g.variants.filter(v => /\d/.test(v) && /^[א-ת]/.test(v.trim()));
     const pool = clean.length ? clean : g.variants;
     const address = pool.slice().sort((a, b) => a.length - b.length)[0] || '';
+    // שם המקום: קודם מה שנשמר ידנית על אחד הניסוחים של הכתובת, ואם אין —
+    // השם הקבוע של המגרשים המוכרים, כדי שהשמות הידועים יופיעו מיד
+    const keys = g.variants.map(v => _addrKey(g.city, v)).filter(Boolean);
+    const saved = keys.map(k => (_addrContacts[k] || {}).name).find(n => String(n || '').trim());
+    const name = String(saved || _yardNameFor(g.city, address) || '').trim();
     return {
-      city: g.city, address, sources: g.sources,
+      city: g.city, address, sources: g.sources, name,
+      key: _addrKey(g.city, address) || keys[0] || '',
       contacts: _mergeContacts(g.contacts),
       others: g.variants.filter(v => v !== address),
     };
@@ -1510,6 +1516,7 @@ function _renderPickupAddrBook() {
       <div style="display:flex;align-items:flex-start;gap:8px">
         <div style="flex:1;min-width:0">
           <div style="font-size:11.5px;font-weight:800;color:var(--muted)">${esc(r.city || '')}</div>
+          ${r.name ? `<div style="font-size:14px;font-weight:900;color:#7c3aed;margin-top:1px">🏢 ${esc(r.name)}</div>` : ''}
           <div style="font-size:15px;font-weight:900;margin-top:1px">${esc(r.address || '—')}</div>
         </div>
         <div style="flex-shrink:0;display:flex;align-items:center;gap:6px">
@@ -1519,6 +1526,8 @@ function _renderPickupAddrBook() {
       </div>
       <div id="pk-addr-view-${r._i}" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">${r.contacts.map(chip).join('')}</div>
       <div id="pk-addr-edit-${r._i}" style="display:none;margin-top:8px">
+        <input type="text" id="pk-addr-name-${r._i}" value="${esc(r.name || '')}" placeholder="שם המקום (לא חובה) — למשל: כלמוביל בית אמות"
+          style="width:100%;padding:8px 10px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:800;box-sizing:border-box;margin-bottom:6px">
         <input type="text" id="pk-addr-input-${r._i}" value="${esc(r.contacts.join(' · '))}"
           style="width:100%;padding:8px 10px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;box-sizing:border-box">
         <div style="font-size:11px;color:var(--muted);margin-top:4px">שם ומספר, מופרדים בנקודה: <b>שרית 0525816341 · לירון 0523358981</b></div>
@@ -1550,6 +1559,7 @@ async function pkAddrSave(i) {
   if (!row || !inp) return;
   if (!_requireNet('עדכון אנשי הקשר')) return;
   const value = _dedupContacts(inp.value.trim());
+  const newName = (document.getElementById('pk-addr-name-' + i)?.value || '').trim();
   const names = _addrTokens(row.city, row.address).names;
   const match = c => {
     const city = String(_pickupCity(c) || '').trim();
@@ -1558,7 +1568,7 @@ async function pkAddrSave(i) {
     return t.names.some(n => names.includes(n));
   };
   try {
-    await _setAddrContacts(row.city, row.address, value);
+    await _setAddrContacts(row.city, row.address, value, newName);
     const { updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
     const jobs = [];
     (_pickupAllCars || []).filter(match).forEach(c =>
@@ -1909,19 +1919,24 @@ async function _learnAddrContact(city, address, contact) {
   const parts = _contactParts([...(cur.contacts || []), contact].join(' · '));
   if (parts.join('·') === (cur.contacts || []).join('·')) return;   // שום שינוי
   const next = { city: cur.city || city, address: cur.address || _cleanStreet(address), contacts: parts };
+  if (cur.name) next.name = cur.name;      // שם שהוקלד ידנית לא נמחק בלמידה
   _addrContacts[key] = next;       // מיידית, כדי שלא נכתוב פעמיים באותו סבב
   try { await window._setDoc(_docRef('pickup_addr_contacts', key.replace(/\//g, '-')), next, { merge: true }); } catch (e) {}
 }
 
 // שכתוב זיכרון הכתובת לפי מה שנרשם עכשיו ברכב — כך מחיקה של איש קשר
 // נשמרת ולא חוזרת מהזיכרון בסיבוב הבא
-async function _setAddrContacts(city, address, contact) {
+async function _setAddrContacts(city, address, contact, name) {
   const key = _addrKey(city, address);
   if (!key || !window._setDoc) return;
   const parts = _contactParts(contact || '');
   const cur = _addrContacts[key];
-  if (cur && (cur.contacts || []).join('·') === parts.join('·')) return;
-  const next = { city, address: _cleanStreet(address), contacts: parts };
+  // שם המקום נשמר על אותה רשומה. כשלא נשלח שם — נשמר זה שכבר קיים,
+  // כדי שעדכון אנשי קשר לא ימחק אותו. שם ריק במפורש מנקה אותו.
+  const nextName = name === undefined ? String((cur || {}).name || '') : String(name || '');
+  if (cur && (cur.contacts || []).join('·') === parts.join('·')
+      && String(cur.name || '') === nextName) return;
+  const next = { city, address: _cleanStreet(address), contacts: parts, name: nextName };
   _addrContacts[key] = next;
   try { await window._setDoc(_docRef('pickup_addr_contacts', key.replace(/\//g, '-')), next); } catch (e) {}
 }
