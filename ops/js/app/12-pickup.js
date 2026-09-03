@@ -1526,8 +1526,10 @@ function _renderPickupAddrBook() {
       </div>
       <div id="pk-addr-view-${r._i}" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">${r.contacts.map(chip).join('')}</div>
       <div id="pk-addr-edit-${r._i}" style="display:none;margin-top:8px">
-        <input type="text" id="pk-addr-name-${r._i}" value="${esc(r.name || '')}" placeholder="שם המקום (לא חובה) — למשל: כלמוביל בית אמות"
-          style="width:100%;padding:8px 10px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;font-weight:800;box-sizing:border-box;margin-bottom:6px">
+        <div style="font-size:11.5px;font-weight:900;color:#7c3aed;margin-bottom:3px">🏢 שם המקום</div>
+        <input type="text" id="pk-addr-name-${r._i}" value="${esc(r.name || '')}" placeholder="למשל: כלמוביל בית אמות"
+          style="width:100%;padding:9px 10px;border-radius:10px;border:2px solid #7c3aed;background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:14px;font-weight:800;box-sizing:border-box;margin-bottom:10px">
+        <div style="font-size:11.5px;font-weight:900;color:var(--muted);margin-bottom:3px">📞 אנשי קשר</div>
         <input type="text" id="pk-addr-input-${r._i}" value="${esc(r.contacts.join(' · '))}"
           style="width:100%;padding:8px 10px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;box-sizing:border-box">
         <div style="font-size:11px;color:var(--muted);margin-top:4px">שם ומספר, מופרדים בנקודה: <b>שרית 0525816341 · לירון 0523358981</b></div>
