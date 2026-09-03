@@ -1064,16 +1064,18 @@
       const { data, error } = await c.from('leads').select('source,phone,created_at,action').eq('action',SRC_MARK).order('created_at',{ascending:true});
       if(error){ window._srcCloudOk=false; window._srcErr=(error.message||error.code||JSON.stringify(error)); _srcLog=local; return local; }
       window._srcErr=''; window._srcCloudOk=true;
-      let cloud = Array.isArray(data) ? data.map(l=>({source:l.source||'אחר',phone:l.phone||'',ts:l.created_at})) : [];
-      // מיזוג לפי חותמת-זמן ייחודית (כך שכל לקוח נספר בנפרד, גם אותו מקור בלי טלפון)
+      const cloud = Array.isArray(data) ? data.map(l=>({source:l.source||'אחר',phone:l.phone||'',ts:l.created_at})) : [];
+      // תצוגה = איחוד ענן + מקומי לפי חותמת-זמן (כך שתמיד רואים הכל, גם אם דחיפה נכשלה)
       const seen=new Set(cloud.map(r=>r.ts));
-      const toPush=local.filter(r=>r.ts && !seen.has(r.ts));
-      if(toPush.length){
-        try{ await c.from('leads').insert(toPush.map(r=>({ name:'תיעוד מקור', action:SRC_MARK, source:r.source, phone:r.phone, created_at:r.ts }))); cloud=cloud.concat(toPush); }catch(e){}
+      const localOnly=local.filter(r=>r.ts && !seen.has(r.ts));
+      const merged=cloud.concat(localOnly);
+      // ניסיון לדחוף לענן את מה שעדיין לא שם
+      if(localOnly.length){
+        try{ const {error}=await c.from('leads').insert(localOnly.map(r=>({ name:'תיעוד מקור', car:'', action:SRC_MARK, source:r.source, phone:r.phone, created_at:r.ts }))); if(error) window._srcErr=error.message; }catch(e){}
       }
-      _srcLog=cloud;
-      try{ localStorage.setItem('sourceLog', JSON.stringify(cloud)); }catch(e){}
-      return cloud;
+      _srcLog=merged;
+      try{ localStorage.setItem('sourceLog', JSON.stringify(merged)); }catch(e){}
+      return merged;
     }catch(e){ _srcLog=local; window._srcCloudOk=false; return local; }
   }
   async function recordSource(src){
@@ -1081,7 +1083,7 @@
     const ts=new Date().toISOString();
     const c=sbClient();
     let synced=false;
-    if(c){ try{ const { error }=await c.from('leads').insert({ name:'תיעוד מקור', action:SRC_MARK, source:src, phone:phone, created_at:ts }); synced=!error; window._srcCloudOk=!error; if(error) window._srcErr=error.message; }catch(e){} }
+    if(c){ try{ const { error }=await c.from('leads').insert({ name:'תיעוד מקור', car:'', action:SRC_MARK, source:src, phone:phone, created_at:ts }); synced=!error; window._srcCloudOk=!error; if(error) window._srcErr=error.message; }catch(e){} }
     const arr=_sourceLog().slice(); arr.push({ source:src, phone:phone, ts:ts }); _srcLog=arr;
     try{ localStorage.setItem('sourceLog', JSON.stringify(arr)); }catch(e){}
     const pf=document.getElementById('sourcePhone'); if(pf) pf.value='';
