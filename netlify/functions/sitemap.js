@@ -17,10 +17,16 @@ exports.handler = async () => {
   try {
     const rows = await fetchJson(SB_URL + '/rest/v1/inventory?id=eq.1&select=data', { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY });
     const cars = (rows && rows[0] && Array.isArray(rows[0].data)) ? rows[0].data : [];
+    const brandSet = {};
     cars.forEach(c => {
       if(!c || c.hidden || HIDDEN_IDS.indexOf(c.id)>=0) return;
       if((Number(c.autodealerPriceNumber)||0) <= 1) return;
       urls.push({ loc: SITE + '/?car=' + encodeURIComponent(c.id), pri: '0.8', freq: 'weekly' });
+      if(c.brand) brandSet[String(c.brand).trim()] = true;
+    });
+    // עמודי נחיתה לפי יצרן
+    Object.keys(brandSet).forEach(b => {
+      urls.push({ loc: SITE + '/brand/' + encodeURIComponent(b), pri: '0.7', freq: 'weekly' });
     });
   } catch (e) { /* אם Supabase נכשל - עדיין מחזירים sitemap בסיסי */ }
 
