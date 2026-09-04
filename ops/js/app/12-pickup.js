@@ -1217,18 +1217,35 @@ async function _batchSendToDriver(driverName) {
     } catch (e) { console.error('batch send', id, e); }
   }
   if (driverName === _TOW_NAME) {
-    // הגרר אינו נהג במערכת ולכן אין למי לשלוח התראה — במקום זה נפתחת
-    // חלונית השיתוף עם האישורים של אותם רכבים
+    // הגרר אינו נהג במערכת ואין למי לשלוח התראה. במקום זה: מלל האיסוף
+    // מועתק מיד, ואז נפתחת חלונית שממשיכה לאישורי הבעלות. שתי הפעולות
+    // מעתיקות ללוח, ולכן הן מופרדות — אחרת המלל השני היה מוחק את הראשון
+    // לפני שהספקת להדביק אותו.
     showToast(`🚛 ${ok} רכבים סומנו לגרר`);
-    try { await batchExportPickup(); } catch (e) { console.error('tow share', e); }
-    clearPickupSelection();
-    return;
+    try { batchCopyPickupText(); } catch (e) { console.error('tow text', e); }
+    openModal('modal-tow-next');
+    return;                       // הסימון נשאר עד לסגירת החלונית
   }
   _notifyDriver(driverName, `🚙 הוקצו לך ${ok} רכבים לאיסוף. כנס לאפליקציה לפרטים.`);
   clearPickupSelection();
   showToast(`✅ ${ok} רכבים נשלחו ל${driverName}`);
 }
 window._batchSendToDriver = _batchSendToDriver;
+
+/* המשך אחרי שליחה לגרר. הלחיצה כאן היא מחווה חדשה של המשתמש, ולכן
+   ההעתקה ללוח בתוך "מלל + בעלויות" עובדת כמו שצריך. */
+async function towNextDocs() {
+  closeModal('modal-tow-next');
+  try { await batchExportPickup(); } catch (e) { console.error('tow share', e); }
+  clearPickupSelection();
+}
+window.towNextDocs = towNextDocs;
+
+function towNextClose() {
+  closeModal('modal-tow-next');
+  clearPickupSelection();
+}
+window.towNextClose = towNextClose;
 
 function openPickupScreen() {
   document.getElementById('pickup-user-badge').textContent = currentUser.name;
