@@ -1605,33 +1605,24 @@ window.pkAddrSave = pkAddrSave;
 window._renderPickupAddrBook = _renderPickupAddrBook;
 window.openPickupActions = openPickupActions;
 
-function openPickupFilters() {
-  _renderPickupFilterPanel();
-  openModal('modal-pickup-filters');
-}
+// כל הסינון יושב בסרגל אחד במסך עצמו — אין עוד חלונית מיון וסינון.
+function openPickupFilters() { _renderPickupFilterPanel(); }
 window.openPickupFilters = openPickupFilters;
 
 function _renderPickupFilterPanel() {
   const comp = document.getElementById('pickup-company-btns');
   if (comp) {
-    const all = `<button type="button" onclick="setPickupCompany('')" style="flex:1;padding:9px;border-radius:10px;border:2px solid ${_pickupCompany ? 'var(--border)' : 'var(--dark)'};background:${_pickupCompany ? 'var(--surface2)' : 'var(--dark)'};color:${_pickupCompany ? 'var(--text)' : '#fff'};font-family:Heebo,sans-serif;font-weight:800;font-size:14px;cursor:pointer">הכל</button>`;
-    comp.innerHTML = all + _PICKUP_SOURCES.map(src => {
+    // לחיצה על חברה מסמנת אותה, לחיצה נוספת על אותה חברה מבטלת את הסימון
+    comp.innerHTML = _PICKUP_SOURCES.map(src => {
       const on = _pickupCompany === src.name;
-      return `<button type="button" onclick="setPickupCompany('${src.name}')" title="${src.name}" style="flex:1;display:flex;align-items:center;justify-content:center;padding:6px;border-radius:10px;border:2px solid ${on ? src.color : 'var(--border)'};background:${src.color};cursor:pointer;opacity:${on ? 1 : .4}">${_PICKUP_LOGOS[src.name] || src.name}</button>`;
-    }).join('');
-  }
-  const sorts = document.getElementById('pickup-sort-btns');
-  if (sorts) {
-    sorts.innerHTML = _PICKUP_SORTS.map((label, i) => {
-      const on = i === 3 ? _pickupDistSort : (!_pickupDistSort && _pickupSortMode === i);
-      return `<button type="button" onclick="setPickupSort(${i})" style="padding:9px 12px;border-radius:10px;border:2px solid ${on ? 'var(--dark)' : 'var(--border)'};background:${on ? 'var(--dark)' : 'var(--surface2)'};color:${on ? '#fff' : 'var(--text)'};font-family:Heebo,sans-serif;font-weight:700;font-size:13.5px;cursor:pointer;text-align:right">${label}</button>`;
+      return `<button type="button" onclick="setPickupCompany('${src.name}')" title="${src.name}" style="border:2px solid ${on ? src.color : 'var(--border)'};background:${src.color};opacity:${on ? 1 : .4}">${_PICKUP_LOGOS[src.name] || src.name}</button>`;
     }).join('');
   }
   _syncPickupFilterBtn();
 }
 
 function setPickupCompany(name) {
-  _pickupCompany = name;
+  _pickupCompany = (_pickupCompany === name) ? '' : name;
   _renderPickupFilterPanel();
   renderPickupCars();
 }
@@ -1687,16 +1678,8 @@ function resetPickupFilters() {
 window.resetPickupFilters = resetPickupFilters;
 
 // הכפתור במסך מראה מה פעיל, כדי שלא יהיה סינון נסתר
-function _syncPickupFilterBtn() {
-  const btn = document.getElementById('pickup-filter-btn');
-  if (!btn) return;
-  const city = document.getElementById('pickup-filter-city')?.value || '';
-  const n = (_pickupCompany ? 1 : 0) + (city ? 1 : 0) + (_pickupDistSort || _pickupSortMode !== 0 ? 1 : 0);
-  btn.textContent = n ? `⚙️ מיון וסינון (${n})` : '⚙️ מיון וסינון';
-  btn.style.background = n ? '#0f766e' : '#0d9488';
-  btn.style.color = '#fff';
-  btn.style.boxShadow = n ? '0 0 0 2px rgba(13,148,136,.35)' : 'none';
-}
+// הכפתור הנפרד של מיון וסינון הוסר; הסרגל עצמו כבר מראה מה פעיל.
+function _syncPickupFilterBtn() {}
 window._syncPickupFilterBtn = _syncPickupFilterBtn;
 
 let _pickupTestBackfillDone = false;
@@ -1751,6 +1734,7 @@ function _rebuildPickupCityFilter() {
   const cities = Object.keys(counts).sort((a, b) => counts[b] - counts[a] || a.localeCompare(b, 'he'));
   sel.innerHTML = `<option value="">כל הערים (${_pickupAllCars.length})</option>` +
     cities.map(c => `<option value="${c}"${c===current?' selected':''}>${c} (${counts[c]})</option>`).join('');
+  _renderPickupFilterPanel();   // הסרגל מצויר יחד עם רשימת הערים
 }
 
 /* Distance is measured from the yard, so the nearest cars can be collected in
