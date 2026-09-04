@@ -601,6 +601,27 @@ let _washUnsub = null;
 /* טופס השטיפה חי במקום אחד בלבד. במסך רחב אצל המנהל הוא יושב בעמודה
    האמצעית של מסך הבית, ובכל מצב אחר הוא חוזר למסך השטיפה שלו. כך אין
    שני עותקים של אותם שדות ואין התנגשות מזהים. */
+/* בטלפון פרטי הרכב מקופלים כדי שהמסך ייכנס בעמוד אחד. הם נפתחים
+   בלחיצה, וגם לבד ברגע שמשיכת הפרטים ממלאת אותם. */
+function washToggleVeh() {
+  const f = document.getElementById('wash-veh-fields');
+  const b = document.getElementById('wash-veh-toggle');
+  if (!f) return;
+  const open = f.classList.toggle('show');
+  if (b) b.textContent = open ? '🚗 פרטי הרכב ▴' : '🚗 פרטי הרכב ▾';
+}
+window.washToggleVeh = washToggleVeh;
+
+// אחרי משיכת פרטים מוצלחת הפרטים נפתחים מעצמם, כדי שיראו מה נמשך
+function _washRevealVeh() {
+  const f = document.getElementById('wash-veh-fields');
+  if (!f || f.classList.contains('show')) return;
+  const any = ['wash-maker','wash-model','wash-submodel','wash-color','wash-year']
+    .some(id => (document.getElementById(id)?.value || '').trim());
+  if (any) washToggleVeh();
+}
+window._washRevealVeh = _washRevealVeh;
+
 function _washMount() {
   const body = document.getElementById('wash-form-body');
   if (!body) return;
@@ -608,8 +629,9 @@ function _washMount() {
   // חייב להיות בתוכו, אחרת החלונית תיפתח ריקה.
   const wash = document.getElementById('screen-wash');
   const inHost = !!(wash && wash.closest('#screen-host-slot'));
-  const wide = window.matchMedia('(min-width:901px)').matches;
-  const toHome = !inHost && wide && currentUser?.role === 'manager'
+  // גם בטלפון וגם במחשב הטופס יושב במסך הבית של המנהל — הפריסה בכל
+  // רוחב מוכנה לזה. הוא חוזר למסכו רק כשפותחים אותו כחלונית.
+  const toHome = !inHost && currentUser?.role === 'manager'
     && !!document.querySelector('.home-body.mgr-home');
   const target = document.getElementById(toHome ? 'home-wash-slot' : 'wash-screen-slot');
   if (target && body.parentElement !== target) target.appendChild(body);
@@ -688,6 +710,7 @@ async function washLookupPlate() {
     document.getElementById('wash-submodel').value = rec.subModel;
     document.getElementById('wash-color').value = rec.color;
     document.getElementById('wash-year').value = rec.year;
+    _washRevealVeh();          // הפרטים נפתחים כדי שיראו מה נמשך
     msg.textContent = '✅ פרטים נטענו'; msg.style.color = 'var(--success,#16a34a)';
   } catch (e) {
     msg.textContent = '⚠️ שגיאה בחיבור — אפשר למלא ידנית'; msg.style.color = 'var(--danger,#ef4444)';
