@@ -613,6 +613,10 @@ function _washMount() {
     && !!document.querySelector('.home-body.mgr-home');
   const target = document.getElementById(toHome ? 'home-wash-slot' : 'wash-screen-slot');
   if (target && body.parentElement !== target) target.appendChild(body);
+  // כפתור הסיכום נחשף למנהל בלבד — גם כשהטופס יושב במסך הבית ולא
+  // עברנו דרך openWashScreen
+  const sum = document.getElementById('wash-summary-btn');
+  if (sum) sum.style.display = currentUser?.role === 'manager' ? '' : 'none';
   if (toHome) { try { _washRenderTypes(); _washSavedListen(); } catch (e) {} }
 }
 window._washMount = _washMount;
