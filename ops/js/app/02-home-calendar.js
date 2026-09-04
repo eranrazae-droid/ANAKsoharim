@@ -139,7 +139,9 @@ function renderHome() {
   const isPickupAgent = currentUser.role === 'pickup_agent';
   // reset calendar layout — only the manager gets the calendar
   const _hb = document.querySelector('#screen-home .home-body');
-  if (_hb) _hb.classList.remove('has-calendar');
+  if (_hb) { _hb.classList.remove('has-calendar'); _hb.classList.remove('mgr-home'); }
+  // הטופס חוזר למסך השטיפה לפני שהבית נבנה מחדש
+  try { window._washMount && window._washMount(); } catch (e) {}
   _moveWelcomeBar(false);
   document.getElementById('home-welcome').textContent =
     'שלום, ' + currentUser.name + ' 👋';
@@ -353,8 +355,10 @@ function _moveWelcomeBar(intoCards) {
 
 function initManagerCalendar() {
   const hb = document.querySelector('#screen-home .home-body');
-  if (hb) hb.classList.add('has-calendar');
+  if (hb) { hb.classList.add('has-calendar'); hb.classList.add('mgr-home'); }
   _moveWelcomeBar(true);
+  // במסך רחב טופס השטיפה עובר לעמודה האמצעית
+  try { window._washMount && window._washMount(); } catch (e) {}
   if (!_calSelected) _calSelected = _ymd(new Date());
   _calMonth = new Date(); _calMonth.setDate(1);
   if (!_calUnsub && window._CONFIG_DONE) {

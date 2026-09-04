@@ -548,6 +548,8 @@ function _mountHostScreen(name) {
     slot.appendChild(el);
   }
   el.classList.add('active');
+  // טופס השטיפה חוזר לתוך המסך שלו לפני שהחלונית נפתחת
+  try { window._washMount && window._washMount(); } catch (e) {}
   slot.scrollTop = 0;
   const box = slot.parentNode;
   if (box) box.scrollTop = 0;
@@ -565,6 +567,8 @@ function closeScreenModal() {
   }
   _hostReturn = null;
   closeModal('modal-screen-host');
+  // יציאה מהחלונית מחזירה את טופס השטיפה לעמודה במסך הבית
+  try { window._washMount && window._washMount(); } catch (e) {}
   // התזכורת לא קופצת בזמן שנמצאים בבדיקת הבעלויות — רק ביציאה ממנה,
   // ורק אם לא סומן "הכל תקין"
   if (wasOwnership) setTimeout(() => { try { _checkOwnMorning(); } catch (e) {} }, 300);

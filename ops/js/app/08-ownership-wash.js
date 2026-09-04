@@ -598,9 +598,36 @@ let _washType = '';
 let _washNotes = [];
 let _washUnsub = null;
 
+/* טופס השטיפה חי במקום אחד בלבד. במסך רחב אצל המנהל הוא יושב בעמודה
+   האמצעית של מסך הבית, ובכל מצב אחר הוא חוזר למסך השטיפה שלו. כך אין
+   שני עותקים של אותם שדות ואין התנגשות מזהים. */
+function _washMount() {
+  const body = document.getElementById('wash-form-body');
+  if (!body) return;
+  // מסך השטיפה נפתח כחלונית שמארחת את המסך עצמו. כשהוא מארוח — הטופס
+  // חייב להיות בתוכו, אחרת החלונית תיפתח ריקה.
+  const wash = document.getElementById('screen-wash');
+  const inHost = !!(wash && wash.closest('#screen-host-slot'));
+  const wide = window.matchMedia('(min-width:901px)').matches;
+  const toHome = !inHost && wide && currentUser?.role === 'manager'
+    && !!document.querySelector('.home-body.mgr-home');
+  const target = document.getElementById(toHome ? 'home-wash-slot' : 'wash-screen-slot');
+  if (target && body.parentElement !== target) target.appendChild(body);
+  if (toHome) { try { _washRenderTypes(); _washSavedListen(); } catch (e) {} }
+}
+window._washMount = _washMount;
+
+// שינוי רוחב החלון מעביר את הטופס לצד הנכון
+let _washMountTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(_washMountTimer);
+  _washMountTimer = setTimeout(() => { try { _washMount(); } catch (e) {} }, 200);
+});
+
 function openWashScreen() {
   document.getElementById('wash-user-badge').textContent = currentUser.name;
   showScreen('wash');
+  _washMount();                 // הטופס חוזר למסך שלו
   // הסיכום הוא כלי ניהולי — הנהג מכין ומדפיס פתקים בלבד
   const sumBtn = document.getElementById('wash-summary-btn');
   if (sumBtn) sumBtn.style.display = currentUser.role === 'manager' ? '' : 'none';

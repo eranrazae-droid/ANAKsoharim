@@ -153,6 +153,30 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
   .home-body.has-calendar #home-side-actions{margin-top:20px;padding-top:0}
   .home-body.has-calendar .menu-grid{grid-template-columns:repeat(2,1fr) !important}
 }
+/* ── מסך הבית של המנהל במחשב: שלוש עמודות בגובה זהה ──────────────
+   מימין שתי עמודות קוביות, באמצע פתק השטיפה ומשמאל לוח השנה.
+   הקוביות נמתחות כך ששלוש שורות ממלאות בדיוק את גובה לוח השנה. */
+@media (min-width:901px){
+  .home-body.has-calendar.mgr-home .welcome-bar{display:none}
+  .home-body.has-calendar.mgr-home #home-layout{align-items:stretch}
+  .home-body.has-calendar.mgr-home #home-cards-area{flex:0 0 360px;display:flex;flex-direction:column}
+  .home-body.has-calendar.mgr-home .menu-grid{grid-template-columns:repeat(2,1fr) !important;
+    grid-auto-rows:1fr;gap:12px;flex:1}
+  /* קובייה בודדת בשורה האחרונה נפרסת על שתי העמודות, כדי שלא יישאר חור */
+  .home-body.has-calendar.mgr-home .menu-grid .menu-card:last-child:nth-child(odd){grid-column:1/-1}
+  .home-body.has-calendar.mgr-home .menu-card{display:flex;flex-direction:column;
+    align-items:center;justify-content:center;padding:14px 10px}
+  .home-body.has-calendar.mgr-home #home-wash-area{display:flex !important;flex-direction:column;
+    flex:1.15;min-width:0;background:var(--card);border:2px solid var(--border);border-radius:18px;
+    padding:14px 16px;box-shadow:0 2px 10px rgba(0,0,0,.05)}
+  .home-body.has-calendar.mgr-home #home-wash-slot{flex:1;min-height:0;overflow-y:auto}
+  .home-body.has-calendar.mgr-home #home-wash-slot #wash-form-body{padding:0 !important}
+  .home-body.has-calendar.mgr-home #home-wash-slot .section-title{margin-top:10px;font-size:12.5px}
+  .home-body.has-calendar.mgr-home #home-wash-slot #wash-list,
+  .home-body.has-calendar.mgr-home #home-wash-slot #wash-list-title{display:none}
+  .home-body.has-calendar.mgr-home #home-calendar-area{display:flex !important;flex-direction:column}
+  .home-body.has-calendar.mgr-home #home-build{display:none}
+}
 /* בטלפון צר הכפתור מצטמצם לאייקון, כדי שהכותרת לא תיצפף */
 @media(max-width:430px){#btn-all-screens .as-txt{display:none}}
 /* בטלפון צר נשאר רק הפעמון, כדי שהכותרת לא תיצפף */
@@ -864,6 +888,11 @@ if ('serviceWorker' in navigator) {
         </div>
         <div class="menu-grid" id="menu-grid"></div>
         <div id="home-build" style="margin-top:18px;text-align:center;font-size:11px;color:var(--muted)"></div>
+      </div>
+      <!-- טופס השטיפה עובר לכאן במסך רחב אצל המנהל, וחוזר למסכו כשנכנסים אליו -->
+      <div id="home-wash-area" style="display:none">
+        <div style="font-weight:900;font-size:16px;margin-bottom:8px">🧽 פתק לשטיפה</div>
+        <div id="home-wash-slot"></div>
       </div>
       <div id="home-calendar-area" style="display:none">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
@@ -2568,7 +2597,8 @@ if ('serviceWorker' in navigator) {
     <div class="logo">🧽 פתק שטיפה</div>
     <div class="user-badge" id="wash-user-badge" onclick="logout()"></div>
   </div>
-  <div style="padding:16px 16px 100px">
+  <div id="wash-screen-slot">
+  <div id="wash-form-body" style="padding:16px 16px 100px">
     <div class="section-title" style="margin-top:0">רכב לשטיפה</div>
     <div style="display:flex;gap:8px;margin-bottom:4px">
       <input class="form-input" id="wash-plate" inputmode="numeric" placeholder="מספר רישוי" oninput="washLookupPlateSoon()" style="flex:1;margin:0">
@@ -2598,8 +2628,9 @@ if ('serviceWorker' in navigator) {
       <button class="btn-submit" id="wash-summary-btn" onclick="openWashSummary()" style="display:none;background:#0d9488;color:#fff;margin:0;width:100%">📊 הוצאת סיכום</button>
     </div>
 
-    <div class="section-title">פתקי שטיפה אחרונים</div>
+    <div class="section-title" id="wash-list-title">פתקי שטיפה אחרונים</div>
     <div id="wash-list"></div>
+  </div>
   </div>
 </div>
 
@@ -3491,19 +3522,19 @@ window.dispatchEvent(new Event('firebase-ready'));
 </script>
 
 <script src="js/utils.js?v=214"></script>
-<script src="js/app/01-core.js?v=343"></script>
-<script src="js/app/02-home-calendar.js?v=343"></script>
-<script src="js/app/03-tasks.js?v=343"></script>
-<script src="js/app/04-intake-plate.js?v=343"></script>
-<script src="js/app/05-intake-forms.js?v=343"></script>
-<script src="js/app/06-recall-inventory.js?v=343"></script>
-<script src="js/app/07-bodyshop.js?v=343"></script>
-<script src="js/app/08-ownership-wash.js?v=343"></script>
-<script src="js/app/09-battery.js?v=343"></script>
-<script src="js/app/10-battery-plate.js?v=343"></script>
-<script src="js/app/11-yard-telegram.js?v=343"></script>
-<script src="js/app/12-pickup.js?v=343"></script>
-<script src="js/app/13-reports.js?v=343"></script>
+<script src="js/app/01-core.js?v=344"></script>
+<script src="js/app/02-home-calendar.js?v=344"></script>
+<script src="js/app/03-tasks.js?v=344"></script>
+<script src="js/app/04-intake-plate.js?v=344"></script>
+<script src="js/app/05-intake-forms.js?v=344"></script>
+<script src="js/app/06-recall-inventory.js?v=344"></script>
+<script src="js/app/07-bodyshop.js?v=344"></script>
+<script src="js/app/08-ownership-wash.js?v=344"></script>
+<script src="js/app/09-battery.js?v=344"></script>
+<script src="js/app/10-battery-plate.js?v=344"></script>
+<script src="js/app/11-yard-telegram.js?v=344"></script>
+<script src="js/app/12-pickup.js?v=344"></script>
+<script src="js/app/13-reports.js?v=344"></script>
 
 <!-- ═══ רענון רכב modals ═══ -->
 <div class="modal-overlay" id="modal-refresh-edit">
