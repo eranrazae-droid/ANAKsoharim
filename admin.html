@@ -1102,11 +1102,14 @@
     recordSource(v);
     const f=document.getElementById('sourceFree'); if(f) f.value='';
   }
-  const _SRC_META={'פייסבוק':'#1877F2','אינסטגרם':'#E1306C','מארקטפלייס':'#0d9488','טיקטוק':'#0d0d0d','ווצאפ':'#25D366','המלצה':'#D4A017'};
+  const _SRC_META={'פייסבוק':'#1877F2','אינסטגרם':'#E1306C','מארקטפלייס':'#0d9488','טיקטוק':'#0d0d0d','ווצאפ':'#25D366','וואטסאפ':'#25D366','גוגל':'#4285F4','אתר':'#64748b','המלצה':'#D4A017'};
+  const _LEAD_SRC_TAGS=['פייסבוק','אינסטגרם','גוגל','טיקטוק','וואטסאפ','המלצה','אתר','אחר'];
   function _sourceCounts(){
-    const log=_sourceLog(); const counts={};
-    log.forEach(r=>{ const s=r.source||'אחר'; counts[s]=(counts[s]||0)+1; });
-    return { counts, total:log.length };
+    const counts={}; let total=0;
+    const add=s=>{ if(!s) return; counts[s]=(counts[s]||0)+1; total++; };
+    _sourceLog().forEach(r=>add(r.source||'אחר'));            // תיעוד ידני (פונים)
+    (Array.isArray(leads)?leads:[]).forEach(l=>{ if(l && _LEAD_SRC_TAGS.indexOf(l.source)>=0) add(l.source); }); // תיוגי כרטיסי לידים
+    return { counts, total };
   }
   function renderSourceMetric(){
     const {counts,total}=_sourceCounts();
@@ -2426,6 +2429,8 @@
     const l=leads.find(x=>String(x.id)===String(id)); if(!l) return;
     l.source=(l.source===src)?'':src; // לחיצה חוזרת מבטלת
     renderLeads();
+    try{ renderSourceMetric(); }catch(e){}
+    try{ renderLeadsReport(); }catch(e){}
     try{ const c=sbClient(); if(c){ await c.from('leads').update({source:l.source}).eq('id',id); } }catch(e){}
     toast&&toast(l.source?('מקור עודכן: '+l.source):'מקור בוטל');
   }
