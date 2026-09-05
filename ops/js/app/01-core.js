@@ -691,16 +691,15 @@ function _backToAllScreens() {
 const APP_BUILD = '2026-08-09 · 214';
 
   /* ── "כל המסכים" ────────────────────────────────────────────────────
-   כל מה שהיה תשעה כפתורים צבעוניים במסך הבית יושב כאן, ברשימה אחת
-   אחידה. הכפתורים המקוריים נשארים במקומם ומוסתרים — הרשימה קוראת
-   מהם את השם, המספר ומה קורה בלחיצה, כך שאין כפילות של הגדרות.  */
+   כל מה שהיה כפתורים צבעוניים במסך הבית יושב כאן, ברשימה אחת אחידה.
+   הכפתורים המקוריים נשארים במקומם ומוסתרים — הרשימה קוראת מהם את
+   השם, המספר ומה קורה בלחיצה, כך שאין כפילות של הגדרות.
+   פתק השטיפה, הבורות ונסיעות המבחן אינם כאן: הם יושבים בלשוניות של
+   החלונית במסך הבית, ואין טעם שיהיו בשני מקומות.                   */
 const _ALL_SCREENS = [
   { id: 'menu-card-ownership',    icon: '📑', label: 'בדיקת בעלויות',        badge: 'badge-ownership' },
   { id: 'menu-card-recall',       icon: '⚠️', label: 'בדיקת ריקול',          badge: 'recall-home-count' },
   { id: 'menu-card-inventory',    icon: '📦', label: 'בדיקת מלאי',           badge: 'badge-inventory' },
-  { id: 'menu-btn-wash',          icon: '🧽', label: 'פתק שטיפה',            badge: '' },
-  { id: 'menu-card-pits',         icon: '🕳️', label: 'בורות',                badge: 'badge-pits' },
-  { id: 'menu-card-test-drive',   icon: '🏎️', label: 'נסיעות מבחן',          badge: 'td-home-count' },
   { id: 'menu-card-battery',      icon: '🔋', label: 'בדיקת טעינה',          badge: 'badge-battery' },
   { id: 'menu-card-yard',         icon: '🅿️', label: 'סידור מגרש',           badge: 'badge-yard' },
   { id: 'menu-card-plate-search', icon: '🔎', label: 'חיפוש רכב לפי לוחית',  badge: '' },

@@ -92,6 +92,7 @@ function _syncAllScreensCount() {
   nb.textContent = total;
   nb.style.display = total ? '' : 'none';
   if (document.getElementById('modal-all-screens')?.classList.contains('open')) _renderAllScreens();
+  try { _homePanelBadges(); } catch (e) {}
 }
 window._syncAllScreensCount = _syncAllScreensCount;
 

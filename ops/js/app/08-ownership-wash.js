@@ -682,6 +682,21 @@ function _washMount() {
 }
 window._washMount = _washMount;
 
+/* המספרים שהיו ליד "בורות" ו"נסיעות מבחן" ברשימת כל המסכים עברו
+   ללשוניות, כדי שלא יאבד הסימון שיש משהו שממתין. */
+function _homePanelBadges() {
+  const tabs = document.getElementById('home-panel-tabs');
+  if (!tabs) return;
+  tabs.querySelectorAll('.tb').forEach(sp => {
+    const src = document.getElementById(sp.dataset.badge);
+    const n = src && src.style.display !== 'none' ? (src.textContent || '').trim() : '';
+    sp.textContent = n;
+    sp.style.display = (n && n !== '0') ? 'inline-block' : 'none';
+  });
+}
+window._homePanelBadges = _homePanelBadges;
+
+
 // שינוי רוחב החלון מעביר את הטופס לצד הנכון
 let _washMountTimer = null;
 window.addEventListener('resize', () => {

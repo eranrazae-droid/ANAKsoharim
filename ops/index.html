@@ -744,6 +744,7 @@ body.td-panel-min .screen.active{margin-left:0 !important;width:auto !important}
 #home-panel-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px}
 #home-panel-tabs button{display:flex;align-items:center;justify-content:center;min-height:40px;padding:6px 4px;border-radius:10px;border:2px solid var(--border);background:var(--surface2);color:var(--muted);font-family:Heebo,sans-serif;font-size:12.5px;font-weight:800;line-height:1.15;cursor:pointer}
 #home-panel-tabs button.on{border-color:var(--dark);background:var(--dark);color:#fff}
+#home-panel-tabs .tb{display:none;background:#ef4444;color:#fff;border-radius:999px;padding:1px 6px;font-size:11px;font-weight:900;margin-right:5px}
 @media (max-width:380px){#home-panel-tabs button{font-size:11px;padding:6px 2px}}
 /* הטפסים המתארחים מביאים איתם שוליים של מסך מלא — בתוך החלונית הם מיותרים */
 #home-wash-slot #pits-manager-toolbar{background:none;border-bottom:none;padding:0 0 10px}
@@ -997,8 +998,8 @@ if ('serviceWorker' in navigator) {
         <!-- שלוש לשוניות באותה חלונית: כל בחירה מביאה את הטופס שלה לתוך המסגרת -->
         <div id="home-panel-tabs">
           <button type="button" data-tab="wash"       onclick="setHomePanelTab('wash')">🧽 פתק לשטיפה</button>
-          <button type="button" data-tab="pits"       onclick="setHomePanelTab('pits')">🕳️ בורות</button>
-          <button type="button" data-tab="test-drive" onclick="setHomePanelTab('test-drive')">🚗 נסיעת מבחן</button>
+          <button type="button" data-tab="pits"       onclick="setHomePanelTab('pits')">🕳️ בורות<span class="tb" data-badge="badge-pits"></span></button>
+          <button type="button" data-tab="test-drive" onclick="setHomePanelTab('test-drive')">🚗 נסיעת מבחן<span class="tb" data-badge="td-home-count"></span></button>
         </div>
         <div id="home-wash-slot"></div>
       </div>
@@ -2993,6 +2994,24 @@ if ('serviceWorker' in navigator) {
 </div>
 
 <!-- ====== MODAL: PICKUP ACTIONS ====== -->
+<!-- ====== MODAL: TOW INVOICE CROSS-CHECK ====== -->
+<div class="modal-overlay" id="modal-tow-invoice">
+  <div class="modal-box" style="max-width:min(94vw,640px);max-height:92vh;display:flex;flex-direction:column">
+    <div class="modal-title"><span>🚛 הצלבת חשבונית גרר</span> <button class="modal-close" onclick="closeModal('modal-tow-invoice')">✕</button></div>
+    <div style="display:flex;gap:8px;align-items:stretch;margin-bottom:10px;flex-wrap:wrap">
+      <input id="tow-inv-label" placeholder="חודש החשבונית" style="flex:1;min-width:120px;padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif;font-size:14px;font-weight:800;box-sizing:border-box">
+      <label style="flex:2;min-width:170px;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;border-radius:10px;border:1.5px dashed var(--border);background:var(--surface2);cursor:pointer;font-size:14px;font-weight:800;color:var(--muted)">
+        📎 בחר את קובץ החשבונית
+        <input type="file" id="tow-inv-file" accept=".pdf,image/*" style="display:none" onchange="towInvoiceFile(this)">
+      </label>
+    </div>
+    <div id="tow-inv-status" style="font-size:13px;font-weight:800;margin-bottom:8px"></div>
+    <div id="tow-inv-summary"></div>
+    <div id="tow-inv-rows" style="overflow-y:auto;flex:1"></div>
+    <button id="tow-inv-save" onclick="towInvSave()" style="display:none;margin-top:10px;background:#16a34a;color:#fff;border:none;border-radius:10px;padding:12px;font-family:Heebo,sans-serif;font-weight:900;font-size:15px;cursor:pointer;flex-shrink:0">💾 שמור את החשבונית</button>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-pickup-actions">
   <div class="modal-box" style="max-width:1000px;max-height:94vh">
     <div class="modal-title"><span>➕ פעולות ומידע</span> <button class="modal-close" onclick="closeModal('modal-pickup-actions')">✕</button></div>
@@ -3000,6 +3019,7 @@ if ('serviceWorker' in navigator) {
       <button onclick="closeModal('modal-pickup-actions');openFreeTextPickupModal()" style="background:var(--gold);color:#000;border:none;border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:15px;font-weight:800;cursor:pointer">🖼️ הוספה לפי תמונה</button>
       <button onclick="closeModal('modal-pickup-actions');openTextPickupModal()" style="background:#7c3aed;color:#fff;border:none;border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:15px;font-weight:800;cursor:pointer">📝 הוספה לפי מלל</button>
       <button onclick="closeModal('modal-pickup-actions');openOwnershipModal()" style="background:#2563eb;color:#fff;border:none;border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:15px;font-weight:800;cursor:pointer">📤 העלאת בעלויות</button>
+      <button id="pk-tow-invoice-btn" onclick="openTowInvoice()" style="display:none;background:#b45309;color:#fff;border:none;border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:15px;font-weight:800;cursor:pointer">🚛 הצלבת חשבונית גרר</button>
     </div>
     <!-- כל הכתובות שהמערכת מכירה, עם אנשי הקשר המשויכים להן -->
     <div style="margin-top:18px;border-top:2px solid var(--border);padding-top:14px">
@@ -3627,19 +3647,20 @@ window.dispatchEvent(new Event('firebase-ready'));
 </script>
 
 <script src="js/utils.js?v=214"></script>
-<script src="js/app/01-core.js?v=349"></script>
-<script src="js/app/02-home-calendar.js?v=349"></script>
-<script src="js/app/03-tasks.js?v=349"></script>
-<script src="js/app/04-intake-plate.js?v=349"></script>
-<script src="js/app/05-intake-forms.js?v=349"></script>
-<script src="js/app/06-recall-inventory.js?v=349"></script>
-<script src="js/app/07-bodyshop.js?v=349"></script>
-<script src="js/app/08-ownership-wash.js?v=349"></script>
-<script src="js/app/09-battery.js?v=349"></script>
-<script src="js/app/10-battery-plate.js?v=349"></script>
-<script src="js/app/11-yard-telegram.js?v=349"></script>
-<script src="js/app/12-pickup.js?v=349"></script>
-<script src="js/app/13-reports.js?v=349"></script>
+<script src="js/app/01-core.js?v=350"></script>
+<script src="js/app/02-home-calendar.js?v=350"></script>
+<script src="js/app/03-tasks.js?v=350"></script>
+<script src="js/app/04-intake-plate.js?v=350"></script>
+<script src="js/app/05-intake-forms.js?v=350"></script>
+<script src="js/app/06-recall-inventory.js?v=350"></script>
+<script src="js/app/07-bodyshop.js?v=350"></script>
+<script src="js/app/08-ownership-wash.js?v=350"></script>
+<script src="js/app/09-battery.js?v=350"></script>
+<script src="js/app/10-battery-plate.js?v=350"></script>
+<script src="js/app/11-yard-telegram.js?v=350"></script>
+<script src="js/app/12-pickup.js?v=350"></script>
+<script src="js/app/13-reports.js?v=350"></script>
+<script src="js/app/14-tow-invoice.js?v=350"></script>
 
 <!-- ═══ רענון רכב modals ═══ -->
 <div class="modal-overlay" id="modal-refresh-edit">

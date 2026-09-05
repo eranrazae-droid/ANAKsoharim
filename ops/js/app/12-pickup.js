@@ -1373,7 +1373,13 @@ const _PICKUP_SORTS = [
   '📍 לפי מרחק — מהקרוב לרחוק',
 ];
 
-function openPickupActions() { openModal('modal-pickup-actions'); _renderPickupAddrBook(); }
+function openPickupActions() {
+  openModal('modal-pickup-actions');
+  // הצלבת חשבונית הגרר היא פעולה של המנהל בלבד
+  const tow = document.getElementById('pk-tow-invoice-btn');
+  if (tow) tow.style.display = currentUser?.role === 'manager' ? '' : 'none';
+  _renderPickupAddrBook();
+}
 
 /* ── פנקס הכתובות ────────────────────────────────────────────────────
    אותה כתובת נרשמה לאורך השנים בעשרות ניסוחים חופשיים ("טסט עכו",
