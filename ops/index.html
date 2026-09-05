@@ -740,6 +740,17 @@ body.td-panel-min .screen.active{margin-left:0 !important;width:auto !important}
    cards are short enough that three rows fit on one screen. */
 /* מסך איסוף: בטלפון הכל אחד מתחת לשני והמפה מוסתרת עד שלוחצים עליה.
    במסך רחב — הרשימה תופסת שלושה רבעים מימין והמפה רבע משמאל. */
+/* שלוש הלשוניות של החלונית במסך הבית — רוחב שווה, אחת ליד השנייה */
+#home-panel-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px}
+#home-panel-tabs button{display:flex;align-items:center;justify-content:center;min-height:40px;padding:6px 4px;border-radius:10px;border:2px solid var(--border);background:var(--surface2);color:var(--muted);font-family:Heebo,sans-serif;font-size:12.5px;font-weight:800;line-height:1.15;cursor:pointer}
+#home-panel-tabs button.on{border-color:var(--dark);background:var(--dark);color:#fff}
+@media (max-width:380px){#home-panel-tabs button{font-size:11px;padding:6px 2px}}
+/* הטפסים המתארחים מביאים איתם שוליים של מסך מלא — בתוך החלונית הם מיותרים */
+#home-wash-slot #pits-manager-toolbar{background:none;border-bottom:none;padding:0 0 10px}
+#home-wash-slot #pits-list{padding:0 0 8px}
+#home-wash-slot #pits-archive-wrap{padding:0}
+#home-wash-slot #td-form-body>div{padding-left:0;padding-right:0}
+#home-wash-slot #td-list{padding-bottom:0}
 .pickup-split{display:block}
 /* סרגל אחד לכל הסינון: סמן הכל, החברות והערים — כולם באותו גובה ובאותו קצב */
 .pk-toolbar{padding:12px 16px 0;display:flex;align-items:stretch;gap:8px;flex-wrap:wrap}
@@ -983,7 +994,12 @@ if ('serviceWorker' in navigator) {
       </div>
       <!-- טופס השטיפה עובר לכאן במסך רחב אצל המנהל, וחוזר למסכו כשנכנסים אליו -->
       <div id="home-wash-area" style="display:none">
-        <div style="font-weight:900;font-size:16px;margin-bottom:8px">🧽 פתק לשטיפה</div>
+        <!-- שלוש לשוניות באותה חלונית: כל בחירה מביאה את הטופס שלה לתוך המסגרת -->
+        <div id="home-panel-tabs">
+          <button type="button" data-tab="wash"       onclick="setHomePanelTab('wash')">🧽 פתק לשטיפה</button>
+          <button type="button" data-tab="pits"       onclick="setHomePanelTab('pits')">🕳️ בורות</button>
+          <button type="button" data-tab="test-drive" onclick="setHomePanelTab('test-drive')">🚗 נסיעת מבחן</button>
+        </div>
         <div id="home-wash-slot"></div>
       </div>
       <div id="home-calendar-area" style="display:none">
@@ -1801,11 +1817,15 @@ if ('serviceWorker' in navigator) {
     <div class="logo">נסיעות <span>מבחן</span></div>
     <div class="user-badge" id="td-user-badge" onclick="logout()"></div>
   </div>
+<div id="td-screen-slot">
+  <div id="td-form-body">
   <div style="padding:12px 16px 0">
     <button onclick="openNewTestDriveModal()" id="td-fab-new" style="width:100%;background:var(--gold);color:#000;border:none;border-radius:12px;padding:13px;font-family:Heebo,sans-serif;font-size:15px;font-weight:800;cursor:pointer">+ נסיעת מבחן חדשה</button>
   </div>
   <div style="padding:12px 16px 24px" id="td-list">
     <div class="loading"><div class="spinner"></div> טוען...</div>
+  </div>
+  </div>
   </div>
 </div>
 
@@ -1906,7 +1926,9 @@ if ('serviceWorker' in navigator) {
     <div class="logo">בורות</div>
     <div class="user-badge" id="pits-user-badge" onclick="logout()"></div>
   </div>
-  <div id="pits-manager-toolbar" style="display:none;padding:12px 16px;background:#fff;border-bottom:1px solid var(--border);gap:8px;justify-content:flex-end">
+  <div id="pits-screen-slot">
+  <div id="pits-form-body">
+<div id="pits-manager-toolbar" style="display:none;padding:12px 16px;background:#fff;border-bottom:1px solid var(--border);gap:8px;justify-content:flex-end">
     <button onclick="openModal('modal-add-pit')" style="background:var(--gold);color:#000;border:none;border-radius:10px;padding:8px 18px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">+ הוסף בדיקה</button>
   </div>
   <div id="pits-list" style="padding:16px 16px 8px;display:flex;flex-direction:column;gap:10px"></div>
@@ -1919,6 +1941,8 @@ if ('serviceWorker' in navigator) {
       <input id="pits-archive-q" placeholder="🔍 חיפוש לפי מספר רכב..." oninput="filterPitsArchive()" inputmode="numeric" style="width:100%;border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;font-family:Heebo,sans-serif;font-size:15px;font-weight:700;outline:none;box-sizing:border-box">
     </div>
     <div id="pits-archive-body" style="display:none;flex-direction:column;gap:10px"></div>
+  </div>
+  </div>
   </div>
 </div>
 
@@ -3603,19 +3627,19 @@ window.dispatchEvent(new Event('firebase-ready'));
 </script>
 
 <script src="js/utils.js?v=214"></script>
-<script src="js/app/01-core.js?v=348"></script>
-<script src="js/app/02-home-calendar.js?v=348"></script>
-<script src="js/app/03-tasks.js?v=348"></script>
-<script src="js/app/04-intake-plate.js?v=348"></script>
-<script src="js/app/05-intake-forms.js?v=348"></script>
-<script src="js/app/06-recall-inventory.js?v=348"></script>
-<script src="js/app/07-bodyshop.js?v=348"></script>
-<script src="js/app/08-ownership-wash.js?v=348"></script>
-<script src="js/app/09-battery.js?v=348"></script>
-<script src="js/app/10-battery-plate.js?v=348"></script>
-<script src="js/app/11-yard-telegram.js?v=348"></script>
-<script src="js/app/12-pickup.js?v=348"></script>
-<script src="js/app/13-reports.js?v=348"></script>
+<script src="js/app/01-core.js?v=349"></script>
+<script src="js/app/02-home-calendar.js?v=349"></script>
+<script src="js/app/03-tasks.js?v=349"></script>
+<script src="js/app/04-intake-plate.js?v=349"></script>
+<script src="js/app/05-intake-forms.js?v=349"></script>
+<script src="js/app/06-recall-inventory.js?v=349"></script>
+<script src="js/app/07-bodyshop.js?v=349"></script>
+<script src="js/app/08-ownership-wash.js?v=349"></script>
+<script src="js/app/09-battery.js?v=349"></script>
+<script src="js/app/10-battery-plate.js?v=349"></script>
+<script src="js/app/11-yard-telegram.js?v=349"></script>
+<script src="js/app/12-pickup.js?v=349"></script>
+<script src="js/app/13-reports.js?v=349"></script>
 
 <!-- ═══ רענון רכב modals ═══ -->
 <div class="modal-overlay" id="modal-refresh-edit">

@@ -1088,16 +1088,28 @@ async function openTestDriveFromHome() {
 window.openTestDriveFromHome = openTestDriveFromHome;
 
 function openTestDriveScreen() {
+  showScreen('test-drive');
+  _tdLoadList();
+}
+
+// כשנסיעות המבחן מוצגות בלשונית שבמסך הבית של המנהל — אותה טעינה
+// בדיוק, בלי מעבר מסך
+function _tdMountedOnHome() { _tdLoadList(); }
+window._tdMountedOnHome = _tdMountedOnHome;
+
+let _tdUnsub = null;
+function _tdLoadList() {
   document.getElementById('td-user-badge').textContent = currentUser.name;
   const isManager = currentUser.role === 'manager';
   document.getElementById('td-fab-new').style.display = isManager ? '' : 'none';
-  showScreen('test-drive');
   const list = document.getElementById('td-list');
   list.innerHTML = '<div class="loading"><div class="spinner"></div> טוען...</div>';
   const q = isManager
     ? _colRef('test_drives')
     : _query(_colRef('test_drives'), _where('assignedTo','==',currentUser.name));
-  _onSnap(q, snap => {
+  // כל טעינה מחליפה את המאזין הקודם, כדי שלא ייערמו חיבורים לשרת
+  if (_tdUnsub) { try { _tdUnsub(); } catch (e) {} }
+  _tdUnsub = _onSnap(q, snap => {
     _tdAllForms = snap.docs.map(d => ({ id: d.id, ...d.data() }))
       // נסיעות שנמחקו בעבר סומנו כ-cancelled ונשארו במסד — הן לא מוצגות
       .filter(f => f.status !== 'cancelled')

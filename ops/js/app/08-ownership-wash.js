@@ -622,24 +622,63 @@ function _washRevealVeh() {
 }
 window._washRevealVeh = _washRevealVeh;
 
+/* חלונית אחת במסך הבית של המנהל עם שלוש לשוניות. כל טופס חי במסכו
+   שלו, והלשונית פשוט מעבירה אותו פיזית לתוך המסגרת ומחזירה אותו
+   כשעוזבים — כך אין שכפול של קוד או של מאזינים. */
+const _HOME_PANELS = {
+  'wash':       { body: 'wash-form-body', home: 'screen-wash',       back: 'wash-screen-slot' },
+  'pits':       { body: 'pits-form-body', home: 'screen-pits',       back: 'pits-screen-slot' },
+  'test-drive': { body: 'td-form-body',   home: 'screen-test-drive', back: 'td-screen-slot' },
+};
+let _homePanelTab = 'wash';
+let _homePanelShown = null;   // הלשונית שכרגע באמת מוצגת בחלונית
+
+function setHomePanelTab(tab) {
+  if (!_HOME_PANELS[tab]) return;
+  _homePanelTab = tab;
+  _washMount();
+}
+window.setHomePanelTab = setHomePanelTab;
+
 function _washMount() {
-  const body = document.getElementById('wash-form-body');
-  if (!body) return;
-  // מסך השטיפה נפתח כחלונית שמארחת את המסך עצמו. כשהוא מארוח — הטופס
-  // חייב להיות בתוכו, אחרת החלונית תיפתח ריקה.
-  const wash = document.getElementById('screen-wash');
-  const inHost = !!(wash && wash.closest('#screen-host-slot'));
-  // גם בטלפון וגם במחשב הטופס יושב במסך הבית של המנהל — הפריסה בכל
-  // רוחב מוכנה לזה. הוא חוזר למסכו רק כשפותחים אותו כחלונית.
-  const toHome = !inHost && currentUser?.role === 'manager'
+  const slot = document.getElementById('home-wash-slot');
+  // מסכי השטיפה/הבורות/נסיעת המבחן נפתחים גם כחלונית שמארחת את המסך
+  // עצמו. כשמסך מארוח — הטופס שלו חייב לחזור אליו, אחרת החלונית
+  // תיפתח ריקה.
+  const onHome = currentUser?.role === 'manager'
     && !!document.querySelector('.home-body.mgr-home');
-  const target = document.getElementById(toHome ? 'home-wash-slot' : 'wash-screen-slot');
-  if (target && body.parentElement !== target) target.appendChild(body);
+
+  let shown = null;
+  for (const [tab, p] of Object.entries(_HOME_PANELS)) {
+    const body = document.getElementById(p.body);
+    if (!body) continue;
+    const scr = document.getElementById(p.home);
+    const inHost = !!(scr && scr.closest('#screen-host-slot'));
+    const toHome = !inHost && onHome && tab === _homePanelTab && !!slot;
+    const target = toHome ? slot : document.getElementById(p.back);
+    if (target && body.parentElement !== target) target.appendChild(body);
+    if (toHome) shown = tab;
+  }
+
   // כפתור הסיכום נחשף למנהל בלבד — גם כשהטופס יושב במסך הבית ולא
   // עברנו דרך openWashScreen
   const sum = document.getElementById('wash-summary-btn');
   if (sum) sum.style.display = currentUser?.role === 'manager' ? '' : 'none';
-  if (toHome) { try { _washRenderTypes(); _washSavedListen(); } catch (e) {} }
+
+  const tabs = document.getElementById('home-panel-tabs');
+  if (tabs) tabs.querySelectorAll('button').forEach(b => {
+    b.classList.toggle('on', b.dataset.tab === _homePanelTab);
+  });
+
+  // הטופס שנבחר נטען רק כשהוא באמת מוצג, כדי לא לפתוח מאזינים לחינם
+  if (shown === 'wash') { try { _washRenderTypes(); _washSavedListen(); } catch (e) {} }
+  // הבורות ונסיעות המבחן פותחים מאזין לשרת, ולכן נטענים רק כשהלשונית
+  // באמת מתחלפת — לא בכל שינוי רוחב של החלון
+  if (shown !== _homePanelShown) {
+    _homePanelShown = shown;
+    if (shown === 'pits')       { try { _pitsMountedOnHome(); } catch (e) {} }
+    if (shown === 'test-drive') { try { _tdMountedOnHome(); } catch (e) {} }
+  }
 }
 window._washMount = _washMount;
 

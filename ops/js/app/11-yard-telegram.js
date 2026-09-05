@@ -69,6 +69,15 @@ function _pitCard(p, isManager, showArchiveBtn) {
   </div>`;
 }
 
+// כשהבורות מוצגים בלשונית שבמסך הבית של המנהל — אותה טעינה בדיוק,
+// בלי מעבר מסך
+function _pitsMountedOnHome() {
+  const toolbar = document.getElementById('pits-manager-toolbar');
+  if (toolbar) toolbar.style.display = currentUser?.role === 'manager' ? 'flex' : 'none';
+  loadPits();
+}
+window._pitsMountedOnHome = _pitsMountedOnHome;
+
 function loadPits() {
   if (!window._CONFIG_DONE) return;
   if (pitsUnsub) pitsUnsub();
