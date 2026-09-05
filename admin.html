@@ -224,6 +224,12 @@
           <div id="srcStatus" style="font-size:12px;color:var(--muted);margin-bottom:10px"></div>
           <div id="sourceMetricDash"></div>
         </div>
+        <div class="card panel" style="margin-bottom:20px;border:2px solid #dcfce7">
+          <div class="section-hd" style="margin-bottom:12px">
+            <div><div class="eyebrow">תוצאות</div><h2 style="font-size:18px">📈 דוח לידים</h2></div>
+          </div>
+          <div id="leadsReport"></div>
+        </div>
         <div class="stats-grid">
           <div class="stat-card"><div class="label">סה"כ רכבים</div><div class="value" id="st-total">0</div><div class="sub">במלאי</div></div>
           <div class="stat-card stat-green"><div class="label">זמין מיידי</div><div class="value" id="st-avail">0</div><div class="sub">⚡ אספקה מידית</div></div>
@@ -2818,9 +2824,34 @@
     </div>`).join('');
   }
 
+  // דוח לידים - אונליין (טופס/וואטסאפ) + פונים בטלפון (תיעוד ידני), בלי כפילות
+  function renderLeadsReport(){
+    const el=document.getElementById('leadsReport'); if(!el) return;
+    const now=Date.now(), DAY=86400000;
+    const st=new Date(); st.setHours(0,0,0,0); const t0=st.getTime();
+    const online=(typeof leads!=='undefined'&&Array.isArray(leads))?leads:[];
+    const phone=(typeof _sourceLog==='function')?_sourceLog():[];
+    const cnt=(arr,f,since)=>arr.filter(x=>{ const t=Date.parse(x[f]||''); return t && t>=since; }).length;
+    const buckets=[{label:'היום',since:t0},{label:'7 ימים',since:now-7*DAY},{label:'30 ימים',since:now-30*DAY}];
+    let tiles='<div class="stats-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">';
+    buckets.forEach(b=>{ const on=cnt(online,'created_at',b.since), ph=cnt(phone,'ts',b.since);
+      tiles+='<div class="stat-card stat-green"><div class="label">'+b.label+'</div><div class="value">'+(on+ph)+'</div><div class="sub">🖥️ '+on+' אונליין · 📞 '+ph+' טלפון</div></div>'; });
+    tiles+='</div>';
+    const recent=online.slice().sort((a,b)=>Date.parse(b.created_at||0)-Date.parse(a.created_at||0)).slice(0,6);
+    let list;
+    if(recent.length){
+      list='<div style="font-weight:800;font-size:13px;margin-bottom:8px">לידים אונליין אחרונים</div>'+recent.map(l=>{
+        const d=l.created_at?new Date(l.created_at).toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit'}):'';
+        const ph=(l.phone||'').replace(/-/g,'').replace(/^0/,'');
+        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px"><div><b>'+_esc(l.name||'ליד')+'</b> <span style="color:var(--muted)">'+_esc(l.phone||'')+(l.car?(' · '+_esc(l.car)):'')+'</span></div><div style="display:flex;gap:6px;align-items:center"><span style="color:var(--muted);font-size:12px">'+d+'</span>'+(ph?'<a href="https://wa.me/972'+ph+'" target="_blank" style="background:#25D366;color:#fff;border-radius:8px;padding:4px 8px;text-decoration:none">📲</a>':'')+'</div></div>';
+      }).join('');
+    } else { list='<div class="muted" style="font-size:13px;padding:8px">עדיין אין לידים אונליין. כשהקמפיין יתחיל להביא — הם יופיעו כאן.</div>'; }
+    el.innerHTML=tiles+list;
+  }
   function renderDash(){
     renderIncomplete();
     renderSourceMetric();
+    renderLeadsReport();
     const dl=document.getElementById('dash-leads');
     const dv=document.getElementById('dash-vouchers');
     if(dl){
