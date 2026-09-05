@@ -2421,6 +2421,14 @@
     const lbl=document.getElementById('fulbl_'+id); if(lbl) lbl.textContent=val?('📅 לחזור: '+fmtFollowup(val)):'';
   }
   // כפתור שמור כללי - שומר את כל שדות הליד ומעביר אותו למיקום הנכון לפי הזמן
+  // תיוג מקור הגעה בלחיצה אחת (נשמר מיד)
+  async function setLeadSource(id, src){
+    const l=leads.find(x=>String(x.id)===String(id)); if(!l) return;
+    l.source=(l.source===src)?'':src; // לחיצה חוזרת מבטלת
+    renderLeads();
+    try{ const c=sbClient(); if(c){ await c.from('leads').update({source:l.source}).eq('id',id); } }catch(e){}
+    toast&&toast(l.source?('מקור עודכן: '+l.source):'מקור בוטל');
+  }
   async function saveLead(id){
     const l=leads.find(x=>String(x.id)===String(id)); if(!l) return;
     const st=document.getElementById('st_'+id); if(st) l.status=st.value;
@@ -2751,6 +2759,10 @@
                 <option value="2" ${attempts===2?'selected':''}>2</option>
                 <option value="3" ${attempts===3?'selected':''}>3</option>
               </select>
+            </div>
+            <div style="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+              <span style="font-size:12px;color:var(--muted)">📍 מקור הגעה:</span>
+              ${['פייסבוק','אינסטגרם','גוגל','טיקטוק','וואטסאפ','המלצה','אתר','אחר'].map(s=>{const on=(l.source===s);return `<button onclick="setLeadSource('${l.id}','${s}')" style="border:1px solid ${on?'#2563eb':'#d1d5db'};background:${on?'#2563eb':'#fff'};color:${on?'#fff':'#374151'};border-radius:999px;padding:5px 12px;font-size:12px;font-weight:800;cursor:pointer">${s}</button>`;}).join('')}
             </div>
             <div style="margin-top:8px">
               <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
