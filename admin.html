@@ -437,10 +437,11 @@
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
             <input id="nl_name" placeholder="שם מלא *" style="padding:10px 12px;font-size:14px;border:1px solid var(--line);border-radius:10px">
             <input id="nl_phone" type="tel" placeholder="טלפון * (05X-XXXXXXX)" style="padding:10px 12px;font-size:14px;border:1px solid var(--line);border-radius:10px">
-            <input id="nl_car" placeholder="רכב שמעניין אותו (לא חובה)" style="padding:10px 12px;font-size:14px;border:1px solid var(--line);border-radius:10px">
+            <select id="nl_brand" onchange="onNewLeadBrand()" style="padding:10px 12px;font-size:14px;border:1px solid var(--line);border-radius:10px;font-weight:700"><option value="">מתעניין ביצרן...</option></select>
+            <select id="nl_model" style="padding:10px 12px;font-size:14px;border:1px solid var(--line);border-radius:10px;font-weight:700"><option value="">דגם...</option></select>
             <select id="nl_source" style="padding:10px 12px;font-size:14px;border:1px solid var(--line);border-radius:10px;font-weight:700">
               <option value="">מקור הגעה...</option>
-              <option>פייסבוק</option><option>אינסטגרם</option><option>גוגל</option><option>טיקטוק</option><option>וואטסאפ</option><option>המלצה</option><option>אתר</option><option>אחר</option>
+              <option>פייסבוק</option><option>אינסטגרם</option><option>מארקטפלייס</option><option>גוגל</option><option>טיקטוק</option><option>וואטסאפ</option><option>המלצה</option><option>אתר</option><option>אחר</option>
             </select>
           </div>
           <div style="margin-top:12px;display:flex;gap:8px">
@@ -1122,7 +1123,7 @@
     const f=document.getElementById('sourceFree'); if(f) f.value='';
   }
   const _SRC_META={'פייסבוק':'#1877F2','אינסטגרם':'#E1306C','מארקטפלייס':'#0d9488','טיקטוק':'#0d0d0d','ווצאפ':'#25D366','וואטסאפ':'#25D366','גוגל':'#4285F4','אתר':'#64748b','המלצה':'#D4A017'};
-  const _LEAD_SRC_TAGS=['פייסבוק','אינסטגרם','גוגל','טיקטוק','וואטסאפ','המלצה','אתר','אחר'];
+  const _LEAD_SRC_TAGS=['פייסבוק','אינסטגרם','מארקטפלייס','גוגל','טיקטוק','וואטסאפ','המלצה','אתר','אחר'];
   function _sourceCounts(){
     const counts={}; let total=0;
     const add=s=>{ if(!s) return; counts[s]=(counts[s]||0)+1; total++; };
@@ -2415,10 +2416,12 @@
   }
 
   // הוספת ליד ידני (שיחה נכנסת)
-  function toggleNewLead(show){ const b=document.getElementById('newLeadBox'); if(!b) return; b.style.display=(show===undefined)?(b.style.display==='none'?'block':'none'):(show?'block':'none'); if(b.style.display==='block'){ const n=document.getElementById('nl_name'); if(n) n.focus(); } }
+  function onNewLeadBrand(){ const bs=document.getElementById('nl_brand'), ms=document.getElementById('nl_model'); if(!bs||!ms) return; const b=bs.value; ms.innerHTML='<option value="">דגם...</option>'+(b?_icModels(b):[]).map(x=>`<option>${x}</option>`).join(''); }
+  function toggleNewLead(show){ const b=document.getElementById('newLeadBox'); if(!b) return; b.style.display=(show===undefined)?(b.style.display==='none'?'block':'none'):(show?'block':'none'); if(b.style.display==='block'){ const bs=document.getElementById('nl_brand'); if(bs&&bs.options.length<=1){ bs.innerHTML='<option value="">מתעניין ביצרן...</option>'+_icBrands().map(x=>`<option>${x}</option>`).join(''); } const n=document.getElementById('nl_name'); if(n) n.focus(); } }
   async function addNewLead(){
     const g=id=>((document.getElementById(id)||{}).value||'').trim();
-    const name=g('nl_name'); const phone=g('nl_phone').replace(/\s/g,''); const car=g('nl_car'); const source=g('nl_source');
+    const name=g('nl_name'); const phone=g('nl_phone').replace(/\s/g,''); const source=g('nl_source');
+    const car=[g('nl_brand'),g('nl_model')].filter(Boolean).join(' ');
     if(!name){ alert('נא למלא שם מלא'); return; }
     if(!/^0\d{1,2}-?\d{7}$/.test(phone)){ alert('נא להזין מספר טלפון נייד תקין'); return; }
     const row={ name:name, phone:phone, car:car, action:'ליד ידני', source:source, status:'פתוח', created_at:new Date().toISOString() };
@@ -2427,7 +2430,7 @@
     if(ok){ await loadLeadsFromCloud(); }
     else { row.id='local_'+Date.now(); if(Array.isArray(leads)) leads.unshift(row); renderLeads(); }
     try{ renderSourceMetric(); renderLeadsReport(); }catch(e){}
-    ['nl_name','nl_phone','nl_car'].forEach(id=>{const e=document.getElementById(id); if(e) e.value='';}); const s=document.getElementById('nl_source'); if(s) s.value='';
+    ['nl_name','nl_phone','nl_source','nl_brand'].forEach(id=>{const e=document.getElementById(id); if(e) e.value='';}); const mm=document.getElementById('nl_model'); if(mm) mm.innerHTML='<option value="">דגם...</option>';
     toggleNewLead(false);
     toast&&toast(ok?'ליד נוסף בהצלחה ✓':'נוסף מקומית (בדוק חיבור לענן)');
   }
@@ -2803,7 +2806,7 @@
             </div>
             <div style="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
               <span style="font-size:12px;color:var(--muted)">📍 מקור הגעה:</span>
-              ${['פייסבוק','אינסטגרם','גוגל','טיקטוק','וואטסאפ','המלצה','אתר','אחר'].map(s=>{const on=(l.source===s);return `<button onclick="setLeadSource('${l.id}','${s}')" style="border:1px solid ${on?'#2563eb':'#d1d5db'};background:${on?'#2563eb':'#fff'};color:${on?'#fff':'#374151'};border-radius:999px;padding:5px 12px;font-size:12px;font-weight:800;cursor:pointer">${s}</button>`;}).join('')}
+              ${['פייסבוק','אינסטגרם','מארקטפלייס','גוגל','טיקטוק','וואטסאפ','המלצה','אתר','אחר'].map(s=>{const on=(l.source===s);return `<button onclick="setLeadSource('${l.id}','${s}')" style="border:1px solid ${on?'#2563eb':'#d1d5db'};background:${on?'#2563eb':'#fff'};color:${on?'#fff':'#374151'};border-radius:999px;padding:5px 12px;font-size:12px;font-weight:800;cursor:pointer">${s}</button>`;}).join('')}
             </div>
             <div style="margin-top:8px">
               <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
