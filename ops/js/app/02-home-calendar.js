@@ -143,7 +143,9 @@ function _mgrHomeFitInner(body, layout) {
         need = measure();
       }
     }
-    root.style.setProperty('--mgr-home-h', Math.round(Math.max(avail, need)) + 'px');
+    /* אף פעם לא גבוה מהמקום שיש במסך: מה שלא נכנס גם אחרי הצמצום
+       נגלל בתוך החלונית שלו, ולא דוחף את כל הדף מתחת לקו. */
+    root.style.setProperty('--mgr-home-h', Math.round(avail) + 'px');
   }
   document.documentElement.style.setProperty('--mgr-home-top', Math.round(top + 16) + 'px');
   const panel = document.getElementById('home-wash-area');
