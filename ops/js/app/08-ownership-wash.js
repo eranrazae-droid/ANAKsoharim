@@ -1306,6 +1306,8 @@ function _washHistoryHtml() {
         <span style="flex:1;min-width:90px;font-size:12px;color:var(--muted)">${esc(veh)}</span>
         <span style="font-size:11.5px;font-weight:800;background:var(--surface2);border-radius:999px;padding:2px 9px">${esc(n.type || 'ללא סוג')}</span>
         <span style="font-size:11.5px;color:var(--muted);font-weight:700">${esc(d)}</span>
+        <button onclick="washReprint('${esc(n.id)}')" title="הדפס שוב" style="background:var(--dark);color:#fff;border:none;border-radius:8px;width:30px;height:30px;font-size:14px;cursor:pointer;flex-shrink:0">🖨️</button>
+        <button onclick="washDelete('${esc(n.id)}')" title="מחק" style="background:#ef4444;color:#fff;border:none;border-radius:8px;width:30px;height:30px;font-size:14px;cursor:pointer;flex-shrink:0">🗑</button>
       </div>`;
     }).join('');
 }
