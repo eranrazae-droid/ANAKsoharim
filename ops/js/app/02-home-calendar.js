@@ -83,62 +83,67 @@ function _screenVisible(it) {
    בטלפון, מקבלות מידה קבועה לפי המקום שנשאר. כך החלפת לשונית מגלגלת
    את התוכן פנימה במקום להזיז את הפריסה. */
 let _mgrWashH = 0;   // הגובה הטבעי של פתק השטיפה, כולל הכפתורים שבתחתיתו
+let _mgrFitting = false;   // המדידה עצמה משנה את הדף — לא נכנסים לתוכה שוב
 function _mgrHomeFit() {
   const body = document.querySelector('.home-body.mgr-home');
   const layout = document.getElementById('home-layout');
-  if (!body || !layout) return;
-  const top = layout.getBoundingClientRect().top;
+  if (!body || !layout || _mgrFitting) return;
+  _mgrFitting = true;
+  try { _mgrHomeFitInner(body, layout); } finally { _mgrFitting = false; }
+}
+function _mgrHomeFitInner(body, layout) {
+  // המרחק מראש המסמך, לא מראש החלון: אם הדף גלול, מדידה יחסית לחלון
+  // מחזירה מספר קטן מדי והפריסה יוצאת גבוהה מהמסך
+  const top = layout.getBoundingClientRect().top + (window.scrollY || window.pageYOffset || 0);
   const avail = Math.max(420, window.innerHeight - top - 20);
   /* במחשב הפריסה ממלאת את גובה החלון, אבל לעולם לא קטנה ממה שלוח
      השנה ופתק השטיפה צריכים — כך אף אחד מהם לא נחתך ולא נגלל.
      גלילה נשארת רק בלשוניות עם רשימה ארוכה, שם אין ברירה. */
   if (window.innerWidth > 900) {
-    const form = document.getElementById('wash-form-body');
-    const slot = document.getElementById('home-wash-slot');
-    const panel = document.getElementById('home-wash-area');
-    const tabs = document.getElementById('home-panel-tabs');
-    if (form && slot && panel && form.parentElement === slot && form.offsetParent) {
+    const cal = document.getElementById('home-calendar-area');
+    // הגובה הטבעי של פתק השטיפה, כפי שהוא במצב הנוכחי של הדף
+    const washH = () => {
+      const form = document.getElementById('wash-form-body');
+      const slot = document.getElementById('home-wash-slot');
+      const panel = document.getElementById('home-wash-area');
+      const tabs = document.getElementById('home-panel-tabs');
+      if (!(form && slot && panel && form.parentElement === slot && form.offsetParent)) return _mgrWashH;
       const cs = getComputedStyle(panel);
       const px = n => parseFloat(cs[n]) || 0;
       const tb = tabs ? tabs.offsetHeight + (parseFloat(getComputedStyle(tabs).marginBottom) || 0) : 0;
       const h = Math.ceil(form.scrollHeight + tb + px('paddingTop') + px('paddingBottom')
                           + px('borderTopWidth') + px('borderBottomWidth'));
-      if (h > 200) _mgrWashH = h;   // מדידה לפני שהטופס צויר אינה אמינה
-    }
-    /* אם התוכן לא נכנס לגובה החלון, נדלק מצב צפוף שמקטין את לוח השנה
-       ואת פתק השטיפה — ואז נמדד שוב. כך הכל נשאר בתוך המסך בלי גלילה,
-       ובלי להקטין סתם כשיש מספיק מקום. */
-    const cal = document.getElementById('home-calendar-area');
+      return h > 200 ? h : _mgrWashH;   // מדידה לפני שהטופס צויר אינה אמינה
+    };
     const measure = () => Math.max(_mgrWashH, cal ? cal.scrollHeight + 4 : 0);
+    const root = document.documentElement;
+
+    /* חשוב למדוד תמיד מהמצב הרגיל: מדידה שנעשית בזמן שהמצב הצפוף דלוק
+       מחזירה גובה קטן מדי, וממנה מסיקים בטעות שהכל נכנס. */
     body.classList.remove('mgr-compact');
+    root.style.removeProperty('--cal-cell');
+    /* בזמן המדידה השורה חוזרת לגובה חופשי. אחרת לוח השנה נמתח לגובה
+       שאנחנו עצמנו קבענו, ומדידת התוכן שלו מחזירה את אותו גובה —
+       ואז הפריסה כבר לא יודעת להתכווץ בחזרה. */
+    root.style.setProperty('--mgr-home-h', 'auto');
+    void layout.offsetHeight;
+    _mgrWashH = washH();
     let need = measure();
+
     if (need > avail) {
       body.classList.add('mgr-compact');
-      _mgrWashH = 0;
-      const form = document.getElementById('wash-form-body');
-      const slot = document.getElementById('home-wash-slot');
-      const panel = document.getElementById('home-wash-area');
-      const tabs = document.getElementById('home-panel-tabs');
-      if (form && slot && panel && form.parentElement === slot && form.offsetParent) {
-        const cs = getComputedStyle(panel);
-        const px = n => parseFloat(cs[n]) || 0;
-        const tb = tabs ? tabs.offsetHeight + (parseFloat(getComputedStyle(tabs).marginBottom) || 0) : 0;
-        const h = Math.ceil(form.scrollHeight + tb + px('paddingTop') + px('paddingBottom')
-                            + px('borderTopWidth') + px('borderBottomWidth'));
-        if (h > 200) _mgrWashH = h;
-      }
+      void layout.offsetHeight;
+      _mgrWashH = washH();
       need = measure();
       // עדיין לא נכנס? מקטינים את משבצות לוח השנה בהדרגה עד שכן
-      const root = document.documentElement;
-      for (let cell = 34; need > avail && cell > 24; cell -= 2) {
-        root.style.setProperty('--cal-cell', (cell - 2) + 'px');
+      for (let cell = 32; need > avail && cell >= 24; cell -= 2) {
+        root.style.setProperty('--cal-cell', cell + 'px');
+        void layout.offsetHeight;
+        _mgrWashH = washH();
         need = measure();
       }
-      if (need <= avail) { /* נכנס */ } else root.style.setProperty('--cal-cell', '24px');
-    } else {
-      document.documentElement.style.removeProperty('--cal-cell');
     }
-    document.documentElement.style.setProperty('--mgr-home-h', Math.round(Math.max(avail, need)) + 'px');
+    root.style.setProperty('--mgr-home-h', Math.round(Math.max(avail, need)) + 'px');
   }
   document.documentElement.style.setProperty('--mgr-home-top', Math.round(top + 16) + 'px');
   const panel = document.getElementById('home-wash-area');
@@ -150,10 +155,39 @@ function _mgrHomeFit() {
 }
 window._mgrHomeFit = _mgrHomeFit;
 let _mgrHomeFitTimer = null;
-window.addEventListener('resize', () => {
+function _mgrHomeFitSoon() {
   clearTimeout(_mgrHomeFitTimer);
-  _mgrHomeFitTimer = setTimeout(() => { try { _mgrHomeFit(); } catch (e) {} }, 150);
-});
+  _mgrHomeFitTimer = setTimeout(() => { try { _mgrHomeFit(); } catch (e) {} }, 120);
+}
+window._mgrHomeFitSoon = _mgrHomeFitSoon;
+window.addEventListener('resize', _mgrHomeFitSoon);
+
+/* לוח השנה ופתק השטיפה נבנים אחרי שמסך הבית כבר צויר, ולכן מדידה
+   אחת בלבד תופסת אותם ריקים ומחמיצה את הצמצום. משגיחים על גובה
+   התוכן עצמו (ולא על החלונית, שאת גובהה אנחנו קובעים) ומודדים שוב
+   בכל פעם שהוא משתנה. */
+let _mgrHomeRO = null;
+let _mgrSeen = '';
+const _MGR_WATCH = ['cal-body', 'cal-agenda', 'wash-form-body'];
+function _mgrContentKey() {
+  return _MGR_WATCH.map(id => { const e = document.getElementById(id); return e ? e.scrollHeight : 0; }).join('/');
+}
+function _mgrHomeWatch() {
+  if (_mgrHomeRO || typeof ResizeObserver === 'undefined') return;
+  _mgrHomeRO = new ResizeObserver(() => {
+    // המדידה עצמה מזיזה את הגבהים, ולכן מודדים שוב רק כשהתוכן באמת
+    // השתנה — אחרת נכנסים ללולאה בין "צפוף" ל"רגיל"
+    const key = _mgrContentKey();
+    if (key === _mgrSeen) return;
+    _mgrSeen = key;
+    _mgrHomeFitSoon();
+  });
+  for (const id of _MGR_WATCH) {
+    const el = document.getElementById(id);
+    if (el) _mgrHomeRO.observe(el);
+  }
+}
+window._mgrHomeWatch = _mgrHomeWatch;
 
 function _syncAllScreensCount() {
   const btn = document.getElementById('btn-all-screens');
@@ -219,7 +253,8 @@ function renderHome() {
   if (_hb) { _hb.classList.remove('has-calendar'); _hb.classList.remove('mgr-home'); }
   // הטופס חוזר למסך השטיפה לפני שהבית נבנה מחדש
   try { window._washMount && window._washMount(); } catch (e) {}
-  try { _mgrHomeFit(); } catch (e) {}
+  try { _mgrHomeFit(); _mgrHomeWatch(); } catch (e) {}
+  setTimeout(() => { try { _mgrHomeFit(); } catch (e) {} }, 500);
   _moveWelcomeBar(false);
   document.getElementById('home-welcome').textContent =
     'שלום, ' + currentUser.name + ' 👋';
@@ -437,7 +472,8 @@ function initManagerCalendar() {
   _moveWelcomeBar(true);
   // במסך רחב טופס השטיפה עובר לעמודה האמצעית
   try { window._washMount && window._washMount(); } catch (e) {}
-  try { _mgrHomeFit(); } catch (e) {}
+  try { _mgrHomeFit(); _mgrHomeWatch(); } catch (e) {}
+  setTimeout(() => { try { _mgrHomeFit(); } catch (e) {} }, 500);
   if (!_calSelected) _calSelected = _ymd(new Date());
   _calMonth = new Date(); _calMonth.setDate(1);
   if (!_calUnsub && window._CONFIG_DONE) {
