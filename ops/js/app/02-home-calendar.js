@@ -82,11 +82,30 @@ function _screenVisible(it) {
 /* מסך הבית של המנהל נכנס בדיוק לגובה החלון: השורה במחשב, והחלונית
    בטלפון, מקבלות מידה קבועה לפי המקום שנשאר. כך החלפת לשונית מגלגלת
    את התוכן פנימה במקום להזיז את הפריסה. */
+let _mgrWashH = 0;   // הגובה הטבעי של פתק השטיפה, כולל הכפתורים שבתחתיתו
 function _mgrHomeFit() {
   const body = document.querySelector('.home-body.mgr-home');
   const layout = document.getElementById('home-layout');
   if (!body || !layout) return;
   const top = layout.getBoundingClientRect().top;
+  const avail = Math.max(420, window.innerHeight - top - 16);
+  // במחשב: הפריסה נגמרת בדיוק בקו שבו נגמרים הכפתורים של פתק השטיפה.
+  // נמדד בזמן אמת כשהלשונית שלו פתוחה, ונשמר לשאר הלשוניות.
+  if (window.innerWidth > 900) {
+    const form = document.getElementById('wash-form-body');
+    const slot = document.getElementById('home-wash-slot');
+    const panel = document.getElementById('home-wash-area');
+    const tabs = document.getElementById('home-panel-tabs');
+    if (form && slot && panel && form.parentElement === slot) {
+      const cs = getComputedStyle(panel);
+      const px = n => parseFloat(cs[n]) || 0;
+      const tb = tabs ? tabs.offsetHeight + (parseFloat(getComputedStyle(tabs).marginBottom) || 0) : 0;
+      _mgrWashH = Math.ceil(form.scrollHeight + tb + px('paddingTop') + px('paddingBottom')
+                            + px('borderTopWidth') + px('borderBottomWidth'));
+    }
+    const h = _mgrWashH ? Math.min(_mgrWashH, avail) : avail;
+    document.documentElement.style.setProperty('--mgr-home-h', Math.round(h) + 'px');
+  }
   document.documentElement.style.setProperty('--mgr-home-top', Math.round(top + 16) + 'px');
   const panel = document.getElementById('home-wash-area');
   if (panel && window.innerWidth <= 900) {
