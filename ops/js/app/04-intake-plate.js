@@ -509,8 +509,10 @@ function openVehiclesScreen() {
   document.getElementById('vehicles-user-badge').textContent = currentUser.name;
   const fabWrap = document.getElementById('vehicle-fab-wrap');
   if (fabWrap) fabWrap.style.display = isManager ? 'flex' : 'none';
+  // הצפייה בזמן אמת עברה לכרטיסים עצמם: כל קליטה מראה כמה מולא,
+  // ולחיצה עליה פותחת את הטופס החי של אותו רכב
   const liveBtn = document.getElementById('btn-live-intake');
-  if (liveBtn) liveBtn.style.display = isManager ? 'flex' : 'none';
+  if (liveBtn) liveBtn.style.display = 'none';
   showScreen('vehicles');
   if (archiveUnsub) { archiveUnsub(); archiveUnsub = null; }
   _archiveItems = [];
@@ -609,6 +611,20 @@ async function archiveRefresh(id) {
 }
 window.archiveRefresh = archiveRefresh;
 
+/* כמה מהטופס כבר מולא. הנתונים מגיעים מהטיוטה החיה שהנהג שומר תוך
+   כדי עבודה (liveDraft), ולכן האחוז מתעדכן בזמן אמת בלי שום מנגנון
+   נוסף. נספרים סעיפי הצ'קליסט, הקילומטראז' והקוד. */
+function _intakeFilledPct(v) {
+  const draft = v.liveDraft || {};
+  const checks = draft.checks || {};
+  const labels = (typeof _liveChecklistLabels !== 'undefined') ? Object.keys(_liveChecklistLabels) : [];
+  let done = labels.filter(k => checks[k]).length;
+  const total = labels.length + 2;
+  if (String(draft.km || '').trim()) done++;
+  if (String(draft.code || '').trim()) done++;
+  return { done, total, pct: total ? Math.round(done / total * 100) : 0 };
+}
+
 function _renderIntakeList(all) {
   const isManager = currentUser.role === 'manager';
   const summary = document.getElementById('vehicle-open-summary');
@@ -642,6 +658,11 @@ function _renderIntakeList(all) {
             ${ts ? `<div class="task-time" style="margin-top:4px">${ts}</div>` : ''}
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">
+            ${st === 'pending' ? (() => { const p = _intakeFilledPct(v); return `<div onclick="openManagerIntakeLive('${v.id}')" title="לחץ לצפייה בטופס בזמן אמת" style="cursor:pointer;width:118px;text-align:center">
+              <div style="font-size:12.5px;font-weight:900;color:${p.pct ? '#059669' : 'var(--muted)'}">${p.pct}% מולא</div>
+              <div style="background:var(--surface2);border-radius:999px;height:7px;margin-top:3px;overflow:hidden"><div style="width:${p.pct}%;background:#22c55e;height:7px;border-radius:999px"></div></div>
+              <div style="font-size:11px;color:var(--muted);font-weight:700;margin-top:2px">${p.done} מתוך ${p.total}</div>
+            </div>`; })() : ''}
             <button onclick="openWashForVehicle('${esc(v.plate)}','${esc(v.brand||'')}','${esc(v.model||'')}','${esc(v.year||'')}','${esc(v.color||'')}')" style="background:#0d9488;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">🧽 פתק לשטיפה</button>
             ${st === 'pending' ? `<button onclick="resendIntakeNotify('${esc(v.assignedTo)}','${esc(v.plate)}','${esc(v.brand||'')}','${esc(v.model||'')}')" style="background:#25d366;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">📲 שלח התראה</button>` : ''}
             ${st === 'pending' ? `<button onclick="openEditIntake('${v.id}')" style="background:#6366f1;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">✏️ עריכה</button>` : ''}
