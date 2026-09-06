@@ -89,22 +89,26 @@ function _mgrHomeFit() {
   if (!body || !layout) return;
   const top = layout.getBoundingClientRect().top;
   const avail = Math.max(420, window.innerHeight - top - 16);
-  // במחשב: הפריסה נגמרת בדיוק בקו שבו נגמרים הכפתורים של פתק השטיפה.
-  // נמדד בזמן אמת כשהלשונית שלו פתוחה, ונשמר לשאר הלשוניות.
+  /* במחשב הפריסה ממלאת את גובה החלון, אבל לעולם לא קטנה ממה שלוח
+     השנה ופתק השטיפה צריכים — כך אף אחד מהם לא נחתך ולא נגלל.
+     גלילה נשארת רק בלשוניות עם רשימה ארוכה, שם אין ברירה. */
   if (window.innerWidth > 900) {
     const form = document.getElementById('wash-form-body');
     const slot = document.getElementById('home-wash-slot');
     const panel = document.getElementById('home-wash-area');
     const tabs = document.getElementById('home-panel-tabs');
-    if (form && slot && panel && form.parentElement === slot) {
+    if (form && slot && panel && form.parentElement === slot && form.offsetParent) {
       const cs = getComputedStyle(panel);
       const px = n => parseFloat(cs[n]) || 0;
       const tb = tabs ? tabs.offsetHeight + (parseFloat(getComputedStyle(tabs).marginBottom) || 0) : 0;
-      _mgrWashH = Math.ceil(form.scrollHeight + tb + px('paddingTop') + px('paddingBottom')
-                            + px('borderTopWidth') + px('borderBottomWidth'));
+      const h = Math.ceil(form.scrollHeight + tb + px('paddingTop') + px('paddingBottom')
+                          + px('borderTopWidth') + px('borderBottomWidth'));
+      if (h > 200) _mgrWashH = h;   // מדידה לפני שהטופס צויר אינה אמינה
     }
-    const h = _mgrWashH ? Math.min(_mgrWashH, avail) : avail;
-    document.documentElement.style.setProperty('--mgr-home-h', Math.round(h) + 'px');
+    const cal = document.getElementById('home-calendar-area');
+    const calH = cal ? cal.scrollHeight + 4 : 0;
+    const need = Math.max(_mgrWashH, calH);
+    document.documentElement.style.setProperty('--mgr-home-h', Math.round(Math.max(avail, need)) + 'px');
   }
   document.documentElement.style.setProperty('--mgr-home-top', Math.round(top + 16) + 'px');
   const panel = document.getElementById('home-wash-area');
