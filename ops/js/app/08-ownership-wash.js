@@ -672,7 +672,7 @@ function _washMount() {
   });
 
   // הטופס שנבחר נטען רק כשהוא באמת מוצג, כדי לא לפתוח מאזינים לחינם
-  if (shown === 'wash') { try { _washRenderTypes(); _washSavedListen(); } catch (e) {} }
+  if (shown === 'wash') { try { _washRenderTypes(); _washSavedListen(); _washNotesListen(); } catch (e) {} }
   // הבורות ונסיעות המבחן פותחים מאזין לשרת, ולכן נטענים רק כשהלשונית
   // באמת מתחלפת — לא בכל שינוי רוחב של החלון
   if (shown !== _homePanelShown) {
@@ -715,17 +715,23 @@ function openWashScreen() {
   _washBatch = [];            // כניסה למסך מתחילה טופס נקי
   _washRenderBatch();
   _washClear();
-  if (!_washUnsub) {
-    _washUnsub = _onSnap(_colRef('wash_notes'), snap => {
-      _washNotes = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-        .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-      _washRenderList();
-      if (document.getElementById('wash-sum-from')?.value) _washRenderSummary();
-    }, () => {});
-  }
+  _washNotesListen();
   _washRenderList();
 }
 window.openWashScreen = openWashScreen;
+
+/* היסטוריית הפתקים נטענת גם כשהטופס יושב בחלונית שבמסך הבית, ולא רק
+   כשנכנסים למסך השטיפה — אחרת הסיכום יוצא ריק. */
+function _washNotesListen() {
+  if (_washUnsub || !window._onSnap) return;
+  _washUnsub = _onSnap(_colRef('wash_notes'), snap => {
+    _washNotes = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+    _washRenderList();
+    if (document.getElementById('wash-sum-from')?.value) _washRenderSummary();
+  }, () => {});
+}
+window._washNotesListen = _washNotesListen;
 
 function _washRenderTypes() {
   const c = document.getElementById('wash-types');
@@ -1231,7 +1237,24 @@ function _washRenderSummary() {
     `<div style="display:flex;align-items:center;justify-content:space-between;border-radius:11px;padding:12px 14px;margin:8px 0 12px;background:var(--dark);color:#fff">
        <span style="font-weight:900;font-size:15px">סה״כ שטיפות</span>
        <span style="font-weight:900;font-size:22px">${total}</span>
-     </div>`;
+     </div>` + _washHistoryHtml();
+}
+
+/* ההיסטוריה עצמה, בתוך הסיכום: כל פתק בטווח שנבחר, שורה לרכב. */
+function _washHistoryHtml() {
+  const { rows } = _washSummaryData();
+  if (!rows.length) return '<div style="text-align:center;color:var(--muted);font-size:13px;font-weight:700;padding:10px">אין פתקים בטווח הזה</div>';
+  return `<div style="font-weight:900;font-size:14px;margin:4px 0 6px">🧾 היסטוריית הפתקים (${rows.length})</div>` +
+    rows.slice().reverse().map(n => {
+      const d = n.createdAt?.toDate ? n.createdAt.toDate().toLocaleDateString('he-IL') : '';
+      const veh = [n.maker, n.model, n.year, n.color].filter(Boolean).join(' · ');
+      return `<div style="border:1.5px solid var(--border);border-radius:10px;padding:7px 10px;margin-bottom:5px;background:var(--card);display:flex;align-items:center;gap:9px;flex-wrap:wrap">
+        <span style="font-weight:900;font-size:14px;direction:ltr">${esc(n.plate || '')}</span>
+        <span style="flex:1;min-width:90px;font-size:12px;color:var(--muted)">${esc(veh)}</span>
+        <span style="font-size:11.5px;font-weight:800;background:var(--surface2);border-radius:999px;padding:2px 9px">${esc(n.type || 'ללא סוג')}</span>
+        <span style="font-size:11.5px;color:var(--muted);font-weight:700">${esc(d)}</span>
+      </div>`;
+    }).join('');
 }
 window._washRenderSummary = _washRenderSummary;
 

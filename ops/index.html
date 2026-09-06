@@ -180,11 +180,27 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
   .home-body.has-calendar.mgr-home #home-wash-slot .section-title{margin-top:10px;font-size:12.5px}
   .home-body.has-calendar.mgr-home #home-wash-slot #wash-list,
   .home-body.has-calendar.mgr-home #home-wash-slot #wash-list-title{display:none}
-  /* הפאנל צר מהמסך, ולכן הכפתורים נשארים שניים בשורה ולא נדחסים לארבעה */
-  .home-body.has-calendar.mgr-home #home-wash-slot #wash-actions{grid-template-columns:repeat(2,1fr)}
   .home-body.has-calendar.mgr-home #home-calendar-area{display:flex !important;flex-direction:column;
     flex:1 1 0;max-width:520px}
   .home-body.has-calendar.mgr-home #home-build{display:none}
+  /* מצב צפוף: נדלק רק כשגובה החלון קטן ממה שהתוכן צריך, ומקטין את
+     לוח השנה ואת פתק השטיפה כדי שהכל ייכנס למסך בלי גלילה. */
+  .home-body.has-calendar.mgr-home.mgr-compact #cal-title-heb{display:none}
+  .home-body.has-calendar.mgr-home.mgr-compact #cal-title{font-size:14px}
+  .home-body.has-calendar.mgr-home.mgr-compact .cal-dow{font-size:11px;padding:2px 0}
+  .home-body.has-calendar.mgr-home.mgr-compact .cal-num{width:var(--cal-cell,34px);height:var(--cal-cell,34px);
+    font-size:calc(var(--cal-cell,34px) * .4);border-radius:10px}
+  .home-body.has-calendar.mgr-home.mgr-compact .cal-day{padding:2px 0}
+  body.has-crest .home-body.has-calendar.mgr-home.mgr-compact .cal-day.barca.selected .cal-num{
+    width:var(--cal-cell,34px);height:calc(var(--cal-cell,34px) + 4px);font-size:calc(var(--cal-cell,34px) * .3)}
+  .home-body.has-calendar.mgr-home.mgr-compact #home-calendar-area,
+  .home-body.has-calendar.mgr-home.mgr-compact #home-wash-area{padding:12px 14px}
+  .home-body.has-calendar.mgr-home.mgr-compact #home-wash-slot .section-title{margin-top:5px;font-size:12px}
+  .home-body.has-calendar.mgr-home.mgr-compact #home-wash-slot .form-input,
+  .home-body.has-calendar.mgr-home.mgr-compact #home-wash-slot input,
+  .home-body.has-calendar.mgr-home.mgr-compact #home-wash-slot textarea{padding:7px 9px !important;font-size:13px}
+  .home-body.has-calendar.mgr-home.mgr-compact #home-panel-tabs{margin-bottom:7px}
+  .home-body.has-calendar.mgr-home.mgr-compact #home-panel-tabs button{min-height:34px}
 }
 /* ברירות המחדל של טופס השטיפה. בשורה אין display, כדי שהפריסה
    הקומפקטית בטלפון תוכל לגבור עליהן. */
@@ -423,7 +439,6 @@ body.has-crest .cal-day.barca.selected .cal-num{box-shadow:0 0 0 2px var(--dark)
    וכולם בשורה אחת ברגע שיש מקום. */
 #wash-actions{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
 #wash-actions .btn-submit{font-size:14px;padding-left:6px;padding-right:6px;width:100%;margin:0}
-@media(min-width:620px){#wash-actions{grid-template-columns:repeat(4,1fr)}}
 .driver-battery-awaiting{background:#0891b2 !important;color:#fff !important}
 .driver-battery-awaiting .mc-title,.driver-battery-awaiting .mc-sub{color:#fff !important}
 /* הקובייה של המצברים אצל גיל, כל עוד בדיקת הארון החודשית לא נשלחה */
@@ -758,6 +773,11 @@ body.td-panel-min .screen.active{margin-left:0 !important;width:auto !important}
 #home-wash-slot #pits-archive-wrap{padding:0}
 #home-wash-slot #td-form-body>div{padding-left:0;padding-right:0}
 #home-wash-slot #td-list{padding-bottom:0}
+/* שורת הרישוי בפתק השטיפה: השדה מתקצר, ושלושת הכפתורים באותה מידה */
+#wash-plate-row{display:flex;gap:6px;margin-bottom:4px;align-items:stretch}
+#wash-plate-row .wash-mini{flex:0 0 46px;width:46px;border:none;border-radius:10px;
+  font-family:'Heebo',sans-serif;font-weight:800;font-size:17px;cursor:pointer;padding:0;line-height:1}
+@media (max-width:380px){#wash-plate-row{gap:5px} #wash-plate-row .wash-mini{flex:0 0 40px;width:40px;font-size:15px}}
 .pickup-split{display:block}
 /* סרגל אחד לכל הסינון: סמן הכל, החברות והערים — כולם באותו גובה ובאותו קצב */
 .pk-toolbar{padding:12px 16px 0;display:flex;align-items:stretch;gap:8px;flex-wrap:wrap}
@@ -2723,9 +2743,12 @@ if ('serviceWorker' in navigator) {
   <div id="wash-screen-slot">
   <div id="wash-form-body" style="padding:16px 16px 100px">
     <div class="section-title" style="margin-top:0">רכב לשטיפה</div>
-    <div style="display:flex;gap:8px;margin-bottom:4px">
-      <input class="form-input" id="wash-plate" inputmode="numeric" placeholder="מספר רישוי" oninput="washLookupPlateSoon()" style="flex:1;margin:0">
-      <button onclick="washLookupPlate()" style="background:var(--dark);color:#fff;border:none;border-radius:10px;padding:0 16px;font-family:'Heebo',sans-serif;font-weight:800;font-size:14px;cursor:pointer">🔎</button>
+    <!-- שורה אחת: מספר הרישוי, ולידו שלושה כפתורים בגודל זהה -->
+    <div id="wash-plate-row">
+      <input class="form-input" id="wash-plate" inputmode="numeric" placeholder="מספר רישוי" oninput="washLookupPlateSoon()" style="flex:1;min-width:0;margin:0">
+      <button class="wash-mini" onclick="washLookupPlate()" title="חיפוש הרכב" style="background:var(--dark);color:#fff">🔎</button>
+      <button class="wash-mini" id="wash-add-btn" onclick="washAddAnother()" title="פתק נוסף" style="background:#b45309;color:#fff">➕</button>
+      <button class="wash-mini" id="wash-print-btn" onclick="washSaveAndPrint()" title="שמור והדפס" style="background:#1e293b;color:#fff">🖨️</button>
     </div>
     <div id="wash-lookup-msg" style="font-size:12px;font-weight:800;margin-bottom:8px"></div>
     <button id="wash-veh-toggle" onclick="washToggleVeh()" style="width:100%;background:var(--surface2);color:var(--muted);border:1.5px solid var(--border);border-radius:9px;padding:6px;font-family:Heebo,sans-serif;font-size:12px;font-weight:800;cursor:pointer;margin-bottom:8px">🚗 פרטי הרכב ▾</button>
@@ -2746,8 +2769,6 @@ if ('serviceWorker' in navigator) {
     <div id="wash-batch" style="display:none;margin-bottom:10px"></div>
     <!-- כל הכפתורים ברוחב שווה. במסך צר הם יורדים לשתי שורות, ועדיין שווים. -->
     <div id="wash-actions">
-      <button class="btn-submit" id="wash-print-btn" onclick="washSaveAndPrint()" style="background:var(--dark);color:#fff;margin:0;width:100%">🖨️ שמור והדפס</button>
-      <button class="btn-submit" id="wash-add-btn" onclick="washAddAnother()" style="background:#b45309;color:#fff;margin:0;width:100%">➕ פתק נוסף</button>
       <button class="btn-submit" id="wash-saved-btn" onclick="openWashSaved()" style="background:#6366f1;color:#fff;margin:0;width:100%">🚗 רכבים שמורים</button>
       <button class="btn-submit" id="wash-summary-btn" onclick="openWashSummary()" style="display:none;background:#0d9488;color:#fff;margin:0;width:100%">📊 הוצאת סיכום</button>
     </div>
@@ -3653,20 +3674,20 @@ window.dispatchEvent(new Event('firebase-ready'));
 </script>
 
 <script src="js/utils.js?v=214"></script>
-<script src="js/app/01-core.js?v=353"></script>
-<script src="js/app/02-home-calendar.js?v=353"></script>
-<script src="js/app/03-tasks.js?v=353"></script>
-<script src="js/app/04-intake-plate.js?v=353"></script>
-<script src="js/app/05-intake-forms.js?v=353"></script>
-<script src="js/app/06-recall-inventory.js?v=353"></script>
-<script src="js/app/07-bodyshop.js?v=353"></script>
-<script src="js/app/08-ownership-wash.js?v=353"></script>
-<script src="js/app/09-battery.js?v=353"></script>
-<script src="js/app/10-battery-plate.js?v=353"></script>
-<script src="js/app/11-yard-telegram.js?v=353"></script>
-<script src="js/app/12-pickup.js?v=353"></script>
-<script src="js/app/13-reports.js?v=353"></script>
-<script src="js/app/14-tow-invoice.js?v=353"></script>
+<script src="js/app/01-core.js?v=354"></script>
+<script src="js/app/02-home-calendar.js?v=354"></script>
+<script src="js/app/03-tasks.js?v=354"></script>
+<script src="js/app/04-intake-plate.js?v=354"></script>
+<script src="js/app/05-intake-forms.js?v=354"></script>
+<script src="js/app/06-recall-inventory.js?v=354"></script>
+<script src="js/app/07-bodyshop.js?v=354"></script>
+<script src="js/app/08-ownership-wash.js?v=354"></script>
+<script src="js/app/09-battery.js?v=354"></script>
+<script src="js/app/10-battery-plate.js?v=354"></script>
+<script src="js/app/11-yard-telegram.js?v=354"></script>
+<script src="js/app/12-pickup.js?v=354"></script>
+<script src="js/app/13-reports.js?v=354"></script>
+<script src="js/app/14-tow-invoice.js?v=354"></script>
 
 <!-- ═══ רענון רכב modals ═══ -->
 <div class="modal-overlay" id="modal-refresh-edit">

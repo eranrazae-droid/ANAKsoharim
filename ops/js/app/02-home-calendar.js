@@ -88,7 +88,7 @@ function _mgrHomeFit() {
   const layout = document.getElementById('home-layout');
   if (!body || !layout) return;
   const top = layout.getBoundingClientRect().top;
-  const avail = Math.max(420, window.innerHeight - top - 16);
+  const avail = Math.max(420, window.innerHeight - top - 20);
   /* במחשב הפריסה ממלאת את גובה החלון, אבל לעולם לא קטנה ממה שלוח
      השנה ופתק השטיפה צריכים — כך אף אחד מהם לא נחתך ולא נגלל.
      גלילה נשארת רק בלשוניות עם רשימה ארוכה, שם אין ברירה. */
@@ -105,9 +105,39 @@ function _mgrHomeFit() {
                           + px('borderTopWidth') + px('borderBottomWidth'));
       if (h > 200) _mgrWashH = h;   // מדידה לפני שהטופס צויר אינה אמינה
     }
+    /* אם התוכן לא נכנס לגובה החלון, נדלק מצב צפוף שמקטין את לוח השנה
+       ואת פתק השטיפה — ואז נמדד שוב. כך הכל נשאר בתוך המסך בלי גלילה,
+       ובלי להקטין סתם כשיש מספיק מקום. */
     const cal = document.getElementById('home-calendar-area');
-    const calH = cal ? cal.scrollHeight + 4 : 0;
-    const need = Math.max(_mgrWashH, calH);
+    const measure = () => Math.max(_mgrWashH, cal ? cal.scrollHeight + 4 : 0);
+    body.classList.remove('mgr-compact');
+    let need = measure();
+    if (need > avail) {
+      body.classList.add('mgr-compact');
+      _mgrWashH = 0;
+      const form = document.getElementById('wash-form-body');
+      const slot = document.getElementById('home-wash-slot');
+      const panel = document.getElementById('home-wash-area');
+      const tabs = document.getElementById('home-panel-tabs');
+      if (form && slot && panel && form.parentElement === slot && form.offsetParent) {
+        const cs = getComputedStyle(panel);
+        const px = n => parseFloat(cs[n]) || 0;
+        const tb = tabs ? tabs.offsetHeight + (parseFloat(getComputedStyle(tabs).marginBottom) || 0) : 0;
+        const h = Math.ceil(form.scrollHeight + tb + px('paddingTop') + px('paddingBottom')
+                            + px('borderTopWidth') + px('borderBottomWidth'));
+        if (h > 200) _mgrWashH = h;
+      }
+      need = measure();
+      // עדיין לא נכנס? מקטינים את משבצות לוח השנה בהדרגה עד שכן
+      const root = document.documentElement;
+      for (let cell = 34; need > avail && cell > 24; cell -= 2) {
+        root.style.setProperty('--cal-cell', (cell - 2) + 'px');
+        need = measure();
+      }
+      if (need <= avail) { /* נכנס */ } else root.style.setProperty('--cal-cell', '24px');
+    } else {
+      document.documentElement.style.removeProperty('--cal-cell');
+    }
     document.documentElement.style.setProperty('--mgr-home-h', Math.round(Math.max(avail, need)) + 'px');
   }
   document.documentElement.style.setProperty('--mgr-home-top', Math.round(top + 16) + 'px');
