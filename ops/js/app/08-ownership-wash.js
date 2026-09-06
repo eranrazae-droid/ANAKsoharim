@@ -637,6 +637,7 @@ function setHomePanelTab(tab) {
   if (!_HOME_PANELS[tab]) return;
   _homePanelTab = tab;
   _washMount();
+  try { _mgrHomeFit(); } catch (e) {}
 }
 window.setHomePanelTab = setHomePanelTab;
 

@@ -79,6 +79,29 @@ function _screenVisible(it) {
   return !!el && el.style.display !== 'none';
 }
 
+/* מסך הבית של המנהל נכנס בדיוק לגובה החלון: השורה במחשב, והחלונית
+   בטלפון, מקבלות מידה קבועה לפי המקום שנשאר. כך החלפת לשונית מגלגלת
+   את התוכן פנימה במקום להזיז את הפריסה. */
+function _mgrHomeFit() {
+  const body = document.querySelector('.home-body.mgr-home');
+  const layout = document.getElementById('home-layout');
+  if (!body || !layout) return;
+  const top = layout.getBoundingClientRect().top;
+  document.documentElement.style.setProperty('--mgr-home-top', Math.round(top + 16) + 'px');
+  const panel = document.getElementById('home-wash-area');
+  if (panel && window.innerWidth <= 900) {
+    const pt = panel.getBoundingClientRect().top;
+    const left = Math.max(220, window.innerHeight - pt - 12);
+    document.documentElement.style.setProperty('--mgr-panel-max', Math.round(left) + 'px');
+  }
+}
+window._mgrHomeFit = _mgrHomeFit;
+let _mgrHomeFitTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(_mgrHomeFitTimer);
+  _mgrHomeFitTimer = setTimeout(() => { try { _mgrHomeFit(); } catch (e) {} }, 150);
+});
+
 function _syncAllScreensCount() {
   const btn = document.getElementById('btn-all-screens');
   const nb = document.getElementById('all-screens-count');
@@ -143,6 +166,7 @@ function renderHome() {
   if (_hb) { _hb.classList.remove('has-calendar'); _hb.classList.remove('mgr-home'); }
   // הטופס חוזר למסך השטיפה לפני שהבית נבנה מחדש
   try { window._washMount && window._washMount(); } catch (e) {}
+  try { _mgrHomeFit(); } catch (e) {}
   _moveWelcomeBar(false);
   document.getElementById('home-welcome').textContent =
     'שלום, ' + currentUser.name + ' 👋';
@@ -360,6 +384,7 @@ function initManagerCalendar() {
   _moveWelcomeBar(true);
   // במסך רחב טופס השטיפה עובר לעמודה האמצעית
   try { window._washMount && window._washMount(); } catch (e) {}
+  try { _mgrHomeFit(); } catch (e) {}
   if (!_calSelected) _calSelected = _ymd(new Date());
   _calMonth = new Date(); _calMonth.setDate(1);
   if (!_calUnsub && window._CONFIG_DONE) {
