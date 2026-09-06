@@ -1070,6 +1070,59 @@ function washSaveAndPrint() {
 }
 window.washSaveAndPrint = washSaveAndPrint;
 
+/* ── פתק שטיפה מתוך מסך הקליטות ──────────────────────────────────
+   הרכב כבר ידוע מהקליטה, ולכן חסר רק סוג השטיפה. החלונית שואלת אותו
+   ומדפיסה — ומשתמשת באותו נוסח ובאותה שמירה כמו הטופס הרגיל, כדי
+   שהפתק ייראה זהה ויופיע גם בסיכום ובהיסטוריה. */
+let _washQuick = null;
+
+function openWashForVehicle(plate, maker, model, year, color) {
+  _washQuick = { plate: String(plate || ''), maker: maker || '', model: model || '',
+                 year: year || '', color: color || '', type: '' };
+  const head = document.getElementById('wash-quick-veh');
+  if (head) head.textContent = [_washQuick.plate, [maker, model, year, color].filter(Boolean).join(' · ')]
+    .filter(Boolean).join(' — ');
+  _washQuickRenderTypes();
+  openModal('modal-wash-quick');
+}
+window.openWashForVehicle = openWashForVehicle;
+
+function _washQuickRenderTypes() {
+  const c = document.getElementById('wash-quick-types');
+  if (!c) return;
+  c.innerHTML = _WASH_TYPES.map(t => {
+    const on = _washQuick && t === _washQuick.type;
+    return `<button type="button" onclick="washQuickPick('${esc(t)}')" style="padding:12px 8px;border-radius:12px;font-family:'Heebo',sans-serif;font-size:15px;font-weight:900;cursor:pointer;${on
+      ? 'background:#0d9488;color:#fff;border:2px solid #0d9488'
+      : 'background:var(--surface2);color:var(--text);border:2px solid var(--border)'}">${esc(t)}</button>`;
+  }).join('');
+}
+
+function washQuickPick(t) {
+  if (!_washQuick) return;
+  _washQuick.type = (_washQuick.type === t ? '' : t);
+  _washQuickRenderTypes();
+}
+window.washQuickPick = washQuickPick;
+
+function washQuickPrint() {
+  if (!_washQuick) return;
+  if (!_washQuick.type) return showToast('נא לבחור סוג שטיפה', 4000);
+  const note = (document.getElementById('wash-quick-note')?.value || '').trim();
+  const f = { ..._washQuick, subModel: '', note };
+  // אותה שורת תיאור כמו בטופס הרגיל, כדי שהפתק ייראה זהה ברשימות
+  f.desc = [f.maker, f.model, f.subModel, f.color, f.year].filter(Boolean).join(' ');
+  const btn = document.getElementById('wash-quick-print');
+  if (btn) btn.disabled = true;
+  washPrintNote(f, async () => {
+    try { await _washStore(f); showToast('✅ הפתק נשמר'); }
+    catch (e) { console.error('wash store', e); showToast('ההדפסה בוצעה, אבל השמירה נכשלה', 6000); }
+    if (btn) btn.disabled = false;
+    closeModal('modal-wash-quick');
+  });
+}
+window.washQuickPrint = washQuickPrint;
+
 function _washClear() {
   ['wash-plate','wash-maker','wash-model','wash-submodel','wash-color','wash-year','wash-note']
     .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
