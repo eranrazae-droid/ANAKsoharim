@@ -628,23 +628,20 @@ function _intakeFilledPct(v) {
 /* מד המילוי מצויר כבקבוק שמתמלא: הנוזל נחתך לפי צורת הבקבוק, ולכן
    הוא נראה כמו מילוי אמיתי ולא כמו פס. הצבע עולה מכתום לירוק ככל
    שמתקדמים, כדי שאפשר יהיה לראות מרחוק אם הקליטה רק בתחילתה. */
-const _BOTTLE_PATH = 'M14 5h8v8c0 3.5 8 6 8 13v32a4 4 0 0 1-4 4H10a4 4 0 0 1-4-4V26c0-7 8-9.5 8-13V5z';
 function _intakeBottle(v) {
   const p = _intakeFilledPct(v);
-  const id = 'btl-' + String(v.id).replace(/[^A-Za-z0-9_-]/g, '');
-  const top = 5, bot = 62;                      // גבולות הנוזל בתוך הבקבוק
-  const h = (bot - top) * p.pct / 100;
+  const R = 20, C = 2 * Math.PI * R;            // רדיוס והיקף הטבעת
+  const dash = (C * p.pct / 100).toFixed(1);
   const color = p.pct >= 100 ? '#16a34a' : p.pct >= 60 ? '#22c55e' : p.pct >= 30 ? '#eab308' : '#f97316';
   return `<div onclick="openManagerIntakeLive('${v.id}')" title="לחץ לצפייה בטופס בזמן אמת"
       style="cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0">
-    <svg viewBox="0 0 36 66" width="38" height="70" aria-label="${p.pct}% מולא">
-      <defs><clipPath id="${id}"><path d="${_BOTTLE_PATH}"/></clipPath></defs>
-      <path d="${_BOTTLE_PATH}" fill="var(--border)"/>
-      <rect x="0" y="${bot - h}" width="36" height="${h}" fill="${color}" clip-path="url(#${id})"/>
-      <path d="${_BOTTLE_PATH}" fill="none" stroke="var(--text,#1a1a2e)" stroke-width="2.2" stroke-linejoin="round"/>
-      <rect x="12.5" y="1" width="11" height="5" rx="1.5" fill="var(--text,#1a1a2e)"/>
+    <svg viewBox="0 0 48 48" width="52" height="52" aria-label="${p.pct}% מולא">
+      <circle cx="24" cy="24" r="${R}" fill="none" stroke="var(--border)" stroke-width="5"/>
+      ${p.pct ? `<circle cx="24" cy="24" r="${R}" fill="none" stroke="${color}" stroke-width="5" stroke-linecap="round"
+        stroke-dasharray="${dash} ${(C - dash).toFixed(1)}" transform="rotate(-90 24 24)"/>` : ''}
+      <text x="24" y="24" text-anchor="middle" dominant-baseline="central"
+        style="font:900 13px Heebo,sans-serif" fill="${p.pct ? color : 'var(--muted,#64748b)'}">${p.pct}%</text>
     </svg>
-    <div style="font-size:12.5px;font-weight:900;color:${p.pct ? color : 'var(--muted)'}">${p.pct}%</div>
     <div style="font-size:10.5px;font-weight:700;color:var(--muted)">${p.done}/${p.total}</div>
   </div>`;
 }
