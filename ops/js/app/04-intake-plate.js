@@ -625,6 +625,30 @@ function _intakeFilledPct(v) {
   return { done, total, pct: total ? Math.round(done / total * 100) : 0 };
 }
 
+/* מד המילוי מצויר כבקבוק שמתמלא: הנוזל נחתך לפי צורת הבקבוק, ולכן
+   הוא נראה כמו מילוי אמיתי ולא כמו פס. הצבע עולה מכתום לירוק ככל
+   שמתקדמים, כדי שאפשר יהיה לראות מרחוק אם הקליטה רק בתחילתה. */
+const _BOTTLE_PATH = 'M14 5h8v8c0 3.5 8 6 8 13v32a4 4 0 0 1-4 4H10a4 4 0 0 1-4-4V26c0-7 8-9.5 8-13V5z';
+function _intakeBottle(v) {
+  const p = _intakeFilledPct(v);
+  const id = 'btl-' + String(v.id).replace(/[^A-Za-z0-9_-]/g, '');
+  const top = 5, bot = 62;                      // גבולות הנוזל בתוך הבקבוק
+  const h = (bot - top) * p.pct / 100;
+  const color = p.pct >= 100 ? '#16a34a' : p.pct >= 60 ? '#22c55e' : p.pct >= 30 ? '#eab308' : '#f97316';
+  return `<div onclick="openManagerIntakeLive('${v.id}')" title="לחץ לצפייה בטופס בזמן אמת"
+      style="cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0">
+    <svg viewBox="0 0 36 66" width="38" height="70" aria-label="${p.pct}% מולא">
+      <defs><clipPath id="${id}"><path d="${_BOTTLE_PATH}"/></clipPath></defs>
+      <path d="${_BOTTLE_PATH}" fill="var(--border)"/>
+      <rect x="0" y="${bot - h}" width="36" height="${h}" fill="${color}" clip-path="url(#${id})"/>
+      <path d="${_BOTTLE_PATH}" fill="none" stroke="var(--text,#1a1a2e)" stroke-width="2.2" stroke-linejoin="round"/>
+      <rect x="12.5" y="1" width="11" height="5" rx="1.5" fill="var(--text,#1a1a2e)"/>
+    </svg>
+    <div style="font-size:12.5px;font-weight:900;color:${p.pct ? color : 'var(--muted)'}">${p.pct}%</div>
+    <div style="font-size:10.5px;font-weight:700;color:var(--muted)">${p.done}/${p.total}</div>
+  </div>`;
+}
+
 function _renderIntakeList(all) {
   const isManager = currentUser.role === 'manager';
   const summary = document.getElementById('vehicle-open-summary');
@@ -657,19 +681,17 @@ function _renderIntakeList(all) {
             </div>
             ${ts ? `<div class="task-time" style="margin-top:4px">${ts}</div>` : ''}
           </div>
-          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">
-            ${st === 'pending' ? (() => { const p = _intakeFilledPct(v); return `<div onclick="openManagerIntakeLive('${v.id}')" title="לחץ לצפייה בטופס בזמן אמת" style="cursor:pointer;width:118px;text-align:center">
-              <div style="font-size:12.5px;font-weight:900;color:${p.pct ? '#059669' : 'var(--muted)'}">${p.pct}% מולא</div>
-              <div style="background:var(--surface2);border-radius:999px;height:7px;margin-top:3px;overflow:hidden"><div style="width:${p.pct}%;background:#22c55e;height:7px;border-radius:999px"></div></div>
-              <div style="font-size:11px;color:var(--muted);font-weight:700;margin-top:2px">${p.done} מתוך ${p.total}</div>
-            </div>`; })() : ''}
-            <button onclick="openWashForVehicle('${esc(v.plate)}','${esc(v.brand||'')}','${esc(v.model||'')}','${esc(v.year||'')}','${esc(v.color||'')}')" style="background:#0d9488;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">🧽 פתק לשטיפה</button>
-            ${st === 'pending' ? `<button onclick="resendIntakeNotify('${esc(v.assignedTo)}','${esc(v.plate)}','${esc(v.brand||'')}','${esc(v.model||'')}')" style="background:#25d366;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">📲 שלח התראה</button>` : ''}
-            ${st === 'pending' ? `<button onclick="openEditIntake('${v.id}')" style="background:#6366f1;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">✏️ עריכה</button>` : ''}
-            ${v.previousIntake ? `<button onclick="restorePrevIntake('${v.id}')" style="background:#0d9488;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">↩️ שחזר קליטה קודמת</button>` : ''}
-            ${st === 'done' ? `<button onclick="resendIntake('${v.id}')" style="background:#f59e0b;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">🔄 שליחה מחדש</button>` : ''}
-            ${canCheck ? `<button onclick="markChecked('${v.id}')" style="background:var(--dark);color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">📁 שלח לארכיון</button>` : ''}
-            <button onclick="deleteIntake('${v.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">🗑️ מחיקה</button>
+          <div class="ic-side">
+            ${st === 'pending' ? _intakeBottle(v) : ''}
+            <div class="ic-actions">
+            <button class="ic-btn" onclick="openWashForVehicle('${esc(v.plate)}','${esc(v.brand||'')}','${esc(v.model||'')}','${esc(v.year||'')}','${esc(v.color||'')}')" style="background:#0d9488;color:#fff;">🧽 פתק לשטיפה</button>
+            ${st === 'pending' ? `<button class="ic-btn" onclick="resendIntakeNotify('${esc(v.assignedTo)}','${esc(v.plate)}','${esc(v.brand||'')}','${esc(v.model||'')}')" style="background:#25d366;color:#fff;">📲 שלח התראה</button>` : ''}
+            ${st === 'pending' ? `<button class="ic-btn" onclick="openEditIntake('${v.id}')" style="background:#6366f1;color:#fff;">✏️ עריכה</button>` : ''}
+            ${v.previousIntake ? `<button class="ic-btn" onclick="restorePrevIntake('${v.id}')" style="background:#0d9488;color:#fff;">↩️ שחזר קליטה קודמת</button>` : ''}
+            ${st === 'done' ? `<button class="ic-btn" onclick="resendIntake('${v.id}')" style="background:#f59e0b;color:#fff;">🔄 שליחה מחדש</button>` : ''}
+            ${canCheck ? `<button class="ic-btn" onclick="markChecked('${v.id}')" style="background:var(--dark);color:#fff;">📁 שלח לארכיון</button>` : ''}
+            <button class="ic-btn" onclick="deleteIntake('${v.id}')" style="background:#ef4444;color:#fff;">🗑️ מחיקה</button>
+            </div>
           </div>
         </div>
       </div>`;
