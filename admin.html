@@ -2732,18 +2732,44 @@
     const c=l.created_at?new Date(l.created_at).getTime():0;
     return [1,-(isNaN(c)?0:c)];
   }
+  // מעקב אחרי פולואפים ממתינים - כשמגיע הזמן, הליד חוזר למסך אוטומטית
+  let _snoozeDueKey='';
+  function _startSnoozeWatch(){
+    if(window._snoozeWatch) return; window._snoozeWatch=true;
+    setInterval(function(){
+      try{
+        const now=Date.now();
+        const dueKey=leads.filter(l=>(l.status||'')==='פולואפ'&&l.followup_at&&new Date(l.followup_at).getTime()<=now).map(l=>l.id).join(',');
+        if(dueKey!==_snoozeDueKey){
+          _snoozeDueKey=dueKey;
+          const ae=document.activeElement; const editing=ae&&document.getElementById('leadsList')&&document.getElementById('leadsList').contains(ae);
+          if(!editing) renderLeads(); // לא מרעננים בזמן הקלדה
+        }
+      }catch(e){}
+    },30000);
+  }
   function renderLeads(){
     const el=document.getElementById('leadsList');if(!el)return;
     if(!leads.length){ el.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)">אין עדיין לידים. לידים מהצ׳אט ומטופס הקופון יופיעו כאן אוטומטית.</div>'; return; }
     const now=Date.now();
+    _startSnoozeWatch();
     const closedCount=leads.filter(l=>(l.status||'')==='סגור').length;
+    // ליד "ממתין" = פולואפ שתאריכו עדיין בעתיד → מוסתר עד שמגיע הזמן
+    const isSnoozed=l=>(l.status||'')==='פולואפ' && l.followup_at && new Date(l.followup_at).getTime()>now;
+    const snoozedCount=leads.filter(isSnoozed).length;
     // מיון לפי דחיפות המשימה (הדחוף ביותר למעלה, סגור בסוף)
     let sorted=[...leads].sort((a,b)=>{const ra=leadRank(a,now),rb=leadRank(b,now);return ra[0]-rb[0]||ra[1]-rb[1];});
-    // חיפוש לפי טלפון/שם - כשמחפשים מציגים הכל כולל סגורים
+    // חיפוש לפי טלפון/שם - כשמחפשים מציגים הכל כולל סגורים וממתינים
     const q=(window._leadSearch||'').trim();
     if(q){ const qd=q.replace(/[^0-9]/g,''); sorted=sorted.filter(l=>{const ph=(l.phone||'').replace(/[^0-9]/g,''); return (qd&&ph.includes(qd))||((l.name||'').includes(q)); }); }
-    else if(!window._showClosedLeads){ sorted=sorted.filter(l=>(l.status||'')!=='סגור'); }
-    const closedToggle=(closedCount&&!(window._leadSearch||'').trim())?`<div style="text-align:left;margin-bottom:12px"><button onclick="window._showClosedLeads=!window._showClosedLeads;renderLeads()" style="background:#f1f5f9;border:1px solid var(--line);color:#64748b;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer">${window._showClosedLeads?'הסתר סגורים':'הצג סגורים ('+closedCount+')'}</button></div>`:'';
+    else {
+      if(!window._showClosedLeads){ sorted=sorted.filter(l=>(l.status||'')!=='סגור'); }
+      if(!window._showSnoozed){ sorted=sorted.filter(l=>!isSnoozed(l)); }
+    }
+    const noSearch=!(window._leadSearch||'').trim();
+    const snoozeToggle=(snoozedCount&&noSearch)?`<button onclick="window._showSnoozed=!window._showSnoozed;renderLeads()" style="background:#fef9e7;border:1px solid #fde68a;color:#a16207;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:800;cursor:pointer">${window._showSnoozed?'הסתר ממתינים':'⏰ ממתינים לפולואפ ('+snoozedCount+')'}</button>`:'';
+    const closedToggleBtn=(closedCount&&noSearch)?`<button onclick="window._showClosedLeads=!window._showClosedLeads;renderLeads()" style="background:#f1f5f9;border:1px solid var(--line);color:#64748b;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer">${window._showClosedLeads?'הסתר סגורים':'הצג סגורים ('+closedCount+')'}</button>`:'';
+    const closedToggle=(snoozeToggle||closedToggleBtn)?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">${snoozeToggle}${closedToggleBtn}</div>`:'';
     el.innerHTML=closedToggle+sorted.map(l=>{
       const phone=(l.phone||'').toString();
       const waPhone='972'+phone.replace(/[^0-9]/g,'').replace(/^0/,'');
