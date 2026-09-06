@@ -428,7 +428,26 @@
           <div><div class="eyebrow">לידים</div><h2>ניהול לידים</h2></div>
           <div style="font-size:13px;color:var(--muted)">ממוין לפי דחיפות</div>
         </div>
-        <input id="leadSearch" type="tel" placeholder="🔍 חיפוש ליד לפי טלפון או שם" oninput="window._leadSearch=this.value;renderLeads()" style="margin-bottom:14px;padding:11px 14px;font-size:14px">
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+          <input id="leadSearch" type="tel" placeholder="🔍 חיפוש ליד לפי טלפון או שם" oninput="window._leadSearch=this.value;renderLeads()" style="flex:1;min-width:220px;padding:11px 14px;font-size:14px;margin:0">
+          <button onclick="toggleNewLead()" style="background:#15803d;color:#fff;border:none;border-radius:10px;padding:11px 18px;font-size:14px;font-weight:900;cursor:pointer;white-space:nowrap">➕ ליד חדש</button>
+        </div>
+        <div id="newLeadBox" style="display:none;background:#f0fdf4;border:2px solid #86efac;border-radius:14px;padding:16px;margin-bottom:16px">
+          <div style="font-weight:900;font-size:15px;margin-bottom:12px">➕ הוספת ליד חדש (שיחה נכנסת)</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
+            <input id="nl_name" placeholder="שם מלא *" style="padding:10px 12px;font-size:14px;border:1px solid var(--line);border-radius:10px">
+            <input id="nl_phone" type="tel" placeholder="טלפון * (05X-XXXXXXX)" style="padding:10px 12px;font-size:14px;border:1px solid var(--line);border-radius:10px">
+            <input id="nl_car" placeholder="רכב שמעניין אותו (לא חובה)" style="padding:10px 12px;font-size:14px;border:1px solid var(--line);border-radius:10px">
+            <select id="nl_source" style="padding:10px 12px;font-size:14px;border:1px solid var(--line);border-radius:10px;font-weight:700">
+              <option value="">מקור הגעה...</option>
+              <option>פייסבוק</option><option>אינסטגרם</option><option>גוגל</option><option>טיקטוק</option><option>וואטסאפ</option><option>המלצה</option><option>אתר</option><option>אחר</option>
+            </select>
+          </div>
+          <div style="margin-top:12px;display:flex;gap:8px">
+            <button onclick="addNewLead()" style="background:#15803d;color:#fff;border:none;border-radius:10px;padding:10px 22px;font-size:14px;font-weight:900;cursor:pointer">💾 שמור ליד</button>
+            <button onclick="toggleNewLead(false)" style="background:#e5e7eb;color:#374151;border:none;border-radius:10px;padding:10px 18px;font-size:14px;font-weight:800;cursor:pointer">ביטול</button>
+          </div>
+        </div>
         <div id="leadsList"></div>
       </div>
 
@@ -2395,6 +2414,23 @@
     }).join('');
   }
 
+  // הוספת ליד ידני (שיחה נכנסת)
+  function toggleNewLead(show){ const b=document.getElementById('newLeadBox'); if(!b) return; b.style.display=(show===undefined)?(b.style.display==='none'?'block':'none'):(show?'block':'none'); if(b.style.display==='block'){ const n=document.getElementById('nl_name'); if(n) n.focus(); } }
+  async function addNewLead(){
+    const g=id=>((document.getElementById(id)||{}).value||'').trim();
+    const name=g('nl_name'); const phone=g('nl_phone').replace(/\s/g,''); const car=g('nl_car'); const source=g('nl_source');
+    if(!name){ alert('נא למלא שם מלא'); return; }
+    if(!/^0\d{1,2}-?\d{7}$/.test(phone)){ alert('נא להזין מספר טלפון נייד תקין'); return; }
+    const row={ name:name, phone:phone, car:car, action:'ליד ידני', source:source, status:'פתוח', created_at:new Date().toISOString() };
+    let ok=false;
+    try{ const c=sbClient(); if(c){ const {error}=await c.from('leads').insert(row); ok=!error; if(error) console.warn('addLead', error.message); } }catch(e){ console.warn('addLead ex', e); }
+    if(ok){ await loadLeadsFromCloud(); }
+    else { row.id='local_'+Date.now(); if(Array.isArray(leads)) leads.unshift(row); renderLeads(); }
+    try{ renderSourceMetric(); renderLeadsReport(); }catch(e){}
+    ['nl_name','nl_phone','nl_car'].forEach(id=>{const e=document.getElementById(id); if(e) e.value='';}); const s=document.getElementById('nl_source'); if(s) s.value='';
+    toggleNewLead(false);
+    toast&&toast(ok?'ליד נוסף בהצלחה ✓':'נוסף מקומית (בדוק חיבור לענן)');
+  }
   async function loadLeadsFromCloud(){
     try{
       const c=sbClient(); if(!c) return;
