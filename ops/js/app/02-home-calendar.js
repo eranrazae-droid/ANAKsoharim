@@ -96,11 +96,8 @@ function _mgrHomeFitInner(body, layout) {
   // מחזירה מספר קטן מדי והפריסה יוצאת גבוהה מהמסך
   const top = layout.getBoundingClientRect().top + (window.scrollY || window.pageYOffset || 0);
   const avail = Math.max(420, window.innerHeight - top - 20);
-  /* במחשב הפריסה ממלאת את גובה החלון, אבל לעולם לא קטנה ממה שלוח
-     השנה ופתק השטיפה צריכים — כך אף אחד מהם לא נחתך ולא נגלל.
-     גלילה נשארת רק בלשוניות עם רשימה ארוכה, שם אין ברירה. */
   if (window.innerWidth > 900) {
-    const cal = document.getElementById('home-calendar-area');
+    const root = document.documentElement;
     // הגובה הטבעי של פתק השטיפה, כפי שהוא במצב הנוכחי של הדף
     const washH = () => {
       const form = document.getElementById('wash-form-body');
@@ -115,37 +112,27 @@ function _mgrHomeFitInner(body, layout) {
                           + px('borderTopWidth') + px('borderBottomWidth'));
       return h > 200 ? h : _mgrWashH;   // מדידה לפני שהטופס צויר אינה אמינה
     };
-    const measure = () => Math.max(_mgrWashH, cal ? cal.scrollHeight + 4 : 0);
-    const root = document.documentElement;
 
-    /* חשוב למדוד תמיד מהמצב הרגיל: מדידה שנעשית בזמן שהמצב הצפוף דלוק
-       מחזירה גובה קטן מדי, וממנה מסיקים בטעות שהכל נכנס. */
+    /* הגובה נקבע לפי פתק השטיפה בלבד — הוא הקבוע שבחלונית, ולכן
+       הפריסה נשארת באותה מידה בכל לשונית. מה שארוך ממנו (לוח שנה
+       עמוס, רשימת נסיעות מבחן) נגלל בתוך המסגרת שלו.
+       המדידה נעשית תמיד במצב הרגיל ובגובה חופשי, אחרת היא מחזירה
+       את הגובה שאנחנו עצמנו קבענו ולא את הגובה האמיתי. */
     body.classList.remove('mgr-compact');
     root.style.removeProperty('--cal-cell');
-    /* בזמן המדידה השורה חוזרת לגובה חופשי. אחרת לוח השנה נמתח לגובה
-       שאנחנו עצמנו קבענו, ומדידת התוכן שלו מחזירה את אותו גובה —
-       ואז הפריסה כבר לא יודעת להתכווץ בחזרה. */
     root.style.setProperty('--mgr-home-h', 'auto');
     void layout.offsetHeight;
     _mgrWashH = washH();
-    let need = measure();
 
-    if (need > avail) {
+    // רק אם הטופס עצמו גבוה מהמסך — מצמצמים אותו במקום לגלול בו
+    if (_mgrWashH > avail) {
       body.classList.add('mgr-compact');
       void layout.offsetHeight;
       _mgrWashH = washH();
-      need = measure();
-      // עדיין לא נכנס? מקטינים את משבצות לוח השנה בהדרגה עד שכן
-      for (let cell = 32; need > avail && cell >= 24; cell -= 2) {
-        root.style.setProperty('--cal-cell', cell + 'px');
-        void layout.offsetHeight;
-        _mgrWashH = washH();
-        need = measure();
-      }
     }
     /* אף פעם לא גבוה מהמקום שיש במסך: מה שלא נכנס גם אחרי הצמצום
        נגלל בתוך החלונית שלו, ולא דוחף את כל הדף מתחת לקו. */
-    root.style.setProperty('--mgr-home-h', Math.round(avail) + 'px');
+    root.style.setProperty('--mgr-home-h', Math.round(Math.min(_mgrWashH || avail, avail)) + 'px');
   }
   document.documentElement.style.setProperty('--mgr-home-top', Math.round(top + 16) + 'px');
   const panel = document.getElementById('home-wash-area');
