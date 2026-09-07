@@ -3,7 +3,7 @@
    נפתח באותה שנייה גם כשהחיבור חלש. הוא מוגבל לכתובת task.html
    ולכן אינו נוגע במערכת עצמה ואינו מושפע מעדכוניה.
    ברקע נמשכת גרסה טרייה לפעם הבאה. */
-const CACHE = 'quick-task-v1';
+const CACHE = 'quick-task-v2';
 const PAGE = 'task.html';
 
 self.addEventListener('install', e => {

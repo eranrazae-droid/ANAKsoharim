@@ -70,6 +70,18 @@
     padding:12px 16px calc(16px + env(safe-area-inset-bottom));
     border-top:2px solid var(--line); background:var(--card); flex-shrink:0;
   }
+  #photo-btn{
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    padding:14px; border-radius:12px; cursor:pointer;
+    border:2px dashed var(--line); background:var(--card); color:var(--ink-2);
+    font-size:15px; font-weight:800;
+  }
+  #photo-wrap{display:none; margin-top:8px; position:relative}
+  #photo-img{width:100%; max-height:230px; object-fit:cover; border-radius:12px; border:2px solid var(--line); display:block}
+  #photo-del{
+    position:absolute; top:8px; left:8px; border:0; border-radius:9px; cursor:pointer;
+    background:rgba(0,0,0,.66); color:#fff; padding:7px 11px; font-family:inherit; font-size:13px; font-weight:800;
+  }
   #save{
     width:100%; height:58px; border:0; border-radius:14px; cursor:pointer;
     background:var(--ok); color:#fff; font-family:inherit; font-size:19px; font-weight:900;
@@ -109,6 +121,12 @@
     <label class="f">לאיזו עמודה</label>
     <div class="cols" id="cols"></div>
   </div>
+  <div>
+    <label class="f">תמונה <span style="font-weight:600">(לא חובה)</span></label>
+    <label id="photo-btn" for="photo">📷 צלם או בחר תמונה</label>
+    <input type="file" id="photo" accept="image/*" capture="environment" hidden>
+    <div id="photo-wrap"><img id="photo-img" alt=""><button type="button" id="photo-del">✕ הסר</button></div>
+  </div>
 </main>
 
 <footer>
@@ -145,9 +163,10 @@
   };
 
   function get(k, d) { try { return localStorage.getItem(k) || d; } catch (e) { return d; } }
-  function set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function set(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } }
   function queue()   { try { return JSON.parse(get(LS.queue, '[]')) || []; } catch (e) { return []; } }
-  function setQueue(q){ set(LS.queue, JSON.stringify(q)); }
+  // מחזירה false כשאין מקום במכשיר, כדי שאפשר יהיה להזהיר
+  function setQueue(q){ return set(LS.queue, JSON.stringify(q)); }
 
   var el = function (id) { return document.getElementById(id); };
   var chosen = get(LS.col, 'משימות כלליות');
@@ -165,6 +184,58 @@
       x.setAttribute('aria-pressed', x === b);
     });
   });
+
+  /* התמונה נשמרת בתוך מסמך המשימה עצמו, כמו בשאר המערכת, ולכן היא
+     חייבת להישאר קטנה: מסמך במסד מוגבל למגה. מקטינים ל-1000 פיקסל
+     ואם עדיין גדול — מורידים איכות שוב, עד שנכנס. */
+  var photo = null;
+  var MAX_BYTES = 620 * 1024;
+
+  function shrink(file) {
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      var url = URL.createObjectURL(file);
+      img.onload = function () {
+        var out = null;
+        [[1000, 0.62], [800, 0.55], [640, 0.5], [480, 0.45]].some(function (step) {
+          var max = step[0], q = step[1];
+          var w = img.width, h = img.height;
+          if (w > max || h > max) {
+            if (w > h) { h = Math.round(h * max / w); w = max; }
+            else { w = Math.round(w * max / h); h = max; }
+          }
+          var c = document.createElement('canvas');
+          c.width = w; c.height = h;
+          c.getContext('2d').drawImage(img, 0, 0, w, h);
+          out = c.toDataURL('image/jpeg', q);
+          return out.length * 0.75 <= MAX_BYTES;      // base64 → בתים
+        });
+        URL.revokeObjectURL(url);
+        out ? resolve(out) : reject(new Error('compress'));
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('image')); };
+      img.src = url;
+    });
+  }
+
+  function setPhoto(dataUrl) {
+    photo = dataUrl || null;
+    el('photo-wrap').style.display = photo ? 'block' : 'none';
+    el('photo-img').src = photo || '';
+    el('photo-btn').style.display = photo ? 'none' : 'flex';
+  }
+
+  el('photo').addEventListener('change', function (e) {
+    var f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    say('⏳ מכין את התמונה...', 'warn');
+    shrink(f).then(function (d) {
+      setPhoto(d);
+      say('📷 תמונה צורפה (' + Math.round(d.length * 0.75 / 1024) + 'KB)', 'ok');
+    }).catch(function () { say('לא הצלחתי לקרוא את התמונה', 'bad'); });
+  });
+  el('photo-del').addEventListener('click', function () { setPhoto(null); say(''); });
 
   function say(text, cls) {
     var m = el('msg');
@@ -230,6 +301,8 @@
       createdBy:  { stringValue: task.createdBy },
       createdAt:  { timestampValue: task.at }
     };
+    // אותו שדה שבו המערכת שומרת תמונות של משימה — מערך של תמונות
+    if (task.photo) fields.photos = { arrayValue: { values: [{ stringValue: task.photo }] } };
     return fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + idToken },
@@ -272,19 +345,25 @@
       label: c.v,
       assignedTo: c.a,
       createdBy: who,
-      at: new Date().toISOString()
+      at: new Date().toISOString(),
+      photo: photo || ''
     };
 
     // נשמר קודם במכשיר: מכאן המשימה כבר לא יכולה ללכת לאיבוד
-    var q = queue(); q.push(task); setQueue(q); showPending();
-    el('title').value = ''; el('plate').value = '';
+    var q = queue(); q.push(task);
+    // אין מקום במכשיר (בדרך כלל בגלל תמונות שממתינות)? שולחים ישירות
+    var stored = setQueue(q);
+    showPending();
+    el('title').value = ''; el('plate').value = ''; setPhoto(null);
     el('save').disabled = true;
     say('⏳ שולח...', 'warn');
 
-    flush().then(function (n) {
+    var done = stored ? flush() : token().then(function (t) { return send(task, t).then(function () { return 1; }); }).catch(function () { return 0; });
+    done.then(function (n) {
       el('save').disabled = false;
       if (n > 0 && !queue().length) say('✅ המשימה נכנסה ללוח', 'ok');
-      else say('📥 נשמרה במכשיר — תישלח כשתהיה רשת', 'warn');
+      else if (stored) say('📥 נשמרה במכשיר — תישלח כשתהיה רשת', 'warn');
+      else say('⚠️ אין מקום במכשיר והשליחה נכשלה — נסה שוב', 'bad');
       el('title').focus();
     });
   });
