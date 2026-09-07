@@ -620,7 +620,7 @@ window.archiveRefresh = archiveRefresh;
    רק את מה שהוא באמת שינה.
    'הנהג הקולט' אינו שם של אדם אלא סימן: המשימה הולכת למי שמילא את
    הקליטה בפועל.                                                      */
-const _TASK_RULE_COLS = ['משימות כלליות', 'רפד', 'זגג', 'חביב', 'גיל', 'רדארים', 'הנהג הקולט'];
+const _TASK_RULE_COLS = ['משימות כלליות', 'רפד', 'זגג', 'חביב', 'ולאדי', 'גיל', 'רדארים', 'מוסך', 'הנהג הקולט'];
 const _RULE_DRIVER_COL = 'הנהג הקולט';
 
 const _INTAKE_RULE_DEFS = [
@@ -645,7 +645,6 @@ const _INTAKE_RULE_DEFS = [
 
   // תתי־הסעיפים של מנורות לוח השעונים — נבדקים רק כשהסעיף עצמו מסומן כתקול
   { key: 'dash-check-engine',  g: 'מנורות לוח שעונים', name: 'צ׳ק אנג׳ין',    col: 'משימות כלליות', title: 'מנורת צ׳ק אנג׳ין', sub: 'c-dashboard' },
-  { key: 'dash-tire-pressure', g: 'מנורות לוח שעונים', name: 'לחץ אוויר',     col: _RULE_DRIVER_COL, title: 'לחץ אוויר',        sub: 'c-dashboard' },
   { key: 'dash-service',       g: 'מנורות לוח שעונים', name: 'מנורת טיפול',   col: 'משימות כלליות', title: 'מנורת טיפול',      sub: 'c-dashboard' },
   { key: 'dash-collision',     g: 'מנורות לוח שעונים', name: 'מנורת התנגשות', col: 'רדארים',        title: 'מנורת התגשות',     sub: 'c-dashboard' },
   { key: 'dash-fuel',          g: 'מנורות לוח שעונים', name: 'מנורת דלק',     col: _RULE_DRIVER_COL, title: 'מנורת דלק',        sub: 'c-dashboard' },

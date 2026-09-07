@@ -1,0 +1,306 @@
+<!doctype html>
+<html dir="rtl" lang="he">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>משימה חדשה — ענק הרכבים</title>
+<link rel="manifest" href="task.webmanifest">
+<meta name="theme-color" content="#1a1a2e">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="משימה חדשה">
+<!--
+  דף עצמאי לפתיחת משימה, ותו לא.
+
+  למה הוא נפרד מהמערכת: הוא לא טוען שום קובץ חיצוני — לא גופנים, לא
+  ספריות ולא את קוד האפליקציה. כל מה שצריך יושב כאן, ולכן שינוי
+  במערכת לא יכול לשבור אותו והוא נפתח מיד גם ברשת חלשה.
+
+  הכתיבה למסד נעשית ב-REST ולא דרך ספריית Firebase, כדי לא להוריד
+  מגה של קוד בכל פתיחה. המשימה נשמרת קודם במכשיר ורק אז נשלחת —
+  ולכן לחיצה על "שמור" תמיד מצליחה, וגם בלי רשת המשימה לא הולכת
+  לאיבוד: היא נשלחת לבד ברגע שיש חיבור.
+-->
+<style>
+  :root{
+    --bg:#f3f4f8; --card:#fff; --sunk:#eceff6; --line:#dde1ec;
+    --ink:#1a1a2e; --ink-2:#575e79; --ink-3:#8b93ad;
+    --gold:#c9a227; --ok:#16a34a; --warn:#b45309; --bad:#dc2626;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#10121c; --card:#1a1d2b; --sunk:#161926; --line:#2b3044;
+      --ink:#eef0f8; --ink-2:#a8b0c9; --ink-3:#7a83a0;
+      --gold:#e0bb4a; --ok:#22c55e; --warn:#f59e0b; --bad:#f87171;
+    }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:"Heebo","Segoe UI",system-ui,-apple-system,sans-serif;
+    font-size:16px; display:flex; flex-direction:column;
+  }
+  header{
+    background:var(--ink); color:#fff; padding:14px 16px;
+    display:flex; align-items:center; gap:10px; flex-shrink:0;
+    padding-top:calc(14px + env(safe-area-inset-top));
+  }
+  header .t{font-size:17px; font-weight:900}
+  header .s{margin-right:auto; font-size:12px; color:#aeb5d0; font-weight:700}
+  main{flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:14px}
+  label.f{display:block; font-size:12px; font-weight:800; color:var(--ink-3); margin-bottom:6px; letter-spacing:.04em}
+  input,textarea{
+    width:100%; padding:13px 14px; border-radius:12px;
+    border:2px solid var(--line); background:var(--card); color:var(--ink);
+    font-family:inherit; font-size:16px; font-weight:700;
+  }
+  input:focus,textarea:focus{outline:none; border-color:var(--gold)}
+  textarea{resize:vertical; min-height:96px; line-height:1.45}
+  #plate{direction:ltr; text-align:right; letter-spacing:.06em}
+  .cols{display:grid; grid-template-columns:repeat(auto-fit,minmax(96px,1fr)); gap:8px}
+  .col{
+    padding:12px 8px; border-radius:12px; cursor:pointer;
+    border:2px solid var(--line); background:var(--card); color:var(--ink-2);
+    font-family:inherit; font-size:15px; font-weight:800;
+  }
+  .col[aria-pressed="true"]{background:var(--ink); color:var(--card); border-color:var(--ink)}
+  footer{
+    padding:12px 16px calc(16px + env(safe-area-inset-bottom));
+    border-top:2px solid var(--line); background:var(--card); flex-shrink:0;
+  }
+  #save{
+    width:100%; height:58px; border:0; border-radius:14px; cursor:pointer;
+    background:var(--ok); color:#fff; font-family:inherit; font-size:19px; font-weight:900;
+  }
+  #save:disabled{opacity:.6}
+  #msg{
+    margin-top:10px; text-align:center; font-size:14px; font-weight:800; min-height:20px;
+  }
+  .ok{color:var(--ok)} .warn{color:var(--warn)} .bad{color:var(--bad)}
+  #pend{
+    display:none; margin:0 16px; padding:9px 12px; border-radius:11px;
+    background:color-mix(in srgb, var(--warn) 14%, transparent);
+    border:1.5px solid var(--warn); color:var(--warn);
+    font-size:13px; font-weight:800;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="t">➕ משימה חדשה</span>
+  <span class="s" id="who">ליאל</span>
+</header>
+
+<div id="pend"></div>
+
+<main>
+  <div>
+    <label class="f" for="title">מה צריך לעשות</label>
+    <textarea id="title" placeholder="לדוגמה: להחליף מגבים" autocomplete="off"></textarea>
+  </div>
+  <div>
+    <label class="f" for="plate">מספר רכב <span style="font-weight:600">(לא חובה)</span></label>
+    <input id="plate" inputmode="numeric" placeholder="12345678" autocomplete="off">
+  </div>
+  <div>
+    <label class="f">לאיזו עמודה</label>
+    <div class="cols" id="cols"></div>
+  </div>
+</main>
+
+<footer>
+  <button id="save">שמור משימה ✅</button>
+  <div id="msg"></div>
+</footer>
+
+<script>
+(function () {
+  'use strict';
+
+  var CFG = {
+    key: 'AIzaSyAVrNBg_EgCKc0B2YUAX9Ga6QZyOVQiiZE',
+    project: 'anak-soharim',
+    db: 'default'
+  };
+  // אותן עמודות שיש בלוח המשימות. 'משימות כלליות' מוקצית ל'כולם',
+  // כמו בכל שאר המערכת.
+  var COLS = [
+    { l: 'כללי',  v: 'משימות כלליות', a: 'כולם' },
+    { l: 'גיל',   v: 'גיל',           a: 'גיל' },
+    { l: 'חביב',  v: 'חביב',          a: 'חביב' },
+    { l: 'ולאדי', v: 'ולאדי',         a: 'ולאדי' },
+    { l: 'רפד',   v: 'רפד',           a: 'רפד' },
+    { l: 'זגג',   v: 'זגג',           a: 'זגג' },
+    { l: 'רדארים', v: 'רדארים',       a: 'רדארים' },
+    { l: 'מוסך',  v: 'מוסך',          a: 'מוסך' }
+  ];
+  var LS = {
+    col:   'qt_col',
+    queue: 'qt_queue',
+    rt:    'qt_refresh',
+    who:   'qt_who'
+  };
+
+  function get(k, d) { try { return localStorage.getItem(k) || d; } catch (e) { return d; } }
+  function set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function queue()   { try { return JSON.parse(get(LS.queue, '[]')) || []; } catch (e) { return []; } }
+  function setQueue(q){ set(LS.queue, JSON.stringify(q)); }
+
+  var el = function (id) { return document.getElementById(id); };
+  var chosen = get(LS.col, 'משימות כלליות');
+  var who = get(LS.who, 'ליאל');
+  el('who').textContent = who;
+
+  el('cols').innerHTML = COLS.map(function (c) {
+    return '<button type="button" class="col" data-v="' + c.v + '" aria-pressed="' +
+           (c.v === chosen) + '">' + c.l + '</button>';
+  }).join('');
+  el('cols').addEventListener('click', function (e) {
+    var b = e.target.closest('.col'); if (!b) return;
+    chosen = b.dataset.v; set(LS.col, chosen);
+    Array.prototype.forEach.call(el('cols').children, function (x) {
+      x.setAttribute('aria-pressed', x === b);
+    });
+  });
+
+  function say(text, cls) {
+    var m = el('msg');
+    m.textContent = text || '';
+    m.className = cls || '';
+  }
+  function showPending() {
+    var q = queue(), p = el('pend');
+    if (!q.length) { p.style.display = 'none'; return; }
+    p.style.display = 'block';
+    p.textContent = '⏳ ' + q.length + (q.length === 1 ? ' משימה ממתינה לשליחה' : ' משימות ממתינות לשליחה') +
+                    ' — יישלחו לבד כשתהיה רשת';
+  }
+
+  /* ── חיבור למסד ─────────────────────────────────────────────────
+     כניסה אנונימית ב-REST. אסימון הרענון נשמר במכשיר, ולכן בפעמים
+     הבאות אין צורך להיכנס מחדש.                                    */
+  function json(url, body) {
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }).then(function (r) {
+      return r.json().then(function (j) {
+        if (!r.ok) {
+          var err = new Error((j.error && j.error.message) || ('HTTP ' + r.status));
+          err.rejected = true;          // השרת ענה ודחה — להבדיל מנפילת רשת
+          throw err;
+        }
+        return j;
+      });
+    });
+  }
+
+  function token() {
+    var rt = get(LS.rt, '');
+    if (!rt) return signUp();
+    return json('https://securetoken.googleapis.com/v1/token?key=' + CFG.key,
+                { grant_type: 'refresh_token', refresh_token: rt })
+      .then(function (j) { return j.id_token; })
+      .catch(function (e) {
+        // רק דחייה אמיתית של השרת פוסלת את האסימון. נפילת רשת לא —
+        // אחרת כל ניסיון בלי חיבור היה מוחק את החיבור השמור.
+        if (!e.rejected) throw e;
+        set(LS.rt, '');
+        return signUp();
+      });
+  }
+  function signUp() {
+    return json('https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=' + CFG.key,
+                { returnSecureToken: true })
+      .then(function (j) { set(LS.rt, j.refreshToken || ''); return j.idToken; });
+  }
+
+  function send(task, idToken) {
+    var url = 'https://firestore.googleapis.com/v1/projects/' + CFG.project +
+              '/databases/' + CFG.db + '/documents/tasks';
+    var fields = {
+      title:      { stringValue: task.title },
+      assignedTo: { stringValue: task.assignedTo },
+      label:      { stringValue: task.label },
+      status:     { stringValue: 'open' },
+      createdBy:  { stringValue: task.createdBy },
+      createdAt:  { timestampValue: task.at }
+    };
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + idToken },
+      body: JSON.stringify({ fields: fields })
+    }).then(function (r) {
+      if (!r.ok) return r.text().then(function (t) { throw new Error('HTTP ' + r.status + ' ' + t.slice(0, 120)); });
+      return true;
+    });
+  }
+
+  // מרוקן את התור. כל מה שנשלח בהצלחה נמחק; מה שנכשל נשאר לפעם הבאה.
+  var flushing = false;
+  function flush() {
+    var q = queue();
+    if (!q.length || flushing) return Promise.resolve(0);
+    flushing = true;
+    return token().then(function (t) {
+      var left = [], sent = 0;
+      return q.reduce(function (chain, task) {
+        return chain.then(function () {
+          return send(task, t).then(function () { sent++; })
+                              .catch(function () { left.push(task); });
+        });
+      }, Promise.resolve()).then(function () {
+        setQueue(left); showPending();
+        return sent;
+      });
+    }).catch(function () { return 0; })
+      .then(function (n) { flushing = false; return n; });
+  }
+
+  el('save').addEventListener('click', function () {
+    var text = el('title').value.trim();
+    if (!text) { say('נא לכתוב מה צריך לעשות', 'bad'); el('title').focus(); return; }
+    var plate = el('plate').value.replace(/\D/g, '');
+    var c = COLS.filter(function (x) { return x.v === chosen; })[0] || COLS[0];
+
+    var task = {
+      title: plate ? plate + ' — ' + text : text,
+      label: c.v,
+      assignedTo: c.a,
+      createdBy: who,
+      at: new Date().toISOString()
+    };
+
+    // נשמר קודם במכשיר: מכאן המשימה כבר לא יכולה ללכת לאיבוד
+    var q = queue(); q.push(task); setQueue(q); showPending();
+    el('title').value = ''; el('plate').value = '';
+    el('save').disabled = true;
+    say('⏳ שולח...', 'warn');
+
+    flush().then(function (n) {
+      el('save').disabled = false;
+      if (n > 0 && !queue().length) say('✅ המשימה נכנסה ללוח', 'ok');
+      else say('📥 נשמרה במכשיר — תישלח כשתהיה רשת', 'warn');
+      el('title').focus();
+    });
+  });
+
+  // כל פתיחה של הדף מנסה לשלוח מה שממתין, וכך גם חזרה של הרשת
+  showPending();
+  if (queue().length) flush().then(function (n) { if (n) say('✅ ' + n + ' משימות ממתינות נשלחו', 'ok'); });
+  window.addEventListener('online', function () { flush(); });
+
+  /* עובד שירות משלו, שמאחסן רק את הדף הזה. הוא מוגבל לכתובת הזאת
+     בלבד ולכן אינו נוגע במערכת. אם הרישום נכשל — הדף עדיין עובד. */
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('task-sw.js', { scope: 'task.html' })
+      .catch(function () {});
+  }
+})();
+</script>
+</body>
+</html>
