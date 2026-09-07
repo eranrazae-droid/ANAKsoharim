@@ -1325,12 +1325,43 @@ function openDriverInvModal(docId) {
     _driverInvRows = parsedRows.map((cells, i) => ({ cells, status: savedStatuses?.[i] ?? null }));
     _dinvSortMode = 0;
     _dinvOrder = null;
+    _dinvQuery = '';                       // כל פתיחה מתחילה מרשימה מלאה
+    const sb = document.getElementById('dinv-search'); if (sb) sb.value = '';
+    const sc = document.getElementById('dinv-search-clear'); if (sc) sc.style.display = 'none';
     const sortBtn = document.getElementById('dinv-sort-btn');
     if (sortBtn) sortBtn.textContent = '↕️ סדר הכל';
     renderDriverInvModal(data.headers || []);
     openModal('modal-driver-inv');
   });
 }
+
+/* ── חיפוש לפי תחילת מספר הרישוי ─────────────────────────────────
+   רק התאמה מתחילת המספר ולפי הסדר: הקלדת 24 מציגה את מי שמתחיל
+   ב-24, ולא רכב שיש בו 24 באמצע.                                   */
+let _dinvQuery = '';
+
+function _dinvPlateIdx(headers) {
+  return headers.findIndex(h => /מספר|רישוי|לוחית/.test(String(h)));
+}
+function _dinvMatches(row, plateIdx) {
+  if (!_dinvQuery) return true;
+  if (plateIdx < 0) return true;
+  const plate = String(row.cells[plateIdx] ?? '').replace(/\D/g, '');
+  return plate.indexOf(_dinvQuery) === 0;
+}
+
+function dinvSearch(v) {
+  _dinvQuery = String(v || '').replace(/\D/g, '');
+  const box = document.getElementById('dinv-search');
+  if (box && box.value !== _dinvQuery) box.value = _dinvQuery;
+  const clr = document.getElementById('dinv-search-clear');
+  if (clr) clr.style.display = _dinvQuery ? 'block' : 'none';
+  const headers = JSON.parse(document.getElementById('dinv-headers-cache')?.value || '[]');
+  renderDriverInvModal(headers);
+  // הסימון חוזר לשורת החיפוש כדי שאפשר יהיה להמשיך להקליד
+  if (box) { box.focus(); try { box.setSelectionRange(box.value.length, box.value.length); } catch (e) {} }
+}
+window.dinvSearch = dinvSearch;
 
 // 0 = original order, 1 = unmarked first, 2 = marked first
 let _dinvSortMode = 0;
@@ -1383,7 +1414,12 @@ function renderDriverInvModal(headers) {
     </div>`;
   }
   if (!_dinvOrder || _dinvOrder.length !== _driverInvRows.length) _dinvComputeOrder();
-  const order2 = _dinvOrder;
+  const order2 = _dinvOrder.filter(i => _dinvMatches(_driverInvRows[i], plateIdx));
+  const cnt = document.getElementById('dinv-search-count');
+  if (cnt) {
+    cnt.style.display = _dinvQuery ? 'block' : 'none';
+    cnt.textContent = `${order2.length} מתוך ${_driverInvRows.length} רכבים`;
+  }
   html += order2.map(i => {
     const item = _driverInvRows[i];
     const orderedCells = reorder(item.cells);
@@ -1395,8 +1431,8 @@ function renderDriverInvModal(headers) {
     const bg = item.status==='v' ? '#f0fff4' : item.status==='x' ? '#fff0f0' : (notInLot ? '#fffbeb' : '#fff');
     return `<div id="dinv-row-${i}" style="display:grid;grid-template-columns:${colW};min-width:${minW};gap:2px;align-items:center;background:${bg};border:2px solid ${border};border-radius:8px;padding:4px 5px;margin-bottom:2px;direction:rtl">
       <div style="display:flex;gap:2px;justify-content:center">
-        <button onclick="dinvClick(${i},'v')" style="width:34px;height:34px;border-radius:7px;border:2px solid ${item.status==='v'?'#22c55e':'#ccc'};background:${item.status==='v'?'#22c55e':'#f9f9f9'};font-size:16px;cursor:pointer;font-weight:900;color:${item.status==='v'?'#fff':'#555'}">✓</button>
-        <button onclick="dinvClick(${i},'x')" style="width:34px;height:34px;border-radius:7px;border:2px solid ${item.status==='x'?'#ef4444':'#ccc'};background:${item.status==='x'?'#ef4444':'#f9f9f9'};font-size:16px;cursor:pointer;font-weight:900;color:${item.status==='x'?'#fff':'#555'}">✕</button>
+        <button onmousedown="event.preventDefault()" onclick="dinvClick(${i},'v')" style="width:34px;height:34px;border-radius:7px;border:2px solid ${item.status==='v'?'#22c55e':'#ccc'};background:${item.status==='v'?'#22c55e':'#f9f9f9'};font-size:16px;cursor:pointer;font-weight:900;color:${item.status==='v'?'#fff':'#555'}">✓</button>
+        <button onmousedown="event.preventDefault()" onclick="dinvClick(${i},'x')" style="width:34px;height:34px;border-radius:7px;border:2px solid ${item.status==='x'?'#ef4444':'#ccc'};background:${item.status==='x'?'#ef4444':'#f9f9f9'};font-size:16px;cursor:pointer;font-weight:900;color:${item.status==='x'?'#fff':'#555'}">✕</button>
       </div>
       ${orderedCells.map(c => `<div style="font-size:11px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c)}</div>`).join('')}
     </div>`;
@@ -1406,11 +1442,15 @@ function renderDriverInvModal(headers) {
 }
 
 function dinvClick(idx, val) {
+  // סימון ✓/✗ אינו מפקיע את הסימון משורת החיפוש — הנהג ממשיך להקליד
+  const box = document.getElementById('dinv-search');
+  const hadFocus = document.activeElement === box;
   _driverInvRows[idx].status = _driverInvRows[idx].status === val ? null : val;
   _dinvSaveProgress();
   const headers = JSON.parse(document.getElementById('dinv-headers-cache').value || '[]');
   renderDriverInvModal(headers);
   document.getElementById(`dinv-row-${idx}`)?.scrollIntoView({ block: 'nearest' });
+  if (hadFocus && box) { box.focus(); try { box.setSelectionRange(box.value.length, box.value.length); } catch (e) {} }
 }
 
 function dinvMarkAll(val) {
