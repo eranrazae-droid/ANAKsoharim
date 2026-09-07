@@ -513,6 +513,8 @@ function openVehiclesScreen() {
   // ולחיצה עליה פותחת את הטופס החי של אותו רכב
   const liveBtn = document.getElementById('btn-live-intake');
   if (liveBtn) liveBtn.style.display = 'none';
+  const rulesBar = document.getElementById('intake-rules-bar');
+  if (rulesBar) rulesBar.style.display = isManager ? 'block' : 'none';
   showScreen('vehicles');
   if (archiveUnsub) { archiveUnsub(); archiveUnsub = null; }
   _archiveItems = [];
@@ -610,6 +612,182 @@ async function archiveRefresh(id) {
   showToast('📁 הרענון הועבר לארכיון');
 }
 window.archiveRefresh = archiveRefresh;
+
+/* ── שיוך המשימות מהקליטה ────────────────────────────────────────────
+   כל סעיף וכל תת־סעיף בטופס הקליטה יכול לפתוח משימה בלוח. הטבלה כאן
+   היא ברירת המחדל; המנהל יכול לשנות בהגדרות את העמודה, את המלל, ואם
+   בכלל תיפתח משימה — וההגדרה נשמרת ב-config/intake_task_rules ודורסת
+   רק את מה שהוא באמת שינה.
+   'הנהג הקולט' אינו שם של אדם אלא סימן: המשימה הולכת למי שמילא את
+   הקליטה בפועל.                                                      */
+const _TASK_RULE_COLS = ['משימות כלליות', 'רפד', 'זגג', 'חביב', 'גיל', 'רדארים', 'הנהג הקולט'];
+const _RULE_DRIVER_COL = 'הנהג הקולט';
+
+const _INTAKE_RULE_DEFS = [
+  { key: 'c-oil',          g: 'בדיקות חוץ', name: 'שמן מנוע',                    col: 'משימות כלליות', title: 'שמן מנוע' },
+  { key: 'c-coolant',      g: 'בדיקות חוץ', name: 'נוזל קירור',                  col: 'משימות כלליות', title: 'נוזל קירור' },
+  { key: 'c-safety',       g: 'בדיקות חוץ', name: 'בדיקה והשלמת אביזרים',        col: _RULE_DRIVER_COL, title: 'השלמת אביזרים' },
+  { key: 'c-lights-break', g: 'בדיקות חוץ', name: 'שברים בפנסים',                col: 'משימות כלליות', title: 'שברים בפנסים' },
+  { key: 'c-glass-break',  g: 'בדיקות חוץ', name: 'שברים בשמשות',                col: 'משימות כלליות', title: 'שברים בשמשות' },
+  { key: 'c-bulbs',        g: 'בדיקות חוץ', name: 'לדים שרופים / מנורות שרופות', col: 'גיל',            title: 'מנורות שרופות' },
+  { key: 'c-frames-ext',   g: 'בדיקות חוץ', name: 'מסגרות',                      col: 'משימות כלליות', title: 'מסגרות', off: true },
+  { key: 'c-tires',        g: 'בדיקות חוץ', name: 'מצב צמיגים',                  col: 'משימות כלליות', title: 'מצב צמיגים' },
+
+  { key: 'c-glove',        g: 'בדיקות פנים', name: 'ניקיון תא כפפות',            col: _RULE_DRIVER_COL, title: 'ניקיון תא כפפות' },
+  { key: 'c-windows',      g: 'בדיקות פנים', name: 'מתגי חלונות',                col: 'חביב',           title: 'מתגי חלונות' },
+  { key: 'c-mirrors',      g: 'בדיקות פנים', name: 'קיפול וכיוון מראות חשמליות', col: 'משימות כלליות', title: 'מראות חשמליות', off: true },
+  { key: 'c-ac',           g: 'בדיקות פנים', name: 'מזגן',                       col: 'משימות כלליות', title: 'מזגן' },
+  { key: 'c-ac-noise',     g: 'בדיקות פנים', name: 'רעשי מזגן',                  col: 'משימות כלליות', title: 'רעשי מזגן', off: true },
+  { key: 'c-sunroof',      g: 'בדיקות פנים', name: 'גג נפתח',                    col: 'זגג',            title: 'גג נפתח' },
+  { key: 'c-upholstery',   g: 'בדיקות פנים', name: 'ריפודים (חורים/קרעים)',      col: 'רפד',            title: 'ריפודים (חורים/קרעים)' },
+  { key: 'c-mats',         g: 'בדיקות פנים', name: 'סט שטיחים מלא ותקין',        col: 'משימות כלליות', title: 'שטיחים' },
+  { key: 'c-steering',     g: 'בדיקות פנים', name: 'הגה – קילופים',              col: 'רפד',            title: 'קילופים בהגה' },
+
+  // תתי־הסעיפים של מנורות לוח השעונים — נבדקים רק כשהסעיף עצמו מסומן כתקול
+  { key: 'dash-check-engine',  g: 'מנורות לוח שעונים', name: 'צ׳ק אנג׳ין',    col: 'משימות כלליות', title: 'מנורת צ׳ק אנג׳ין', sub: 'c-dashboard' },
+  { key: 'dash-tire-pressure', g: 'מנורות לוח שעונים', name: 'לחץ אוויר',     col: _RULE_DRIVER_COL, title: 'לחץ אוויר',        sub: 'c-dashboard' },
+  { key: 'dash-service',       g: 'מנורות לוח שעונים', name: 'מנורת טיפול',   col: 'משימות כלליות', title: 'מנורת טיפול',      sub: 'c-dashboard' },
+  { key: 'dash-collision',     g: 'מנורות לוח שעונים', name: 'מנורת התנגשות', col: 'רדארים',        title: 'מנורת התגשות',     sub: 'c-dashboard' },
+  { key: 'dash-fuel',          g: 'מנורות לוח שעונים', name: 'מנורת דלק',     col: _RULE_DRIVER_COL, title: 'מנורת דלק',        sub: 'c-dashboard' },
+  { key: 'dash-istop',         g: 'מנורות לוח שעונים', name: 'iStop',         col: 'משימות כלליות', title: 'iStop',            sub: 'c-dashboard' },
+  { key: 'dash-other',         g: 'מנורות לוח שעונים', name: 'אחר',           col: 'משימות כלליות', title: 'מנורות לוח שעונים – אחר', sub: 'c-dashboard' },
+];
+
+// ההגדרות שהמנהל שמר, נטענות פעם אחת ומרועננות אחרי כל שמירה
+let _intakeRulesCfg = null;
+async function _loadIntakeRules(force) {
+  if (_intakeRulesCfg && !force) return _intakeRulesCfg;
+  let saved = {};
+  try {
+    const snap = await window._getDoc(_docRef('config', 'intake_task_rules'));
+    if (snap.exists()) saved = snap.data().rules || {};
+  } catch (e) { console.error('intake rules load', e); }
+  _intakeRulesCfg = _INTAKE_RULE_DEFS.map(d => {
+    const s = saved[d.key] || {};
+    return {
+      ...d,
+      col:   s.col   !== undefined ? s.col   : d.col,
+      title: s.title !== undefined ? s.title : d.title,
+      on:    s.on    !== undefined ? !!s.on  : !d.off,
+    };
+  });
+  return _intakeRulesCfg;
+}
+window._loadIntakeRules = _loadIntakeRules;
+
+
+/* ── מסך ההגדרות של שיוך המשימות ─────────────────────────────────── */
+let _rulesDraft = null;
+let _rulesOpen = null;      // הכלל שפתוח לעריכה כרגע
+
+async function openIntakeRules() {
+  if (currentUser?.role !== 'manager') return;
+  const box = document.getElementById('intake-rules-body');
+  if (box) box.innerHTML = '<div class="loading"><div class="spinner"></div> טוען...</div>';
+  openModal('modal-intake-rules');
+  const rules = await _loadIntakeRules(true);
+  _rulesDraft = rules.map(r => ({ ...r }));
+  _rulesOpen = null;
+  _renderIntakeRules();
+}
+window.openIntakeRules = openIntakeRules;
+
+function _rulesColClass(col, on) {
+  if (!on) return 'irc-off';
+  if (col === 'משימות כלליות') return 'irc-gen';
+  if (col === _RULE_DRIVER_COL) return 'irc-drv';
+  return 'irc-pro';
+}
+
+function _renderIntakeRules() {
+  const box = document.getElementById('intake-rules-body');
+  if (!box || !_rulesDraft) return;
+  const groups = [];
+  for (const r of _rulesDraft) if (!groups.includes(r.g)) groups.push(r.g);
+  box.innerHTML = groups.map(g => {
+    const rows = _rulesDraft.map((r, i) => ({ r, i })).filter(x => x.r.g === g).map(({ r, i }) => {
+      const open = _rulesOpen === i;
+      return `<div class="ir-row${open ? ' open' : ''}${r.on ? '' : ' off'}">
+        <button type="button" class="ir-head" onclick="rulesToggleOpen(${i})">
+          <span class="ir-name">
+            <span class="n">${esc(r.name)}${r.sub ? ' <span class="ir-sub">תת־סעיף</span>' : ''}</span>
+            <span class="t">${r.on ? 'מלל: ' + esc(r.title) : 'לא נוצרת משימה'}</span>
+          </span>
+          <span class="ir-col ${_rulesColClass(r.col, r.on)}">${r.on ? esc(r.col) : 'כבוי'}</span>
+          <span class="ir-caret">▼</span>
+        </button>
+        ${open ? `<div class="ir-edit">
+          <div class="ir-sw-row">
+            <span>${r.on ? '✅ נוצרת משימה כשהסעיף מסומן כתקול' : '🚫 לא נוצרת משימה מהסעיף הזה'}</span>
+            <button type="button" class="ir-sw" aria-pressed="${r.on}" onclick="rulesToggleOn(${i})"></button>
+          </div>
+          ${r.on ? `
+          <div class="ir-field"><label>לאיזו עמודה בלוח המשימות</label>
+            <div class="ir-opts">${_TASK_RULE_COLS.map(c =>
+              `<button type="button" class="ir-opt" aria-pressed="${c === r.col}" onclick="rulesSetCol(${i},'${esc(c)}')">${esc(c)}</button>`).join('')}</div>
+          </div>
+          <div class="ir-field"><label>מלל המשימה</label>
+            <input class="ir-text" value="${esc(r.title)}" oninput="rulesSetTitle(${i}, this.value)">
+          </div>
+          <div class="ir-prev">
+            <div class="cap">כך תיראה המשימה בלוח</div>
+            <div class="ir-card">
+              <div class="t"><span class="v">31123102 מ.ג EHS PHEV</span> – ${esc(r.title)}<span class="v">: ההערה של הנהג</span></div>
+              <div class="m"><span class="tg">👤 ${esc(r.col === _RULE_DRIVER_COL ? 'הנהג שקלט' : r.col)}</span><span class="tg">⏳ פתוחה</span></div>
+            </div>
+          </div>` : ''}
+        </div>` : ''}
+      </div>`;
+    }).join('');
+    return `<div class="ir-group"><h4>${esc(g)}</h4>${rows}</div>`;
+  }).join('');
+}
+
+function rulesToggleOpen(i) { _rulesOpen = (_rulesOpen === i ? null : i); _renderIntakeRules(); }
+function rulesToggleOn(i)   { _rulesDraft[i].on = !_rulesDraft[i].on; _renderIntakeRules(); }
+function rulesSetCol(i, c)  { _rulesDraft[i].col = c; _renderIntakeRules(); }
+function rulesSetTitle(i, v) {
+  // לא מציירים מחדש תוך כדי הקלדה, כדי לא לאבד את הסמן
+  _rulesDraft[i].title = v;
+  const row = document.querySelectorAll('.ir-row')[i];
+  const t = row?.querySelector('.ir-name .t');
+  if (t) t.textContent = 'מלל: ' + v;
+  const card = row?.querySelector('.ir-card .t');
+  if (card) card.innerHTML = `<span class="v">31123102 מ.ג EHS PHEV</span> – ${esc(v)}<span class="v">: ההערה של הנהג</span>`;
+}
+window.rulesToggleOpen = rulesToggleOpen;
+window.rulesToggleOn = rulesToggleOn;
+window.rulesSetCol = rulesSetCol;
+window.rulesSetTitle = rulesSetTitle;
+
+async function saveIntakeRules() {
+  if (!_rulesDraft) return;
+  const btn = document.getElementById('intake-rules-save');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ שומר...'; }
+  try {
+    const rules = {};
+    for (const r of _rulesDraft) rules[r.key] = { col: r.col, title: r.title, on: !!r.on };
+    await window._setDoc(_docRef('config', 'intake_task_rules'), { rules, updatedAt: _serverTs(), updatedBy: currentUser?.name || '' }, { merge: true });
+    _intakeRulesCfg = null;            // הטעינה הבאה תיקח את החדש
+    showToast('✅ ההגדרות נשמרו');
+    closeModal('modal-intake-rules');
+  } catch (e) {
+    console.error('intake rules save', e);
+    showToast('השמירה נכשלה: ' + (e.code || e.message), 6000);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '💾 שמור הגדרות'; }
+  }
+}
+window.saveIntakeRules = saveIntakeRules;
+
+function resetIntakeRules() {
+  if (!confirm('להחזיר את כל השיוכים לברירת המחדל?')) return;
+  _rulesDraft = _INTAKE_RULE_DEFS.map(d => ({ ...d, on: !d.off }));
+  _rulesOpen = null;
+  _renderIntakeRules();
+  showToast('הוחזר לברירת המחדל — עדיין צריך לשמור');
+}
+window.resetIntakeRules = resetIntakeRules;
 
 /* כמה מהטופס כבר מולא. הנתונים מגיעים מהטיוטה החיה שהנהג שומר תוך
    כדי עבודה (liveDraft), ולכן האחוז מתעדכן בזמן אמת בלי שום מנגנון
@@ -1390,30 +1568,14 @@ async function createIntakeTasks(checklist, allNotes, vehicle, photoUrls) {
   // שם הנהג הקולט נשמר בשדה createdBy ולכן אינו חוזר בכותרת.
   const prefix = [plate, carDesc].filter(Boolean).join(' ');
 
-  const rules = [
-    { key: 'c-steering',    col: 'רפד',              title: 'קילופים בהגה' },
-    { key: 'c-upholstery',  col: 'רפד',              title: 'ריפודים (חורים/קרעים)' },
-    { key: 'c-mats',        col: 'משימות כלליות',    title: 'שטיחים' },
-    { key: 'c-sunroof',     col: 'זגג',              title: 'גג נפתח' },
-    { key: 'c-ac',          col: 'משימות כלליות',    title: 'מזגן' },
-    { key: 'c-windows',     col: 'חביב',             title: 'מתגי חלונות' },
-    { key: 'c-glove',       col: driverName,         title: 'ניקיון תא כפפות' },
-    { key: 'c-tires',       col: 'משימות כלליות',    title: 'מצב צמיגים' },
-    // { key: 'c-frames-ext' } — no task created for frames
-    { key: 'c-bulbs',       col: 'גיל',              title: 'מנורות שרופות' },
-    { key: 'c-glass-break', col: 'משימות כלליות',    title: 'שברים בשמשות' },
-    { key: 'c-lights-break',col: 'משימות כלליות',    title: 'שברים בפנסים' },
-    { key: 'c-safety',      col: driverName,         title: 'השלמת אביזרים' },
-    { key: 'c-oil',         col: 'משימות כלליות',    title: 'שמן מנוע' },
-    { key: 'c-coolant',     col: 'משימות כלליות',    title: 'נוזל קירור' },
-  ];
+  const rules = await _loadIntakeRules();
 
   const getNoteForKey = (key) => {
     const el = document.getElementById('cn-' + key);
     return el ? el.value.trim() : '';
   };
 
-  // Map column name → assignedTo value
+  // שם העמודה → למי המשימה מוקצית
   const colToAssigned = {
     'רפד': 'רפד', 'זגג': 'זגג', 'חביב': 'חביב', 'גיל': 'גיל',
     'משימות כלליות': 'כולם',
@@ -1428,45 +1590,28 @@ async function createIntakeTasks(checklist, allNotes, vehicle, photoUrls) {
   };
 
   for (const rule of rules) {
-    if (checklist[rule.key] !== 'x') continue;
-    // accessories have no free-text field — the note is the derived list of
-    // exactly which items were missing
-    const note = rule.key === 'c-safety'
-      ? (checklist['c-safety_note'] || '')
-      : getNoteForKey(rule.key);
-    const taskTitle = `${prefix} – ${rule.title}${note ? ': ' + note : ''}`;
-    const isDriverCol = !colToAssigned[rule.col];
-    const label      = rule.col;
-    const assignedTo = isDriverCol ? rule.col : colToAssigned[rule.col];
-    const photos     = photosForKey(rule.key);
+    if (!rule.on) continue;
+    /* סעיף רגיל נבדק לפי הצ׳קליסט; תת־סעיף נבדק לפי תיבת הסימון שלו,
+       ורק אם הסעיף שמעליו סומן כתקול. */
+    let note = '';
+    if (rule.sub) {
+      if (checklist[rule.sub] !== 'x') continue;
+      if (!document.getElementById(rule.key)?.checked) continue;
+      if (rule.key === 'dash-other') note = getNoteForKey('c-dashboard');
+    } else {
+      if (checklist[rule.key] !== 'x') continue;
+      // לאביזרים אין שדה חופשי — ההערה היא רשימת מה שחסר בפועל
+      note = rule.key === 'c-safety' ? (checklist['c-safety_note'] || '') : getNoteForKey(rule.key);
+    }
+    const col        = rule.col === _RULE_DRIVER_COL ? driverName : rule.col;
+    const taskTitle  = `${prefix} – ${rule.title}${note ? ': ' + note : ''}`;
+    const assignedTo = colToAssigned[col] || col;
+    const photos     = rule.sub ? [] : photosForKey(rule.key);
     await _addDoc(_colRef('tasks'), {
-      title: taskTitle, assignedTo, label, status: 'open',
+      title: taskTitle, assignedTo, label: col, status: 'open',
       createdBy: driverName, createdAt: _serverTs(),
       ...(photos.length ? { photos } : {}),
     });
-  }
-
-  // Dashboard checkboxes — each sends to its own column
-  if (checklist['c-dashboard'] === 'x') {
-    const dashChecks = [
-      { id: 'dash-check-engine',  col: 'משימות כלליות', title: 'מנורת צ׳ק אנג׳ין' },
-      { id: 'dash-tire-pressure', col: driverName,        title: 'לחץ אוויר' },
-      { id: 'dash-service',       col: 'משימות כלליות', title: 'מנורת טיפול' },
-      { id: 'dash-collision',     col: 'רדארים',          title: 'מנורת התגשות' },
-      { id: 'dash-fuel',          col: driverName,        title: 'מנורת דלק' },
-      { id: 'dash-istop',         col: 'משימות כלליות', title: 'iStop' },
-      { id: 'dash-other',         col: 'משימות כלליות', title: 'מנורות לוח שעונים – אחר' },
-    ];
-    for (const dc of dashChecks) {
-      const el = document.getElementById(dc.id);
-      if (!el?.checked) continue;
-      const extraText = dc.id === 'dash-other' ? (document.getElementById('cn-c-dashboard')?.value.trim() || '') : '';
-      const taskTitle = `${prefix} – ${dc.title}${extraText ? ': ' + extraText : ''}`;
-      const isDriverCol = !colToAssigned[dc.col];
-      const label      = dc.col;
-      const assignedTo = isDriverCol ? dc.col : colToAssigned[dc.col];
-      await _addDoc(_colRef('tasks'), { title: taskTitle, assignedTo, label, status: 'open', createdBy: driverName, createdAt: _serverTs() });
-    }
   }
 }
 
