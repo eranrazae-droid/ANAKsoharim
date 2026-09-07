@@ -831,9 +831,12 @@ async function submitCollectPickup() {
 }
 window.submitCollectPickup = submitCollectPickup;
 
-/* התראה למשה על כל רכב שנאסף — אצלו זה הסימן להתקדם לרכב הבא.
+/* התראה למשה על רכב של כלמוביל שנאסף — אצלו זה הסימן להתקדם לרכב
+   הבא. רכבים של יורודרייב אינם נשלחים.
    נשלחת ברקע: כישלון בטלגרם לא מעכב ולא מבטל את האיסוף עצמו. */
+const _NOTIFY_COLLECTED_SOURCE = 'כלמוביל';
 async function _notifyPickupCollected(car, collectedByText) {
+  if ((car?.source || '') !== _NOTIFY_COLLECTED_SOURCE) return;
   try {
     const contacts = await _loadDriverContacts();
     const chatId = contacts['משה']?.telegramId;
