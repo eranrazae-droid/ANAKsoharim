@@ -839,7 +839,8 @@ async function _notifyPickupCollected(car, collectedByText) {
     const chatId = contacts['משה']?.telegramId;
     if (!chatId) return;
     const lines = [
-      '✅ רכב נאסף',
+      // שם החברה בכותרת, כדי שיהיה ברור מיד מאיפה נאסף הרכב
+      car.source ? `✅ רכב נאסף · ${car.source}` : '✅ רכב נאסף',
       `🚗 ${car.plate || ''} ${[car.type, car.year].filter(Boolean).join(' · ')}`.trim(),
       [car.address, _pickupCity(car)].filter(Boolean).join(', '),
       // מה שהוקלד בשדה "על ידי מי נאסף הרכב" — לא איש הקשר של הכתובת
