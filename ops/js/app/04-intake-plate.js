@@ -622,6 +622,15 @@ window.archiveRefresh = archiveRefresh;
    הקליטה בפועל.                                                      */
 const _TASK_RULE_COLS = ['משימות כלליות', 'רפד', 'זגג', 'חביב', 'ולאדי', 'גיל', 'רדארים', 'מוסך', 'הנהג הקולט'];
 const _RULE_DRIVER_COL = 'הנהג הקולט';
+// אותם צבעים בדיוק שיש לכרטיסייה בלוח המשימות
+const _TASK_RULE_COLORS = [
+  { v: '',       label: 'ללא צבע', css: '#e2e8f0' },
+  { v: 'red',    label: 'אדום',    css: '#ef4444' },
+  { v: 'green',  label: 'ירוק',    css: '#22c55e' },
+  { v: 'yellow', label: 'צהוב',    css: '#eab308' },
+  { v: 'purple', label: 'סגול',    css: '#a855f7' },
+  { v: 'blue',   label: 'כחול',    css: '#3b82f6' },
+];
 
 const _INTAKE_RULE_DEFS = [
   { key: 'c-oil',          g: 'בדיקות חוץ', name: 'שמן מנוע',                    col: 'משימות כלליות', title: 'שמן מנוע' },
@@ -647,7 +656,6 @@ const _INTAKE_RULE_DEFS = [
   { key: 'dash-check-engine',  g: 'מנורות לוח שעונים', name: 'צ׳ק אנג׳ין',    col: 'משימות כלליות', title: 'מנורת צ׳ק אנג׳ין', sub: 'c-dashboard' },
   { key: 'dash-service',       g: 'מנורות לוח שעונים', name: 'מנורת טיפול',   col: 'משימות כלליות', title: 'מנורת טיפול',      sub: 'c-dashboard' },
   { key: 'dash-collision',     g: 'מנורות לוח שעונים', name: 'מנורת התנגשות', col: 'רדארים',        title: 'מנורת התגשות',     sub: 'c-dashboard' },
-  { key: 'dash-fuel',          g: 'מנורות לוח שעונים', name: 'מנורת דלק',     col: _RULE_DRIVER_COL, title: 'מנורת דלק',        sub: 'c-dashboard' },
   { key: 'dash-istop',         g: 'מנורות לוח שעונים', name: 'iStop',         col: 'משימות כלליות', title: 'iStop',            sub: 'c-dashboard' },
   { key: 'dash-other',         g: 'מנורות לוח שעונים', name: 'אחר',           col: 'משימות כלליות', title: 'מנורות לוח שעונים – אחר', sub: 'c-dashboard' },
 ];
@@ -667,6 +675,7 @@ async function _loadIntakeRules(force) {
       ...d,
       col:   s.col   !== undefined ? s.col   : d.col,
       title: s.title !== undefined ? s.title : d.title,
+      color: s.color !== undefined ? s.color : (d.color || ''),
       on:    s.on    !== undefined ? !!s.on  : !d.off,
     };
   });
@@ -712,6 +721,7 @@ function _renderIntakeRules() {
             <span class="n">${esc(r.name)}${r.sub ? ' <span class="ir-sub">תת־סעיף</span>' : ''}</span>
             <span class="t">${r.on ? 'מלל: ' + esc(r.title) : 'לא נוצרת משימה'}</span>
           </span>
+          ${r.on && r.color ? `<span class="ir-dot" style="background:${(_TASK_RULE_COLORS.find(c => c.v === r.color) || {}).css || 'transparent'}"></span>` : ''}
           <span class="ir-col ${_rulesColClass(r.col, r.on)}">${r.on ? esc(r.col) : 'כבוי'}</span>
           <span class="ir-caret">▼</span>
         </button>
@@ -728,9 +738,14 @@ function _renderIntakeRules() {
           <div class="ir-field"><label>מלל המשימה</label>
             <input class="ir-text" value="${esc(r.title)}" oninput="rulesSetTitle(${i}, this.value)">
           </div>
+          <div class="ir-field"><label>צבע הכרטיסייה בלוח</label>
+            <div class="ir-colors">${_TASK_RULE_COLORS.map(c =>
+              `<button type="button" class="ir-color${(r.color || '') === c.v ? ' on' : ''}" title="${esc(c.label)}"
+                style="background:${c.css}${c.v ? '' : ';border-style:dashed'}" onclick="rulesSetColor(${i},'${c.v}')"></button>`).join('')}</div>
+          </div>
           <div class="ir-prev">
             <div class="cap">כך תיראה המשימה בלוח</div>
-            <div class="ir-card">
+            <div class="ir-card${r.color ? ' c-' + r.color : ''}">
               <div class="t"><span class="v">31123102 מ.ג EHS PHEV</span> – ${esc(r.title)}<span class="v">: ההערה של הנהג</span></div>
               <div class="m"><span class="tg">👤 ${esc(r.col === _RULE_DRIVER_COL ? 'הנהג שקלט' : r.col)}</span><span class="tg">⏳ פתוחה</span></div>
             </div>
@@ -745,6 +760,8 @@ function _renderIntakeRules() {
 function rulesToggleOpen(i) { _rulesOpen = (_rulesOpen === i ? null : i); _renderIntakeRules(); }
 function rulesToggleOn(i)   { _rulesDraft[i].on = !_rulesDraft[i].on; _renderIntakeRules(); }
 function rulesSetCol(i, c)  { _rulesDraft[i].col = c; _renderIntakeRules(); }
+function rulesSetColor(i, c) { _rulesDraft[i].color = c; _renderIntakeRules(); }
+window.rulesSetColor = rulesSetColor;
 function rulesSetTitle(i, v) {
   // לא מציירים מחדש תוך כדי הקלדה, כדי לא לאבד את הסמן
   _rulesDraft[i].title = v;
@@ -765,7 +782,7 @@ async function saveIntakeRules() {
   if (btn) { btn.disabled = true; btn.textContent = '⏳ שומר...'; }
   try {
     const rules = {};
-    for (const r of _rulesDraft) rules[r.key] = { col: r.col, title: r.title, on: !!r.on };
+    for (const r of _rulesDraft) rules[r.key] = { col: r.col, title: r.title, color: r.color || '', on: !!r.on };
     await window._setDoc(_docRef('config', 'intake_task_rules'), { rules, updatedAt: _serverTs(), updatedBy: currentUser?.name || '' }, { merge: true });
     _intakeRulesCfg = null;            // הטעינה הבאה תיקח את החדש
     showToast('✅ ההגדרות נשמרו');
@@ -1629,6 +1646,7 @@ async function createIntakeTasks(checklist, allNotes, vehicle, photoUrls) {
     await _addDoc(_colRef('tasks'), {
       title: taskTitle, assignedTo, label: col, status: 'open',
       createdBy: driverName, createdAt: _serverTs(),
+      ...(rule.color ? { color: rule.color } : {}),
       ...(photos.length ? { photos } : {}),
     });
   }
