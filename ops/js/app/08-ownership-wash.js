@@ -1075,10 +1075,12 @@ window.washSaveAndPrint = washSaveAndPrint;
    ומדפיסה — ומשתמשת באותו נוסח ובאותה שמירה כמו הטופס הרגיל, כדי
    שהפתק ייראה זהה ויופיע גם בסיכום ובהיסטוריה. */
 let _washQuick = null;
+let _washQuickIntake = '';
 
-function openWashForVehicle(plate, maker, model, year, color) {
+function openWashForVehicle(plate, maker, model, year, color, intakeId) {
   _washQuick = { plate: String(plate || ''), maker: maker || '', model: model || '',
                  year: year || '', color: color || '', type: '' };
+  _washQuickIntake = intakeId || '';   // הקליטה שממנה יצא הפתק, אם יש
   const head = document.getElementById('wash-quick-veh');
   if (head) head.textContent = [_washQuick.plate, [maker, model, year, color].filter(Boolean).join(' · ')]
     .filter(Boolean).join(' — ');
@@ -1114,9 +1116,31 @@ function washQuickPrint() {
   f.desc = [f.maker, f.model, f.subModel, f.color, f.year].filter(Boolean).join(' ');
   const btn = document.getElementById('wash-quick-print');
   if (btn) btn.disabled = true;
+  const intakeId = _washQuickIntake;
+  const type = f.type;
   washPrintNote(f, async () => {
     try { await _washStore(f); showToast('✅ הפתק נשמר'); }
     catch (e) { console.error('wash store', e); showToast('ההדפסה בוצעה, אבל השמירה נכשלה', 6000); }
+    /* מסמנים על הקליטה שהוצא פתק. הנהג רואה את זה מיד — גם בכרטיס
+       ברשימה וגם בתוך הטופס הפתוח, דרך המאזין החי שכבר קיים. */
+    if (intakeId) {
+      try {
+        await window._updateDoc(_docRef('intake_assignments', intakeId), {
+          washRequest: { type, at: new Date().toISOString(), by: currentUser?.name || '' }
+        });
+      } catch (e) { console.error('wash request flag', e); }
+      /* ג — התראה שתקפוץ לנהג בכניסה הבאה לאפליקציה, למקרה שהוא
+         בכלל לא פתוח עכשיו. אותו מנגנון שכבר משמש שאר ההתראות. */
+      try {
+        // נקרא מהמסמך עצמו ולא ממטמון, כדי שזה יעבוד גם כשהרשימה לא נטענה
+        const snap = await window._getDoc(_docRef('intake_assignments', intakeId));
+        const drv = snap.exists() ? snap.data().assignedTo : '';
+        if (drv) await _addDoc(_colRef('driver_notifications'), {
+          to: drv, seen: false, createdAt: _serverTs(),
+          message: `🧽 נדרש שטיפה — ${f.plate} · ${type}`
+        });
+      } catch (e) { console.error('wash driver notify', e); }
+    }
     if (btn) btn.disabled = false;
     closeModal('modal-wash-quick');
   });

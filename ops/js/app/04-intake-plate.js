@@ -858,7 +858,7 @@ function _renderIntakeList(all) {
           <div class="ic-side">
             ${st === 'pending' ? _intakeBottle(v) : ''}
             <div class="ic-actions">
-            <button class="ic-btn" onclick="openWashForVehicle('${esc(v.plate)}','${esc(v.brand||'')}','${esc(v.model||'')}','${esc(v.year||'')}','${esc(v.color||'')}')" style="background:#0d9488;color:#fff;">🧽 פתק לשטיפה</button>
+            <button class="ic-btn" onclick="openWashForVehicle('${esc(v.plate)}','${esc(v.brand||'')}','${esc(v.model||'')}','${esc(v.year||'')}','${esc(v.color||'')}','${v.id}')" style="background:#0d9488;color:#fff;">🧽 פתק לשטיפה</button>
             ${st === 'pending' ? `<button class="ic-btn" onclick="resendIntakeNotify('${esc(v.assignedTo)}','${esc(v.plate)}','${esc(v.brand||'')}','${esc(v.model||'')}')" style="background:#25d366;color:#fff;">📲 שלח התראה</button>` : ''}
             ${st === 'pending' ? `<button class="ic-btn" onclick="openEditIntake('${v.id}')" style="background:#6366f1;color:#fff;">✏️ עריכה</button>` : ''}
             ${v.previousIntake ? `<button class="ic-btn" onclick="restorePrevIntake('${v.id}')" style="background:#0d9488;color:#fff;">↩️ שחזר קליטה קודמת</button>` : ''}
@@ -871,10 +871,12 @@ function _renderIntakeList(all) {
       </div>`;
     } else {
       if (st !== 'pending') return '';
+      const wr = v.washRequest;
       return `<div class="vehicle-card" style="border-right:5px solid ${color};cursor:pointer" onclick="openDriverIntake('${v.id}')">
         <div style="display:flex;justify-content:space-between;align-items:center">
           <div>
             <span class="tag" style="background:#0ea5e9;color:#fff;margin-bottom:4px">🚗 קליטה</span>
+            ${wr ? `<span class="tag" style="background:#0284c7;color:#fff;margin-bottom:4px">🧽 נדרש שטיפה — ${esc(wr.type || '')}</span>` : ''}
             <div class="vehicle-plate">${esc(v.plate)}</div>
             <div class="vehicle-info">${[v.brand,v.model,v.year].filter(Boolean).map(esc).join(' ')}</div>
             ${v.spot ? `<div style="font-size:13px;font-weight:700;color:var(--dark);margin-top:4px">🅿️ חניה ${esc(v.spot)}</div>` : ''}
@@ -1179,6 +1181,8 @@ function openDriverIntake(id) {
   if (_diLiveUnsub) { _diLiveUnsub(); _diLiveUnsub = null; }
   _diLastEdit = 0; _diAppliedAt = 0;
   const _lb = document.getElementById('di-live-banner'); if (_lb) _lb.style.display = 'none';
+  // קליטה חדשה מתחילה בלי באנר; אם יש בקשת שטיפה — המאזין החי ידליק אותו
+  try { _diShowWashBanner(null); } catch (e) {}
   const _sb = document.querySelector('#modal-driver-intake .btn-submit'); if (_sb) _sb.style.display = '';
   // clear checklist
   document.querySelectorAll('#modal-driver-intake .ci-box').forEach(b => b.classList.remove('v-active','x-active'));
@@ -1247,6 +1251,9 @@ function openDriverIntake(id) {
       if (_currentIntakeId !== id) return;      // נפתחה קליטה אחרת בינתיים
       _diLiveUnsub = onSnapshot(doc(window._db, 'intake_assignments', id), snap => {
         if (!snap.exists() || _currentIntakeId !== id) return;
+        /* הבאנר נבדק לפני ההגנה על ההקלדה: הוא אינו נוגע בנתוני הטופס,
+           ולכן אין סיבה לעכב אותו כשהנהג באמצע מילוי. */
+        try { _diShowWashBanner(snap.data().washRequest); } catch (e) {}
         if (Date.now() - _diLastEdit < 3000) return;       // המשתמש מקליד עכשיו
         const v = snap.data();
         const remoteAt = v.liveUpdatedAt ? Date.parse(v.liveUpdatedAt) : 0;
@@ -1263,6 +1270,19 @@ function openDriverIntake(id) {
     el.addEventListener('input', saveIntakeDraft, { signal: _intakeInputController.signal });
   });
 }
+
+/* הבאנר שמודיע לנהג שהוצא לרכב פתק שטיפה. נקרא גם בפתיחת הטופס
+   וגם מהמאזין החי, כדי שיופיע מיד גם באמצע מילוי. */
+function _diShowWashBanner(wr) {
+  const b = document.getElementById('di-wash-banner');
+  if (!b) return;
+  if (!wr || !wr.type) { b.style.display = 'none'; b.innerHTML = ''; return; }
+  const when = wr.at ? new Date(wr.at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : '';
+  b.innerHTML = `<div style="font-weight:900;font-size:14.5px">🧽 נא לקחת את הרכב לשטיפה — ${esc(wr.type)}</div>` +
+    `<div style="font-size:12px;font-weight:700;margin-top:3px;opacity:.85">${esc(wr.by || '')}${when ? ' · ' + when : ''}</div>`;
+  b.style.display = 'block';
+}
+window._diShowWashBanner = _diShowWashBanner;
 
 const _ciLabels = {
   'c-battery-original':'בדיקת מצבר','c-battery-is-original':'מצבר מקורי',

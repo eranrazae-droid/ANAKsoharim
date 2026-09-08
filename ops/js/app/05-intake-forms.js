@@ -424,6 +424,7 @@ async function openManagerIntakeLive(id) {
         if (!snap.exists()) return;
         const v = snap.data();
         _currentIntakeVehicle = v;
+        try { _diShowWashBanner(v.washRequest); } catch (e) {}
         document.getElementById('di-title').textContent = `👁️ מעקב קליטה – ${v.plate}`;
         document.getElementById('di-vehicle-info').innerHTML =
           `<strong>${esc(v.plate)}</strong> &nbsp;${[v.brand,v.model,v.color,v.year ? 'שנת '+v.year : ''].filter(Boolean).map(esc).join(' • ')}`;
