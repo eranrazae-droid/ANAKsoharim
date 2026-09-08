@@ -1356,6 +1356,9 @@ function dinvSearch(v) {
   if (box && box.value !== _dinvQuery) box.value = _dinvQuery;
   const clr = document.getElementById('dinv-search-clear');
   if (clr) clr.style.display = _dinvQuery ? 'block' : 'none';
+  // בחיפוש כל שורה על המסך יקרה — כפתור הסידור מתפנה
+  const sortBtn = document.getElementById('dinv-sort-btn');
+  if (sortBtn) sortBtn.style.display = _dinvQuery ? 'none' : 'block';
   const headers = JSON.parse(document.getElementById('dinv-headers-cache')?.value || '[]');
   renderDriverInvModal(headers);
   // הסימון חוזר לשורת החיפוש כדי שאפשר יהיה להמשיך להקליד
@@ -1420,6 +1423,37 @@ function renderDriverInvModal(headers) {
     cnt.style.display = _dinvQuery ? 'block' : 'none';
     cnt.textContent = `${order2.length} מתוך ${_driverInvRows.length} רכבים`;
   }
+
+  /* בחיפוש הטבלה הרחבה מתחלפת בכרטיסים גדולים: המקלדת תופסת חצי
+     מסך, ובחלק שנשאר צריך לראות את הרכב ולסמן אותו בלי לגלול ובלי
+     לכוון לכפתור זעיר. */
+  if (_dinvQuery) {
+    const cardHtml = order2.map(i => {
+      const item = _driverInvRows[i];
+      const plate = plateIdx >= 0 ? String(item.cells[plateIdx] ?? '') : '';
+      const rest = order.filter(x => x !== plateIdx).map(x => String(item.cells[x] ?? '').trim()).filter(Boolean).join(' · ');
+      const border = item.status ? (item.status === 'v' ? '#22c55e' : '#ef4444') : 'var(--border)';
+      const bg = item.status === 'v' ? '#f0fff4' : item.status === 'x' ? '#fff0f0' : 'var(--card)';
+      const btn = (val, on, sym, color) =>
+        `<button onmousedown="event.preventDefault()" onclick="dinvClick(${i},'${val}')"
+          style="flex:1;height:52px;border-radius:11px;border:2px solid ${on ? color : '#ccc'};background:${on ? color : '#f9f9f9'};
+          font-size:23px;font-weight:900;cursor:pointer;color:${on ? '#fff' : '#555'}">${sym}</button>`;
+      return `<div id="dinv-row-${i}" style="border:2px solid ${border};border-radius:12px;background:${bg};padding:9px 11px;margin-bottom:7px;direction:rtl">
+        <div style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;margin-bottom:8px">
+          <span style="font-size:21px;font-weight:900;direction:ltr">${esc(plate)}</span>
+          <span style="font-size:12.5px;font-weight:700;color:var(--muted);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(rest)}</span>
+        </div>
+        <div style="display:flex;gap:8px">
+          ${btn('v', item.status === 'v', '✓', '#22c55e')}
+          ${btn('x', item.status === 'x', '✕', '#ef4444')}
+        </div>
+      </div>`;
+    }).join('');
+    document.getElementById('dinv-rows-container').innerHTML = cardHtml ||
+      '<div style="text-align:center;padding:22px 12px;color:var(--muted);font-size:14px;font-weight:700">אין רכב שמתחיל בספרות האלה</div>';
+    return;
+  }
+
   html += order2.map(i => {
     const item = _driverInvRows[i];
     const orderedCells = reorder(item.cells);
@@ -1450,7 +1484,24 @@ function dinvClick(idx, val) {
   const headers = JSON.parse(document.getElementById('dinv-headers-cache').value || '[]');
   renderDriverInvModal(headers);
   document.getElementById(`dinv-row-${idx}`)?.scrollIntoView({ block: 'nearest' });
+  /* סימון רכב שנמצא בחיפוש מנקה את השורה לרכב הבא — זה הקצב בשטח:
+     מקלידים ספרות, מסמנים, ומיד ממשיכים לרכב הבא. */
+  if (_dinvQuery && _driverInvRows[idx].status) {
+    const plate = _dinvPlateOf(idx);
+    _dinvQuery = '';
+    if (box) box.value = '';
+    if (clr2()) clr2().style.display = 'none';
+    const sb = document.getElementById('dinv-sort-btn'); if (sb) sb.style.display = 'block';
+    renderDriverInvModal(headers);
+    showToast(`${plate} סומן ${val === 'v' ? '✓' : '✕'}`, 1800);
+  }
   if (hadFocus && box) { box.focus(); try { box.setSelectionRange(box.value.length, box.value.length); } catch (e) {} }
+}
+function clr2() { return document.getElementById('dinv-search-clear'); }
+function _dinvPlateOf(idx) {
+  const headers = JSON.parse(document.getElementById('dinv-headers-cache')?.value || '[]');
+  const pi = _dinvPlateIdx(headers);
+  return pi >= 0 ? String(_driverInvRows[idx].cells[pi] ?? '') : '';
 }
 
 function dinvMarkAll(val) {
