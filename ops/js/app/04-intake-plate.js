@@ -660,6 +660,37 @@ const _INTAKE_RULE_DEFS = [
   { key: 'dash-other',         g: 'מנורות לוח שעונים', name: 'אחר',           col: 'משימות כלליות', title: 'מנורות לוח שעונים – אחר', sub: 'c-dashboard' },
 ];
 
+/* סעיפים שהוסרו מטופס הקליטה. הם נשמרים כאן ולא נמחקים לגמרי כדי
+   ששני דברים ימשיכו לעבוד: קליטות ישנות שכבר רשמו אותם עדיין מוצגות
+   נכון, וטופס נסיעת המבחן מסתיר אותם אוטומטית — כך שאין צורך לזכור
+   להוריד סעיף פעמיים. להוריד סעיף נוסף? מוסיפים אותו לרשימה הזאת. */
+const _INTAKE_REMOVED_KEYS = ['dash-tire-pressure', 'dash-fuel'];
+
+// מה בטופס נסיעת המבחן מקביל לאיזה סעיף בקליטה
+const _TD_TO_INTAKE = {
+  'td-oil':'c-oil', 'td-coolant':'c-coolant', 'td-glass':'c-glass-break',
+  'td-windows':'c-windows', 'td-mirrors':'c-mirrors', 'td-sunroof':'c-sunroof',
+  'td-lights':'c-lights-break', 'td-lights-burnt':'c-bulbs', 'td-ac':'c-ac',
+  'td-ac-noise':'c-ac-noise', 'td-dashboard':'c-dashboard',
+  'td-dash-engine':'dash-check-engine', 'td-dash-tire':'dash-tire-pressure',
+  'td-dash-service':'dash-service', 'td-dash-collision':'dash-collision',
+  'td-dash-fuel':'dash-fuel', 'td-dash-istop':'dash-istop', 'td-dash-other':'dash-other',
+};
+
+/* מסתיר בנסיעת המבחן כל סעיף שהוסר מהקליטה. נקרא בכל פתיחה של הטופס,
+   ולכן די להוסיף מפתח לרשימה שלמעלה כדי שייעלם בשני המקומות. */
+function _tdHideRemoved() {
+  for (const [tdId, key] of Object.entries(_TD_TO_INTAKE)) {
+    if (!_INTAKE_REMOVED_KEYS.includes(key)) continue;
+    const el = document.getElementById(tdId);
+    if (!el) continue;
+    const row = el.closest('label') || el.closest('.checklist-item') || el.parentElement;
+    if (row) row.style.display = 'none';
+    if (el.type === 'checkbox') el.checked = false;
+  }
+}
+window._tdHideRemoved = _tdHideRemoved;
+
 // ההגדרות שהמנהל שמר, נטענות פעם אחת ומרועננות אחרי כל שמירה
 let _intakeRulesCfg = null;
 async function _loadIntakeRules(force) {

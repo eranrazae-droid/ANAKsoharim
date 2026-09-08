@@ -1103,6 +1103,7 @@ window._tdMountedOnHome = _tdMountedOnHome;
 
 let _tdUnsub = null;
 function _tdLoadList() {
+  try { _tdHideRemoved(); } catch (e) {}   // סעיפים שהוסרו מהקליטה
   document.getElementById('td-user-badge').textContent = currentUser.name;
   const isManager = currentUser.role === 'manager';
   document.getElementById('td-fab-new').style.display = isManager ? '' : 'none';
@@ -1244,6 +1245,7 @@ async function submitNewTestDrive() {
 window.submitNewTestDrive = submitNewTestDrive;
 
 function openFillTestDriveModal(id) {
+  try { _tdHideRemoved(); } catch (e) {}   // סעיפים שהוסרו מהקליטה
   const f = _tdAllForms.find(x => x.id === id);
   if (!f) return;
   document.getElementById('tdf-id').value = id;
@@ -1638,6 +1640,7 @@ function toggleTdLivePanelMin(force) {
 window.toggleTdLivePanelMin = toggleTdLivePanelMin;
 
 function openTdLivePanel(id, initialData) {
+  try { _tdHideRemoved(); } catch (e) {}   // סעיפים שהוסרו מהקליטה
   if (_tdLivePanelUnsub) { _tdLivePanelUnsub(); _tdLivePanelUnsub = null; }
   _tdLivePanelId = id;
   localStorage.setItem('anak_td_mgr_panel', id);
