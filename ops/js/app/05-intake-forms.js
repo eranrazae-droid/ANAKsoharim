@@ -1313,6 +1313,12 @@ function _dinvSaveProgress() {
   localStorage.setItem('_dinvProgress_' + _driverInvDocId, JSON.stringify(statuses));
 }
 
+function closeDriverInvModal() {
+  closeModal('modal-driver-inv');
+  try { _dinvFitToKeyboard(); } catch (e) {}     // מחזיר את החלונית למקומה
+}
+window.closeDriverInvModal = closeDriverInvModal;
+
 function openDriverInvModal(docId) {
   _onSnap(_docRef('inventory_assignments', docId), snap => {
     if (!snap.exists()) return;
@@ -1332,6 +1338,7 @@ function openDriverInvModal(docId) {
     if (sortBtn) sortBtn.textContent = '↕️ סדר הכל';
     renderDriverInvModal(data.headers || []);
     openModal('modal-driver-inv');
+    _dinvWatchKeyboard();
   });
 }
 
@@ -1350,17 +1357,60 @@ function _dinvMatches(row, plateIdx) {
   return plate.indexOf(_dinvQuery) === 0;
 }
 
+/* המקלדת מכסה את תחתית המסך, אבל הדפדפן לא מקטין בשבילה את החלונית
+   — ולכן ראש החלונית, ובו שורת החיפוש והתוצאות, נדחף אל מחוץ למסך.
+   כאן החלונית מוגבלת לגובה שבאמת נשאר גלוי, וכך היא יושבת מעל
+   המקלדת: החיפוש והתוצאות למעלה, המקלדת למטה.                     */
+let _dinvVVBound = false;
+function _dinvFitToKeyboard() {
+  const ov = document.getElementById('modal-driver-inv');
+  const box = ov && ov.querySelector('.modal-box');
+  if (!box) return;
+  const reset = () => {
+    ov.style.alignItems = ''; ov.style.paddingTop = '';
+    box.style.maxHeight = ''; box.style.borderRadius = '';
+  };
+  if (!ov.classList.contains('open')) return reset();
+  const vv = window.visualViewport;
+  if (!vv) return;
+  // המקלדת פתוחה כשהשטח הגלוי קטן משמעותית מגובה החלון
+  const kbUp = vv.height < window.innerHeight - 120;
+  if (!kbUp) return reset();
+  /* החלונית היא בדרך כלל "מגירה" שנפתחת מלמטה, ולכן כשהמקלדת עולה
+     ראשה — ובו החיפוש והתוצאות — נדחף אל מחוץ למסך. כאן היא נצמדת
+     לראש השטח הגלוי ומוגבלת לגובהו. */
+  ov.style.alignItems = 'flex-start';
+  ov.style.paddingTop = Math.round(vv.offsetTop) + 'px';
+  box.style.maxHeight = Math.round(vv.height - 8) + 'px';
+  box.style.borderRadius = '0 0 24px 24px';
+  _dinvScrollTop();
+}
+function _dinvWatchKeyboard() {
+  if (_dinvVVBound || !window.visualViewport) return;
+  _dinvVVBound = true;
+  window.visualViewport.addEventListener('resize', () => { try { _dinvFitToKeyboard(); } catch (e) {} });
+}
+
+/* מחזיר את אזור הגלילה לראש, כדי שהתוצאה הראשונה תשב מיד מתחת
+   לשורת החיפוש ולא איפה שהנהג היה גלול קודם. */
+function _dinvScrollTop() {
+  const c = document.getElementById('dinv-rows-container');
+  let box = c;
+  while (box && box !== document.body) {
+    if (box.scrollHeight > box.clientHeight + 2) box.scrollTop = 0;
+    box = box.parentElement;
+  }
+}
+
 function dinvSearch(v) {
   _dinvQuery = String(v || '').replace(/\D/g, '');
   const box = document.getElementById('dinv-search');
   if (box && box.value !== _dinvQuery) box.value = _dinvQuery;
   const clr = document.getElementById('dinv-search-clear');
   if (clr) clr.style.display = _dinvQuery ? 'block' : 'none';
-  // בחיפוש כל שורה על המסך יקרה — כפתור הסידור מתפנה
-  const sortBtn = document.getElementById('dinv-sort-btn');
-  if (sortBtn) sortBtn.style.display = _dinvQuery ? 'none' : 'block';
   const headers = JSON.parse(document.getElementById('dinv-headers-cache')?.value || '[]');
   renderDriverInvModal(headers);
+  try { _dinvFitToKeyboard(); } catch (e) {}
   // הסימון חוזר לשורת החיפוש כדי שאפשר יהיה להמשיך להקליד
   if (box) { box.focus(); try { box.setSelectionRange(box.value.length, box.value.length); } catch (e) {} }
 }
@@ -1424,36 +1474,6 @@ function renderDriverInvModal(headers) {
     cnt.textContent = `${order2.length} מתוך ${_driverInvRows.length} רכבים`;
   }
 
-  /* בחיפוש הטבלה הרחבה מתחלפת בכרטיסים גדולים: המקלדת תופסת חצי
-     מסך, ובחלק שנשאר צריך לראות את הרכב ולסמן אותו בלי לגלול ובלי
-     לכוון לכפתור זעיר. */
-  if (_dinvQuery) {
-    const cardHtml = order2.map(i => {
-      const item = _driverInvRows[i];
-      const plate = plateIdx >= 0 ? String(item.cells[plateIdx] ?? '') : '';
-      const rest = order.filter(x => x !== plateIdx).map(x => String(item.cells[x] ?? '').trim()).filter(Boolean).join(' · ');
-      const border = item.status ? (item.status === 'v' ? '#22c55e' : '#ef4444') : 'var(--border)';
-      const bg = item.status === 'v' ? '#f0fff4' : item.status === 'x' ? '#fff0f0' : 'var(--card)';
-      const btn = (val, on, sym, color) =>
-        `<button onmousedown="event.preventDefault()" onclick="dinvClick(${i},'${val}')"
-          style="flex:1;height:52px;border-radius:11px;border:2px solid ${on ? color : '#ccc'};background:${on ? color : '#f9f9f9'};
-          font-size:23px;font-weight:900;cursor:pointer;color:${on ? '#fff' : '#555'}">${sym}</button>`;
-      return `<div id="dinv-row-${i}" style="border:2px solid ${border};border-radius:12px;background:${bg};padding:9px 11px;margin-bottom:7px;direction:rtl">
-        <div style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;margin-bottom:8px">
-          <span style="font-size:21px;font-weight:900;direction:ltr">${esc(plate)}</span>
-          <span style="font-size:12.5px;font-weight:700;color:var(--muted);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(rest)}</span>
-        </div>
-        <div style="display:flex;gap:8px">
-          ${btn('v', item.status === 'v', '✓', '#22c55e')}
-          ${btn('x', item.status === 'x', '✕', '#ef4444')}
-        </div>
-      </div>`;
-    }).join('');
-    document.getElementById('dinv-rows-container').innerHTML = cardHtml ||
-      '<div style="text-align:center;padding:22px 12px;color:var(--muted);font-size:14px;font-weight:700">אין רכב שמתחיל בספרות האלה</div>';
-    return;
-  }
-
   html += order2.map(i => {
     const item = _driverInvRows[i];
     const orderedCells = reorder(item.cells);
@@ -1471,7 +1491,13 @@ function renderDriverInvModal(headers) {
       ${orderedCells.map(c => `<div style="font-size:11px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c)}</div>`).join('')}
     </div>`;
   }).join('');
+  if (_dinvQuery && !order2.length) {
+    html = '<div style="text-align:center;padding:22px 12px;color:var(--muted);font-size:14px;font-weight:700">אין רכב שמתחיל בספרות האלה</div>';
+  }
   document.getElementById('dinv-rows-container').innerHTML = html;
+  /* בחיפוש התוצאות חייבות להיות בראש המסך: המקלדת תופסת את החלק
+     התחתון, ומה שנשאר גלוי הוא הרצועה שמתחת לשורת החיפוש. */
+  if (_dinvQuery) _dinvScrollTop();
   document.getElementById('dinv-headers-cache').value = JSON.stringify(headers);
 }
 
@@ -1483,7 +1509,8 @@ function dinvClick(idx, val) {
   _dinvSaveProgress();
   const headers = JSON.parse(document.getElementById('dinv-headers-cache').value || '[]');
   renderDriverInvModal(headers);
-  document.getElementById(`dinv-row-${idx}`)?.scrollIntoView({ block: 'nearest' });
+  // בחיפוש הרשימה קצרה ויושבת בראש המסך — גלילה אליה רק תזיז אותה
+  if (!_dinvQuery) document.getElementById(`dinv-row-${idx}`)?.scrollIntoView({ block: 'nearest' });
   /* סימון רכב שנמצא בחיפוש מנקה את השורה לרכב הבא — זה הקצב בשטח:
      מקלידים ספרות, מסמנים, ומיד ממשיכים לרכב הבא. */
   if (_dinvQuery && _driverInvRows[idx].status) {
@@ -1491,7 +1518,6 @@ function dinvClick(idx, val) {
     _dinvQuery = '';
     if (box) box.value = '';
     if (clr2()) clr2().style.display = 'none';
-    const sb = document.getElementById('dinv-sort-btn'); if (sb) sb.style.display = 'block';
     renderDriverInvModal(headers);
     showToast(`${plate} סומן ${val === 'v' ? '✓' : '✕'}`, 1800);
   }
