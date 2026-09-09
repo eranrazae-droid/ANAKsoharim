@@ -98,35 +98,63 @@ function _pitAddInline(inline) {
   }
 }
 
+/* התשובה מהשרת מגיעה מאות אלפיות שנייה אחרי שהלשונית נפתחת. עד אז
+   הלשונית הציגה את מה שנשאר ב-DOM מהפעם הקודמת — ולכן היא "קפצה".
+   לכן שומרים את התמונה האחרונה שהתקבלה, מציירים אותה מיד בפתיחה,
+   ומציירים מחדש רק כשבאמת יש שינוי. */
+let _pitsLast = null;
+
+function _pitsSetLoading() {
+  _pitAddInline(false);
+  const toolbar = document.getElementById('pits-manager-toolbar');
+  if (toolbar) toolbar.style.display = 'none';
+  const list = document.getElementById('pits-list');
+  if (list) list.innerHTML = '<div style="text-align:center;padding:22px;color:var(--muted);font-weight:700">טוען בדיקות…</div>';
+  const archiveWrap = document.getElementById('pits-archive-wrap');
+  if (archiveWrap) archiveWrap.style.display = 'none';
+}
+
+// כותב ל-DOM רק כשהתוכן באמת שונה — כך ציור חוזר של אותם נתונים
+// אינו גורם להבהוב ואינו מאפס גלילה
+const _setHtml = (el, html) => { if (el && el.innerHTML !== html) el.innerHTML = html; };
+const _setDisp = (el, v)    => { if (el && el.style.display !== v) el.style.display = v; };
+
+function _renderPits(all, isManager) {
+  const list = document.getElementById('pits-list');
+  const archiveWrap = document.getElementById('pits-archive-wrap');
+  const archiveBody = document.getElementById('pits-archive-body');
+  if (!list) return;
+
+  if (isManager) {
+    const active   = all.filter(p => p.status !== 'archived');
+    const archived = all.filter(p => p.status === 'archived');
+    _pitAddInline(active.length === 0);
+    _setHtml(list, active.map(p => _pitCard(p, true, true)).join(''));
+    _setDisp(archiveWrap, archived.length ? 'block' : 'none');
+    _setDisp(document.getElementById('pits-archive-search'), archived.length ? 'block' : 'none');
+    window._pitsArchiveAll = archived;
+    _setHtml(archiveBody, archived.map(p => _pitCard(p, true, false)).join(''));
+  } else {
+    _pitAddInline(false);
+    const items = all.filter(p => p.status === 'pending');
+    _setHtml(list, items.length
+      ? items.map(p => _pitCard(p, false, false)).join('')
+      : `<div class="empty-state"><div class="es-icon">\u{1F573}\uFE0F</div><h3>אין בדיקות ממתינות</h3></div>`);
+    _setDisp(archiveWrap, 'none');
+  }
+}
+
 function loadPits() {
   if (!window._CONFIG_DONE) return;
   if (pitsUnsub) pitsUnsub();
   const isManager = currentUser?.role === 'manager';
+  // מציירים מיד את מה שכבר ידוע, כדי שהלשונית לא תיפתח על תוכן ישן
+  if (_pitsLast) _renderPits(_pitsLast, isManager);
+  else _pitsSetLoading();
   const q = _query(_colRef('pit_checks'), _orderBy('createdAt','desc'));
   pitsUnsub = _onSnap(q, snap => {
-    const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    const list = document.getElementById('pits-list');
-    const archiveWrap = document.getElementById('pits-archive-wrap');
-    const archiveBody = document.getElementById('pits-archive-body');
-
-    if (isManager) {
-      const active   = all.filter(p => p.status !== 'archived');
-      const archived = all.filter(p => p.status === 'archived');
-      _pitAddInline(active.length === 0);
-      list.innerHTML = active.map(p => _pitCard(p, true, true)).join('');
-      if (archiveWrap) archiveWrap.style.display = archived.length ? 'block' : 'none';
-      const archiveSearch = document.getElementById('pits-archive-search');
-      if (archiveSearch) archiveSearch.style.display = archived.length ? 'block' : 'none';
-      window._pitsArchiveAll = archived;
-      if (archiveBody) archiveBody.innerHTML = archived.map(p => _pitCard(p, true, false)).join('');
-    } else {
-      _pitAddInline(false);
-      const items = all.filter(p => p.status === 'pending');
-      list.innerHTML = items.length
-        ? items.map(p => _pitCard(p, false, false)).join('')
-        : `<div class="empty-state"><div class="es-icon">🕳️</div><h3>אין בדיקות ממתינות</h3></div>`;
-      if (archiveWrap) archiveWrap.style.display = 'none';
-    }
+    _pitsLast = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    _renderPits(_pitsLast, isManager);
   });
 }
 
