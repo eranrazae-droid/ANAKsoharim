@@ -78,6 +78,26 @@ function _pitsMountedOnHome() {
 }
 window._pitsMountedOnHome = _pitsMountedOnHome;
 
+// מעביר פיזית את גוף טופס ההוספה בין החלונית לבין המסך.
+// inline=true — אין בדיקות פעילות, הטופס מוצג ישירות במסך.
+function _pitAddInline(inline) {
+  const body    = document.getElementById('pit-add-body');
+  const slotIn  = document.getElementById('pits-inline-slot');
+  const slotMod = document.getElementById('pit-add-slot');
+  const wrap    = document.getElementById('pits-inline-add');
+  const toolbar = document.getElementById('pits-manager-toolbar');
+  if (!body || !slotIn || !slotMod) return;
+  if (inline) {
+    if (body.parentNode !== slotIn) slotIn.appendChild(body);
+    if (wrap) wrap.style.display = 'block';
+    if (toolbar) toolbar.style.display = 'none';
+  } else {
+    if (body.parentNode !== slotMod) slotMod.appendChild(body);
+    if (wrap) wrap.style.display = 'none';
+    if (toolbar) toolbar.style.display = currentUser?.role === 'manager' ? 'flex' : 'none';
+  }
+}
+
 function loadPits() {
   if (!window._CONFIG_DONE) return;
   if (pitsUnsub) pitsUnsub();
@@ -92,15 +112,15 @@ function loadPits() {
     if (isManager) {
       const active   = all.filter(p => p.status !== 'archived');
       const archived = all.filter(p => p.status === 'archived');
-      list.innerHTML = active.length
-        ? active.map(p => _pitCard(p, true, true)).join('')
-        : `<div class="empty-state"><div class="es-icon">🕳️</div><h3>אין בדיקות</h3><p>לחץ + הוסף בדיקה</p></div>`;
+      _pitAddInline(active.length === 0);
+      list.innerHTML = active.map(p => _pitCard(p, true, true)).join('');
       if (archiveWrap) archiveWrap.style.display = archived.length ? 'block' : 'none';
       const archiveSearch = document.getElementById('pits-archive-search');
       if (archiveSearch) archiveSearch.style.display = archived.length ? 'block' : 'none';
       window._pitsArchiveAll = archived;
       if (archiveBody) archiveBody.innerHTML = archived.map(p => _pitCard(p, true, false)).join('');
     } else {
+      _pitAddInline(false);
       const items = all.filter(p => p.status === 'pending');
       list.innerHTML = items.length
         ? items.map(p => _pitCard(p, false, false)).join('')
