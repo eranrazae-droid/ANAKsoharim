@@ -797,17 +797,20 @@ async function _checkDriverNotifications() {
   } catch(e) { console.error('_checkDriverNotifications', e); }
 }
 
+/* מחזירה true רק כשההודעה באמת יצאה, כדי שהקורא יוכל לדווח למשתמש
+   אם מישהו לא קיבל. קוראים ותיקים שמתעלמים מהערך ממשיכים כרגיל. */
 async function _notifyDriver(driverName, message) {
   const contacts = await _loadDriverContacts();
   const c = contacts[driverName];
   // Telegram is free — prefer it whenever a chat id is set
-  if (c?.telegramId) { const ok = await _sendTelegram(c.telegramId, message); if (ok) return; }
-  if (c?.phone) { _sendSms(c.phone, message); return; }
+  if (c?.telegramId) { const ok = await _sendTelegram(c.telegramId, message); if (ok) return true; }
+  if (c?.phone) { _sendSms(c.phone, message); return true; }
   // fallback: if notifying manager ('ליאל') and no contact set, try _managerPhone
   if (driverName === 'ליאל') {
     const mp = contacts['_managerPhone']?.value;
-    if (mp) _sendSms(mp, message);
+    if (mp) { _sendSms(mp, message); return true; }
   }
+  return false;
 }
 
 async function _notifyAllDrivers(message) {

@@ -2102,11 +2102,29 @@ async function msRollConfirm() {
   await window._setDoc(_docRef('morning_starts', payload.day), payload, { merge: true });
   _msToday = payload;
   closeModal('modal-morning-roll');
-  present.forEach(d => {
-    const n = (plan.byDriver[d] || []).length;
-    if (n) _notifyDriver(d, `🔑 הנעות הבוקר — חניות ${_msRange(plan.byDriver[d])}`);
+  /* ההודעה לנהג: היום, האזור, כמה חניות ואילו. נשלחת בטלגרם דרך
+     _notifyDriver, ואם אין טלגרם — ב-SMS. */
+  const dayName = now.toLocaleDateString('he-IL', { weekday: 'long' });
+  const zone = _MS_THIRD_NAMES[plan.third] || '';
+  const jobs = present.map(async d => {
+    const list = plan.byDriver[d] || [];
+    if (!list.length) return { d, skipped: true };
+    const msg = [
+      `🔑 הנעות הבוקר — ${dayName}`,   // toLocaleDateString כבר מחזיר "יום רביעי"
+      zone ? `📍 ${zone}` : '',
+      `🅿️ ${list.length} חניות: ${_msRange(list)}`,
+    ].filter(Boolean).join('\n');
+    let ok = false;
+    try { ok = await _notifyDriver(d, msg); } catch (e) { console.error('ms notify', d, e); }
+    return { d, ok };
   });
-  showToast(`✅ ההנעות חולקו ל-${present.length} נהגים`);
+  const res = await Promise.all(jobs);
+  // מי לא קיבל — נאמר בשמו, כדי שאפשר יהיה להתקשר אליו
+  const failed = res.filter(r => !r.skipped && !r.ok).map(r => r.d);
+  const sent = res.filter(r => !r.skipped && r.ok).length;
+  showToast(failed.length
+    ? `✅ ההנעות חולקו · ההודעה לא הגיעה ל: ${failed.join(', ')}`
+    : `✅ ההנעות חולקו — ${sent} הודעות נשלחו`, failed.length ? 8000 : 4000);
   _msMarkHandled();
   _msSyncHomeAlert();
   _msSyncCard();
