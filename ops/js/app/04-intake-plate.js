@@ -1862,6 +1862,7 @@ function _renderViewIntakeModal(v) {
   const filteredUrls = allUrls.filter(u => !batteryUrls.has(u));
 
   let rows = '';
+  let noteCount = 0;   // כמה הערות יש בקליטה — מוצג כתגית בראש הטופס
   for (const [key, label] of Object.entries(checklistLabels)) {
     const val = cl[key];
     if (!val) continue;
@@ -1900,7 +1901,9 @@ function _renderViewIntakeModal(v) {
           `<div>${v.safetyChecks[id] ? '✅' : '❌'} ${esc(lbl)}</div>` +
           (id === 'sf-spare' ? subRows : '')).join('') + `</div>`;
     }
-    const note = noteText ? `<div style="font-size:12px;color:#555;margin-top:4px">📝 ${esc(noteText)}</div>` : '';
+    if (noteText) noteCount++;
+    // הערה שהנהג כתב על סעיף — מודגשת בענבר כדי שלא תיבלע בטופס
+    const note = noteText ? `<div style="background:#fffbeb;border-right:4px solid #f59e0b;border-radius:8px;padding:7px 10px;margin-top:7px;font-size:13px;font-weight:700;color:#78350f">📝 ${esc(noteText)}</div>` : '';
     // match photos by exact key or any key that starts with the same prefix
     const keyPhotos = key === 'c-battery-original'
       ? [...Object.values(v.batteryPhotoUrls || {}).flat(), ...(photos['c-battery-original'] || [])]
@@ -1925,7 +1928,15 @@ function _renderViewIntakeModal(v) {
 
   const km = v.km ? `<span style="margin-left:16px;background:#fef08a;padding:2px 8px;border-radius:6px;font-weight:700"><strong>ק"מ:</strong> ${esc(v.km)}</span>` : '';
   const code = v.code ? `<span style="background:#fef08a;padding:2px 8px;border-radius:6px;font-weight:700"><strong>קוד:</strong> ${esc(v.code)}</span>` : '';
-  const notes = v.notes ? `<div style="background:#f8f8ff;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:14px">📝 <strong>הערות:</strong> ${esc(v.notes)}</div>` : '';
+  if (v.notes && String(v.notes).trim()) noteCount++;
+  const notes = (v.notes && String(v.notes).trim())
+    ? `<div style="background:#fffbeb;border:2px solid #f59e0b;border-right:7px solid #f59e0b;border-radius:12px;padding:11px 14px;margin-bottom:12px;font-size:14.5px;font-weight:700;color:#78350f">
+         <span style="display:block;font-size:11.5px;font-weight:900;color:#b45309;letter-spacing:.4px;margin-bottom:3px">📝 הערה כללית מהנהג</span>${esc(v.notes)}</div>`
+    : '';
+  // תגית בראש הטופס, כדי שתדע שיש מה לקרוא עוד לפני שגללת
+  const noteBadge = noteCount
+    ? `<br><span style="display:inline-block;background:#f59e0b;color:#3b2200;font-size:11.5px;font-weight:900;border-radius:20px;padding:3px 10px;margin-top:4px">📝 ${noteCount} ${noteCount === 1 ? 'הערה מהנהג' : 'הערות מהנהג'}</span>`
+    : '';
   const evRow = v.isElectric === undefined ? ''
     : v.isElectric
       ? `<div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:14px;font-weight:700;color:#15803d">⚡ רכב חשמלי${v.evCharge !== '' && v.evCharge != null ? ` · אחוז טעינה: ${esc(String(v.evCharge))}%` : ''}${v.evRange ? ` · טווח נסיעה: ${esc(String(v.evRange))} ק״מ` : ''}</div>`
@@ -1942,7 +1953,7 @@ function _renderViewIntakeModal(v) {
     <div style="background:#f0f2ff;border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:13px;line-height:2">
       <strong>${esc(v.plate)}</strong> · ${esc(v.brand||'')} ${esc(v.model||'')} ${esc(v.year||'')}<br>
       צבע: ${esc(v.color||'')} · חניה: ${esc(v.spot||'')}${km ? '<br>' + km + code : ''}<br>
-      נהג קולט: <strong>${esc(v.completedBy||v.assignedTo||'')}</strong> · ${ts}${v.intakeDateTime ? '<br>תאריך קליטה: <strong>' + esc(v.intakeDateTime) + '</strong>' : ''}
+      נהג קולט: <strong>${esc(v.completedBy||v.assignedTo||'')}</strong> · ${ts}${v.intakeDateTime ? '<br>תאריך קליטה: <strong>' + esc(v.intakeDateTime) + '</strong>' : ''}${noteBadge}
     </div>
     ${evRow}
     ${notes}
