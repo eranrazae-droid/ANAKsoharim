@@ -567,6 +567,12 @@ function _renderArchiveSection(archived) {
       ? [v.vehicleType, v.year, v.color].filter(Boolean).map(esc).join(' · ')
       : [v.brand, v.model, v.year].filter(Boolean).map(esc).join(' ');
     const parking = v.spot || v.parking;
+    /* פתק לשטיפה גם מהארכיון. סימון הקליטה והתראה לנהג נשלחים רק
+       כשהקליטה עדיין פעילה — בארכיון אין מי שממלא אותה, ולכן הפתק
+       רק מודפס ונשמר. */
+    const washMaker = isRefresh ? (v.vehicleType || '') : (v.brand || '');
+    const washModel = isRefresh ? '' : (v.model || '');
+    const washIntake = src === 'assignments' ? v.id : '';
     return `<div class="vehicle-card" data-plate="${esc(v.plate)}" style="border-right:5px solid var(--info);margin-bottom:8px">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
         <div>
@@ -583,6 +589,7 @@ function _renderArchiveSection(archived) {
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">
           <span style="background:var(--info,#0ea5e9);color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700">נבדק ✓</span>
           <button onclick="${viewFn}('${v.id}')" style="background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">👁️ צפייה</button>
+          <button onclick="openWashForVehicle('${esc(v.plate)}','${esc(washMaker)}','${esc(washModel)}','${esc(v.year||'')}','${esc(v.color||'')}','${washIntake}')" style="background:#0d9488;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">🧽 פתק לשטיפה</button>
           <button onclick="${delFn}('${v.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">🗑️ מחיקה</button>
         </div>
       </div>
