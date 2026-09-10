@@ -421,7 +421,7 @@ function _bshopJobCard(j, forWorker, held) {
       <button onclick="event.stopPropagation();bsmPrint('${j.id}')"
         style="flex:1;background:var(--dark);color:#fff;border:none;border-radius:10px;padding:11px 6px;font-family:'Heebo',sans-serif;font-size:15px;font-weight:900;cursor:pointer">🖨️ הדפס פתק</button>
     </div>` : ''}
-    ${!held && !forWorker ? `<button onclick="event.stopPropagation();bsmSetHold('${j.id}',true)" title="הוצא מהמסך עד שתחזיר אותו"
+    ${!held && !forWorker && j.status !== 'returned' ? `<button onclick="event.stopPropagation();bsmSetHold('${j.id}',true)" title="הוצא מהמסך עד שתחזיר אותו"
       style="margin-top:8px;width:100%;background:transparent;color:var(--muted);border:2px solid var(--border);border-radius:10px;padding:7px;font-family:'Heebo',sans-serif;font-size:12.5px;font-weight:800;cursor:pointer">⏸️ העבר להמתנה</button>` : ''}
   </div>`;
 }
