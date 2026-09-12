@@ -28,7 +28,9 @@ function balloon50(price){ const p=Number(price||0); return monthlyPmt(p, 4.3, 6
 function carKey(c){ return _mnorm(c&&c.brand) + '|' + _mnorm(c&&c.model) + '|' + String((c&&c.year)||'').trim(); }
 
 exports.handler = async (event) => {
-  const id = event && event.queryStringParameters && event.queryStringParameters.id;
+  // ה-redirect ב-netlify.toml עשוי להעביר את הפרמטר המקורי (car) ולא את המשוכתב (id) - קוראים את שניהם
+  const qp = (event && event.queryStringParameters) || {};
+  const id = qp.id || qp.car;
 
   // תמיד מגישים את ה-HTML הבסיסי; אם יש רכב תקין - מזריקים meta ייחודי.
   let html = '';

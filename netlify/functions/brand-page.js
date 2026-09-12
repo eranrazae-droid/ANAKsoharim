@@ -13,7 +13,11 @@ function fmt(n){ n=Number(n)||0; return n>0 ? n.toLocaleString('en-US') : ''; }
 function cldOpt(url,w){ try{ if(url && url.indexOf('res.cloudinary.com')>=0 && url.indexOf('/upload/')>=0 && url.indexOf('f_auto')<0){ return url.replace('/upload/','/upload/f_auto,q_auto,w_'+w+',c_limit,dpr_auto/'); } }catch(e){} return url; }
 
 exports.handler = async (event) => {
-  const reqBrand = (event.queryStringParameters && event.queryStringParameters.brand) ? decodeURIComponent(event.queryStringParameters.brand).trim() : '';
+  // ה-redirect עשוי להעביר את הנתיב המקורי ולא את פרמטר brand - קוראים משניהם
+  const qp = (event && event.queryStringParameters) || {};
+  let rawBrand = qp.brand || '';
+  if(!rawBrand && event && event.path){ const m = String(event.path).match(/\/brand\/(.+)$/); if(m) rawBrand = m[1]; }
+  const reqBrand = rawBrand ? decodeURIComponent(rawBrand).trim() : '';
   let cars = [];
   try {
     const rows = await fetchJson(SB_URL + '/rest/v1/inventory?id=eq.1&select=data', { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY });
