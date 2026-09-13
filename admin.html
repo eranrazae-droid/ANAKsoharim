@@ -1855,6 +1855,27 @@
       else { _copyFallback(script,ok); }
     }catch(e){ _copyFallback(script,ok); }
   }
+  // תוכן מוכן לפוסט טיקטוק (כיתוב + תיוגים) לרכב ספציפי
+  function copyTikTokPost(id){
+    var list=(typeof cars!=='undefined'&&Array.isArray(cars))?cars:[];
+    var c=list.find(x=>String(x.id)===String(id)); if(!c) return;
+    var name=((c.brand||'')+' '+(c.model||'')).trim();
+    var yr=c.year?(' '+c.year):'';
+    var price=Number(c.autodealerPriceNumber)||0;
+    var monthly=_voMonthly(price);
+    var brandTag=(c.brand||'').replace(/[^0-9A-Za-z֐-׿]/g,'');
+    var deal=monthly>0?('החל מ-'+monthly.toLocaleString('en-US')+'₪ לחודש · בלי מקדמה 🔥'):('במחיר הכי טוב בארץ · בלי מקדמה 🔥');
+    var post='עצרו הכל! '+name+yr+' חדש 0 ק״מ 🚗\n'+
+      deal+'\n'+
+      'מחיר דיל מהיבואן · טרייד-אין · מימון עד 100%\n'+
+      'רוצה גם? שלח לי הודעה 📩👇\n\n'+
+      '#רכבחדש #0קמ '+(brandTag?('#'+brandTag+' '):'')+'#אוטודילר #רכבים #מבצערכב #טרייד_אין #מימוןרכב #דילרכב #רכב0קמ';
+    function ok(){ toast&&toast('הפוסט הועתק ✓ הדבק בטיקטוק'); }
+    try{
+      if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(post).then(ok, function(){ _copyFallback(post,ok); }); }
+      else { _copyFallback(post,ok); }
+    }catch(e){ _copyFallback(post,ok); }
+  }
   // המשימה הבאה האישית - הרכב הבא שצריך פרסום בערוצים של האדם הנבחר
   function renderNextTask(all, who){
     const el=document.getElementById('ptNextTask'); if(!el) return;
@@ -1888,6 +1909,7 @@
       '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+
         '<button onclick="openAds('+next.id+')" style="background:#0d0d0d;color:#fff;border:none;border-radius:10px;padding:10px 18px;font-size:14px;font-weight:800;cursor:pointer">📋 קבל תוכן מוכן</button>'+
         '<button onclick="copyVoiceScript(\''+next.id+'\')" style="background:#7c3aed;color:#fff;border:none;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:800;cursor:pointer">🎙️ טקסט לקול</button>'+
+        '<button onclick="copyTikTokPost(\''+next.id+'\')" style="background:#db2777;color:#fff;border:none;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:800;cursor:pointer">📱 פוסט טיקטוק</button>'+
         '<a href="https://autodealer.co.il/?car='+encodeURIComponent(next.id)+'" target="_blank" style="border:1.5px solid #16a34a;background:#f0fdf4;color:#15803d;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:800;text-decoration:none">🔗 באתר</a>'+
         missing.map(ch=>'<button onclick="togglePub(\''+next.id+'\',\''+ch.key+'\')" style="background:#16a34a;color:#fff;border:none;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:800;cursor:pointer">✓ פרסמתי ב'+_esc(ch.label)+'</button>').join('')+
       '</div>'+
