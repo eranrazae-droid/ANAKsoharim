@@ -2464,6 +2464,21 @@
     const lbl=document.getElementById('fulbl_'+id); if(lbl) lbl.textContent=val?('📅 לחזור: '+fmtFollowup(val)):'';
   }
   // כפתור שמור כללי - שומר את כל שדות הליד ומעביר אותו למיקום הנכון לפי הזמן
+  // העתקת הודעת פולואפ מוכנה (עם שם + רכב) ללוח - להדבקה בוואטסאפ
+  function copyFollowup(id){
+    var l=leads.find(x=>String(x.id)===String(id)); if(!l) return;
+    var car=((l.interest_cars||l.car||'')+'').trim();
+    var msg='היי '+(l.name||'')+', מדבר ערן מאוטודילר 🚗\n'+(car?('בדקתי לך על ה'+car+' שהתעניינת בו — יש לי הצעה ממש טובה.\n'):'יש לי בשבילך הצעה ממש טובה על הרכב שדיברנו עליו.\n')+'עדיין רלוונטי? מוזמן לחזור אליי ונסגור 🙏';
+    function ok(){ toast&&toast('הפולואפ הועתק ✓ הדבק בוואטסאפ'); }
+    try{
+      if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(msg).then(ok, function(){ _copyFallback(msg,ok); }); }
+      else { _copyFallback(msg,ok); }
+    }catch(e){ _copyFallback(msg,ok); }
+  }
+  function _copyFallback(text,cb){
+    try{ var ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.focus(); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); cb&&cb(); }
+    catch(e){ prompt('העתק ידנית:', text); }
+  }
   // תיוג מקור הגעה בלחיצה אחת (נשמר מיד)
   async function setLeadSource(id, src){
     const l=leads.find(x=>String(x.id)===String(id)); if(!l) return;
@@ -2786,6 +2801,9 @@
       const overdue=isFu&&l.followup_at&&!isNaN(new Date(l.followup_at).getTime())&&new Date(l.followup_at).getTime()<now;
       // הודעת "תחזור אלינו" מוכנה לוואטסאפ
       const cbMsg=encodeURIComponent('היי '+(l.name||'')+', ניסינו להשיג אותך מאוטודילר אך לא היית זמין 📞\nנשמח שתחזור אלינו ונמצא לך את הרכב המתאים 🚗');
+      // הודעת פולואפ מוכנה - עם השם והרכב של הלקוח
+      const _fuCar=((l.interest_cars||l.car||'')+'').trim();
+      const fuMsg=encodeURIComponent('היי '+(l.name||'')+', מדבר ערן מאוטודילר 🚗\n'+(_fuCar?('בדקתי לך על ה'+_fuCar+' שהתעניינת בו — יש לי הצעה ממש טובה.\n'):'יש לי בשבילך הצעה ממש טובה על הרכב שדיברנו עליו.\n')+'עדיין רלוונטי? מוזמן לחזור אליי ונסגור 🙏');
       return `<div class="lead-card" style="border-right:4px solid ${overdue?'#dc2626':sc[1]};${closed?'opacity:.55':''}">
         <div style="display:flex;gap:14px;align-items:flex-start">
           <div class="lead-score s-hot" style="font-size:20px">🚗</div>
@@ -2857,6 +2875,10 @@
                style="background:#25D366;color:#fff;padding:9px 14px;border-radius:10px;font-size:13px;font-weight:900;text-decoration:none;white-space:nowrap;text-align:center">📲 וואטסאפ</a>
             <a href="https://wa.me/${waPhone}?text=${cbMsg}" target="_blank"
                style="background:#0d9488;color:#fff;padding:9px 14px;border-radius:10px;font-size:13px;font-weight:900;text-decoration:none;white-space:nowrap;text-align:center">↩️ תחזור אלינו</a>
+            <a href="https://wa.me/${waPhone}?text=${fuMsg}" target="_blank"
+               style="background:#7c3aed;color:#fff;padding:9px 14px;border-radius:10px;font-size:13px;font-weight:900;text-decoration:none;white-space:nowrap;text-align:center">🔄 שלח פולואפ</a>
+            <button onclick="copyFollowup('${l.id}')"
+               style="background:#e9d5ff;color:#6b21a8;border:none;padding:8px 14px;border-radius:10px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap;text-align:center">📋 העתק פולואפ</button>
             <a href="tel:${phone.replace(/[^0-9]/g,'')}"
                style="background:#0d0d0d;color:#fff;padding:9px 14px;border-radius:10px;font-size:13px;font-weight:900;text-decoration:none;white-space:nowrap;text-align:center">📞 חייג</a>
           </div>`:''}
