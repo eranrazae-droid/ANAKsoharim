@@ -1832,18 +1832,23 @@
   function _pubPerson(){ try{ return localStorage.getItem('pubPerson')||'הכל'; }catch(e){ return 'הכל'; } }
   function setPubPerson(p){ try{ localStorage.setItem('pubPerson',p); }catch(e){} renderPubTrack(); }
   // טקסט הקראה (voiceover) מוכן לרכב ספציפי - להזנה לתוכנת קול (~20 שניות)
+  function _voMonthly(price){ var p=Number(price||0); if(!p) return 0; var r=4.3/100/12, f=p*0.5, m=60; return Math.round((p*r - f*r/Math.pow(1+r,m))/(1-Math.pow(1+r,-m))); }
   function copyVoiceScript(id){
     var list=(typeof cars!=='undefined'&&Array.isArray(cars))?cars:[];
     var c=list.find(x=>String(x.id)===String(id)); if(!c) return;
     var name=((c.brand||'')+' '+(c.model||'')).trim();
     var yr=c.year?(' '+c.year):'';
     var price=Number(c.autodealerPriceNumber)||0;
-    var priceLine=price>1?('במחיר דיל, החל מ-'+price.toLocaleString('en-US')+' שקלים, ישר מהיבואן הרשמי.'):('במחיר הכי טוב בארץ, ישר מהיבואן הרשמי.');
-    var script=name+yr+', חדש, אפס קילומטר, מחכה לכם באוטודילר.\n'+
-      priceLine+'\n'+
-      'מימון עד מאה אחוז ללא מקדמה, טרייד אין על הרכב הישן, וליווי אישי עד המפתח.\n'+
-      'רוצים פרטים ומחיר? שלחו לנו הודעה עכשיו.\n'+
-      'אוטודילר. הדיל הנכון לרכב שלכם.';
+    var monthly=_voMonthly(price);
+    // הוק מפוצץ: החזר חודשי נמוך + אפס מקדמה
+    var hook=monthly>0
+      ? ('עצרו הכל! '+name+yr+', חדש, אפס קילומטר — החל מ-'+monthly.toLocaleString('en-US')+' שקל בחודש בלבד!')
+      : ('עצרו הכל! '+name+yr+', חדש, אפס קילומטר, במחיר הכי טוב בארץ!');
+    var script=hook+'\n'+
+      'ובלי מקדמה. כן, אפס שקל מקדמה.\n'+
+      'מחיר דיל ישר מהיבואן הרשמי, טרייד אין על הרכב הישן, וליווי אישי עד המפתח.\n'+
+      'כמות הרכבים מוגבלת — שלחו הודעה עכשיו, לפני שזה נגמר!\n'+
+      'אוטודילר. הדיל הנכון לרכב שלכם. בכפוף לאישור אשראי.';
     function ok(){ toast&&toast('טקסט הקול הועתק ✓ הדבק בתוכנת הקול'); }
     try{
       if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(script).then(ok, function(){ _copyFallback(script,ok); }); }
