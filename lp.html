@@ -58,6 +58,12 @@ fbq('init','1715402413047260');fbq('track','PageView');
   .foot a{color:#D4A017;text-decoration:none}
   .socs{display:flex;gap:12px;justify-content:center;margin-top:12px}
   .socs a{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;text-decoration:none}
+  .callbtn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;background:#111;color:#fff;border:none;border-radius:14px;padding:13px;font-size:16px;font-weight:900;cursor:pointer;margin-top:10px;text-decoration:none}
+  .trust{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 14px;margin-top:14px;font-size:12.5px;color:#6b7280;font-weight:600}
+  .trust span{white-space:nowrap}
+  .fab{position:fixed;bottom:18px;left:18px;z-index:99;display:flex;align-items:center;gap:8px;background:#25D366;color:#fff;border-radius:50px;padding:13px 20px;font-size:16px;font-weight:900;text-decoration:none;box-shadow:0 8px 24px rgba(37,211,102,.5);animation:fabpulse 2s infinite}
+  @keyframes fabpulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+  @media(max-width:600px){.fab{bottom:14px;left:14px;padding:12px 18px;font-size:15px}}
 </style>
 </head>
 <body>
@@ -86,6 +92,8 @@ fbq('init','1715402413047260');fbq('track','PageView');
         <label class="consent"><input id="f_consent" type="checkbox" /><span>אני מאשר/ת שנציג אוטודילר יחזור אליי, ומסכים/ה למדיניות הפרטיות.</span></label>
         <button id="submitBtn" class="submit" onclick="submitLead()">קבלו הצעה עכשיו »</button>
         <a id="waBtn" class="wa" href="#" target="_blank" rel="noreferrer">💬 או דברו איתנו בוואטסאפ</a>
+        <a id="callBtn" class="callbtn" href="tel:0508396030">📞 מעדיפים לדבר? התקשרו עכשיו</a>
+        <div class="trust"><span>⚡ מענה אנושי מהיר</span><span>🔒 הפרטים שלך שמורים</span><span>✅ ללא התחייבות</span></div>
       </div>
       <div id="okBox" class="ok">
         <div class="v">✅</div>
@@ -105,6 +113,7 @@ fbq('init','1715402413047260');fbq('track','PageView');
       אוטודילר · דוד רזיאל 4, ראשון לציון · <a href="tel:0508396030">050-839-6030</a>
     </div>
   </div>
+  <a id="fabWa" class="fab" href="#" target="_blank" rel="noreferrer">💬 דברו איתנו</a>
 
 <script>
   var SB_URL='https://vwfmfjjdusirabgbkhvw.supabase.co';
@@ -121,14 +130,15 @@ fbq('init','1715402413047260');fbq('track','PageView');
     return 'https://wa.me/'+WA+'?text='+encodeURIComponent(t);
   }
   document.getElementById('waBtn').href = waLink('');
+  var _fab=document.getElementById('fabWa'); if(_fab) _fab.href = waLink('');
 
   // Google Ads - מדידת המרה (ליד): נורה בשליחת טופס ובלחיצת וואטסאפ
   function adsConversion(){
     try{ if(typeof gtag==='function') gtag('event','conversion',{'send_to':'AW-18430673644/QPxxCJjQgu8cEOyFt9RE','value':1.0,'currency':'ILS'}); }catch(e){}
     try{ if(window.ttq) ttq.track('SubmitForm'); }catch(e){}
   }
-  // לחיצה על כפתור הוואטסאפ = ליד → נמדד כהמרה
-  var _waBtn=document.getElementById('waBtn'); if(_waBtn) _waBtn.addEventListener('click', adsConversion);
+  // לחיצה על וואטסאפ / חיוג = ליד → נמדד כהמרה
+  ['waBtn','fabWa','callBtn'].forEach(function(id){ var el=document.getElementById(id); if(el) el.addEventListener('click', adsConversion); });
 
   function submitLead(){
     var name=(document.getElementById('f_name').value||'').trim();
