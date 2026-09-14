@@ -1,4 +1,4 @@
-// v380 — force update
+// v381 — force update
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', e => e.waitUntil(clients.claim()));
 

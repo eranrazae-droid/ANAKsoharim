@@ -543,6 +543,10 @@ async function dismissBatteryAlert(id) {
 }
 window.dismissBatteryAlert = dismissBatteryAlert;
 
+/* סגנון אחיד לכפתורי הכרטיס בארכיון — רוחב זהה לכולם מגיע מ-stretch
+   על העמודה, וכאן רק הצורה והטקסט. */
+const _IC_ARC_BTN = "color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap;";
+
 function _renderArchiveSection(archived) {
   const archiveWrap = document.getElementById('intake-archive-wrap');
   const archiveList = document.getElementById('intake-archive-list');
@@ -586,11 +590,11 @@ function _renderArchiveSection(archived) {
           </div>
           ${ts ? `<div class="task-time" style="margin-top:4px">${ts}</div>` : ''}
         </div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">
-          <span style="background:var(--info,#0ea5e9);color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700">נבדק ✓</span>
-          <button onclick="${viewFn}('${v.id}')" style="background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">👁️ צפייה</button>
-          <button onclick="openWashForVehicle('${esc(v.plate)}','${esc(washMaker)}','${esc(washModel)}','${esc(v.year||'')}','${esc(v.color||'')}','${washIntake}')" style="background:#0d9488;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">🧽 פתק לשטיפה</button>
-          <button onclick="${delFn}('${v.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">🗑️ מחיקה</button>
+        <div style="display:flex;flex-direction:column;align-items:stretch;gap:8px;flex-shrink:0">
+          <span style="background:var(--info,#0ea5e9);color:#fff;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:700;text-align:center">נבדק ✓</span>
+          <button onclick="${viewFn}('${v.id}')" style="${_IC_ARC_BTN}background:#0ea5e9">👁️ צפייה</button>
+          <button onclick="openWashForVehicle('${esc(v.plate)}','${esc(washMaker)}','${esc(washModel)}','${esc(v.year||'')}','${esc(v.color||'')}','${washIntake}')" style="${_IC_ARC_BTN}background:#0d9488">🧽 פתק לשטיפה</button>
+          <button onclick="${delFn}('${v.id}')" style="${_IC_ARC_BTN}background:#ef4444">🗑️ מחיקה</button>
         </div>
       </div>
     </div>`;
