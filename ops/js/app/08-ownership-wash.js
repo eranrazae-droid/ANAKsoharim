@@ -825,56 +825,66 @@ function washPrintNotes(list, onDone) {
   for (let i = 0; i < list.length; i += PER) pages.push(list.slice(i, i + PER));
 
   const html = `<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8">
-<title>פתקי שטיפה (${list.length})</title>
+<title>פתקי שטיפה</title>
 <style>
-  /* אותו פתק בדיוק כמו בהדפסה בודדת — אותו נוסח ואותו מבנה. ההבדל
-     היחיד הוא שהעמוד מחולק שווה בשווה בין הפתקים שבו, והכתב מוקטן
-     בהתאם כדי שהכל ייכנס. */
-  @page { size: A4; margin: 8mm; }
+  /* אותו פתק בדיוק כמו בהדפסה בודדת — אותו מבנה ואותו צבע, רק
+     הגדלים קטנים יותר כדי שכמה ייכנסו בעמוד. margin:0 מבטל את
+     הכותרת והכתובת שהדפדפן מדפיס מעצמו. */
+  @page { size: A4; margin: 0; }
   html, body { height:auto; margin:0; }
-  body { font-family: Arial, "Segoe UI", sans-serif; color:#222; text-align:center;
-         -webkit-print-color-adjust:exact; }
-  .page { display:flex; flex-direction:column; height:281mm; gap:5mm;
+  body { font-family:"Segoe UI", Arial, sans-serif; color:#1a1a2e;
+         -webkit-print-color-adjust:exact; print-color-adjust:exact; padding:7mm; }
+  .page { display:flex; flex-direction:column; height:283mm; gap:6mm;
           page-break-after:always; break-after:page; }
   .page:last-child { page-break-after:auto; break-after:auto; }
   .sheet { flex:1 1 0; min-height:0; display:flex; flex-direction:column;
-           border:1px solid #d5d5d5; border-radius:8px; padding:5mm 7mm;
+           border:1px solid #dde1e8; border-radius:10px; overflow:hidden;
            page-break-inside:avoid; break-inside:avoid; }
-  h1 { font-weight:normal; letter-spacing:4px; color:#444; margin:0; }
-  .sub { letter-spacing:3px; color:#888; margin:3px 0 0; }
-  .rule { border:0; border-top:1px solid #d5d5d5; margin:6px 0 8px; }
-  table.info { border-collapse:collapse; width:100%; margin-bottom:8px; }
-  table.info td { border-bottom:1px solid #e2e2e2; padding:4px 4px; text-align:right; }
-  table.info tr:last-child td { border-bottom:0; }
-  table.info td.l { width:32%; color:#888; letter-spacing:1px; }
-  table.info td.v { font-weight:bold; color:#111; }
-  table.info tr.plate td { border-bottom:2px solid #999; padding:5px 4px 7px; }
-  table.info tr.plate td.v { letter-spacing:4px; line-height:1.1; }
-  .type-l { letter-spacing:3px; color:#888; margin-bottom:3px; }
-  .type { font-weight:bold; color:#111; border:1px solid #bbb;
-          border-radius:10px; padding:6px 10px; }
-  .note { border:1px solid #ddd; border-radius:10px; padding:5px 10px; margin-top:6px;
-          text-align:right; color:#333; line-height:1.4; }
-  .note b { color:#888; font-weight:normal; letter-spacing:1px; }
-  .stamp { flex:1; min-height:12mm; border:1px solid #ccc; border-radius:10px;
-           margin-top:7px; position:relative; }
-  .stamp span { position:absolute; top:5px; right:10px; letter-spacing:2px; color:#999; }
-  .foot { margin-top:6px; letter-spacing:1px; color:#999;
-          border-top:1px solid #e2e2e2; padding-top:5px; }
+  .bd { flex:1; display:flex; flex-direction:column; }
+${_WASH_CSS}
+  /* משבצת החותמת סופגת את מה שנשאר ומתכווצת כשיש הערה ארוכה —
+     כך שורת התחתית תמיד נשארת בתוך המסגרת */
+  .stamp { flex:1 1 0; min-height:0; }
   /* שני פתקים בעמוד */
-  .n2 h1 { font-size:16px; } .n2 .sub { font-size:11px; }
-  .n2 table.info td { font-size:13px; } .n2 table.info td.l { font-size:11px; }
-  .n2 table.info tr.plate td.v { font-size:33px; }
-  .n2 .type-l { font-size:11px; } .n2 .type { font-size:23px; }
-  .n2 .note { font-size:12.5px; } .n2 .note b { font-size:11px; }
-  .n2 .stamp span,.n2 .foot { font-size:10px; }
+  .n2 .hd { padding:5mm 7mm 4.5mm; }
+  .n2 .hd .ttl { font-size:14px; letter-spacing:5px; margin-bottom:7px; }
+  .n2 .hd .side u { font-size:8px; letter-spacing:2.5px; margin-bottom:3px; }
+  .n2 .hd .side b { font-size:13.5px; }
+  .n2 .hd .side i { font-size:9.5px; margin-top:2px; }
+  .n2 .bd { padding:5mm 7mm 5mm; }
+  .n2 .pl { font-size:9.5px; letter-spacing:3px; }
+  .n2 .plate { font-size:37px; letter-spacing:1px; margin-top:3px; }
+  .n2 .spec { gap:4px 14px; margin-top:4.5mm; }
+  .n2 .spec div { font-size:12px; padding-bottom:4px; }
+  .n2 .spec span { font-size:9px; }
+  .n2 .type { padding:9px 8px; margin-top:4mm; border-radius:10px; }
+  .n2 .type span { font-size:9px; letter-spacing:3px; margin-bottom:4px; }
+  .n2 .type b { font-size:23px; }
+  .n2 .note { font-size:11.5px; padding:6px 10px; margin-top:3mm; border-radius:10px; }
+  .n2 .note i { font-size:9px; letter-spacing:1.5px; margin-bottom:2px; }
+  .n2 .stamp { min-height:13mm; margin-top:4mm; border-radius:10px; }
+  .n2 .stamp i { top:6px; right:11px; font-size:9px; letter-spacing:1.5px; }
+  .n2 .foot { margin-top:3.5mm; padding-top:6px; font-size:9px; }
   /* שלושה פתקים בעמוד */
-  .n3 h1 { font-size:14px; } .n3 .sub { font-size:10px; }
-  .n3 table.info td { font-size:11.5px; padding:2.5px 4px; } .n3 table.info td.l { font-size:10px; }
-  .n3 table.info tr.plate td.v { font-size:25px; }
-  .n3 .type-l { font-size:10px; } .n3 .type { font-size:18px; padding:4px 8px; }
-  .n3 .note { font-size:11px; padding:4px 8px; } .n3 .note b { font-size:10px; }
-  .n3 .stamp { min-height:9mm; } .n3 .stamp span,.n3 .foot { font-size:9px; }
+  .n3 .hd { padding:3mm 5mm 2.5mm; }
+  .n3 .hd .ttl { font-size:11px; letter-spacing:4px; margin-bottom:4px; }
+  .n3 .hd .side u { font-size:7px; letter-spacing:2px; margin-bottom:2px; }
+  .n3 .hd .side b { font-size:11.5px; }
+  .n3 .hd .side i { font-size:8.5px; margin-top:1px; }
+  .n3 .bd { padding:3.5mm 5mm 3.5mm; }
+  .n3 .pl { font-size:8px; letter-spacing:2.5px; }
+  .n3 .plate { font-size:25px; letter-spacing:1px; margin-top:1px; }
+  .n3 .spec { gap:1px 11px; margin-top:2.5mm; }
+  .n3 .spec div { font-size:9.5px; padding-bottom:2px; }
+  .n3 .spec span { font-size:8px; }
+  .n3 .type { padding:5px 6px; margin-top:2mm; border-radius:9px; }
+  .n3 .type span { font-size:8px; letter-spacing:2.5px; margin-bottom:3px; }
+  .n3 .type b { font-size:15.5px; }
+  .n3 .note { font-size:9px; padding:3px 8px; margin-top:1.5mm; border-radius:9px; }
+  .n3 .note i { font-size:8px; letter-spacing:1px; margin-bottom:1px; }
+  .n3 .stamp { min-height:7mm; margin-top:2mm; border-radius:9px; }
+  .n3 .stamp i { top:4px; right:9px; font-size:8px; letter-spacing:1px; }
+  .n3 .foot { margin-top:2mm; padding-top:4px; font-size:8px; }
 </style></head><body>
 ${pages.map(pg => `<div class="page n${pg.length}">${pg.map(_washSheet).join('')}</div>`).join('')}
 </body></html>`;
@@ -1155,68 +1165,122 @@ function _washClear() {
   _washRenderTypes();
 }
 
-// הפתק נתלה על הרכב, ולכן הכל גדול: מספר הרישוי ענק וסוג השטיפה מתחתיו
+/* ── עיצוב הפתק ─────────────────────────────────────────────────────
+   מבנה וצבע במקום אחד, וכל מצב הדפסה קובע רק גדלים. כך פתק בודד
+   ופתק בהדפסה מרובה נראים אותו דבר ולא יכולים להתפצל.            */
+const _WASH_GREEN = '#0f766e';
+const _WASH_CSS = `
+  .hd { background:${_WASH_GREEN}; color:#fff; }
+  .hd .ttl { text-align:center; font-weight:800; }
+  .hd .pair { display:flex; align-items:stretch; }
+  .hd .side { flex:1; text-align:center; }
+  .hd .side u { display:block; color:#9ed6cf; text-decoration:none; font-weight:700; }
+  .hd .side b { display:block; font-weight:800; line-height:1.3; }
+  .hd .side i { display:block; color:#bce5e0; font-style:normal; }
+  .hd .sep { width:1px; background:rgba(255,255,255,.3); }
+  .bd { text-align:center; }
+  .pl { color:#9aa2b1; font-weight:800; }
+  .plate { font-family:Arial, sans-serif; font-weight:800; color:#111; line-height:1.05; }
+  .spec { display:grid; grid-template-columns:1fr 1fr; text-align:right; }
+  .spec div { border-bottom:1px solid #eceef2; }
+  .spec div.wide { grid-column:1 / -1; }
+  .spec span { display:block; color:#8a93a3; letter-spacing:.5px; }
+  .spec b { font-weight:800; color:#1a1a2e; }
+  .type { background:#f0fdfa; border:2px solid ${_WASH_GREEN}; }
+  .type span { display:block; color:${_WASH_GREEN}; font-weight:800; }
+  .type b { color:${_WASH_GREEN}; font-weight:800; }
+  .note { border:1px solid #dde1e8; text-align:right; color:#3b4250; line-height:1.5; }
+  .note i { display:block; color:#9aa2b1; font-style:normal; }
+  .stamp { border:1.5px solid #dde1e8; position:relative; }
+  .stamp i { position:absolute; color:#b6bdc9; font-style:normal; }
+  .foot { border-top:1px solid #eceef2; color:#9aa2b1;
+          display:flex; justify-content:space-between; }
+`;
+
+/* מקפים במספר הרישוי: 8 ספרות → 3-2-3, 7 ספרות → 2-3-2.
+   אורך אחר (רכבים ישנים, טרקטורים) נשאר כמו שהוא — עדיף מאשר
+   לחתוך אותו במקום הלא נכון. */
+function _washPlateFmt(plate) {
+  const d = String(plate || '').replace(/\D/g, '');
+  if (d.length === 8) return `${d.slice(0,3)}-${d.slice(3,5)}-${d.slice(5)}`;
+  if (d.length === 7) return `${d.slice(0,2)}-${d.slice(2,5)}-${d.slice(5)}`;
+  return String(plate || '');
+}
+
+// מי מבצע את השטיפה — מקום אחד לשם ולכתובת
+const _WASH_VENDOR = { name: 'מאסטר קלין', addr: 'רוזנסקי 2, ראשון לציון' };
+
 /* גוף הפתק — מקום אחד לנוסח. גם הדפסת פתק בודד וגם הדפסה של כמה
    בעמוד משתמשות בו, ולכן הנוסח זהה תמיד ולא יכול להתפצל. */
 function _washSheet(f) {
   // בהדפסה חוזרת מוצג התאריך שבו הפתק נוצר, לא תאריך ההדפסה
   const now = f.createdAt?.toDate ? f.createdAt.toDate() : new Date();
   const when = now.toLocaleDateString('he-IL') + ' · ' + now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
-  const row = (label, v, cls) => v ? `<tr${cls ? ` class="${cls}"` : ''}><td class="l">${label}</td><td class="v">${esc(v)}</td></tr>` : '';
-  // מספר הרישוי הוא השורה הראשונה בטבלה. פתקים ישנים נשמרו כשורה אחת
-  // בלבד — עדיין צריכים להידפס כמו שצריך.
-  const details = row('מספר רישוי', f.plate, 'plate') +
-    ([f.maker, f.model, f.subModel, f.color, f.year].some(Boolean)
-      ? `${row('יצרן', f.maker)}${row('דגם', f.model)}${row('תת דגם', f.subModel)}${row('צבע', f.color)}${row('שנה', f.year)}`
-      : row('רכב', f.desc));
+  const cell = (label, v) => v ? `<div><span>${label}</span><b>${esc(v)}</b></div>` : '';
+  // פתקים ישנים נשמרו עם שורת תיאור אחת בלבד — עדיין צריכים להידפס כמו שצריך
+  const makerModel = [f.maker, f.model].filter(Boolean).join(' ');
+  const spec = [f.maker, f.model, f.subModel, f.color, f.year].some(Boolean)
+    ? cell('יצרן ודגם', makerModel) + cell('תת דגם', f.subModel) + cell('צבע', f.color) + cell('שנה', f.year)
+    : (f.desc ? `<div class="wide"><span>רכב</span><b>${esc(f.desc)}</b></div>` : '');
   return ` <div class="sheet">
-  <h1>פתק לשטיפה</h1>
-  <div class="sub">ענק הרכבים · מאסטר קלין</div>
-  <hr class="rule">
-  <table class="info">${details}</table>
-  <div class="type-l">סוג שטיפה</div>
-  <div class="type">${esc(f.type)}</div>
-  ${f.note ? `<div class="note"><b>הערה</b><br>${esc(f.note)}</div>` : ''}
-  <div class="stamp"><span>חותמת ואישור ביצוע</span></div>
-  <div class="foot">${esc(f.createdBy || currentUser.name)} · ${esc(when)}</div>
+  <div class="hd">
+   <div class="ttl">פתק לשטיפה</div>
+   <div class="pair">
+    <div class="side"><u>מאת</u><b>ענק הרכבים</b></div>
+    <div class="sep"></div>
+    <div class="side"><u>לביצוע אצל</u><b>${esc(_WASH_VENDOR.name)}</b><i>${esc(_WASH_VENDOR.addr)}</i></div>
+   </div>
+  </div>
+  <div class="bd">
+   <div class="pl">מספר רישוי</div>
+   <div class="plate">${esc(_washPlateFmt(f.plate))}</div>
+   ${spec ? `<div class="spec">${spec}</div>` : ''}
+   <div class="type"><span>סוג שטיפה</span><b>${esc(f.type)}</b></div>
+   ${f.note ? `<div class="note"><i>הערה</i>${esc(f.note)}</div>` : ''}
+   <div class="stamp"><i>חותמת ואישור ביצוע</i></div>
+   <div class="foot"><span>הוציא: ${esc(f.createdBy || currentUser.name)}</span><span>${esc(when)}</span></div>
+  </div>
  </div>`;
 }
 
 function washPrintNote(f, onDone) {
   _printHtml(`<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8">
-<title>פתק שטיפה ${esc(f.plate)}</title>
+<title>פתק לשטיפה</title>
 <style>
-  /* עיצוב עדין: קווים דקים ואפורים, וכהות רק במה שחשוב — מספר הרישוי
-     וסוג השטיפה. הכל בעמוד אחד: המידות ביחידות עמוד (mm/vh) והתוכן
-     כולו בגוש שאסור לפצל, כך שגם הדפסה מהטלפון לא תגלוש לעמוד שני. */
-  @page { size: A4; margin: 10mm; }
-  html, body { height:auto; }
-  body { font-family: Arial, "Segoe UI", sans-serif; color:#222; text-align:center;
-         margin:0; -webkit-print-color-adjust:exact; }
-  .sheet { page-break-inside:avoid; break-inside:avoid; page-break-after:avoid; }
-  h1 { font-size:19px; font-weight:normal; letter-spacing:4px; color:#444; margin:0; }
-  .sub { font-size:12px; letter-spacing:3px; color:#888; margin:4px 0 0; }
-  .rule { border:0; border-top:1px solid #d5d5d5; margin:9px 0 12px; }
-  table.info { border-collapse:collapse; width:100%; margin-bottom:14px; }
-  table.info td { border-bottom:1px solid #e2e2e2; padding:7px 4px; text-align:right; font-size:16px; }
-  table.info tr:last-child td { border-bottom:0; }
-  table.info td.l { width:32%; color:#888; font-size:13px; letter-spacing:1px; }
-  table.info td.v { font-weight:bold; color:#111; }
-  /* מספר הרישוי — השורה הראשונה, והבולטת ביותר בטבלה */
-  table.info tr.plate td { border-bottom:2px solid #999; padding:9px 4px 12px; }
-  table.info tr.plate td.v { font-size:46px; letter-spacing:4px; line-height:1.1; }
-  .type-l { font-size:12px; letter-spacing:3px; color:#888; margin-bottom:5px; }
-  .type { font-size:32px; font-weight:bold; color:#111; border:1px solid #bbb;
-          border-radius:10px; padding:11px 10px; }
-  .note { font-size:16px; border:1px solid #ddd; border-radius:10px;
-          padding:10px 14px; margin-top:12px; text-align:right; color:#333; line-height:1.5; }
-  .note b { color:#888; font-weight:normal; font-size:13px; letter-spacing:1px; }
-  .stamp { border:1px solid #ccc; border-radius:10px; height:38mm; margin-top:14px;
-           position:relative; }
-  .stamp span { position:absolute; top:8px; right:14px; font-size:12px;
-                letter-spacing:2px; color:#999; }
-  .foot { margin-top:12px; font-size:12px; letter-spacing:1px; color:#999;
-          border-top:1px solid #e2e2e2; padding-top:8px; }
+  /* margin:0 על העמוד מבטל את הכותרת והכתובת שהדפדפן מדפיס מעצמו.
+     השוליים מגיעים מהפתק עצמו, כך שהפס העליון נוגע בקצה הדף.
+     הכל בעמוד אחד: התוכן בגוש שאסור לפצל. */
+  @page { size: A4; margin: 0; }
+  html, body { height:100%; margin:0; }
+  body { font-family:"Segoe UI", Arial, sans-serif; color:#1a1a2e;
+         -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  /* הפתק ממלא את הדף: משבצת החותמת נמתחת, והתחתית יושבת בתחתית
+     העמוד — כך אין שליש ריק בסוף. */
+  .sheet { height:100%; box-sizing:border-box; display:flex; flex-direction:column;
+           page-break-inside:avoid; break-inside:avoid; page-break-after:avoid; }
+  .bd { flex:1; display:flex; flex-direction:column; }
+  .stamp { flex:1; }
+${_WASH_CSS}
+  /* גדלים להדפסה בודדת — פתק אחד לעמוד */
+  .hd { padding:13mm 14mm 9mm; }
+  .hd .ttl { font-size:20px; letter-spacing:7px; margin-bottom:13px; }
+  .hd .side u { font-size:9px; letter-spacing:3px; margin-bottom:4px; }
+  .hd .side b { font-size:17px; }
+  .hd .side i { font-size:11.5px; margin-top:3px; }
+  .bd { padding:11mm 14mm 12mm; }
+  .pl { font-size:12px; letter-spacing:4px; }
+  .plate { font-size:58px; letter-spacing:2px; margin-top:5px; }
+  .spec { gap:9px 18px; margin-top:11mm; }
+  .spec div { font-size:15px; padding-bottom:6px; }
+  .spec span { font-size:11px; }
+  .type { padding:16px 10px; margin-top:10mm; border-radius:12px; }
+  .type span { font-size:11px; letter-spacing:4px; margin-bottom:6px; }
+  .type b { font-size:34px; }
+  .note { font-size:15px; padding:11px 15px; margin-top:7mm; border-radius:12px; }
+  .note i { font-size:11px; letter-spacing:2px; margin-bottom:3px; }
+  .stamp { min-height:42mm; margin-top:9mm; border-radius:12px; }
+  .stamp i { top:9px; right:15px; font-size:11px; letter-spacing:2px; }
+  .foot { margin-top:8mm; padding-top:9px; font-size:11px; }
 </style></head><body>
 ${_washSheet(f)}
 </body></html>`, 'wash print', 'שגיאה בהדפסה', onDone);
