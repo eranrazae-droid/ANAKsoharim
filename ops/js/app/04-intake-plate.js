@@ -1759,7 +1759,12 @@ async function markChecked(id) {
   if (!snap.exists()) return;
   // התמונות עוברות למסמך נפרד לפי המזהה המקורי, כדי שרשימת הארכיון
   // לא תמשוך אותן. אם ההפרדה נכשלה הן פשוט נשמרות כמו קודם.
-  const raw = { ...snap.data(), status: 'checked', checkedAt: _serverTs(), originalId: id };
+  /* התמונות החיות נכתבו כדי שהמנהל יראה את המילוי בזמן אמת. אחרי
+     שהקליטה נסגרת אף אחד לא קורא אותן יותר — התמונות הסופיות יושבות
+     ב-intake_photos, ומשימה שנפתחה מליקוי שומרת עותק משלה על המשימה
+     עצמה. לכן הן יורדות כאן ולא נגררות עם הארכיון בכל טעינה. */
+  const { livePhotos, liveBatteryPhotos, ...rest } = snap.data();
+  const raw = { ...rest, status: 'checked', checkedAt: _serverTs(), originalId: id };
   const data = await _intakeSplitPhotos(id, raw);
   await _addDoc(_colRef('intake_archive'), data);
   await deleteDoc(doc(window._db, 'intake_assignments', id));

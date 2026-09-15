@@ -784,8 +784,18 @@ async function submitCollectPickup() {
   _collectBtnState(true);
   try {
     const { addDoc, deleteDoc, doc, collection } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    /* אישור הבעלות הסרוק נשמר בנפרד ולא בתוך מסמך הארכיון, כמו
+       שכבר נעשה ב-intake_photos וב-bodyshop_photos. הארכיון נמשך
+       בכל פתיחה של מסך האיסוף וגם בבדיקת הבעלויות של הבוקר, ולכן
+       קובץ כבד בתוכו נגרר בכל פעם מחדש. */
     const archive = async (car, id) => {
-      await addDoc(collection(window._db, 'pickup_archive'), { ...car, collectedAt: _serverTs(), collectedBy: currentUser.name, collectedByText });
+      const { doc: docData, docMime, docName, ...light } = car;
+      const ref = await addDoc(collection(window._db, 'pickup_archive'),
+        { ...light, collectedAt: _serverTs(), collectedBy: currentUser.name, collectedByText });
+      if (docData) {
+        try { await window._setDoc(_docRef('pickup_docs', ref.id), { doc: docData, docMime: docMime || null, docName: docName || null }); }
+        catch (e) { console.error('pickup doc store', e); }
+      }
       await deleteDoc(doc(window._db, 'pickup_cars', id));
       _notifyPickupCollected(car, collectedByText);
     };
