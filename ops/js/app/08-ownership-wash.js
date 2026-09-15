@@ -1746,13 +1746,19 @@ async function _bsmPlateFocus(dataUrl) {
   } catch (e) { return null; }
 }
 
+/* הממוזערת של פתק פחחות נמשכת עם כל העבודות בכל פתיחת מסך, ולכן
+   המשקל שלה נחשב. הממדים נשארים 700 — הכרטיס מציג אותה ברוחב מלא,
+   ובמסכי רטינה הקטנה מהם כבר הייתה נראית. רק הדחיסה חזקה יותר,
+   אחרי השוואה חזותית שלא הראתה הבדל. מקום אחד לשניהם. */
+const _BSHOP_THUMB = { max: 700, q: 0.55 };
+
 async function bsmPickPhoto(input) {
   const f = input.files && input.files[0];
   input.value = '';
   if (!f) return;
   try {
     _bsmPhoto = await compressToBase64(f, 1000, 0.7);   // full size, own document
-    _bsmThumb = await compressToBase64(f, 700, 0.62);   // small, rides on the job
+    _bsmThumb = await compressToBase64(f, _BSHOP_THUMB.max, _BSHOP_THUMB.q);   // small, rides on the job
     _bsmFocus = await _bsmPlateFocus(_bsmPhoto);
   } catch (e) { _bsmPhoto = null; _bsmThumb = null; _bsmFocus = null; return showToast('לא הצלחנו לעבד את התמונה'); }
   _bsmRenderPhoto();
@@ -1780,7 +1786,7 @@ async function bsmAddPhotoPicked(input) {
   let photo, thumb, focus;
   try {
     photo = await compressToBase64(f, 1000, 0.7);
-    thumb = await compressToBase64(f, 700, 0.62);
+    thumb = await compressToBase64(f, _BSHOP_THUMB.max, _BSHOP_THUMB.q);
     focus = await _bsmPlateFocus(photo);
   } catch (e) { return showToast('לא הצלחנו לעבד את התמונה'); }
   try {
