@@ -2569,7 +2569,7 @@
   async function saveLead(id){
     const l=leads.find(x=>String(x.id)===String(id)); if(!l) return;
     const st=document.getElementById('st_'+id); if(st) l.status=st.value;
-    const fu=document.getElementById('fu_'+id); l.followup_at=(l.status==='פולואפ'&&fu)?fu.value:'';
+    const fu=document.getElementById('fu_'+id); l.followup_at=(l.status==='פולואפ'&&fu&&fu.value)?(fu.value.length>10?fu.value:(fu.value+'T08:00')):'';
     const at=document.getElementById('at_'+id); if(at) l.call_attempts=Number(at.value)||0;
     const sum=document.getElementById('sum_'+id); if(sum) l.summary=sum.value;
     const tp=document.getElementById('tp_'+id); if(tp) l.tradein_plate=tp.value;
@@ -2909,7 +2909,7 @@
                   <option ${status==='פולואפ'?'selected':''}>פולואפ</option>
                   <option ${status==='סגור'?'selected':''}>סגור</option>
                 </select>
-                <input id="fu_${l.id}" type="datetime-local" value="${l.followup_at||''}" onchange="setLeadFollowupLocal('${l.id}',this.value)" style="display:${isFu?'inline-block':'none'};width:auto;padding:5px 8px;font-size:13px;border-radius:8px">
+                <input id="fu_${l.id}" type="date" value="${(l.followup_at||'').slice(0,10)}" onchange="setLeadFollowupLocal('${l.id}', this.value ? this.value+'T08:00' : '')" style="display:${isFu?'inline-block':'none'};width:auto;padding:5px 8px;font-size:13px;border-radius:8px">
                 <span id="fulbl_${l.id}" style="font-size:12px;color:${overdue?'#dc2626':'#a16207'};font-weight:700">${isFu&&l.followup_at?('📅 לחזור: '+fmtFollowup(l.followup_at)):''}</span>
               </div>
               <div style="flex:1;min-width:200px">
