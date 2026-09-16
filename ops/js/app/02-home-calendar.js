@@ -63,6 +63,39 @@ function _dailyNote(id) {
   return null;
 }
 
+/* שלוש בדיקות הבוקר בראש חלונית הפעולות. המצב מגיע מ-_dailyNote —
+   אותו חישוב שכבר הציג את הסטטוס ברשימת "כל המסכים" — ולכן אין כאן
+   מקור אמת חדש. המסכים עצמם כבר מוגדרים להיפתח כחלונית.          */
+const _HOME_CHECKS = [
+  { btn: 'hck-ownership', note: 'menu-card-ownership', idle: 'בדיקת בעלויות' },
+  { btn: 'hck-inventory', note: 'menu-card-inventory', idle: 'בדיקת מלאי' },
+  { btn: 'hck-recall',    note: 'menu-card-recall',    idle: 'בדיקת ריקול' },
+];
+
+function _renderHomeChecks() {
+  const box = document.getElementById('home-checks');
+  if (!box) return;
+  box.style.display = currentUser?.role === 'manager' ? '' : 'none';
+  if (currentUser?.role !== 'manager') return;
+  for (const c of _HOME_CHECKS) {
+    const el = document.getElementById(c.btn);
+    if (!el) continue;
+    const sub = el.querySelector('i');
+    const d = _dailyNote(c.note);
+    el.classList.remove('ok', 'wait', 'warn');
+    if (!d) { if (sub) sub.textContent = c.idle; continue; }
+    // הנוסח המלא ארוך לכפתור צר — נשארת רק המילה שאומרת את המצב
+    const done = !/טרם/.test(d.txt);
+    el.classList.add(d.ok ? 'ok' : done ? 'warn' : 'wait');
+    // בטלפון הכפתור צר, ומלל ארוך היה נשבר לשתי שורות רק באחד מהם
+    const narrow = window.innerWidth <= 900;
+    if (sub) sub.textContent = !done ? (narrow ? 'טרם' : 'טרם בוצעה')
+      : d.ok ? (narrow ? 'נבדק' : 'נבדק הבוקר')
+      : (d.txt.match(/·\s*(.+)$/) || [, 'יש ממצא'])[1].trim();
+  }
+}
+window._renderHomeChecks = _renderHomeChecks;
+
 // המספר שמוצג ליד פריט — נלקח מהתגית של הכפתור המקורי
 function _screenBadge(it) {
   if (!it.badge) return 0;
@@ -104,11 +137,17 @@ function _mgrHomeFitInner(body, layout) {
       const slot = document.getElementById('home-wash-slot');
       const panel = document.getElementById('home-wash-area');
       const tabs = document.getElementById('home-panel-tabs');
+      const checks = document.getElementById('home-checks');
       if (!(form && slot && panel && form.parentElement === slot && form.offsetParent)) return _mgrWashH;
       const cs = getComputedStyle(panel);
       const px = n => parseFloat(cs[n]) || 0;
-      const tb = tabs ? tabs.offsetHeight + (parseFloat(getComputedStyle(tabs).marginBottom) || 0) : 0;
-      const h = Math.ceil(form.scrollHeight + tb + px('paddingTop') + px('paddingBottom')
+      const rowH = el => el && el.offsetParent
+        ? el.offsetHeight + (parseFloat(getComputedStyle(el).marginBottom) || 0) : 0;
+      const tb = rowH(tabs);
+      // שורת בדיקות הבוקר יושבת בין הלשוניות לתוכן, ולכן היא חלק מגובה
+      // החלונית. בלעדיה החלונית יוצאת נמוכה מדי והתוכן נאלץ להיגלל.
+      const ck = rowH(checks);
+      const h = Math.ceil(form.scrollHeight + tb + ck + px('paddingTop') + px('paddingBottom')
                           + px('borderTopWidth') + px('borderBottomWidth'));
       return h > 200 ? h : _mgrWashH;   // מדידה לפני שהטופס צויר אינה אמינה
     };
@@ -192,6 +231,7 @@ function _syncAllScreensCount() {
   nb.style.display = total ? '' : 'none';
   if (document.getElementById('modal-all-screens')?.classList.contains('open')) _renderAllScreens();
   try { _homePanelBadges(); } catch (e) {}
+  try { _renderHomeChecks(); } catch (e) {}
 }
 window._syncAllScreensCount = _syncAllScreensCount;
 
@@ -389,6 +429,7 @@ function _cardHtml(m) {
     grid.innerHTML = menuItems.map(_cardHtml).join('');
     _reapplyCardBadges();
     try { _setInventoryCardNote(); } catch (e) {}
+    try { _renderHomeChecks(); } catch (e) {}
   }
 
   // בדיקת הטעינה אינה קובייה גדולה יותר — היא קוביה קטנה למעלה שמופיעה
