@@ -2862,8 +2862,9 @@
     else if(filter==='open'){ sorted=sorted.filter(l=>(l.status||'')!=='סגור'); if(!window._showSnoozed) sorted=sorted.filter(l=>!isSnoozed(l)); }
     // 'all' => בלי סינון
     const noSearch=!q;
-    const mkBtn=(key,label,count)=>{const on=(filter===key);return `<button onclick="window._leadFilter='${key}';renderLeads()" style="background:${on?'#0d0d0d':'#f1f5f9'};color:${on?'#fff':'#334155'};border:1px solid ${on?'#0d0d0d':'var(--line)'};border-radius:8px;padding:8px 16px;font-size:13px;font-weight:800;cursor:pointer">${label} (${count})</button>`;};
-    const filterBar=noSearch?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">${mkBtn('open','לידים פתוחים',openCount)}${mkBtn('closed','לידים סגורים',closedCount)}${mkBtn('all','כל הלידים',leads.length)}</div>`:'';
+    const _fcol={open:['#16a34a','#dcfce7','#166534'],closed:['#64748b','#f1f5f9','#475569'],all:['#2563eb','#dbeafe','#1e40af']};
+    const mkBtn=(key,label,count)=>{const on=(filter===key);const c=_fcol[key];return `<button onclick="window._leadFilter='${key}';renderLeads()" style="background:${on?c[0]:c[1]};color:${on?'#fff':c[2]};border:2px solid ${c[0]};border-radius:999px;padding:9px 20px;font-size:14px;font-weight:900;cursor:pointer;box-shadow:${on?'0 3px 10px '+c[1]:'none'}">${label} (${count})</button>`;};
+    const filterBar=noSearch?`<div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:14px">${mkBtn('open','🟢 לידים פתוחים',openCount)}${mkBtn('closed','⚪ לידים סגורים',closedCount)}${mkBtn('all','🔵 כל הלידים',leads.length)}</div>`:'';
     const snoozeToggle=(filter==='open'&&snoozedCount&&noSearch)?`<div style="margin-bottom:12px"><button onclick="window._showSnoozed=!window._showSnoozed;renderLeads()" style="background:#fef9e7;border:1px solid #fde68a;color:#a16207;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:800;cursor:pointer">${window._showSnoozed?'הסתר ממתינים':'⏰ ממתינים לפולואפ ('+snoozedCount+')'}</button></div>`:'';
     el.innerHTML=filterBar+snoozeToggle+sorted.map(l=>{
       const phone=(l.phone||'').toString();
