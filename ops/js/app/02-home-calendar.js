@@ -336,6 +336,9 @@ function renderHome() {
         // row 3 — recall is not here, it lives on the floating home button
         { icon: '🚙', title: 'מכוניות לאיסוף', sub: 'ניהול רכבים לאיסוף', screen: 'pickup' },
         // השטיפה אינה קובייה אצל המנהל — היא כפתור רחב באזור הצדדי
+        /* השורה האחרונה מתחלקת לשתיים. ב-RTL הפריט הראשון יושב מימין,
+           ולכן המלאי לפני הפחחות: מלאי מימין, פחחות משמאל. */
+        { icon: '📦', title: 'בדיקת מלאי', sub: 'שליחה ומעקב אחרי בדיקות', screen: 'inventory' },
         { icon: '🔨', title: 'פחחות', sub: 'עבודות, מחירים וחשבון חודשי', screen: 'bodyshop-mgr' },
       ]
     : [
@@ -385,6 +388,7 @@ function _cardHtml(m) {
     grid.style.gap = '';
     grid.innerHTML = menuItems.map(_cardHtml).join('');
     _reapplyCardBadges();
+    try { _setInventoryCardNote(); } catch (e) {}
   }
 
   // בדיקת הטעינה אינה קובייה גדולה יותר — היא קוביה קטנה למעלה שמופיעה
@@ -1126,6 +1130,7 @@ const _HOME_CARD_TINT = {
   'bodyshop-mgr':  '#b45309',   // פחחות — כתום־חום, בצבע העבודה
   'tasks':         '#6d28d9',   // לוח משימות — סגול
   'morning-starts':'#0369a1',   // הנעות הבוקר — כחול בהיר
+  'inventory':     '#4338ca',   // בדיקת מלאי — אינדיגו, מובחן מהסגול של המשימות
 };
 
 function _paintHomeCard(card, tint) {
@@ -1216,6 +1221,17 @@ function _setBodyshopSwCard(n) {
     ? (n === 1 ? '💳 רכב אחד לעדכון בתוכנה' : `💳 ${n} רכבים לעדכון בתוכנה`)
     : 'עבודות, מחירים וחשבון חודשי';
 }
+
+/* קוביית המלאי: המשפט שמתחת מציג את מצב הבדיקה של היום — אותו נוסח
+   שהוצג עד היום ברשימת "כל המסכים", עכשיו על הקובייה עצמה. */
+function _setInventoryCardNote() {
+  const sub = document.getElementById('sub-inventory');
+  if (!sub) return;
+  const d = _dailyNote('menu-card-inventory');
+  sub.textContent = d ? d.txt : 'שליחה ומעקב אחרי בדיקות';
+  sub.style.color = d && d.ok ? '#16a34a' : '';
+}
+window._setInventoryCardNote = _setInventoryCardNote;
 
 // badge קובייה מאוחדת (נהג): קליטות ממתינות + רענונים ממתינים
 function _setDriverVehiclesBadge() {
@@ -1481,6 +1497,7 @@ function loadManagerBadges() {
     });
     _reSnap('mgrBadges', _query(_colRef('inventory_assignments'), _where('status','==','done')), snap => {
       _setCardBadge('inventory', snap.size);
+      try { _setInventoryCardNote(); } catch (e) {}
     });
     // ארון המצברים: כמה מצברים ממתינים להזמנה — כל מצבר שיצא מהארון ועדיין
     // לא הוזמן חזרה. אותו חישוב בדיוק כמו רשימת ההזמנה שבמסך המצברים.

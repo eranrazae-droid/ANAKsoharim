@@ -699,7 +699,6 @@ const APP_BUILD = '2026-08-09 · 214';
 const _ALL_SCREENS = [
   { id: 'menu-card-ownership',    icon: '📑', label: 'בדיקת בעלויות',        badge: 'badge-ownership' },
   { id: 'menu-card-recall',       icon: '⚠️', label: 'בדיקת ריקול',          badge: 'recall-home-count' },
-  { id: 'menu-card-inventory',    icon: '📦', label: 'בדיקת מלאי',           badge: 'badge-inventory' },
   { id: 'menu-card-battery',      icon: '🔋', label: 'בדיקת טעינה',          badge: 'badge-battery' },
   { id: 'menu-card-yard',         icon: '🅿️', label: 'סידור מגרש',           badge: 'badge-yard' },
   { id: 'menu-card-plate-search', icon: '🔎', label: 'חיפוש רכב לפי לוחית',  badge: '' },
