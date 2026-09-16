@@ -175,6 +175,12 @@ function _bshopPartAvg() {
 // ההערכה מעוגלת תמיד למאות — מספר עגול אומר "הערכה" בלי להתחזות למחיר
 const _bshopRound100 = n => Math.round(n / 100) * 100;
 
+/* מכחולים אינם נחשבים לחלק חסר — הם עבודת שיפוץ קטנה שלא שווה
+   להתריע עליה. היוצא מן הכלל הוא "קריסטל+מכחולים", שהוא עבודה
+   בפני עצמה ולכן כן נספר וכן מתריע כשאין לו מחיר. חלק שיש לו
+   מחיר ידוע נספר בכל מקרה, כדי שלא ייפול ממנו כסף אמיתי.        */
+const _bshopNoWarn = name => /מכחול/.test(name) && !/קריסטל/.test(name);
+
 /* הערכה לפתק אחד: סכום המחירים הממוצעים, ורשימת החלקים שמעולם לא
    תומחרו ולכן לא נכללו. חלק שכבר יש לו מחיר נלקח כמו שהוא.       */
 function _bshopEstimate(j, stat) {
@@ -184,7 +190,8 @@ function _bshopEstimate(j, stat) {
     const price = Number(it.price);
     if (price > 0) { sum += price; continue; }
     const p = st[it.name];
-    if (p && p.n) sum += p.sum / p.n; else missing.push(it.name);
+    if (p && p.n) { sum += p.sum / p.n; continue; }
+    if (!_bshopNoWarn(String(it.name || ''))) missing.push(it.name);
   }
   return { sum: _bshopRound100(sum), missing };
 }
@@ -423,10 +430,11 @@ function bsmEditEstimate(id) {
   document.getElementById('bs-est-plate').textContent = `${j.plate || ''}${j.desc ? ' · ' + j.desc : ''}`;
   document.getElementById('bs-est-lines').innerHTML =
     row(`${priced} ${priced === 1 ? 'חלק מתומחר' : 'חלקים מתומחרים'}`, est.sum.toLocaleString('he-IL') + ' ₪')
-    + (est.missing.length
-        ? row(`${est.missing.length} ${est.missing.length === 1 ? 'חלק ללא מחיר קודם' : 'חלקים ללא מחיר קודם'}`, 'לא נכללו', true)
-          + `<div style="font-size:12px;font-weight:800;color:#78350f;margin-top:6px;line-height:1.5">${est.missing.map(esc).join(' · ')}</div>`
-        : '');
+    // ההערה חיה כאן בלבד — הכרטיס רק נצבע בכתום כדי לרמוז עליה
+    + (est.missing.length ? `<div style="margin-top:10px;background:#fffbeb;border:1.5px solid #f59e0b;border-right:5px solid #f59e0b;border-radius:10px;padding:9px 12px">
+        <div style="font-size:12.5px;font-weight:900;color:#92400e">⚠️ ${est.missing.length === 1 ? 'חלק אחד לא נכלל בחישוב' : est.missing.length + ' חלקים לא נכללו בחישוב'} — אין להם מחיר קודם</div>
+        <div style="font-size:12.5px;font-weight:800;color:#78350f;margin-top:4px;line-height:1.6">${est.missing.map(n => '· ' + esc(n)).join('<br>')}</div>
+      </div>` : '');
   const inp = document.getElementById('bs-est-input');
   inp.value = cur || '';
   openModal('modal-bs-est');
@@ -485,21 +493,21 @@ function _bshopJobCard(j, forWorker, held) {
         <div class="bs-total" style="font-size:18px;font-weight:900;color:var(--gold)">${total.toLocaleString('he-IL')} ₪</div>
         <div style="font-size:11px;font-weight:700;color:var(--muted)">לפני מע״מ</div>
       </div>` : ''}
-      ${showEst && estVal > 0 ? `<div ${manual != null ? `onclick="event.stopPropagation();bsmEditEstimate('${j.id}')" title="לחץ לעדכון" style="cursor:pointer;` : `style="`}text-align:left;white-space:nowrap">
-        <div class="bs-total" style="font-size:18px;font-weight:900;color:var(--muted)">~${estVal.toLocaleString('he-IL')} ₪</div>
-        <div style="font-size:11px;font-weight:700;color:var(--muted)">${manual != null ? '✏️ הערכה שלך' : 'עלות משוערת'}</div>
-      </div>` : ''}
+      ${showEst && estVal > 0 ? (() => {
+        // כתום כשיש חלק שלא נכלל בחישוב, אפור כשההערכה שלמה
+        const warn = manual == null && est.missing.length > 0;
+        const col = warn ? '#b45309' : 'var(--muted)';
+        return `<div onclick="event.stopPropagation();bsmEditEstimate('${j.id}')" title="לחץ לעדכון ההערכה"
+             style="cursor:pointer;text-align:left;white-space:nowrap">
+          <div class="bs-total" style="font-size:18px;font-weight:900;color:${col}">~${estVal.toLocaleString('he-IL')} ₪</div>
+          <div style="font-size:11px;font-weight:700;color:${col}">${manual != null ? '✏️ הערכה שלך' : warn ? '⚠️ עלות משוערת' : 'עלות משוערת'}</div>
+        </div>`;
+      })() : ''}
     </div>
     <div class="bs-meta" style="margin-top:8px;font-size:13px;color:var(--muted);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       <span>${(j.items || []).length} חלקים${filled ? ` · מולאו ${filled}` : ''}</span>
       ${_bshopDaysHtml(j)}
     </div>
-    ${showEst && manual == null && est.missing.length ? `<div class="bs-note" style="margin-top:8px;background:#fffbeb;color:#92400e;border-right:5px solid #f59e0b;border-radius:8px;padding:8px 11px">
-      <div style="font-size:12px;font-weight:900">⚠️ ${est.missing.length === 1 ? 'חלק אחד לא נכלל בהערכה' : est.missing.length + ' חלקים לא נכללו בהערכה'}</div>
-      <div style="font-size:12.5px;font-weight:800;color:#78350f;margin-top:2px;line-height:1.5">${est.missing.map(esc).join(' · ')}</div>
-      <button onclick="event.stopPropagation();bsmEditEstimate('${j.id}')"
-        style="margin-top:7px;width:100%;background:#92400e;color:#fff;border:none;border-radius:8px;padding:7px;font-family:'Heebo',sans-serif;font-size:12px;font-weight:900;cursor:pointer">✏️ עדכן הערכה</button>
-    </div>` : ''}
     ${j.note ? `<div class="bs-note" style="margin-top:6px;font-size:13px">📝 ${esc(j.note)}</div>` : ''}
     ${j.photoFailed ? `<div class="bs-note" style="margin-top:6px;background:#fef3c7;color:#92400e;border-right:5px solid #d97706;border-radius:8px;padding:6px 9px;font-size:12px;font-weight:900">⚠️ התמונה לא נשמרה</div>` : ''}
     ${j.reportFailed && _BSHOP_TG_BACKUP ? `<div class="bs-note" style="margin-top:6px;background:#fee2e2;color:#991b1b;border-right:5px solid #dc2626;border-radius:8px;padding:6px 9px;font-size:12px;font-weight:900">⚠️ הגיבוי לטלגרם לא נשלח</div>` : ''}
