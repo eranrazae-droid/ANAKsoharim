@@ -50,6 +50,10 @@ window.addEventListener('firebase-ready', async () => {
     // once, and from then on the phone remembers it
     if (window._signedInUser) { _enterAsAuthUser(window._signedInUser); return; }
     showScreen('login');
+    // גם כאן: אם ההזדהות מאחרת, נכנסים ברגע שהיא מגיעה
+    if (!window._authEventSeen && window._onAuthUser) window._onAuthUser(user => {
+      if (user && !document.querySelector('.screen.active:not(#screen-login)')) _enterAsAuthUser(user);
+    });
     return;
   }
 
@@ -62,6 +66,16 @@ window.addEventListener('firebase-ready', async () => {
   // an account signed in on this device wins over anything remembered before it
   if (window._signedInUser) {
     _enterAsAuthUser(window._signedInUser);
+    return;
+  }
+  /* תשובת ההזדהות עוד לא הגיעה — בחיבור איטי היא מאחרת מעבר לזמן
+     שאנחנו מחכים. זה אינו אומר שאין חשבון, ולכן לא מוחקים דבר:
+     מציגים כניסה, וברגע שהתשובה מגיעה נכנסים מאליהם. */
+  if (!window._authEventSeen) {
+    showScreen('login');
+    if (window._onAuthUser) window._onAuthUser(user => {
+      if (user && !document.querySelector('.screen.active:not(#screen-login)')) _enterAsAuthUser(user);
+    });
     return;
   }
   /* From here on a device must hold a real account. Sessions that only

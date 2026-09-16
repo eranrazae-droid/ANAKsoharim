@@ -3826,15 +3826,31 @@ window._authReady = CONFIG_DONE
       // this device. Signing in anonymously before checking would replace a
       // real account with a fresh anonymous one on every single load — which
       // is exactly what made the sign-in seem not to stick.
+      /* מי שממתין לתשובת ההזדהות. התשובה עשויה להגיע גם אחרי שהאפליקציה
+         כבר נפתחה — בחיבור איטי זה לוקח יותר מהזמן שאנחנו מחכים — ולכן
+         אסור להסיק "אין חשבון" רק מפני שהיא טרם הגיעה. */
+      window._authWaiters = [];
+      window._onAuthUser = cb => {
+        if (window._authEventSeen) { try { cb(window._signedInUser || null); } catch (e) {} ; return; }
+        window._authWaiters.push(cb);
+      };
       onAuthStateChanged(auth, user => {
-        if (user) { window._signedInUser = user.isAnonymous ? null : user; return done(true); }
+        if (user) {
+          window._signedInUser = user.isAnonymous ? null : user;
+          window._authEventSeen = true;
+          window._authWaiters.splice(0).forEach(cb => { try { cb(window._signedInUser); } catch (e) {} });
+          return done(true);
+        }
         signInAnonymously(auth).catch(err => {
           // Most likely cause: Anonymous sign-in is not enabled for the project.
           console.error('anonymous sign-in failed', err);
+          window._authEventSeen = true;
+          window._authWaiters.splice(0).forEach(cb => { try { cb(null); } catch (e) {} });
           done(false);
         });
       });
-      // never hang the app on a slow or blocked auth call
+      // never hang the app on a slow or blocked auth call. זה משחרר את
+      // הטעינה בלבד — ההחלטה אם יש חשבון ממתינה לאירוע האמיתי.
       setTimeout(() => done(!!auth?.currentUser), 8000);
     })
   : Promise.resolve(false);
@@ -3866,20 +3882,20 @@ window.dispatchEvent(new Event('firebase-ready'));
 </script>
 
 <script src="js/utils.js?v=214"></script>
-<script src="js/app/01-core.js?v=391"></script>
-<script src="js/app/02-home-calendar.js?v=391"></script>
-<script src="js/app/03-tasks.js?v=391"></script>
-<script src="js/app/04-intake-plate.js?v=391"></script>
-<script src="js/app/05-intake-forms.js?v=391"></script>
-<script src="js/app/06-recall-inventory.js?v=391"></script>
-<script src="js/app/07-bodyshop.js?v=391"></script>
-<script src="js/app/08-ownership-wash.js?v=391"></script>
-<script src="js/app/09-battery.js?v=391"></script>
-<script src="js/app/10-battery-plate.js?v=391"></script>
-<script src="js/app/11-yard-telegram.js?v=391"></script>
-<script src="js/app/12-pickup.js?v=391"></script>
-<script src="js/app/13-reports.js?v=391"></script>
-<script src="js/app/14-tow-invoice.js?v=391"></script>
+<script src="js/app/01-core.js?v=392"></script>
+<script src="js/app/02-home-calendar.js?v=392"></script>
+<script src="js/app/03-tasks.js?v=392"></script>
+<script src="js/app/04-intake-plate.js?v=392"></script>
+<script src="js/app/05-intake-forms.js?v=392"></script>
+<script src="js/app/06-recall-inventory.js?v=392"></script>
+<script src="js/app/07-bodyshop.js?v=392"></script>
+<script src="js/app/08-ownership-wash.js?v=392"></script>
+<script src="js/app/09-battery.js?v=392"></script>
+<script src="js/app/10-battery-plate.js?v=392"></script>
+<script src="js/app/11-yard-telegram.js?v=392"></script>
+<script src="js/app/12-pickup.js?v=392"></script>
+<script src="js/app/13-reports.js?v=392"></script>
+<script src="js/app/14-tow-invoice.js?v=392"></script>
 
 <!-- ═══ רענון רכב modals ═══ -->
 <div class="modal-overlay" id="modal-refresh-edit">
