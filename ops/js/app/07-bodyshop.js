@@ -518,6 +518,7 @@ function _bshopJobCard(j, forWorker, held) {
       const all = empty === (j.items || []).length;
       return `<div class="bs-note" style="margin-top:6px;background:#fee2e2;color:#991b1b;border-right:5px solid #dc2626;border-radius:8px;padding:6px 9px;font-size:12px;font-weight:900">⚠️ ${all ? 'לא עודכן תשלום' : 'חסר מחיר לחלק בפתק'}</div>`;
     })()}
+    ${!forWorker ? '<div class="bs-fill"></div>' : ''}
     ${(j.photoThumb || j.photo) ? `<img id="bshop-card-img-${j.id}" src="${j.photo || j.photoThumb}" alt="" loading="lazy" style="margin-top:8px;width:100%;max-height:150px;object-fit:cover;object-position:${_bshopFocusCss(j)};border-radius:10px;display:block">`
       : (!held && !forWorker ? `<button onclick="event.stopPropagation();bsmAddPhoto('${j.id}')" style="margin-top:8px;width:100%;background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:9px;font-family:'Heebo',sans-serif;font-size:13px;font-weight:800;cursor:pointer">📷 הוסף תמונה</button>` : '')}
     ${held ? `<button onclick="event.stopPropagation();bsmSetHold('${j.id}',false)"
