@@ -153,6 +153,42 @@ function _bshopListen(onChange) {
 
 const _bshopTotal = j => (j.items || []).reduce((s, it) => s + (Number(it.price) || 0), 0);
 
+/* ── עלות משוערת ────────────────────────────────────────────────────
+   המחיר הממוצע של כל חלק, מכל מה שתומחר אי פעם — גם התיקיות ששולמו
+   וגם המחזור הפתוח. זהו בדיוק החישוב שכבר מוצג במסך הסטטיסטיקה,
+   ומכאן הוא משרת גם אותו וגם את הכרטיסים, כדי שלא יתפצל לשניים.  */
+function _bshopPartAvg() {
+  const stat = {};
+  const eat = items => {
+    for (const it of (items || [])) {
+      const price = Number(it.price);
+      if (!(price > 0)) continue;
+      const p = stat[it.name] || (stat[it.name] = { n: 0, sum: 0 });
+      p.n++; p.sum += price;
+    }
+  };
+  for (const a of _bshopArchive) for (const car of (a.cars || [])) eat(car.items);
+  for (const j of _bshopJobs) if (j.status !== 'draft') eat(j.items);
+  return stat;
+}
+
+// ההערכה מעוגלת תמיד למאות — מספר עגול אומר "הערכה" בלי להתחזות למחיר
+const _bshopRound100 = n => Math.round(n / 100) * 100;
+
+/* הערכה לפתק אחד: סכום המחירים הממוצעים, ורשימת החלקים שמעולם לא
+   תומחרו ולכן לא נכללו. חלק שכבר יש לו מחיר נלקח כמו שהוא.       */
+function _bshopEstimate(j, stat) {
+  const st = stat || _bshopPartAvg();
+  let sum = 0; const missing = [];
+  for (const it of (j.items || [])) {
+    const price = Number(it.price);
+    if (price > 0) { sum += price; continue; }
+    const p = st[it.name];
+    if (p && p.n) sum += p.sum / p.n; else missing.push(it.name);
+  }
+  return { sum: _bshopRound100(sum), missing };
+}
+
 // keeps the plate inside the visible strip of the photo
 const _bshopFocusCss = j => j.photoFocus
   ? `${Math.round(j.photoFocus.x * 100)}% ${Math.round(j.photoFocus.y * 100)}%`
@@ -369,10 +405,70 @@ async function bsmDeleteOne(key) {
 }
 window.bsmDeleteOne = bsmDeleteOne;
 
+/* ── עדכון ידני של ההערכה ───────────────────────────────────────────
+   נשמר על הפתק עצמו. ברגע שאיברהים ימלא מחירים — המחיר שלו מוצג
+   במקומו, וההערכה כבר לא רלוונטית.                                */
+let _bsEstId = null;
+
+function bsmEditEstimate(id) {
+  const j = _bshopJobs.find(x => x.id === id);
+  if (!j) return;
+  _bsEstId = id;
+  const est = _bshopEstimate(j);
+  const cur = Number(j.estManual) > 0 ? Number(j.estManual) : est.sum;
+  const priced = (j.items || []).length - est.missing.length;
+  const row = (l, v, warn) => `<div style="display:flex;justify-content:space-between;gap:10px;font-size:12.5px;padding:6px 0;border-bottom:1px solid var(--border)">
+      <span style="color:var(--muted);font-weight:700">${l}</span>
+      <b style="font-weight:900;color:${warn ? '#92400e' : 'var(--text)'}">${v}</b></div>`;
+  document.getElementById('bs-est-plate').textContent = `${j.plate || ''}${j.desc ? ' · ' + j.desc : ''}`;
+  document.getElementById('bs-est-lines').innerHTML =
+    row(`${priced} ${priced === 1 ? 'חלק מתומחר' : 'חלקים מתומחרים'}`, est.sum.toLocaleString('he-IL') + ' ₪')
+    + (est.missing.length
+        ? row(`${est.missing.length} ${est.missing.length === 1 ? 'חלק ללא מחיר קודם' : 'חלקים ללא מחיר קודם'}`, 'לא נכללו', true)
+          + `<div style="font-size:12px;font-weight:800;color:#78350f;margin-top:6px;line-height:1.5">${est.missing.map(esc).join(' · ')}</div>`
+        : '');
+  const inp = document.getElementById('bs-est-input');
+  inp.value = cur || '';
+  openModal('modal-bs-est');
+  setTimeout(() => { try { inp.focus(); inp.select(); } catch (e) {} }, 120);
+}
+window.bsmEditEstimate = bsmEditEstimate;
+
+async function bsmSaveEstimate() {
+  if (!_bsEstId) return;
+  const v = Number(document.getElementById('bs-est-input').value);
+  if (!(v > 0)) return showToast('נא להזין סכום');
+  try {
+    await _updateDoc(_docRef('bodyshop_jobs', _bsEstId), { estManual: _bshopRound100(v) });
+    closeModal('modal-bs-est');
+    showToast('✅ ההערכה עודכנה');
+  } catch (e) { showToast('⚠️ השמירה נכשלה: ' + (e.code || e.message), 6000); }
+}
+window.bsmSaveEstimate = bsmSaveEstimate;
+
+// חזרה לחישוב האוטומטי — מוחק את ההערכה הידנית מהפתק
+async function bsmClearEstimate() {
+  if (!_bsEstId) return;
+  try {
+    const { deleteField } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    await _updateDoc(_docRef('bodyshop_jobs', _bsEstId), { estManual: deleteField() });
+    closeModal('modal-bs-est');
+    showToast('חזר לחישוב האוטומטי');
+  } catch (e) { showToast('⚠️ הפעולה נכשלה: ' + (e.code || e.message), 6000); }
+}
+window.bsmClearEstimate = bsmClearEstimate;
+
 function _bshopJobCard(j, forWorker, held) {
   const total = _bshopTotal(j);
   const filled = (j.items || []).filter(it => Number(it.price) > 0).length;
   const desc = [j.desc].filter(Boolean).join(' ');
+  /* עלות משוערת — רק אצל המנהל, רק כשהרכב אצל הפחח, ורק כל עוד
+     איברהים לא תימחר. ב"מכוניות שסיימנו" ובארכיון המחיר שלו סופי
+     ואין מה להעריך. */
+  const showEst = !forWorker && !held && j.status === 'at_shop' && total === 0;
+  const est = showEst ? _bshopEstimate(j) : null;
+  const manual = showEst && Number(j.estManual) > 0 ? Number(j.estManual) : null;
+  const estVal = manual != null ? manual : (est ? est.sum : 0);
   return `<div class="${forWorker ? 'bshop-card-sm' : ''}" onclick="${forWorker ? `bshopOpenFill('${j.id}')` : `bsmOpenJob('${j.id}')`}"
       style="border:2px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px;background:var(--card);cursor:pointer">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
@@ -389,11 +485,21 @@ function _bshopJobCard(j, forWorker, held) {
         <div class="bs-total" style="font-size:18px;font-weight:900;color:var(--gold)">${total.toLocaleString('he-IL')} ₪</div>
         <div style="font-size:11px;font-weight:700;color:var(--muted)">לפני מע״מ</div>
       </div>` : ''}
+      ${showEst && estVal > 0 ? `<div ${manual != null ? `onclick="event.stopPropagation();bsmEditEstimate('${j.id}')" title="לחץ לעדכון" style="cursor:pointer;` : `style="`}text-align:left;white-space:nowrap">
+        <div class="bs-total" style="font-size:18px;font-weight:900;color:var(--muted)">~${estVal.toLocaleString('he-IL')} ₪</div>
+        <div style="font-size:11px;font-weight:700;color:var(--muted)">${manual != null ? '✏️ הערכה שלך' : 'עלות משוערת'}</div>
+      </div>` : ''}
     </div>
     <div class="bs-meta" style="margin-top:8px;font-size:13px;color:var(--muted);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       <span>${(j.items || []).length} חלקים${filled ? ` · מולאו ${filled}` : ''}</span>
       ${_bshopDaysHtml(j)}
     </div>
+    ${showEst && manual == null && est.missing.length ? `<div class="bs-note" style="margin-top:8px;background:#fffbeb;color:#92400e;border-right:5px solid #f59e0b;border-radius:8px;padding:8px 11px">
+      <div style="font-size:12px;font-weight:900">⚠️ ${est.missing.length === 1 ? 'חלק אחד לא נכלל בהערכה' : est.missing.length + ' חלקים לא נכללו בהערכה'}</div>
+      <div style="font-size:12.5px;font-weight:800;color:#78350f;margin-top:2px;line-height:1.5">${est.missing.map(esc).join(' · ')}</div>
+      <button onclick="event.stopPropagation();bsmEditEstimate('${j.id}')"
+        style="margin-top:7px;width:100%;background:#92400e;color:#fff;border:none;border-radius:8px;padding:7px;font-family:'Heebo',sans-serif;font-size:12px;font-weight:900;cursor:pointer">✏️ עדכן הערכה</button>
+    </div>` : ''}
     ${j.note ? `<div class="bs-note" style="margin-top:6px;font-size:13px">📝 ${esc(j.note)}</div>` : ''}
     ${j.photoFailed ? `<div class="bs-note" style="margin-top:6px;background:#fef3c7;color:#92400e;border-right:5px solid #d97706;border-radius:8px;padding:6px 9px;font-size:12px;font-weight:900">⚠️ התמונה לא נשמרה</div>` : ''}
     ${j.reportFailed && _BSHOP_TG_BACKUP ? `<div class="bs-note" style="margin-top:6px;background:#fee2e2;color:#991b1b;border-right:5px solid #dc2626;border-radius:8px;padding:6px 9px;font-size:12px;font-weight:900">⚠️ הגיבוי לטלגרם לא נשלח</div>` : ''}
@@ -924,20 +1030,17 @@ function _bsmRenderStats() {
     : `${paidCars} רכבים ששולמו`;
 
   // ── parts: every note we can still read, paid or open ──
-  const partStat = {};
+  // הממוצע לחלק מגיע מאותה פונקציה שמשרתת גם את ההערכה שבכרטיסים
+  const partStat = _bshopPartAvg();
   let addedN = 0, addedSum = 0;
-  const eatItems = items => {
+  const eatAdded = items => {
     for (const it of (items || [])) {
-      const price = Number(it.price);
-      if (it.addedByShop) { addedN++; addedSum += (price || 0); }
-      if (!(price > 0)) continue;
-      const p = partStat[it.name] || (partStat[it.name] = { n: 0, sum: 0 });
-      p.n++; p.sum += price;
+      if (it.addedByShop) { addedN++; addedSum += (Number(it.price) || 0); }
     }
   };
   let carsCounted = 0;
-  for (const a of _bshopArchive) for (const car of (a.cars || [])) { if (car.items) { carsCounted++; eatItems(car.items); } }
-  for (const j of _bshopJobs) { if (j.status !== 'draft') { carsCounted++; eatItems(j.items); } }
+  for (const a of _bshopArchive) for (const car of (a.cars || [])) { if (car.items) { carsCounted++; eatAdded(car.items); } }
+  for (const j of _bshopJobs) { if (j.status !== 'draft') { carsCounted++; eatAdded(j.items); } }
   const parts = Object.entries(partStat)
     .map(([name, p]) => ({ name, n: p.n, avg: p.sum / p.n }))
     .sort((a, b) => b.avg - a.avg);
