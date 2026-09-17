@@ -1823,15 +1823,41 @@ let _washPayments = [];
 let _washPayUnsub = null;
 let _washPayOpen = null;        // התשלום שפתוח כרגע לפירוט
 
-async function washMarkPaid() {
+/* סגירת תשלום היא פעולה שקשה לחזור ממנה, ולכן היא עוברת דרך חלונית
+   אישור שמראה בדיוק מה עומד לקרות — כמה רכבים, כמה כסף, ומה לא נספר. */
+function washMarkPaid() {
   if (currentUser?.role !== 'manager') return;
-  const { rows, counts, unknown, total, subtotal, vat, grand, fromV, toV } = _washSummaryData();
+  const { total, unknown, subtotal, vat, grand } = _washSummaryData();
   if (!total) return showToast('אין פתקים פתוחים');
-  const extra = Object.keys(unknown).length
-    ? `\n\nשים לב: ל-${Object.values(unknown).reduce((a, b) => a + b, 0)} רכבים אין מחיר ולכן הם לא נספרו בסכום.`
-    : '';
-  if (!confirm(`לסגור תשלום על ${total} רכבים בסך ${_washMoney(grand)} (כולל מע״מ)?\n\nהפתקים יעברו לארכיון התשלומים ויֵצאו מהרשימה הפתוחה.${extra}`)) return;
+  const missing = Object.values(unknown).reduce((a, b) => a + b, 0);
+  const box = document.getElementById('wash-pay-confirm-body');
+  if (box) box.innerHTML = `
+    <div style="font-size:13.5px;font-weight:700;color:var(--muted);margin-bottom:12px">
+      הפתקים יעברו לארכיון התשלומים ויֵצאו מהחשבון הפתוח. שום פתק לא יימחק.</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;border:2px solid var(--border);border-radius:11px;padding:9px 13px;margin-bottom:6px;background:var(--card)">
+      <span style="font-weight:800;font-size:14px">רכבים</span><span style="font-weight:900;font-size:18px">${total}</span></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 14px;font-size:13.5px;font-weight:800;color:var(--muted)">
+      <span>לפני מע״מ</span><span>${_washMoney(subtotal)}</span></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 14px;font-size:13.5px;font-weight:800;color:var(--muted)">
+      <span>מע״מ 18%</span><span>${_washMoney(vat)}</span></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;border-radius:11px;padding:11px 14px;margin:6px 0 12px;background:var(--dark);color:#fff">
+      <span style="font-weight:900;font-size:15px">סה״כ לתשלום</span>
+      <span style="font-weight:900;font-size:22px">${_washMoney(grand)}</span></div>
+    ${missing ? `<div style="background:#fffbeb;border:2px solid #fcd34d;border-radius:11px;padding:9px 12px;font-size:12.5px;font-weight:700;color:#92400e;margin-bottom:12px">
+      ⚠️ ל-${missing} רכבים אין מחיר ולכן הם לא נספרו בסכום. הם בכל זאת ייכללו בתשלום ויֵצאו מהחשבון הפתוח.</div>` : ''}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <button class="btn-submit" onclick="closeModal('modal-wash-pay-confirm')" style="background:var(--surface2);color:var(--text);margin:0;width:100%">ביטול</button>
+      <button class="btn-submit" id="wash-pay-go" onclick="washPayConfirm()" style="background:#0d9488;color:#fff;margin:0;width:100%">✅ אשר תשלום</button>
+    </div>`;
+  openModal('modal-wash-pay-confirm');
+}
+window.washMarkPaid = washMarkPaid;
 
+async function washPayConfirm() {
+  const go = document.getElementById('wash-pay-go');
+  if (go?.dataset.busy) return;          // לחיצה שנייה לא פותחת תשלום כפול
+  if (go) { go.dataset.busy = '1'; go.disabled = true; go.textContent = 'שומר…'; }
+  const { rows, counts, total, subtotal, vat, fromV, toV } = _washSummaryData();
   const byType = Object.entries(counts).filter(([, n]) => n > 0).map(([type, qty]) => ({
     type, qty, unit: _WASH_PRICES[type] ?? null,
     sum: _WASH_PRICES[type] != null ? _WASH_PRICES[type] * qty : null,
@@ -1854,15 +1880,17 @@ async function washMarkPaid() {
       try { await _updateDoc(_docRef('wash_notes', n.id), { paidId: ref.id }); }
       catch (e) { failed++; }
     }
+    closeModal('modal-wash-pay-confirm');
     _washRenderSummary();
     showToast(failed
-      ? `⚠️ התשלום נשמר, אך ${failed} פתקים לא סומנו והם נשארו ברשימה הפתוחה`
+      ? `⚠️ התשלום נשמר, אך ${failed} פתקים לא סומנו והם נשארו בחשבון הפתוח`
       : `✅ התשלום נשמר בארכיון · ${total} רכבים`, failed ? 9000 : 4000);
   } catch (e) {
     showToast('⚠️ שמירת התשלום נכשלה. שום פתק לא זז — אפשר לנסות שוב.', 8000);
   }
+  if (go) { delete go.dataset.busy; go.disabled = false; go.textContent = '✅ אשר תשלום'; }
 }
-window.washMarkPaid = washMarkPaid;
+window.washPayConfirm = washPayConfirm;
 
 function openWashPayments() {
   if (currentUser?.role !== 'manager') return;
