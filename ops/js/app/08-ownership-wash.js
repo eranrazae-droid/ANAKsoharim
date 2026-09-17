@@ -594,6 +594,13 @@ window._psOpenRecord = _psOpenRecord;
    ולא ייפתח דף חדש. כל פתק גם נשמר, כדי שיהיה תיעוד מה נשלח לשטיפה.
 ─────────────────────────────────────────────────────────────────────── */
 const _WASH_TYPES = ['חיצוני', 'חיצוני ידני', 'פנימי', 'חיצוני + פנימי'];
+
+/* המחירון של מאסטר קלין, כפי שהוא מופיע בחשבונית. הסכום נשמר בתוך רשומת
+   התשלום עצמה, ולכן עדכון מחיר כאן לא משנה תשלומים שכבר בוצעו.
+   סוג שטיפה שאין לו מחיר כאן מסומן בהערה במקום להיחשב אפס בשקט. */
+const _WASH_PRICES = { 'חיצוני': 30, 'פנימי': 40, 'חיצוני ידני': 50, 'חיצוני + פנימי': 65 };
+const _WASH_VAT = 0.18;
+const _washMoney = n => Math.round(n).toLocaleString('he-IL') + ' ₪';
 let _washType = '';
 let _washNotes = [];
 let _washUnsub = null;
@@ -728,7 +735,7 @@ function _washNotesListen() {
     _washNotes = snap.docs.map(d => ({ id: d.id, ...d.data() }))
       .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
     _washRenderList();
-    if (document.getElementById('wash-sum-from')?.value) _washRenderSummary();
+    if (document.getElementById('modal-wash-summary')?.classList.contains('open')) _washRenderSummary();
   }, () => {});
 }
 window._washNotesListen = _washNotesListen;
@@ -1310,75 +1317,71 @@ function washSetSort(k) { _washSort = k; _washRenderSortBtns(); }
 window.washSetSort = washSetSort;
 
 function openWashSummary() {
-  washSumRange('month');
   _washRenderSortBtns();
+  _washRenderSummary();
   openModal('modal-wash-summary');
 }
 window.openWashSummary = openWashSummary;
 
-function washSumRange(which) {
-  const now = new Date();
-  let from, to;
-  if (which === 'all') { from = new Date(2020, 0, 1); to = now; }
-  else if (which === 'prev') {
-    from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    to = new Date(now.getFullYear(), now.getMonth(), 0);
-  } else {
-    from = new Date(now.getFullYear(), now.getMonth(), 1);
-    to = now;
-  }
-  document.getElementById('wash-sum-from').value = _washYmd(from);
-  document.getElementById('wash-sum-to').value = _washYmd(to);
-  _washRenderSummary();
-}
-window.washSumRange = washSumRange;
-
-// מחזיר את השורות והסכומים לפי הטווח שנבחר
+/* מחזיר את החשבון הפתוח: כל פתק שעדיין לא נכלל בתשלום.
+   פתק שעבר לארכיון התשלומים נושא paidId ולכן יוצא מכאן. */
 function _washSummaryData() {
-  const fromV = document.getElementById('wash-sum-from')?.value || '';
-  const toV = document.getElementById('wash-sum-to')?.value || '';
-  const from = fromV ? new Date(fromV + 'T00:00:00') : null;
-  // עד סוף היום שנבחר, כדי ששטיפות מאותו יום ייכללו
-  const to = toV ? new Date(toV + 'T23:59:59') : null;
   const mine = currentUser.role === 'manager' ? _washNotes : _washNotes.filter(n => n.createdBy === currentUser.name);
-  const rows = mine.filter(n => {
-    const d = n.createdAt?.toDate ? n.createdAt.toDate() : null;
-    if (!d) return false;
-    if (from && d < from) return false;
-    if (to && d > to) return false;
-    return true;
-  });
+  const rows = mine.filter(n => !n.paidId && n.createdAt?.toDate);
   const counts = {};
   for (const t of _WASH_TYPES) counts[t] = 0;
+  const unknown = {};
+  let subtotal = 0;
   for (const n of rows) {
     const t = n.type || 'ללא סוג';
     counts[t] = (counts[t] || 0) + 1;
+    const price = _WASH_PRICES[t];
+    if (price == null) unknown[t] = (unknown[t] || 0) + 1;
+    else subtotal += price;
   }
   if (_washSort === 'plate') {
     // השוואה ספרה אחרי ספרה, כמו רשימה שמית — לא לפי גודל המספר.
-    // לכן 12345678 בא לפני 1243567: הספרה השלישית 3 קטנה מ-4.
     const d = n => String(n || '').replace(/\D/g, '');
     rows.sort((a, b) => d(a.plate) < d(b.plate) ? -1 : d(a.plate) > d(b.plate) ? 1 : 0);
   } else {
-    // ישן→חדש, כלומר לפי סדר הביצוע
     rows.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
   }
-  return { counts, total: rows.length, fromV, toV, rows };
+  const vat = subtotal * _WASH_VAT;
+  const days = rows.map(n => n.createdAt.toDate()).sort((a, b) => a - b);
+  return { counts, unknown, total: rows.length, subtotal, vat, grand: subtotal + vat, rows,
+           fromV: days[0] ? _washYmd(days[0]) : '', toV: days[days.length - 1] ? _washYmd(days[days.length - 1]) : '' };
 }
 
 function _washRenderSummary() {
   const box = document.getElementById('wash-sum-body');
   if (!box) return;
-  const { counts, total } = _washSummaryData();
-  box.innerHTML = Object.entries(counts).map(([t, n]) => `
-      <div style="display:flex;align-items:center;justify-content:space-between;border:2px solid var(--border);border-radius:11px;padding:10px 13px;margin-bottom:6px;background:var(--card)">
-        <span style="font-weight:800;font-size:15px">${esc(t)}</span>
-        <span style="font-weight:900;font-size:20px;color:${n ? '#0d9488' : 'var(--muted)'}">${n}</span>
-      </div>`).join('') +
-    `<div style="display:flex;align-items:center;justify-content:space-between;border-radius:11px;padding:12px 14px;margin:8px 0 12px;background:var(--dark);color:#fff">
-       <span style="font-weight:900;font-size:15px">סה״כ שטיפות</span>
-       <span style="font-weight:900;font-size:22px">${total}</span>
-     </div>` + _washHistoryHtml();
+  const { counts, unknown, total, subtotal, vat, grand } = _washSummaryData();
+  const mgr = currentUser?.role === 'manager';
+  const line = (label, val, strong) => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 14px;font-size:13.5px;font-weight:800;color:${strong ? 'var(--text)' : 'var(--muted)'}">
+      <span>${label}</span><span>${val}</span></div>`;
+  const warn = Object.keys(unknown).length
+    ? `<div style="background:#fffbeb;border:2px solid #fcd34d;border-radius:11px;padding:9px 12px;font-size:12.5px;font-weight:700;color:#92400e;margin-bottom:10px">
+         ⚠️ אין מחיר לסוג ${Object.entries(unknown).map(([t, n]) => `<b>${esc(t)}</b> (${n})`).join(', ')} — הרכבים האלה לא נספרו בסכום.</div>`
+    : '';
+  box.innerHTML = warn + Object.entries(counts).map(([t, n]) => {
+    const price = _WASH_PRICES[t];
+    return `
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;border:2px solid var(--border);border-radius:11px;padding:9px 13px;margin-bottom:6px;background:var(--card)">
+        <span style="font-weight:800;font-size:15px;flex:1;min-width:0">${esc(t)}</span>
+        <span style="font-weight:900;font-size:19px;color:${n ? '#0d9488' : 'var(--muted)'};min-width:30px;text-align:center">${n}</span>
+        <span style="font-size:12px;color:var(--muted);font-weight:700;min-width:46px;text-align:center">${price == null ? '—' : price + ' ₪'}</span>
+        <span style="font-weight:900;font-size:15px;min-width:74px;text-align:left">${price == null ? '—' : _washMoney(price * n)}</span>
+      </div>`;
+  }).join('') +
+    line(`סה״כ לפני מע״מ · ${total} רכבים`, _washMoney(subtotal)) +
+    line('מע״מ 18%', _washMoney(vat)) +
+    `<div style="display:flex;align-items:center;justify-content:space-between;border-radius:11px;padding:11px 14px;margin:6px 0 12px;background:var(--dark);color:#fff">
+       <span style="font-weight:900;font-size:15px">סה״כ לתשלום</span>
+       <span style="font-weight:900;font-size:22px">${_washMoney(grand)}</span>
+     </div>` +
+    (mgr ? `<button class="btn-submit" onclick="washMarkPaid()"${total ? '' : ' disabled'} style="background:${total ? '#0d9488' : 'var(--surface2)'};color:${total ? '#fff' : 'var(--muted)'};margin:0 0 8px;width:100%">💳 בוצע תשלום — העבר לארכיון</button>` : '') +
+    _washHistoryHtml();
 }
 
 /* ההיסטוריה עצמה, בתוך הסיכום: כל פתק בטווח שנבחר, שורה לרכב. */
@@ -1393,6 +1396,7 @@ function _washHistoryHtml() {
         <span style="font-weight:900;font-size:14px;direction:ltr">${esc(n.plate || '')}</span>
         <span style="flex:1;min-width:90px;font-size:12px;color:var(--muted)">${esc(veh)}</span>
         <span style="font-size:11.5px;font-weight:800;background:var(--surface2);border-radius:999px;padding:2px 9px">${esc(n.type || 'ללא סוג')}</span>
+        ${_WASH_PRICES[n.type] != null ? `<span style="font-size:11.5px;font-weight:800;background:#0d9488;color:#fff;border-radius:999px;padding:2px 9px">${_WASH_PRICES[n.type]} ₪</span>` : ''}
         <span style="font-size:11.5px;color:var(--muted);font-weight:700">${esc(d)}</span>
         <button onclick="washReprint('${esc(n.id)}')" title="הדפס שוב" style="background:var(--dark);color:#fff;border:none;border-radius:8px;width:30px;height:30px;font-size:14px;cursor:pointer;flex-shrink:0">🖨️</button>
         <button onclick="washDelete('${esc(n.id)}')" title="מחק" style="background:#ef4444;color:#fff;border:none;border-radius:8px;width:30px;height:30px;font-size:14px;cursor:pointer;flex-shrink:0">🗑</button>
@@ -1443,7 +1447,7 @@ function _washDetailPages(rows) {
 }
 
 function washPrintSummary() {
-  const { counts, total, fromV, toV, rows } = _washSummaryData();
+  const { counts, total, fromV, toV, rows, subtotal, vat, grand } = _washSummaryData();
   if (!total) return showToast('אין שטיפות בטווח שנבחר');
   const he = v => v ? new Date(v + 'T00:00:00').toLocaleDateString('he-IL') : '';
   const detail = _washDetailPages(rows);
@@ -1483,8 +1487,10 @@ function washPrintSummary() {
   <div class="range">${esc(he(fromV))} — ${esc(he(toV))}</div>
   <hr>
   <table>
-    ${Object.entries(counts).map(([t, n]) => `<tr><td>${esc(t)}</td><td class="n">${n}</td></tr>`).join('')}
-    <tr class="tot"><td>סה״כ שטיפות</td><td class="n">${total}</td></tr>
+    ${Object.entries(counts).map(([t, n]) => `<tr><td>${esc(t)}${_WASH_PRICES[t] != null ? ` · ${_WASH_PRICES[t]} ₪` : ''}</td><td class="n">${n}</td><td class="n">${_WASH_PRICES[t] != null ? _washMoney(_WASH_PRICES[t] * n) : '—'}</td></tr>`).join('')}
+    <tr><td>סה״כ לפני מע״מ</td><td class="n">${total}</td><td class="n">${_washMoney(subtotal)}</td></tr>
+    <tr><td>מע״מ 18%</td><td class="n"></td><td class="n">${_washMoney(vat)}</td></tr>
+    <tr class="tot"><td>סה״כ לתשלום</td><td class="n"></td><td class="n">${_washMoney(grand)}</td></tr>
   </table>
   <div class="det-l">פירוט הרכבים · ${_washSort === 'plate' ? 'לפי מספר רישוי' : 'לפי תאריך'}</div>
   ${detail[0] || ''}
@@ -1800,3 +1806,235 @@ async function bsmAddPhotoPicked(input) {
     showToast('✅ התמונה נוספה לפתק');
   } catch (e) { showToast('⚠️ שמירת התמונה נכשלה: ' + (e.code || e.message), 7000); }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   ארכיון התשלומים לשטיפה
+   ───────────────────────────────────────────────────────────────────────
+   "בוצע תשלום" סוגר את החשבון הפתוח: נוצרת רשומת תשלום אחת שמחזיקה את
+   כל הפירוט (רכב, תאריך, סוג ומחיר), וכל פתק שנכלל בה מסומן ב-paidId
+   ולכן יוצא מהרשימה הפתוחה. שום פתק לא נמחק.
+   פתק שלא נכלל — למשל כזה שנוצר אחרי הלחיצה — פשוט נשאר פתוח וייכנס
+   לתשלום הבא. זה מה שמונע תשלום כפול.
+   החשבונית הסרוקה נשמרת בנפרד (wash_payment_docs) כדי שרשימת התשלומים
+   תישאר קלה לטעינה.
+─────────────────────────────────────────────────────────────────────── */
+const _WASH_DOC_MAX = 700 * 1024;
+let _washPayments = [];
+let _washPayUnsub = null;
+let _washPayOpen = null;        // התשלום שפתוח כרגע לפירוט
+
+async function washMarkPaid() {
+  if (currentUser?.role !== 'manager') return;
+  const { rows, counts, unknown, total, subtotal, vat, grand, fromV, toV } = _washSummaryData();
+  if (!total) return showToast('אין פתקים פתוחים');
+  const extra = Object.keys(unknown).length
+    ? `\n\nשים לב: ל-${Object.values(unknown).reduce((a, b) => a + b, 0)} רכבים אין מחיר ולכן הם לא נספרו בסכום.`
+    : '';
+  if (!confirm(`לסגור תשלום על ${total} רכבים בסך ${_washMoney(grand)} (כולל מע״מ)?\n\nהפתקים יעברו לארכיון התשלומים ויֵצאו מהרשימה הפתוחה.${extra}`)) return;
+
+  const byType = Object.entries(counts).filter(([, n]) => n > 0).map(([type, qty]) => ({
+    type, qty, unit: _WASH_PRICES[type] ?? null,
+    sum: _WASH_PRICES[type] != null ? _WASH_PRICES[type] * qty : null,
+  }));
+  const cars = rows.map(n => ({
+    plate: n.plate || '', type: n.type || '', price: _WASH_PRICES[n.type] ?? null,
+    date: n.createdAt?.toDate ? _washYmd(n.createdAt.toDate()) : '',
+    maker: n.maker || '', model: n.model || '', year: n.year || '', color: n.color || '',
+  }));
+  try {
+    const ref = await _addDoc(_colRef('wash_payments'), {
+      paidAt: _serverTs(), paidBy: currentUser.name,
+      from: fromV, to: toV, count: total,
+      subtotal, vat, total: subtotal + vat,
+      byType, cars, hasDoc: false,
+    });
+    // סימון הפתקים רק אחרי שרשומת התשלום נשמרה בהצלחה
+    let failed = 0;
+    for (const n of rows) {
+      try { await _updateDoc(_docRef('wash_notes', n.id), { paidId: ref.id }); }
+      catch (e) { failed++; }
+    }
+    _washRenderSummary();
+    showToast(failed
+      ? `⚠️ התשלום נשמר, אך ${failed} פתקים לא סומנו והם נשארו ברשימה הפתוחה`
+      : `✅ התשלום נשמר בארכיון · ${total} רכבים`, failed ? 9000 : 4000);
+  } catch (e) {
+    showToast('⚠️ שמירת התשלום נכשלה. שום פתק לא זז — אפשר לנסות שוב.', 8000);
+  }
+}
+window.washMarkPaid = washMarkPaid;
+
+function openWashPayments() {
+  if (currentUser?.role !== 'manager') return;
+  if (!_washPayUnsub && window._onSnap) {
+    _washPayUnsub = _onSnap(_colRef('wash_payments'), snap => {
+      _washPayments = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (b.paidAt?.seconds || 0) - (a.paidAt?.seconds || 0));
+      _washRenderPayments();
+    }, () => {});
+  }
+  _washRenderPayments();
+  openModal('modal-wash-payments');
+}
+window.openWashPayments = openWashPayments;
+
+function washPayToggle(id) {
+  _washPayOpen = _washPayOpen === id ? null : id;
+  _washRenderPayments();
+}
+window.washPayToggle = washPayToggle;
+
+function _washPayTitle(p) {
+  const d = p.paidAt?.toDate ? p.paidAt.toDate() : null;
+  return d ? d.toLocaleDateString('he-IL', { month: 'long', year: 'numeric' }) : 'תשלום';
+}
+
+function _washRenderPayments() {
+  const box = document.getElementById('wash-pay-body');
+  if (!box) return;
+  if (!_washPayments.length) {
+    box.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:13px;font-weight:700;padding:18px">עדיין לא נסגר אף תשלום</div>';
+    return;
+  }
+  box.innerHTML = _washPayments.map(p => {
+    const open = _washPayOpen === p.id;
+    const d = p.paidAt?.toDate ? p.paidAt.toDate().toLocaleDateString('he-IL') : '';
+    return `<div style="border:2px solid ${open ? '#0d9488' : 'var(--border)'};border-radius:14px;padding:12px 14px;margin-bottom:9px;background:var(--card)">
+      <div onclick="washPayToggle('${p.id}')" style="cursor:pointer">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px">
+          <span style="font-weight:900;font-size:16px">${esc(_washPayTitle(p))}</span>
+          <span style="font-weight:900;font-size:18px;color:#0d9488">${_washMoney(p.total || 0)}</span>
+        </div>
+        <div style="font-size:12.5px;color:var(--muted);font-weight:700">
+          שולם ${esc(d)} · ${p.count || 0} רכבים · ${_washMoney(p.subtotal || 0)} + מע״מ ${_washMoney(p.vat || 0)}
+          ${p.hasDoc ? ' · 📎 חשבונית מצורפת' : ''}
+        </div>
+      </div>
+      ${open ? _washPayDetail(p) : ''}
+    </div>`;
+  }).join('');
+}
+
+function _washPayDetail(p) {
+  const rows = (p.byType || []).map(t => `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;border:2px solid var(--border);border-radius:11px;padding:7px 11px;margin-bottom:5px;background:var(--card)">
+      <span style="font-weight:800;font-size:14px;flex:1;min-width:0">${esc(t.type)}</span>
+      <span style="font-weight:900;font-size:17px;color:#0d9488;min-width:30px;text-align:center">${t.qty}</span>
+      <span style="font-size:12px;color:var(--muted);font-weight:700;min-width:46px;text-align:center">${t.unit == null ? '—' : t.unit + ' ₪'}</span>
+      <span style="font-weight:900;font-size:14px;min-width:74px;text-align:left">${t.sum == null ? '—' : _washMoney(t.sum)}</span>
+    </div>`).join('');
+  const cars = (p.cars || []).map(c => {
+    const veh = [c.maker, c.model, c.year].filter(Boolean).join(' · ');
+    const dt = c.date ? new Date(c.date + 'T00:00:00').toLocaleDateString('he-IL') : '';
+    return `<div style="border:1.5px solid var(--border);border-radius:10px;padding:6px 9px;margin-bottom:5px;background:var(--card);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <span style="font-weight:900;font-size:13px;direction:ltr">${esc(c.plate)}</span>
+      <span style="flex:1;min-width:80px;font-size:11.5px;color:var(--muted)">${esc(veh)}</span>
+      <span style="font-size:11.5px;font-weight:800;background:var(--surface2);border-radius:999px;padding:2px 9px">${esc(c.type)}</span>
+      ${c.price != null ? `<span style="font-size:11.5px;font-weight:800;background:#0d9488;color:#fff;border-radius:999px;padding:2px 9px">${c.price} ₪</span>` : ''}
+      <span style="font-size:11px;color:var(--muted);font-weight:700">${esc(dt)}</span>
+    </div>`;
+  }).join('');
+  return `<div style="margin-top:10px">
+    ${rows}
+    <div style="font-size:12.5px;font-weight:800;color:var(--muted);margin:9px 0 5px">הרכבים שנכללו (${(p.cars || []).length})</div>
+    ${cars}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">
+      <button class="btn-submit" onclick="washPrintPayment('${p.id}')" style="background:var(--dark);color:#fff;font-size:13.5px;padding:10px;margin:0;width:100%">🖨️ הדפס פירוט</button>
+      ${p.hasDoc
+        ? `<button class="btn-submit" onclick="washOpenInvoice('${p.id}')" style="background:#6366f1;color:#fff;font-size:13.5px;padding:10px;margin:0;width:100%">📎 פתח חשבונית</button>`
+        : `<label class="btn-submit" style="background:#6366f1;color:#fff;font-size:13.5px;padding:10px;margin:0;width:100%;text-align:center;cursor:pointer;display:block">📎 צרף חשבונית
+             <input type="file" accept="image/*,application/pdf" onchange="washAttachInvoice('${p.id}', this)" style="display:none"></label>`}
+    </div>
+  </div>`;
+}
+
+/* החשבונית נשמרת בתוך המסד ולכן יש לה תקרת גודל — עדיף לומר את זה
+   בזמן הצירוף מאשר להיכשל בשמירה. אותו כלל כמו באישורי הבעלות. */
+function washAttachInvoice(id, input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  if (file.size > _WASH_DOC_MAX) {
+    input.value = '';
+    return showToast(`⚠️ הקובץ גדול מדי (${(file.size / 1024 / 1024).toFixed(1)}MB). המקסימום הוא 0.7MB — סרוק באיכות נמוכה יותר.`, 10000);
+  }
+  const r = new FileReader();
+  r.onload = async e => {
+    try {
+      await _setDoc(_docRef('wash_payment_docs', id), { doc: e.target.result, docMime: file.type || '', docName: file.name || 'חשבונית' });
+      await _updateDoc(_docRef('wash_payments', id), { hasDoc: true });
+      showToast('✅ החשבונית צורפה');
+    } catch (err) { showToast('⚠️ צירוף החשבונית נכשל', 7000); }
+  };
+  r.onerror = () => showToast('⚠️ קריאת הקובץ נכשלה', 7000);
+  r.readAsDataURL(file);
+}
+window.washAttachInvoice = washAttachInvoice;
+
+async function washOpenInvoice(id) {
+  try {
+    const snap = await _getDoc(_docRef('wash_payment_docs', id));
+    const d = snap.exists() ? snap.data() : null;
+    if (!d || !d.doc) return showToast('החשבונית לא נמצאה');
+    const w = window.open('', '_blank');
+    if (!w) return showToast('הדפדפן חסם את פתיחת החלון');
+    w.document.write(String(d.docMime || '').startsWith('image/')
+      ? `<body style="margin:0;background:#111"><img src="${d.doc}" style="width:100%"></body>`
+      : `<body style="margin:0"><embed src="${d.doc}" type="application/pdf" style="width:100%;height:100vh"></body>`);
+    w.document.close();
+  } catch (e) { showToast('⚠️ פתיחת החשבונית נכשלה', 7000); }
+}
+window.washOpenInvoice = washOpenInvoice;
+
+function washPrintPayment(id) {
+  const p = _washPayments.find(x => x.id === id);
+  if (!p) return;
+  const d = p.paidAt?.toDate ? p.paidAt.toDate().toLocaleDateString('he-IL') : '';
+  _printHtml(`<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8">
+<title>פירוט תשלום</title>
+<style>
+  @page { size:A4; margin:12mm }
+  body { font-family: Arial, "Segoe UI", sans-serif; color:#222; margin:0; text-align:center }
+  h1 { font-size:20px; font-weight:normal; letter-spacing:4px; color:#444; margin:0 }
+  .sub { font-size:12px; letter-spacing:3px; color:#888; margin:4px 0 0 }
+  .range { font-size:13px; color:#555; margin-top:7px }
+  hr { border:0; border-top:1px solid #d5d5d5; margin:10px 0 12px }
+  table { border-collapse:collapse; width:100% }
+  td { border-bottom:1px solid #e2e2e2; padding:6px; text-align:right; font-size:14px }
+  td.n { text-align:left; font-weight:bold; width:20% }
+  tr.tot td { border-top:2px solid #999; border-bottom:0; font-weight:bold; font-size:17px; padding-top:9px }
+  .det-l { font-size:11px; letter-spacing:3px; color:#888; margin:14px 0 5px; border-top:1px solid #e2e2e2; padding-top:9px }
+  .ln { display:flex; gap:6px; font-size:11px; border-bottom:1px solid #eee; padding:2px 0; text-align:right }
+  .ln .p { font-weight:bold; flex:0 0 auto }
+  .ln .c { color:#666; flex:1 1 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+  .ln .w { color:#0d6a63; flex:0 0 auto }
+  .cols { display:flex; gap:6mm; align-items:flex-start }
+  .cols>div { flex:1 1 0; min-width:0 }
+  .foot { margin-top:12px; font-size:11px; letter-spacing:1px; color:#999; border-top:1px solid #e2e2e2; padding-top:7px }
+</style></head><body>
+  <h1>פירוט תשלום שטיפות</h1>
+  <div class="sub">ענק הרכבים · מאסטר קלין</div>
+  <div class="range">שולם ${esc(d)} · ${p.count || 0} רכבים</div>
+  <hr>
+  <table>
+    ${(p.byType || []).map(t => `<tr><td>${esc(t.type)}${t.unit != null ? ` · ${t.unit} ₪` : ''}</td><td class="n">${t.qty}</td><td class="n">${t.sum == null ? '—' : _washMoney(t.sum)}</td></tr>`).join('')}
+    <tr><td>סה״כ לפני מע״מ</td><td class="n">${p.count || 0}</td><td class="n">${_washMoney(p.subtotal || 0)}</td></tr>
+    <tr><td>מע״מ 18%</td><td class="n"></td><td class="n">${_washMoney(p.vat || 0)}</td></tr>
+    <tr class="tot"><td>סה״כ ששולם</td><td class="n"></td><td class="n">${_washMoney(p.total || 0)}</td></tr>
+  </table>
+  <div class="det-l">הרכבים שנכללו</div>
+  <div class="cols">${(() => {
+    const cars = p.cars || [];
+    const per = Math.ceil(cars.length / 3) || 1;
+    let out = '';
+    for (let i = 0; i < cars.length; i += per) {
+      out += '<div>' + cars.slice(i, i + per).map(c => {
+        const veh = [c.maker, c.model, c.color].filter(Boolean).join(' ');
+        return `<div class="ln"><span class="p">${esc(c.plate)}</span><span class="c">${esc(veh)}</span><span class="w">${esc(c.type)}</span></div>`;
+      }).join('') + '</div>';
+    }
+    return out;
+  })()}</div>
+  <div class="foot">${esc(currentUser.name)} · ${esc(new Date().toLocaleDateString('he-IL'))}</div>
+</body></html>`, 'wash payment print', 'שגיאה בהדפסה');
+}
+window.washPrintPayment = washPrintPayment;
