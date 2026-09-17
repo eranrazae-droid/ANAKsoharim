@@ -648,6 +648,20 @@ function setHomePanelTab(tab) {
 }
 window.setHomePanelTab = setHomePanelTab;
 
+/* שורת הפעולות של טופס השטיפה: הנהג רואה "רכבים שמורים" בלבד,
+   המנהל רואה גם סיכום וגם ארכיון תשלומים — ואז השורה היא שלושה
+   כפתורים ברוחב שווה. */
+function _washActionsMode() {
+  const mgr = currentUser?.role === 'manager';
+  const row = document.getElementById('wash-actions');
+  if (row) row.classList.toggle('mgr', mgr);
+  for (const id of ['wash-summary-btn', 'wash-archive-btn']) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = mgr ? '' : 'none';
+  }
+}
+window._washActionsMode = _washActionsMode;
+
 function _washMount() {
   const slot = document.getElementById('home-wash-slot');
   // מסכי השטיפה/הבורות/נסיעת המבחן נפתחים גם כחלונית שמארחת את המסך
@@ -668,10 +682,9 @@ function _washMount() {
     if (toHome) shown = tab;
   }
 
-  // כפתור הסיכום נחשף למנהל בלבד — גם כשהטופס יושב במסך הבית ולא
-  // עברנו דרך openWashScreen
-  const sum = document.getElementById('wash-summary-btn');
-  if (sum) sum.style.display = currentUser?.role === 'manager' ? '' : 'none';
+  // כפתורי הניהול נחשפים למנהל בלבד — גם כשהטופס יושב במסך הבית
+  // ולא עברנו דרך openWashScreen
+  _washActionsMode();
 
   const tabs = document.getElementById('home-panel-tabs');
   if (tabs) tabs.querySelectorAll('button').forEach(b => {
@@ -716,9 +729,8 @@ function openWashScreen() {
   document.getElementById('wash-user-badge').textContent = currentUser.name;
   showScreen('wash');
   _washMount();                 // הטופס חוזר למסך שלו
-  // הסיכום הוא כלי ניהולי — הנהג מכין ומדפיס פתקים בלבד
-  const sumBtn = document.getElementById('wash-summary-btn');
-  if (sumBtn) sumBtn.style.display = currentUser.role === 'manager' ? '' : 'none';
+  // הסיכום והארכיון הם כלים ניהוליים — הנהג מכין ומדפיס פתקים בלבד
+  _washActionsMode();
   _washBatch = [];            // כניסה למסך מתחילה טופס נקי
   _washRenderBatch();
   _washClear();
@@ -1827,22 +1839,41 @@ let _washPayOpen = null;        // התשלום שפתוח כרגע לפירוט
    אישור שמראה בדיוק מה עומד לקרות — כמה רכבים, כמה כסף, ומה לא נספר. */
 function washMarkPaid() {
   if (currentUser?.role !== 'manager') return;
-  const { total, unknown, subtotal, vat, grand } = _washSummaryData();
+  const { total, counts, unknown, subtotal, vat, grand } = _washSummaryData();
   if (!total) return showToast('אין פתקים פתוחים');
   const missing = Object.values(unknown).reduce((a, b) => a + b, 0);
   const box = document.getElementById('wash-pay-confirm-body');
+  // המבנה זהה לחשבונית שמגיעה מהשטיפה: כמות, סוג, מחיר ליחידה וסה״כ
+  const items = Object.entries(counts).filter(([, n]) => n > 0).map(([t, n]) => {
+    const unit = _WASH_PRICES[t];
+    return `<tr>
+      <td style="padding:8px 10px;border-bottom:1px solid var(--border);font-weight:900;font-size:15px;white-space:nowrap">${n}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid var(--border);font-weight:800;font-size:14px">${esc(t)}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid var(--border);font-size:13px;color:var(--muted);font-weight:700;text-align:center;white-space:nowrap">${unit == null ? '—' : unit + ' ₪'}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid var(--border);font-weight:900;font-size:14px;text-align:left;white-space:nowrap">${unit == null ? '—' : _washMoney(unit * n)}</td>
+    </tr>`;
+  }).join('');
+  const foot = (label, val, strong) => `<tr>
+      <td colspan="3" style="padding:${strong ? '10px' : '6px'} 10px;font-weight:${strong ? 900 : 800};font-size:${strong ? 15 : 13.5}px;color:${strong ? 'var(--text)' : 'var(--muted)'};${strong ? 'border-top:2px solid var(--border)' : ''}">${label}</td>
+      <td style="padding:${strong ? '10px' : '6px'} 10px;text-align:left;font-weight:900;font-size:${strong ? 19 : 13.5}px;white-space:nowrap;${strong ? 'border-top:2px solid var(--border)' : ''}">${val}</td>
+    </tr>`;
   if (box) box.innerHTML = `
     <div style="font-size:13.5px;font-weight:700;color:var(--muted);margin-bottom:12px">
       הפתקים יעברו לארכיון התשלומים ויֵצאו מהחשבון הפתוח. שום פתק לא יימחק.</div>
-    <div style="display:flex;align-items:center;justify-content:space-between;border:2px solid var(--border);border-radius:11px;padding:9px 13px;margin-bottom:6px;background:var(--card)">
-      <span style="font-weight:800;font-size:14px">רכבים</span><span style="font-weight:900;font-size:18px">${total}</span></div>
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 14px;font-size:13.5px;font-weight:800;color:var(--muted)">
-      <span>לפני מע״מ</span><span>${_washMoney(subtotal)}</span></div>
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 14px;font-size:13.5px;font-weight:800;color:var(--muted)">
-      <span>מע״מ 18%</span><span>${_washMoney(vat)}</span></div>
-    <div style="display:flex;align-items:center;justify-content:space-between;border-radius:11px;padding:11px 14px;margin:6px 0 12px;background:var(--dark);color:#fff">
-      <span style="font-weight:900;font-size:15px">סה״כ לתשלום</span>
-      <span style="font-weight:900;font-size:22px">${_washMoney(grand)}</span></div>
+    <div style="border:2px solid var(--border);border-radius:13px;overflow:hidden;margin-bottom:12px">
+      <table style="width:100%;border-collapse:collapse;background:var(--card)">
+        <tr style="background:var(--surface2)">
+          <td style="padding:7px 10px;font-size:11.5px;font-weight:800;color:var(--muted)">כמות</td>
+          <td style="padding:7px 10px;font-size:11.5px;font-weight:800;color:var(--muted)">סוג שטיפה</td>
+          <td style="padding:7px 10px;font-size:11.5px;font-weight:800;color:var(--muted);text-align:center">ליחידה</td>
+          <td style="padding:7px 10px;font-size:11.5px;font-weight:800;color:var(--muted);text-align:left">סה״כ</td>
+        </tr>
+        ${items}
+        ${foot(`סה״כ ללא מע״מ · ${total} רכבים`, _washMoney(subtotal))}
+        ${foot('מע״מ 18%', _washMoney(vat))}
+        ${foot('סה״כ לתשלום', _washMoney(grand), true)}
+      </table>
+    </div>
     ${missing ? `<div style="background:#fffbeb;border:2px solid #fcd34d;border-radius:11px;padding:9px 12px;font-size:12.5px;font-weight:700;color:#92400e;margin-bottom:12px">
       ⚠️ ל-${missing} רכבים אין מחיר ולכן הם לא נספרו בסכום. הם בכל זאת ייכללו בתשלום ויֵצאו מהחשבון הפתוח.</div>` : ''}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">

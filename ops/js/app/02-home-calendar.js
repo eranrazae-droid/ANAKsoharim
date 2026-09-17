@@ -52,12 +52,15 @@ function _dailyNote(id) {
       : { txt: '✅ נבדק הבוקר · הכל תקין', ok: true };
   }
   if (id === 'menu-card-inventory') {
-    // הבדיקה נחשבת שבוצעה גם אם המנהל כבר מחק אותה — הסימון היומי נשמר בנפרד
+    // "נבדק" נקבע אך ורק לפי הסימון שנרשם כשהמנהל לוחץ "סיים בדיקה",
+    // ולא לפי הרגע שהנהג שלח. כל עוד יושבת בדיקה שהנהג סיים והמנהל
+    // עדיין לא אישר — המצב הוא "לבדיקתך", לא "נבדק".
     const marked = _dailyInvMark && _dailyInvMark.day === today;
-    const done = (_dailyInv && _dailyInv.day === today) || marked;
-    if (!done) return { txt: '⏳ טרם בוצעה היום', ok: false };
+    const waiting = _dailyInv && _dailyInv.day === today;
+    if (waiting) return { txt: '🔎 הנהג סיים · לבדיקתך', ok: false, review: true };
+    if (!marked) return { txt: '⏳ טרם בוצעה היום', ok: false };
     if (_dailyInv && _dailyInv.open) return { txt: `⚠️ נבדק הבוקר · ${_dailyInv.open} ממתינות`, ok: false };
-    if (marked && _dailyInvMark.missing) return { txt: `⚠️ נבדק הבוקר · ${_dailyInvMark.missing} חסרים`, ok: false };
+    if (_dailyInvMark.missing) return { txt: `⚠️ נבדק הבוקר · ${_dailyInvMark.missing} חסרים`, ok: false };
     return { txt: '✅ נבדק הבוקר · הבדיקה תקינה', ok: true };
   }
   return null;
@@ -82,13 +85,19 @@ function _renderHomeChecks() {
     if (!el) continue;
     const sub = el.querySelector('i');
     const d = _dailyNote(c.note);
-    el.classList.remove('ok', 'wait', 'warn');
+    el.classList.remove('ok', 'wait', 'warn', 'rev');
     if (!d) { if (sub) sub.textContent = c.idle; continue; }
+    // בטלפון הכפתור צר, ומלל ארוך היה נשבר לשתי שורות רק באחד מהם
+    const narrow = window.innerWidth <= 900;
+    // הנהג סיים והמנהל עדיין לא אישר — מצב משלו, לא "טרם" ולא "נבדק"
+    if (d.review) {
+      el.classList.add('rev');
+      if (sub) sub.textContent = narrow ? 'לבדיקתך' : 'הנהג סיים · לבדיקתך';
+      continue;
+    }
     // הנוסח המלא ארוך לכפתור צר — נשארת רק המילה שאומרת את המצב
     const done = !/טרם/.test(d.txt);
     el.classList.add(d.ok ? 'ok' : done ? 'warn' : 'wait');
-    // בטלפון הכפתור צר, ומלל ארוך היה נשבר לשתי שורות רק באחד מהם
-    const narrow = window.innerWidth <= 900;
     if (sub) sub.textContent = !done ? (narrow ? 'טרם' : 'טרם בוצעה')
       : d.ok ? (narrow ? 'נבדק' : 'נבדק הבוקר')
       : (d.txt.match(/·\s*(.+)$/) || [, 'יש ממצא'])[1].trim();
