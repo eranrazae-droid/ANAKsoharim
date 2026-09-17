@@ -1837,9 +1837,30 @@ let _washPayOpen = null;        // התשלום שפתוח כרגע לפירוט
 
 /* סגירת תשלום היא פעולה שקשה לחזור ממנה, ולכן היא עוברת דרך חלונית
    אישור שמראה בדיוק מה עומד לקרות — כמה רכבים, כמה כסף, ומה לא נספר. */
-function washMarkPaid() {
+/* מה בדיוק ייכלל בתשלום: כברירת מחדל כל החשבון הפתוח, ואחרי הצלבה
+   מול הסריקה — רק הרכבים שהפתק שלהם חזר. */
+function _washPaySelection() {
+  const d = _washSummaryData();
+  if (!_washPayOnly) return d;
+  const rows = d.rows.filter(n => _washPayOnly.has(n.id));
+  const counts = {}; const unknown = {}; let subtotal = 0;
+  for (const t of _WASH_TYPES) counts[t] = 0;
+  for (const n of rows) {
+    const t = n.type || 'ללא סוג';
+    counts[t] = (counts[t] || 0) + 1;
+    const price = _WASH_PRICES[t];
+    if (price == null) unknown[t] = (unknown[t] || 0) + 1; else subtotal += price;
+  }
+  const vat = subtotal * _WASH_VAT;
+  const days = rows.map(n => n.createdAt.toDate()).sort((a, b) => a - b);
+  return { ...d, rows, counts, unknown, total: rows.length, subtotal, vat, grand: subtotal + vat,
+           fromV: days[0] ? _washYmd(days[0]) : '', toV: days[days.length - 1] ? _washYmd(days[days.length - 1]) : '' };
+}
+
+function washMarkPaid(only) {
   if (currentUser?.role !== 'manager') return;
-  const { total, counts, unknown, subtotal, vat, grand } = _washSummaryData();
+  _washPayOnly = only || null;
+  const { total, counts, unknown, subtotal, vat, grand } = _washPaySelection();
   if (!total) return showToast('אין פתקים פתוחים');
   const missing = Object.values(unknown).reduce((a, b) => a + b, 0);
   const box = document.getElementById('wash-pay-confirm-body');
@@ -1859,7 +1880,7 @@ function washMarkPaid() {
     </tr>`;
   if (box) box.innerHTML = `
     <div style="font-size:13.5px;font-weight:700;color:var(--muted);margin-bottom:12px">
-      הפתקים יעברו לארכיון התשלומים ויֵצאו מהחשבון הפתוח. שום פתק לא יימחק.</div>
+      ${_washPayOnly ? 'תשלום על הרכבים שהפתק שלהם חזר מהשטיפה. השאר נשארים בחשבון הפתוח. ' : ''}הפתקים יעברו לארכיון התשלומים ויֵצאו מהחשבון הפתוח. שום פתק לא יימחק.</div>
     <div style="border:2px solid var(--border);border-radius:13px;overflow:hidden;margin-bottom:12px">
       <table style="width:100%;border-collapse:collapse;background:var(--card)">
         <tr style="background:var(--surface2)">
@@ -1877,7 +1898,7 @@ function washMarkPaid() {
     ${missing ? `<div style="background:#fffbeb;border:2px solid #fcd34d;border-radius:11px;padding:9px 12px;font-size:12.5px;font-weight:700;color:#92400e;margin-bottom:12px">
       ⚠️ ל-${missing} רכבים אין מחיר ולכן הם לא נספרו בסכום. הם בכל זאת ייכללו בתשלום ויֵצאו מהחשבון הפתוח.</div>` : ''}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-      <button class="btn-submit" onclick="closeModal('modal-wash-pay-confirm')" style="background:var(--surface2);color:var(--text);margin:0;width:100%">ביטול</button>
+      <button class="btn-submit" onclick="washPayCancel()" style="background:var(--surface2);color:var(--text);margin:0;width:100%">ביטול</button>
       <button class="btn-submit" id="wash-pay-go" onclick="washPayConfirm()" style="background:#0d9488;color:#fff;margin:0;width:100%">✅ אשר תשלום</button>
     </div>`;
   openModal('modal-wash-pay-confirm');
@@ -1888,7 +1909,7 @@ async function washPayConfirm() {
   const go = document.getElementById('wash-pay-go');
   if (go?.dataset.busy) return;          // לחיצה שנייה לא פותחת תשלום כפול
   if (go) { go.dataset.busy = '1'; go.disabled = true; go.textContent = 'שומר…'; }
-  const { rows, counts, total, subtotal, vat, fromV, toV } = _washSummaryData();
+  const { rows, counts, total, subtotal, vat, fromV, toV } = _washPaySelection();
   const byType = Object.entries(counts).filter(([, n]) => n > 0).map(([type, qty]) => ({
     type, qty, unit: _WASH_PRICES[type] ?? null,
     sum: _WASH_PRICES[type] != null ? _WASH_PRICES[type] * qty : null,
@@ -1912,6 +1933,7 @@ async function washPayConfirm() {
       catch (e) { failed++; }
     }
     closeModal('modal-wash-pay-confirm');
+    _washPayOnly = null; _washRec = null;
     _washRenderSummary();
     showToast(failed
       ? `⚠️ התשלום נשמר, אך ${failed} פתקים לא סומנו והם נשארו בחשבון הפתוח`
@@ -1922,6 +1944,10 @@ async function washPayConfirm() {
   if (go) { delete go.dataset.busy; go.disabled = false; go.textContent = '✅ אשר תשלום'; }
 }
 window.washPayConfirm = washPayConfirm;
+
+// ביטול מחזיר את הבחירה למצב הרגיל — החשבון הפתוח כולו
+function washPayCancel() { _washPayOnly = null; closeModal('modal-wash-pay-confirm'); }
+window.washPayCancel = washPayCancel;
 
 function openWashPayments() {
   if (currentUser?.role !== 'manager') return;
@@ -2097,3 +2123,176 @@ function washPrintPayment(id) {
 </body></html>`, 'wash payment print', 'שגיאה בהדפסה');
 }
 window.washPrintPayment = washPrintPayment;
+
+/* ═══════════════════════════════════════════════════════════════════════
+   הצלבת הפתקים שחזרו מהשטיפה מול החשבון הפתוח
+   ───────────────────────────────────────────────────────────────────────
+   השטיפה מחזירה את הפתקים שהדפסנו, והם נסרקים לקובץ אחד. כל עמוד הוא
+   פתק אחד. מכאן שהתשלום צריך להיות על מה שחזר בפועל — לא על טווח
+   תאריכים. רכב שברשימה ולא חזר פשוט נשאר בחשבון הפתוח וייכנס בפעם הבאה.
+
+   הזיהוי עובד בשלושה מדרגים, מהמדויק לגס:
+   1. שכבת הטקסט של ה-PDF — מדויקת לחלוטין, קיימת רק בקובץ שאינו סריקה
+   2. זיהוי תווים מוגבל לספרות על החלק העליון של העמוד, שם יושבת הלוחית
+   3. חיפוש כל מספר מהחשבון הפתוח בתוך כל הספרות שבעמוד
+
+   בכל המדרגים ההתאמה נעשית מול רשימת המספרים שכבר בחשבון הפתוח, ולכן
+   טעות של ספרה אחת עדיין מתכנסת לרכב הנכון. מה שלא זוהה מוצג בנפרד
+   ואף פעם לא מנוחש — אתה משייך אותו ידנית.
+   כל התהליך הוא תצוגה בלבד; שום דבר לא נשמר עד שתאשר את התשלום.
+─────────────────────────────────────────────────────────────────────── */
+let _washPayOnly = null;   // תת-קבוצת פתקים שהוצלבה מול הסריקה
+let _washRec = null;     // { pages, matched:Map(noteId→plate), unknown:[], notes }
+
+function openWashReconcile() {
+  if (currentUser?.role !== 'manager') return;
+  const { total } = _washSummaryData();
+  if (!total) return showToast('אין פתקים פתוחים להצליב');
+  _washRec = null;
+  const st = document.getElementById('wash-rec-status');
+  if (st) st.innerHTML = `<div style="font-size:13px;font-weight:700;color:var(--muted);line-height:1.6">
+    בחשבון הפתוח יש <b>${total}</b> רכבים. העלה את הסריקה של הפתקים שחזרו מהשטיפה —
+    קובץ PDF אחד או כמה תמונות. כל עמוד הוא פתק אחד.</div>`;
+  const res = document.getElementById('wash-rec-body');
+  if (res) res.innerHTML = '';
+  const inp = document.getElementById('wash-rec-file');
+  if (inp) inp.value = '';
+  openModal('modal-wash-rec');
+}
+window.openWashReconcile = openWashReconcile;
+
+// כל מספרי הרישוי שאפשר לזהות בעמוד, מהמדויק לגס
+function _washPlatesInText(text) {
+  const t = String(text || '').replace(/[‎‏]/g, '');
+  const out = _plateTokens(t);
+  // הפתק שלנו מודפס עם מקפים — 123-45-678
+  for (const m of (t.match(/\d{2,3}[-–]\d{2,3}[-–]\d{2,4}/g) || [])) {
+    const d = m.replace(/\D/g, '');
+    if (d.length === 7 || d.length === 8) out.push(d);
+  }
+  return out;
+}
+
+// הצמדה לרשימת המספרים שבחשבון הפתוח — טעות של ספרה אחת עדיין מתכנסת
+function _washSnap(tokens, known) {
+  let best = { dist: 99, id: null };
+  for (const t of tokens) {
+    for (const k of known) {
+      if (Math.abs(k.plate.length - t.length) > 1) continue;
+      const d = _levenshtein(t, k.plate);
+      if (d < best.dist) best = { dist: d, id: k.id, plate: k.plate };
+    }
+  }
+  return best.id && best.dist <= 1 ? best : null;
+}
+
+async function washReconcileFiles(input) {
+  const files = [...(input.files || [])];
+  if (!files.length) return;
+  const st = document.getElementById('wash-rec-status');
+  const say = h => { if (st) st.innerHTML = h; };
+  const { rows } = _washSummaryData();
+  const known = rows.map(n => ({ id: n.id, plate: _normPlate(n.plate) })).filter(k => k.plate.length >= 7);
+  let worker = null;
+  try {
+    say('<div style="font-size:13px;font-weight:800;color:var(--muted)">⏳ מפצל את הקובץ לעמודים…</div>');
+    const pages = [];        // { img, text }
+    for (const f of files) {
+      if (f.type === 'application/pdf') {
+        const imgs = await _pdfFileToImages(f);
+        imgs.forEach((img, i) => pages.push({ img, text: (window._ownPdfText || [])[i] || '' }));
+      } else if (f.type.startsWith('image/')) {
+        pages.push({ img: await _fileToDataUrl(f), text: '' });
+      }
+    }
+    if (!pages.length) { say('<div style="font-size:13px;font-weight:800;color:#991b1b">לא זוהו עמודים בקובץ</div>'); return; }
+
+    const matched = new Map();   // noteId → מספר הרישוי שזוהה
+    const unknown = [];          // עמודים שלא הצלחנו לשייך
+    let byText = 0, byOcr = 0;
+
+    for (let i = 0; i < pages.length; i++) {
+      say(`<div style="font-size:13px;font-weight:800;color:var(--muted)">🔎 קורא עמוד ${i + 1} מתוך ${pages.length}…</div>`);
+      const p = pages[i];
+      let hit = _washSnap(_washPlatesInText(p.text), known);
+      if (hit) byText++;
+      if (!hit) {
+        // סריקה — הלוחית יושבת בחלק העליון של הפתק
+        if (!worker) {
+          worker = await Tesseract.createWorker('eng', 1);
+          await worker.setParameters({ tessedit_char_whitelist: '0123456789' });
+        }
+        let tokens = [];
+        for (const [box, scale, psm] of [[{ x1: 1, y1: 0.5 }, 2, '6'], [{ x1: 1, y1: 0.5 }, 2, '11'], [{ x1: 1, y1: 1 }, 1.5, '6']]) {
+          await worker.setParameters({ tessedit_pageseg_mode: psm });
+          const prep = await _prepRegion(p.img, box, scale);
+          const txt = (await worker.recognize(prep)).data.text;
+          tokens = tokens.concat(_washPlatesInText(txt));
+          // המדרג הגס: כל מספר מהחשבון הפתוח שמופיע בתוך ספרות העמוד
+          const squash = String(txt).replace(/\D/g, '');
+          for (const k of known) if (squash.includes(k.plate)) tokens.push(k.plate);
+          hit = _washSnap(tokens, known);
+          if (hit) break;
+        }
+        if (hit) byOcr++;
+      }
+      if (hit && !matched.has(hit.id)) matched.set(hit.id, hit.plate);
+      else if (!hit) unknown.push(i + 1);
+    }
+    if (worker) { try { await worker.terminate(); } catch (e) {} }
+    _washRec = { pages: pages.length, matched, unknown, byText, byOcr };
+    say(`<div style="font-size:13px;font-weight:800;color:var(--muted)">✅ נקראו ${pages.length} עמודים · ${byText} משכבת הטקסט · ${byOcr} מזיהוי תווים</div>`);
+    _washRenderReconcile();
+  } catch (e) {
+    if (worker) { try { await worker.terminate(); } catch (e2) {} }
+    say('<div style="font-size:13px;font-weight:800;color:#991b1b">שגיאה בקריאת הקובץ</div>');
+  }
+}
+window.washReconcileFiles = washReconcileFiles;
+
+function _washRenderReconcile() {
+  const box = document.getElementById('wash-rec-body');
+  if (!box || !_washRec) return;
+  const { rows } = _washSummaryData();
+  const { matched, unknown, pages } = _washRec;
+  const hit = rows.filter(n => matched.has(n.id));
+  const miss = rows.filter(n => !matched.has(n.id));
+  let sum = 0;
+  for (const n of hit) sum += _WASH_PRICES[n.type] || 0;
+  const vat = sum * _WASH_VAT;
+  const card = (color, bg, border, title, n, note) => `
+    <div style="background:${bg};border:2px solid ${border};border-radius:13px;padding:11px 13px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <span style="font-weight:900;font-size:14px;color:${color}">${title}</span>
+        <span style="font-weight:900;font-size:20px;color:${color}">${n}</span></div>
+      <div style="font-size:12px;font-weight:700;color:${color};opacity:.85;margin-top:3px;line-height:1.5">${note}</div>
+    </div>`;
+  const list = arr => arr.length ? `<div style="max-height:190px;overflow-y:auto;margin-bottom:10px">` + arr.map(n => {
+    const veh = [n.maker, n.model, n.year].filter(Boolean).join(' · ');
+    return `<div style="border:1.5px solid var(--border);border-radius:10px;padding:6px 9px;margin-bottom:5px;background:var(--card);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <span style="font-weight:900;font-size:13px;direction:ltr">${esc(n.plate || '')}</span>
+      <span style="flex:1;min-width:80px;font-size:11.5px;color:var(--muted)">${esc(veh)}</span>
+      <span style="font-size:11.5px;font-weight:800;background:var(--surface2);border-radius:999px;padding:2px 9px">${esc(n.type || '')}</span>
+    </div>`;
+  }).join('') + '</div>' : '';
+
+  box.innerHTML =
+    card('#166534', '#f0fdf4', '#86efac', '✅ חזרו והוצלבו', hit.length, `אלה הרכבים שתשלם עליהם — ${_washMoney(sum)} + מע״מ ${_washMoney(vat)} = <b>${_washMoney(sum + vat)}</b>`) +
+    (miss.length ? card('#92400e', '#fffbeb', '#fcd34d', '⏭️ ברשימה אך לא חזרו', miss.length, 'יישארו בחשבון הפתוח וייכנסו לתשלום הבא') : '') +
+    (unknown.length ? card('#991b1b', '#fef2f2', '#fca5a5', '❓ עמודים שלא זוהו', unknown.length, `עמודים ${unknown.join(', ')} — לא שויכו לאף רכב. בדוק אותם בסריקה ושייך ידנית, או שלם עליהם בפעם הבאה.`) : '') +
+    (miss.length ? `<div style="font-size:12.5px;font-weight:800;color:var(--muted);margin:10px 0 5px">הרכבים שלא חזרו</div>` + list(miss) : '') +
+    (hit.length
+      ? `<button class="btn-submit" onclick="washPayMatched()" style="background:#0d9488;color:#fff;width:100%;margin-top:4px">💳 שלם על ${hit.length} הרכבים שחזרו</button>`
+      : `<div style="text-align:center;color:var(--muted);font-size:13px;font-weight:700;padding:10px">אף רכב לא הוצלב — לא נמצאה התאמה בין הסריקה לחשבון הפתוח</div>`) +
+    `<div style="font-size:11.5px;font-weight:700;color:var(--muted);text-align:center;margin-top:8px">${pages} עמודים בסריקה · ${rows.length} רכבים בחשבון הפתוח</div>`;
+}
+
+/* תשלום על המוצלבים בלבד — עובר דרך אותה חלונית אישור, כדי שלא תהיה
+   דרך אחת לסגור תשלום עם אישור ואחת בלעדיו. */
+function washPayMatched() {
+  if (!_washRec || !_washRec.matched.size) return;
+  const only = new Set(_washRec.matched.keys());
+  closeModal('modal-wash-rec');
+  washMarkPaid(only);
+}
+window.washPayMatched = washPayMatched;
