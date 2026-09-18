@@ -536,8 +536,12 @@ function _bshopJobCard(j, forWorker, held) {
       <button onclick="event.stopPropagation();bsmPrint('${j.id}')"
         style="flex:1;background:var(--dark);color:#fff;border:none;border-radius:10px;padding:11px 6px;font-family:'Heebo',sans-serif;font-size:15px;font-weight:900;cursor:pointer">🖨️ הדפס פתק</button>
     </div>` : ''}
-    ${!held && !forWorker && j.status !== 'returned' ? `<button onclick="event.stopPropagation();bsmSetHold('${j.id}',true)" title="הוצא מהמסך עד שתחזיר אותו"
-      style="margin-top:8px;width:100%;background:transparent;color:var(--muted);border:2px solid var(--border);border-radius:10px;padding:7px;font-family:'Heebo',sans-serif;font-size:12.5px;font-weight:800;cursor:pointer">⏸️ העבר להמתנה</button>` : ''}
+    ${!held && !forWorker && j.status !== 'returned' ? `<div style="display:flex;gap:8px;margin-top:8px">
+      <button onclick="event.stopPropagation();bsmDeleteOne('job:${j.id}')" title="מחיקה לתמיד"
+        style="flex:1;background:transparent;color:#ef4444;border:2px solid #fecaca;border-radius:10px;padding:8px 4px;font-family:'Heebo',sans-serif;font-size:12.5px;font-weight:800;cursor:pointer">🗑 מחיקה</button>
+      <button onclick="event.stopPropagation();bsmSetHold('${j.id}',true)" title="הוצא מהמסך עד שתחזיר אותו"
+        style="flex:1;background:#e0f2fe;color:#0369a1;border:2px solid #7dd3fc;border-radius:10px;padding:8px 4px;font-family:'Heebo',sans-serif;font-size:12.5px;font-weight:800;cursor:pointer">❄️ הקפאה</button>
+    </div>` : ''}
   </div>`;
 }
 
@@ -1189,7 +1193,7 @@ function _bshopRenderMgr() {
   const retC  = document.getElementById('bsm-returned');
   const sumC  = document.getElementById('bsm-summary');
   if (!openC || !retC) return;
-  // פתק בהמתנה יוצא מהמסך הרגיל עד שמחזירים אותו — הסטטוס שלו לא משתנה,
+  // פתק מוקפא יוצא מהמסך הרגיל עד שמחזירים אותו — הסטטוס שלו לא משתנה,
   // ולכן הוא חוזר בדיוק לאותו מקום שממנו יצא
   const live = _bshopJobs.filter(j => !j.onHold);
   const draft = live.filter(j => j.status === 'draft');
@@ -1331,20 +1335,20 @@ async function bsmSendWithDriver(name) {
 }
 window.bsmSendWithDriver = bsmSendWithDriver;
 
-/* ── פתקים בהמתנה ──────────────────────────────────────────────────
+/* ── פתקים מוקפאים ──────────────────────────────────────────────────
    פתק שאין מה לעשות איתו כרגע יוצא מהמסך הרגיל בלי לאבד את הסטטוס
    שלו. הוא יושב בחלונית נפרדת, וברגע שמחזירים אותו הוא חוזר בדיוק
    לעמודה שממנה יצא. */
 async function bsmSetHold(id, val) {
   const j = _bshopJobs.find(x => x.id === id);
   if (!j) return;
-  if (!_requireNet(val ? 'העברה להמתנה' : 'החזרה לפעילות')) return;
+  if (!_requireNet(val ? 'הקפאת הפתק' : 'החזרה לפעילות')) return;
   j.onHold = val;                       // תגובה מיידית על המסך
   _bshopRenderMgr();
   _bsmRenderHold();
   try {
     await _updateDoc(_docRef('bodyshop_jobs', id), { onHold: val });
-    showToast(val ? '⏸️ הפתק הועבר להמתנה' : '▶️ הפתק חזר לפעילות');
+    showToast(val ? '❄️ הפתק הוקפא' : '▶️ הפתק חזר לפעילות');
   } catch (e) {
     j.onHold = !val;                    // כשל — חזרה למצב הקודם
     _bshopRenderMgr();
@@ -1362,7 +1366,7 @@ function _bsmRenderHold() {
   if (!box) return;
   box.innerHTML = held.length
     ? held.map(j => _bshopJobCard(j, false, true)).join('')
-    : `<div class="bshop-span" style="padding:30px 16px;text-align:center;color:var(--muted);font-weight:700">אין פתקים בהמתנה</div>`;
+    : `<div class="bshop-span" style="padding:30px 16px;text-align:center;color:var(--muted);font-weight:700">אין פתקים מוקפאים</div>`;
 }
 
 function openBsmHold() { _bsmRenderHold(); openModal('modal-bsm-hold'); }
