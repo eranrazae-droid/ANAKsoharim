@@ -128,7 +128,23 @@ function _applyPhoneTab() {
   on('pb-common', _phoneTab === 'common');
   on('pb-all', _phoneTab === 'all');
 }
-function setPhoneTab(t) { _phoneTab = t; _applyPhoneTab(); }
+let _tabAnimTimer = null;
+function setPhoneTab(t) {
+  if (_phoneTab === t) return;
+  _phoneTab = t;
+  _applyPhoneTab();
+  const grid = document.getElementById('menu-grid');
+  if (grid) {
+    grid.classList.remove('tab-anim');
+    void grid.offsetWidth;                 // מאתחל את המעבר
+    grid.classList.add('tab-anim');
+    clearTimeout(_tabAnimTimer);
+    _tabAnimTimer = setTimeout(() => grid.classList.remove('tab-anim'), 260);
+  }
+  // המבט חוזר לראש הרשימה, אחרת נופלים באמצע קוביות שלא היו שם קודם
+  const hb = document.querySelector('#screen-home>.home-body');
+  if (hb) hb.scrollTop = 0;
+}
 window.setPhoneTab = setPhoneTab;
 
 /* השורה התחתונה נוצרת רק כאן, במסלול של המנהל. היא אינה קיימת
