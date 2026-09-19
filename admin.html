@@ -1910,6 +1910,12 @@
     }catch(e){ _copyFallback(post,ok); }
   }
   // המשימה הבאה האישית - הרכב הבא שצריך פרסום בערוצים של האדם הנבחר
+  // דילוג על רכב (לא במלאי) - נשמר כדי שלא יחזור כמשימה
+  function skipNextTask(who, id){
+    try{ var k='pubSkip_'+who; var arr=JSON.parse(localStorage.getItem(k)||'[]')||[]; if(arr.indexOf(String(id))<0) arr.push(String(id)); localStorage.setItem(k, JSON.stringify(arr)); }catch(e){}
+    try{ localStorage.removeItem('nextTask_'+who); }catch(e){}
+    if(typeof renderPubTrack==='function') renderPubTrack();
+  }
   function renderNextTask(all, who){
     const el=document.getElementById('ptNextTask'); if(!el) return;
     if(who==='הכל'){
@@ -1917,8 +1923,10 @@
       return;
     }
     const myCh=PUB_CHANNELS.filter(ch=>ch.owner===who);
-    // כל הרכבים שחסר להם פרסום באחד הערוצים שלי
-    const pending=all.filter(c=>myCh.some(ch=>!((c.pub||{})[ch.key])));
+    // רכבים שדילגת עליהם (לא במלאי) - לא יופיעו כמשימה
+    let skipped=[]; try{ skipped=JSON.parse(localStorage.getItem('pubSkip_'+who)||'[]')||[]; }catch(e){}
+    // כל הרכבים שחסר להם פרסום באחד הערוצים שלי (ולא דילגת עליהם)
+    const pending=all.filter(c=>myCh.some(ch=>!((c.pub||{})[ch.key])) && skipped.indexOf(String(c.id))<0);
     // בחירה רנדומלית - נשמרת ב-localStorage ולא משתנה (גם אחרי רענון) עד שמסיימים את הרכב
     const cacheKey='nextTask_'+who;
     let next=null, cachedId=null;
@@ -1944,6 +1952,7 @@
         '<button onclick="copyVoiceScript(\''+next.id+'\')" style="background:#7c3aed;color:#fff;border:none;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:800;cursor:pointer">🎙️ טקסט לקול</button>'+
         '<button onclick="copyTikTokPost(\''+next.id+'\')" style="background:#db2777;color:#fff;border:none;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:800;cursor:pointer">📱 פוסט טיקטוק</button>'+
         '<a href="https://autodealer.co.il/?car='+encodeURIComponent(next.id)+'" target="_blank" style="border:1.5px solid #16a34a;background:#f0fdf4;color:#15803d;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:800;text-decoration:none">🔗 באתר</a>'+
+        '<button onclick="skipNextTask(\''+who+'\',\''+next.id+'\')" style="background:#fef2f2;border:1.5px solid #fecaca;color:#b91c1c;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:800;cursor:pointer">⏭️ דלג (לא במלאי)</button>'+
         missing.map(ch=>'<button onclick="togglePub(\''+next.id+'\',\''+ch.key+'\')" style="background:#16a34a;color:#fff;border:none;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:800;cursor:pointer">✓ פרסמתי ב'+_esc(ch.label)+'</button>').join('')+
       '</div>'+
     '</div>';
