@@ -135,8 +135,8 @@ window.setPhoneTab = setPhoneTab;
    ב-HTML, ולכן אצל נהג או אצל איברהים היא לא יכולה להופיע גם אם
    מחלקה כלשהי נשארה ממעבר בין משתמשים. */
 function _phoneBarBuild(isManager) {
-  const hb = document.querySelector('#screen-home .home-body');
-  if (!hb) return;
+  const scr = document.getElementById('screen-home');
+  if (!scr) return;
   const old = document.getElementById('phone-bar');
   if (old) old.remove();                       // התפקיד התחלף — בונים מחדש
   const bar = document.createElement('nav');
@@ -150,7 +150,7 @@ function _phoneBarBuild(isManager) {
       `<button type="button" id="pb-all" onclick="setPhoneTab('all')"><span>▦</span>הכל</button>`
     : `<button type="button" class="on"><span>▦</span>הכל</button>` +
       `<button type="button" onclick="goToScreen('wash')"><span>🧽</span>פתק לשטיפה</button>`;
-  hb.appendChild(bar);
+  scr.appendChild(bar);
 }
 
 /* היומן עובר פיזית לתוך החלונית וחוזר למקומו בסגירה, כך שהוא נשאר
