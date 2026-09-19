@@ -2103,6 +2103,7 @@ function _msListen() {
     _msSyncCard();
     _msRenderHome();
     _msSyncHomeAlert();
+    try { _renderHomeChecks(); } catch (e) {}
     try { _renderDailyQuote(); } catch (e) {}
     if (document.getElementById('screen-morning-starts')?.classList.contains('active')) _msRenderScreen();
   }, () => {});
@@ -2115,25 +2116,10 @@ function _msListen() {
 }
 
 // החלונית קופצת למנהל פעם ביום מ-07:30, עד שהחלוקה של היום נשמרה
-function _msCheck() {
-  if (currentUser?.role !== 'manager') return;
-  if (!_msState) return;
-  const now = new Date();
-  if (now.getHours() * 60 + now.getMinutes() < _MS_POPUP_MIN) return;
-  if (_msThirdOf() === null) return;                        // שבת
-  if (_msToday && _msToday.day === _msDayKey()) return;     // כבר חולק היום
-  const snooze = _msState.snoozeDay === _msDayKey() ? Number(_msState.snoozeTo || 0) : 0;
-  if (snooze && Date.now() < snooze) return;                // נדחתה
-  if (_msState.handledDay === _msDayKey()) return;           // כבר טופלה היום
-  const modal = document.getElementById('modal-morning-roll');
-  if (modal && modal.classList.contains('open')) return;
-  // רק חלונית בדיקת הבעלויות נעולה גם היא ולכן תכסה את זו — מחכים שתיסגר.
-  // כל שאר החלוניות נפתחו ביוזמת המנהל ואפשר להיפתח מעליהן.
-  const own = document.getElementById('modal-own-morning');
-  if (own && own.classList.contains('open')) return;
-  _msRenderRoll();
-  openModal('modal-morning-roll');
-}
+/* גם חלוקת ההנעות אינה קופצת יותר. היא יושבת כקוביה בשורת הבדיקות
+   שבמסך הבית, ונפתחת בלחיצה. */
+function _msCheck() { /* אין חלונית קופצת */ }
+
 
 /* רשת ביטחון: גם אם החלונית לא קפצה מסיבה כלשהי, הכפתור במסך הבית
    מופיע כל עוד ההנעות של היום לא חולקו — כך תמיד יש דרך לחלק. */
@@ -2372,26 +2358,16 @@ function _msSyncCard() {
   _setCardBadge('morning-starts', count);
 }
 
+/* החלונית של בדיקת הבעלויות אינה קופצת יותר. הדוח ממשיך להתרענן
+   מעצמו, והמצב מוצג בשורת הבדיקות שבמסך הבית — שם גם נכנסים אליו. */
 function _checkOwnMorning() {
   if (!_ownMorningState) return;                                  // עוד לא נטען מהשרת
   if (_hostName === 'ownership') return;                          // נמצאים בתוך הבדיקה
-  const now = new Date();
-  if (now.getHours() < _OWN_MORNING_HOUR) return;                 // עוד לא הגיע הזמן
-  const today = _ownToday();
-  if (_ownMorningState.ackDay === today) return;                 // כבר אושר היום
-  // דחייה תקפה רק ליום שבו נעשתה. אם התחלף היום — היא כבר לא סופרת,
-  // וכך גם אם לא נכנסת יום שלם, בכניסה הבאה תראה את התזכורת.
-  const snooze = _ownMorningState.snoozeDay === today ? Number(_ownMorningState.snoozeTo || 0) : 0;
-  if (snooze && Date.now() < snooze) return;                      // נדחה
-  const modal = document.getElementById('modal-own-morning');
-  if (modal && modal.classList.contains('open')) return;          // כבר פתוח
-  _ownStartWatch();
-  _renderOwnMorning();
-  openModal('modal-own-morning');
-  // אין סגירה אוטומטית ואין דחייה מאחורי הקלעים — רק שני הכפתורים
-  // סוגרים את החלונית. אם היא נסגרה בכל זאת, היא תחזור תוך דקה.
+  if (new Date().getHours() < _OWN_MORNING_HOUR) return;          // עוד לא הגיע הזמן
+  if (_ownMorningState.ackDay === _ownToday()) return;            // כבר אושר היום
   _ownEnsureFresh();
 }
+
 
 function _ownMorningClose() {
   closeModal('modal-own-morning');

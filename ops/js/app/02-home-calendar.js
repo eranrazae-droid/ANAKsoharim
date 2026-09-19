@@ -80,6 +80,8 @@ function _renderHomeChecks() {
   if (!box) return;
   box.style.display = currentUser?.role === 'manager' ? '' : 'none';
   if (currentUser?.role !== 'manager') return;
+  // בטלפון הכפתור צר, ומלל ארוך היה נשבר לשתי שורות רק באחד מהם
+  const narrow = window.innerWidth <= 900;
   for (const c of _HOME_CHECKS) {
     const el = document.getElementById(c.btn);
     if (!el) continue;
@@ -87,8 +89,6 @@ function _renderHomeChecks() {
     const d = _dailyNote(c.note);
     el.classList.remove('ok', 'wait', 'warn', 'rev');
     if (!d) { if (sub) sub.textContent = c.idle; continue; }
-    // בטלפון הכפתור צר, ומלל ארוך היה נשבר לשתי שורות רק באחד מהם
-    const narrow = window.innerWidth <= 900;
     // הנהג סיים והמנהל עדיין לא אישר — מצב משלו, לא "טרם" ולא "נבדק"
     if (d.review) {
       el.classList.add('rev');
@@ -101,6 +101,18 @@ function _renderHomeChecks() {
     if (sub) sub.textContent = !done ? (narrow ? 'טרם' : 'טרם בוצעה')
       : d.ok ? (narrow ? 'נבדק' : 'נבדק הבוקר')
       : (d.txt.match(/·\s*(.+)$/) || [, 'יש ממצא'])[1].trim();
+  }
+  /* ההנעות אינן בדיקת בוקר ולכן אין להן _dailyNote — המצב נקבע לפי
+     החלוקה של היום עצמה. צהוב כל עוד לא חולקו, ירוק אחרי החלוקה. */
+  const ms = document.getElementById('hck-morning');
+  if (ms) {
+    const sub = ms.querySelector('i');
+    let done = false;
+    try { done = !!(_msToday && _msToday.day === _msDayKey()); } catch (e) {}
+    ms.classList.remove('ok', 'wait', 'warn', 'rev');
+    ms.classList.add(done ? 'ok' : 'rev');
+    if (sub) sub.textContent = done ? (narrow ? 'בוצע' : 'בוצע חלוקה')
+                                    : (narrow ? 'טרם' : 'טרם חולקו');
   }
 }
 window._renderHomeChecks = _renderHomeChecks;
