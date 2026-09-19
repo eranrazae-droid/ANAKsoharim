@@ -78,9 +78,20 @@ window.addEventListener('firebase-ready', async () => {
     });
     return;
   }
-  /* From here on a device must hold a real account. Sessions that only
-     remembered a name — the way the app worked before — are cleared, so every
-     person signs in once with the phone and password they were given. */
+  /* אין כרגע חשבון פעיל במכשיר. בעבר מחקנו כאן את הזיכרון והצגנו
+     מסך כניסה — אבל "אין חשבון כרגע" אינו אומר שלא נכנסו כאן מעולם.
+     האפליקציה נכנסת כאורח אנונימי בכל פעם שאין חשבון, והדפדפן מוחק
+     מדי פעם את נתוני ההזדהות של Firebase (ספארי אחרי שבוע ללא שימוש,
+     כרום בלחץ אחסון) בזמן שהזיכרון שלנו שורד. התוצאה הייתה בקשת
+     סיסמה חוזרת בלי שקרה דבר.
+     לכן מי שכבר נכנס פעם במכשיר הזה — נכנס. מסך הכניסה נשאר רק
+     למכשיר שבאמת לא מכיר אף אחד. */
+  if (_realUser && _realUser.name) {
+    currentUser = { ..._realUser };
+    localStorage.setItem('anak_user', JSON.stringify(currentUser));
+    enterApp();
+    return;
+  }
   localStorage.removeItem('anak_user');
   localStorage.removeItem('anak_real_user');
   currentUser = null;

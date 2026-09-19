@@ -532,9 +532,9 @@ function _bshopJobCard(j, forWorker, held) {
       style="margin-top:10px;width:100%;background:var(--dark);color:#fff;border:none;border-radius:10px;padding:10px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:900;cursor:pointer">✅ סיימנו עם הרכב</button>` : ''}
     ${!held && !forWorker && j.status === 'draft' ? `<div style="display:flex;gap:8px;margin-top:10px">
       <button onclick="event.stopPropagation();bsmSendToShop('${j.id}')"
-        style="flex:1;background:var(--success);color:#fff;border:none;border-radius:10px;padding:11px 6px;font-family:'Heebo',sans-serif;font-size:15px;font-weight:900;cursor:pointer">📤 שלח לאיברהים</button>
+        style="flex:1;background:var(--success);color:#fff;border:2px solid var(--success);border-radius:10px;padding:8px 4px;font-family:'Heebo',sans-serif;font-size:12.5px;font-weight:800;cursor:pointer" white-space:nowrap"><span class="bs-wide">📤 שלח לאיברהים</span><span class="bs-narrow">📤 שלח</span></button>
       <button onclick="event.stopPropagation();bsmPrint('${j.id}')"
-        style="flex:1;background:var(--dark);color:#fff;border:none;border-radius:10px;padding:11px 6px;font-family:'Heebo',sans-serif;font-size:15px;font-weight:900;cursor:pointer">🖨️ הדפס פתק</button>
+        style="flex:1;background:var(--dark);color:#fff;border:2px solid var(--dark);border-radius:10px;padding:8px 4px;font-family:'Heebo',sans-serif;font-size:12.5px;font-weight:800;cursor:pointer" white-space:nowrap"><span class="bs-wide">🖨️ הדפס פתק</span><span class="bs-narrow">🖨️ הדפס</span></button>
     </div>` : ''}
     ${!held && !forWorker && j.status !== 'returned' ? `<div style="display:flex;gap:8px;margin-top:8px">
       <button onclick="event.stopPropagation();bsmDeleteOne('job:${j.id}')" title="מחיקה לתמיד"

@@ -1368,7 +1368,6 @@ function _washRenderSummary() {
   const box = document.getElementById('wash-sum-body');
   if (!box) return;
   const { counts, unknown, total, subtotal, vat, grand } = _washSummaryData();
-  const mgr = currentUser?.role === 'manager';
   const line = (label, val, strong) => `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 14px;font-size:13.5px;font-weight:800;color:${strong ? 'var(--text)' : 'var(--muted)'}">
       <span>${label}</span><span>${val}</span></div>`;
@@ -1376,6 +1375,12 @@ function _washRenderSummary() {
     ? `<div style="background:#fffbeb;border:2px solid #fcd34d;border-radius:11px;padding:9px 12px;font-size:12.5px;font-weight:700;color:#92400e;margin-bottom:10px">
          ⚠️ אין מחיר לסוג ${Object.entries(unknown).map(([t, n]) => `<b>${esc(t)}</b> (${n})`).join(', ')} — הרכבים האלה לא נספרו בסכום.</div>`
     : '';
+  const payBtn = document.getElementById('wash-pay-btn');
+  if (payBtn) {
+    payBtn.disabled = !total;
+    payBtn.style.background = total ? '#0d9488' : 'var(--surface2)';
+    payBtn.style.color = total ? '#fff' : 'var(--muted)';
+  }
   box.innerHTML = warn + Object.entries(counts).map(([t, n]) => {
     const price = _WASH_PRICES[t];
     return `
@@ -1392,7 +1397,6 @@ function _washRenderSummary() {
        <span style="font-weight:900;font-size:15px">סה״כ לתשלום</span>
        <span style="font-weight:900;font-size:22px">${_washMoney(grand)}</span>
      </div>` +
-    (mgr ? `<button class="btn-submit" onclick="washMarkPaid()"${total ? '' : ' disabled'} style="background:${total ? '#0d9488' : 'var(--surface2)'};color:${total ? '#fff' : 'var(--muted)'};margin:0 0 8px;width:100%">💳 בוצע תשלום — העבר לארכיון</button>` : '') +
     _washHistoryHtml();
 }
 
