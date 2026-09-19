@@ -134,17 +134,22 @@ window.setPhoneTab = setPhoneTab;
 /* השורה התחתונה נוצרת רק כאן, במסלול של המנהל. היא אינה קיימת
    ב-HTML, ולכן אצל נהג או אצל איברהים היא לא יכולה להופיע גם אם
    מחלקה כלשהי נשארה ממעבר בין משתמשים. */
-function _phoneBarBuild() {
-  if (document.getElementById('phone-bar')) return;
+function _phoneBarBuild(isManager) {
   const hb = document.querySelector('#screen-home .home-body');
   if (!hb) return;
+  const old = document.getElementById('phone-bar');
+  if (old) old.remove();                       // התפקיד התחלף — בונים מחדש
   const bar = document.createElement('nav');
   bar.id = 'phone-bar';
+  bar.className = isManager ? 'mgr' : 'drv';
   bar.setAttribute('aria-label', 'ניווט');
-  bar.innerHTML =
-    `<button type="button" id="pb-common" onclick="setPhoneTab('common')"><span>⚡</span>בשימוש נפוץ</button>` +
-    `<button type="button" id="pb-wash" onclick="goToScreen('wash')"><span>🧽</span>פתק לשטיפה</button>` +
-    `<button type="button" id="pb-all" onclick="setPhoneTab('all')"><span>▦</span>הכל</button>`;
+  // לנהג שני כפתורים בלבד: הכל ופתק לשטיפה
+  bar.innerHTML = isManager
+    ? `<button type="button" id="pb-common" onclick="setPhoneTab('common')"><span>⚡</span>בשימוש נפוץ</button>` +
+      `<button type="button" id="pb-wash" onclick="goToScreen('wash')"><span>🧽</span>פתק לשטיפה</button>` +
+      `<button type="button" id="pb-all" onclick="setPhoneTab('all')"><span>▦</span>הכל</button>`
+    : `<button type="button" class="on"><span>▦</span>הכל</button>` +
+      `<button type="button" onclick="goToScreen('wash')"><span>🧽</span>פתק לשטיפה</button>`;
   hb.appendChild(bar);
 }
 
@@ -355,6 +360,10 @@ function renderHome() {
   // reset calendar layout — only the manager gets the calendar
   const _hb = document.querySelector('#screen-home .home-body');
   if (_hb) { _hb.classList.remove('has-calendar'); _hb.classList.remove('mgr-home'); }
+  /* השורה התחתונה נמחקת בכל בנייה מחדש של הבית. כל תפקיד שצריך אותה
+     בונה אותה מחדש בענף שלו, וכך היא לא יכולה להישאר ממשתמש קודם
+     אצל אחראי איסוף או אצל הפחח. */
+  document.getElementById('phone-bar')?.remove();
   // הטופס חוזר למסך השטיפה לפני שהבית נבנה מחדש
   try { window._washMount && window._washMount(); } catch (e) {}
   try { _mgrHomeFit(); _mgrHomeWatch(); } catch (e) {}
@@ -504,6 +513,7 @@ function _cardHtml(m) {
         ? `<img src="${_GIL_BG}" style="width:100%;border-radius:16px;object-fit:cover;max-height:16vh;display:block">`
         : '') +
       `<div id="home-morning"></div>`;
+    _phoneBarBuild(false);
     _reapplyCardBadges();
     _msRenderHome();
     // גיל צריך לראות כבר מהבית שבדיקת ארון המצברים החודשית ממתינה לו
@@ -514,7 +524,7 @@ function _cardHtml(m) {
     grid.style.flexDirection = '';
     grid.style.gap = '';
     grid.innerHTML = menuItems.map(_cardHtml).join('') + _phoneOnlyCards();
-    _phoneBarBuild();
+    _phoneBarBuild(true);
     _reapplyCardBadges();
     try { _renderHomeChecks(); } catch (e) {}
     try { _applyPhoneTab(); } catch (e) {}
