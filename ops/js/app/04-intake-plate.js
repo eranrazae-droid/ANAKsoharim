@@ -902,7 +902,7 @@ function _renderIntakeList(all) {
         ? `openManagerIntakeLive('${v.id}')`
         : `viewIntakeForm('${v.id}')`;
       return `<div class="vehicle-card" style="border-right:5px solid ${color}${st==='done'?';background:#f0fdf4':''}">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div class="ic-head" style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
           <div onclick="${cardClick}" style="flex:1;cursor:pointer;min-width:0">
             <span class="tag" style="background:#0ea5e9;color:#fff;margin-bottom:4px">🚗 קליטה</span>
             <div class="vehicle-plate">${esc(v.plate)}</div>
@@ -917,13 +917,14 @@ function _renderIntakeList(all) {
           <div class="ic-side">
             ${st === 'pending' ? _intakeBottle(v) : ''}
             <div class="ic-actions">
-            <button class="ic-btn" onclick="openWashForVehicle('${esc(v.plate)}','${esc(v.brand||'')}','${esc(v.model||'')}','${esc(v.year||'')}','${esc(v.color||'')}','${v.id}')" style="background:#0d9488;color:#fff;">🧽 פתק לשטיפה</button>
-            ${st === 'pending' ? `<button class="ic-btn" onclick="resendIntakeNotify('${esc(v.assignedTo)}','${esc(v.plate)}','${esc(v.brand||'')}','${esc(v.model||'')}')" style="background:#25d366;color:#fff;">📲 שלח התראה</button>` : ''}
-            ${st === 'pending' ? `<button class="ic-btn" onclick="openEditIntake('${v.id}')" style="background:#6366f1;color:#fff;">✏️ עריכה</button>` : ''}
-            ${v.previousIntake ? `<button class="ic-btn" onclick="restorePrevIntake('${v.id}')" style="background:#0d9488;color:#fff;">↩️ שחזר קליטה קודמת</button>` : ''}
-            ${st === 'done' ? `<button class="ic-btn" onclick="resendIntake('${v.id}')" style="background:#f59e0b;color:#fff;">🔄 שליחה מחדש</button>` : ''}
-            ${canCheck ? `<button class="ic-btn" onclick="markChecked('${v.id}')" style="background:var(--dark);color:#fff;">📁 שלח לארכיון</button>` : ''}
-            <button class="ic-btn" onclick="deleteIntake('${v.id}')" style="background:#ef4444;color:#fff;">🗑️ מחיקה</button>
+            <button class="ic-btn ${st === 'done' ? 'ic-p2' : 'ic-p1'}" onclick="openWashForVehicle('${esc(v.plate)}','${esc(v.brand||'')}','${esc(v.model||'')}','${esc(v.year||'')}','${esc(v.color||'')}','${v.id}')" style="background:#0d9488;color:#fff;">🧽 פתק לשטיפה</button>
+            ${st === 'pending' ? `<button class="ic-btn ic-s" onclick="resendIntakeNotify('${esc(v.assignedTo)}','${esc(v.plate)}','${esc(v.brand||'')}','${esc(v.model||'')}')" style="background:#25d366;color:#fff;">📲 שלח התראה</button>` : ''}
+            ${st === 'pending' ? `<button class="ic-btn ic-p2" onclick="openEditIntake('${v.id}')" style="background:#6366f1;color:#fff;">✏️ עריכה</button>` : ''}
+            ${v.previousIntake ? `<button class="ic-btn ic-s" onclick="restorePrevIntake('${v.id}')" style="background:#0d9488;color:#fff;">↩️ שחזר קליטה קודמת</button>` : ''}
+            ${st === 'done' ? `<button class="ic-btn ic-s" onclick="resendIntake('${v.id}')" style="background:#f59e0b;color:#fff;">🔄 שליחה מחדש</button>` : ''}
+            ${canCheck ? `<button class="ic-btn ic-p1" onclick="markChecked('${v.id}')" style="background:var(--dark);color:#fff;">📁 שלח לארכיון</button>` : ''}
+            <button class="ic-btn ic-s" onclick="deleteIntake('${v.id}')" style="background:#ef4444;color:#fff;">🗑️ מחיקה</button>
+            <button class="ic-btn ic-more" onclick="icMore(this)" title="עוד פעולות">⋯</button>
             </div>
           </div>
         </div>
@@ -2184,3 +2185,28 @@ function _requireNet(what) {
   showToast(`📴 אין חיבור לאינטרנט — ${what || 'הפעולה'} לא בוצעה. כל מה שמילאת נשמר, אפשר להמשיך מאותה נקודה כשהחיבור יחזור.`, 9000);
   return false;
 }
+
+
+/* ── עוד פעולות (⋯) ─────────────────────────────────────────────────
+   בטלפון מוצגות על הכרטיס רק שתי הפעולות שמתאימות למצב הרכב, והשאר
+   נפתחות מכאן. החלונית לא מגדירה מחדש שום פעולה — היא קוראת את
+   הכפתורים שכבר קיימים על הכרטיס ומפעילה אותם, ולכן אין כפילות ואין
+   מה שיישכח מאחור.                                                  */
+function icMore(btn) {
+  const acts = btn.closest('.ic-actions');
+  const box = document.getElementById('ic-more-body');
+  if (!acts || !box) return;
+  const hidden = [...acts.querySelectorAll('.ic-btn.ic-s')];
+  if (!hidden.length) return;
+  box.innerHTML = '';
+  for (const src of hidden) {
+    const b = document.createElement('button');
+    b.className = 'btn-submit';
+    b.textContent = src.textContent.trim();
+    b.style.cssText = `background:${src.style.background};color:${src.style.color || '#fff'};width:100%;margin:0 0 8px`;
+    b.onclick = () => { closeModal('modal-ic-more'); src.click(); };
+    box.appendChild(b);
+  }
+  openModal('modal-ic-more');
+}
+window.icMore = icMore;
