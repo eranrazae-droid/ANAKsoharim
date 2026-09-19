@@ -1278,6 +1278,10 @@ function bsTab(name) {
     if (pane) pane.style.display = t === name ? '' : 'none';
   });
   document.querySelectorAll('.bs-tab').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
+  /* בטלפון "צריך להזמין" יושב מתחת ללשוניות ולא לצידן, ובלשונית
+     בדיקות הארון הוא סתם מפריע — שם הוא מוסתר. במחשב הוא עמודה
+     נפרדת ולכן נשאר במקומו תמיד. */
+  document.querySelector('.bs-orders-panel')?.classList.toggle('hide-on-audits', name === 'audits');
   if (name === 'audits') { _bsAuditListen(); _bsRenderAudits(); }
 }
 window.bsTab = bsTab;
