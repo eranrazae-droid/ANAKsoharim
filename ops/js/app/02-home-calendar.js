@@ -497,7 +497,9 @@ function _cardHtml(m) {
         <div class="mc-title">${title}</div><div class="mc-sub">${sub}</div></div>`;
     return c('mc-phone-cal', '🗓️', 'יומן', 'לוח החודש', 'openHomeCal()')
          + c('mc-phone-pits', '🕳️', 'בורות', 'מצב הבורות במגרש', "goToScreen('pits')")
-         + c('mc-phone-td', '🚗', 'נסיעות מבחן', 'מי לקח רכב ומתי', "goToScreen('test-drive')");
+         + c('mc-phone-td', '🚗', 'נסיעות מבחן', 'מי לקח רכב ומתי', "goToScreen('test-drive')")
+         + c('mc-phone-battery', '🔋', 'בדיקת טעינה', 'רכבים חשמליים בטעינה', "goToScreen('battery')")
+         + c('mc-phone-yard', '🅿️', 'סידור מגרש', 'איפה עומד כל רכב', "goToScreen('yard')");
   }
 
   const grid = document.getElementById('menu-grid');
@@ -1178,6 +1180,7 @@ function _renderDailyQuote() {
     const head = document.getElementById('daily-quote');
     if (head) {
       head.textContent = ms.empty ? `\u{1F511} \u05d4\u05e0\u05e2\u05d5\u05ea \u05d4\u05d1\u05d5\u05e7\u05e8 — ${ms.empty}` : `\u{1F511} \u05d4\u05d7\u05e0\u05d9\u05d5\u05ea \u05e9\u05dc\u05da \u05dc\u05d4\u05d9\u05d5\u05dd: ${_msRange(ms.list)}`;
+      head.hidden = false;
       head.title = ''; head.style.cursor = 'default';
       head.style.color = 'var(--gold)'; head.style.fontWeight = '900';
       head.onclick = null;
@@ -1190,37 +1193,20 @@ function _renderDailyQuote() {
         : `<div style="font-weight:900;font-size:13.5px">\u{1F511} \u05d4\u05d7\u05e0\u05d9\u05d5\u05ea \u05e9\u05dc\u05da \u05dc\u05d4\u05d9\u05d5\u05dd</div>
            <div style="font-weight:900;font-size:15px;direction:ltr;text-align:right;margin-top:4px">${esc(_msRange(ms.list))}</div>
            <div style="font-size:12px;font-weight:700;color:var(--muted);margin-top:3px">${ms.list.length} \u05d7\u05e0\u05d9\u05d5\u05ea</div>`;
+      box.style.setProperty('display', 'block');
       box.style.cursor = 'default';
       box.onclick = null;
     }
     return;
   }
-  const st = _todayStory();
-  if (!st) return;
-  const read = _storyReadDay === _todayKey();
-  const line = read ? `📖 סיפור היום: ${st.t}` : '📖 סיפור היום — עדיין לא קראת, הגיע הזמן לקרוא';
+  /* סיפור היום הוסר לבקשת המנהל. שורת הציטוט נשארת בשירות ההנעות
+     בלבד — כשאין מה להציג בה היא פשוט לא מופיעה. */
   const head = document.getElementById('daily-quote');
-  if (head) {
-    head.textContent = line;
-    head.title = read ? 'לחץ לקריאה חוזרת' : 'לחץ לקריאת הסיפור';
-    head.style.cursor = 'pointer';
-    head.style.color = read ? 'rgba(255,255,255,.85)' : 'var(--gold)';
-    head.style.fontWeight = read ? '700' : '900';
-    head.onclick = openDailyStory;
-  }
+  if (head) { head.textContent = ''; head.onclick = null; head.style.cursor = 'default'; head.hidden = true; }
   const box = document.getElementById('daily-quote-m');
-  if (box) {
-    box.innerHTML = read
-      ? `<div style="font-weight:900;font-size:13.5px">📖 סיפור היום: ${esc(st.t)}</div>
-         <div style="font-size:12px;font-weight:800;color:#0d6ab0;margin-top:6px">לקריאה חוזרת ▶</div>`
-      : `<div style="font-weight:900;font-size:13.5px">📖 סיפור היום</div>
-         <div style="font-weight:700;color:var(--muted);margin-top:2px">עדיין לא קראת — הגיע הזמן לקרוא</div>
-         <div style="font-size:12px;font-weight:800;color:#0d6ab0;margin-top:6px">לקריאת הסיפור ▶</div>`;
-    box.style.cursor = 'pointer';
-    box.onclick = openDailyStory;
-  }
+  // קוד אחר מחזיר לשורה display, ולכן ההסתרה כאן חזקה ממנו
+  if (box) { box.innerHTML = ''; box.onclick = null; box.style.setProperty('display', 'none', 'important'); }
 }
-window._renderDailyQuote = _renderDailyQuote;
 
 function openDailyStory() {
   const st = _todayStory();
