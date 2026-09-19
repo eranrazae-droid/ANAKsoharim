@@ -1979,13 +1979,15 @@ function _nmRenderList() {
             : '<div style="font-size:12px;color:var(--muted);font-weight:700;margin-top:3px">🕒 שליחה ידנית בלבד</div>'}
         </div>
       </div>
-      <!-- ארבעה כפתורים באותו רוחב ובאותו גובה. לכולם מסגרת באותו
-           עובי, אחרת "שלח" יוצא נמוך מהשאר בשני פיקסלים. -->
-      <div class="nm-acts">
-        <button class="nm-btn" onclick="_runOnce('nmSendT-${t.id}', this, '⏳ שולח...', () => nmSendTemplate('${t.id}'))" style="background:#16a34a;color:#fff;border-color:#16a34a">📨 שלח</button>
-        <button class="nm-btn" onclick="nmEditTemplate('${t.id}')" style="background:var(--card);color:var(--text);border-color:var(--border)">✏️ ערוך</button>
-        <button class="nm-btn" onclick="nmToggleFreeze('${t.id}')" style="background:${frozen ? '#bae6fd' : 'var(--card)'};color:${frozen ? '#075985' : 'var(--text)'};border-color:${frozen ? '#38bdf8' : 'var(--border)'}">${frozen ? '☀️ הפשר' : '❄️ הקפא'}</button>
-        <button class="nm-btn" onclick="nmDeleteTemplate('${t.id}')" style="background:#fff0f0;color:#dc2626;border-color:#ef4444">🗑 מחק</button>
+      <!-- ארבעה כפתורים באותו רוחב ובאותו גובה. הסגנון יושב על הכפתור
+           עצמו ולא בגיליון נפרד, כמו בשאר האפליקציה — כך הפריסה לא
+           תלויה בקובץ אחר. לכולם מסגרת באותו עובי, אחרת "שלח" יוצא
+           נמוך מהשאר בשני פיקסלים. -->
+      <div style="display:flex;gap:7px;margin-top:10px">
+        <button onclick="_runOnce('nmSendT-${t.id}', this, '⏳ שולח...', () => nmSendTemplate('${t.id}'))" style="flex:1 1 0;min-width:0;height:40px;padding:0 4px;border-radius:10px;font-family:Heebo,sans-serif;font-weight:800;font-size:12.5px;cursor:pointer;white-space:nowrap;display:flex;align-items:center;justify-content:center;box-sizing:border-box;background:#16a34a;color:#fff;border:2px solid #16a34a">📨 שלח</button>
+        <button onclick="nmEditTemplate('${t.id}')" style="flex:1 1 0;min-width:0;height:40px;padding:0 4px;border-radius:10px;font-family:Heebo,sans-serif;font-weight:800;font-size:12.5px;cursor:pointer;white-space:nowrap;display:flex;align-items:center;justify-content:center;box-sizing:border-box;background:var(--card);color:var(--text);border:2px solid var(--border)">✏️ ערוך</button>
+        <button onclick="nmToggleFreeze('${t.id}')" style="flex:1 1 0;min-width:0;height:40px;padding:0 4px;border-radius:10px;font-family:Heebo,sans-serif;font-weight:800;font-size:12.5px;cursor:pointer;white-space:nowrap;display:flex;align-items:center;justify-content:center;box-sizing:border-box;background:${frozen ? '#bae6fd' : 'var(--card)'};color:${frozen ? '#075985' : 'var(--text)'};border:2px solid ${frozen ? '#38bdf8' : 'var(--border)'}">${frozen ? '☀️ הפשר' : '❄️ הקפא'}</button>
+        <button onclick="nmDeleteTemplate('${t.id}')" style="flex:1 1 0;min-width:0;height:40px;padding:0 4px;border-radius:10px;font-family:Heebo,sans-serif;font-weight:800;font-size:12.5px;cursor:pointer;white-space:nowrap;display:flex;align-items:center;justify-content:center;box-sizing:border-box;background:#fff0f0;color:#dc2626;border:2px solid #ef4444">🗑 מחק</button>
       </div>
     </div>`; }).join('');
 }
