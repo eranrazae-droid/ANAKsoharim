@@ -117,6 +117,60 @@ function _renderHomeChecks() {
 }
 window._renderHomeChecks = _renderHomeChecks;
 
+/* ── שורת הניווט התחתונה בטלפון ──────────────────────────────────
+   "בשימוש נפוץ" מציגה את שש הקוביות שנפתחות הכי הרבה, "הכל" מוסיפה
+   את השאר. זו הצגה בלבד — שום קוביה לא נמחקת ושום מסך לא משתנה. */
+let _phoneTab = 'common';
+function _applyPhoneTab() {
+  const grid = document.getElementById('menu-grid');
+  if (grid) grid.classList.toggle('tab-common', _phoneTab === 'common');
+  const on = (id, v) => { const e = document.getElementById(id); if (e) e.classList.toggle('on', v); };
+  on('pb-common', _phoneTab === 'common');
+  on('pb-all', _phoneTab === 'all');
+}
+function setPhoneTab(t) { _phoneTab = t; _applyPhoneTab(); }
+window.setPhoneTab = setPhoneTab;
+
+/* השורה התחתונה נוצרת רק כאן, במסלול של המנהל. היא אינה קיימת
+   ב-HTML, ולכן אצל נהג או אצל איברהים היא לא יכולה להופיע גם אם
+   מחלקה כלשהי נשארה ממעבר בין משתמשים. */
+function _phoneBarBuild() {
+  if (document.getElementById('phone-bar')) return;
+  const hb = document.querySelector('#screen-home .home-body');
+  if (!hb) return;
+  const bar = document.createElement('nav');
+  bar.id = 'phone-bar';
+  bar.setAttribute('aria-label', 'ניווט');
+  bar.innerHTML =
+    `<button type="button" id="pb-common" onclick="setPhoneTab('common')"><span>⚡</span>בשימוש נפוץ</button>` +
+    `<button type="button" id="pb-wash" onclick="goToScreen('wash')"><span>🧽</span>פתק לשטיפה</button>` +
+    `<button type="button" id="pb-all" onclick="setPhoneTab('all')"><span>▦</span>הכל</button>`;
+  hb.appendChild(bar);
+}
+
+/* היומן עובר פיזית לתוך החלונית וחוזר למקומו בסגירה, כך שהוא נשאר
+   אותו לוח שנה עם אותם מאזינים — לא עותק שני. */
+let _calHome = null;
+function openHomeCal() {
+  const area = document.getElementById('home-calendar-area');
+  const slot = document.getElementById('home-cal-slot');
+  if (!area || !slot) return;
+  if (!_calHome) _calHome = { parent: area.parentElement, next: area.nextSibling, disp: area.style.display };
+  slot.appendChild(area);
+  area.style.display = '';
+  openModal('modal-home-cal');
+}
+window.openHomeCal = openHomeCal;
+function closeHomeCal() {
+  closeModal('modal-home-cal');
+  const area = document.getElementById('home-calendar-area');
+  if (area && _calHome) {
+    _calHome.parent.insertBefore(area, _calHome.next);
+    area.style.display = _calHome.disp;
+  }
+}
+window.closeHomeCal = closeHomeCal;
+
 // המספר שמוצג ליד פריט — נלקח מהתגית של הכפתור המקורי
 function _screenBadge(it) {
   if (!it.badge) return 0;
@@ -424,6 +478,19 @@ function _cardHtml(m) {
     </div>`;
   }
 
+  /* קוביות שקיימות רק בטלפון. במחשב הן מוסתרות ב-CSS ולכן המסך שם
+     נשאר בדיוק כפי שהיה. לוח השנה ופתק השטיפה עברו לכאן ולשורה
+     התחתונה, כי בעיצוב החדש אין להם מקום במסך הראשי. */
+  function _phoneOnlyCards() {
+    const c = (id, icon, title, sub, click) =>
+      `<div class="menu-card mc-phone" id="${id}" onclick="${click}">
+        <div style="position:relative;display:inline-block"><div class="mc-icon">${icon}</div></div>
+        <div class="mc-title">${title}</div><div class="mc-sub">${sub}</div></div>`;
+    return c('mc-phone-cal', '🗓️', 'יומן', 'לוח החודש', 'openHomeCal()')
+         + c('mc-phone-pits', '🕳️', 'בורות', 'מצב הבורות במגרש', "goToScreen('pits')")
+         + c('mc-phone-td', '🚗', 'נסיעות מבחן', 'מי לקח רכב ומתי', "goToScreen('test-drive')");
+  }
+
   const grid = document.getElementById('menu-grid');
   if (!isManager) {
     /* אצל הנהג כל הקוביות בשורה אחת, ומתחתיהן רשימת ההנעות של הבוקר.
@@ -446,9 +513,11 @@ function _cardHtml(m) {
     grid.style.display = '';
     grid.style.flexDirection = '';
     grid.style.gap = '';
-    grid.innerHTML = menuItems.map(_cardHtml).join('');
+    grid.innerHTML = menuItems.map(_cardHtml).join('') + _phoneOnlyCards();
+    _phoneBarBuild();
     _reapplyCardBadges();
     try { _renderHomeChecks(); } catch (e) {}
+    try { _applyPhoneTab(); } catch (e) {}
   }
 
   // בדיקת הטעינה אינה קובייה גדולה יותר — היא קוביה קטנה למעלה שמופיעה
