@@ -511,11 +511,13 @@ function _cardHtml(m) {
       `<div class="menu-card mc-phone" id="${id}" onclick="${click}">
         <div style="position:relative;display:inline-block"><div class="mc-icon">${icon}</div></div>
         <div class="mc-title">${title}</div><div class="mc-sub">${sub}</div></div>`;
+    // ארבע האחרונות מופיעות רק ב"הכל", ולכן רק הן מקבלות מעבר
+    const x = (id, ...a) => c(id, ...a).replace('menu-card mc-phone', 'menu-card mc-phone mc-extra');
     return c('mc-phone-cal', '🗓️', 'יומן', 'לוח החודש', 'openHomeCal()')
-         + c('mc-phone-pits', '🕳️', 'בורות', 'מצב הבורות במגרש', "goToScreen('pits')")
-         + c('mc-phone-td', '🚗', 'נסיעות מבחן', 'מי לקח רכב ומתי', "goToScreen('test-drive')")
-         + c('mc-phone-battery', '🔋', 'בדיקת טעינה', 'רכבים חשמליים בטעינה', "goToScreen('battery')")
-         + c('mc-phone-yard', '🅿️', 'סידור מגרש', 'איפה עומד כל רכב', "goToScreen('yard')");
+         + x('mc-phone-pits', '🕳️', 'בורות', 'מצב הבורות במגרש', "goToScreen('pits')")
+         + x('mc-phone-td', '🚗', 'נסיעות מבחן', 'מי לקח רכב ומתי', "goToScreen('test-drive')")
+         + x('mc-phone-battery', '🔋', 'בדיקת טעינה', 'רכבים חשמליים בטעינה', "goToScreen('battery')")
+         + x('mc-phone-yard', '🅿️', 'סידור מגרש', 'איפה עומד כל רכב', "goToScreen('yard')");
   }
 
   const grid = document.getElementById('menu-grid');

@@ -1628,7 +1628,7 @@ function _ownCycleStart() {
 function _ownEnsureFresh() {
   if (_ownScanning) return;
   if (_ownUpdatedRaw && _ownUpdatedRaw >= _ownCycleStart()) return;
-  runOwnershipScan();
+  runOwnershipScan({ silent: true });     // ריענון ברקע — בלי הודעה
 }
 
 function _startOwnMorning() {
@@ -2416,11 +2416,14 @@ function _msSyncCard() {
 
 /* החלונית של בדיקת הבעלויות אינה קופצת יותר. הדוח ממשיך להתרענן
    מעצמו, והמצב מוצג בשורת הבדיקות שבמסך הבית — שם גם נכנסים אליו. */
+let _ownFreshOnce = false;
 function _checkOwnMorning() {
   if (!_ownMorningState) return;                                  // עוד לא נטען מהשרת
   if (_hostName === 'ownership') return;                          // נמצאים בתוך הבדיקה
   if (new Date().getHours() < _OWN_MORNING_HOUR) return;          // עוד לא הגיע הזמן
   if (_ownMorningState.ackDay === _ownToday()) return;            // כבר אושר היום
+  if (_ownFreshOnce) return;         // פעם אחת בכניסה, לא כל דקה
+  _ownFreshOnce = true;
   _ownEnsureFresh();
 }
 
