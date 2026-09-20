@@ -532,15 +532,15 @@ function _bshopJobCard(j, forWorker, held) {
       style="margin-top:10px;width:100%;background:var(--dark);color:#fff;border:none;border-radius:10px;padding:10px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:900;cursor:pointer">✅ סיימנו עם הרכב</button>` : ''}
     ${!held && !forWorker && j.status === 'draft' ? `<div style="display:flex;gap:8px;margin-top:10px">
       <button onclick="event.stopPropagation();bsmSendToShop('${j.id}')"
-        style="flex:1;background:var(--success);color:#fff;border:2px solid var(--success);border-radius:10px;padding:8px 4px;font-family:'Heebo',sans-serif;font-size:12.5px;font-weight:800;cursor:pointer" white-space:nowrap"><span class="bs-wide">📤 שלח לאיברהים</span><span class="bs-narrow">📤 שלח</span></button>
-      <button onclick="event.stopPropagation();bsmPrint('${j.id}')"
-        style="flex:1;background:var(--dark);color:#fff;border:2px solid var(--dark);border-radius:10px;padding:8px 4px;font-family:'Heebo',sans-serif;font-size:12.5px;font-weight:800;cursor:pointer" white-space:nowrap"><span class="bs-wide">🖨️ הדפס פתק</span><span class="bs-narrow">🖨️ הדפס</span></button>
+        style="flex:1;min-width:0;background:var(--success);color:#fff;border:2px solid var(--success);border-radius:10px;padding:8px 4px;font-family:'Heebo',sans-serif;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap"><span class="bs-wide">📤 שלח לאיברהים</span><span class="bs-narrow">📤 שלח</span></button>
+      <button onclick="event.stopPropagation();(window.innerWidth <= 900 ? bsmShareNote : bsmPrint)('${j.id}')"
+        style="flex:1;min-width:0;background:var(--dark);color:#fff;border:2px solid var(--dark);border-radius:10px;padding:8px 4px;font-family:'Heebo',sans-serif;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap"><span class="bs-wide">🖨️ הדפס פתק</span><span class="bs-narrow">📤 שלח קובץ</span></button>
     </div>` : ''}
     ${!held && !forWorker && j.status !== 'returned' ? `<div style="display:flex;gap:8px;margin-top:8px">
       <button onclick="event.stopPropagation();bsmDeleteOne('job:${j.id}')" title="מחיקה לתמיד"
-        style="flex:1;background:transparent;color:#ef4444;border:2px solid #fecaca;border-radius:10px;padding:8px 4px;font-family:'Heebo',sans-serif;font-size:12.5px;font-weight:800;cursor:pointer">🗑 מחיקה</button>
+        style="flex:1;min-width:0;background:transparent;color:#ef4444;border:2px solid #fecaca;border-radius:10px;padding:8px 4px;font-family:'Heebo',sans-serif;font-size:12.5px;font-weight:800;cursor:pointer">🗑 מחיקה</button>
       <button onclick="event.stopPropagation();bsmSetHold('${j.id}',true)" title="הוצא מהמסך עד שתחזיר אותו"
-        style="flex:1;background:#e0f2fe;color:#0369a1;border:2px solid #7dd3fc;border-radius:10px;padding:8px 4px;font-family:'Heebo',sans-serif;font-size:12.5px;font-weight:800;cursor:pointer">❄️ הקפאה</button>
+        style="flex:1;min-width:0;background:#e0f2fe;color:#0369a1;border:2px solid #7dd3fc;border-radius:10px;padding:8px 4px;font-family:'Heebo',sans-serif;font-size:12.5px;font-weight:800;cursor:pointer">❄️ הקפאה</button>
     </div>` : ''}
   </div>`;
 }
@@ -1452,9 +1452,10 @@ const _BSHOP_FORM_ROWS = 10; // the paper form has ten numbered lines
 // the note always goes to the same garage
 const _BSHOP_SHOP = 'מוסך פחח איברהים';
 
-function bsmPrint(id) {
+/* בונה את טופס הזמנת התיקון — עיצוב ותוכן. אינו מדפיס ואינו שולח. */
+function _bshopNoteForm(id) {
   const j = _bshopJobs.find(x => x.id === id);
-  if (!j) return;
+  if (!j) return null;
   const now = new Date();
   const dateStr = now.toLocaleDateString('he-IL');
   const timeStr = now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
@@ -1470,9 +1471,7 @@ function bsmPrint(id) {
 
   // printed from a hidden frame, so the print dialog opens straight away
   // instead of a tab with the form in it
-  _printHtml(`<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8">
-<title>טופס הזמנת תיקון ${esc(j.plate)}</title>
-<style>
+  const css = `
   @page { size: A4; margin: 18mm 16mm; }
   body { font-family: Arial, "Segoe UI", sans-serif; color:#000; }
   h1 { text-align:center; font-size:26px; margin:0 0 22px; text-decoration:underline; }
@@ -1484,8 +1483,8 @@ function bsmPrint(id) {
   .title { padding:10px; text-align:center; font-size:15px; }
   .n { padding:9px 12px; width:52px; text-align:right; font-size:14px; }
   .d { padding:9px 12px; font-size:14px; }
-  .sp { height:26px; border:none; }
-</style></head><body>
+  .sp { height:26px; border:none; }`;
+  const body = `
   <h1>טופס הזמנת תיקון</h1>
   <table>
     <tr>${cell('מס רישוי :', j.plate)}${cell('שם מוסך :', _BSHOP_SHOP)}</tr>
@@ -1496,10 +1495,61 @@ function bsmPrint(id) {
   <table>
     <tr><td class="title" colspan="2">תיאור העבודה הדרושה :</td></tr>
     ${rows}
-  </table>
-</body></html>`, 'bodyshop print', 'שגיאה בהדפסה');
+  </table>`;
+  return { css, body, plate: j.plate };
+}
+
+/* ההדפסה והשליחה חולקות בדיוק את אותו טופס — מקום אחד לנוסח ולעיצוב,
+   ולכן הפתק שהנהג מדפיס מהטלפון זהה לזה שיוצא מהמדפסת כאן. */
+function bsmPrint(id) {
+  const f = _bshopNoteForm(id);
+  if (!f) return;
+  _printHtml(`<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8">
+<title>טופס הזמנת תיקון</title>
+<style>${f.css}</style></head><body>${f.body}</body></html>`, 'bodyshop print', 'שגיאה בהדפסה');
 }
 window.bsmPrint = bsmPrint;
+
+/* שליחת הפתק כקובץ — בטלפון, במקום להדפיס. הקובץ נבנה כאן ונשלח
+   דרך חלון השיתוף של המכשיר (וואטסאפ וכו׳), כך שהנהג מקבל אותו
+   מרחוק ומדפיס אצלו. אם המכשיר אינו יודע לשתף קבצים, הקובץ נפתח
+   בחלון חדש ואפשר לשמור אותו משם. */
+async function bsmShareNote(id) {
+  const f = _bshopNoteForm(id);
+  if (!f) return;
+  if (typeof html2pdf === 'undefined') return showToast('מנוע הקבצים לא נטען — נסה שוב בעוד רגע', 6000);
+  showToast('מכין קובץ…');
+  const host = document.createElement('div');
+  host.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;background:#fff;padding:24px';
+  host.innerHTML = `<style>${f.css}</style>${f.body}`;
+  document.body.appendChild(host);
+  try {
+    const blob = await html2pdf().set({
+      margin: 8,
+      image: { type: 'jpeg', quality: 0.95 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+    }).from(host).outputPdf('blob');
+    const name = `פתק פחחות ${f.plate}.pdf`;
+    const file = new File([blob], name, { type: 'application/pdf' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ title: name, files: [file] }); }
+      catch (e) { if (!e || e.name !== 'AbortError') throw e; }
+    } else {
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      showToast('המכשיר אינו תומך בשיתוף קובץ — הקובץ נפתח בחלון חדש');
+    }
+  } catch (e) {
+    console.error('bsmShareNote', e);
+    showToast('הכנת הקובץ נכשלה — אפשר להדפיס במקום', 6000);
+  } finally {
+    host.remove();
+  }
+}
+window.bsmShareNote = bsmShareNote;
+
 
 /* ── הדפסה ──────────────────────────────────────────────────────────
    מנגנון אחד לכל הטפסים: הדף נכתב למסגרת נסתרת, כך שחלון ההדפסה נפתח
