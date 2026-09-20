@@ -1577,7 +1577,9 @@ async function submitDriverIntake() {
       batteryNoDate: !!(document.getElementById('battery-no-date-cb')?.checked),
       batteryPhotoUrls: window._batteryPhotoUrls || {},
       status: 'done',
-      completedBy: currentUser.name,
+      completedBy: (currentUser.role === 'manager' && _currentIntakeVehicle?.assignedTo)
+        ? _currentIntakeVehicle.assignedTo : currentUser.name,
+      sentBy: currentUser.name,
       completedAt: _serverTs()
     });
   } catch(e) {
