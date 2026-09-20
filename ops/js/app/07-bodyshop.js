@@ -1465,38 +1465,31 @@ function _bshopNoteForm(id) {
   const rowCount = Math.max(_BSHOP_FORM_ROWS, names.length);
   let rows = '';
   for (let i = 0; i < rowCount; i++) {
-    rows += `<tr><td class="d">${esc(names[i] || '')}</td><td class="n">${i + 1}.</td></tr>`;
+    rows += `<tr><td style="border:1.5px solid #000;padding:9px 12px;font-size:14px">${esc(names[i] || '')}</td><td style="border:1.5px solid #000;padding:9px 12px;width:52px;text-align:right;font-size:14px">${i + 1}.</td></tr>`;
   }
-  const cell = (label, value) => `<td class="hc"><span class="hl">${label}</span> <span class="hv">${esc(value || '')}</span></td>`;
+  const cell = (st, label, value) => `<td style="${st}"><span style="font-size:14px">${label}</span> <span style="font-size:15px;font-weight:bold">${esc(value || '')}</span></td>`;
 
   // printed from a hidden frame, so the print dialog opens straight away
   // instead of a tab with the form in it
-  const css = `
-  @page { size: A4; margin: 18mm 16mm; }
-  body { font-family: Arial, "Segoe UI", sans-serif; color:#000; }
-  h1 { text-align:center; font-size:26px; margin:0 0 22px; text-decoration:underline; }
-  table { border-collapse:collapse; width:100%; }
-  td, th { border:1.5px solid #000; }
-  .hc { padding:10px 12px; text-align:right; width:50%; height:34px; }
-  .hl { font-size:14px; }
-  .hv { font-size:15px; font-weight:bold; }
-  .title { padding:10px; text-align:center; font-size:15px; }
-  .n { padding:9px 12px; width:52px; text-align:right; font-size:14px; }
-  .d { padding:9px 12px; font-size:14px; }
-  .sp { height:26px; border:none; }`;
-  const body = `
-  <h1>טופס הזמנת תיקון</h1>
-  <table>
-    <tr>${cell('מס רישוי :', j.plate)}${cell('שם מוסך :', _BSHOP_SHOP)}</tr>
-    <tr>${cell('שייך ל:', _BSHOP_OWNER)}${cell('שם הרכב :', j.desc || '')}</tr>
-    <tr>${cell('שעה :', timeStr)}${cell('תאריך :', dateStr)}</tr>
+  /* הסגנון יושב ישירות על האלמנטים ולא בגיליון נפרד. מנוע ה-PDF
+     משכפל את האלמנט לתוך מסגרת משלו, ושם כלל שנשען על גיליון חיצוני
+     אינו מגיע — וזו בדיוק הסיבה שהקובץ יצא ריק. */
+  const TD = 'border:1.5px solid #000;';
+  const hc = TD + 'padding:10px 12px;text-align:right;width:50%;height:34px;';
+  const html = wrap => `<div style="${wrap}font-family:Arial,\'Segoe UI\',sans-serif;color:#000;direction:rtl">
+  <h1 style="text-align:center;font-size:26px;margin:0 0 22px;text-decoration:underline">טופס הזמנת תיקון</h1>
+  <table style="border-collapse:collapse;width:100%">
+    <tr>${cell(hc, 'מס רישוי :', j.plate)}${cell(hc, 'שם מוסך :', _BSHOP_SHOP)}</tr>
+    <tr>${cell(hc, 'שייך ל:', _BSHOP_OWNER)}${cell(hc, 'שם הרכב :', j.desc || '')}</tr>
+    <tr>${cell(hc, 'שעה :', timeStr)}${cell(hc, 'תאריך :', dateStr)}</tr>
   </table>
-  <table class="sp"><tr><td class="sp"></td></tr></table>
-  <table>
-    <tr><td class="title" colspan="2">תיאור העבודה הדרושה :</td></tr>
+  <table style="border-collapse:collapse;width:100%"><tr><td style="height:26px;border:none"></td></tr></table>
+  <table style="border-collapse:collapse;width:100%">
+    <tr><td colspan="2" style="${TD}padding:10px;text-align:center;font-size:15px">תיאור העבודה הדרושה :</td></tr>
     ${rows}
-  </table>`;
-  return { css, body, plate: j.plate };
+  </table>
+</div>`;
+  return { html, plate: j.plate };
 }
 
 /* ההדפסה והשליחה חולקות בדיוק את אותו טופס — מקום אחד לנוסח ולעיצוב,
@@ -1506,30 +1499,39 @@ function bsmPrint(id) {
   if (!f) return;
   _printHtml(`<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8">
 <title>טופס הזמנת תיקון</title>
-<style>${f.css}</style></head><body>${f.body}</body></html>`, 'bodyshop print', 'שגיאה בהדפסה');
+<style>@page { size: A4; margin: 18mm 16mm; }</style></head><body style="margin:0">${f.html('')}</body></html>`,
+    'bodyshop print', 'שגיאה בהדפסה');
 }
 window.bsmPrint = bsmPrint;
 
 /* שליחת הפתק כקובץ — בטלפון, במקום להדפיס. הקובץ נבנה כאן ונשלח
    דרך חלון השיתוף של המכשיר (וואטסאפ וכו׳), כך שהנהג מקבל אותו
    מרחוק ומדפיס אצלו. אם המכשיר אינו יודע לשתף קבצים, הקובץ נפתח
-   בחלון חדש ואפשר לשמור אותו משם. */
+   בחלון חדש ואפשר לשמור אותו משם.
+   האלמנט נשאר מנותק מהדף — בדיוק כמו בייצוא של טופס הקליטה. */
 async function bsmShareNote(id) {
   const f = _bshopNoteForm(id);
   if (!f) return;
   if (typeof html2pdf === 'undefined') return showToast('מנוע הקבצים לא נטען — נסה שוב בעוד רגע', 6000);
   showToast('מכין קובץ…');
-  const host = document.createElement('div');
-  host.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;background:#fff;padding:24px';
-  host.innerHTML = `<style>${f.css}</style>${f.body}`;
-  document.body.appendChild(host);
+  const el = document.createElement('div');
+  el.innerHTML = f.html('width:700px;padding:20px;background:#fff;');
+  /* מנוע ההמרה לתמונה מאבד רווחים רגילים בטקסט עברי, והמילים נדבקות.
+     רווח קשיח שורד את ההמרה. ההחלפה נעשית רק כאן — ההדפסה ממשיכה
+     להשתמש בטקסט הרגיל. */
+  (function nbsp(node) {
+    for (const n of node.childNodes) {
+      if (n.nodeType === 3) n.nodeValue = n.nodeValue.replace(/ /g, '\u00A0');
+      else nbsp(n);
+    }
+  })(el);
   try {
     const blob = await html2pdf().set({
-      margin: 8,
+      margin: 10,
       image: { type: 'jpeg', quality: 0.95 },
       html2canvas: { scale: 2, useCORS: true },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-    }).from(host).outputPdf('blob');
+    }).from(el).outputPdf('blob');
     const name = `פתק פחחות ${f.plate}.pdf`;
     const file = new File([blob], name, { type: 'application/pdf' });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -1545,7 +1547,7 @@ async function bsmShareNote(id) {
     console.error('bsmShareNote', e);
     showToast('הכנת הקובץ נכשלה — אפשר להדפיס במקום', 6000);
   } finally {
-    host.remove();
+    el.remove();
   }
 }
 window.bsmShareNote = bsmShareNote;
