@@ -2099,7 +2099,8 @@ function _bsRenderCatalog() {
   c.innerHTML = _bsCatalog.map(x => `<div style="display:flex;align-items:center;gap:10px;border:2px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:6px">
       <div style="flex:1;min-width:0">
         <div style="font-weight:900;font-size:14px">${esc(x.sku)}</div>
-        <div style="font-size:13px;color:var(--muted);font-weight:700">${esc(x.model || '')}${x.price ? ` · ${Number(x.price).toLocaleString('he-IL')} ₪ לפני מע״מ` : ''}</div>
+        <div style="font-size:13px;color:var(--muted);font-weight:700">${esc(x.model || '')}</div>
+        ${x.price ? `<div style="font-size:12.5px;font-weight:700;color:var(--muted);margin-top:2px">${Number(x.price).toLocaleString('he-IL')} ₪ לפני מע״מ · <span style="color:var(--gold);font-weight:900">${_fmtIls(_incVat(x.price))} כולל מע״מ</span></div>` : ''}
       </div>
       <button onclick="bsEditCatalog(this.dataset.s)" data-s="${esc(x.sku)}" style="background:var(--surface2);border:none;border-radius:8px;width:30px;height:30px;cursor:pointer">✏️</button>
       <button onclick="bsRemoveCatalog(this.dataset.s)" data-s="${esc(x.sku)}" style="background:#ef4444;color:#fff;border:none;border-radius:8px;width:30px;height:30px;cursor:pointer">🗑</button>
