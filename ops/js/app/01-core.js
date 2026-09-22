@@ -713,9 +713,18 @@ function _backToAllScreens() {
 /* ═══════════════════════════════════════════════════════
    HOME
 ═══════════════════════════════════════════════════════ */
-/* Bump on every deploy. A stale cached page keeps showing its own older stamp,
-   which is how we tell "the feature is missing" from "the phone is out of date". */
-const APP_BUILD = '2026-08-09 · 214';
+/* מספר הגרסה נקרא מכתובת הקובץ הזה עצמו (…/01-core.js?v=425) ולא
+   נכתב ביד. קודם הוא היה מספר קבוע שנשכח מאחור, והמסך הציג גרסה
+   שאינה הגרסה שרצה בפועל — מה שהפך אותו לחסר תועלת בדיוק כשצריך
+   לדעת אם הטלפון מעודכן. */
+const APP_BUILD = (() => {
+  try {
+    const src = document.currentScript && document.currentScript.src;
+    const m = src && src.match(/[?&]v=([^&]+)/);
+    if (m) return m[1];
+  } catch (e) {}
+  return '?';
+})();
 
   /* ── "כל המסכים" ────────────────────────────────────────────────────
    כל מה שהיה כפתורים צבעוניים במסך הבית יושב כאן, ברשימה אחת אחידה.
