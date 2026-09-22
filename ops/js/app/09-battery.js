@@ -1630,7 +1630,7 @@ function _bsRenderHistory() {
       })()}
       <div style="font-size:12px;color:var(--muted);white-space:nowrap">${esc(ds)}</div>
       ${payBtn}
-      <button onclick="bsDeleteInstall('${r.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:8px;width:28px;height:28px;cursor:pointer;flex-shrink:0" title="מחק">🗑</button>
+      <button onclick="bsDeleteInstall('${r.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:8px;padding:6px 10px;font-family:Heebo,sans-serif;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap;flex-shrink:0" title="מבטל את ההרכבה ומחזיר את המצבר למלאי">↩️ החזרה למלאי</button>
     </div>`;
   }).join('');
 }
@@ -2342,13 +2342,13 @@ window.submitBsIssue = submitBsIssue;
 async function bsDeleteInstall(id) {
   const rec = _bsInstalls.find(r => r.id === id);
   if (!rec) return;
-  if (!confirm(`למחוק את רישום ההרכבה לרכב ${rec.plate}? המצבר יוחזר למלאי.`)) return;
+  if (!confirm(`להחזיר את המצבר של ${rec.plate} למלאי? רישום ההרכבה יימחק.`)) return;
   try {
     const { deleteDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
     await deleteDoc(doc(window._db, 'battery_installs', id));
     const row = _bsStock.find(r => r.id === rec.stockId) || _bsStock.find(r => r.model === rec.model);
     if (row) await _updateDoc(_docRef('battery_stock', row.id), { qty: (row.qty || 0) + 1, updatedAt: _serverTs() });
-    showToast('🗑️ הרישום נמחק והמצבר הוחזר למלאי');
+    showToast('↩️ המצבר הוחזר למלאי');
   } catch (e) { showToast('שגיאה: ' + (e.code || e.message)); }
 }
 window.bsDeleteInstall = bsDeleteInstall;
