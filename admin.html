@@ -2796,11 +2796,26 @@
     if(value){ const car=cars.find(c=>((c.brand+' '+c.model)===value)); if(car){ b=car.brand; m=car.model; } else { b=value; } }
     const bOpts='<option value="">יצרן</option>'+_icBrands().map(x=>`<option ${x===b?'selected':''}>${x}</option>`).join('');
     const mOpts='<option value="">דגם</option>'+(b?_icModels(b):[]).map(x=>`<option ${x===m?'selected':''}>${x}</option>`).join('');
-    return `<div id="icrow_${id}_${slot}" style="display:${visible?'flex':'none'};gap:6px;min-width:220px;margin-bottom:6px;align-items:center">
-      <select id="icb_${id}_${slot}" onchange="onInterestBrand('${id}',${slot})" style="flex:1;padding:6px 8px;font-size:13px;border-radius:8px">${bOpts}</select>
-      <select id="icm_${id}_${slot}" style="flex:1;padding:6px 8px;font-size:13px;border-radius:8px">${mOpts}</select>
+    return `<div id="icrow_${id}_${slot}" style="display:${visible?'flex':'none'};flex-wrap:wrap;gap:6px;min-width:220px;margin-bottom:6px;align-items:center">
+      <select id="icb_${id}_${slot}" onchange="onInterestBrand('${id}',${slot})" style="flex:1;min-width:100px;padding:6px 8px;font-size:13px;border-radius:8px">${bOpts}</select>
+      <select id="icm_${id}_${slot}" onchange="renderInterestPrice('${id}',${slot})" style="flex:1;min-width:100px;padding:6px 8px;font-size:13px;border-radius:8px">${mOpts}</select>
       <button onclick="removeInterestRow('${id}',${slot})" title="הסר רכב" style="background:#fef2f2;border:1px solid #fecaca;color:#dc2626;border-radius:8px;padding:6px 10px;font-size:13px;font-weight:900;cursor:pointer;flex-shrink:0">✕</button>
+      <div id="icprice_${id}_${slot}" style="width:100%;font-size:12.5px;color:#15803d;font-weight:800">${_icPriceHTML(b,m)}</div>
     </div>`;
+  }
+  // מחיר + החזר חודשי לרכב שהלקוח מתעניין בו
+  function _icPriceHTML(b,m){
+    if(!b||!m) return '';
+    var c=(typeof cars!=='undefined'&&Array.isArray(cars))?cars.find(x=>x.brand===b&&x.model===m):null;
+    var price=c?Number(c.autodealerPriceNumber)||0:0;
+    if(price<=1) return '';
+    var monthly=_voMonthly(price);
+    return '💰 מחיר: '+price.toLocaleString('en-US')+' ₪'+(monthly>0?(' · החזר חודשי מ-'+monthly.toLocaleString('en-US')+' ₪'):'');
+  }
+  function renderInterestPrice(id,slot){
+    const el=document.getElementById('icprice_'+id+'_'+slot); if(!el) return;
+    const bs=document.getElementById('icb_'+id+'_'+slot), ms=document.getElementById('icm_'+id+'_'+slot);
+    el.innerHTML=_icPriceHTML(bs?bs.value:'', ms?ms.value:'');
   }
   function removeInterestRow(id,slot){
     const bs=document.getElementById('icb_'+id+'_'+slot), ms=document.getElementById('icm_'+id+'_'+slot);
@@ -2816,6 +2831,7 @@
     if(!bs||!ms) return;
     const b=bs.value;
     ms.innerHTML='<option value="">דגם</option>'+(b?_icModels(b):[]).map(x=>`<option>${x}</option>`).join('');
+    renderInterestPrice(id,slot);
   }
   function addInterestRow(id){
     for(let s=2;s<=3;s++){
