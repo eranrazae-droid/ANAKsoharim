@@ -2800,7 +2800,13 @@
   function _icModels(brand){ return [...new Set(cars.filter(c=>c.brand===brand).map(c=>c.model).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'he')); }
   function interestSlotHTML(id,slot,value,visible){
     let b='',m='';
-    if(value){ const car=cars.find(c=>((c.brand+' '+c.model)===value)); if(car){ b=car.brand; m=car.model; } else { b=value; } }
+    if(value){
+      const _n=s=>(s==null?'':String(s)).replace(/\s+/g,' ').trim().toLowerCase();
+      const car=cars.find(c=>((c.brand+' '+c.model)===value))
+             || cars.find(c=>_n(c.brand+' '+c.model)===_n(value))
+             || cars.find(c=>c.model&&_n(value).indexOf(_n(c.model))>=0);
+      if(car){ b=car.brand; m=car.model; } else { b=value; }
+    }
     const bOpts='<option value="">יצרן</option>'+_icBrands().map(x=>`<option ${x===b?'selected':''}>${x}</option>`).join('');
     const mOpts='<option value="">דגם</option>'+(b?_icModels(b):[]).map(x=>`<option ${x===m?'selected':''}>${x}</option>`).join('');
     return `<div id="icrow_${id}_${slot}" style="display:${visible?'flex':'none'};flex-wrap:wrap;gap:6px;min-width:220px;margin-bottom:6px;align-items:center">
