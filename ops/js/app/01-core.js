@@ -607,6 +607,7 @@ function showScreen(name) {
     if (_hostName !== name) {
       if (_hostName) closeScreenModal();
       _hostName = name;
+      if (window._bootSplashDone) window._bootSplashDone();
       openModal('modal-screen-host');
     }
     return _mountHostScreen(name);
@@ -615,6 +616,7 @@ function showScreen(name) {
   if (_hostName) closeScreenModal();
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('screen-' + name).classList.add('active');
+  if (window._bootSplashDone) window._bootSplashDone();   // מסך אמיתי ראשון — מסך הפתיחה יורד
   sessionStorage.setItem('anak_screen', name);
   // hide task-req pill when leaving tasks screen
   if (name !== 'tasks') { const p = document.getElementById('task-req-pills'); if (p) p.style.display = 'none'; }
