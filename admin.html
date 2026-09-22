@@ -2809,8 +2809,14 @@
     var c=(typeof cars!=='undefined'&&Array.isArray(cars))?cars.find(x=>x.brand===b&&x.model===m):null;
     var price=c?Number(c.autodealerPriceNumber)||0:0;
     if(price<=1) return '';
-    var monthly=_voMonthly(price);
-    return '💰 מחיר: '+price.toLocaleString('en-US')+' ₪'+(monthly>0?(' · החזר חודשי מ-'+monthly.toLocaleString('en-US')+' ₪'):'');
+    var lic=c?Number(c.licenseFee)||0:0;
+    var total=price+lic;
+    var monthly=_voMonthly(total);
+    var html = lic>0
+      ? ('💰 לפני רישוי: '+price.toLocaleString('en-US')+' ₪ · 🧾 כולל רישוי: '+total.toLocaleString('en-US')+' ₪')
+      : ('💰 מחיר: '+price.toLocaleString('en-US')+' ₪');
+    if(monthly>0) html+=' · החזר חודשי מ-'+monthly.toLocaleString('en-US')+' ₪';
+    return html;
   }
   function renderInterestPrice(id,slot){
     const el=document.getElementById('icprice_'+id+'_'+slot); if(!el) return;
