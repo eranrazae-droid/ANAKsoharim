@@ -509,11 +509,11 @@ function renderToPlaceGrid(isManager) {
       html += `<input data-key="${key}" value="${esc(tpVal)}" placeholder="רכב ${i}"
         onchange="yardData[this.dataset.key]=this.value;this.style.background=this.value?'#dcfce7':'#fff';this.style.borderColor=this.value?'#16a34a':'var(--border)';_autoSaveYard()"
         onkeydown="if(event.key==='Enter'||event.keyCode===13){event.preventDefault();yardData[this.dataset.key]=this.value;clearTimeout(_yardSaveTimer);_yardUpdate({data:yardData,updatedAt:_serverTs(),status:'draft'});_yardFocusNext(this);}"
-        style="background:${tpBg};border:1px solid ${tpBorder};border-radius:8px;padding:6px 8px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;color:#15803d;text-align:center;outline:none"
+        style="background:${tpBg};border:1px solid ${tpBorder};border-radius:8px;padding:6px 8px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;color:#15803d;text-align:center;outline:none;min-width:0"
         onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor=this.value?'#16a34a':'var(--border)'">`;
     } else {
       const val = yardData[key] || '';
-      html += `<div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:6px 8px;font-size:13px;text-align:center;min-height:32px;color:${val?'var(--dark)':'#ccc'}">${val||'—'}</div>`;
+      html += `<div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:6px 8px;font-size:13px;text-align:center;min-height:32px;min-width:0;overflow:hidden;color:${val?'var(--dark)':'#ccc'}">${val||'—'}</div>`;
     }
   }
   for (let i = 1; i <= 6; i++) {
@@ -525,11 +525,11 @@ function renderToPlaceGrid(isManager) {
       soldHtml += `<input data-key="${key}" value="${esc(sVal)}" placeholder="מכונית ${i}"
         onchange="yardData[this.dataset.key]=this.value;this.style.background=this.value?'#fef08a':'#fefce8';this.style.borderColor=this.value?'#ca8a04':'#fde047';_autoSaveYard()"
         onkeydown="if(event.key==='Enter'||event.keyCode===13){event.preventDefault();yardData[this.dataset.key]=this.value;clearTimeout(_yardSaveTimer);_yardUpdate({data:yardData,updatedAt:_serverTs(),status:'draft'});_yardFocusNext(this);}"
-        style="background:${sBg};border:1px solid ${sBorder};border-radius:8px;padding:6px 8px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;color:#854d0e;text-align:center;outline:none"
+        style="background:${sBg};border:1px solid ${sBorder};border-radius:8px;padding:6px 8px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;color:#854d0e;text-align:center;outline:none;min-width:0"
         onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor=this.value?'#ca8a04':'#fde047'">`;
     } else {
       const val = yardData[key] || '';
-      soldHtml += `<div style="background:#fefce8;border:1px solid #fde047;border-radius:8px;padding:6px 8px;font-size:13px;text-align:center;min-height:32px;color:${val?'#854d0e':'#ca8a04'}">${val||'—'}</div>`;
+      soldHtml += `<div style="background:#fefce8;border:1px solid #fde047;border-radius:8px;padding:6px 8px;font-size:13px;text-align:center;min-height:32px;min-width:0;overflow:hidden;color:${val?'#854d0e':'#ca8a04'}">${val||'—'}</div>`;
     }
   }
   grid.innerHTML = html;
