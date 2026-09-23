@@ -8,7 +8,11 @@ except Exception:
     print('תשובה שאינה JSON:', raw[:300]); raise SystemExit(0)
 if not d.get('ok'):
     print('נכשל:', json.dumps(d, ensure_ascii=False)[:400]); raise SystemExit(0)
-if what == 'vehicle':
+if what == 'source':
+    print('רכבים שהסריקות רואות:', d.get('count'))
+    for s in (d.get('sample') or [])[:3]:
+        print('  ', s.get('plate'), s.get('tozeret'), s.get('degem'), s.get('shnat'))
+elif what == 'vehicle':
     v = d.get('vehicle') or {}
     print('נמצא:', d.get('found'))
     for k in ('plate','status','maker','model','modelRegistry','subModel','year','color','vin','enteredAt'):

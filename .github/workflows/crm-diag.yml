@@ -22,9 +22,12 @@ jobs:
           curl -sS -m 60 "$B/crmVehicle?plate=99999999"; echo
           echo "===== 3. מספר לא תקין ====="
           curl -sS -m 60 "$B/crmVehicle?plate=abc"; echo
+      - name: מה הסריקות רואות אחרי החלפת המקור
+        run: |
+          echo "===== 0. המקור שממנו הסריקות מושכות =====" 
+          curl -sS -m 120 "$B/inventoryCheck" | python3 .audit/crm-report.py source
+          echo
       - name: השוואת מלאי CRM מול הפיד הישן
         run: |
           echo "===== 4. מי נמצא באחד ולא בשני ====="
           curl -sS -m 180 "$B/crmCompare" | python3 .audit/crm-report.py compare
-
-# הרצה חוזרת: 2026-09-23T08:07:13Z
