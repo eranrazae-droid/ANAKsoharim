@@ -1,0 +1,28 @@
+# בדיקת החיבור ל-CRM: רצה ידנית מלשונית Actions ומדפיסה ללוג את מצב
+# החיבור ואת ההשוואה בין מלאי ה-CRM לפיד הישן. אין כאן מפתח — הוא
+# יושב ב-Firestore, והפונקציה בשרת היא שמשתמשת בו.
+name: CRM Diagnostics
+on:
+  workflow_dispatch:
+  push:
+    paths: ['.github/workflows/crm-diag.yml', '.audit/crm-report.py']
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    env:
+      B: https://europe-west1-anak-soharim.cloudfunctions.net
+    steps:
+      - uses: actions/checkout@v4
+      - name: רכב בודד בזמן אמת
+        run: |
+          echo "===== 1. רכב 24555403 ====="
+          curl -sS -m 60 "$B/crmVehicle?plate=24555403" | python3 .audit/crm-report.py vehicle
+          echo
+          echo "===== 2. מספר שאינו קיים ====="
+          curl -sS -m 60 "$B/crmVehicle?plate=99999999"; echo
+          echo "===== 3. מספר לא תקין ====="
+          curl -sS -m 60 "$B/crmVehicle?plate=abc"; echo
+      - name: השוואת מלאי CRM מול הפיד הישן
+        run: |
+          echo "===== 4. מי נמצא באחד ולא בשני ====="
+          curl -sS -m 180 "$B/crmCompare" | python3 .audit/crm-report.py compare
