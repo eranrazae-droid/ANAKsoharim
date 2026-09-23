@@ -223,29 +223,77 @@ async function _filterScannable(cars) {
   return out;
 }
 
+const _CRM_BASE = "https://anak-harechev-crm.vercel.app";
+let _crmKey = null, _crmKeyAt = 0;
+
+async function _crmApiKey() {
+  if (_crmKey && Date.now() - _crmKeyAt < 300000) return _crmKey;
+  const snap = await db.collection("config").doc("crm").get();
+  _crmKey = (snap.exists ? snap.data().apiKey : "") || "";
+  _crmKeyAt = Date.now();
+  return _crmKey;
+}
+
+// קריאה אחת ל-CRM. מחזירה תמיד אובייקט — לעולם לא זורקת החוצה — כדי
+// שנפילה של ה-CRM לא תפיל שום תהליך אצלנו.
+async function _crmGet(path) {
+  const key = await _crmApiKey();
+  if (!key) return { ok: false, reason: "no-key" };
+  let res;
+  try {
+    res = await fetch(_CRM_BASE + path, {
+      headers: { "X-API-Key": key, "Accept": "application/json" },
+    });
+  } catch (err) {
+    return { ok: false, reason: "unreachable", error: String(err && err.message || err) };
+  }
+  if (res.status === 401 || res.status === 403) return { ok: false, reason: "unauthorized" };
+  const body = await res.text();
+  if (!res.ok) return { ok: false, reason: "http-" + res.status, body: body.slice(0, 200) };
+  try { return { ok: true, data: JSON.parse(body) }; }
+  catch (err) { return { ok: false, reason: "not-json", body: body.slice(0, 200) }; }
+}
+
 // מושכת את המלאי הפעיל ומחזירה רשימת רכבים אחידה לשתי הסריקות
 // (ריקולים ובעלויות), כדי ששתיהן תמיד יעבדו על אותו מלאי.
 // כמה רכבים הגיעו מהפיד וכמה נפלו בדרך — בלי המספרים האלה אי אפשר לדעת
 // אם רכב חסר בגלל הפיד, בגלל לוחית לא תקינה או בגלל רשימת הדילוג.
-let _lastFeedCounts = { blocks: 0, valid: 0, badPlates: [] };
-async function _fetchInventory() {
+/* הפיד הישן (XML בפורמט מודעות) אינו משמש יותר כמקור המלאי. הוא נשאר
+   כאן לצורך אחד בלבד: crmCompare מודדת מולו, וכך אפשר לראות בכל רגע
+   אם פער כלשהו נפתח בין שני המקורות. */
+async function _fetchLegacyFeed() {
   const res = await fetch(_INVENTORY_URL);
   if (!res.ok) throw new Error("HTTP " + res.status);
   const xml = await res.text();
   const blocks = xml.match(/<CAR>[\s\S]*?<\/CAR>/gi) || [];
-  const all = blocks.map((b) => {
+  return blocks.map((b) => {
     const { tozeret, degem } = _carwizName(_xmlTag(b, "Description"));
     return {
       plate: _xmlTag(b, "CarNumber").replace(/\D/g, ""),
-      tozeret,
-      degem,
+      tozeret, degem,
       shnat: _xmlTag(b, "ManufactureYear"),
       rawPlate: _xmlTag(b, "CarNumber"),
     };
-  });
+  }).filter((c) => c.plate.length === 7 || c.plate.length === 8);
+}
+
+let _lastFeedCounts = { blocks: 0, valid: 0, badPlates: [] };
+async function _fetchInventory() {
+  const r = await _crmGet("/api/stock");
+  if (!r.ok) throw new Error("CRM " + r.reason + (r.error ? ": " + r.error : ""));
+  const rows = (r.data && r.data.vehicles) || [];
+  /* רק רכבים שנמצאים במגרש. רכב בסטטוס incoming עוד לא הגיע, ואין טעם
+     לבדוק לו ריקולים או בעלות — הוא עדיין לא אצלנו. */
+  const all = rows.filter((v) => (v.status || "") === "in_stock").map((v) => ({
+    plate: String(v.plate == null ? "" : v.plate).replace(/\D/g, ""),
+    tozeret: v.maker || "",
+    degem: v.model || "",
+    shnat: v.year == null ? "" : String(v.year),
+    rawPlate: String(v.plate == null ? "" : v.plate),
+  }));
   const valid = all.filter((c) => c.plate.length === 7 || c.plate.length === 8);
   _lastFeedCounts = {
-    blocks: blocks.length,
+    blocks: rows.length,
     valid: valid.length,
     badPlates: all.filter((c) => c.plate.length !== 7 && c.plate.length !== 8)
       .map((c) => c.rawPlate).slice(0, 40),
@@ -1883,37 +1931,6 @@ exports.inventoryCheck = onRequest(
    המפתח יושב ב-Firestore ב-config/crm תחת apiKey, בדיוק כמו טוקן
    הטלגרם ב-config/driver_contacts. הוא לא נמצא בקוד ולא במאגר.
 ═══════════════════════════════════════════════════════════════════ */
-const _CRM_BASE = "https://anak-harechev-crm.vercel.app";
-let _crmKey = null, _crmKeyAt = 0;
-
-async function _crmApiKey() {
-  if (_crmKey && Date.now() - _crmKeyAt < 300000) return _crmKey;
-  const snap = await db.collection("config").doc("crm").get();
-  _crmKey = (snap.exists ? snap.data().apiKey : "") || "";
-  _crmKeyAt = Date.now();
-  return _crmKey;
-}
-
-// קריאה אחת ל-CRM. מחזירה תמיד אובייקט — לעולם לא זורקת החוצה — כדי
-// שנפילה של ה-CRM לא תפיל שום תהליך אצלנו.
-async function _crmGet(path) {
-  const key = await _crmApiKey();
-  if (!key) return { ok: false, reason: "no-key" };
-  let res;
-  try {
-    res = await fetch(_CRM_BASE + path, {
-      headers: { "X-API-Key": key, "Accept": "application/json" },
-    });
-  } catch (err) {
-    return { ok: false, reason: "unreachable", error: String(err && err.message || err) };
-  }
-  if (res.status === 401 || res.status === 403) return { ok: false, reason: "unauthorized" };
-  const body = await res.text();
-  if (!res.ok) return { ok: false, reason: "http-" + res.status, body: body.slice(0, 200) };
-  try { return { ok: true, data: JSON.parse(body) }; }
-  catch (err) { return { ok: false, reason: "not-json", body: body.slice(0, 200) }; }
-}
-
 const _crmPlate = (v) => String(v == null ? "" : v).replace(/\D/g, "");
 
 /* שאילתה על רכב אחד, בזמן אמת. זו הנקודה שבגללה התחלנו: פעולה חיה
@@ -1942,10 +1959,10 @@ exports.crmVehicle = onRequest(
   }
 );
 
-/* השוואה בין שני מקורות המלאי, לפני שמחליפים מקור כלשהו.
-   הפיד הישן טוען בערך 161 רכבים והחדש 118 — לפני שנוגעים בבדיקת
-   הריקולים או בבדיקת הבעלויות צריך לדעת בדיוק מי נמצא באחד ולא
-   בשני, ולא להניח שהמספר הקטן הוא הנכון. */
+/* השוואה בין מלאי ה-CRM לפיד הישן. המקור כבר הוחלף, וההשוואה נשארת
+   ככלי מדידה: היא מראה בכל רגע מי נמצא באחד ולא בשני. כך התגלה
+   שהפיד הישן כולל עשרות רכבי "לפי הזמנה" עם מספרי רישוי מזויפים
+   (99999xxx) ובו בזמן מחמיץ עשרות רכבים אמיתיים שבמגרש. */
 exports.crmCompare = onRequest(
   { cors: true, region: "europe-west1", timeoutSeconds: 120 },
   async (req, res) => {
@@ -1956,7 +1973,7 @@ exports.crmCompare = onRequest(
       desc: [v.maker, v.model, v.year].filter(Boolean).join(" "),
     })).filter((v) => v.plate);
     let old = [], feedError = null;
-    try { old = await _fetchInventory(); }
+    try { old = await _fetchLegacyFeed(); }
     catch (err) { feedError = String(err && err.message || err); }
     // פיד שנפל אינו "פיד ריק". בלי ההבחנה הזו ההשוואה הייתה מציגה את
     // כל רכבי ה-CRM כ"חדשים" ואת הפיד כאילו התרוקן.
@@ -2030,6 +2047,21 @@ exports.dailyOwnershipCheck = onSchedule(
       baalut: c.baalut || "", nowBaalut: c.nowBaalut || "", movedOnExit: !!c.movedOnExit,
     }))];
     const gone = isDigest ? pendingGone : [];
+
+    /* מעבר מקור המלאי מחליף רשימה שלמה באחת: ההשוואה מול הסריקה הקודמת
+       מייצרת עשרות "רכב חדש" ועשרות "ירד מהמלאי" בבת אחת. זו אינה ידיעה
+       אלא רעש, והיא מטביעה התראה אמיתית שתגיע באותו יום. לכן הסריקה
+       הראשונה אחרי ההחלפה נרשמת בשקט, ומהשנייה ואילך הכל כרגיל. */
+    if (!meta.crmSourceSince) {
+      await metaRef.set({
+        crmSourceSince: new Date(),
+        registryModified: modified || meta.registryModified || "",
+        pendingGone: [], at: new Date(),
+      }, { merge: true });
+      console.log("ownership: first scan on the CRM source — alerts skipped once",
+        { moved: moved.length, newNot: newNot.length, newUnk: newUnk.length, gone: (r.goneFromStock || []).length });
+      return;
+    }
 
     const nothing = !moved.length && !toOurs.length && !newNot.length && !newUnk.length && !gone.length;
     if (nothing) {
