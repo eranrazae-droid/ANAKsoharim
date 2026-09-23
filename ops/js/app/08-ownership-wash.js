@@ -692,7 +692,7 @@ function _washMount() {
   });
 
   // הטופס שנבחר נטען רק כשהוא באמת מוצג, כדי לא לפתוח מאזינים לחינם
-  if (shown === 'wash') { try { _washRenderTypes(); _washSavedListen(); _washStockListen(); _washNotesListen(); } catch (e) {} }
+  if (shown === 'wash') { try { _washRenderTypes(); _washSavedListen(); _washNotesListen(); } catch (e) {} }
   // הבורות ונסיעות המבחן פותחים מאזין לשרת, ולכן נטענים רק כשהלשונית
   // באמת מתחלפת — לא בכל שינוי רוחב של החלון
   if (shown !== _homePanelShown) {
@@ -734,11 +734,6 @@ function openWashScreen() {
   _washBatch = [];            // כניסה למסך מתחילה טופס נקי
   _washRenderBatch();
   _washClear();
-  // רשימת המלאי והרכבים השמורים היא מה שמתיר להוציא פתק, ולכן היא
-  // חייבת להיטען בכל דרך שבה מגיעים לטופס — גם אצל הנהג, שאינו עובר
-  // דרך החלונית שבמסך הבית
-  _washSavedListen();
-  _washStockListen();
   _washNotesListen();
   _washRenderList();
 }
@@ -776,7 +771,6 @@ window.washPickType = washPickType;
 let _washLookupT = null;
 function washLookupPlateSoon() {
   clearTimeout(_washLookupT);
-  _washPlateFeedback();
   const p = (document.getElementById('wash-plate').value || '').replace(/\D/g, '');
   if (p.length < 7) return;
   _washLookupT = setTimeout(washLookupPlate, 150);
@@ -922,61 +916,12 @@ ${pages.map(pg => `<div class="page n${pg.length}">${pg.map(_washSheet).join('')
    כדי למלא את הטופס בלחיצה. הוספה ומחיקה — למנהל בלבד.               */
 let _washSaved = [], _washSavedUnsub = null;
 
-/* ── מי מותר לשטיפה ───────────────────────────────────────────────
-   פתק יוצא רק לרכב שנמצא במלאי הפעיל — אותו מלאי שממנו רצות בדיקת
-   הריקולים ובדיקת הבעלויות, כדי שלא תהיה רשימה שנייה לתחזק.
-   רכב שאינו במלאי (רכב פרטי, רכב של לקוח) נוסף בידי המנהל לרשימת
-   "רכבים שמורים", והיא מצטרפת להיתר.
-
-   כשל ברשת אינו חוסם: אם המלאי טרם נטען, אין לנו על מה לחסום, ולכן
-   הפתק עובר כרגיל. חסימה מתוך חוסר מידע הייתה עוצרת את העבודה
-   בדיוק כשאי אפשר לברר. */
-let _washStock = null, _washStockUnsub = null;   // null = טרם נטען
-function _washStockListen() {
-  if (_washStockUnsub) return;
-  _washStockUnsub = _onSnap(_docRef('ownership_status', 'current'), snap => {
-    const d = snap.exists() ? snap.data() : null;
-    const plates = d && (d.seenPlates || (d.cars || []).map(c => c.plate));
-    _washStock = (plates && plates.length) ? new Set(plates.map(_psDigits)) : null;
-    _washPlateFeedback();
-  }, () => {});
-}
-
-// 'ok' — במלאי | 'saved' — ברכבים השמורים | 'no' — לא מורשה | 'unknown' — המלאי טרם נטען
-function _washPlateState(plate) {
-  const p = _psDigits(plate);
-  if (!p) return 'no';
-  if (_washSaved.some(v => _psDigits(v.plate) === p)) return 'saved';
-  if (!_washStock) return 'unknown';
-  return _washStock.has(p) ? 'ok' : 'no';
-}
-
-function _washBlockedMsg(plate) {
-  return `🚫 ${plate} אינו במלאי — אי אפשר להוציא לו פתק שטיפה.` +
-    (currentUser?.role === 'manager' ? ' אפשר להוסיף אותו ל״רכבים שמורים״.' : ' פנה למנהל.');
-}
-
-// חיווי ליד שדה הרישוי, כדי שלא יגלו את החסימה רק בלחיצה על הדפסה
-function _washPlateFeedback() {
-  const el = document.getElementById('wash-plate');
-  const msg = document.getElementById('wash-stock-msg');
-  if (!el || !msg) return;
-  const p = _psDigits(el.value);
-  if (p.length < 7) { msg.textContent = ''; return; }
-  const st = _washPlateState(p);
-  if (st === 'no') { msg.textContent = _washBlockedMsg(p); msg.style.color = '#dc2626'; }
-  else if (st === 'saved') { msg.textContent = '🚗 רכב שמור'; msg.style.color = 'var(--muted)'; }
-  else { msg.textContent = ''; }
-}
-window._washPlateFeedback = _washPlateFeedback;
-
 function _washSavedListen() {
   if (_washSavedUnsub) return;
   _washSavedUnsub = _onSnap(_colRef('wash_vehicles'), snap => {
     _washSaved = snap.docs.map(d => ({ id: d.id, ...d.data() }))
       .sort((a, b) => String(a.plate || '').localeCompare(String(b.plate || '')));
     _washRenderSaved();
-    _washPlateFeedback();
   }, () => {});
 }
 
@@ -1028,7 +973,6 @@ function washPickSaved(id) {
   set('wash-submodel', v.subModel); set('wash-color', v.color); set('wash-year', v.year);
   const msg = document.getElementById('wash-lookup-msg');
   if (msg) { msg.textContent = ''; msg.style.color = 'var(--muted)'; }
-  _washPlateFeedback();
   closeModal('modal-wash-saved');
   showToast(`🚗 ${v.plate}`);
 }
@@ -1106,7 +1050,6 @@ window.washSavedDelete = washSavedDelete;
 function _washForm() {
   const plate = (document.getElementById('wash-plate').value || '').trim();
   if (!plate) { showToast('נא להזין מספר רישוי'); return null; }
-  if (_washPlateState(plate) === 'no') { showToast(_washBlockedMsg(plate), 7000); return null; }
   if (!_washType) { showToast('נא לבחור סוג שטיפה'); return null; }
   const val = id => (document.getElementById(id).value || '').trim();
   const f = {
@@ -1164,7 +1107,6 @@ let _washQuick = null;
 let _washQuickIntake = '';
 
 function openWashForVehicle(plate, maker, model, year, color, intakeId) {
-  _washSavedListen(); _washStockListen();   // בלי הרשימות אין על מה לחסום
   _washQuick = { plate: String(plate || ''), maker: maker || '', model: model || '',
                  year: year || '', color: color || '', type: '' };
   _washQuickIntake = intakeId || '';   // הקליטה שממנה יצא הפתק, אם יש
@@ -1196,7 +1138,6 @@ window.washQuickPick = washQuickPick;
 
 function washQuickPrint() {
   if (!_washQuick) return;
-  if (_washPlateState(_washQuick.plate) === 'no') return showToast(_washBlockedMsg(_washQuick.plate), 7000);
   if (!_washQuick.type) return showToast('נא לבחור סוג שטיפה', 4000);
   const note = (document.getElementById('wash-quick-note')?.value || '').trim();
   const f = { ..._washQuick, subModel: '', note };
@@ -1239,7 +1180,6 @@ function _washClear() {
   ['wash-plate','wash-maker','wash-model','wash-submodel','wash-color','wash-year','wash-note']
     .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   document.getElementById('wash-lookup-msg').textContent = '';
-  _washPlateFeedback();
   _washType = '';
   _washRenderTypes();
 }
