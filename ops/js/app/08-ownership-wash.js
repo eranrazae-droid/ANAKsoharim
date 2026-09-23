@@ -734,6 +734,9 @@ function openWashScreen() {
   _washBatch = [];            // כניסה למסך מתחילה טופס נקי
   _washRenderBatch();
   _washClear();
+  // רשימת הרכבים השמורים משתתפת בהיתר, ולכן חייבת להיטען בכל דרך
+  // שבה מגיעים לטופס — גם אצל הנהג, שאינו עובר דרך מסך הבית
+  _washSavedListen();
   _washNotesListen();
   _washRenderList();
 }
@@ -771,6 +774,7 @@ window.washPickType = washPickType;
 let _washLookupT = null;
 function washLookupPlateSoon() {
   clearTimeout(_washLookupT);
+  _washPlateFeedback();
   const p = (document.getElementById('wash-plate').value || '').replace(/\D/g, '');
   if (p.length < 7) return;
   _washLookupT = setTimeout(washLookupPlate, 150);
@@ -823,10 +827,11 @@ function washBatchRemove(i) { _washBatch.splice(i, 1); _washRenderBatch(); }
 window.washBatchRemove = washBatchRemove;
 
 // מוסיף את הרכב שבטופס לרשימת ההמתנה ומנקה את הטופס לרכב הבא
-function washAddAnother() {
+async function washAddAnother() {
   const f = _washForm();
   if (!f) return;
   if (_washBatch.some(x => x.plate === f.plate)) return showToast('הרכב כבר ברשימה');
+  if (!await _washAllowPlate(f.plate)) return;
   _washBatch.push(f);
   _washClear();
   _washRenderBatch();
@@ -916,6 +921,69 @@ ${pages.map(pg => `<div class="page n${pg.length}">${pg.map(_washSheet).join('')
    כדי למלא את הטופס בלחיצה. הוספה ומחיקה — למנהל בלבד.               */
 let _washSaved = [], _washSavedUnsub = null;
 
+/* ── מי מותר לשטיפה ───────────────────────────────────────────────
+   פתק יוצא רק לרכב שנמצא במלאי. הפעם הבדיקה היא שאילתה חיה ל-CRM
+   ברגע ההדפסה — לא צילום מצב יומי. הניסיון הקודם נשען על תמונת
+   מצב של סריקת הבעלויות, וחסם רכב שנכנס למלאי אחרי הסריקה האחרונה.
+
+   שלוש דרגות:
+   • במלאי, או ברשימת הרכבים השמורים — עובר.
+   • אינו במלאי, והמשתמש נהג — נחסם.
+   • אינו במלאי, והמשתמש המנהל — נחסם עד שהוא מאשר במפורש.
+   • ה-CRM לא ענה — עובר. חסימה מתוך חוסר מידע עוצרת את העבודה
+     בדיוק כשאי אפשר לברר, וזו הייתה הטעות בפעם הקודמת. */
+const _WASH_CRM_URL = 'https://europe-west1-anak-soharim.cloudfunctions.net/crmVehicle';
+const _washStockCache = new Map();   // רישוי → true/false, לאורך הביקור הנוכחי
+
+async function _washInStock(plate) {
+  const p = _psDigits(plate);
+  if (p.length !== 7 && p.length !== 8) return null;      // null = לא ידוע
+  if (_washStockCache.has(p)) return _washStockCache.get(p);
+  try {
+    const res = await fetch(`${_WASH_CRM_URL}?plate=${p}`);
+    const d = await res.json();
+    if (!d || d.ok !== true) return null;                 // ה-CRM לא ענה כשורה
+    _washStockCache.set(p, !!d.found);
+    return !!d.found;
+  } catch (e) { return null; }
+}
+
+const _washIsSaved = plate => {
+  const p = _psDigits(plate);
+  return _washSaved.some(v => _psDigits(v.plate) === p);
+};
+
+/* מחזירה true אם מותר להמשיך. חוסמת, או שואלת את המנהל, לפי התפקיד. */
+async function _washAllowPlate(plate) {
+  if (_washIsSaved(plate)) return true;
+  const inStock = await _washInStock(plate);
+  if (inStock !== false) return true;                     // במלאי, או שלא ידוע
+  if (currentUser?.role !== 'manager') {
+    showToast(`🚫 ${plate} אינו במלאי — פנה למנהל`, 7000);
+    return false;
+  }
+  return confirm(`${plate} אינו נמצא במלאי.\n\nלהדפיס לו פתק בכל זאת?`);
+}
+
+// חיווי ליד שדה הרישוי, כדי שלא יגלו את החסימה רק בלחיצה על הדפסה
+async function _washPlateFeedback() {
+  const el = document.getElementById('wash-plate');
+  const msg = document.getElementById('wash-stock-msg');
+  if (!el || !msg) return;
+  const p = _psDigits(el.value);
+  if (p.length < 7) { msg.textContent = ''; return; }
+  if (_washIsSaved(p)) { msg.textContent = '🚗 רכב שמור'; msg.style.color = 'var(--muted)'; return; }
+  const inStock = await _washInStock(p);
+  if (_psDigits(el.value) !== p) return;                  // הוקלד משהו אחר בינתיים
+  if (inStock === false) {
+    msg.textContent = currentUser?.role === 'manager'
+      ? `⚠️ ${p} אינו במלאי — תתבקש לאשר`
+      : `🚫 ${p} אינו במלאי — פנה למנהל`;
+    msg.style.color = '#dc2626';
+  } else { msg.textContent = ''; }
+}
+window._washPlateFeedback = _washPlateFeedback;
+
 function _washSavedListen() {
   if (_washSavedUnsub) return;
   _washSavedUnsub = _onSnap(_colRef('wash_vehicles'), snap => {
@@ -973,6 +1041,7 @@ function washPickSaved(id) {
   set('wash-submodel', v.subModel); set('wash-color', v.color); set('wash-year', v.year);
   const msg = document.getElementById('wash-lookup-msg');
   if (msg) { msg.textContent = ''; msg.style.color = 'var(--muted)'; }
+  _washPlateFeedback();
   closeModal('modal-wash-saved');
   showToast(`🚗 ${v.plate}`);
 }
@@ -1070,7 +1139,7 @@ async function _washStore(f) {
 }
 
 // קודם מוקפץ מסך ההדפסה, ורק כשהוא נסגר הפתק נשמר והטופס מתנקה
-function washSaveAndPrint() {
+async function washSaveAndPrint() {
   // הרכב שבטופס מצטרף לאלה שכבר ממתינים. אם הטופס ריק והרשימה מלאה —
   // מדפיסים את מי שברשימה בלבד.
   const plateVal = (document.getElementById('wash-plate')?.value || '').trim();
@@ -1081,6 +1150,8 @@ function washSaveAndPrint() {
   }
   const list = [..._washBatch, ...(cur ? [cur] : [])];
   if (!list.length) { _washForm(); return; }   // אין כלום — מציג "נא להזין מספר רישוי"
+  // רכב שנוסף לרשימה כבר נבדק; כאן נבדק מי שעדיין בטופס
+  if (cur && !await _washAllowPlate(cur.plate)) return;
   const btn = document.getElementById('wash-print-btn');
   if (btn) btn.disabled = true;
   washPrintNotes(list, async () => {
@@ -1107,6 +1178,7 @@ let _washQuick = null;
 let _washQuickIntake = '';
 
 function openWashForVehicle(plate, maker, model, year, color, intakeId) {
+  _washSavedListen();
   _washQuick = { plate: String(plate || ''), maker: maker || '', model: model || '',
                  year: year || '', color: color || '', type: '' };
   _washQuickIntake = intakeId || '';   // הקליטה שממנה יצא הפתק, אם יש
@@ -1136,9 +1208,10 @@ function washQuickPick(t) {
 }
 window.washQuickPick = washQuickPick;
 
-function washQuickPrint() {
+async function washQuickPrint() {
   if (!_washQuick) return;
   if (!_washQuick.type) return showToast('נא לבחור סוג שטיפה', 4000);
+  if (!await _washAllowPlate(_washQuick.plate)) return;
   const note = (document.getElementById('wash-quick-note')?.value || '').trim();
   const f = { ..._washQuick, subModel: '', note };
   // אותה שורת תיאור כמו בטופס הרגיל, כדי שהפתק ייראה זהה ברשימות
@@ -1180,6 +1253,7 @@ function _washClear() {
   ['wash-plate','wash-maker','wash-model','wash-submodel','wash-color','wash-year','wash-note']
     .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   document.getElementById('wash-lookup-msg').textContent = '';
+  _washPlateFeedback();
   _washType = '';
   _washRenderTypes();
 }
