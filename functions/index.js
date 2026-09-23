@@ -1874,6 +1874,113 @@ exports.inventoryCheck = onRequest(
   }
 );
 
+/* ═══════════════════════════════════════════════════════════════════
+   ה-CRM כמקור חי
+   הפיד הישן (carwiz) הוא דמפ XML שמתרענן לאט ואי אפשר לשאול אותו על
+   רכב בודד. ה-CRM חושף עכשיו שתי נקודות קריאה בלבד, ואנחנו ניגשים
+   אליהן מהשרת ולא מהדפדפן — כך המפתח לא יורד לאף טלפון.
+
+   המפתח יושב ב-Firestore ב-config/crm תחת apiKey, בדיוק כמו טוקן
+   הטלגרם ב-config/driver_contacts. הוא לא נמצא בקוד ולא במאגר.
+═══════════════════════════════════════════════════════════════════ */
+const _CRM_BASE = "https://anak-harechev-crm.vercel.app";
+let _crmKey = null, _crmKeyAt = 0;
+
+async function _crmApiKey() {
+  if (_crmKey && Date.now() - _crmKeyAt < 300000) return _crmKey;
+  const snap = await db.collection("config").doc("crm").get();
+  _crmKey = (snap.exists ? snap.data().apiKey : "") || "";
+  _crmKeyAt = Date.now();
+  return _crmKey;
+}
+
+// קריאה אחת ל-CRM. מחזירה תמיד אובייקט — לעולם לא זורקת החוצה — כדי
+// שנפילה של ה-CRM לא תפיל שום תהליך אצלנו.
+async function _crmGet(path) {
+  const key = await _crmApiKey();
+  if (!key) return { ok: false, reason: "no-key" };
+  let res;
+  try {
+    res = await fetch(_CRM_BASE + path, {
+      headers: { "X-API-Key": key, "Accept": "application/json" },
+    });
+  } catch (err) {
+    return { ok: false, reason: "unreachable", error: String(err && err.message || err) };
+  }
+  if (res.status === 401 || res.status === 403) return { ok: false, reason: "unauthorized" };
+  const body = await res.text();
+  if (!res.ok) return { ok: false, reason: "http-" + res.status, body: body.slice(0, 200) };
+  try { return { ok: true, data: JSON.parse(body) }; }
+  catch (err) { return { ok: false, reason: "not-json", body: body.slice(0, 200) }; }
+}
+
+const _crmPlate = (v) => String(v == null ? "" : v).replace(/\D/g, "");
+
+/* שאילתה על רכב אחד, בזמן אמת. זו הנקודה שבגללה התחלנו: פעולה חיה
+   חייבת לשאול את המקור ברגע שהיא קורית, ולא להסתמך על צילום מצב. */
+exports.crmVehicle = onRequest(
+  { cors: true, region: "europe-west1", timeoutSeconds: 30 },
+  async (req, res) => {
+    const plate = _crmPlate(req.query.plate);
+    if (plate.length !== 7 && plate.length !== 8) {
+      return res.status(400).json({ ok: false, reason: "bad-plate" });
+    }
+    const r = await _crmGet("/api/stock/plate/" + plate);
+    if (!r.ok) return res.status(502).json(r);
+    const v = r.data && r.data.vehicle;
+    res.json({
+      ok: true,
+      found: !!(r.data && r.data.found),
+      vehicle: v ? {
+        plate: _crmPlate(v.plate), status: v.status || "",
+        maker: v.maker || "", model: v.model || "",
+        modelRegistry: v.modelRegistry || "", subModel: v.subModel || "",
+        year: v.year || "", color: v.color || "", vin: v.vin || "",
+        enteredAt: v.enteredAt || "",
+      } : null,
+    });
+  }
+);
+
+/* השוואה בין שני מקורות המלאי, לפני שמחליפים מקור כלשהו.
+   הפיד הישן טוען בערך 161 רכבים והחדש 118 — לפני שנוגעים בבדיקת
+   הריקולים או בבדיקת הבעלויות צריך לדעת בדיוק מי נמצא באחד ולא
+   בשני, ולא להניח שהמספר הקטן הוא הנכון. */
+exports.crmCompare = onRequest(
+  { cors: true, region: "europe-west1", timeoutSeconds: 120 },
+  async (req, res) => {
+    const r = await _crmGet("/api/stock");
+    if (!r.ok) return res.status(502).json(r);
+    const fresh = (r.data && r.data.vehicles || []).map((v) => ({
+      plate: _crmPlate(v.plate), status: v.status || "",
+      desc: [v.maker, v.model, v.year].filter(Boolean).join(" "),
+    })).filter((v) => v.plate);
+    let old = [], feedError = null;
+    try { old = await _fetchInventory(); }
+    catch (err) { feedError = String(err && err.message || err); }
+    // פיד שנפל אינו "פיד ריק". בלי ההבחנה הזו ההשוואה הייתה מציגה את
+    // כל רכבי ה-CRM כ"חדשים" ואת הפיד כאילו התרוקן.
+    if (feedError) return res.status(502).json({ ok: false, reason: "feed-failed", error: feedError, crmCount: fresh.length });
+    const oldSet = new Set(old.map((c) => c.plate));
+    const freshSet = new Set(fresh.map((v) => v.plate));
+    const byPlate = Object.fromEntries(fresh.map((v) => [v.plate, v]));
+    const oldByPlate = Object.fromEntries(old.map((c) => [c.plate, c]));
+    const onlyOld = [...oldSet].filter((p) => !freshSet.has(p))
+      .map((p) => ({ plate: p, desc: [oldByPlate[p].tozeret, oldByPlate[p].degem, oldByPlate[p].shnat].filter(Boolean).join(" ") }));
+    const onlyFresh = [...freshSet].filter((p) => !oldSet.has(p)).map((p) => byPlate[p]);
+    const statuses = {};
+    fresh.forEach((v) => { statuses[v.status || "(ריק)"] = (statuses[v.status || "(ריק)"] || 0) + 1; });
+    res.json({
+      ok: true,
+      crmCount: fresh.length, feedCount: old.length,
+      crmUpdatedAt: (r.data && r.data.updatedAt) || null,
+      statuses,
+      onlyInFeedCount: onlyOld.length, onlyInCrmCount: onlyFresh.length,
+      onlyInFeed: onlyOld, onlyInCrm: onlyFresh,
+    });
+  }
+);
+
 // סריקה יומית: כל בוקר מרעננת את המלאי ומתריעה בטלגרם על שני דברים —
 // רכבים שכבר סומנו כלא־שלנו, ורכבים חדשים שנכנסו וטרם נבדקו ידנית.
 /* בדיקת בעלויות.
