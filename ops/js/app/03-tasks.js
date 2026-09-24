@@ -836,6 +836,9 @@ const _MAKER_COUNTRIES = ['ישראל','גרמניה','יפן','קוריאה','�
   'אנגליה','בריטניה','רומניה','הונגריה','סלובקיה','סלובניה','צ׳כיה','צכיה',"צ'כיה",'טורקיה','סין','הודו','ספרד',
   'אמריקה','ארה"ב','ארהב','ארצות הברית','מקסיקו','ברזיל','רוסיה','תאילנד','מלזיה','אוסטריה','הולנד','בלגיה',
   'פולין','פורטוגל','ארגנטינה','דרום אפריקה','קנדה','אינדונזיה','ויאטנם','אוקראינה'];
+/* שם ארוך נבדק לפני שם קצר שנבלע בתוכו, אחרת "דרום קוריאה" מתקצר
+   ל"קוריאה" בלבד ו"יונדאי דרום קוריאה" נשאר "יונדאי דרום". */
+const _MAKER_COUNTRIES_SORTED = [..._MAKER_COUNTRIES].sort((a, b) => b.length - a.length);
 function _cleanMaker(raw) {
   let s = String(raw || '').trim();
   if (!s) return '';
@@ -843,7 +846,7 @@ function _cleanMaker(raw) {
   let changed = true;
   while (changed) {
     changed = false;
-    for (const c of _MAKER_COUNTRIES) {
+    for (const c of _MAKER_COUNTRIES_SORTED) {
       for (const sep of [' ', '-', '־', ' - ']) {
         const suffix = sep + c;
         if (s.length > suffix.length && s.endsWith(suffix)) {
@@ -854,8 +857,23 @@ function _cleanMaker(raw) {
       }
       if (changed) break;
     }
+    /* המרשם מקצר לפעמים את שם המדינה לאות אחת ונקודה — "קיה ד." הוא
+       "קיה דרום קוריאה". שם יצרן אמיתי לעולם אינו נגמר ברווח, אות
+       בודדת ונקודה, ולכן אפשר להסיר את הסיומת הזו בבטחה. הנקודות
+       שבתוך השם עצמו ("בי.ווי.די") אינן נוגעות. */
+    const cut = s.replace(/\s+[א-ת]\.\s*$/, '').trim();
+    if (cut !== s && cut) { s = cut; changed = true; }
   }
   return s.trim();
+}
+
+/* רשומה שנקלטה לפני התיקון שומרת את שם היצרן כפי שהמרשם החזיר אותו,
+   למשל "קיה ד.". הניקוי נעשה כאן בטעינה, כך שכל מסך שמציג את הרשומה
+   מקבל את השם הנקי בלי לשנות דבר בשרת. */
+function _fixBrand(v) {
+  if (!v || !v.brand) return v;
+  const clean = _cleanMaker(v.brand);
+  return clean === v.brand ? v : { ...v, brand: clean };
 }
 
 /* ── משיכת פרטי רכב לפי מספר רישוי ───────────────────────────────────

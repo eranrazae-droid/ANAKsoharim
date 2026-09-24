@@ -1052,7 +1052,7 @@ function loadVehicles() {
   // ארכיון קליטות — מאזין חי למנהל, כדי שקופסת הארכיון ומונה "נבדק" יופיעו
   if (archiveUnsub) { archiveUnsub(); archiveUnsub = null; }
   archiveUnsub = _onSnap(_colRef('intake_archive'), snap => {
-    _archiveItems = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    _archiveItems = snap.docs.map(d => _fixBrand({ id: d.id, ...d.data() }))
       .sort((a,b) => (b.checkedAt?.toMillis?.()??0) - (a.checkedAt?.toMillis?.()??0));
     if (_intakeCache !== null) _renderIntakeList(_intakeCache);
     else _renderArchiveSection(_archiveItems);

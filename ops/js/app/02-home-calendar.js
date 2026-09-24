@@ -1395,7 +1395,7 @@ function loadDriverBadges() {
       _syncTasksBadge();
     });
     _reSnap('driverBadges', _query(_colRef('intake_assignments'), _where('assignedTo','==',name)), snap => {
-      _driverIntakeDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      _driverIntakeDocs = snap.docs.map(d => _fixBrand({ id: d.id, ...d.data() }));
       _setDriverVehiclesBadge();
       const screen = document.getElementById('screen-vehicles');
       if (screen && screen.classList.contains('active') && currentUser?.role !== 'manager') {
@@ -1615,7 +1615,7 @@ function loadManagerBadges() {
   try {
     // מאזין מלא: מחמם את _intakeCache כדי שמסך קליטת רכב ייטען מיידית, וגם מזין את ה-badge
     _reSnap('mgrBadges', _colRef('intake_assignments'), snap => {
-      _intakeCache = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      _intakeCache = snap.docs.map(d => _fixBrand({ id: d.id, ...d.data() }))
         .sort((a,b) => (b.createdAt?.toMillis?.()??0) - (a.createdAt?.toMillis?.()??0));
       _setCardBadge('vehicles', _intakeCache.filter(v => v.status === 'done').length);
       const screen = document.getElementById('screen-vehicles');
