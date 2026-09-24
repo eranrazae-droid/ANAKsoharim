@@ -926,7 +926,12 @@ window.bsmRemoveCatalogItem = bsmRemoveCatalogItem;
 let _bsStock = [];      // [{id, model, qty, updatedAt}]
 let _bsInstalls = [];   // [{id, model, plate, installedAt, note}]
 let _bsUnsubStock = null, _bsUnsubInstalls = null, _bsUnsubCatalog = null, _bsUnsubDeliv = null;
+let _bsUnsubPending = null;
 let _bsDeliveries = [];   // one entry per delivery — the order history
+/* הזמנה שנקלטה ועדיין לא הגיעה פיזית. היא אינה מלאי: היא לא נספרת
+   בארון ולא משפיעה על "צריך להזמין". רק לחיצה על "הגיע" מעבירה
+   אותה לארון, ומאותו רגע היא מתנהגת בדיוק כמו כל מצבר אחר. */
+let _bsPending = [];
 let _bsCatalog = [];    // [{id: sku, sku, model, price}] — a SKU is entered once
 const _bsCatFind = sku => _bsCatalog.find(c => c.sku === String(sku || '').trim());
 /* The SKU list is the single source of truth for what a battery is called and
@@ -1259,6 +1264,12 @@ function _bsListen() {
     _bsRenderDeliveries();
     _bsRenderAll();
   });
+  if (_bsUnsubPending) _bsUnsubPending();
+  _bsUnsubPending = _onSnap(_colRef('battery_pending'), snap => {
+    _bsPending = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => String(a.at || '').localeCompare(String(b.at || '')));
+    _bsRenderStock();
+  }, () => {});
   if (_bsUnsubCatalog) _bsUnsubCatalog();
   _bsUnsubCatalog = _onSnap(_colRef('battery_catalog'), snap => {
     _bsCatalog = snap.docs.map(d => ({ id: d.id, ...d.data() }))
@@ -1389,9 +1400,55 @@ async function bsMarkOrdered() {
 }
 window.bsMarkOrdered = bsMarkOrdered;
 
+/* ההזמנות שבדרך יושבות מעל הארון, בקופסה צהובה נפרדת לכל חשבונית.
+   הן אינן חלק מהמלאי — רק תזכורת גלויה למה שאמור להגיע. */
+function _bsPendingHtml() {
+  if (!_bsPending.length) return '';
+  const money = n => Number(n || 0).toLocaleString('he-IL') + ' ₪';
+  const ago = (iso) => {
+    const d = new Date(iso);
+    if (isNaN(d)) return '';
+    const days = Math.floor((Date.now() - d.getTime()) / 86400000);
+    if (days <= 0) return 'היום';
+    if (days === 1) return 'אתמול';
+    return `לפני ${days} ימים`;
+  };
+  return _bsPending.map(p => {
+    const lines = p.lines || [];
+    const units = lines.reduce((t, l) => t + (l.qty || 0), 0);
+    const head = [p.invoiceDate || '', ago(p.at), `${units} יחידות`].filter(Boolean).join(' · ');
+    return `<div class="bs-box" style="border:2px dashed #f59e0b;background:#fffdf5;margin-bottom:10px">
+      <div class="bs-box-head" style="background:#fef3c7;color:#92400e;flex-wrap:wrap;gap:4px">
+        <span>🚚 ${p.invoice ? 'חשבונית ' + esc(p.invoice) : 'הזמנה'}</span>
+        <span style="font-size:12px;font-weight:800">${esc(head)}</span>
+      </div>
+      ${lines.map(l => `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-top:1px dashed #fcd34d">
+        <div class="bs-qty" style="background:#f59e0b;flex:0 0 auto">${l.qty || 0}</div>
+        <div style="flex:1;min-width:0">
+          <div class="bs-name">${esc(l.model || l.sku || '')}</div>
+          <div style="font-size:11.5px;color:#92400e;font-weight:800">מק״ט ${esc(l.sku || '')}${l.price ? ' · ' + money(l.price) + ' ליחידה' : ''}</div>
+        </div>
+        <button onclick="bsPendingArrive('${esc(p.id)}',this.dataset.s)" data-s="${esc(l.sku || '')}"
+          style="flex:0 0 auto;background:#16a34a;color:#fff;border:none;border-radius:9px;padding:8px 12px;font-family:Heebo,sans-serif;font-weight:800;font-size:12.5px;cursor:pointer;white-space:nowrap">✅ הגיע</button>
+      </div>`).join('')}
+      <div style="padding:10px 12px;display:flex;gap:8px;border-top:1px dashed #fcd34d">
+        <button onclick="bsPendingArrive('${esc(p.id)}')"
+          style="flex:1;min-width:0;background:var(--dark);color:#fff;border:none;border-radius:10px;height:40px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer;white-space:nowrap">✅ כל ההזמנה הגיעה</button>
+        ${(p.file || p.fileUrl) ? `<button onclick="bsPendingFile('${esc(p.id)}')" title="החשבונית"
+          style="flex:0 0 44px;background:var(--surface2);border:2px solid var(--border);border-radius:10px;height:40px;font-size:15px;cursor:pointer">📄</button>` : ''}
+        <button onclick="bsPendingCancel('${esc(p.id)}')" title="ביטול ההזמנה"
+          style="flex:0 0 44px;background:#fee2e2;border:2px solid #fca5a5;border-radius:10px;height:40px;font-size:15px;cursor:pointer">🗑</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
 function _bsRenderStock() {
   const c = document.getElementById('bs-stock');
   if (!c) return;
+  const pendHtml = _bsPendingHtml();
+  const pendUnits = _bsPending.reduce((t, p) => t + (p.lines || []).reduce((s, l) => s + (l.qty || 0), 0), 0);
+  const _cntTxt = n => String(n) + (pendUnits ? ` <span style="color:#f59e0b">+${pendUnits}</span>` : '');
   // a battery that was fitted to a car is no longer in the cabinet — its row
   // leaves this list and lives on in "צריך להזמין" until it is reordered
   // ordered by amperage, the small ones on top — the way the shelf is arranged
@@ -1399,15 +1456,15 @@ function _bsRenderStock() {
     .sort((a, b) => _bsAmpOf(a) - _bsAmpOf(b) || String(a.model || '').localeCompare(String(b.model || ''), 'he'));
   if (!rows.length) {
     const cnt0 = document.getElementById('bs-tab-count');
-    if (cnt0) cnt0.textContent = '0';
-    c.innerHTML = `<div class="bs-box"><div class="bs-box-head"><span>🔋 יש בארון</span></div>
+    if (cnt0) cnt0.innerHTML = _cntTxt(0);
+    c.innerHTML = pendHtml + `<div class="bs-box"><div class="bs-box-head"><span>🔋 יש בארון</span></div>
       <div style="padding:30px 20px;text-align:center;color:var(--muted);font-weight:700">הארון ריק — הוסף מצברים כדי להתחיל</div></div>`;
     return;
   }
   const total = rows.reduce((s, r) => s + (r.qty || 0), 0);
   const cnt = document.getElementById('bs-tab-count');
-  if (cnt) cnt.textContent = total;
-  c.innerHTML = `<div class="bs-box">
+  if (cnt) cnt.innerHTML = _cntTxt(total);
+  c.innerHTML = pendHtml + `<div class="bs-box">
       <div class="bs-box-head"><span>🔋 יש בארון</span>
         <span style="font-size:12.5px;font-weight:800;color:var(--muted)">${total} יחידות · ${rows.length} סוגים</span></div>` +
     rows.map(r => {
@@ -1775,40 +1832,25 @@ async function submitBsAdd() {
   }
   try {
     const { setDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-    let added = 0;
+    // מק״ט שהוקלד כאן בפעם הראשונה נלמד, בדיוק כמו קודם
     for (const ln of lines) {
-      // a SKU typed here for the first time is learned, so next time it fills in
-      await setDoc(_docRef('battery_catalog', _bsSkuId(ln.sku)), { sku: ln.sku, model: ln.model, price: ln.price, updatedAt: _serverTs() }, { merge: true });
-      // stock is grouped by SKU; rows saved before SKUs existed are matched by type
-      const existing = _bsStock.find(r => r.sku === ln.sku) || _bsStock.find(r => !r.sku && r.model === ln.model);
-      if (existing) {
-        await _updateDoc(_docRef('battery_stock', existing.id), {
-          qty: (existing.qty || 0) + ln.qty, sku: ln.sku, model: ln.model, price: ln.price,
-          ...(invoice ? { invoice } : {}), updatedAt: _serverTs()
-        });
-      } else {
-        await _addDoc(_colRef('battery_stock'), { ...ln, invoice, note, createdBy: currentUser.name, createdAt: _serverTs(), updatedAt: _serverTs() });
-      }
-      // every delivery is also logged on its own, so an invoice is tied to the
-      // exact quantity that came in and is never overwritten by the next one
-      await _addDoc(_colRef('battery_purchases'), {
-        ...ln, invoice, note, at: new Date().toISOString(), createdBy: currentUser.name, createdAt: _serverTs()
-      });
-      added += ln.qty;
+      await setDoc(_docRef('battery_catalog', _bsSkuId(ln.sku)),
+        { sku: ln.sku, model: ln.model, price: ln.price, updatedAt: _serverTs() }, { merge: true });
     }
-    // one row per delivery for the order history — the invoice file rides along
-    // when the delivery came from a file
+    /* ההזמנה ממתינה עד שהמצברים מגיעים בפועל. הארון אינו משתנה כאן,
+       ולכן גם "צריך להזמין" והסטטיסטיקות אינן זזות — הן נשענות על מה
+       שבאמת נמצא. origLines שומר מה היה בחשבונית, גם אם תגיע חלקית. */
     const fromFile = _bsImportFile?.lines?.length ? _bsImportFile : null;
-    await _addDoc(_colRef('battery_deliveries'), {
+    const units = lines.reduce((t, l) => t + l.qty, 0);
+    await _addDoc(_colRef('battery_pending'), {
       at: new Date().toISOString(),
       invoice: invoice || _bsImportFile?.invoice || '',
       invoiceDate: _bsImportFile?.date || '',
-      // what the invoice said, even if a line was taken off the form
-      lines: fromFile ? fromFile.lines : lines,
-      units: fromFile ? fromFile.units : added,
-      total: fromFile ? fromFile.total : lines.reduce((t, l) => t + (l.price || 0) * l.qty, 0),
-      // and what actually went into the cabinet
-      addedLines: lines, addedUnits: added,
+      lines,
+      origLines: fromFile ? fromFile.lines : lines,
+      origUnits: fromFile ? fromFile.units : units,
+      origTotal: fromFile ? fromFile.total : lines.reduce((t, l) => t + (l.price || 0) * l.qty, 0),
+      units,
       note,
       ...(_bsImportFile?.data ? { fileName: _bsImportFile.name, file: _bsImportFile.data } : {}),
       ...(_bsImportFile?.url ? { fileName: _bsImportFile.name, fileUrl: _bsImportFile.url } : {}),
@@ -1816,10 +1858,110 @@ async function submitBsAdd() {
     });
     _bsImportFile = null;
     closeModal('modal-bs-add');
-    showToast(`✅ נוספו ${added} מצברים לארון${lines.length > 1 ? ` (${lines.length} סוגים)` : ''}`);
+    showToast(`🚚 ${units} מצברים נרשמו כהזמנה בדרך — לחץ ״הגיע״ כשיגיעו`, 6000);
   } catch (e) { showToast('שגיאה בשמירה: ' + (e.code || e.message)); }
 }
 window.submitBsAdd = submitBsAdd;
+
+/* ── הזמנה שהגיעה ────────────────────────────────────────────────────
+   הכניסה לארון נעשית כאן בדיוק כמו שהיא נעשתה קודם בשמירה: הכמות
+   מתווספת לשורה הקיימת לפי מק״ט, ואם אין שורה כזו נפתחת חדשה. כל
+   שורה שנכנסת נרשמת גם ב-battery_purchases, כדי שחשבונית תהיה
+   קשורה לכמות שבאמת נכנסה.
+
+   משלוח יכול להגיע חלקית, ולכן אפשר לסמן שורה אחת. כשההזמנה
+   מתרוקנת נרשמת שורת ההיסטוריה (battery_deliveries) עם מה שהיה
+   בחשבונית המקורית, וההמתנה נמחקת. */
+let _bsArriving = false;
+
+async function _bsStockAdd(ln, invoice, note) {
+  const existing = _bsStock.find(r => r.sku === ln.sku) || _bsStock.find(r => !r.sku && r.model === ln.model);
+  if (existing) {
+    await _updateDoc(_docRef('battery_stock', existing.id), {
+      qty: (existing.qty || 0) + ln.qty, sku: ln.sku, model: ln.model, price: ln.price,
+      ...(invoice ? { invoice } : {}), updatedAt: _serverTs()
+    });
+  } else {
+    await _addDoc(_colRef('battery_stock'), {
+      ...ln, invoice, note, createdBy: currentUser.name, createdAt: _serverTs(), updatedAt: _serverTs()
+    });
+  }
+  await _addDoc(_colRef('battery_purchases'), {
+    ...ln, invoice, note, at: new Date().toISOString(), createdBy: currentUser.name, createdAt: _serverTs()
+  });
+}
+
+async function _bsPendingClose(pend, arrivedLines, arrivedUnits) {
+  const { deleteDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  await _addDoc(_colRef('battery_deliveries'), {
+    at: new Date().toISOString(),
+    invoice: pend.invoice || '', invoiceDate: pend.invoiceDate || '',
+    lines: pend.origLines || arrivedLines,
+    units: pend.origUnits != null ? pend.origUnits : arrivedUnits,
+    total: pend.origTotal != null ? pend.origTotal : arrivedLines.reduce((t, l) => t + (l.price || 0) * l.qty, 0),
+    addedLines: arrivedLines, addedUnits: arrivedUnits,
+    note: pend.note || '',
+    ...(pend.file ? { fileName: pend.fileName, file: pend.file } : {}),
+    ...(pend.fileUrl ? { fileName: pend.fileName, fileUrl: pend.fileUrl } : {}),
+    createdBy: currentUser.name, createdAt: _serverTs()
+  });
+  await deleteDoc(doc(window._db, 'battery_pending', pend.id));
+}
+
+// שורה אחת מתוך הזמנה, או ההזמנה כולה כש-sku אינו מועבר
+async function bsPendingArrive(id, sku) {
+  if (_bsArriving) return;
+  const pend = _bsPending.find(p => p.id === id);
+  if (!pend) return;
+  const all = pend.lines || [];
+  const take = sku == null ? all : all.filter(l => String(l.sku) === String(sku));
+  if (!take.length) return;
+  const units = take.reduce((t, l) => t + (l.qty || 0), 0);
+  const what = sku == null
+    ? `כל ההזמנה של חשבונית ${pend.invoice || ''} (${units} יחידות)`
+    : `${take[0].model || take[0].sku} · ${units} יחידות`;
+  if (!confirm(`להעביר לארון את ${what}?`)) return;
+  if (!_requireNet('העברה לארון')) return;
+  _bsArriving = true;
+  try {
+    for (const ln of take) await _bsStockAdd(ln, pend.invoice || '', pend.note || '');
+    const left = all.filter(l => !take.includes(l));
+    if (left.length) {
+      await _updateDoc(_docRef('battery_pending', id), {
+        lines: left, units: left.reduce((t, l) => t + (l.qty || 0), 0), updatedAt: _serverTs()
+      });
+      // שורת ההיסטוריה נרשמת רק כשההזמנה נסגרת, כדי שלא תיכתב פעמיים
+      showToast(`✅ ${units} נכנסו לארון · נשארו ${left.length} סוגים בדרך`);
+    } else {
+      await _bsPendingClose(pend, all, pend.units || units);
+      showToast(`✅ ההזמנה נכנסה לארון · ${units} יחידות`);
+    }
+  } catch (e) { showToast('שגיאה: ' + (e.code || e.message)); }
+  finally { _bsArriving = false; }
+}
+window.bsPendingArrive = bsPendingArrive;
+
+async function bsPendingCancel(id) {
+  const pend = _bsPending.find(p => p.id === id);
+  if (!pend) return;
+  if (!confirm(`לבטל את ההזמנה של חשבונית ${pend.invoice || ''}?\n\nהמצברים לא ייכנסו לארון.`)) return;
+  if (!_requireNet('ביטול הזמנה')) return;
+  try {
+    const { deleteDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    await deleteDoc(doc(window._db, 'battery_pending', id));
+    showToast('🗑 ההזמנה בוטלה');
+  } catch (e) { showToast('שגיאה: ' + (e.code || e.message)); }
+}
+window.bsPendingCancel = bsPendingCancel;
+
+function bsPendingFile(id) {
+  const p = _bsPending.find(x => x.id === id);
+  if (!p) return;
+  const src = p.fileUrl || p.file;
+  if (!src) return showToast('לא נשמר קובץ להזמנה הזאת');
+  window.open(src, '_blank');
+}
+window.bsPendingFile = bsPendingFile;
 
 /* ═══ reading a supplier invoice (PDF) ═══════════════════════════════
    The supplier's file carries a broken character table — the codes inside it
@@ -2185,7 +2327,9 @@ window.openBsHistoryModal = openBsHistoryModal;
 function _bsInvoiceUsed(inv) {
   const v = String(inv || '').trim().toUpperCase();
   if (!v) return null;
-  return _bsDeliveries.find(d => String(d.invoice || '').trim().toUpperCase() === v) || null;
+  return _bsDeliveries.find(d => String(d.invoice || '').trim().toUpperCase() === v)
+    || _bsPending.find(d => String(d.invoice || '').trim().toUpperCase() === v)
+    || null;
 }
 
 function _bsRenderDeliveries() {
