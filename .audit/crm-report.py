@@ -6,8 +6,19 @@ try:
     d = json.loads(raw)
 except Exception:
     print('תשובה שאינה JSON:', raw[:300]); raise SystemExit(0)
-if not d.get('ok'):
+if what != 'ownscan' and not d.get('ok'):
     print('נכשל:', json.dumps(d, ensure_ascii=False)[:400]); raise SystemExit(0)
+if what == 'ownscan':
+    print('ok:', d.get('ok'))
+    if not d.get('ok'):
+        print('  סיבת הכישלון:', d.get('reason'))
+        print('  פירוט:', json.dumps({k: v for k, v in d.items() if k not in ('ok',)}, ensure_ascii=False)[:600])
+    else:
+        print('  נבדקו:', d.get('checked'), '| לא על תו סחר:', d.get('notOurs'), '| לא ידוע:', d.get('unknown'))
+        print('  מצב המרשם:', json.dumps(d.get('registryHttp'), ensure_ascii=False)[:300])
+        print('  חדשים שטרם נבדקו:', len(d.get('newUnchecked') or []))
+        print('  ירדו מהמלאי:', len(d.get('goneFromStock') or []))
+    raise SystemExit(0)
 if what == 'source':
     print('רכבים שהסריקות רואות:', d.get('count'))
     for s in (d.get('sample') or [])[:3]:
