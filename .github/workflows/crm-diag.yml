@@ -27,6 +27,20 @@ jobs:
           echo "===== 0. המקור שממנו הסריקות מושכות =====" 
           curl -sS -m 120 "$B/inventoryCheck" | python3 .audit/crm-report.py source
           echo
+      - name: האם המרשם הממשלתי עצמו ריק
+        run: |
+          R="053cea08-09bc-40ec-8f7a-156f0677aff3"
+          echo "===== A. כמה רשומות יש במרשם בכלל? ====="
+          curl -sS -m 60 "$B/govilProxy?resource_id=$R&limit=1&include_total=true" | head -c 400
+          echo; echo
+          echo "===== B. רכבים ספציפיים — שניים שעבדו אתמול ואחד חדש ====="
+          for P in 61257402 20044903 54853103 24555403; do
+            F=$(python3 -c "import urllib.parse,json;print(urllib.parse.quote(json.dumps({'mispar_rechev':[int('$P')]})))")
+            echo -n "  $P -> "
+            curl -sS -m 60 "$B/govilProxy?resource_id=$R&filters=$F&limit=1" | head -c 260
+            echo
+          done
+          echo
       - name: הרצת בדיקת הבעלויות ומה היא מחזירה
         run: |
           echo "===== 5. בדיקת בעלויות =====" 
