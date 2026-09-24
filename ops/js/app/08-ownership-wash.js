@@ -154,7 +154,8 @@ async function runOwnershipScan() {
     const res = await fetch(_OWN_FN);
     const r = await res.json().catch(() => ({}));
     if (r.ok) showToast(`✅ נטענו ${r.checked} רכבים`, 5000);
-    else if (r.reason === 'registry-unreachable') showToast('⚠️ אין כרגע גישה למרשם הרכב של משרד התחבורה — הבדיקה לא בוצעה', 9000);
+    else if (r.reason === 'registry-empty') showToast('מאגר משרד התחבורה מתפרסם מחדש כרגע וחזר ריק. הנתונים שעל המסך הם מהבדיקה האחרונה שהצליחה. יש לנסות שוב מאוחר יותר.', 11000);
+    else if (r.reason === 'registry-unreachable') showToast('אין כרגע גישה למאגר משרד התחבורה — הבדיקה לא בוצעה. הנתונים שעל המסך הם מהבדיקה האחרונה שהצליחה.', 11000);
     else showToast('⚠️ הטעינה נכשלה: ' + (r.reason || r.error || res.status), 7000);
   } catch (e) { showToast('⚠️ שגיאת חיבור לשרת: ' + e.message, 7000); }
   finally { _ownScanning = false; if (btn) { btn.disabled = false; btn.textContent = '🔄 בדוק עכשיו'; } }

@@ -1571,7 +1571,16 @@ async function _runOwnershipScan() {
   // אם אף רכב לא נמצא במרשם — אין גישה למאגר. לא דורסים את המצב הקודם
   // ולא שולחים התראות על סמך בדיקה שלא הצליחה.
   if (!cars.some((c) => c.baalut)) {
-    return { ok: false, reason: "registry-unreachable", checked: cars.length, registryHttp: _govLast };
+    /* שני מצבים שונים שנראים זהים מבחוץ: המרשם לא נגיש, או שהמרשם
+       נגיש לגמרי אבל פורסם ריק (הוא מתחלף בלילה, ולפעמים הגרסה
+       החדשה עולה בלי רשומות). "אין גישה" במקרה השני הוא דיווח שגוי
+       ששולח לחפש תקלת רשת שאינה קיימת. */
+    const empty = await _registryLooksEmpty().catch(() => false);
+    return {
+      ok: false,
+      reason: empty ? "registry-empty" : "registry-unreachable",
+      checked: cars.length, registryHttp: _govLast,
+    };
   }
 
   // רכבים חדשים = לוחיות שלא היו במלאי בסריקה הקודמת. כך הסריקה היומית
@@ -1694,7 +1703,7 @@ exports.runOwnershipScanNow = onRequest(
     try { out = await _runOwnershipScan(); }
     catch (err) { out = { ok: false, reason: "crashed", error: err.message }; }
     // גם בדיקה ידנית שנחסמה מפעילה את הניסיונות החוזרים
-    if (out.reason === "registry-unreachable") await _setScanBlocked("own", true);
+    if (out.reason === "registry-unreachable" || out.reason === "registry-empty") await _setScanBlocked("own", true);
     else if (out.ok) await _setScanBlocked("own", false);
     res.status(out.ok ? 200 : 500).json(out);
   }
@@ -2025,7 +2034,7 @@ exports.dailyOwnershipCheck = onSchedule(
 
     const r = await _runOwnershipScan().catch((e) => ({ ok: false, reason: "crashed", error: String(e && e.message || e) }));
     if (!r.ok) {
-      if (r.reason === "registry-unreachable") await _setScanBlocked("own", true);
+      if (r.reason === "registry-unreachable" || r.reason === "registry-empty") await _setScanBlocked("own", true);
       return;
     }
     await _setScanBlocked("own", false);
