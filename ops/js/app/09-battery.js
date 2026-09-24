@@ -1827,10 +1827,15 @@ window.submitBsAdd = submitBsAdd;
    entry is listed. Both blocks are recovered below. Nothing is trusted on
    faith: the quantities and prices read out must satisfy the invoice's own
    arithmetic before a single field is filled in. */
-async function _bsInflate(bytes) {
-  const ds = new DecompressionStream('deflate');
+async function _bsInflate(bytes, fmt) {
+  const ds = new DecompressionStream(fmt || 'deflate');
   const out = new Response(new Blob([bytes]).stream().pipeThrough(ds));
   return new Uint8Array(await out.arrayBuffer());
+}
+// יש קבצים שהטקסט בהם דחוס בלי הכותרת הרגילה. ניסיון שני מכסה אותם.
+async function _bsInflateAny(bytes) {
+  try { return await _bsInflate(bytes, 'deflate'); }
+  catch (e) { return await _bsInflate(bytes, 'deflate-raw'); }
 }
 function _bsLatin(bytes) { let s = ''; const CH = 8192;
   for (let i = 0; i < bytes.length; i += CH) s += String.fromCharCode.apply(null, bytes.subarray(i, i + CH));
@@ -1860,14 +1865,20 @@ async function _bsPdfCells(buf) {
     const en = raw.indexOf('endstream', st);
     if (en < 0) break;
     pos = en + 9;
-    let end = en;
-    while (end > st && (raw[end - 1] === '\n' || raw[end - 1] === '\r')) end--;
-    for (const e2 of [end, en]) {
+    /* איפה בדיוק נגמרים הנתונים הדחוסים. לפני endstream יש מפריד של
+       ירידת שורה, אבל ירידת שורה יכולה להיות גם הבית האחרון של הנתונים
+       עצמם — ואז חיתוך גורף של כל הסוף הורס אותם. לכן מנסים את כל
+       האפשרויות בזו אחר זו: בלי חיתוך, ואז בית אחד פחות, ועוד אחד.
+       הראשונה שמצליחה היא הנכונה. */
+    const ends = [en];
+    let e = en;
+    while (e > st && ends.length < 4 && (raw[e - 1] === '\n' || raw[e - 1] === '\r')) ends.push(--e);
+    for (const e2 of ends) {
       try {
-        const inf = _bsLatin(await _bsInflate(bytes.subarray(st, e2)));
+        const inf = _bsLatin(await _bsInflateAny(bytes.subarray(st, e2)));
         if (inf.indexOf('Tj') >= 0 && inf.length > best.length) best = inf;
         break;
-      } catch (e) { /* not a deflate stream, or a different trim — try next */ }
+      } catch (err) { /* גבול שגוי או לא דחוס כך — לנסות את הבא */ }
     }
   }
   if (!best) return [];
