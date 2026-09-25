@@ -2663,6 +2663,18 @@
     try{ const c=sbClient(); if(c){ await c.from('leads').update({source:l.source}).eq('id',id); } }catch(e){}
     toast&&toast(l.source?('מקור עודכן: '+l.source):'מקור בוטל');
   }
+  // עריכת מספר טלפון של ליד
+  async function editLeadPhone(id){
+    const l=leads.find(x=>String(x.id)===String(id)); if(!l) return;
+    let np=prompt('עדכון מספר טלפון:', l.phone||'');
+    if(np===null) return;
+    np=String(np).replace(/\s/g,'').trim();
+    if(!/^0\d{1,2}-?\d{7}$/.test(np)){ alert('מספר טלפון לא תקין (05X-XXXXXXX)'); return; }
+    l.phone=np;
+    renderLeads();
+    try{ const c=sbClient(); if(c){ await c.from('leads').update({phone:np}).eq('id',id); } }catch(e){}
+    toast&&toast('הטלפון עודכן ✓');
+  }
   async function saveLead(id){
     const l=leads.find(x=>String(x.id)===String(id)); if(!l) return;
     const st=document.getElementById('st_'+id); if(st) l.status=st.value;
@@ -3021,7 +3033,7 @@
           <div class="lead-score s-hot" style="font-size:20px">🚗</div>
           <div style="flex:1">
             <div style="font-weight:900;font-size:16px">${l.name||'ללא שם'} ${overdue?'<span style="color:#dc2626;font-size:12px;font-weight:900">⏰ פולואפ עבר!</span>':''}</div>
-            <div style="margin-top:2px"><span style="font-size:26px;font-weight:900;color:#111">${phone}</span>${l.email?'<span style="font-size:13px;color:var(--muted)"> · '+l.email+'</span>':''}</div>
+            <div style="margin-top:2px;display:flex;align-items:center;gap:8px"><span style="font-size:26px;font-weight:900;color:#111">${phone}</span><button onclick="editLeadPhone('${l.id}')" title="עריכת מספר טלפון" style="background:#f1f5f9;border:1px solid var(--line);border-radius:8px;padding:3px 8px;font-size:14px;cursor:pointer;line-height:1">✏️</button>${l.email?'<span style="font-size:13px;color:var(--muted)"> · '+l.email+'</span>':''}</div>
             <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
               ${l.source?`<span style="background:${l.source==='JOY MOTORS'?'#f3e8ff':'#fff7ed'};color:${l.source==='JOY MOTORS'?'#7c3aed':'#c2410c'};padding:4px 10px;border-radius:8px;font-size:12px;font-weight:900">${l.source==='JOY MOTORS'?'🌈 JOY MOTORS':'🚗 אוטודילר'}</span>`:''}
               <span style="background:#fef9e7;color:#a16207;padding:4px 10px;border-radius:8px;font-size:12px;font-weight:700">${l.action||'ליד חדש'}</span>
