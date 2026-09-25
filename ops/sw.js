@@ -1,10 +1,10 @@
-// v435 — force update
+// v436 — force update
 /* מטמון האפליקציה.
    כל קובץ קוד נטען עם ?v=<גרסה> בכתובת, ולכן גרסה חדשה היא כתובת
    חדשה — בטוח לחלוטין להגיש אותו מהמטמון בלי לשאול את השרת.
    שם המטמון נושא את הגרסה: העלאת גרסה מוחקת הכל ומתמלא מחדש.
    הדף עצמו (HTML) נשאר תמיד מהשרת, כדי שגרסה ישנה לא תיתקע. */
-const CACHE = 'anak-v435';
+const CACHE = 'anak-v436';
 
 self.addEventListener('install', () => self.skipWaiting());
 
@@ -50,17 +50,38 @@ self.addEventListener('fetch', e => {
   })().catch(() => caches.match(req)));
 });
 
+/* התראה שמגיעה מהשרת. גוף ההודעה נושא גם כתובת, כדי שלחיצה תפתח
+   את המסך הרלוונטי ולא רק את מסך הבית. */
 self.addEventListener('push', e => {
-  const data = e.data ? e.data.json() : {};
+  let data = {};
+  try { data = e.data ? e.data.json() : {}; }
+  catch (_) { data = { body: e.data ? e.data.text() : '' }; }
+  const url = data.url || '/ops/';
   e.waitUntil(
-    self.registration.showNotification(data.title || 'ענק הרכבים', {
+    self.registration.showNotification(data.title || 'מחלקת תפעול', {
       body: data.body || '',
-      icon: '/ops/icon-192.png'
+      icon: '/ops/icon-192.png',
+      badge: '/ops/icon-192.png',
+      dir: 'rtl',
+      lang: 'he',
+      tag: data.tag || undefined,
+      data: { url },
     })
   );
 });
 
+/* חלון שכבר פתוח מקבל מיקוד ועובר לכתובת, במקום להיפתח חלון שני. */
 self.addEventListener('notificationclick', e => {
   e.notification.close();
-  e.waitUntil(clients.openWindow('/ops/'));
+  const url = (e.notification.data && e.notification.data.url) || '/ops/';
+  e.waitUntil((async () => {
+    const list = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const c of list) {
+      if (c.url.includes('/ops/')) {
+        try { await c.navigate(url); } catch (_) {}
+        return c.focus();
+      }
+    }
+    return clients.openWindow(url);
+  })());
 });

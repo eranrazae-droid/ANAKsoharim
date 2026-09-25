@@ -3976,6 +3976,7 @@ if ('serviceWorker' in navigator) {
     <div class="modal-title"><span>⚙️ הגדרות</span> <button class="modal-close" onclick="closeModal('modal-settings')">✕</button></div>
     <div class="settings-tabs">
       <button id="stab-telegram" class="settings-tab active" onclick="settingsTab('telegram')">✈️ טלגרם</button>
+      <button id="stab-push" class="settings-tab" onclick="settingsTab('push')">🔔 התראות</button>
       <button id="stab-users" class="settings-tab" onclick="settingsTab('users')">👥 משתמשים</button>
       <button id="stab-gcal" class="settings-tab" onclick="settingsTab('gcal')">📅 יומן גוגל</button>
       <button id="stab-maps" class="settings-tab" onclick="settingsTab('maps')">🗺️ מפות</button>
@@ -3988,6 +3989,34 @@ if ('serviceWorker' in navigator) {
         <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">הגדר את הבוט פעם אחת — ואז הודעות ישלחו לנהגים אוטומטית ללא כל פעולה מצידם.</p>
         <div id="notify-settings-body"></div>
         <button class="btn-submit" onclick="saveNotifySettings()" style="width:100%;margin-top:4px">💾 שמור הגדרות</button>
+      </div>
+
+      <div class="settings-panel" id="spanel-push">
+        <div class="settings-col-title">דרך מי נשלחות ההתראות</div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">
+          הבורר קובע מי שולח את ההתראות לנהגים בפועל. שינוי כאן משפיע על כל המערכת.</p>
+        <div id="notif-channel-box" style="display:grid;gap:8px;margin-bottom:8px"></div>
+        <div id="notif-channel-note" style="font-size:12px;font-weight:800;color:var(--muted);line-height:1.6;margin-bottom:16px"></div>
+
+        <div class="settings-col-title" style="margin-top:6px">התראות לטלפון במכשיר הזה</div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.6">
+          כל מכשיר מופעל בנפרד. אפשר להפעיל על כמה מכשירים לאותו משתמש.</p>
+        <div id="push-row" style="border:2px solid var(--border);border-radius:12px;padding:12px;background:var(--card)">
+          <div style="font-weight:900;font-size:14px;margin-bottom:4px">קבל התראה כשיש משהו חדש</div>
+          <div id="push-status" style="font-size:12.5px;font-weight:800;color:var(--muted);margin-bottom:10px">—</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button id="push-btn-on" onclick="pushEnable()" style="flex:1 1 120px;min-width:0;background:#16a34a;color:#fff;border:none;border-radius:10px;height:40px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">🔔 הפעל</button>
+            <button id="push-btn-test" onclick="pushTest()" style="display:none;flex:1 1 120px;min-width:0;background:#0d6ab0;color:#fff;border:none;border-radius:10px;height:40px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">📨 שלח ניסיון</button>
+            <button id="push-btn-off" onclick="pushDisable()" style="display:none;flex:1 1 120px;min-width:0;background:var(--surface2);border:2px solid var(--border);color:var(--text);border-radius:10px;height:40px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">כבה</button>
+          </div>
+          <div id="push-help" style="display:none;margin-top:12px;background:#fef3c7;border-right:5px solid #d97706;border-radius:10px;padding:10px 12px;font-size:12.5px;font-weight:700;color:#92400e;line-height:1.7">
+            באייפון התראות עובדות רק מהקיצור שבמסך הבית:<br>
+            1. בספארי — לחץ על כפתור <b>שתף</b><br>
+            2. בחר <b>הוסף למסך הבית</b><br>
+            3. פתח את האפליקציה <b>מהקיצור החדש</b><br>
+            4. חזור לכאן ולחץ <b>הפעל</b>
+          </div>
+        </div>
       </div>
 
       <div class="settings-panel" id="spanel-users">
@@ -4186,20 +4215,20 @@ window.dispatchEvent(new Event('firebase-ready'));
 </script>
 
 <script src="js/utils.js?v=214"></script>
-<script src="js/app/01-core.js?v=435"></script>
-<script src="js/app/02-home-calendar.js?v=435"></script>
-<script src="js/app/03-tasks.js?v=435"></script>
-<script src="js/app/04-intake-plate.js?v=435"></script>
-<script src="js/app/05-intake-forms.js?v=435"></script>
-<script src="js/app/06-recall-inventory.js?v=435"></script>
-<script src="js/app/07-bodyshop.js?v=435"></script>
-<script src="js/app/08-ownership-wash.js?v=435"></script>
-<script src="js/app/09-battery.js?v=435"></script>
-<script src="js/app/10-battery-plate.js?v=435"></script>
-<script src="js/app/11-yard-telegram.js?v=435"></script>
-<script src="js/app/12-pickup.js?v=435"></script>
-<script src="js/app/13-reports.js?v=435"></script>
-<script src="js/app/14-tow-invoice.js?v=435"></script>
+<script src="js/app/01-core.js?v=436"></script>
+<script src="js/app/02-home-calendar.js?v=436"></script>
+<script src="js/app/03-tasks.js?v=436"></script>
+<script src="js/app/04-intake-plate.js?v=436"></script>
+<script src="js/app/05-intake-forms.js?v=436"></script>
+<script src="js/app/06-recall-inventory.js?v=436"></script>
+<script src="js/app/07-bodyshop.js?v=436"></script>
+<script src="js/app/08-ownership-wash.js?v=436"></script>
+<script src="js/app/09-battery.js?v=436"></script>
+<script src="js/app/10-battery-plate.js?v=436"></script>
+<script src="js/app/11-yard-telegram.js?v=436"></script>
+<script src="js/app/12-pickup.js?v=436"></script>
+<script src="js/app/13-reports.js?v=436"></script>
+<script src="js/app/14-tow-invoice.js?v=436"></script>
 
 <!-- ═══ רענון רכב modals ═══ -->
 <div class="modal-overlay" id="modal-refresh-edit">

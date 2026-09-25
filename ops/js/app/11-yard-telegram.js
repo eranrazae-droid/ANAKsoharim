@@ -848,6 +848,13 @@ async function _checkDriverNotifications() {
 /* מחזירה true רק כשההודעה באמת יצאה, כדי שהקורא יוכל לדווח למשתמש
    אם מישהו לא קיבל. קוראים ותיקים שמתעלמים מהערך ממשיכים כרגיל. */
 async function _notifyDriver(driverName, message) {
+  /* הבורר שבהגדרות קובע מי שולח. ברירת המחדל היא טלגרם, ולכן כל עוד
+     לא שונתה — ההתנהגות זהה לחלוטין למה שהיה. הפוש נשלח בנוסף ואינו
+     מחליף: כישלון שלו אינו משנה את מה שהפונקציה מחזירה. */
+  if (_notifChannel === 'push' || _notifChannel === 'both') {
+    const sent = await _pushNotify(driverName, message);
+    if (_notifChannel === 'push') return sent;
+  }
   const contacts = await _loadDriverContacts();
   const c = contacts[driverName];
   // Telegram is free — prefer it whenever a chat id is set
@@ -1015,10 +1022,11 @@ window.resetBarcaCrest = resetBarcaCrest;
 
 // החלפת לשונית (בטלפון). במחשב שלושתן מוצגות יחד ממילא.
 function settingsTab(name) {
-  ['telegram', 'users', 'gcal', 'maps', 'barca'].forEach(t => {
+  ['telegram', 'push', 'users', 'gcal', 'maps', 'barca'].forEach(t => {
     document.getElementById('stab-' + t)?.classList.toggle('active', t === name);
     document.getElementById('spanel-' + t)?.classList.toggle('active', t === name);
   });
+  if (name === 'push') { _notifChannelRender(); _pushRenderRow(); }
 }
 window.settingsTab = settingsTab;
 
@@ -1921,4 +1929,231 @@ function _snapCityField(inputId) {
   if (typeof _fuzzyMatchCity !== 'function') return;
   const m = _fuzzyMatchCity(raw);
   if (m?.city && m.city !== raw) el.value = m.city;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   התראות לטלפון (Web Push)
+   ערוץ שני לצד הטלגרם. הבורר בהגדרות קובע מי שולח בפועל, וברירת
+   המחדל היא טלגרם — כך ששום נהג אינו מקבל פוש עד שמחליטים אחרת.
+
+   באייפון ההרשמה אפשרית רק כשהאפליקציה נפתחה מהקיצור שבמסך הבית.
+   מדפדפן רגיל אין PushManager כלל, ולכן במקום שגיאה מוצגת הוראה.
+═══════════════════════════════════════════════════════════════════ */
+const _PUSH_FN = 'https://europe-west1-anak-soharim.cloudfunctions.net';
+
+const _pushStandalone = () =>
+  (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+
+const _pushIsIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+// 'ok' — אפשר להירשם | 'ios-home' — באייפון צריך לפתוח מהמסך הבית | 'no' — לא נתמך
+function _pushState() {
+  if (!('serviceWorker' in navigator) || !('Notification' in window)) return 'no';
+  if (!('PushManager' in window)) return _pushIsIOS() && !_pushStandalone() ? 'ios-home' : 'no';
+  if (_pushIsIOS() && !_pushStandalone()) return 'ios-home';
+  return 'ok';
+}
+
+async function _pushAuthHeaders() {
+  const u = window._auth && window._auth.currentUser;
+  if (!u) return null;
+  const tok = await u.getIdToken();
+  return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok };
+}
+
+const _pushB64 = (s) => {
+  const pad = '='.repeat((4 - s.length % 4) % 4);
+  const raw = atob((s + pad).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from(raw, c => c.charCodeAt(0));
+};
+
+async function _pushCurrent() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return null;
+  const reg = await navigator.serviceWorker.getRegistration('/ops/');
+  if (!reg) return null;
+  return await reg.pushManager.getSubscription();
+}
+
+/* סדר הפעולות כאן קריטי: בקשת ההרשאה חייבת להיות הדבר הראשון שקורה
+   בתוך הלחיצה עצמה. כל המתנה לפניה גורמת לספארי לדחות את הבקשה. */
+async function pushEnable() {
+  const st = _pushState();
+  if (st === 'ios-home') return _pushShowIosHelp();
+  if (st !== 'ok') return showToast('הדפדפן הזה אינו תומך בהתראות', 6000);
+  let perm;
+  try { perm = await Notification.requestPermission(); }
+  catch (e) { return showToast('לא ניתן לבקש הרשאה: ' + e.message, 7000); }
+  if (perm === 'denied') {
+    return showToast('ההתראות חסומות. יש לאפשר אותן בהגדרות הטלפון עבור האתר הזה.', 10000);
+  }
+  if (perm !== 'granted') return showToast('ההרשאה לא ניתנה', 5000);
+  try {
+    const keyRes = await fetch(`${_PUSH_FN}/pushKey`);
+    const keyJson = await keyRes.json();
+    if (!keyJson.ok) throw new Error(keyJson.error || 'no-key');
+    const reg = await navigator.serviceWorker.register('/ops/sw.js', { scope: '/ops/', updateViaCache: 'none' });
+    await navigator.serviceWorker.ready;
+    const appKey = _pushB64(keyJson.publicKey);
+    // מינוי ישן שנוצר עם מפתח אחר אינו תקף יותר — מבטלים לפני הרשמה
+    const old = await reg.pushManager.getSubscription();
+    if (old) {
+      const same = old.options && old.options.applicationServerKey &&
+        new Uint8Array(old.options.applicationServerKey).every((b, i) => b === appKey[i]);
+      if (!same) await old.unsubscribe();
+    }
+    const sub = (await reg.pushManager.getSubscription()) ||
+      await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: appKey });
+    const headers = await _pushAuthHeaders();
+    if (!headers) throw new Error('אין הזדהות מול השרת');
+    const res = await fetch(`${_PUSH_FN}/pushSubscribe`, {
+      method: 'POST', headers,
+      body: JSON.stringify({ name: currentUser?.name || '', sub: sub.toJSON() }),
+    });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.reason || j.error || 'רישום נכשל');
+    showToast('✅ ההתראות הופעלו במכשיר הזה', 5000);
+  } catch (e) {
+    showToast('ההפעלה נכשלה: ' + e.message, 8000);
+  }
+  _pushRenderRow();
+}
+window.pushEnable = pushEnable;
+
+async function pushTest() {
+  try {
+    const headers = await _pushAuthHeaders();
+    if (!headers) return showToast('אין הזדהות מול השרת', 6000);
+    const res = await fetch(`${_PUSH_FN}/pushSend`, {
+      method: 'POST', headers,
+      body: JSON.stringify({
+        name: currentUser?.name || '', title: 'מחלקת תפעול',
+        body: 'זו הודעת ניסיון. אם קיבלת אותה — ההתראות עובדות.', url: '/ops/',
+      }),
+    });
+    const j = await res.json();
+    if (!j.ok) return showToast('הניסיון נכשל: ' + (j.reason || j.error), 7000);
+    if (!j.devices) return showToast('אין מכשיר רשום — יש ללחוץ ״הפעל״ קודם', 7000);
+    showToast(`נשלח ל-${j.sent} מתוך ${j.devices} מכשירים${j.gone ? ` · ${j.gone} מינויים מתים נמחקו` : ''}`, 7000);
+  } catch (e) { showToast('שגיאה: ' + e.message, 7000); }
+  _pushRenderRow();
+}
+window.pushTest = pushTest;
+
+async function pushDisable() {
+  try {
+    const sub = await _pushCurrent();
+    if (sub) {
+      const headers = await _pushAuthHeaders();
+      if (headers) {
+        await fetch(`${_PUSH_FN}/pushUnsubscribe`, {
+          method: 'POST', headers, body: JSON.stringify({ endpoint: sub.endpoint }),
+        }).catch(() => {});
+      }
+      await sub.unsubscribe();
+    }
+    showToast('ההתראות כובו במכשיר הזה', 5000);
+  } catch (e) { showToast('שגיאה: ' + e.message, 7000); }
+  _pushRenderRow();
+}
+window.pushDisable = pushDisable;
+
+function _pushShowIosHelp() {
+  const el = document.getElementById('push-help');
+  if (el) el.style.display = 'block';
+  showToast('באייפון צריך קודם להוסיף את האפליקציה למסך הבית', 8000);
+}
+window._pushShowIosHelp = _pushShowIosHelp;
+
+async function _pushRenderRow() {
+  const box = document.getElementById('push-row');
+  if (!box) return;
+  const st = _pushState();
+  const help = document.getElementById('push-help');
+  if (help) help.style.display = st === 'ios-home' ? 'block' : 'none';
+  const sub = st === 'ok' ? await _pushCurrent() : null;
+  const perm = ('Notification' in window) ? Notification.permission : 'default';
+  const on = !!sub && perm === 'granted';
+  const status = document.getElementById('push-status');
+  if (status) {
+    status.textContent =
+      st === 'no' ? 'הדפדפן הזה אינו תומך בהתראות'
+      : st === 'ios-home' ? 'באייפון: יש לפתוח את האפליקציה מהקיצור שבמסך הבית'
+      : perm === 'denied' ? 'ההתראות חסומות בהגדרות הטלפון'
+      : on ? '✅ פעיל במכשיר הזה' : 'לא פעיל במכשיר הזה';
+    status.style.color = on ? '#16a34a' : 'var(--muted)';
+  }
+  const btnOn = document.getElementById('push-btn-on');
+  const btnTest = document.getElementById('push-btn-test');
+  const btnOff = document.getElementById('push-btn-off');
+  if (btnOn) btnOn.style.display = on ? 'none' : '';
+  if (btnTest) btnTest.style.display = on ? '' : 'none';
+  if (btnOff) btnOff.style.display = on ? '' : 'none';
+}
+window._pushRenderRow = _pushRenderRow;
+
+
+/* ── הבורר: דרך מי נשלחות ההתראות ─────────────────────────────────
+   ברירת המחדל היא טלגרם, וכל עוד לא נבחר אחרת שום נהג אינו מקבל
+   פוש. הערך נשמר בשרת ולכן הוא זהה לכל המשתמשים ולכל המכשירים. */
+let _notifChannel = 'telegram';   // telegram | push | both
+let _notifChannelUnsub = null;
+
+function _notifChannelListen() {
+  if (_notifChannelUnsub || !window._onSnap) return;
+  _notifChannelUnsub = _onSnap(_docRef('config', 'notify'), snap => {
+    const v = snap.exists() ? snap.data().channel : '';
+    _notifChannel = ['telegram', 'push', 'both'].includes(v) ? v : 'telegram';
+    _notifChannelRender();
+  }, () => {});
+}
+window._notifChannelListen = _notifChannelListen;
+
+const _NOTIF_CHOICES = [
+  { id: 'telegram', label: '✈️ טלגרם בלבד', note: 'כמו היום. הנהגים מקבלים בטלגרם, ואף אחד לא מקבל התראות אפליקציה.' },
+  { id: 'push', label: '🔔 התראות אפליקציה בלבד', note: 'רק מי שהפעיל התראות במכשיר שלו יקבל. מי שלא הפעיל — לא יקבל כלום.' },
+  { id: 'both', label: '✈️🔔 שניהם', note: 'כל נהג מקבל בשני הערוצים. הכי בטוח, אבל הודעה כפולה למי שהפעיל את שניהם.' },
+];
+
+function _notifChannelRender() {
+  const box = document.getElementById('notif-channel-box');
+  if (!box) return;
+  box.innerHTML = _NOTIF_CHOICES.map(c => {
+    const on = _notifChannel === c.id;
+    return `<button onclick="setNotifChannel('${c.id}')" style="text-align:right;background:${on ? 'var(--dark)' : 'var(--card)'};color:${on ? '#fff' : 'var(--text)'};border:2px solid ${on ? 'var(--dark)' : 'var(--border)'};border-radius:12px;padding:12px 14px;font-family:Heebo,sans-serif;font-weight:800;font-size:14px;cursor:pointer">
+      ${on ? '● ' : '○ '}${c.label}</button>`;
+  }).join('');
+  const note = document.getElementById('notif-channel-note');
+  if (note) note.textContent = (_NOTIF_CHOICES.find(c => c.id === _notifChannel) || {}).note || '';
+}
+window._notifChannelRender = _notifChannelRender;
+
+async function setNotifChannel(id) {
+  if (currentUser?.role !== 'manager') return;
+  if (!['telegram', 'push', 'both'].includes(id)) return;
+  if (id === _notifChannel) return;
+  const c = _NOTIF_CHOICES.find(x => x.id === id);
+  if (!confirm(`לשנות את ערוץ ההתראות ל${c.label}?\n\n${c.note}`)) return;
+  if (!_requireNet('שינוי ערוץ ההתראות')) return;
+  try {
+    await window._setDoc(_docRef('config', 'notify'), { channel: id, at: _serverTs(), by: currentUser.name }, { merge: true });
+    _notifChannel = id;
+    _notifChannelRender();
+    showToast('ערוץ ההתראות שונה ל' + c.label, 6000);
+  } catch (e) { showToast('שגיאה: ' + e.message, 7000); }
+}
+window.setNotifChannel = setNotifChannel;
+
+// שליחת פוש לנהג. נכשלת בשקט — הטלגרם הוא הערוץ שמדווח על עצמו.
+async function _pushNotify(driverName, message, url) {
+  try {
+    const headers = await _pushAuthHeaders();
+    if (!headers) return false;
+    const res = await fetch(`${_PUSH_FN}/pushSend`, {
+      method: 'POST', headers,
+      body: JSON.stringify({ name: driverName, title: 'מחלקת תפעול', body: message, url: url || '/ops/' }),
+    });
+    const j = await res.json();
+    return !!(j.ok && j.sent);
+  } catch (e) { console.error('push notify', e); return false; }
 }

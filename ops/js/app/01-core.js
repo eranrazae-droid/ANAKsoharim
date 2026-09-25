@@ -642,6 +642,8 @@ function _applyUserBg() {
 }
 function enterApp() {
   _applyUserBg();
+  // הבורר קובע דרך מי נשלחות ההתראות, ולכן הוא נקרא לכל משתמש
+  try { _notifChannelListen(); } catch (e) {}
   renderHome();
   const savedScreen = sessionStorage.getItem('anak_screen');
   if (savedScreen && savedScreen !== 'home' && savedScreen !== 'login') {

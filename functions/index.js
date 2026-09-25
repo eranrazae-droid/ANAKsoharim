@@ -2007,6 +2007,132 @@ exports.crmCompare = onRequest(
   }
 );
 
+/* ═══════════════════════════════════════════════════════════════════
+   התראות לטלפון (Web Push)
+   ערוץ שני לצד הטלגרם, לא במקומו. הבורר בהגדרות קובע מי שולח בפועל,
+   וברירת המחדל היא טלגרם — כך ששום נהג אינו מקבל פוש עד שמחליטים.
+
+   המפתחות נוצרים פעם אחת בשרת ונשמרים ב-config/push. המפתח הפרטי
+   לעולם אינו יוצא מהשרת: הדפדפן מקבל רק את הציבורי.
+═══════════════════════════════════════════════════════════════════ */
+const webpush = require("web-push");
+const crypto = require("crypto");
+
+let _pushKeys = null;
+async function _pushVapid() {
+  if (_pushKeys) return _pushKeys;
+  const ref = db.collection("config").doc("push");
+  const snap = await ref.get();
+  const d = snap.exists ? snap.data() : {};
+  if (d.publicKey && d.privateKey) {
+    _pushKeys = { publicKey: d.publicKey, privateKey: d.privateKey };
+    return _pushKeys;
+  }
+  const keys = webpush.generateVAPIDKeys();
+  await ref.set({ ...keys, createdAt: new Date() }, { merge: true });
+  _pushKeys = keys;
+  return _pushKeys;
+}
+
+// מזהה המינוי נגזר מה-endpoint, כדי שאותו מכשיר לא יירשם פעמיים
+const _subId = (endpoint) => crypto.createHash("sha256").update(String(endpoint)).digest("hex").slice(0, 32);
+
+/* כל קריאה מהאפליקציה נושאת את אסימון ההזדהות של המשתמש. בלעדיו אי
+   אפשר לרשום מכשיר או לשלוח התראה — אחרת כל אחד ברשת יכול לשלוח
+   הודעות בשם המערכת. */
+async function _pushUser(req) {
+  const h = String(req.headers.authorization || "");
+  const tok = h.startsWith("Bearer ") ? h.slice(7) : "";
+  if (!tok) return null;
+  try { return await getAuth().verifyIdToken(tok); } catch (err) { return null; }
+}
+
+async function _pushSendTo(name, payload) {
+  const { publicKey, privateKey } = await _pushVapid();
+  const snap = await db.collection("push_subs").where("name", "==", String(name || "")).get();
+  let sent = 0, gone = 0;
+  for (const doc of snap.docs) {
+    const s = doc.data();
+    if (!s.endpoint || !s.p256dh || !s.auth) continue;
+    const sub = { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } };
+    try {
+      await webpush.sendNotification(sub, JSON.stringify(payload), {
+        vapidDetails: { subject: "https://anak-soharim.web.app", publicKey, privateKey },
+        TTL: 21600, urgency: "high",
+      });
+      sent++;
+    } catch (err) {
+      // 404/410 — המינוי מת (הקיצור נמחק, הדפדפן נוקה). מוחקים אותו.
+      if (err && (err.statusCode === 404 || err.statusCode === 410)) {
+        gone++;
+        await doc.ref.delete().catch(() => {});
+      } else {
+        console.error("push send failed", s.name, err && err.statusCode, err && err.message);
+      }
+    }
+  }
+  return { sent, gone, devices: snap.size };
+}
+
+// המפתח הציבורי — הדפדפן זקוק לו כדי להירשם. אינו סודי.
+exports.pushKey = onRequest({ cors: true, region: "europe-west1" }, async (req, res) => {
+  try {
+    const { publicKey } = await _pushVapid();
+    res.json({ ok: true, publicKey });
+  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
+// רישום מכשיר
+exports.pushSubscribe = onRequest({ cors: true, region: "europe-west1" }, async (req, res) => {
+  const user = await _pushUser(req);
+  if (!user) return res.status(401).json({ ok: false, reason: "unauthorized" });
+  const b = req.body || {};
+  const sub = b.sub || {};
+  const name = String(b.name || "").trim();
+  const endpoint = String(sub.endpoint || "");
+  const p256dh = String(sub.keys?.p256dh || "");
+  const auth = String(sub.keys?.auth || "");
+  if (!name || !/^https:\/\//.test(endpoint) || endpoint.length > 1000 || !p256dh || !auth) {
+    return res.status(400).json({ ok: false, reason: "bad-subscription" });
+  }
+  const id = _subId(endpoint);
+  await db.collection("push_subs").doc(id).set({
+    name, endpoint, p256dh, auth, uid: user.uid,
+    ua: String(req.headers["user-agent"] || "").slice(0, 200),
+    at: new Date(),
+  }, { merge: true });
+  res.json({ ok: true, id });
+});
+
+// ביטול רישום
+exports.pushUnsubscribe = onRequest({ cors: true, region: "europe-west1" }, async (req, res) => {
+  const user = await _pushUser(req);
+  if (!user) return res.status(401).json({ ok: false, reason: "unauthorized" });
+  const endpoint = String((req.body || {}).endpoint || "");
+  if (!endpoint) return res.status(400).json({ ok: false, reason: "no-endpoint" });
+  await db.collection("push_subs").doc(_subId(endpoint)).delete().catch(() => {});
+  res.json({ ok: true });
+});
+
+/* שליחה. גם ״שלח ניסיון״ וגם התראה אמיתית עוברות כאן, ולכן מה שנבדק
+   בניסיון הוא בדיוק המסלול שירוץ אחר כך. */
+exports.pushSend = onRequest({ cors: true, region: "europe-west1" }, async (req, res) => {
+  const user = await _pushUser(req);
+  if (!user) return res.status(401).json({ ok: false, reason: "unauthorized" });
+  const b = req.body || {};
+  const name = String(b.name || "").trim();
+  if (!name) return res.status(400).json({ ok: false, reason: "no-name" });
+  const payload = {
+    title: String(b.title || "מחלקת תפעול").slice(0, 120),
+    body: String(b.body || "").slice(0, 400),
+    url: String(b.url || "/ops/").slice(0, 300),
+  };
+  try {
+    const r = await _pushSendTo(name, payload);
+    res.json({ ok: true, ...r });
+  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
 // סריקה יומית: כל בוקר מרעננת את המלאי ומתריעה בטלגרם על שני דברים —
 // רכבים שכבר סומנו כלא־שלנו, ורכבים חדשים שנכנסו וטרם נבדקו ידנית.
 /* בדיקת בעלויות.
