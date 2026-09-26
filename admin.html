@@ -1223,10 +1223,8 @@
   }
 
   // הורדת כל כרטיסי הסטורי כתמונות (html2canvas)
-  function _loadHtml2Canvas(cb){
-    if(window.html2canvas) return cb();
-    var s=document.createElement('script');
-    s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+  function _loadScript(src,cb){
+    var s=document.createElement('script'); s.src=src;
     s.onload=cb; s.onerror=function(){ alert('שגיאה בטעינת כלי ההורדה - נסה שוב'); };
     document.head.appendChild(s);
   }
@@ -1234,15 +1232,24 @@
     var cards=[].slice.call(document.querySelectorAll('#storyCards .story-card'));
     if(!cards.length){ alert('אין תמונות להורדה'); return; }
     var orig=btn?btn.textContent:''; if(btn){ btn.disabled=true; btn.textContent='⏳ מכין תמונות...'; }
-    _loadHtml2Canvas(function(){
-      var i=0;
-      (function next(){
-        if(i>=cards.length){ if(btn){ btn.disabled=false; btn.textContent=orig; } toast&&toast('כל התמונות הורדו ✓'); return; }
-        window.html2canvas(cards[i],{useCORS:true,allowTaint:false,backgroundColor:'#ffffff',scale:2}).then(function(canvas){
-          try{ var a=document.createElement('a'); a.href=canvas.toDataURL('image/png'); a.download='story-'+(i+1)+'.png'; document.body.appendChild(a); a.click(); document.body.removeChild(a); }catch(e){}
-          i++; setTimeout(next,500);
-        }).catch(function(){ i++; setTimeout(next,500); });
-      })();
+    function withLib(name,src,next){ if(window[name]) return next(); _loadScript(src,next); }
+    withLib('html2canvas','https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',function(){
+      withLib('JSZip','https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',function(){
+        var zip=new window.JSZip(), i=0;
+        (function next(){
+          if(i>=cards.length){
+            zip.generateAsync({type:'blob'}).then(function(blob){
+              var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='stories.zip';
+              document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(function(){URL.revokeObjectURL(a.href);},2000);
+              if(btn){ btn.disabled=false; btn.textContent=orig; } toast&&toast('כל התמונות ירדו בקובץ ZIP ✓');
+            });
+            return;
+          }
+          window.html2canvas(cards[i],{useCORS:true,allowTaint:false,backgroundColor:null,scale:2}).then(function(canvas){
+            canvas.toBlob(function(b){ if(b) zip.file('story-'+(i+1)+'.png', b); i++; setTimeout(next,150); }, 'image/png');
+          }).catch(function(){ i++; setTimeout(next,150); });
+        })();
+      });
     });
   }
   // ===== סטורי יומי - 5 כרטיסים אנכיים לצילום מסך =====
