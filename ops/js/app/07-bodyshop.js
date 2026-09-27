@@ -1195,13 +1195,11 @@ function _bsmApplyRole() {
   document.querySelectorAll('.bsm-tab').forEach(b => {
     if (b.dataset.view === 'arc' || b.dataset.view === 'stats') b.style.display = money ? '' : 'none';
   });
-  const hide = ['bsm-pay-wrap'];
-  hide.forEach(id => { const el = document.getElementById(id); if (el && !money) el.style.display = 'none'; });
-  // מחיקת פתק ורשימת המחירים הן פעולות של מנהל
-  document.querySelectorAll('#bsm-actions-stack .bsm-fab').forEach(b => {
-    const fn = b.getAttribute('onclick') || '';
-    if (/openBsmDelete|openBsmItemsModal/.test(fn)) b.style.display = money ? '' : 'none';
-  });
+  const payWrap = document.getElementById('bsm-pay-wrap');
+  if (payWrap && !money) payWrap.style.display = 'none';
+  /* כל כפתורי הפעולות פתוחים לשניהם. מחיקת פתק ורשימת החלקים אינן
+     כספיות — הרשימה היא שמות חלקים בלבד, בלי מחירים. */
+  document.querySelectorAll('#bsm-actions-stack .bsm-fab').forEach(b => { b.style.display = ''; });
 }
 
 function openBodyShopMgrScreen() {
