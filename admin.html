@@ -318,6 +318,7 @@
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
             <input id="ptSearch" oninput="renderPubTrack()" placeholder="חיפוש רכב..." style="min-width:170px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;font-size:14px"/>
             <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);cursor:pointer"><input type="checkbox" id="ptOnlyMissing" onchange="renderPubTrack()"/> רק לא-מפורסמים</label>
+            <button onclick="downloadPubImages(this)" title="הורדת תמונה ראשית + החזר חודשי לכל הרכבים המסוננים" style="background:#16a34a;color:#fff;border:none;border-radius:10px;padding:9px 18px;font-size:14px;font-weight:900;cursor:pointer;box-shadow:0 3px 10px rgba(22,163,74,.3)">⬇️ הורד את כל התמונות</button>
           </div>
         </div>
         <div style="display:flex;justify-content:center;gap:8px;margin-bottom:14px;flex-wrap:wrap">
@@ -1261,36 +1262,70 @@
     for(var i=0;i<Math.min(5,active.length);i++){ out.push(active[(start+i)%active.length]); }
     return out;
   }
+  // כרטיס סטורי לרכב: תמונה ראשית + החזר חודשי (משותף לסטורי היומי ולמעקב פרסום)
+  function _storyCardHTML(c){
+    var name=((c.brand||'')+' '+(c.model||'')).trim();
+    var price=Number(c.autodealerPriceNumber)||0, lic=Number(c.licenseFee)||0;
+    var monthly=_voMonthly(price+lic);
+    var img=c.image||((c.gallery&&c.gallery[0])||'')||c.catalog_image||'';
+    if(img.indexOf('res.cloudinary.com')>=0&&img.indexOf('/upload/')>=0){ img=img.replace('/upload/','/upload/f_auto,q_auto,w_900/'); }
+    var moLine = monthly>0
+      ? '<div style="display:flex;align-items:baseline;justify-content:flex-end;gap:5px;margin-top:5px"><span style="font-size:12px;color:#94a3b8;font-weight:600">החל מ-</span><span style="font-size:22px;font-weight:900;color:#D4A017;line-height:1">'+monthly.toLocaleString('en-US')+' ₪</span><span style="font-size:12px;color:#64748b;font-weight:700">/ חודש</span></div>'
+      : (price>1?'<div style="font-size:20px;font-weight:900;color:#D4A017;margin-top:5px">'+price.toLocaleString('en-US')+' ₪</div>':'');
+    return '<div class="story-card" style="width:320px;height:569px;border-radius:18px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.18);flex-shrink:0;background:radial-gradient(circle at 50% 42%, #2a2a2a, #0d0d0d);display:flex;flex-direction:column;justify-content:center">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px 10px">'
+        +'<div style="font-size:18px;font-weight:900;color:#fff">אוטו<span style="color:#D4A017">דילר</span></div>'
+        +'<div style="background:#fff;color:#0d0d0d;font-size:11px;font-weight:900;padding:4px 12px;border-radius:999px">חדש · 0 ק״מ</div>'
+      +'</div>'
+      +'<img src="'+_esc(img)+'" style="width:100%;height:auto;display:block" crossorigin="anonymous" alt="'+_esc(name)+'">'
+      +'<div style="padding:13px 18px 15px;text-align:right;background:#fff">'
+        +'<div style="font-size:16px;font-weight:800;color:#0d0d0d;line-height:1.2">'+_esc(name)+'</div>'
+        +moLine
+        +'<div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px">'
+          +'<span style="font-size:14px;font-weight:900;color:#0d0d0d;letter-spacing:.3px">📞 050-839-6030</span>'
+          +'<span style="font-size:11.5px;color:#94a3b8;font-weight:700">בלי מקדמה · מימון 100%</span>'
+        +'</div>'
+      +'</div>'
+    +'</div>';
+  }
   function renderStory(force){
     var el=document.getElementById('storyCards'); if(!el) return;
     var list=_storyCars(force);
     if(!list.length){ el.innerHTML='<div style="color:var(--muted);padding:20px">אין רכבים עם תמונה ומחיר במלאי. הוסף תמונת קטלוג ומחיר לרכבים.</div>'; return; }
-    el.innerHTML=list.map(function(c){
-      var name=((c.brand||'')+' '+(c.model||'')).trim();
-      var price=Number(c.autodealerPriceNumber)||0, lic=Number(c.licenseFee)||0;
-      var monthly=_voMonthly(price+lic);
-      // התמונה הראשית של הרכב (כמו בעמוד הרכב) - לא מודעת הקטלוג
-      var img=c.image||((c.gallery&&c.gallery[0])||'')||c.catalog_image||'';
-      if(img.indexOf('res.cloudinary.com')>=0&&img.indexOf('/upload/')>=0){ img=img.replace('/upload/','/upload/f_auto,q_auto,w_900/'); }
-      var moLine = monthly>0
-        ? '<div style="display:flex;align-items:baseline;justify-content:flex-end;gap:5px;margin-top:5px"><span style="font-size:12px;color:#94a3b8;font-weight:600">החל מ-</span><span style="font-size:22px;font-weight:900;color:#D4A017;line-height:1">'+monthly.toLocaleString('en-US')+' ₪</span><span style="font-size:12px;color:#64748b;font-weight:700">/ חודש</span></div>'
-        : (price>1?'<div style="font-size:20px;font-weight:900;color:#D4A017;margin-top:5px">'+price.toLocaleString('en-US')+' ₪</div>':'');
-      return '<div class="story-card" style="width:320px;height:569px;border-radius:18px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.18);flex-shrink:0;background:radial-gradient(circle at 50% 42%, #2a2a2a, #0d0d0d);display:flex;flex-direction:column;justify-content:center">'
-        +'<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px 10px">'
-          +'<div style="font-size:18px;font-weight:900;color:#fff">אוטו<span style="color:#D4A017">דילר</span></div>'
-          +'<div style="background:#fff;color:#0d0d0d;font-size:11px;font-weight:900;padding:4px 12px;border-radius:999px">חדש · 0 ק״מ</div>'
-        +'</div>'
-        +'<img src="'+_esc(img)+'" style="width:100%;height:auto;display:block" crossorigin="anonymous" alt="'+_esc(name)+'">'
-        +'<div style="padding:13px 18px 15px;text-align:right;background:#fff">'
-          +'<div style="font-size:16px;font-weight:800;color:#0d0d0d;line-height:1.2">'+_esc(name)+'</div>'
-          +moLine
-          +'<div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px">'
-            +'<span style="font-size:14px;font-weight:900;color:#0d0d0d;letter-spacing:.3px">📞 050-839-6030</span>'
-            +'<span style="font-size:11.5px;color:#94a3b8;font-weight:700">בלי מקדמה · מימון 100%</span>'
-          +'</div>'
-        +'</div>'
-      +'</div>';
-    }).join('');
+    el.innerHTML=list.map(_storyCardHTML).join('');
+  }
+  // מעקב פרסום: הורדת "תמונה ראשית + החזר חודשי" לכל הרכבים המסוננים, כ-ZIP
+  function downloadPubImages(btn){
+    var rows=(typeof ptRows==='function')?ptRows():[];
+    var bsel=document.getElementById('ptBrandFilter'); var fb=bsel?bsel.value:'';
+    var q=((document.getElementById('ptSearch')||{}).value||'').trim().toLowerCase();
+    var cars2=rows.filter(function(c){ return c && (c.image||c.catalog_image||(c.gallery&&c.gallery.length)) && (Number(c.autodealerPriceNumber)||0)>1
+      && (!fb||c.brand===fb) && (!q||((c.brand||'')+' '+(c.model||'')).toLowerCase().indexOf(q)>=0); });
+    if(!cars2.length){ alert('אין רכבים עם תמונה ומחיר להורדה'); return; }
+    if(cars2.length>25 && !confirm(cars2.length+' תמונות - זה ייקח כמה דקות. להמשיך? (אפשר לסנן לפי יצרן כדי לצמצם)')) return;
+    var orig=btn?btn.textContent:''; if(btn){ btn.disabled=true; btn.textContent='⏳ מכין תמונות...'; }
+    var host=document.createElement('div'); host.style.cssText='position:fixed;left:-9999px;top:0;';
+    host.innerHTML=cars2.map(_storyCardHTML).join(''); document.body.appendChild(host);
+    var cards=[].slice.call(host.querySelectorAll('.story-card'));
+    function withLib(name,src,next){ if(window[name]) return next(); _loadScript(src,next); }
+    withLib('html2canvas','https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',function(){
+      withLib('JSZip','https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',function(){
+        var zip=new window.JSZip(), i=0;
+        (function next(){
+          if(i>=cards.length){
+            zip.generateAsync({type:'blob'}).then(function(blob){
+              var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='car-images.zip'; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(function(){URL.revokeObjectURL(a.href);},2000);
+              document.body.removeChild(host); if(btn){ btn.disabled=false; btn.textContent=orig; } toast&&toast('כל התמונות ירדו ב-ZIP ✓');
+            });
+            return;
+          }
+          if(btn) btn.textContent='⏳ '+(i+1)+'/'+cards.length;
+          window.html2canvas(cards[i],{useCORS:true,backgroundColor:null,scale:2}).then(function(canvas){
+            canvas.toBlob(function(b){ if(b) zip.file((cars2[i].brand+'-'+cars2[i].model).replace(/[^\w֐-׿]+/g,'_').slice(0,40)+'.png', b); i++; setTimeout(next,120); },'image/png');
+          }).catch(function(){ i++; setTimeout(next,120); });
+        })();
+      });
+    });
   }
   const BALLOON_RATE=4.3,INDEXED_RATE=4.3,PRIME_RATE=7.6;
   function monthly(p,r,n){if(!p||!n)return 0;const mr=r/100/12;return mr?p*mr/(1-Math.pow(1+mr,-n)):p/n;}
