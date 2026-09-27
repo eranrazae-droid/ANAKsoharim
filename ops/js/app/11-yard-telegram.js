@@ -1026,7 +1026,7 @@ function settingsTab(name) {
     document.getElementById('stab-' + t)?.classList.toggle('active', t === name);
     document.getElementById('spanel-' + t)?.classList.toggle('active', t === name);
   });
-  if (name === 'push') { _notifChannelRender(); _pushRenderRow(); }
+  if (name === 'push') { _notifChannelRender(); _pushMount('push-host-settings'); }
 }
 window.settingsTab = settingsTab;
 
@@ -2057,6 +2057,43 @@ async function pushDisable() {
   _pushRenderRow();
 }
 window.pushDisable = pushDisable;
+
+/* הבלוק קיים פעם אחת בלבד ומוזרק למקום שפתוח כרגע: אצל המנהל
+   בתוך ההגדרות, ואצל כל השאר בחלונית ייעודית. שני עותקים באותו דף
+   היו יוצרים מזהים כפולים, והעדכון היה מגיע רק לאחד מהם. */
+const _PUSH_ROW_HTML = `        <div id="push-row" style="border:2px solid var(--border);border-radius:12px;padding:12px;background:var(--card)">
+          <div style="font-weight:900;font-size:14px;margin-bottom:4px">קבל התראה כשיש משהו חדש</div>
+          <div id="push-status" style="font-size:12.5px;font-weight:800;color:var(--muted);margin-bottom:10px">—</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button id="push-btn-on" onclick="pushEnable()" style="flex:1 1 120px;min-width:0;background:#16a34a;color:#fff;border:none;border-radius:10px;height:40px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">🔔 הפעל</button>
+            <button id="push-btn-test" onclick="pushTest()" style="display:none;flex:1 1 120px;min-width:0;background:#0d6ab0;color:#fff;border:none;border-radius:10px;height:40px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">📨 שלח ניסיון</button>
+            <button id="push-btn-off" onclick="pushDisable()" style="display:none;flex:1 1 120px;min-width:0;background:var(--surface2);border:2px solid var(--border);color:var(--text);border-radius:10px;height:40px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">כבה</button>
+          </div>
+          <div id="push-help" style="display:none;margin-top:12px;background:#fef3c7;border-right:5px solid #d97706;border-radius:10px;padding:10px 12px;font-size:12.5px;font-weight:700;color:#92400e;line-height:1.7">
+            באייפון התראות עובדות רק מהקיצור שבמסך הבית:<br>
+            1. בספארי — לחץ על כפתור <b>שתף</b><br>
+            2. בחר <b>הוסף למסך הבית</b><br>
+            3. פתח את האפליקציה <b>מהקיצור החדש</b><br>
+            4. חזור לכאן ולחץ <b>הפעל</b>
+          </div>
+`;
+
+function _pushMount(hostId) {
+  ['push-host-settings', 'push-host-modal'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = (id === hostId) ? _PUSH_ROW_HTML : '';
+  });
+  _pushRenderRow();
+}
+window._pushMount = _pushMount;
+
+// לכולם: נהג, אחראי איסוף ומנהל. אין כאן שום הגדרה של המערכת —
+// רק הפעלת ההתראות במכשיר שבו לוחצים.
+function openPushSettings() {
+  openModal('modal-push');
+  _pushMount('push-host-modal');
+}
+window.openPushSettings = openPushSettings;
 
 function _pushShowIosHelp() {
   const el = document.getElementById('push-help');

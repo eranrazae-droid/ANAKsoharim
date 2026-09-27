@@ -1358,6 +1358,7 @@ if ('serviceWorker' in navigator) {
     <div class="logo">ענק <span>הרכבים</span></div>
     <div id="daily-quote" style="flex:1;min-width:0;text-align:center;font-size:13px;font-weight:700;color:rgba(255,255,255,.92);padding:0 12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
     <button id="btn-notify-mgr" onclick="openNotifyMgr()" style="display:none;background:rgba(255,255,255,0.15);border:none;border-radius:999px;color:#fff;font-size:13px;font-weight:700;padding:6px 14px;cursor:pointer;font-family:Heebo,sans-serif;white-space:nowrap">🔔 <span class="nm-txt">ניהול התראות</span></button>
+    <button id="btn-push" onclick="openPushSettings()" style="display:none;background:rgba(255,255,255,0.15);border:none;border-radius:999px;color:#fff;font-size:13px;font-weight:700;padding:6px 14px;cursor:pointer;font-family:Heebo,sans-serif;white-space:nowrap">🔔 <span class="pu-txt">התראות</span></button>
     <button id="btn-settings" onclick="openSettings()" style="display:none;background:rgba(255,255,255,0.15);border:none;border-radius:999px;color:#fff;font-size:13px;font-weight:700;padding:6px 14px;cursor:pointer;font-family:Heebo,sans-serif">⚙️ הגדרות</button>
     <button id="btn-all-screens" onclick="openAllScreens()" style="display:none;background:var(--gold);border:none;border-radius:999px;color:#000;font-size:13px;font-weight:800;padding:6px 14px;cursor:pointer;font-family:Heebo,sans-serif;white-space:nowrap">☰ <span class="as-txt">כל המסכים</span><span id="all-screens-count" style="display:none;background:#ef4444;color:#fff;border-radius:999px;padding:1px 7px;font-size:11px;font-weight:900;margin-right:5px"></span></button>
     <div class="user-badge" id="home-user-badge" onclick="logout()">יציאה</div>
@@ -3971,6 +3972,15 @@ if ('serviceWorker' in navigator) {
 </div>
 
 <!-- ====== חלונית הגדרות מאוחדת ====== -->
+<div class="modal-overlay" id="modal-push">
+  <div class="modal-box">
+    <div class="modal-title"><span>🔔 התראות לטלפון</span> <button class="modal-close" onclick="closeModal('modal-push')">✕</button></div>
+    <p style="font-size:12.5px;color:var(--muted);margin-bottom:12px;line-height:1.6">
+      הפעלה במכשיר הזה. אם יש לך עוד טלפון או מחשב — צריך להפעיל בכל אחד בנפרד.</p>
+    <div id="push-host-modal"></div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-settings">
   <div class="modal-box modal-box-settings" style="max-height:88vh;overflow-y:auto">
     <div class="modal-title"><span>⚙️ הגדרות</span> <button class="modal-close" onclick="closeModal('modal-settings')">✕</button></div>
@@ -4001,21 +4011,7 @@ if ('serviceWorker' in navigator) {
         <div class="settings-col-title" style="margin-top:6px">התראות לטלפון במכשיר הזה</div>
         <p style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.6">
           כל מכשיר מופעל בנפרד. אפשר להפעיל על כמה מכשירים לאותו משתמש.</p>
-        <div id="push-row" style="border:2px solid var(--border);border-radius:12px;padding:12px;background:var(--card)">
-          <div style="font-weight:900;font-size:14px;margin-bottom:4px">קבל התראה כשיש משהו חדש</div>
-          <div id="push-status" style="font-size:12.5px;font-weight:800;color:var(--muted);margin-bottom:10px">—</div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button id="push-btn-on" onclick="pushEnable()" style="flex:1 1 120px;min-width:0;background:#16a34a;color:#fff;border:none;border-radius:10px;height:40px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">🔔 הפעל</button>
-            <button id="push-btn-test" onclick="pushTest()" style="display:none;flex:1 1 120px;min-width:0;background:#0d6ab0;color:#fff;border:none;border-radius:10px;height:40px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">📨 שלח ניסיון</button>
-            <button id="push-btn-off" onclick="pushDisable()" style="display:none;flex:1 1 120px;min-width:0;background:var(--surface2);border:2px solid var(--border);color:var(--text);border-radius:10px;height:40px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">כבה</button>
-          </div>
-          <div id="push-help" style="display:none;margin-top:12px;background:#fef3c7;border-right:5px solid #d97706;border-radius:10px;padding:10px 12px;font-size:12.5px;font-weight:700;color:#92400e;line-height:1.7">
-            באייפון התראות עובדות רק מהקיצור שבמסך הבית:<br>
-            1. בספארי — לחץ על כפתור <b>שתף</b><br>
-            2. בחר <b>הוסף למסך הבית</b><br>
-            3. פתח את האפליקציה <b>מהקיצור החדש</b><br>
-            4. חזור לכאן ולחץ <b>הפעל</b>
-          </div>
+        <div id="push-host-settings"></div>
         </div>
       </div>
 
@@ -4215,20 +4211,20 @@ window.dispatchEvent(new Event('firebase-ready'));
 </script>
 
 <script src="js/utils.js?v=214"></script>
-<script src="js/app/01-core.js?v=438"></script>
-<script src="js/app/02-home-calendar.js?v=438"></script>
-<script src="js/app/03-tasks.js?v=438"></script>
-<script src="js/app/04-intake-plate.js?v=438"></script>
-<script src="js/app/05-intake-forms.js?v=438"></script>
-<script src="js/app/06-recall-inventory.js?v=438"></script>
-<script src="js/app/07-bodyshop.js?v=438"></script>
-<script src="js/app/08-ownership-wash.js?v=438"></script>
-<script src="js/app/09-battery.js?v=438"></script>
-<script src="js/app/10-battery-plate.js?v=438"></script>
-<script src="js/app/11-yard-telegram.js?v=438"></script>
-<script src="js/app/12-pickup.js?v=438"></script>
-<script src="js/app/13-reports.js?v=438"></script>
-<script src="js/app/14-tow-invoice.js?v=438"></script>
+<script src="js/app/01-core.js?v=439"></script>
+<script src="js/app/02-home-calendar.js?v=439"></script>
+<script src="js/app/03-tasks.js?v=439"></script>
+<script src="js/app/04-intake-plate.js?v=439"></script>
+<script src="js/app/05-intake-forms.js?v=439"></script>
+<script src="js/app/06-recall-inventory.js?v=439"></script>
+<script src="js/app/07-bodyshop.js?v=439"></script>
+<script src="js/app/08-ownership-wash.js?v=439"></script>
+<script src="js/app/09-battery.js?v=439"></script>
+<script src="js/app/10-battery-plate.js?v=439"></script>
+<script src="js/app/11-yard-telegram.js?v=439"></script>
+<script src="js/app/12-pickup.js?v=439"></script>
+<script src="js/app/13-reports.js?v=439"></script>
+<script src="js/app/14-tow-invoice.js?v=439"></script>
 
 <!-- ═══ רענון רכב modals ═══ -->
 <div class="modal-overlay" id="modal-refresh-edit">

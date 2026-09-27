@@ -394,6 +394,11 @@ function renderHome() {
   document.getElementById('stat-vehicles').parentElement.style.display = 'none';
   const settingsBtn = document.getElementById('btn-settings');
   if (settingsBtn) settingsBtn.style.display = (currentUser?.role === 'manager') ? 'inline-flex' : 'none';
+  /* כפתור ההתראות פתוח לכולם — נהג חייב דרך להפעיל אותן במכשיר שלו,
+     ומסך ההגדרות סגור בפניו. אצל המנהל הוא מיותר: אצלו הכל יושב
+     בלשונית ההתראות שבהגדרות, יחד עם הבורר. */
+  const pushBtn = document.getElementById('btn-push');
+  if (pushBtn) pushBtn.style.display = (currentUser?.role === 'manager') ? 'none' : 'inline-flex';
   const notifyBtn = document.getElementById('btn-notify-mgr');
   if (notifyBtn) notifyBtn.style.display = (currentUser?.role === 'manager') ? 'inline-flex' : 'none';
 
