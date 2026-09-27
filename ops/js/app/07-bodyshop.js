@@ -615,16 +615,23 @@ function _bshopFillClosed() {
 window._bshopFillClosed = _bshopFillClosed;
 
 let _bshopFillMgr = false;   // the manager edits the same note, with more freedom
+/* מי שמסדר את הפתק מהמגרש — המנהל או משה — עורך את רשימת החלקים.
+   רק המנהל רואה את המחירים שאיברהים רשם. לכן שני דגלים נפרדים:
+   אחד לעריכה ואחד לכסף. */
+let _bshopFillMoney = false;
 
 function bshopOpenFill(id) {
   const j = _bshopJobs.find(x => x.id === id);
   if (!j) return;
   _bshopFillId = id;
-  _bshopFillMgr = currentUser?.role === 'manager';
+  _bshopFillMgr = (typeof _canBodyshop === 'function') ? _canBodyshop() : currentUser?.role === 'manager';
+  _bshopFillMoney = currentUser?.role === 'manager';
   const _set = (elId, txt) => { const e = document.getElementById(elId); if (e) e.textContent = txt; };
-  _set('bshop-fill-hint', _bshopFillMgr
-    ? 'אפשר להוסיף ולהוריד חלקים. המחירים נרשמים על ידי איברהים בלבד.'
-    : 'רשום מחיר ליד כל חלק שצבעת. חלק שלא עשית — השאר ריק.');
+  _set('bshop-fill-hint', !_bshopFillMgr
+    ? 'רשום מחיר ליד כל חלק שצבעת. חלק שלא עשית — השאר ריק.'
+    : _bshopFillMoney
+      ? 'אפשר להוסיף ולהוריד חלקים. המחירים נרשמים על ידי איברהים בלבד.'
+      : 'אפשר להוסיף ולהוריד חלקים.');
   _set('bshop-fill-add', _bshopFillMgr ? '➕ הוסף חלק' : '➕ צבעתי עוד חלק');
   const prn = document.getElementById('bshop-fill-print');
   if (prn) prn.style.display = _bshopFillMgr ? '' : 'none';
@@ -661,13 +668,15 @@ function bshopOpenFill(id) {
         <div style="font-size:15px;font-weight:700">${esc(it.name)}</div>
         ${it.addedByShop ? `<div style="font-size:12px;font-weight:800;color:#b45309">➕ איברהים הוסיף</div>` : ''}
       </div>
-      ${_bshopFillMgr
-        ? `<div style="width:110px;text-align:center;font-size:17px;font-weight:800;color:${it.price == null || it.price === '' ? 'var(--muted)' : 'var(--text)'}">${it.price == null || it.price === '' ? '—' : Number(it.price).toLocaleString('he-IL')}</div>`
-        : `<input type="text" inputmode="numeric" class="form-input bshop-price" data-i="${i}"
+      ${!_bshopFillMgr
+        ? `<input type="text" inputmode="numeric" class="form-input bshop-price" data-i="${i}"
              value="${it.price != null && it.price !== '' ? it.price : ''}" placeholder="מחיר"
              onfocus="_bshopCaretEnd(this)" oninput="this.value=this.value.replace(/[^0-9]/g,'');_bshopRecalc();_bshopAutoSave()"
-             onblur="_bshopAutoSave(true)" style="width:110px;text-align:center;font-size:17px;font-weight:800">`}
-      <span style="font-size:15px;font-weight:800;color:var(--muted)">₪</span>
+             onblur="_bshopAutoSave(true)" style="width:110px;text-align:center;font-size:17px;font-weight:800">`
+        : _bshopFillMoney
+          ? `<div style="width:110px;text-align:center;font-size:17px;font-weight:800;color:${it.price == null || it.price === '' ? 'var(--muted)' : 'var(--text)'}">${it.price == null || it.price === '' ? '—' : Number(it.price).toLocaleString('he-IL')}</div>`
+          : ''}
+      ${_bshopFillMgr && !_bshopFillMoney ? '' : `<span style="font-size:15px;font-weight:800;color:var(--muted)">₪</span>`}
     </div>`;
   // the index stays the one from j.items, so grouping does not disturb saving
   const rows = (j.items || []).map((it, i) => ({ it, i }));
@@ -862,6 +871,10 @@ function _bshopRecalc() {
   }
   const el = document.getElementById('bshop-fill-total');
   if (el) el.textContent = t.toLocaleString('he-IL') + ' ₪';
+  /* שורת הסיכום כולה — הכיתוב ״סה״כ״ והסכום — אינה שייכת למי שאינו
+     רואה מחירים. el עצמו הוא div, ולכן לוקחים את ההורה ולא closest. */
+  const sumRow = el && el.parentElement;
+  if (sumRow) sumRow.style.display = (_bshopFillMgr && !_bshopFillMoney) ? 'none' : 'flex';
 }
 window._bshopRecalc = _bshopRecalc;
 
@@ -870,7 +883,9 @@ window._bshopRecalc = _bshopRecalc;
 let _bshopSaveTimer = null;
 function _bshopSetSaved(txt) {
   const el = document.getElementById('bshop-fill-saved');
-  if (el) el.textContent = txt || 'המחירים נשמרים לבד';
+  // מי שאינו רואה מחירים עורך חלקים, ולכן הניסוח הכללי מתאים לו
+  const dflt = (_bshopFillMgr && !_bshopFillMoney) ? 'השינויים נשמרים לבד' : 'המחירים נשמרים לבד';
+  if (el) el.textContent = txt || dflt;
 }
 function _bshopAutoSave(now) {
   if (!_bshopFillId) return;
