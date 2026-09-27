@@ -2689,6 +2689,15 @@
     try{ const c=sbClient(); if(c){ await c.from('leads').update({phone:np}).eq('id',id); } }catch(e){}
     toast&&toast('הטלפון עודכן ✓');
   }
+  // השהיית ליד לשעתיים - נעלם מהמסך וחוזר אוטומטית בעוד שעתיים
+  async function snoozeLead2h(id){
+    const l=leads.find(x=>String(x.id)===String(id)); if(!l) return;
+    l.status='פולואפ';
+    l.followup_at=new Date(Date.now()+2*60*60*1000).toISOString();
+    renderLeads();
+    try{ const c=sbClient(); if(c){ await c.from('leads').update({status:l.status,followup_at:l.followup_at}).eq('id',id); } }catch(e){}
+    toast&&toast('⏰ הליד יחזור בעוד שעתיים');
+  }
   async function saveLead(id){
     const l=leads.find(x=>String(x.id)===String(id)); if(!l) return;
     const st=document.getElementById('st_'+id); if(st) l.status=st.value;
@@ -3129,6 +3138,8 @@
                style="background:#e9d5ff;color:#6b21a8;border:none;padding:8px 14px;border-radius:10px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap;text-align:center">📋 העתק פולואפ</button>
             <a href="tel:${phone.replace(/[^0-9]/g,'')}"
                style="background:#0d0d0d;color:#fff;padding:9px 14px;border-radius:10px;font-size:13px;font-weight:900;text-decoration:none;white-space:nowrap;text-align:center">📞 חייג</a>
+            <button onclick="snoozeLead2h('${l.id}')" title="להשהות ולחזור בעוד שעתיים"
+               style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d;padding:9px 14px;border-radius:10px;font-size:13px;font-weight:900;cursor:pointer;white-space:nowrap;text-align:center">⏰ שעתיים</button>
           </div>`:''}
         </div>
       </div>`;
