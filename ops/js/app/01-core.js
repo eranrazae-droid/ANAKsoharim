@@ -640,6 +640,13 @@ function _applyUserBg() {
   document.body.classList.remove('user-bg-active');
   // }
 }
+/* מי רשאי להיכנס למסך הפחחות. משה קיבל אותו לעבודה בלבד — הצד
+   הכספי שלו סגור בפניו (ראה _bsmMoney). */
+function _canBodyshop() {
+  return currentUser?.role === 'manager' || currentUser?.role === 'pickup_agent';
+}
+window._canBodyshop = _canBodyshop;
+
 function enterApp() {
   _applyUserBg();
   // הבורר קובע דרך מי נשלחות ההתראות, ולכן הוא נקרא לכל משתמש

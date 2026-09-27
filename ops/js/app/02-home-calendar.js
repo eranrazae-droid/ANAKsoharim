@@ -446,6 +446,14 @@ function renderHome() {
         <div class="mc-title">מכוניות לאיסוף</div>
         <div class="mc-sub" id="sub-pickup">ניהול רכבים לאיסוף</div>
       </div>
+      <div class="menu-card" id="menu-card-bodyshop-mgr" onclick="openBodyShopMgrScreen()">
+        <div style="position:relative;display:inline-block">
+          <div class="mc-icon">🔨</div>
+          <span id="badge-bodyshop-mgr" style="display:none;position:absolute;top:-6px;right:-10px;background:#b45309;color:#fff;border-radius:999px;font-size:11px;font-weight:900;padding:1px 6px;min-width:18px;text-align:center"></span>
+        </div>
+        <div class="mc-title">פחחות</div>
+        <div class="mc-sub" id="sub-bodyshop-mgr">עבודות אצל הפחח</div>
+      </div>
       <div class="menu-card" onclick="openRequestTaskModal()">
         <div class="mc-icon">📋</div>
         <div class="mc-title">הצעת משימה</div>
@@ -1012,7 +1020,7 @@ function goToScreen(name) {
   else if (name === 'parts-catalog') { if (currentUser.role !== 'manager') return; openPartsCatalogScreen(); }
   else if (name === 'battery-stock') { if (currentUser.role !== 'manager') return; openBatteryStockScreen(); }
   else if (name === 'driver-battery-stock') openDriverBatteryStockScreen();
-  else if (name === 'bodyshop-mgr') { if (currentUser.role !== 'manager') return; openBodyShopMgrScreen(); }
+  else if (name === 'bodyshop-mgr') { if (!_canBodyshop()) return; openBodyShopMgrScreen(); }
   else if (name === 'driver-battery-unified') {
     const card = document.getElementById('menu-card-driver-battery');
     if (card && card.dataset.unifiedMode === 'charging') openDriverChargingScreen();
@@ -1356,9 +1364,13 @@ function _setBatteryStockCard(units, maxSameType) {
 function _setBodyshopSwCard(n) {
   const card = document.getElementById('menu-card-bodyshop-mgr');
   const sub  = document.getElementById('sub-bodyshop-mgr');
-  // הצבע והמונה מטופלים במנגנון הקוביות המשותף; כאן רק המשפט שמתחת
-  _setCardBadge('bodyshop-mgr', n, n > 0 ? '#b45309' : null);
+  /* המונה הזה סופר רכבים שממתינים לעדכון עלויות — עניין של המנהל.
+     מי שקיבל את המסך לעבודה בלבד אינו רואה אותו, ולא את הניסוח
+     הכספי שמתחת לקובייה. */
+  const money = currentUser?.role === 'manager';
+  _setCardBadge('bodyshop-mgr', money ? n : 0, (money && n > 0) ? '#b45309' : null);
   if (!card || !sub) return;
+  if (!money) { sub.textContent = 'עבודות אצל הפחח'; return; }
   sub.textContent = n
     ? (n === 1 ? '💳 רכב אחד לעדכון בתוכנה' : `💳 ${n} רכבים לעדכון בתוכנה`)
     : 'עבודות, מחירים וחשבון חודשי';

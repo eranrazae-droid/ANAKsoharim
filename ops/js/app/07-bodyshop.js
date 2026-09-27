@@ -473,7 +473,10 @@ function _bshopJobCard(j, forWorker, held) {
   /* עלות משוערת — רק אצל המנהל, רק כשהרכב אצל הפחח, ורק כל עוד
      איברהים לא תימחר. ב"מכוניות שסיימנו" ובארכיון המחיר שלו סופי
      ואין מה להעריך. */
-  const showEst = !forWorker && !held && j.status === 'at_shop' && total === 0;
+  /* המחיר על הכרטיס: אצל איברהים כמו תמיד — הוא זה שמתמחר. אצל
+     המנהל כמו תמיד. מי שקיבל את המסך לעבודה בלבד אינו רואה סכומים. */
+  const money = forWorker || _bsmMoney();
+  const showEst = !forWorker && _bsmMoney() && !held && j.status === 'at_shop' && total === 0;
   const est = showEst ? _bshopEstimate(j) : null;
   const manual = showEst && Number(j.estManual) > 0 ? Number(j.estManual) : null;
   const estVal = manual != null ? manual : (est ? est.sum : 0);
@@ -489,7 +492,7 @@ function _bshopJobCard(j, forWorker, held) {
              style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">${esc(j.plate)} 📋</span>`}</div>
         ${desc ? `<div class="bs-desc" style="font-size:13px;color:var(--muted)">${esc(desc)}</div>` : ''}
       </div>
-      ${total > 0 ? `<div style="text-align:left;white-space:nowrap">
+      ${money && total > 0 ? `<div style="text-align:left;white-space:nowrap">
         <div class="bs-total" style="font-size:18px;font-weight:900;color:var(--gold)">${total.toLocaleString('he-IL')} ₪</div>
         <div style="font-size:11px;font-weight:700;color:var(--muted)">לפני מע״מ</div>
       </div>` : ''}
@@ -1134,7 +1137,14 @@ function bsmOpenPartAvg() {
 }
 window.bsmOpenPartAvg = bsmOpenPartAvg;
 
+/* מסך הפחחות פתוח גם למשה, אבל הצד הכספי שלו אינו. נקודה אחת קובעת
+   מי רואה מחירים, ארכיון תשלומים, סטטיסטיקה וסגירת חשבון — וכל שאר
+   המסך נגזר ממנה, כך שלא נשכח פינה. */
+const _bsmMoney = () => currentUser?.role === 'manager';
+
 function bsmShowView(name) {
+  // לשוניות כספיות אינן קיימות למי שאינו מנהל, גם אם הגיע אליהן ישירות
+  if (!_bsmMoney() && (name === 'arc' || name === 'stats')) name = 'open';
   _bsmView = _BSM_VIEWS[name] ? name : 'open';
   for (const k of Object.keys(_BSM_VIEWS)) {
     const el = document.getElementById('bsm-view-' + k);
@@ -1154,15 +1164,16 @@ function bsmShowView(name) {
     stats: { actions: 0, tile: 0, pay: 0, extra: 0 },
   }[_bsmView] || { actions: 0, tile: 1, pay: 1, extra: 1 };
   const setVis = (id, on, disp) => { const el = document.getElementById(id); if (el) el.style.display = on ? (disp || '') : 'none'; };
+  const money = _bsmMoney();
   setVis('bsm-top-actions', show.actions, 'flex');
-  setVis('bsm-summary-tile', show.tile);
-  setVis('bsm-summary-pay', show.pay);
-  setVis('bsm-summary-extra', show.extra);
-  setVis('bsm-summary', show.tile || show.pay, 'grid');
+  setVis('bsm-summary-tile', money && show.tile);
+  setVis('bsm-summary-pay', money && show.pay);
+  setVis('bsm-summary-extra', money && show.extra);
+  setVis('bsm-summary', money && (show.tile || show.pay), 'grid');
   const sumEl = document.getElementById('bsm-summary');
   // one half alone takes the full width
   if (sumEl) sumEl.style.gridTemplateColumns = (show.tile && show.pay) ? '1fr 1fr' : '1fr';
-  if (_bsmView === 'stats') _bsmRenderStats();
+  if (_bsmView === 'stats' && money) _bsmRenderStats();
   toggleBsmMenu(false);
   window.scrollTo({ top: 0 });
 }
@@ -1177,12 +1188,29 @@ document.addEventListener('click', e => {
 // the floating pair belongs to this screen only
 function _bsmHideActions() { const el = document.getElementById('bsm-top-actions'); if (el) el.style.display = 'none'; }
 
+/* מסתיר במסך עצמו את מה שאינו שייך למי שאינו מנהל. נקרא בכל פתיחה,
+   כי אותו דפדפן יכול להחליף משתמש בלי לרענן. */
+function _bsmApplyRole() {
+  const money = _bsmMoney();
+  document.querySelectorAll('.bsm-tab').forEach(b => {
+    if (b.dataset.view === 'arc' || b.dataset.view === 'stats') b.style.display = money ? '' : 'none';
+  });
+  const hide = ['bsm-pay-wrap'];
+  hide.forEach(id => { const el = document.getElementById(id); if (el && !money) el.style.display = 'none'; });
+  // מחיקת פתק ורשימת המחירים הן פעולות של מנהל
+  document.querySelectorAll('#bsm-actions-stack .bsm-fab').forEach(b => {
+    const fn = b.getAttribute('onclick') || '';
+    if (/openBsmDelete|openBsmItemsModal/.test(fn)) b.style.display = money ? '' : 'none';
+  });
+}
+
 function openBodyShopMgrScreen() {
   // which screen opens is decided once the notes have loaded — see below
   _bsmAutoView = true;
   bsmShowView('draft');
   document.getElementById('bsm-user-badge').textContent = currentUser.name;
   document.getElementById('bsm-link').value = location.origin + '/ops/pahach/';
+  _bsmApplyRole();
   showScreen('bodyshop-mgr');
   _bshopListen(_bshopRenderMgr);
 }
@@ -1225,7 +1253,7 @@ function _bshopRenderMgr() {
   retC.innerHTML = ret.length ? ret.map(j => _bshopJobCard(j, false)).join('')
     : `<div class="bshop-span" style="padding:16px;text-align:center;color:var(--muted)">אין רכבים שממתינים לתשלום</div>`;
   const payWrap = document.getElementById('bsm-pay-wrap');
-  if (payWrap) payWrap.style.display = ret.length ? 'flex' : 'none';
+  if (payWrap) payWrap.style.display = (ret.length && _bsmMoney()) ? 'flex' : 'none';
   _bsmRenderHold();
   // entering the screen lands on the notes waiting to be sent; with none
   // waiting there is nothing to do there, so it lands on the cars at the shop
