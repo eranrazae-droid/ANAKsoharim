@@ -1294,12 +1294,18 @@
     el.innerHTML=list.map(_storyCardHTML).join('');
   }
   // מעקב פרסום: הורדת "תמונה ראשית + החזר חודשי" לכל הרכבים המסוננים, כ-ZIP
-  function downloadPubImages(btn){
+  function downloadPubImages(btn, carId){
     var rows=(typeof ptRows==='function')?ptRows():[];
-    var bsel=document.getElementById('ptBrandFilter'); var fb=bsel?bsel.value:'';
-    var q=((document.getElementById('ptSearch')||{}).value||'').trim().toLowerCase();
-    var cars2=rows.filter(function(c){ return c && (c.image||c.catalog_image||(c.gallery&&c.gallery.length)) && (Number(c.autodealerPriceNumber)||0)>1
-      && (!fb||c.brand===fb) && (!q||((c.brand||'')+' '+(c.model||'')).toLowerCase().indexOf(q)>=0); });
+    var cars2;
+    if(carId!=null){
+      // רק הרכב של המשימה הנוכחית
+      cars2=rows.filter(function(c){ return c && String(c.id)===String(carId) && (c.image||c.catalog_image||(c.gallery&&c.gallery.length)) && (Number(c.autodealerPriceNumber)||0)>1; });
+    } else {
+      var bsel=document.getElementById('ptBrandFilter'); var fb=bsel?bsel.value:'';
+      var q=((document.getElementById('ptSearch')||{}).value||'').trim().toLowerCase();
+      cars2=rows.filter(function(c){ return c && (c.image||c.catalog_image||(c.gallery&&c.gallery.length)) && (Number(c.autodealerPriceNumber)||0)>1
+        && (!fb||c.brand===fb) && (!q||((c.brand||'')+' '+(c.model||'')).toLowerCase().indexOf(q)>=0); });
+    }
     if(!cars2.length){ alert('אין רכבים עם תמונה ומחיר להורדה'); return; }
     if(cars2.length>25 && !confirm(cars2.length+' תמונות - זה ייקח כמה דקות. להמשיך? (אפשר לסנן לפי יצרן כדי לצמצם)')) return;
     var orig=btn?btn.textContent:''; if(btn){ btn.disabled=true; btn.textContent='⏳ מכין תמונות...'; }
@@ -1308,19 +1314,32 @@
     var cards=[].slice.call(host.querySelectorAll('.story-card'));
     function withLib(name,src,next){ if(window[name]) return next(); _loadScript(src,next); }
     withLib('html2canvas','https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',function(){
+      var single=(cars2.length===1);
+      function fname(c){ return (c.brand+'-'+c.model).replace(/[^\w֐-׿]+/g,'_').slice(0,40); }
+      function dl(href,name){ var a=document.createElement('a'); a.href=href; a.download=name; document.body.appendChild(a); a.click(); document.body.removeChild(a); }
+      if(single){
+        // רכב בודד - מורידים PNG ישירות בלי ZIP
+        window.html2canvas(cards[0],{useCORS:true,backgroundColor:null,scale:2}).then(function(canvas){
+          canvas.toBlob(function(b){
+            if(b){ var href=URL.createObjectURL(b); dl(href, fname(cars2[0])+'.png'); setTimeout(function(){URL.revokeObjectURL(href);},2000); }
+            document.body.removeChild(host); if(btn){ btn.disabled=false; btn.textContent=orig; } toast&&toast('התמונה של הרכב ירדה ✓');
+          },'image/png');
+        }).catch(function(){ document.body.removeChild(host); if(btn){ btn.disabled=false; btn.textContent=orig; } });
+        return;
+      }
       withLib('JSZip','https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',function(){
         var zip=new window.JSZip(), i=0;
         (function next(){
           if(i>=cards.length){
             zip.generateAsync({type:'blob'}).then(function(blob){
-              var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='car-images.zip'; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(function(){URL.revokeObjectURL(a.href);},2000);
+              var href=URL.createObjectURL(blob); dl(href,'car-images.zip'); setTimeout(function(){URL.revokeObjectURL(href);},2000);
               document.body.removeChild(host); if(btn){ btn.disabled=false; btn.textContent=orig; } toast&&toast('כל התמונות ירדו ב-ZIP ✓');
             });
             return;
           }
           if(btn) btn.textContent='⏳ '+(i+1)+'/'+cards.length;
           window.html2canvas(cards[i],{useCORS:true,backgroundColor:null,scale:2}).then(function(canvas){
-            canvas.toBlob(function(b){ if(b) zip.file((cars2[i].brand+'-'+cars2[i].model).replace(/[^\w֐-׿]+/g,'_').slice(0,40)+'.png', b); i++; setTimeout(next,120); },'image/png');
+            canvas.toBlob(function(b){ if(b) zip.file(fname(cars2[i])+'.png', b); i++; setTimeout(next,120); },'image/png');
           }).catch(function(){ i++; setTimeout(next,120); });
         })();
       });
@@ -2086,7 +2105,7 @@
         '<button onclick="copyVoiceScript(\''+next.id+'\')" style="background:#7c3aed;color:#fff;border:none;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:800;cursor:pointer">🎙️ טקסט לקול</button>'+
         '<button onclick="copyTikTokPost(\''+next.id+'\')" style="background:#db2777;color:#fff;border:none;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:800;cursor:pointer">📱 פוסט טיקטוק + אינסטגרם</button>'+
         '<a href="https://autodealer.co.il/?car='+encodeURIComponent(next.id)+'" target="_blank" style="border:1.5px solid #16a34a;background:#f0fdf4;color:#15803d;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:800;text-decoration:none">🔗 באתר</a>'+
-        '<button onclick="downloadPubImages(this)" title="הורדת תמונה ראשית + החזר חודשי לכל הרכבים המסוננים" style="background:#16a34a;color:#fff;border:none;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:800;cursor:pointer">⬇️ הורד את כל התמונות</button>'+
+        '<button onclick="downloadPubImages(this,\''+next.id+'\')" title="הורדת תמונה ראשית + החזר חודשי של הרכב הזה" style="background:#16a34a;color:#fff;border:none;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:800;cursor:pointer">⬇️ הורד תמונות הרכב</button>'+
         '<button onclick="skipNextTask(\''+who+'\',\''+next.id+'\')" style="background:#fef2f2;border:1.5px solid #fecaca;color:#b91c1c;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:800;cursor:pointer">⏭️ דלג (לא במלאי)</button>'+
         missing.map(ch=>'<button onclick="togglePub(\''+next.id+'\',\''+ch.key+'\')" style="background:#16a34a;color:#fff;border:none;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:800;cursor:pointer">✓ פרסמתי ב'+_esc(ch.label)+'</button>').join('')+
       '</div>'+
