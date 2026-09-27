@@ -1927,14 +1927,20 @@
   function _pubPerson(){ try{ return localStorage.getItem('pubPerson')||'הכל'; }catch(e){ return 'הכל'; } }
   function setPubPerson(p){ try{ localStorage.setItem('pubPerson',p); }catch(e){} renderPubTrack(); }
   // טקסט הקראה (voiceover) מוכן לרכב ספציפי - להזנה לתוכנת קול (~20 שניות)
-  function _voMonthly(price){ var p=Number(price||0); if(!p) return 0; var r=4.3/100/12, f=p*0.5, m=60; return Math.round((p*r - f*r/Math.pow(1+r,m))/(1-Math.pow(1+r,-m))); }
+  // החזר חודשי - זהה בדיוק לאתר (financeLowest: המסלול הזול מבין 5). מקבל מחיר כולל רישוי.
+  function _voMonthly(price){
+    var loan=Number(price||0); if(!loan||loan<=1) return 0;
+    function mo(p,ar,m,fv){ p=Number(p||0); if(!p||!m) return 0; var r=ar/100/12, f=Number(fv||0); if(r===0) return (p-f)/m; return (p*r - f*r/Math.pow(1+r,m))/(1-Math.pow(1+r,-m)); }
+    var tracks=[ mo(loan,4.2,100), mo(loan,4.2,60,loan*0.5), mo(loan,7.1,100), mo(loan,7.0,100), mo(loan,9.0,100) ];
+    return Math.round(Math.min.apply(null,tracks));
+  }
   function copyVoiceScript(id){
     var list=(typeof cars!=='undefined'&&Array.isArray(cars))?cars:[];
     var c=list.find(x=>String(x.id)===String(id)); if(!c) return;
     var name=((c.brand||'')+' '+(c.model||'')).trim();
     var yr=c.year?(' '+c.year):'';
     var price=Number(c.autodealerPriceNumber)||0;
-    var monthly=_voMonthly(price);
+    var monthly=_voMonthly(price+(Number(c.licenseFee)||0));
     var M=monthly>0?monthly.toLocaleString('en-US'):'';
     var sign='אוטודילר. הדיל הנכון לרכב שלכם. בכפוף לאישור אשראי.';
     // מאגר תסריטים - כל אחד הוק אחר, 30-40 שניות. הרכב מקבל תסריט קבוע לפי המזהה (שונה בין רכבים).
@@ -1988,7 +1994,7 @@
     var name=((c.brand||'')+' '+(c.model||'')).trim();
     var yr=c.year?(' '+c.year):'';
     var price=Number(c.autodealerPriceNumber)||0;
-    var monthly=_voMonthly(price);
+    var monthly=_voMonthly(price+(Number(c.licenseFee)||0));
     var brandTag=(c.brand||'').replace(/[^0-9A-Za-z֐-׿]/g,'');
     var deal=monthly>0?('החל מ-'+monthly.toLocaleString('en-US')+'₪ לחודש · בלי מקדמה 🔥'):('במחיר הכי טוב בארץ · בלי מקדמה 🔥');
     var tags=['#רכבחדש','#0קמ',(brandTag?('#'+brandTag):''),'#אוטודילר','#מבצערכב','#רילס'].filter(Boolean).slice(0,5);
