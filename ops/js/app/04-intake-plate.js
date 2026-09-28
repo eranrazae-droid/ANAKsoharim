@@ -942,7 +942,11 @@ function _renderIntakeList(all) {
             ${v.spot ? `<div style="font-size:13px;font-weight:700;color:var(--dark);margin-top:4px">🅿️ חניה ${esc(v.spot)}</div>` : ''}
             ${ts ? `<div class="task-time" style="margin-top:4px">${ts}</div>` : ''}
           </div>
-          <span style="background:${color};color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700">פתיחה ▶</span>
+          <div style="display:flex;flex-direction:column;gap:6px;align-items:stretch;flex:0 0 auto;min-width:0">
+            <span style="background:${color};color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;text-align:center;white-space:nowrap">פתיחה ▶</span>
+            <button type="button" onclick="event.stopPropagation();openWashForVehicle('${esc(v.plate)}','${esc(v.brand||'')}','${esc(v.model||'')}','${esc(v.year||'')}','${esc(v.color||'')}','${v.id}')"
+              style="background:#0d9488;color:#fff;border:none;border-radius:999px;padding:5px 12px;font-family:Heebo,sans-serif;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap">🧽 פתק לשטיפה</button>
+          </div>
         </div>
       </div>`;
     }
