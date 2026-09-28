@@ -520,6 +520,12 @@ function getChecklist() {
   return result;
 }
 
+/* אותו טופס לשניהם, בשתי צורות. המנהל פותח קליטה ומשייך אותה לנהג
+   ורושם חניה. עובד פותח קליטה לעצמו: אין למי לשייך ואין חניה לרשום
+   בשלב הזה, ולכן שני החלקים האלה פשוט אינם מוצגים לו. כל שאר הטופס,
+   כולל משיכת הפרטים לפי מספר הרישוי, זהה. */
+const _intakeSelf = () => currentUser?.role !== 'manager';
+
 function openNewVehicleModal() {
   ['v-plate','v-brand','v-model','v-color','v-year','v-spot'].forEach(id => {
     const el = document.getElementById(id);
@@ -527,6 +533,17 @@ function openNewVehicleModal() {
   });
   document.getElementById('v-fetch-status').textContent = '';
   document.querySelectorAll('.driver-pick-btn').forEach(b => b.classList.remove('selected'));
+  const self = _intakeSelf();
+  const drv = document.getElementById('v-driver-group');
+  if (drv) drv.style.display = self ? 'none' : '';
+  const spot = document.getElementById('v-spot-group');
+  if (spot) spot.style.display = self ? 'none' : '';
+  const yearGrid = document.getElementById('v-year-grid');
+  if (yearGrid) yearGrid.style.gridTemplateColumns = self ? '1fr' : '1fr 1fr';
+  const btn = document.querySelector('#modal-vehicle .btn-submit');
+  if (btn) btn.textContent = self ? 'פתח קליטה ✅' : 'שלח לנהג ✅';
+  const title = document.getElementById('v-modal-title');
+  if (title) title.textContent = self ? 'קליטת רכב — עבורך' : 'טופס קליטת רכב';
   openModal('modal-vehicle');
 }
 
@@ -622,15 +639,23 @@ window.submitVehicle = submitVehicle;
 async function _submitVehicleInner() {
   const plate = document.getElementById('v-plate').value.trim();
   if (!plate) return showToast('נא להזין מספר לוחית');
-  const spot = document.getElementById('v-spot').value.trim();
-  if (!spot) {
-    document.getElementById('v-spot').focus();
-    return showToast('נא להזין מספר חניה');
+  const self = _intakeSelf();
+  if (!self) {
+    const spot = document.getElementById('v-spot').value.trim();
+    if (!spot) {
+      document.getElementById('v-spot').focus();
+      return showToast('נא להזין מספר חניה');
+    }
   }
   if (!window._CONFIG_DONE) return showToast('Firebase לא מחובר');
-  const driverBtn = document.querySelector('.driver-pick-btn.selected');
-  if (!driverBtn) return showToast('נא לבחור נהג קולט');
-  const driver = driverBtn.dataset.driver;
+  let driver;
+  if (self) {
+    driver = currentUser.name;          // הקליטה נפתחת עבור מי שפתח אותה
+  } else {
+    const driverBtn = document.querySelector('.driver-pick-btn.selected');
+    if (!driverBtn) return showToast('נא לבחור נהג קולט');
+    driver = driverBtn.dataset.driver;
+  }
 
   const { getDocs, query, collection, where } =
     await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
@@ -662,7 +687,7 @@ async function _submitVehicleInner() {
   }
 
   closeModal('modal-vehicle');
-  showToast('✅ נשלח לנהג!');
+  showToast(self ? '✅ הקליטה נפתחה — היא ממתינה לך ברשימה' : '✅ נשלח לנהג!');
 
   const _brand = document.getElementById('v-brand').value.trim();
   const _model = document.getElementById('v-model').value.trim();
@@ -672,13 +697,14 @@ async function _submitVehicleInner() {
     model:      _model,
     color:      document.getElementById('v-color').value.trim(),
     year:       document.getElementById('v-year').value,
-    spot:       document.getElementById('v-spot').value.trim(),
+    spot:       self ? '' : document.getElementById('v-spot').value.trim(),
     assignedTo: driver,
     createdBy:  currentUser.name,
     status:     'pending',
     createdAt:  _serverTs()
   });
-  _notifyDriver(driver, `🚗 קליטת רכב חדשה ממתינה לך — ${plate} ${_brand} ${_model}. כנס לאפליקציה ענק הרכבים.`);
+  // אין טעם להתריע למי שפתח את הקליטה בעצמו
+  if (!self) _notifyDriver(driver, `🚗 קליטת רכב חדשה ממתינה לך — ${plate} ${_brand} ${_model}. כנס לאפליקציה ענק הרכבים.`);
 }
 
 /* ═══════════════════════════════════════════════════════

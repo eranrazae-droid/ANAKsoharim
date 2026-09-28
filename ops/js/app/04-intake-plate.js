@@ -507,8 +507,14 @@ async function submitTask() {
 function openVehiclesScreen() {
   const isManager = currentUser.role === 'manager';
   document.getElementById('vehicles-user-badge').textContent = currentUser.name;
+  /* כל עובד יכול לפתוח קליטה לעצמו, ולכן הכפתור מוצג לכולם. הרענון
+     נשאר של המנהל — הוא משייך אותו, ואין לו משמעות עצמית לעובד. */
   const fabWrap = document.getElementById('vehicle-fab-wrap');
-  if (fabWrap) fabWrap.style.display = isManager ? 'flex' : 'none';
+  if (fabWrap) fabWrap.style.display = 'flex';
+  const refFab = document.getElementById('fab-new-refresh-v');
+  if (refFab) refFab.style.display = isManager ? '' : 'none';
+  const newVeh = document.getElementById('fab-new-vehicle');
+  if (newVeh) newVeh.textContent = isManager ? '+ קליטת רכב' : '+ קליטה לעצמי';
   // הצפייה בזמן אמת עברה לכרטיסים עצמם: כל קליטה מראה כמה מולא,
   // ולחיצה עליה פותחת את הטופס החי של אותו רכב
   const liveBtn = document.getElementById('btn-live-intake');
