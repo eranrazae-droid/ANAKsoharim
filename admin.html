@@ -1319,34 +1319,54 @@
       function dl(href,name){ var a=document.createElement('a'); a.href=href; a.download=name; document.body.appendChild(a); a.click(); document.body.removeChild(a); }
       function extOf(u){ var m=String(u).split('?')[0].match(/\.(jpe?g|png|webp|gif|avif)$/i); return m?m[1].toLowerCase().replace('jpeg','jpg'):'jpg'; }
       if(single){
-        // רכב בודד - ZIP הכולל את כרטיס הסטורי (תמונה ראשית + החזר חודשי) + כל תמונות הרכב
+        // רכב בודד - אוספים את כרטיס הסטורי (תמונה ראשית + החזר חודשי) + כל תמונות הרכב
         var c0=cars2[0], base=fname(c0);
         var photos=[]; var seen={};
         [c0.image, c0.catalog_image].concat(c0.gallery||[]).forEach(function(u){ if(u && String(u).trim() && String(u).indexOf('data:')!==0 && !seen[u]){ seen[u]=1; photos.push(u); } });
-        withLib('JSZip','https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',function(){
-          var zip=new window.JSZip();
-          // 1) כרטיס הסטורי
-          window.html2canvas(cards[0],{useCORS:true,backgroundColor:null,scale:2}).then(function(canvas){
-            canvas.toBlob(function(b){
-              if(b) zip.file(base+'-story.png', b);
-              // 2) כל התמונות הגולמיות של הרכב
-              var pi=0;
-              (function nextP(){
-                if(pi>=photos.length){
-                  zip.generateAsync({type:'blob'}).then(function(blob){
-                    var href=URL.createObjectURL(blob); dl(href, base+'.zip'); setTimeout(function(){URL.revokeObjectURL(href);},2000);
-                    document.body.removeChild(host); if(btn){ btn.disabled=false; btn.textContent=orig; } toast&&toast('כל תמונות הרכב ירדו ב-ZIP ✓');
-                  });
-                  return;
-                }
-                if(btn) btn.textContent='⏳ '+(pi+1)+'/'+photos.length;
-                fetch(photos[pi],{mode:'cors'}).then(function(r){return r.blob();}).then(function(pb){
-                  zip.file(base+'-'+(pi+1)+'.'+extOf(photos[pi]), pb); pi++; nextP();
-                }).catch(function(){ pi++; nextP(); });
-              })();
-            },'image/png');
-          }).catch(function(){ document.body.removeChild(host); if(btn){ btn.disabled=false; btn.textContent=orig; } });
-        });
+        function done(){ document.body.removeChild(host); if(btn){ btn.disabled=false; btn.textContent=orig; } }
+        var files=[]; // File objects
+        // 1) כרטיס הסטורי
+        window.html2canvas(cards[0],{useCORS:true,backgroundColor:null,scale:2}).then(function(canvas){
+          canvas.toBlob(function(b){
+            if(b) files.push(new File([b], base+'-story.png', {type:'image/png'}));
+            // 2) כל התמונות הגולמיות של הרכב
+            var pi=0;
+            (function nextP(){
+              if(pi>=photos.length){ finishSingle(); return; }
+              if(btn) btn.textContent='⏳ '+(pi+1)+'/'+photos.length;
+              fetch(photos[pi],{mode:'cors'}).then(function(r){return r.blob();}).then(function(pb){
+                var ext=extOf(photos[pi]); var mt=pb.type||('image/'+(ext==='jpg'?'jpeg':ext));
+                files.push(new File([pb], base+'-'+(pi+1)+'.'+ext, {type:mt})); pi++; nextP();
+              }).catch(function(){ pi++; nextP(); });
+            })();
+          },'image/png');
+        }).catch(function(){ done(); });
+
+        function finishSingle(){
+          // במובייל: פתיחת חלון השיתוף של המערכת → "שמור תמונה" → נכנס ישר לגלריה
+          if(navigator.canShare && files.length && navigator.canShare({files:files})){
+            if(btn) btn.textContent='📤 פותח שיתוף...';
+            navigator.share({files:files, title:base, text:(c0.brand+' '+c0.model)}).then(function(){
+              done(); toast&&toast('בחר "שמור תמונה" כדי לשמור לגלריה ✓');
+            }).catch(function(err){
+              // אם המשתמש ביטל - לא עושים כלום; אם לא נתמך - fallback ל-ZIP
+              if(err && err.name==='AbortError'){ done(); return; }
+              zipFallback();
+            });
+            return;
+          }
+          zipFallback();
+        }
+        function zipFallback(){
+          withLib('JSZip','https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',function(){
+            var zip=new window.JSZip();
+            files.forEach(function(f){ zip.file(f.name, f); });
+            zip.generateAsync({type:'blob'}).then(function(blob){
+              var href=URL.createObjectURL(blob); dl(href, base+'.zip'); setTimeout(function(){URL.revokeObjectURL(href);},2000);
+              done(); toast&&toast('כל תמונות הרכב ירדו ב-ZIP ✓');
+            });
+          });
+        }
         return;
       }
       withLib('JSZip','https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',function(){
