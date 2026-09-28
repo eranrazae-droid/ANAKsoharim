@@ -1212,7 +1212,10 @@ window.washQuickPick = washQuickPick;
 async function washQuickPrint() {
   if (!_washQuick) return;
   if (!_washQuick.type) return showToast('נא לבחור סוג שטיפה', 4000);
-  if (!await _washAllowPlate(_washQuick.plate)) return;
+  /* פתק שיוצא מקליטה אינו נבדק מול המלאי. קליטה היא ההוכחה הטובה
+     ביותר שהרכב נמצא בשטח — טובה יותר מרשימת המלאי, שמתעדכנת
+     באיחור ולכן חסמה רכב שהתקבל היום. */
+  if (!_washQuickIntake && !await _washAllowPlate(_washQuick.plate)) return;
   const note = (document.getElementById('wash-quick-note')?.value || '').trim();
   const f = { ..._washQuick, subModel: '', note };
   // אותה שורת תיאור כמו בטופס הרגיל, כדי שהפתק ייראה זהה ברשימות
