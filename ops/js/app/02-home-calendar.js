@@ -498,6 +498,9 @@ function renderHome() {
         { icon: '📋', title: 'המשימות שלי', sub: 'משימות שהוקצו לך', screen: 'tasks' },
         { icon: '🔋', title: 'בדיקת סוללה והטענת רכבים חשמליים', sub: 'מילוי אחוזי טעינה וטווח', screen: 'driver-battery' },
         { icon: _ICON_CAR_BATTERY, title: 'מצברים', sub: 'רישום מצבר שהורכב לרכב', screen: 'driver-battery-install' },
+        /* שתי אלה חולקות את השורה האחרונה. קודם פתק השטיפה עמד בה
+           לבדו ונמתח לכל הרוחב; עכשיו הוא קובייה רגילה כמו השאר. */
+        { icon: '🚗', title: 'קליטות ורענון', sub: 'קליטות שממתינות לך', screen: 'vehicles' },
         { icon: '🧽', title: 'פתק שטיפה', sub: 'הכנה והדפסה של פתק לרכב', screen: 'wash' },
       ];
 
