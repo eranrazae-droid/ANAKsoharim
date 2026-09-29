@@ -552,7 +552,35 @@ function pickDriver(btn) {
   btn.classList.add('selected');
 }
 
-async function fetchVehicleData() {
+/* משיכה אוטומטית ברגע שהוקלד מספר רישוי שלם, בלי ללחוץ על הזכוכית.
+   נהג שהקליד רישוי ולא לחץ על ״אישור״ יצר קליטה בלי יצרן, דגם ושנה —
+   וזה מה שהיה מגיע למסך. אותו דפוס כבר קיים בטופס השטיפה. */
+let _vFetchTimer = null;
+function vPlateSoon() {
+  clearTimeout(_vFetchTimer);
+  const el = document.getElementById('v-plate');
+  const p = (el?.value || '').replace(/\D/g, '');
+  if (p.length < 7) return;
+  // כבר יש פרטים שמולאו ביד — לא דורסים אותם
+  const brand = document.getElementById('v-brand');
+  if (brand && brand.value.trim()) return;
+  _vFetchTimer = setTimeout(() => fetchVehicleData(true), 400);
+}
+window.vPlateSoon = vPlateSoon;
+
+/* רשת ביטחון אחרונה לפני השמירה: אם אין יצרן ואין דגם, מושכים אותם
+   עכשיו. כך קליטה לעולם אינה נשמרת ריקה, גם אם המשיכה האוטומטית
+   לא הספיקה או שהרשת נפלה באמצע. */
+async function _vEnsureDetails() {
+  const brand = document.getElementById('v-brand');
+  const model = document.getElementById('v-model');
+  if ((brand && brand.value.trim()) || (model && model.value.trim())) return;
+  const plate = (document.getElementById('v-plate')?.value || '').replace(/\D/g, '');
+  if (plate.length < 7) return;
+  try { await fetchVehicleData(true); } catch (e) { /* נשמר בלי פרטים, כמו קודם */ }
+}
+
+async function fetchVehicleData(auto) {
   const raw = document.getElementById('v-plate').value.trim().replace(/[^0-9]/g, '');
   if (!raw) return showToast('נא להזין מספר לוחית');
   const status = document.getElementById('v-fetch-status');
@@ -561,7 +589,11 @@ async function fetchVehicleData() {
   btn.disabled = true;
   try {
     const rec = await _plateLookup(raw);
-    if (!rec) { status.style.color='var(--danger)'; status.textContent = window._plateRegistryEmpty ? '⏳ מאגר משרד התחבורה בעדכון כרגע — נסו שוב מאוחר יותר או מלאו ידנית' : '❌ לא נמצא רכב עם מספר זה'; return; }
+    if (!rec) {
+      // במשיכה אוטומטית לא מטרידים בהודעת שגיאה — אפשר למלא ביד
+      if (auto) { status.textContent = ''; return; }
+      status.style.color='var(--danger)'; status.textContent = window._plateRegistryEmpty ? '⏳ מאגר משרד התחבורה בעדכון כרגע — נסו שוב מאוחר יותר או מלאו ידנית' : '❌ לא נמצא רכב עם מספר זה'; return;
+    }
     document.getElementById('v-brand').value = rec.maker;
     document.getElementById('v-model').value = rec.model;
     document.getElementById('v-color').value = rec.color;
@@ -569,8 +601,8 @@ async function fetchVehicleData() {
     status.style.color = 'var(--success)';
     status.textContent = '✅ פרטים נטענו בהצלחה';
   } catch(e) {
-    status.style.color = 'var(--danger)';
-    status.textContent = '❌ שגיאה בחיבור לשרת';
+    if (auto) { status.textContent = ''; }
+    else { status.style.color = 'var(--danger)'; status.textContent = '❌ שגיאה בחיבור לשרת'; }
   } finally {
     btn.disabled = false;
   }
@@ -648,6 +680,7 @@ async function _submitVehicleInner() {
     }
   }
   if (!window._CONFIG_DONE) return showToast('Firebase לא מחובר');
+  await _vEnsureDetails();
   let driver;
   if (self) {
     driver = currentUser.name;          // הקליטה נפתחת עבור מי שפתח אותה
