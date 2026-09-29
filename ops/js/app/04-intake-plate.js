@@ -519,8 +519,20 @@ function openVehiclesScreen() {
   // ולחיצה עליה פותחת את הטופס החי של אותו רכב
   const liveBtn = document.getElementById('btn-live-intake');
   if (liveBtn) liveBtn.style.display = 'none';
+  /* בטלפון הכפתורים הצפים מוסתרים ב-CSS, והשורה שבראש המסך היא
+     שמחליפה אותם. היא הייתה של המנהל בלבד, ולכן הנהג נשאר בלי שום
+     דרך לפתוח קליטה בטלפון. עכשיו היא מוצגת גם לו — עם כפתור אחד. */
   const rulesBar = document.getElementById('intake-rules-bar');
-  if (rulesBar) rulesBar.style.display = isManager ? 'block' : 'none';
+  if (rulesBar) {
+    rulesBar.classList.toggle('ir-self', !isManager);
+    rulesBar.style.display = isManager ? 'block' : '';
+    const refBtn = rulesBar.querySelector('.ir-add.ir-ref');
+    if (refBtn) refBtn.style.display = isManager ? '' : 'none';
+    const rulesBtn = document.getElementById('ir-rules');
+    if (rulesBtn) rulesBtn.style.display = isManager ? '' : 'none';
+    const addBtn = rulesBar.querySelector('.ir-add:not(.ir-ref)');
+    if (addBtn) addBtn.textContent = isManager ? '+ קליטה' : '+ קליטה לעצמי';
+  }
   showScreen('vehicles');
   if (archiveUnsub) { archiveUnsub(); archiveUnsub = null; }
   _archiveItems = [];
