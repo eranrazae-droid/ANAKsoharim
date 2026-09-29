@@ -2719,14 +2719,48 @@
     toggleNewLead(false);
     toast&&toast(ok?'ליד נוסף בהצלחה ✓':'נוסף מקומית (בדוק חיבור לענן)');
   }
+  // אוסף ערכים שהוקלדו בכרטיסי הלידים ועדיין לא נשמרו - כדי שרענון מהענן לא ימחק אותם
+  function _captureLeadEdits(){
+    const map={};
+    try{
+      (leads||[]).forEach(function(l){
+        const id=l.id; const g=function(pre){ const e=document.getElementById(pre+'_'+id); return e?e.value:undefined; };
+        const rec={};
+        const st=g('st'); if(st!==undefined) rec.status=st;
+        const fu=g('fu'); if(fu!==undefined) rec.followup_at=fu;
+        const at=g('at'); if(at!==undefined) rec.call_attempts=at;
+        const sum=g('sum'); if(sum!==undefined) rec.summary=sum;
+        const tp=g('tp'); if(tp!==undefined) rec.tradein_plate=tp;
+        const tc=g('tc'); if(tc!==undefined) rec.tradein_credit=tc;
+        const cty=g('city'); if(cty!==undefined) rec.city=cty;
+        const icv=[1,2,3].map(function(s){ const b=(document.getElementById('icb_'+id+'_'+s)||{}).value||''; const m=(document.getElementById('icm_'+id+'_'+s)||{}).value||''; return b?(m?(b+' '+m):b):''; }).filter(Boolean);
+        rec._interest=icv.join(' | ');
+        map[String(id)]=rec;
+      });
+    }catch(e){}
+    return map;
+  }
   async function loadLeadsFromCloud(){
     try{
       const c=sbClient(); if(!c) return;
+      // שמירת מה שהוקלד ועדיין לא נשמר, לפני שהמערך נדרס
+      const _edits=_captureLeadEdits();
       const {data,error}=await c.from('leads').select('*').order('created_at',{ascending:false}).limit(500);
       if(error){ console.warn('leads load', error.message); return; }
       if(Array.isArray(data)){
         // רשומות תיעוד מקור הגעה מסומנות ב-action ומופרדות מרשימת הלידים
         leads=data.filter(l=>l.action!==SRC_MARK);
+        // החזרת ערכים שהוקלדו ולא נשמרו (מקלדת פתוחה / באמצע עריכה) כדי שלא יימחקו
+        try{ leads.forEach(function(l){ const e=_edits[String(l.id)]; if(!e) return;
+          if(e.status!==undefined&&e.status!=='') l.status=e.status;
+          if(e.followup_at!==undefined&&e.followup_at!=='') l.followup_at=e.followup_at;
+          if(e.call_attempts!==undefined&&e.call_attempts!=='') l.call_attempts=Number(e.call_attempts)||l.call_attempts;
+          if(e.summary) l.summary=e.summary;
+          if(e.tradein_plate) l.tradein_plate=e.tradein_plate;
+          if(e.tradein_credit) l.tradein_credit=e.tradein_credit;
+          if(e.city) l.city=e.city;
+          if(e._interest) l.interest_cars=e._interest;
+        }); }catch(e){}
         _srcLog=data.filter(l=>l.action===SRC_MARK).map(l=>({source:l.source||'אחר',phone:l.phone||'',ts:l.created_at}));
         try{ localStorage.setItem('sourceLog', JSON.stringify(_srcLog)); }catch(e){}
         window._srcCloudOk=true;
