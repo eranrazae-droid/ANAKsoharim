@@ -459,6 +459,11 @@ function renderHome() {
         <div class="mc-title">פחחות</div>
         <div class="mc-sub" id="sub-bodyshop-mgr">עבודות אצל הפחח</div>
       </div>
+      <div class="menu-card" id="menu-card-wash" onclick="goToScreen('wash')">
+        <div class="mc-icon">🧽</div>
+        <div class="mc-title">פתק שטיפה</div>
+        <div class="mc-sub">הכנה והדפסה של פתק לרכב</div>
+      </div>
       <div class="menu-card" onclick="openRequestTaskModal()">
         <div class="mc-icon">📋</div>
         <div class="mc-title">הצעת משימה</div>
