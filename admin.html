@@ -1294,7 +1294,8 @@
     el.innerHTML=list.map(_storyCardHTML).join('');
   }
   // מעקב פרסום: הורדת "תמונה ראשית + החזר חודשי" לכל הרכבים המסוננים, כ-ZIP
-  function downloadPubImages(btn, carId){
+  // mode: 'story' = רק כרטיס תמונה ראשית + החזר חודשי + טלפון | 'photos' = כל תמונות הרכב | undefined = הכל
+  function downloadPubImages(btn, carId, mode){
     var rows=(typeof ptRows==='function')?ptRows():[];
     var cars2;
     if(carId!=null){
@@ -1325,22 +1326,25 @@
         [c0.image, c0.catalog_image].concat(c0.gallery||[]).forEach(function(u){ if(u && String(u).trim() && String(u).indexOf('data:')!==0 && !seen[u]){ seen[u]=1; photos.push(u); } });
         function done(){ document.body.removeChild(host); if(btn){ btn.disabled=false; btn.textContent=orig; } }
         var files=[]; // File objects
-        // 1) כרטיס הסטורי
-        window.html2canvas(cards[0],{useCORS:true,backgroundColor:null,scale:2}).then(function(canvas){
-          canvas.toBlob(function(b){
-            if(b) files.push(new File([b], base+'-story.png', {type:'image/png'}));
-            // 2) כל התמונות הגולמיות של הרכב
-            var pi=0;
-            (function nextP(){
-              if(pi>=photos.length){ finishSingle(); return; }
-              if(btn) btn.textContent='⏳ '+(pi+1)+'/'+photos.length;
-              fetch(photos[pi],{mode:'cors'}).then(function(r){return r.blob();}).then(function(pb){
-                var ext=extOf(photos[pi]); var mt=pb.type||('image/'+(ext==='jpg'?'jpeg':ext));
-                files.push(new File([pb], base+'-'+(pi+1)+'.'+ext, {type:mt})); pi++; nextP();
-              }).catch(function(){ pi++; nextP(); });
-            })();
-          },'image/png');
-        }).catch(function(){ done(); });
+        var wantStory=(mode!=='photos'), wantPhotos=(mode!=='story');
+        function collectPhotos(){
+          if(!wantPhotos){ finishSingle(); return; }
+          var pi=0;
+          (function nextP(){
+            if(pi>=photos.length){ finishSingle(); return; }
+            if(btn) btn.textContent='⏳ '+(pi+1)+'/'+photos.length;
+            fetch(photos[pi],{mode:'cors'}).then(function(r){return r.blob();}).then(function(pb){
+              var ext=extOf(photos[pi]); var mt=pb.type||('image/'+(ext==='jpg'?'jpeg':ext));
+              files.push(new File([pb], base+'-'+(pi+1)+'.'+ext, {type:mt})); pi++; nextP();
+            }).catch(function(){ pi++; nextP(); });
+          })();
+        }
+        // 1) כרטיס הסטורי (תמונה ראשית + החזר חודשי + טלפון)
+        if(wantStory){
+          window.html2canvas(cards[0],{useCORS:true,backgroundColor:null,scale:2}).then(function(canvas){
+            canvas.toBlob(function(b){ if(b) files.push(new File([b], base+'-story.png', {type:'image/png'})); collectPhotos(); },'image/png');
+          }).catch(function(){ collectPhotos(); });
+        } else { collectPhotos(); }
 
         function finishSingle(){
           // במובייל הדפדפן חוסם הורדה מרובה מחוץ ללחיצה - לכן משתמשים בחלון השיתוף של המערכת,
@@ -1358,6 +1362,10 @@
           zipFallback();
         }
         function zipFallback(){
+          if(files.length===1){ // תמונה בודדת - הורדה ישירה בלי ZIP
+            var f=files[0]; var href=URL.createObjectURL(f); dl(href, f.name); setTimeout(function(){URL.revokeObjectURL(href);},2000);
+            done(); toast&&toast('התמונה ירדה ✓'); return;
+          }
           withLib('JSZip','https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',function(){
             var zip=new window.JSZip();
             files.forEach(function(f){ zip.file(f.name, f); });
@@ -2147,7 +2155,8 @@
         '<button onclick="copyVoiceScript(\''+next.id+'\')" style="background:#7c3aed;color:#fff;border:none;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:800;cursor:pointer">🎙️ טקסט לקול</button>'+
         '<button onclick="copyTikTokPost(\''+next.id+'\')" style="background:#db2777;color:#fff;border:none;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:800;cursor:pointer">📱 פוסט טיקטוק + אינסטגרם</button>'+
         '<a href="https://autodealer.co.il/?car='+encodeURIComponent(next.id)+'" target="_blank" style="border:1.5px solid #16a34a;background:#f0fdf4;color:#15803d;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:800;text-decoration:none">🔗 באתר</a>'+
-        '<button onclick="downloadPubImages(this,\''+next.id+'\')" title="הורדת תמונה ראשית + החזר חודשי של הרכב הזה" style="background:#16a34a;color:#fff;border:none;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:800;cursor:pointer">⬇️ הורד תמונות הרכב</button>'+
+        '<button onclick="downloadPubImages(this,\''+next.id+'\',\'story\')" title="תמונה ראשית + החזר חודשי + טלפון" style="background:#16a34a;color:#fff;border:none;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:800;cursor:pointer">⬇️ הורד תמונה ראשית</button>'+
+        '<button onclick="downloadPubImages(this,\''+next.id+'\',\'photos\')" title="כל תמונות הרכב" style="background:#0891b2;color:#fff;border:none;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:800;cursor:pointer">⬇️ הורד תמונות</button>'+
         '<button onclick="skipNextTask(\''+who+'\',\''+next.id+'\')" style="background:#fef2f2;border:1.5px solid #fecaca;color:#b91c1c;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:800;cursor:pointer">⏭️ דלג (לא במלאי)</button>'+
         missing.map(ch=>'<button onclick="togglePub(\''+next.id+'\',\''+ch.key+'\')" style="background:#16a34a;color:#fff;border:none;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:800;cursor:pointer">✓ פרסמתי ב'+_esc(ch.label)+'</button>').join('')+
       '</div>'+
