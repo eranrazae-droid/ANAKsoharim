@@ -1347,31 +1347,13 @@
         } else { collectPhotos(); }
 
         function finishSingle(){
-          // במובייל הדפדפן חוסם הורדה מרובה מחוץ ללחיצה - לכן משתמשים בחלון השיתוף של המערכת,
-          // שמאפשר לשמור את כל התמונות בבת אחת לגלריה (בחר "שמור בגלריה"/"Photos"/"שמור תמונה").
-          if(navigator.canShare && files.length && navigator.canShare({files:files})){
-            if(btn) btn.textContent='📤 בחר "שמור בגלריה"...';
-            navigator.share({files:files, title:base, text:(c0.brand+' '+c0.model)}).then(function(){
-              done(); toast&&toast('בחר "שמור בגלריה"/"Photos" כדי לשמור את כל התמונות ✓');
-            }).catch(function(err){
-              if(err && err.name==='AbortError'){ done(); return; }
-              zipFallback();
-            });
-            return;
-          }
-          zipFallback();
-        }
-        function zipFallback(){
-          if(files.length===1){ // תמונה בודדת - הורדה ישירה בלי ZIP
-            var f=files[0]; var href=URL.createObjectURL(f); dl(href, f.name); setTimeout(function(){URL.revokeObjectURL(href);},2000);
-            done(); toast&&toast('התמונה ירדה ✓'); return;
-          }
+          if(btn) btn.textContent='📦 יוצר ZIP...';
           withLib('JSZip','https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',function(){
             var zip=new window.JSZip();
             files.forEach(function(f){ zip.file(f.name, f); });
             zip.generateAsync({type:'blob'}).then(function(blob){
               var href=URL.createObjectURL(blob); dl(href, base+'.zip'); setTimeout(function(){URL.revokeObjectURL(href);},2000);
-              done(); toast&&toast('כל תמונות הרכב ירדו ב-ZIP ✓');
+              done(); toast&&toast('כל התמונות (כולל ראשית) ירדו ב-ZIP ✓');
             });
           });
         }
@@ -2155,8 +2137,7 @@
         '<button onclick="copyVoiceScript(\''+next.id+'\')" style="background:#7c3aed;color:#fff;border:none;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:800;cursor:pointer">🎙️ טקסט לקול</button>'+
         '<button onclick="copyTikTokPost(\''+next.id+'\')" style="background:#db2777;color:#fff;border:none;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:800;cursor:pointer">📱 פוסט טיקטוק + אינסטגרם</button>'+
         '<a href="https://autodealer.co.il/?car='+encodeURIComponent(next.id)+'" target="_blank" style="border:1.5px solid #16a34a;background:#f0fdf4;color:#15803d;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:800;text-decoration:none">🔗 באתר</a>'+
-        '<button onclick="downloadPubImages(this,\''+next.id+'\',\'story\')" title="תמונה ראשית + החזר חודשי + טלפון" style="background:#16a34a;color:#fff;border:none;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:800;cursor:pointer">⬇️ הורד תמונה ראשית</button>'+
-        '<button onclick="downloadPubImages(this,\''+next.id+'\',\'photos\')" title="כל תמונות הרכב" style="background:#0891b2;color:#fff;border:none;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:800;cursor:pointer">⬇️ הורד תמונות</button>'+
+        '<button onclick="downloadPubImages(this,\''+next.id+'\')" title="ZIP: תמונה ראשית + החזר חודשי + כל תמונות הרכב" style="background:#16a34a;color:#fff;border:none;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:800;cursor:pointer">⬇️ הורד את כל התמונות (ZIP)</button>'+
         '<button onclick="skipNextTask(\''+who+'\',\''+next.id+'\')" style="background:#fef2f2;border:1.5px solid #fecaca;color:#b91c1c;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:800;cursor:pointer">⏭️ דלג (לא במלאי)</button>'+
         missing.map(ch=>'<button onclick="togglePub(\''+next.id+'\',\''+ch.key+'\')" style="background:#16a34a;color:#fff;border:none;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:800;cursor:pointer">✓ פרסמתי ב'+_esc(ch.label)+'</button>').join('')+
       '</div>'+
