@@ -1343,19 +1343,16 @@
         }).catch(function(){ done(); });
 
         function finishSingle(){
-          // הורדה ישירה של כל תמונה בנפרד → נכנסות לתיקיית ההורדות שמופיעה בגלריה (אלבום "הורדות")
-          var isMobile=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent||'');
-          if(isMobile && files.length){
-            if(btn) btn.textContent='⬇️ שומר לגלריה...';
-            var di=0;
-            (function dnext(){
-              if(di>=files.length){ done(); toast&&toast('כל התמונות ירדו לגלריה (אלבום "הורדות") ✓'); return; }
-              var f=files[di]; var href=URL.createObjectURL(f);
-              dl(href, f.name); setTimeout(function(){URL.revokeObjectURL(href);},4000);
-              di++;
-              // השהיה בין הורדות כדי שהדפדפן לא יחסום; בהורדה הראשונה יופיע אישור "להוריד כמה קבצים" - יש לאשר
-              setTimeout(dnext, 700);
-            })();
+          // במובייל הדפדפן חוסם הורדה מרובה מחוץ ללחיצה - לכן משתמשים בחלון השיתוף של המערכת,
+          // שמאפשר לשמור את כל התמונות בבת אחת לגלריה (בחר "שמור בגלריה"/"Photos"/"שמור תמונה").
+          if(navigator.canShare && files.length && navigator.canShare({files:files})){
+            if(btn) btn.textContent='📤 בחר "שמור בגלריה"...';
+            navigator.share({files:files, title:base, text:(c0.brand+' '+c0.model)}).then(function(){
+              done(); toast&&toast('בחר "שמור בגלריה"/"Photos" כדי לשמור את כל התמונות ✓');
+            }).catch(function(err){
+              if(err && err.name==='AbortError'){ done(); return; }
+              zipFallback();
+            });
             return;
           }
           zipFallback();
