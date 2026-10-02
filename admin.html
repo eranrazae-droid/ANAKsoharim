@@ -2783,8 +2783,47 @@
       else { _copyFallback(msg,ok); }
     }catch(e){ _copyFallback(msg,ok); }
   }
-  function _copyFallback(text,cb){
-    try{ var ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.focus(); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); cb&&cb(); }
+  // מציאת רכב במלאי לפי יצרן+דגם (עמיד לרווחים כפולים / אותיות)
+  function _findCar(b,m){
+    var _n=s=>(s==null?'':String(s)).replace(/\s+/g,' ').trim().toLowerCase();
+    var list=(typeof cars!=='undefined'&&Array.isArray(cars))?cars:[];
+    return list.find(x=>x.brand===b&&x.model===m)
+        || list.find(x=>_n(x.brand)===_n(b)&&_n(x.model)===_n(m))
+        || list.find(x=>_n(x.model)===_n(m))
+        || list.find(x=>m&&_n(x.model).indexOf(_n(m))>=0) || null;
+  }
+  // כפתור הצעת מחיר - בונה הצעה מסודרת לרכבים שהלקוח התעניין בהם ומעתיק לוואטסאפ
+  function copyQuote(id){
+    var l=leads.find(x=>String(x.id)===String(id)); if(!l) return;
+    // רכבים: קודם מה שמסומן כרגע בכרטיס, אחרת מה שנשמר
+    var pairs=[];
+    [1,2,3].forEach(function(s){
+      var b=(document.getElementById('icb_'+id+'_'+s)||{}).value||'';
+      var m=(document.getElementById('icm_'+id+'_'+s)||{}).value||'';
+      if(b||m) pairs.push([b,m]);
+    });
+    if(!pairs.length){ (l.interest_cars||l.car||'').split(' | ').map(function(s){return s.trim();}).filter(Boolean).forEach(function(s){ var p=s.split(' '); pairs.push([p[0]||'', p.slice(1).join(' ')]); }); }
+    var fmtN=n=>Number(n||0).toLocaleString('en-US');
+    var blocks=[];
+    pairs.forEach(function(pr){
+      var c=_findCar(pr[0],pr[1]); if(!c) return;
+      var price=Number(c.autodealerPriceNumber)||0; if(price<=1) return;
+      var lic=Number(c.licenseFee)||0, total=price+lic, mo=_voMonthly(total);
+      var name=((c.brand||'')+' '+(c.model||'')).replace(/\s+/g,' ').trim()+(c.year?(' '+c.year):'');
+      var lines='🚗 *'+name+'* (0 ק״מ)\n';
+      lines+= lic>0 ? ('💰 מחיר: '+fmtN(total)+' ₪ (כולל אגרת רישוי)\n') : ('💰 מחיר: '+fmtN(price)+' ₪\n');
+      if(mo>0) lines+='📅 מימון מ-'+fmtN(mo)+' ₪ לחודש (עד 100% מימון, בלי מקדמה)\n';
+      blocks.push(lines);
+    });
+    if(!blocks.length){ toast&&toast('לא נמצא רכב עם מחיר להצעה - בחר רכב במלאי'); return; }
+    var msg='היי '+(l.name||'')+', מדבר ערן מאוטודילר 🚗\n\nריכזתי לך הצעה:\n\n'+blocks.join('\n')+'\n✅ הרכב חדש לגמרי, 0 ק״מ, מהיבואן הרשמי\n✅ אפשרות טרייד-אין לרכב הנוכחי\n\nמעוניין? נסגור טלפונית 📞 050-839-6030';
+    function ok(){ toast&&toast('הצעת המחיר הועתקה ✓ הדבק בוואטסאפ'); }
+    try{
+      if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(msg).then(ok, function(){ _copyFallback(msg,ok); }); }
+      else { _copyFallback(msg,ok); }
+    }catch(e){ _copyFallback(msg,ok); }
+  }
+  function _copyFallback(text,cb){    try{ var ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.focus(); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); cb&&cb(); }
     catch(e){ prompt('העתק ידנית:', text); }
   }
   // תיוג מקור הגעה בלחיצה אחת (נשמר מיד)
@@ -3259,6 +3298,8 @@
                style="background:#7c3aed;color:#fff;padding:9px 14px;border-radius:10px;font-size:13px;font-weight:900;text-decoration:none;white-space:nowrap;text-align:center">🔄 שלח פולואפ</a>
             <button onclick="copyFollowup('${l.id}')"
                style="background:#e9d5ff;color:#6b21a8;border:none;padding:8px 14px;border-radius:10px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap;text-align:center">📋 העתק פולואפ</button>
+            <button onclick="copyQuote('${l.id}')"
+               style="background:#16a34a;color:#fff;border:none;padding:9px 14px;border-radius:10px;font-size:13px;font-weight:900;cursor:pointer;white-space:nowrap;text-align:center">💸 הצעת מחיר לוואטסאפ</button>
             <a href="tel:${phone.replace(/[^0-9]/g,'')}"
                style="background:#0d0d0d;color:#fff;padding:9px 14px;border-radius:10px;font-size:13px;font-weight:900;text-decoration:none;white-space:nowrap;text-align:center">📞 חייג</a>
           </div>`:''}
