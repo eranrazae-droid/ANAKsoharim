@@ -2809,10 +2809,14 @@
       var c=_findCar(pr[0],pr[1]); if(!c) return;
       var price=Number(c.autodealerPriceNumber)||0; if(price<=1) return;
       var lic=Number(c.licenseFee)||0, total=price+lic, mo=_voMonthly(total);
+      var balloonMo=monthlyFV(total, 4.2, 60, total*0.5); // בלון: מימון מלא ב-4.2% ל-60 תש', 50% תשלום סופי
+      var balloonEnd=Math.round(total*0.5);
       var name=((c.brand||'')+' '+(c.model||'')).replace(/\s+/g,' ').trim()+(c.year?(' '+c.year):'');
       var lines='🚗 *'+name+'* (0 ק״מ)\n';
       lines+= lic>0 ? ('💰 מחיר: '+fmtN(total)+' ₪ (כולל אגרת רישוי)\n') : ('💰 מחיר: '+fmtN(price)+' ₪\n');
       if(mo>0) lines+='📅 מימון מ-'+fmtN(mo)+' ₪ לחודש (עד 100% מימון, בלי מקדמה)\n';
+      if(balloonMo>0) lines+='🎈 בבלון (ריבית 4.2%): '+fmtN(Math.round(balloonMo))+' ₪ לחודש ל-60 תש׳ + תשלום סופי '+fmtN(balloonEnd)+' ₪\n';
+      lines+='🔗 לרכב באתר: https://autodealer.co.il/?car='+encodeURIComponent(c.id)+'\n';
       blocks.push(lines);
     });
     if(!blocks.length){ toast&&toast('לא נמצא רכב עם מחיר להצעה - בחר רכב במלאי'); return; }
