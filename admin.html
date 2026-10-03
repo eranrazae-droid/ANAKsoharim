@@ -134,7 +134,7 @@
     .pt-cards{display:none}
     .pt-cbrand{font-weight:900;font-size:15px;margin:14px 2px 8px;color:#000}
     .pt-card{border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.05)}
-    .pt-card-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+    .pt-card-hd{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
     .pt-card-name{font-weight:800;font-size:15px}
     .pt-card-name span{color:var(--muted);font-weight:400;font-size:13px}
     .pt-card-badge{font-weight:900;font-size:13px;border-radius:999px;padding:3px 12px}
@@ -2230,8 +2230,10 @@
         html+='<tr style="background:#faf7ef"><td colspan="'+(PUB_CHANNELS.length+2)+'" style="padding:6px 10px;font-weight:900">'+_esc(c.brand||'—')+'</td></tr>';
       }
       const doneN=PUB_CHANNELS.filter(ch=>(c.pub||{})[ch.key]).length;
+      var dp=Number(c.autodealerPriceNumber)||0, dlic=Number(c.licenseFee)||0, dtot=dp+dlic, dmo=_voMonthly(dtot);
+      var dPrice=dp>1?('<span style="color:#15803d;font-weight:800;font-size:12px"> · 💰 '+dtot.toLocaleString('en-US')+' ₪'+(dmo>0?(' · מ-'+dmo.toLocaleString('en-US')+'/ח'):'')+'</span>'):'';
       html+='<tr style="border-bottom:1px solid #f0f0f0">'+
-        '<td style="padding:8px 10px;font-weight:700">'+_esc(c.model||'')+' <span style="color:var(--muted);font-weight:400">'+_esc(c.year||'')+'</span></td>'+
+        '<td style="padding:8px 10px;font-weight:700">'+_esc(c.model||'')+' <span style="color:var(--muted);font-weight:400">'+_esc(c.year||'')+'</span>'+dPrice+'</td>'+
         PUB_CHANNELS.map(ch=>{
           const iso=(c.pub||{})[ch.key];
           const on=!!iso;
@@ -2249,8 +2251,14 @@
       if(c.brand!==curB){ curB=c.brand; cards+='<div class="pt-cbrand">'+_esc(c.brand||'—')+'</div>'; }
       const doneN=PUB_CHANNELS.filter(ch=>(c.pub||{})[ch.key]).length;
       const full=doneN===PUB_CHANNELS.length;
+      var _p=Number(c.autodealerPriceNumber)||0, _lic=Number(c.licenseFee)||0, _tot=_p+_lic, _mo=_voMonthly(_tot);
+      var _priceLine=_p>1?('💰 '+_tot.toLocaleString('en-US')+' ₪'+(_mo>0?(' · מ-'+_mo.toLocaleString('en-US')+' ₪/חודש'):'')):'';
+      var _img=(c.image&&!String(c.image).startsWith('data:'))?c.image:(c.catalog_image&&!String(c.catalog_image).startsWith('data:')?c.catalog_image:'');
       cards+='<div class="pt-card">'+
-        '<div class="pt-card-hd"><div class="pt-card-name">'+_esc(c.model||'')+' <span>'+_esc(c.year||'')+'</span></div>'+
+        '<div class="pt-card-hd">'+
+          (_img?'<img src="'+_esc(_img)+'" referrerpolicy="no-referrer" style="width:54px;height:40px;object-fit:cover;border-radius:8px;flex-shrink:0">':'')+
+          '<div style="flex:1"><div class="pt-card-name">'+_esc(c.model||'')+' <span>'+_esc(c.year||'')+'</span></div>'+
+          (_priceLine?'<div style="font-size:12px;color:#15803d;font-weight:800;margin-top:2px">'+_priceLine+'</div>':'')+'</div>'+
         '<div class="pt-card-badge" style="background:'+(full?'#dcfce7':'#fef3c7')+';color:'+(full?'#15803d':'#a16207')+'">'+doneN+'/'+PUB_CHANNELS.length+'</div></div>'+
         '<div class="pt-chan-grid">'+
         PUB_CHANNELS.map(ch=>{
