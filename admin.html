@@ -538,6 +538,8 @@
           <div id="payChartMonthly"></div>
           <div style="font-weight:900;margin:16px 0 10px">📅 הכנסות לפי שנים</div>
           <div id="payChartYearly"></div>
+          <div style="font-weight:900;margin:16px 0 10px">💬 הכנסות לפי מקור הגעה</div>
+          <div id="payChartSource"></div>
         </div>
         <div id="payList"></div>
       </div>
@@ -2799,6 +2801,23 @@
         '<div style="min-width:80px;text-align:left;font-weight:800;color:#a16207;font-size:13px">'+fmt(byYear[y]||0)+'</div>'+
       '</div>';
     }).join(''):'<div style="color:var(--muted);font-size:13px">אין עדיין נתונים</div>';
+    // לפי מקור הגעה
+    const sEl=document.getElementById('payChartSource');
+    if(sEl){
+      const bySrc={}, cntSrc={}; let noSrc=0;
+      payData.forEach(p=>{ const a=Number(p.amount)||0; const src=_paySource(p); if(src){ bySrc[src]=(bySrc[src]||0)+a; cntSrc[src]=(cntSrc[src]||0)+1; } else { noSrc++; } });
+      const srcArr=Object.keys(bySrc).map(k=>({k:k,v:bySrc[k],n:cntSrc[k]})).sort((a,b)=>b.v-a.v);
+      const maxS=Math.max(1,...srcArr.map(x=>x.v));
+      sEl.innerHTML=(srcArr.length?srcArr.map(x=>{
+        const w=Math.round(x.v/maxS*100), col=_SRC_META[x.k]||'#64748b';
+        return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'+
+          '<div style="min-width:90px;font-weight:800;font-size:13px"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:'+col+';margin-left:5px"></span>'+x.k+'</div>'+
+          '<div style="flex:1;background:#f1f5f9;border-radius:6px;overflow:hidden"><div style="width:'+Math.max(w,3)+'%;background:'+col+';height:20px"></div></div>'+
+          '<div style="min-width:110px;text-align:left;font-size:13px"><b style="color:'+col+'">'+fmt(x.v)+'</b> <span style="color:var(--muted)">('+x.n+')</span></div>'+
+        '</div>';
+      }).join(''):'<div style="color:var(--muted);font-size:13px">עדיין אין עסקאות עם מקור הגעה</div>')+
+      (noSrc>0?'<div style="color:#b45309;font-size:12px;margin-top:8px">⚠️ '+noSrc+' עסקאות ללא מקור — לחץ על העיפרון ✏️ בכל עסקה כדי לבחור מאיפה הגיע הלקוח</div>':'');
+    }
   }
 
   // הוספת ליד ידני (שיחה נכנסת)
