@@ -650,6 +650,51 @@ exports.batteryCheckReminder = onSchedule(
   }
 );
 
+/* ── תזכורת יומית על בדיקת ארון המצברים ──────────────────────────
+   הבדיקה היא חודשית, ומי שעושה אותה הוא גיל. התזכורת יוצאת כל יום
+   מראשון עד שישי עד שהיא נשלחת, ואז נפסקת מעצמה עד החודש הבא.
+   בשבת אין תזכורת (יום 6 אינו ברשימה).
+
+   "בוצעה" נקבע לפי אותו מסמך שהאפליקציה כותבת: battery_audits/<חודש>
+   עם status 'done'. אין כאן סימון נפרד שעלול לצאת מסנכרון. */
+const _BS_AUDIT_DRIVER = "גיל";
+
+// החודש הנוכחי לפי שעון ישראל, בפורמט YYYY-MM — כמו שהאפליקציה שומרת
+function _bsAuditMonthKey() {
+  const d = nowIsraelAsUtcPretend();
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+exports.batteryAuditReminder = onSchedule(
+  { schedule: "0 9 * * 0-5", region: "europe-west1", timeZone: "Asia/Jerusalem" },
+  async () => {
+    const month = _bsAuditMonthKey();
+    const snap = await db.collection("battery_audits").doc(month).get();
+    if (snap.exists && snap.data().status === "done") return;   // כבר נבדק החודש
+
+    const contactsSnap = await db.collection("config").doc("driver_contacts").get();
+    const contacts = contactsSnap.exists ? contactsSnap.data() : {};
+    const token = contacts["_telegramToken"]?.value || "";
+    const chatId = contacts[_BS_AUDIT_DRIVER]?.telegramId || "";
+    if (!token || !chatId) {
+      console.warn("battery audit reminder: no telegram contact for", _BS_AUDIT_DRIVER);
+      return;
+    }
+    const [y, m] = month.split("-");
+    const text = `🔋 תזכורת — בדיקת ארון המצברים של ${m}/${y} עדיין לא בוצעה.\n` +
+      `כנס לאפליקציה: ארון מצברים ← בדיקות ארון.`;
+    try {
+      await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: chatId, text }),
+      });
+    } catch (err) {
+      console.error("battery audit reminder send failed", err);
+    }
+  }
+);
+
 // תזכורת לנהגים על משימות פתוחות. רצה כל בוקר ב-8:00 (ראשון–שישי), אבל
 // כל משימה מזכירים עליה רק כל 48 שעות: תזכורת ראשונה אחרי 48 שעות
 // מהיצירה, ואז שוב כל 48 שעות כל עוד היא פתוחה. אחרי 4 ימים הנוסח
