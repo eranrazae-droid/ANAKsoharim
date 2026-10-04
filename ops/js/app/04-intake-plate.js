@@ -599,7 +599,7 @@ function _renderArchiveSection(archived) {
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
         <div>
           ${typeLabel}
-          <div class="vehicle-plate">${esc(v.plate)}</div>
+          <div class="vehicle-plate"><span onclick="event.stopPropagation();bsmCopyPlate('${esc(v.plate)}')" title="לחיצה מעתיקה את מספר הרישוי" style="cursor:pointer;border-bottom:1px dashed var(--border)">${esc(v.plate)}</span></div>
           <div class="vehicle-info">${infoLine}</div>
           <div class="vehicle-meta" style="margin-top:4px">
             ${v.color && !isRefresh ? `<span class="tag assignee">🎨 ${esc(v.color)}</span>` : ''}
@@ -923,7 +923,7 @@ function _renderIntakeList(all) {
         <div class="ic-head" style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
           <div onclick="${cardClick}" style="flex:1;cursor:pointer;min-width:0">
             <span class="tag" style="background:#0ea5e9;color:#fff;margin-bottom:4px">🚗 קליטה</span>
-            <div class="vehicle-plate">${esc(v.plate)}</div>
+            <div class="vehicle-plate"><span onclick="event.stopPropagation();bsmCopyPlate('${esc(v.plate)}')" title="לחיצה מעתיקה את מספר הרישוי" style="cursor:pointer;border-bottom:1px dashed var(--border)">${esc(v.plate)}</span></div>
             <div class="vehicle-info">${[v.brand,v.model,v.year].filter(Boolean).map(esc).join(' ')}</div>
             <div class="vehicle-meta" style="margin-top:4px">
               ${v.color ? `<span class="tag assignee">🎨 ${esc(v.color)}</span>` : ''}
@@ -955,7 +955,7 @@ function _renderIntakeList(all) {
           <div>
             <span class="tag" style="background:#0ea5e9;color:#fff;margin-bottom:4px">🚗 קליטה</span>
             ${wr ? `<span class="tag" style="background:#0284c7;color:#fff;margin-bottom:4px">🧽 נדרש שטיפה — ${esc(wr.type || '')}</span>` : ''}
-            <div class="vehicle-plate">${esc(v.plate)}</div>
+            <div class="vehicle-plate"><span onclick="event.stopPropagation();bsmCopyPlate('${esc(v.plate)}')" title="לחיצה מעתיקה את מספר הרישוי" style="cursor:pointer;border-bottom:1px dashed var(--border)">${esc(v.plate)}</span></div>
             <div class="vehicle-info">${[v.brand,v.model,v.year].filter(Boolean).map(esc).join(' ')}</div>
             ${v.spot ? `<div style="font-size:13px;font-weight:700;color:var(--dark);margin-top:4px">🅿️ חניה ${esc(v.spot)}</div>` : ''}
             ${ts ? `<div class="task-time" style="margin-top:4px">${ts}</div>` : ''}
@@ -981,7 +981,7 @@ function _renderIntakeList(all) {
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
           <div onclick="openRefreshForm('${r.id}')" style="flex:1;cursor:pointer;min-width:0">
             ${typeTag}
-            <div class="vehicle-plate">${esc(r.plate||'')}</div>
+            <div class="vehicle-plate"><span onclick="event.stopPropagation();bsmCopyPlate('${esc(r.plate||'')}')" title="לחיצה מעתיקה את מספר הרישוי" style="cursor:pointer;border-bottom:1px dashed var(--border)">${esc(r.plate||'')}</span></div>
             <div class="vehicle-info">${[r.vehicleType,r.year,r.color].filter(Boolean).map(esc).join(' · ')}</div>
             <div class="vehicle-meta" style="margin-top:4px">
               ${r.assignedTo ? `<span class="tag assignee">👤 ${esc(r.assignedTo)}</span>` : ''}
@@ -1004,7 +1004,7 @@ function _renderIntakeList(all) {
         <div style="display:flex;justify-content:space-between;align-items:center">
           <div>
             ${typeTag}
-            <div class="vehicle-plate">${esc(r.plate||'')}</div>
+            <div class="vehicle-plate"><span onclick="event.stopPropagation();bsmCopyPlate('${esc(r.plate||'')}')" title="לחיצה מעתיקה את מספר הרישוי" style="cursor:pointer;border-bottom:1px dashed var(--border)">${esc(r.plate||'')}</span></div>
             <div class="vehicle-info">${[r.vehicleType,r.year,r.color].filter(Boolean).map(esc).join(' · ')}</div>
             ${r.parking ? `<div style="font-size:13px;font-weight:700;color:var(--dark);margin-top:4px">🅿️ חניה ${esc(r.parking)}</div>` : ''}
           </div>
