@@ -1364,20 +1364,30 @@ async function restorePickupCar(id) {
   _pkRestoreBusy = true;
   try {
     const { addDoc, deleteDoc, doc, collection } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-    const { id: _id, collectedAt, collectedBy, collectedByText, ...rest } = car;
+    /* יורדים שני דברים: פרטי האיסוף, והשיוך לנהג או לגרר — רכב שחוזר
+       לרשימה הוא רכב שממתין מחדש, ולא רכב שכבר נשלח. */
+    const { id: _id, collectedAt, collectedBy, collectedByText, hasDoc, docLost,
+            assignedDriver, sortIndex, pinned, ...rest } = car;
     // אישור הבעלות נשמר בנפרד בעת האיסוף — מחזירים אותו אל הרכב
     let docPart = {};
+    let docRead = false;
     try {
       const ds = await window._getDoc(_docRef('pickup_docs', id));
+      docRead = true;
       if (ds.exists()) {
         const d = ds.data();
-        docPart = { doc: d.doc, docMime: d.docMime || null, docName: d.docName || null };
+        if (d.doc) docPart = { doc: d.doc, docMime: d.docMime || null, docName: d.docName || null };
       }
     } catch (err) { console.error('pickup doc read', err); }
     await addDoc(collection(window._db, 'pickup_cars'), { ...rest, ...docPart });
     await deleteDoc(doc(window._db, 'pickup_archive', id));
-    try { await deleteDoc(doc(window._db, 'pickup_docs', id)); } catch (err) {}
-    showToast('↩️ הרכב הוחזר לרשימת האיסוף');
+    // מוחקים את העותק של האישור רק אחרי שקראנו אותו בהצלחה
+    if (docRead) { try { await deleteDoc(doc(window._db, 'pickup_docs', id)); } catch (err) {} }
+    // מזהירים רק כשידוע שהיה אישור, או כשלא הצלחנו בכלל לבדוק
+    const lostDoc = !docPart.doc && (hasDoc === true || docLost === true || !docRead);
+    showToast(lostDoc
+      ? `↩️ הרכב הוחזר — אבל אישור הבעלות לא נמצא, יש לצרף אותו מחדש`
+      : '↩️ הרכב הוחזר לרשימת האיסוף', lostDoc ? 7000 : 3000);
   } catch (err) {
     console.error('restore pickup failed', err);
     showToast('שגיאה בהחזרת הרכב — נסה שוב');

@@ -790,11 +790,18 @@ async function submitCollectPickup() {
        קובץ כבד בתוכו נגרר בכל פעם מחדש. */
     const archive = async (car, id) => {
       const { doc: docData, docMime, docName, ...light } = car;
+      // hasDoc מסמן שלרכב היה אישור בעלות — כך החזרה מהארכיון יודעת
+      // להגיד אם האישור חזר או שהוא חסר, במקום להחזיר רכב חסר בשקט.
       const ref = await addDoc(collection(window._db, 'pickup_archive'),
-        { ...light, collectedAt: _serverTs(), collectedBy: currentUser.name, collectedByText });
+        { ...light, hasDoc: !!docData, collectedAt: _serverTs(), collectedBy: currentUser.name, collectedByText });
       if (docData) {
         try { await window._setDoc(_docRef('pickup_docs', ref.id), { doc: docData, docMime: docMime || null, docName: docName || null }); }
-        catch (e) { console.error('pickup doc store', e); }
+        catch (e) {
+          console.error('pickup doc store', e);
+          // הרכב כבר בארכיון, אבל בלי האישור — בלי הודעה זה נעלם בשקט
+          try { await window._updateDoc(_docRef('pickup_archive', ref.id), { hasDoc: false, docLost: true }); } catch (e2) {}
+          showToast(`⚠️ ${car.plate || 'הרכב'} נאסף, אך אישור הבעלות לא נשמר`, 7000);
+        }
       }
       await deleteDoc(doc(window._db, 'pickup_cars', id));
       _notifyPickupCollected(car, collectedByText);
