@@ -784,12 +784,106 @@ function printQuote() {
 }
 
 function exportPdf() {
-  var d = new Date();
-  document.getElementById('print-date').textContent =
-    d.toLocaleDateString('he-IL') + ' · ' + (document.getElementById('customer-name').value || '');
-  document.body.classList.add('pdf-mode');
-  window.print();
-  setTimeout(function(){ document.body.classList.remove('pdf-mode'); }, 1000);
+  var rep      = document.getElementById('sales-rep').value || '';
+  var fRep     = document.getElementById('finance-rep').value || '';
+  var cust     = document.getElementById('customer-name').value || '';
+  var phone    = document.getElementById('customer-phone').value || '';
+  var newCar   = document.getElementById('new-car-name').value || '';
+  var newPlate = document.getElementById('new-car-plate').value || '';
+  var newPrice = parseNumInput(document.getElementById('new-price').value);
+  var listP    = parseNumInput(document.getElementById('new-list-price').value);
+  var tradeIn  = parseNumInput(document.getElementById('trade-in').value);
+  var oldLoan  = parseNumInput(document.getElementById('old-loan').value);
+  var oldCar   = document.getElementById('old-car-name').value || '';
+  var oldPlate = document.getElementById('old-car-plate').value || '';
+  var cash     = parseNumInput(document.getElementById('cash').value);
+  var ern      = document.getElementById('ern-input').value.trim() || '';
+  var finance  = currentFinanceAmt;
+  var monthly  = currentMonthly;
+  var n        = currentN;
+  var trackName = currentTrackName;
+  var interest = monthly && n ? Math.round(monthly - finance/n) : 0;
+  var totalDeal = newPrice - tradeIn + oldLoan;
+  var today    = new Date().toLocaleDateString('he-IL');
+
+  function r(label, val, bold) {
+    if (!val && val !== 0) return '';
+    return '<tr>'
+      + '<td style="padding:7px 14px;color:#5a7aa5;font-size:13px;white-space:nowrap;text-align:right">' + label + '</td>'
+      + '<td style="padding:7px 14px;font-weight:' + (bold?'700':'500') + ';font-size:14px;text-align:left">' + val + '</td>'
+      + '</tr>';
+  }
+  function fmt(n){ return n ? '₪ ' + Math.round(n).toLocaleString('he-IL') : ''; }
+
+  var tradeBlock = tradeIn ? '<table style="width:100%;border-collapse:collapse;margin-bottom:12px">'
+    + r('רכב ישן', oldCar + (oldPlate?' · '+oldPlate:''))
+    + r('זיכוי טרייד אין', fmt(tradeIn), true)
+    + (oldLoan ? r('חוב מימון ישן', fmt(oldLoan)) : '')
+    + '</table>' : '';
+
+  var cashLine = cash ? ('<div style="margin-top:4px;font-size:13px;color:#5a7aa5">כסף מהלקוח: <b style="color:#0d1f3c">'+fmt(cash)+'</b>'+(ern?' · ERN: <b>'+ern+'</b>':'')+'</div>') : '';
+
+  var monthlyBlock = monthly ? '<div style="background:#0d1f3c;border-radius:14px;padding:18px 24px;color:#fff;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center">'
+    + '<div>'
+    + '<div style="font-size:11px;color:#7a9ccf;font-weight:600;letter-spacing:.05em;text-transform:uppercase;margin-bottom:4px">החזר חודשי משוער</div>'
+    + '<div style="font-size:42px;font-weight:900;line-height:1"><span style="font-size:22px">₪</span>' + Math.round(monthly).toLocaleString('he-IL') + '</div>'
+    + '<div style="font-size:12px;color:#7a9ccf;margin-top:4px">' + n + ' תשלומים · ' + fmt(finance) + ' מימון</div>'
+    + (interest ? '<div style="font-size:12px;color:#c9a227;font-weight:700;margin-top:2px">עלות ריבית: '+fmt(interest)+'/חודש</div>' : '')
+    + '</div>'
+    + (trackName ? '<div style="font-size:13px;color:#7a9ccf;text-align:left">' + trackName + '</div>' : '')
+    + '</div>' : '';
+
+  var html = '<!DOCTYPE html><html lang="he" dir="rtl"><head>'
+    + '<meta charset="UTF-8">'
+    + '<style>'
+    + 'body{margin:0;padding:24px;font-family:\'Heebo\',Arial,sans-serif;background:#fff;color:#0d1f3c;direction:rtl}'
+    + '@import url("https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;900&display=swap");'
+    + 'table{width:100%;border-collapse:collapse}'
+    + 'tr:nth-child(even) td{background:#f8faff}'
+    + '@page{size:A4 portrait;margin:14mm}'
+    + '@media print{body{padding:0}}'
+    + '</style></head><body>'
+
+    /* ── HEADER ── */
+    + '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;border-bottom:2px solid #0d1f3c;padding-bottom:14px">'
+    + '<div><div style="font-size:28px;font-weight:900">הצעת מחיר</div>'
+    + '<div style="font-size:13px;color:#5a7aa5;margin-top:4px">' + today + (cust?' · '+cust:'') + '</div></div>'
+    + '<div style="text-align:left;font-size:13px;color:#5a7aa5">'
+    + (rep?'<div>נציג מכירות: <b style="color:#0d1f3c">'+rep+'</b></div>':'')
+    + (fRep?'<div>נציג מימון: <b style="color:#0d1f3c">'+fRep+'</b></div>':'')
+    + (phone?'<div>טלפון: <b style="color:#0d1f3c">'+phone+'</b></div>':'')
+    + '</div></div>'
+
+    /* ── CAR ── */
+    + '<div style="font-size:11px;font-weight:700;color:#5a7aa5;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">פרטי רכב</div>'
+    + '<table style="margin-bottom:12px">'
+    + r('רכב', newCar + (newPlate?' · '+newPlate:''))
+    + r('מחיר', fmt(newPrice), true)
+    + (listP && listP !== newPrice ? r('מחירון (0 ק"מ)', fmt(listP)) : '')
+    + '</table>'
+
+    /* ── TRADE IN ── */
+    + (tradeIn ? '<div style="font-size:11px;font-weight:700;color:#5a7aa5;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">טרייד אין</div>' + tradeBlock : '')
+
+    /* ── DEAL ── */
+    + '<div style="font-size:11px;font-weight:700;color:#5a7aa5;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">פרטי עסקה</div>'
+    + '<table style="margin-bottom:16px">'
+    + r('סה"כ עסקה', fmt(totalDeal), true)
+    + cashLine
+    + r('סכום מימון', fmt(finance), true)
+    + (listP ? r('אחוז מימון ממחירון', Math.round(finance/listP*100)+'%') : '')
+    + '</table>'
+
+    /* ── MONTHLY ── */
+    + monthlyBlock
+
+    + '<div style="margin-top:24px;font-size:11px;color:#aab;text-align:center">* הצעה זו אינה מהווה התחייבות. בכפוף לאישור הגורם המממן.</div>'
+    + '</body></html>';
+
+  var w = window.open('', '_blank');
+  w.document.write(html);
+  w.document.close();
+  setTimeout(function(){ w.print(); }, 600);
 }
 
 function lookupPlate(plateId, nameId, btn) {
