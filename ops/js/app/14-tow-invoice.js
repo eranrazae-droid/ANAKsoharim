@@ -136,6 +136,7 @@ async function _towResolve(run) {
     if (hit) {
       const c = hit.car;
       return { plate: p, raw: run.raw, found: true, src: hit.where,
+               ..._towWhoCollected(c),
                desc: [c.type, c.year, c.color].filter(Boolean).join(' · ') };
     }
   }
@@ -146,6 +147,18 @@ async function _towResolve(run) {
                       desc: [rec.maker, rec.model, rec.year, rec.color].filter(Boolean).join(' · ') };
   }
   return { plate: run.cands[0], raw: run.raw, found: false, src: '', desc: '' };
+}
+
+/* רכב שנמצא בארכיון לא בהכרח נאסף על ידי הגרר. לפעמים נהג שלנו
+   נסע והביא אותו, ואז אין סיבה שהוא יופיע בחשבונית הגרר. שני סימנים
+   מעידים על גרר: הרכב נשלח לגרר, או נכתב "גרר" בשדה מי אסף.
+   בלי שניהם — זה רכב לבדיקה מול החשבונית. */
+function _towWhoCollected(c) {
+  const by = String(c.collectedByText || '').trim();
+  const toTow = c.assignedDriver === _TOW_NAME || by.includes(_TOW_NAME);
+  // רכב שעדיין ברשימת האיסוף עוד לא נאסף — אין מה לבדוק עליו
+  if (!c.collectedAt) return { byTow: true, by: '' };
+  return { byTow: toTow, by };
 }
 
 function _towFmt(p) {
@@ -171,6 +184,12 @@ async function _towRender() {
         `<div style="font-size:12.5px;color:#7f1d1d">אלה הרכבים לבדיקה מול הגרר — לא מצאנו שהם עברו אצלנו.</div>`)
     : box('#16a34a', '#f0fdf4', '✅ כל הרכבים בחשבונית נמצאו אצלנו באיסוף', '');
 
+  const notTow = rows.filter(r => r.found && r.byTow === false);
+  if (notTow.length) {
+    sum += box('#b45309', '#fffbeb', `🚩 ${notTow.length} רכבים נאספו על ידי נהג שלנו ולא על ידי הגרר`,
+      `<div style="font-size:12.5px;color:#78350f">הם מסומנים למטה עם שם האוסף — בדוק למה הגרר מחייב עליהם.</div>`);
+  }
+
   if (dups.size) {
     sum += box('#b45309', '#fffbeb', `⚠️ ${dups.size} רכבים כבר הופיעו בחשבונית קודמת`,
       `<div style="font-size:12.5px;color:#78350f">בדוק שאינך משלם פעמיים על אותה גרירה.</div>`);
@@ -179,16 +198,19 @@ async function _towRender() {
 
   _towSet('tow-inv-rows', rows.map((r, i) => {
     const dup = dups.get(r.plate);
-    const border = !r.found ? '#dc2626' : dup ? '#b45309' : 'var(--border)';
+    const border = !r.found ? '#dc2626' : (dup || r.byTow === false) ? '#b45309' : 'var(--border)';
     const tag = !r.found
       ? '<span style="background:#dc2626;color:#fff;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:900">לא נמצא אצלנו</span>'
       : `<span style="background:#16a34a;color:#fff;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:900">${esc(r.src)}</span>`;
     const dupTag = dup
       ? `<span style="background:#b45309;color:#fff;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:900;margin-right:5px">כבר חויב · ${esc(dup)}</span>` : '';
+    // נאסף אצלנו אבל לא על ידי הגרר — הערה עם שם מי שאסף בפועל
+    const whoTag = (r.found && r.byTow === false)
+      ? `<span style="background:#f59e0b;color:#fff;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:900;margin-right:5px">🚩 נאסף ע״י ${esc(r.by || 'נהג שלנו')}</span>` : '';
     return `<div style="border:2px solid ${border};border-radius:12px;padding:9px 11px;margin-bottom:7px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <span style="font-weight:900;font-size:16px;direction:ltr">${_towFmt(r.plate)}</span>
       <span style="flex:1;min-width:120px;font-size:12.5px;color:var(--muted)">${esc(r.desc || '—')}</span>
-      ${dupTag}${tag}
+      ${whoTag}${dupTag}${tag}
       <button onclick="towInvEdit(${i})" style="background:var(--surface2);border:1.5px solid var(--border);border-radius:9px;padding:4px 10px;font-family:Heebo,sans-serif;font-size:12px;font-weight:800;cursor:pointer">✏️</button>
       <button onclick="towInvDrop(${i})" style="background:var(--surface2);border:1.5px solid var(--border);border-radius:9px;padding:4px 10px;font-family:Heebo,sans-serif;font-size:12px;font-weight:800;cursor:pointer">🗑️</button>
     </div>`;

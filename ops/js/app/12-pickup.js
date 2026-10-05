@@ -1364,10 +1364,7 @@ async function restorePickupCar(id) {
   _pkRestoreBusy = true;
   try {
     const { addDoc, deleteDoc, doc, collection } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-    /* יורדים שני דברים: פרטי האיסוף, והשיוך לנהג או לגרר — רכב שחוזר
-       לרשימה הוא רכב שממתין מחדש, ולא רכב שכבר נשלח. */
-    const { id: _id, collectedAt, collectedBy, collectedByText, hasDoc, docLost,
-            assignedDriver, sortIndex, pinned, ...rest } = car;
+    const { hasDoc, docLost } = car;
     // אישור הבעלות נשמר בנפרד בעת האיסוף — מחזירים אותו אל הרכב
     let docPart = {};
     let docRead = false;
@@ -1379,7 +1376,25 @@ async function restorePickupCar(id) {
         if (d.doc) docPart = { doc: d.doc, docMime: d.docMime || null, docName: d.docName || null };
       }
     } catch (err) { console.error('pickup doc read', err); }
-    await addDoc(collection(window._db, 'pickup_cars'), { ...rest, ...docPart });
+    /* הרכב נכתב בדיוק במבנה של רכב שנוסף בטופס — אותם שדות ולא יותר.
+       כך הקוביה שלו נראית זהה לקוביה של רכב חדש: "חדש" במקום ימי המתנה
+       ישנים, בלי שיוך לנהג או לגרר, בלי נעיצה ובלי מקום קבוע בסדר הידני. */
+    await addDoc(collection(window._db, 'pickup_cars'), {
+      plate: car.plate || '',
+      type: car.type || '',
+      year: car.year || '',
+      color: car.color || '',
+      km: car.km || '',
+      test: car.test || '',
+      contact: car.contact || '',
+      city: car.city || '',
+      address: car.address || '',
+      note: car.note || '',
+      source: car.source || '',
+      ...(docPart.doc ? docPart : { doc: null, docMime: null, docName: null }),
+      createdBy: currentUser?.name || '',
+      createdAt: _serverTs(),
+    });
     await deleteDoc(doc(window._db, 'pickup_archive', id));
     // מוחקים את העותק של האישור רק אחרי שקראנו אותו בהצלחה
     if (docRead) { try { await deleteDoc(doc(window._db, 'pickup_docs', id)); } catch (err) {} }
