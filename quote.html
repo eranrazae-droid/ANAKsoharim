@@ -128,6 +128,33 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
   .deal-card,.customer-card{box-shadow:none}
   .print-header{display:block!important}
 }
+/* ── PDF — עמוד אחד ── */
+@media print{
+  body.pdf-mode{
+    margin:0;padding:0;
+  }
+  body.pdf-mode .page{
+    max-width:100%;
+    padding:4px 8px;
+    zoom:0.72;
+  }
+  body.pdf-mode .deal-row{
+    padding:4px 10px;
+  }
+  body.pdf-mode .customer-card,.deal-card{
+    margin-bottom:8px;padding:10px;
+  }
+  body.pdf-mode .monthly-box{
+    padding:10px 14px;margin-bottom:8px;
+  }
+  body.pdf-mode .finance-cards-section{
+    display:none!important;
+  }
+  @page{
+    size:A4 portrait;
+    margin:8mm;
+  }
+}
 .print-header{display:none;text-align:center;margin-bottom:16px}
 .print-header h2{font-size:20px;font-weight:900}
 .print-header p{font-size:13px;color:#666;margin-top:4px}
@@ -363,6 +390,7 @@ body{font-family:'Heebo',sans-serif;background:#f0f4fa;color:#0d1f3c;min-height:
   <div class="action-row" id="action-row" style="display:none;margin-top:16px">
     <button class="btn btn-wa" onclick="shareWA()">📲 שלח ב-WhatsApp</button>
     <button class="btn btn-print" onclick="printQuote()">🖨️ הדפסה</button>
+    <button class="btn btn-print" onclick="exportPdf()" style="background:#ef4444;color:#fff;border:none">📄 PDF</button>
   </div>
 
   <!-- כפתורי סיום -->
@@ -751,6 +779,15 @@ function printQuote() {
   document.getElementById('print-date').textContent =
     d.toLocaleDateString('he-IL') + ' · ' + (document.getElementById('customer-name').value || '');
   window.print();
+}
+
+function exportPdf() {
+  var d = new Date();
+  document.getElementById('print-date').textContent =
+    d.toLocaleDateString('he-IL') + ' · ' + (document.getElementById('customer-name').value || '');
+  document.body.classList.add('pdf-mode');
+  window.print();
+  setTimeout(function(){ document.body.classList.remove('pdf-mode'); }, 1000);
 }
 
 function lookupPlate(plateId, nameId, btn) {
