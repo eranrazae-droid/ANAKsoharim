@@ -807,118 +807,100 @@ function exportPdf() {
   var totalDeal = newPrice - tradeIn + oldLoan;
   var today    = new Date().toLocaleDateString('he-IL');
 
-  function fmt(v){ return v ? '₪ ' + Math.round(v).toLocaleString('he-IL') : '—'; }
+  function fmt(v){ return v ? '₪ ' + Math.round(v).toLocaleString('he-IL') : '—'; }
 
-  function row(label, val, accent) {
-    return '<tr>'
-      + '<td class="lbl">' + label + '</td>'
-      + '<td class="val' + (accent?' acc':'') + '">' + val + '</td>'
-      + '</tr>';
+  function r(label, val) {
+    return '<tr><td class="lbl">' + label + '</td><td class="val">' + val + '</td></tr>';
+  }
+  function rBig(label, val) {
+    return '<tr class="big-row"><td class="lbl">' + label + '</td><td class="val big">' + val + '</td></tr>';
+  }
+  function rSep(title) {
+    return '<tr><td colspan="2" class="sep">' + title + '</td></tr>';
   }
 
-  function section(title, rows) {
-    return '<div class="sec-title">' + title + '</div>'
-      + '<table class="data-table"><tbody>' + rows + '</tbody></table>';
+  var rows = '';
+
+  if (newCar || newPrice) {
+    rows += rSep('פרטי הרכב');
+    if (newCar)   rows += r('דגם', '<b>'+newCar+'</b>');
+    if (newPlate) rows += r('לוחית', newPlate);
+    if (newPrice) rows += rBig('מחיר', fmt(newPrice));
+    if (listP && listP !== newPrice) rows += r('מחירון', fmt(listP));
   }
 
-  var carRows = ''
-    + (newCar   ? row('פרטי הרכב', '<b>'+newCar+'</b>') : '')
-    + (newPlate ? row('לוחית רישוי', newPlate) : '')
-    + (newPrice ? row('מחיר', fmt(newPrice), true) : '')
-    + (listP && listP !== newPrice ? row('מחירון (0 ק"מ)', fmt(listP)) : '');
+  if (tradeIn) {
+    rows += rSep('טרייד אין');
+    if (oldCar)   rows += r('רכב ישן', '<b>'+oldCar+'</b>');
+    if (oldPlate) rows += r('לוחית', oldPlate);
+    rows += rBig('זיכוי', fmt(tradeIn));
+    if (oldLoan)  rows += r('חוב מימון ישן', fmt(oldLoan));
+  }
 
-  var tradeRows = tradeIn ? ''
-    + (oldCar   ? row('רכב ישן', '<b>'+oldCar+'</b>') : '')
-    + (oldPlate ? row('לוחית', oldPlate) : '')
-    + row('זיכוי', fmt(tradeIn), true)
-    + (oldLoan  ? row('חוב מימון ישן', fmt(oldLoan)) : '') : '';
+  rows += rSep('פרטי עסקה');
+  if (tradeIn)  rows += r('הפרש', fmt(diff));
+  var totalVal = oldLoan ? fmt(totalDeal) : (tradeIn ? fmt(diff) : fmt(newPrice));
+  rows += rBig('סה"כ עסקה', totalVal);
+  if (cash)     rows += r('כסף מהלקוח', fmt(cash));
+  if (ern)      rows += r('ERN', ern);
+  if (finance)  rows += rBig('סכום מימון', fmt(finance));
+  if (listP && finance) rows += r('אחוז מימון', Math.round(finance/listP*100)+'%');
 
-  var dealRows = ''
-    + (tradeIn  ? row('הפרש', fmt(diff)) : '')
-    + (oldLoan  ? row('סה"כ עסקה', fmt(totalDeal), true) : (!tradeIn ? row('סה"כ עסקה', fmt(newPrice), true) : row('סה"כ עסקה', fmt(diff), true)))
-    + (cash     ? row('כסף מהלקוח', fmt(cash)) : '')
-    + (ern      ? row('ERN', ern) : '')
-    + (finance  ? row('סכום מימון', fmt(finance), true) : '')
-    + (listP && finance ? row('אחוז מימון ממחירון', Math.round(finance/listP*100)+'%') : '');
+  if (monthly) {
+    rows += rSep('החזר חודשי משוער');
+    rows += '<tr><td colspan="2" class="monthly-cell">'
+      + '<div class="m-amount">₪ ' + Math.round(monthly).toLocaleString('he-IL') + '</div>'
+      + '<div class="m-sub">' + n + ' תשלומים'
+      + (trackName ? ' · ' + trackName : '')
+      + (interest ? ' · עלות ריבית ' + fmt(interest) + '/חודש' : '')
+      + '</div>'
+      + '</td></tr>';
+  }
 
   var html = '<!DOCTYPE html><html lang="he" dir="rtl"><head>'
     + '<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
     + '<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;900&display=swap" rel="stylesheet">'
     + '<style>'
     + '*{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
-    + 'body{font-family:Heebo,Arial,sans-serif;background:#f0f4fa;color:#0d1f3c;direction:rtl;min-height:100vh;padding:24px 16px}'
-    + '.card{background:#fff;border-radius:18px;box-shadow:0 2px 16px rgba(13,31,60,.10);max-width:540px;margin:0 auto;overflow:hidden}'
-    /* header */
-    + '.card-header{background:#0d1f3c;padding:22px 24px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px}'
-    + '.hdr-title{font-size:26px;font-weight:900;color:#fff;line-height:1}'
-    + '.hdr-date{font-size:12px;color:#7a9ccf;margin-top:5px}'
-    + '.hdr-meta{text-align:left;font-size:12px;color:#7a9ccf;line-height:1.7}'
-    + '.hdr-meta b{color:#fff}'
-    /* customer bar */
-    + '.cust-bar{background:#c9a227;padding:12px 24px;display:flex;justify-content:space-between;align-items:center}'
-    + '.cust-name{font-size:17px;font-weight:900;color:#fff}'
+    + 'body{font-family:Heebo,Arial,sans-serif;background:#eef2fa;color:#0d1f3c;direction:rtl;padding:28px 16px;min-height:100vh}'
+    + '.wrap{max-width:520px;margin:0 auto}'
+    + '.hdr{background:#0d1f3c;border-radius:16px 16px 0 0;padding:20px 24px;text-align:center}'
+    + '.hdr-title{font-size:28px;font-weight:900;color:#fff}'
+    + '.hdr-date{font-size:12px;color:#7a9ccf;margin-top:4px}'
+    + '.hdr-agents{display:flex;justify-content:center;gap:24px;margin-top:10px;font-size:12px;color:#7a9ccf}'
+    + '.hdr-agents b{color:#fff}'
+    + '.cust{background:#c9a227;padding:12px 24px;display:flex;justify-content:center;align-items:center;gap:20px;flex-wrap:wrap}'
+    + '.cust-name{font-size:18px;font-weight:900;color:#fff}'
     + '.cust-phone{font-size:13px;color:rgba(255,255,255,.85);font-weight:600}'
-    /* body */
-    + '.card-body{padding:20px 24px}'
-    + '.sec-title{font-size:10px;font-weight:700;color:#7a9ccf;letter-spacing:.1em;text-transform:uppercase;margin:16px 0 6px;padding-bottom:4px;border-bottom:1px solid #eef2fb}'
-    + '.sec-title:first-child{margin-top:0}'
-    + '.data-table{width:100%;border-collapse:collapse;margin-bottom:4px}'
-    + '.data-table tr:nth-child(even) td{background:#f8faff}'
-    + '.data-table td{padding:8px 10px;font-size:14px;vertical-align:middle}'
-    + '.lbl{color:#7a9ccf;font-size:12px;white-space:nowrap;width:40%}'
-    + '.val{font-weight:500;text-align:left}'
-    + '.val.acc{font-weight:900;color:#0d1f3c;font-size:15px}'
-    /* monthly */
-    + '.monthly{background:#0d1f3c;border-radius:14px;padding:18px 20px;margin-top:16px;display:flex;justify-content:space-between;align-items:center;gap:12px}'
-    + '.m-label{font-size:10px;color:#7a9ccf;font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px}'
-    + '.m-amount{font-size:40px;font-weight:900;color:#fff;line-height:1}'
-    + '.m-amount span{font-size:20px}'
-    + '.m-sub{font-size:11px;color:#7a9ccf;margin-top:5px}'
-    + '.m-interest{font-size:12px;color:#c9a227;font-weight:700;margin-top:3px}'
-    + '.m-track{font-size:12px;color:#7a9ccf;text-align:left;max-width:120px}'
-    /* footer */
-    + '.footer{padding:12px 24px;text-align:center;font-size:11px;color:#aab5cc;border-top:1px solid #eef2fb}'
+    + '.main-table{width:100%;border-collapse:collapse;background:#fff}'
+    + '.main-table td{padding:10px 18px;font-size:14px;vertical-align:middle;text-align:center}'
+    + '.lbl{color:#5a6e90;font-size:12px;font-weight:600;width:45%;border-left:1px solid #eef2fb}'
+    + '.val{font-weight:500}'
+    + '.big{font-weight:900;font-size:17px;color:#0d1f3c}'
+    + '.big-row td{background:#f4f8ff}'
+    + '.sep{background:#0d1f3c;color:#c9a227;font-size:11px;font-weight:700;letter-spacing:.08em;text-align:center;padding:8px 18px}'
+    + '.monthly-cell{background:#0d1f3c;text-align:center;padding:22px}'
+    + '.m-amount{font-size:46px;font-weight:900;color:#fff;line-height:1}'
+    + '.m-sub{font-size:12px;color:#7a9ccf;margin-top:8px}'
+    + '.ftr{background:#fff;border-radius:0 0 16px 16px;padding:12px 24px;text-align:center;font-size:11px;color:#aab5cc;border-top:1px solid #eef2fb}'
     + '@page{size:A4 portrait;margin:10mm}'
-    + '@media print{body{background:#fff;padding:0}.card{box-shadow:none;border-radius:0;max-width:100%}}'
+    + '@media print{body{background:#fff;padding:0}.wrap{max-width:100%}.hdr{border-radius:0}.ftr{border-radius:0}}'
     + '</style></head><body>'
-
-    + '<div class="card">'
-
-    /* ── HEADER ── */
-    + '<div class="card-header">'
-    + '<div><div class="hdr-title">הצעת מחיר</div><div class="hdr-date">' + today + '</div></div>'
-    + '<div class="hdr-meta">'
-    + (rep  ? '<div>נציג מכירות: <b>'+rep+'</b></div>' : '')
-    + (fRep ? '<div>נציג מימון: <b>'+fRep+'</b></div>' : '')
-    + '</div>'
-    + '</div>'
-
-    /* ── CUSTOMER BAR ── */
-    + '<div class="cust-bar">'
-    + '<div class="cust-name">' + (cust||'לקוח') + '</div>'
-    + (phone ? '<div class="cust-phone">📞 '+phone+'</div>' : '')
-    + '</div>'
-
-    /* ── BODY ── */
-    + '<div class="card-body">'
-
-    + (carRows   ? section('פרטי רכב', carRows) : '')
-    + (tradeRows ? section('טרייד אין', tradeRows) : '')
-    + section('פרטי עסקה', dealRows)
-
-    /* ── MONTHLY ── */
-    + (monthly ? '<div class="monthly">'
-      + '<div>'
-      + '<div class="m-label">החזר חודשי משוער</div>'
-      + '<div class="m-amount"><span>₪</span>' + Math.round(monthly).toLocaleString('he-IL') + '</div>'
-      + '<div class="m-sub">' + n + ' תשלומים · ' + fmt(finance) + '</div>'
-      + (interest ? '<div class="m-interest">עלות ריבית: '+fmt(interest)+'/חודש</div>' : '')
-      + '</div>'
-      + (trackName ? '<div class="m-track">' + trackName + '</div>' : '')
+    + '<div class="wrap">'
+    + '<div class="hdr">'
+    + '<div class="hdr-title">הצעת מחיר</div>'
+    + '<div class="hdr-date">' + today + '</div>'
+    + ((rep || fRep) ? '<div class="hdr-agents">'
+      + (rep  ? '<span>נציג מכירות: <b>'+rep+'</b></span>' : '')
+      + (fRep ? '<span>נציג מימון: <b>'+fRep+'</b></span>' : '')
       + '</div>' : '')
-
     + '</div>'
-    + '<div class="footer">* הצעה זו אינה מהווה התחייבות. בכפוף לאישור הגורם המממן.</div>'
+    + '<div class="cust">'
+    + '<span class="cust-name">' + (cust||'לקוח') + '</span>'
+    + (phone ? '<span class="cust-phone">📞 '+phone+'</span>' : '')
+    + '</div>'
+    + '<table class="main-table"><tbody>' + rows + '</tbody></table>'
+    + '<div class="ftr">* הצעה זו אינה מהווה התחייבות. בכפוף לאישור הגורם המממן.</div>'
     + '</div>'
     + '</body></html>';
 
@@ -926,8 +908,6 @@ function exportPdf() {
   w.document.write(html);
   w.document.close();
   setTimeout(function(){ w.print(); }, 700);
-}
-  setTimeout(function(){ w.print(); }, 600);
 }
 
 function lookupPlate(plateId, nameId, btn) {
