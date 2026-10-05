@@ -1341,10 +1341,50 @@ function _renderPickupArchive(docs) {
         </div>
       </div>
       ${c.collectedByText ? `<div style="margin-top:8px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px">🧾 נאסף על ידי: <b>${e(c.collectedByText)}</b></div>` : ''}
+      <div style="margin-top:10px;display:flex;justify-content:flex-start">
+        <button type="button" onclick="restorePickupCar('${e(c.id)}')"
+          style="background:var(--card);color:var(--dark);border:1px solid var(--border);border-radius:999px;padding:7px 14px;font-family:Heebo,sans-serif;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap">↩️ החזרה לרשימת האיסוף</button>
+      </div>
     </div>`;
   }).join('');
 }
 
+
+/* החזרת רכב מהארכיון לרשימת האיסוף — ההיפך המדויק של האיסוף:
+   פרטי האיסוף יורדים, אישור הבעלות שנשמר בנפרד חוזר אל הרכב,
+   והשורה נמחקת מהארכיון רק אחרי שהרכב כבר נכתב בחזרה. */
+let _pkRestoreBusy = false;
+
+async function restorePickupCar(id) {
+  if (_pkRestoreBusy) return;                     // לחיצה שנייה לא משכפלת את הרכב
+  const car = (_pickupArchiveCars || []).find(c => c.id === id);
+  if (!car) return;
+  if (!confirm(`להחזיר את ${car.plate || 'הרכב'} לרשימת הרכבים לאיסוף?`)) return;
+  if (!_requireNet('החזרת הרכב')) return;
+  _pkRestoreBusy = true;
+  try {
+    const { addDoc, deleteDoc, doc, collection } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const { id: _id, collectedAt, collectedBy, collectedByText, ...rest } = car;
+    // אישור הבעלות נשמר בנפרד בעת האיסוף — מחזירים אותו אל הרכב
+    let docPart = {};
+    try {
+      const ds = await window._getDoc(_docRef('pickup_docs', id));
+      if (ds.exists()) {
+        const d = ds.data();
+        docPart = { doc: d.doc, docMime: d.docMime || null, docName: d.docName || null };
+      }
+    } catch (err) { console.error('pickup doc read', err); }
+    await addDoc(collection(window._db, 'pickup_cars'), { ...rest, ...docPart });
+    await deleteDoc(doc(window._db, 'pickup_archive', id));
+    try { await deleteDoc(doc(window._db, 'pickup_docs', id)); } catch (err) {}
+    showToast('↩️ הרכב הוחזר לרשימת האיסוף');
+  } catch (err) {
+    console.error('restore pickup failed', err);
+    showToast('שגיאה בהחזרת הרכב — נסה שוב');
+  }
+  _pkRestoreBusy = false;
+}
+window.restorePickupCar = restorePickupCar;
 
 function _pickupDays(car) {
   if (!car.createdAt?.seconds) return null;
