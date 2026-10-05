@@ -14,6 +14,75 @@ let _towInv = null;   // { rows:[{plate,cands,raw,found,src,desc}], label, note 
 /* ההצלבה יושבת בתוך מסך האיסוף ולא בחלונית קופצת, כדי שאפשר
    יהיה לבדוק רכב בארכיון שמתחת בלי לאבד את מה שנקרא. היא נסגרת
    רק בשמירה או בלחיצה על ✕ — יציאה מהמסך וחזרה ממשיכה מאותה נקודה. */
+/* החשבוניות שנשמרו — שורה לכל חודש, ולחיצה פותחת את רשימת
+   הרכבים של אותה חשבונית. זה גם המקור של התג "כבר חויב" בהצלבה. */
+let _towSaved = [];
+let _towSavedOpen = '';
+
+function _towListenSaved() {
+  _reSnapReset('towInv');
+  _reSnap('towInv', _colRef(_TOW_INV_COL), snap => {
+    _towSaved = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    _towRenderSaved();
+  }, err => console.error('tow invoices listen', err));
+}
+
+function towSavedToggle(id) {
+  _towSavedOpen = (_towSavedOpen === id) ? '' : id;
+  _towRenderSaved();
+}
+window.towSavedToggle = towSavedToggle;
+
+async function towSavedDelete(id) {
+  const inv = _towSaved.find(x => x.id === id);
+  if (!inv) return;
+  if (!confirm(`למחוק את חשבונית ${inv.label || ''}? היא לא תסמן יותר רכבים כ"כבר חויב".`)) return;
+  if (!_requireNet('מחיקת החשבונית')) return;
+  try {
+    const { deleteDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    await deleteDoc(doc(window._db, _TOW_INV_COL, id));
+    showToast('החשבונית נמחקה');
+  } catch (e) {
+    console.error('tow invoice delete', e);
+    showToast('המחיקה נכשלה');
+  }
+}
+window.towSavedDelete = towSavedDelete;
+
+function _towRenderSaved() {
+  const host = document.getElementById('tow-saved-list');
+  const cnt = document.getElementById('tow-saved-count');
+  if (!host) return;
+  const rows = [..._towSaved].sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+  if (cnt) cnt.textContent = rows.length ? `(${rows.length})` : '';
+  if (!rows.length) {
+    host.innerHTML = '<div style="font-size:12.5px;color:var(--muted);font-weight:700">עדיין לא נשמרה אף חשבונית</div>';
+    return;
+  }
+  host.innerHTML = rows.map(inv => {
+    const open = _towSavedOpen === inv.id;
+    const dt = inv.createdAt?.seconds
+      ? new Date(inv.createdAt.seconds * 1000).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' }) : '';
+    const miss = (inv.missing || []).length;
+    const plates = inv.plates || [];
+    const missSet = new Set(inv.missing || []);
+    const body = open ? `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:5px">${
+      plates.map(p => `<span style="background:${missSet.has(p) ? '#fef2f2' : 'var(--surface2)'};color:${missSet.has(p) ? '#dc2626' : 'var(--text)'};border:1px solid ${missSet.has(p) ? '#fecaca' : 'var(--border)'};border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:800;direction:ltr">${_towFmt(p)}</span>`).join('')
+      || '<span style="font-size:12px;color:var(--muted)">אין רכבים</span>'}</div>` : '';
+    return `<div style="border:1.5px solid var(--border);border-radius:12px;padding:9px 11px;background:var(--surface2)">
+      <div onclick="towSavedToggle('${esc(inv.id)}')" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <span style="font-weight:900;font-size:14px;flex-shrink:0">${esc(inv.label || 'ללא חודש')}</span>
+        <span style="font-size:12px;color:var(--muted);font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${
+          inv.count || plates.length} רכבים${miss ? ` · <span style="color:#dc2626;font-weight:800">${miss} לא נמצאו</span>` : ''}${
+          inv.createdBy ? ` · ${esc(inv.createdBy)}` : ''}${dt ? ` · ${dt}` : ''}</span>
+        <span style="flex-shrink:0;font-size:12px;color:var(--muted)">${open ? '▲' : '▼'}</span>
+        <button type="button" onclick="event.stopPropagation();towSavedDelete('${esc(inv.id)}')" title="מחיקת החשבונית"
+          style="flex-shrink:0;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:3px 8px;font-size:12px;cursor:pointer">🗑️</button>
+      </div>${body}
+    </div>`;
+  }).join('');
+}
+
 function _towPanel(open) {
   const wrap = document.getElementById('pickup-bottom');
   if (wrap) wrap.classList.toggle('tow-open', !!open);
@@ -35,6 +104,7 @@ function openTowInvoice() {
   if (!_towInv) _towClear();            // הצלבה שכבר רצה — ממשיכים אותה, לא מאפסים
   closeModal('modal-pickup-actions');
   _towPanel(true);
+  _towListenSaved();
   // הארכיון נפתח לידה, כי הוא המקום שבו בודקים את הרכבים החסרים
   if (typeof _pickupArchiveOpen !== 'undefined' && !_pickupArchiveOpen) togglePickupArchive();
   const el = document.getElementById('pickup-col-tow');
@@ -47,6 +117,7 @@ function closeTowInvoice() {
       && !confirm('לסגור את ההצלבה? מה שנקרא מהחשבונית יימחק.')) return;
   _towClear();
   _towPanel(false);
+  _reSnapReset('towInv');
 }
 window.closeTowInvoice = closeTowInvoice;
 
@@ -294,6 +365,7 @@ async function towInvSave() {
     showToast(`✅ חשבונית ${label} נשמרה — ${_towInv.rows.length} רכבים`, 5000);
     _towClear();
     _towPanel(false);
+    _reSnapReset('towInv');
   } catch (e) {
     console.error('tow invoice save', e);
     showToast('השמירה נכשלה: ' + (e.code || e.message), 6000);
