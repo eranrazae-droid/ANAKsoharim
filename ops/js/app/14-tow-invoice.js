@@ -11,7 +11,15 @@
 const _TOW_INV_COL = 'tow_invoices';
 let _towInv = null;   // { rows:[{plate,cands,raw,found,src,desc}], label, note }
 
-function openTowInvoice() {
+/* ההצלבה יושבת בתוך מסך האיסוף ולא בחלונית קופצת, כדי שאפשר
+   יהיה לבדוק רכב בארכיון שמתחת בלי לאבד את מה שנקרא. היא נסגרת
+   רק בשמירה או בלחיצה על ✕ — יציאה מהמסך וחזרה ממשיכה מאותה נקודה. */
+function _towPanel(open) {
+  const wrap = document.getElementById('pickup-bottom');
+  if (wrap) wrap.classList.toggle('tow-open', !!open);
+}
+
+function _towClear() {
   _towInv = null;
   const f = document.getElementById('tow-inv-file'); if (f) f.value = '';
   _towSet('tow-inv-status', '');
@@ -21,10 +29,26 @@ function openTowInvoice() {
   if (lbl) lbl.value = _towDefaultLabel();
   const save = document.getElementById('tow-inv-save');
   if (save) save.style.display = 'none';
+}
+
+function openTowInvoice() {
+  if (!_towInv) _towClear();            // הצלבה שכבר רצה — ממשיכים אותה, לא מאפסים
   closeModal('modal-pickup-actions');
-  openModal('modal-tow-invoice');
+  _towPanel(true);
+  // הארכיון נפתח לידה, כי הוא המקום שבו בודקים את הרכבים החסרים
+  if (typeof _pickupArchiveOpen !== 'undefined' && !_pickupArchiveOpen) togglePickupArchive();
+  const el = document.getElementById('pickup-col-tow');
+  if (el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
 }
 window.openTowInvoice = openTowInvoice;
+
+function closeTowInvoice() {
+  if (_towInv && _towInv.rows && _towInv.rows.length
+      && !confirm('לסגור את ההצלבה? מה שנקרא מהחשבונית יימחק.')) return;
+  _towClear();
+  _towPanel(false);
+}
+window.closeTowInvoice = closeTowInvoice;
 
 function _towSet(id, html) { const el = document.getElementById(id); if (el) el.innerHTML = html; }
 
@@ -246,7 +270,8 @@ async function towInvSave() {
       createdBy: currentUser?.name || '',
     });
     showToast(`✅ חשבונית ${label} נשמרה — ${_towInv.rows.length} רכבים`, 5000);
-    closeModal('modal-tow-invoice');
+    _towClear();
+    _towPanel(false);
   } catch (e) {
     console.error('tow invoice save', e);
     showToast('השמירה נכשלה: ' + (e.code || e.message), 6000);

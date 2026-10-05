@@ -1263,6 +1263,8 @@ function openPickupScreen() {
   loadPickupCars();
   loadPickupArchiveCount();
   loadPickupRegionTasks();
+  // הצלבת חשבונית שנשארה פתוחה — הארכיון נפתח איתה כמו שהיה
+  if (document.getElementById('pickup-bottom')?.classList.contains('tow-open')) togglePickupArchive();
 }
 window.openPickupScreen = openPickupScreen;
 
@@ -1338,13 +1340,11 @@ function _renderPickupArchive(docs) {
         <div style="text-align:left;flex-shrink:0;font-size:12px;color:var(--muted)">
           ${dt ? `<div>🕐 ${e(dt)}</div>` : ''}
           ${c.collectedBy ? `<div style="font-weight:700;color:#16a34a;margin-top:3px">✅ ${e(c.collectedBy)}</div>` : ''}
+          <button type="button" onclick="restorePickupCar('${e(c.id)}')" title="מחזיר את הרכב לרשימת האיסוף"
+            style="margin-top:8px;background:var(--card);color:var(--muted);border:1px solid var(--border);border-radius:999px;padding:5px 11px;font-family:Heebo,sans-serif;font-size:11.5px;font-weight:800;cursor:pointer;white-space:nowrap">↩️ החזרה לאיסוף</button>
         </div>
       </div>
       ${c.collectedByText ? `<div style="margin-top:8px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px">🧾 נאסף על ידי: <b>${e(c.collectedByText)}</b></div>` : ''}
-      <div style="margin-top:10px;display:flex;justify-content:flex-start">
-        <button type="button" onclick="restorePickupCar('${e(c.id)}')"
-          style="background:var(--card);color:var(--dark);border:1px solid var(--border);border-radius:999px;padding:7px 14px;font-family:Heebo,sans-serif;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap">↩️ החזרה לרשימת האיסוף</button>
-      </div>
     </div>`;
   }).join('');
 }
