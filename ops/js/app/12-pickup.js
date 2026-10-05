@@ -1379,22 +1379,20 @@ async function restorePickupCar(id) {
         if (d.doc) docPart = { doc: d.doc, docMime: d.docMime || null, docName: d.docName || null };
       }
     } catch (err) { console.error('pickup doc read', err); }
-    /* הרכב נכתב בדיוק במבנה של רכב שנוסף בטופס — אותם שדות ולא יותר.
-       כך הקוביה שלו נראית זהה לקוביה של רכב חדש: "חדש" במקום ימי המתנה
-       ישנים, בלי שיוך לנהג או לגרר, בלי נעיצה ובלי מקום קבוע בסדר הידני. */
+    /* שומרים את כל נתוני הרכב — גם הפרטים שהוזנו וגם מה שהמערכת
+       חישבה ושמרה עליו (נקודת הציון, התחנה הקרובה ומרחק ההליכה אליה),
+       כדי שלא יהיה צורך לחשב אותם מהתחלה. יורד רק מה שהוא מצב: פרטי
+       האיסוף, השיוך לנהג או לגרר, הנעיצה והמקום בסדר הידני. */
+    const DROP = new Set(['id', 'collectedAt', 'collectedBy', 'collectedByText', 'hasDoc', 'docLost',
+                          'assignedDriver', 'sortIndex', 'pinned', 'createdAt', 'createdBy',
+                          'doc', 'docMime', 'docName']);
+    const kept = Object.fromEntries(Object.entries(car).filter(([k]) => !DROP.has(k)));
+    // האישור: מהמסמך הנפרד, ואם אין — מארכיון ישן ששמר אותו בתוכו
+    const inline = car.doc ? { doc: car.doc, docMime: car.docMime || null, docName: car.docName || null } : null;
+    const finalDoc = docPart.doc ? docPart : (inline || { doc: null, docMime: null, docName: null });
     await addDoc(collection(window._db, 'pickup_cars'), {
-      plate: car.plate || '',
-      type: car.type || '',
-      year: car.year || '',
-      color: car.color || '',
-      km: car.km || '',
-      test: car.test || '',
-      contact: car.contact || '',
-      city: car.city || '',
-      address: car.address || '',
-      note: car.note || '',
-      source: car.source || '',
-      ...(docPart.doc ? docPart : { doc: null, docMime: null, docName: null }),
+      ...kept,
+      ...finalDoc,
       createdBy: currentUser?.name || '',
       createdAt: _serverTs(),
     });
@@ -1402,7 +1400,7 @@ async function restorePickupCar(id) {
     // מוחקים את העותק של האישור רק אחרי שקראנו אותו בהצלחה
     if (docRead) { try { await deleteDoc(doc(window._db, 'pickup_docs', id)); } catch (err) {} }
     // מזהירים רק כשידוע שהיה אישור, או כשלא הצלחנו בכלל לבדוק
-    const lostDoc = !docPart.doc && (hasDoc === true || docLost === true || !docRead);
+    const lostDoc = !finalDoc.doc && (hasDoc === true || docLost === true || !docRead);
     showToast(lostDoc
       ? `↩️ הרכב הוחזר — אבל אישור הבעלות לא נמצא, יש לצרף אותו מחדש`
       : '↩️ הרכב הוחזר לרשימת האיסוף', lostDoc ? 7000 : 3000);
