@@ -803,86 +803,130 @@ function exportPdf() {
   var n        = currentN;
   var trackName = currentTrackName;
   var interest = monthly && n ? Math.round(monthly - finance/n) : 0;
+  var diff     = newPrice - tradeIn;
   var totalDeal = newPrice - tradeIn + oldLoan;
   var today    = new Date().toLocaleDateString('he-IL');
 
-  function r(label, val, bold) {
-    if (!val && val !== 0) return '';
+  function fmt(v){ return v ? '₪ ' + Math.round(v).toLocaleString('he-IL') : '—'; }
+
+  function row(label, val, accent) {
     return '<tr>'
-      + '<td style="padding:7px 14px;color:#5a7aa5;font-size:13px;white-space:nowrap;text-align:right">' + label + '</td>'
-      + '<td style="padding:7px 14px;font-weight:' + (bold?'700':'500') + ';font-size:14px;text-align:left">' + val + '</td>'
+      + '<td class="lbl">' + label + '</td>'
+      + '<td class="val' + (accent?' acc':'') + '">' + val + '</td>'
       + '</tr>';
   }
-  function fmt(n){ return n ? '₪ ' + Math.round(n).toLocaleString('he-IL') : ''; }
 
-  var tradeBlock = tradeIn ? '<table style="width:100%;border-collapse:collapse;margin-bottom:12px">'
-    + r('רכב ישן', oldCar + (oldPlate?' · '+oldPlate:''))
-    + r('זיכוי טרייד אין', fmt(tradeIn), true)
-    + (oldLoan ? r('חוב מימון ישן', fmt(oldLoan)) : '')
-    + '</table>' : '';
+  function section(title, rows) {
+    return '<div class="sec-title">' + title + '</div>'
+      + '<table class="data-table"><tbody>' + rows + '</tbody></table>';
+  }
 
-  var cashLine = cash ? ('<div style="margin-top:4px;font-size:13px;color:#5a7aa5">כסף מהלקוח: <b style="color:#0d1f3c">'+fmt(cash)+'</b>'+(ern?' · ERN: <b>'+ern+'</b>':'')+'</div>') : '';
+  var carRows = ''
+    + (newCar   ? row('פרטי הרכב', '<b>'+newCar+'</b>') : '')
+    + (newPlate ? row('לוחית רישוי', newPlate) : '')
+    + (newPrice ? row('מחיר', fmt(newPrice), true) : '')
+    + (listP && listP !== newPrice ? row('מחירון (0 ק"מ)', fmt(listP)) : '');
 
-  var monthlyBlock = monthly ? '<div style="background:#0d1f3c;border-radius:14px;padding:18px 24px;color:#fff;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center">'
-    + '<div>'
-    + '<div style="font-size:11px;color:#7a9ccf;font-weight:600;letter-spacing:.05em;text-transform:uppercase;margin-bottom:4px">החזר חודשי משוער</div>'
-    + '<div style="font-size:42px;font-weight:900;line-height:1"><span style="font-size:22px">₪</span>' + Math.round(monthly).toLocaleString('he-IL') + '</div>'
-    + '<div style="font-size:12px;color:#7a9ccf;margin-top:4px">' + n + ' תשלומים · ' + fmt(finance) + ' מימון</div>'
-    + (interest ? '<div style="font-size:12px;color:#c9a227;font-weight:700;margin-top:2px">עלות ריבית: '+fmt(interest)+'/חודש</div>' : '')
-    + '</div>'
-    + (trackName ? '<div style="font-size:13px;color:#7a9ccf;text-align:left">' + trackName + '</div>' : '')
-    + '</div>' : '';
+  var tradeRows = tradeIn ? ''
+    + (oldCar   ? row('רכב ישן', '<b>'+oldCar+'</b>') : '')
+    + (oldPlate ? row('לוחית', oldPlate) : '')
+    + row('זיכוי', fmt(tradeIn), true)
+    + (oldLoan  ? row('חוב מימון ישן', fmt(oldLoan)) : '') : '';
+
+  var dealRows = ''
+    + (tradeIn  ? row('הפרש', fmt(diff)) : '')
+    + (oldLoan  ? row('סה"כ עסקה', fmt(totalDeal), true) : (!tradeIn ? row('סה"כ עסקה', fmt(newPrice), true) : row('סה"כ עסקה', fmt(diff), true)))
+    + (cash     ? row('כסף מהלקוח', fmt(cash)) : '')
+    + (ern      ? row('ERN', ern) : '')
+    + (finance  ? row('סכום מימון', fmt(finance), true) : '')
+    + (listP && finance ? row('אחוז מימון ממחירון', Math.round(finance/listP*100)+'%') : '');
 
   var html = '<!DOCTYPE html><html lang="he" dir="rtl"><head>'
-    + '<meta charset="UTF-8">'
+    + '<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+    + '<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;900&display=swap" rel="stylesheet">'
     + '<style>'
-    + 'body{margin:0;padding:24px;font-family:\'Heebo\',Arial,sans-serif;background:#fff;color:#0d1f3c;direction:rtl}'
-    + '@import url("https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;900&display=swap");'
-    + 'table{width:100%;border-collapse:collapse}'
-    + 'tr:nth-child(even) td{background:#f8faff}'
-    + '@page{size:A4 portrait;margin:14mm}'
-    + '@media print{body{padding:0}}'
+    + '*{box-sizing:border-box;margin:0;padding:0}'
+    + 'body{font-family:Heebo,Arial,sans-serif;background:#f0f4fa;color:#0d1f3c;direction:rtl;min-height:100vh;padding:24px 16px}'
+    + '.card{background:#fff;border-radius:18px;box-shadow:0 2px 16px rgba(13,31,60,.10);max-width:540px;margin:0 auto;overflow:hidden}'
+    /* header */
+    + '.card-header{background:#0d1f3c;padding:22px 24px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px}'
+    + '.hdr-title{font-size:26px;font-weight:900;color:#fff;line-height:1}'
+    + '.hdr-date{font-size:12px;color:#7a9ccf;margin-top:5px}'
+    + '.hdr-meta{text-align:left;font-size:12px;color:#7a9ccf;line-height:1.7}'
+    + '.hdr-meta b{color:#fff}'
+    /* customer bar */
+    + '.cust-bar{background:#c9a227;padding:12px 24px;display:flex;justify-content:space-between;align-items:center}'
+    + '.cust-name{font-size:17px;font-weight:900;color:#fff}'
+    + '.cust-phone{font-size:13px;color:rgba(255,255,255,.85);font-weight:600}'
+    /* body */
+    + '.card-body{padding:20px 24px}'
+    + '.sec-title{font-size:10px;font-weight:700;color:#7a9ccf;letter-spacing:.1em;text-transform:uppercase;margin:16px 0 6px;padding-bottom:4px;border-bottom:1px solid #eef2fb}'
+    + '.sec-title:first-child{margin-top:0}'
+    + '.data-table{width:100%;border-collapse:collapse;margin-bottom:4px}'
+    + '.data-table tr:nth-child(even) td{background:#f8faff}'
+    + '.data-table td{padding:8px 10px;font-size:14px;vertical-align:middle}'
+    + '.lbl{color:#7a9ccf;font-size:12px;white-space:nowrap;width:40%}'
+    + '.val{font-weight:500;text-align:left}'
+    + '.val.acc{font-weight:900;color:#0d1f3c;font-size:15px}'
+    /* monthly */
+    + '.monthly{background:#0d1f3c;border-radius:14px;padding:18px 20px;margin-top:16px;display:flex;justify-content:space-between;align-items:center;gap:12px}'
+    + '.m-label{font-size:10px;color:#7a9ccf;font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px}'
+    + '.m-amount{font-size:40px;font-weight:900;color:#fff;line-height:1}'
+    + '.m-amount span{font-size:20px}'
+    + '.m-sub{font-size:11px;color:#7a9ccf;margin-top:5px}'
+    + '.m-interest{font-size:12px;color:#c9a227;font-weight:700;margin-top:3px}'
+    + '.m-track{font-size:12px;color:#7a9ccf;text-align:left;max-width:120px}'
+    /* footer */
+    + '.footer{padding:12px 24px;text-align:center;font-size:11px;color:#aab5cc;border-top:1px solid #eef2fb}'
+    + '@page{size:A4 portrait;margin:10mm}'
+    + '@media print{body{background:#fff;padding:0}.card{box-shadow:none;border-radius:0;max-width:100%}}'
     + '</style></head><body>'
 
+    + '<div class="card">'
+
     /* ── HEADER ── */
-    + '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;border-bottom:2px solid #0d1f3c;padding-bottom:14px">'
-    + '<div><div style="font-size:28px;font-weight:900">הצעת מחיר</div>'
-    + '<div style="font-size:13px;color:#5a7aa5;margin-top:4px">' + today + (cust?' · '+cust:'') + '</div></div>'
-    + '<div style="text-align:left;font-size:13px;color:#5a7aa5">'
-    + (rep?'<div>נציג מכירות: <b style="color:#0d1f3c">'+rep+'</b></div>':'')
-    + (fRep?'<div>נציג מימון: <b style="color:#0d1f3c">'+fRep+'</b></div>':'')
-    + (phone?'<div>טלפון: <b style="color:#0d1f3c">'+phone+'</b></div>':'')
-    + '</div></div>'
+    + '<div class="card-header">'
+    + '<div><div class="hdr-title">הצעת מחיר</div><div class="hdr-date">' + today + '</div></div>'
+    + '<div class="hdr-meta">'
+    + (rep  ? '<div>נציג מכירות: <b>'+rep+'</b></div>' : '')
+    + (fRep ? '<div>נציג מימון: <b>'+fRep+'</b></div>' : '')
+    + '</div>'
+    + '</div>'
 
-    /* ── CAR ── */
-    + '<div style="font-size:11px;font-weight:700;color:#5a7aa5;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">פרטי רכב</div>'
-    + '<table style="margin-bottom:12px">'
-    + r('רכב', newCar + (newPlate?' · '+newPlate:''))
-    + r('מחיר', fmt(newPrice), true)
-    + (listP && listP !== newPrice ? r('מחירון (0 ק"מ)', fmt(listP)) : '')
-    + '</table>'
+    /* ── CUSTOMER BAR ── */
+    + '<div class="cust-bar">'
+    + '<div class="cust-name">' + (cust||'לקוח') + '</div>'
+    + (phone ? '<div class="cust-phone">📞 '+phone+'</div>' : '')
+    + '</div>'
 
-    /* ── TRADE IN ── */
-    + (tradeIn ? '<div style="font-size:11px;font-weight:700;color:#5a7aa5;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">טרייד אין</div>' + tradeBlock : '')
+    /* ── BODY ── */
+    + '<div class="card-body">'
 
-    /* ── DEAL ── */
-    + '<div style="font-size:11px;font-weight:700;color:#5a7aa5;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">פרטי עסקה</div>'
-    + '<table style="margin-bottom:16px">'
-    + r('סה"כ עסקה', fmt(totalDeal), true)
-    + cashLine
-    + r('סכום מימון', fmt(finance), true)
-    + (listP ? r('אחוז מימון ממחירון', Math.round(finance/listP*100)+'%') : '')
-    + '</table>'
+    + (carRows   ? section('פרטי רכב', carRows) : '')
+    + (tradeRows ? section('טרייד אין', tradeRows) : '')
+    + section('פרטי עסקה', dealRows)
 
     /* ── MONTHLY ── */
-    + monthlyBlock
+    + (monthly ? '<div class="monthly">'
+      + '<div>'
+      + '<div class="m-label">החזר חודשי משוער</div>'
+      + '<div class="m-amount"><span>₪</span>' + Math.round(monthly).toLocaleString('he-IL') + '</div>'
+      + '<div class="m-sub">' + n + ' תשלומים · ' + fmt(finance) + '</div>'
+      + (interest ? '<div class="m-interest">עלות ריבית: '+fmt(interest)+'/חודש</div>' : '')
+      + '</div>'
+      + (trackName ? '<div class="m-track">' + trackName + '</div>' : '')
+      + '</div>' : '')
 
-    + '<div style="margin-top:24px;font-size:11px;color:#aab;text-align:center">* הצעה זו אינה מהווה התחייבות. בכפוף לאישור הגורם המממן.</div>'
+    + '</div>'
+    + '<div class="footer">* הצעה זו אינה מהווה התחייבות. בכפוף לאישור הגורם המממן.</div>'
+    + '</div>'
     + '</body></html>';
 
   var w = window.open('', '_blank');
   w.document.write(html);
   w.document.close();
+  setTimeout(function(){ w.print(); }, 700);
+}
   setTimeout(function(){ w.print(); }, 600);
 }
 
