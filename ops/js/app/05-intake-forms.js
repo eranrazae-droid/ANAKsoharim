@@ -287,6 +287,29 @@ async function saveIntakeDraftPhotos() {
   }
 }
 
+/* טעינת תמונות מהטיוטה היא אסינכרונית. כשכמה טעינות רצו יחד — מהמכשיר,
+   מהשרת, ופתיחה חוזרת של הטופס — כל אחת דחפה את התמונות שלה לאותו
+   מערך, וכל פתיחה של הטופס הכפילה אותן. ההכפלה נשמרה חזרה לטיוטה,
+   ולכן הלכה וגדלה עד שהרשומה חרגה ממגבלת הגודל והשליחה נכשלה.
+   עכשיו לכל "תא" תמונות יש מספר טעינה אחד ורק האחרונה כותבת אליו,
+   תמונות זהות מצטמצמות לאחת, ואף תא לא עובר את ארבע התמונות שהטופס
+   מאפשר להוסיף ידנית. כך גם טיוטה שכבר נפגעה נפתחת נקייה יותר. */
+const _photoLoadTok = {};
+const _PHOTO_SLOT_MAX = 4;
+function _cleanB64(list) {
+  return [...new Set((Array.isArray(list) ? list : []).filter(Boolean))].slice(0, _PHOTO_SLOT_MAX);
+}
+function _loadPhotoSlot(slot, b64s, put) {
+  const tok = (_photoLoadTok[slot] = (_photoLoadTok[slot] || 0) + 1);
+  _cleanB64(b64s).forEach(b64 => {
+    fetch(b64).then(r => r.blob()).then(blob => {
+      if (_photoLoadTok[slot] !== tok) return;     // נטענה מאז טעינה חדשה יותר
+      put(blob);
+    }).catch(() => {});
+  });
+}
+window._cleanB64 = _cleanB64;
+
 // תמונות שהגיעו עם הטיוטה (למשל מנסיעת מבחן) נטענות לטופס כקבצים,
 // כך שהנהג רואה אותן ויכול להוסיף או להסיר לפני השליחה
 function _applyDraftPhotos(photos) {
@@ -295,12 +318,10 @@ function _applyDraftPhotos(photos) {
     if (!Array.isArray(b64s) || !b64s.length) return;
     if ((ciPhotoFiles[key] || []).length) return;   // כבר יש תמונות — לא דורסים
     ciPhotoFiles[key] = [];
-    b64s.forEach(b64 => {
-      fetch(b64).then(r => r.blob()).then(blob => {
-        ciPhotoFiles[key].push(new File([blob], 'photo.jpg', { type: blob.type }));
-        renderPhotoGrid(key);
-        scheduleIntakePhotoDraft();
-      }).catch(() => {});
+    _loadPhotoSlot(key, b64s, blob => {
+      ciPhotoFiles[key].push(new File([blob], 'photo.jpg', { type: blob.type }));
+      renderPhotoGrid(key);
+      scheduleIntakePhotoDraft();
     });
   });
 }
@@ -312,21 +333,17 @@ function _applyLivePhotos(photos, batteryB64) {
     Object.entries(photos).forEach(([key, b64s]) => {
       if (!Array.isArray(b64s) || !b64s.length) return;
       ciPhotoFiles[key] = [];
-      b64s.forEach(b64 => {
-        fetch(b64).then(r => r.blob()).then(blob => {
-          ciPhotoFiles[key].push(new File([blob], 'photo.jpg', { type: blob.type }));
-          renderPhotoGrid(key);
-        }).catch(() => {});
+      _loadPhotoSlot(key, b64s, blob => {
+        ciPhotoFiles[key].push(new File([blob], 'photo.jpg', { type: blob.type }));
+        renderPhotoGrid(key);
       });
     });
   }
   if (Array.isArray(batteryB64) && batteryB64.length && !(_batteryPhotoFiles || []).length) {
     _batteryPhotoFiles = [];
-    batteryB64.forEach(b64 => {
-      fetch(b64).then(r => r.blob()).then(blob => {
-        _batteryPhotoFiles.push(new File([blob], 'battery.jpg', { type: blob.type }));
-        addBatteryPhoto({ files: [] });
-      }).catch(() => {});
+    _loadPhotoSlot('battery', batteryB64, blob => {
+      _batteryPhotoFiles.push(new File([blob], 'battery.jpg', { type: blob.type }));
+      addBatteryPhoto({ files: [] });
     });
   }
 }
@@ -473,11 +490,9 @@ function restoreIntakeDraft(id) {
         const b64s = JSON.parse(batteryB64s);
         _batteryPhotoFiles = [];
         window._batteryPhotoUrls = {};
-        b64s.forEach(b64 => {
-          fetch(b64).then(r=>r.blob()).then(blob => {
-            _batteryPhotoFiles.push(new File([blob],'battery.jpg',{type:blob.type}));
-            addBatteryPhoto({files:[]});
-          });
+        _loadPhotoSlot('battery', b64s, blob => {
+          _batteryPhotoFiles.push(new File([blob],'battery.jpg',{type:blob.type}));
+          addBatteryPhoto({files:[]});
         });
       } catch(e) {}
     }
@@ -487,11 +502,9 @@ function restoreIntakeDraft(id) {
         const photoData = JSON.parse(photosB64);
         Object.entries(photoData).forEach(([key, b64s]) => {
           ciPhotoFiles[key] = [];
-          b64s.forEach(b64 => {
-            fetch(b64).then(r=>r.blob()).then(blob => {
-              ciPhotoFiles[key].push(new File([blob],'photo.jpg',{type:blob.type}));
-              renderPhotoGrid(key);
-            });
+          _loadPhotoSlot(key, b64s, blob => {
+            ciPhotoFiles[key].push(new File([blob],'photo.jpg',{type:blob.type}));
+            renderPhotoGrid(key);
           });
         });
       } catch(e) {}

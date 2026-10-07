@@ -1715,13 +1715,16 @@ async function submitDriverIntake() {
           showToast(`⏳ מעבד תמונה ${i + 1}/${files.length}...`);
           b64s.push(await compressToBase64(files[i], px, q));
         }
-        photoUrls[key] = b64s; _photoCount += b64s.length;
+        // אותה תמונה פעמיים אינה נשלחת פעמיים
+        const uniq = [...new Set(b64s)];
+        photoUrls[key] = uniq; _photoCount += uniq.length;
       }
       for (let i = 0; i < (_batteryPhotoFiles || []).length; i++) {
         showToast(`⏳ מעבד תמונת מצבר ${i + 1}/${_batteryPhotoFiles.length}...`);
         batteryB64.push(await compressToBase64(_batteryPhotoFiles[i], px, q));
         _photoCount++;
       }
+      batteryB64 = [...new Set(batteryB64)];
     } catch (pe) {
       console.warn('photo processing failed', pe);
       showToast('⚠️ שגיאה בעיבוד התמונות — נסה שוב', 5000);
@@ -1749,7 +1752,17 @@ async function submitDriverIntake() {
   window._batteryPhotoUrls = batteryB64.length ? { battery: batteryB64 } : {};
 
   try {
+    /* בזמן המילוי העתק של כל התמונות נשמר ברשומה לטובת סנכרון בין מכשירים
+       (livePhotos). בשליחה אותן תמונות נכתבות שוב ב-photoUrls, ושני
+       העותקים יחד חרגו ממגבלת הגודל של הרשומה — השליחה נכשלה עם
+       "invalid-argument". כשהקליטה נשלחת העותק הזמני נמחק באותה כתיבה. */
+    let _del = {};
+    try {
+      const { deleteField } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+      if (deleteField) _del = { livePhotos: deleteField(), liveBatteryPhotos: deleteField() };
+    } catch (e) { console.warn('deleteField unavailable', e); }
     await _updateDoc(_docRef('intake_assignments', _currentIntakeId), {
+      ..._del,
       checklist,
       dashChecks,
       safetyChecks,
@@ -1774,7 +1787,9 @@ async function submitDriverIntake() {
     });
   } catch(e) {
     console.error('submitDriverIntake error', e);
-    showToast('שגיאה בשליחה: ' + (e.code || e.message));
+    showToast(e.code === 'invalid-argument' || /exceeds|too large|size/i.test(e.message || '')
+      ? 'הטופס כבד מדי לשליחה — מחק כמה תמונות ונסה שוב. כל מה שמילאת נשמר.'
+      : 'שגיאה בשליחה: ' + (e.code || e.message), 8000);
     return;
   }
 
