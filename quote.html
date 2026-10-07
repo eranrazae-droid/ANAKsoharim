@@ -807,101 +807,101 @@ function exportPdf() {
   var totalDeal = newPrice - tradeIn + oldLoan;
   var today    = new Date().toLocaleDateString('he-IL');
 
-  function fmt(v){ return v ? '₪ ' + Math.round(v).toLocaleString('he-IL') : '—'; }
+  function num(v){ return v ? Math.round(v).toLocaleString('he-IL') : '—'; }
 
-  function r(label, val) {
-    return '<tr><td class="lbl">' + label + '</td><td class="val">' + val + '</td></tr>';
+  /* row helpers */
+  function rHdr(title) {
+    return '<tr><td colspan="2" style="background:#c8e6c9;font-weight:700;font-size:13px;padding:8px 14px;border:1px solid #bbb;text-align:right">' + title + '</td></tr>';
   }
-  function rBig(label, val) {
-    return '<tr class="big-row"><td class="lbl">' + label + '</td><td class="val big">' + val + '</td></tr>';
+  function rRow(label, val, style) {
+    return '<tr>'
+      + '<td style="padding:7px 14px;border:1px solid #ddd;font-size:13px;font-weight:600;color:#c00;text-align:right;' + (style||'') + '">' + label + '</td>'
+      + '<td style="padding:7px 14px;border:1px solid #ddd;font-size:13px;font-weight:700;color:#c00;text-align:center;' + (style||'') + '">' + val + '</td>'
+      + '</tr>';
   }
-  function rSep(title) {
-    return '<tr><td colspan="2" class="sep">' + title + '</td></tr>';
+  function rYellow(label, val) {
+    return '<tr>'
+      + '<td style="padding:8px 14px;border:1px solid #bbb;font-size:13px;font-weight:700;background:#ff0;text-align:right">' + label + '</td>'
+      + '<td style="padding:8px 14px;border:1px solid #bbb;font-size:13px;font-weight:700;background:#ff0;text-align:center">' + val + '</td>'
+      + '</tr>';
+  }
+  function rPink(label, val) {
+    return '<tr>'
+      + '<td style="padding:8px 14px;border:1px solid #bbb;font-size:13px;font-weight:700;background:#fce4ec;color:#880e4f;text-align:right">' + label + '</td>'
+      + '<td style="padding:8px 14px;border:1px solid #bbb;font-size:13px;font-weight:700;background:#fce4ec;color:#880e4f;text-align:center">' + val + '</td>'
+      + '</tr>';
   }
 
   var rows = '';
 
-  if (newCar || newPrice) {
-    rows += rSep('פרטי הרכב');
-    if (newCar)   rows += r('דגם', '<b>'+newCar+'</b>');
-    if (newPlate) rows += r('לוחית', newPlate);
-    if (newPrice) rows += rBig('מחיר', fmt(newPrice));
-    if (listP && listP !== newPrice) rows += r('מחירון', fmt(listP));
-  }
+  /* רכב חדש */
+  rows += rHdr('פרטי רכב חדש');
+  if (newCar || newPlate) rows += rRow((newCar || '') + (newPlate ? ' · ' + newPlate : ''), num(newPrice));
+  else if (newPrice)      rows += rRow('מחיר רכב', num(newPrice));
 
+  /* טרייד אין */
   if (tradeIn) {
-    rows += rSep('טרייד אין');
-    if (oldCar)   rows += r('רכב ישן', '<b>'+oldCar+'</b>');
-    if (oldPlate) rows += r('לוחית', oldPlate);
-    rows += rBig('זיכוי', fmt(tradeIn));
-    if (oldLoan)  rows += r('חוב מימון ישן', fmt(oldLoan));
+    rows += rHdr('פרטי זיכוי טרייד אין');
+    rows += rRow((oldCar || 'רכב ישן') + (oldPlate ? ' · ' + oldPlate : ''), num(tradeIn));
+    rows += rRow('הפרש', num(diff));
+    if (oldLoan) rows += rRow('חוב למימון על רכב ישן', num(oldLoan));
   }
 
-  rows += rSep('פרטי עסקה');
-  if (tradeIn)  rows += r('הפרש', fmt(diff));
-  var totalVal = oldLoan ? fmt(totalDeal) : (tradeIn ? fmt(diff) : fmt(newPrice));
-  rows += rBig('סה"כ עסקה', totalVal);
-  if (cash)     rows += r('כסף מהלקוח', fmt(cash));
-  if (ern)      rows += r('ERN', ern);
-  if (finance)  rows += rBig('סכום מימון', fmt(finance));
-  if (listP && finance) rows += r('אחוז מימון', Math.round(finance/listP*100)+'%');
+  /* עסקה */
+  var totalVal = oldLoan ? totalDeal : (tradeIn ? diff : newPrice);
+  rows += rRow('סהכ עסקה', num(totalVal));
+  if (ern) rows += rRow('ERN', ern);
+  if (finance) rows += rYellow('מימון', num(finance));
+  if (cash)    rows += rPink('כסף שהלקוח צריך להביא', num(cash));
 
+  /* monthly box HTML */
+  var monthlyBox = '';
   if (monthly) {
-    rows += rSep('החזר חודשי משוער');
-    rows += '<tr><td colspan="2" class="monthly-cell">'
-      + '<div class="m-amount">₪ ' + Math.round(monthly).toLocaleString('he-IL') + '</div>'
-      + '<div class="m-sub">' + n + ' תשלומים'
-      + (trackName ? ' · ' + trackName : '')
-      + (interest ? ' · עלות ריבית ' + fmt(interest) + '/חודש' : '')
-      + '</div>'
-      + '</td></tr>';
+    monthlyBox = '<div style="background:#ff0;border:2px solid #bbb;border-radius:6px;padding:16px 20px;text-align:center;min-width:160px">'
+      + '<div style="font-size:26px;font-weight:900;color:#000">' + Math.round(monthly).toLocaleString('he-IL') + '</div>'
+      + '<div style="font-size:13px;font-weight:700;color:#000;margin-top:4px">' + n + ' תשלומים</div>'
+      + '<div style="font-size:11px;color:#333;margin-top:6px">החזר חודשי משוער</div>'
+      + (interest ? '<div style="font-size:11px;color:#555;margin-top:2px">עלות ריבית: ' + Math.round(interest).toLocaleString('he-IL') + '/חודש</div>' : '')
+      + (trackName ? '<div style="font-size:11px;color:#555;margin-top:2px">' + trackName + '</div>' : '')
+      + '</div>';
   }
 
   var html = '<!DOCTYPE html><html lang="he" dir="rtl"><head>'
     + '<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
-    + '<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;900&display=swap" rel="stylesheet">'
+    + '<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;900&display=swap" rel="stylesheet">'
     + '<style>'
     + '*{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
-    + 'body{font-family:Heebo,Arial,sans-serif;background:#eef2fa;color:#0d1f3c;direction:rtl;padding:28px 16px;min-height:100vh}'
-    + '.wrap{max-width:520px;margin:0 auto}'
-    + '.hdr{background:#0d1f3c;border-radius:16px 16px 0 0;padding:20px 24px;text-align:center}'
-    + '.hdr-title{font-size:28px;font-weight:900;color:#fff}'
-    + '.hdr-date{font-size:12px;color:#7a9ccf;margin-top:4px}'
-    + '.hdr-agents{display:flex;justify-content:center;gap:24px;margin-top:10px;font-size:12px;color:#7a9ccf}'
-    + '.hdr-agents b{color:#fff}'
-    + '.cust{background:#c9a227;padding:12px 24px;display:flex;justify-content:center;align-items:center;gap:20px;flex-wrap:wrap}'
-    + '.cust-name{font-size:18px;font-weight:900;color:#fff}'
-    + '.cust-phone{font-size:13px;color:rgba(255,255,255,.85);font-weight:600}'
-    + '.main-table{width:100%;border-collapse:collapse;background:#fff}'
-    + '.main-table td{padding:10px 18px;font-size:14px;vertical-align:middle;text-align:center}'
-    + '.lbl{color:#5a6e90;font-size:12px;font-weight:600;width:45%;border-left:1px solid #eef2fb}'
-    + '.val{font-weight:500}'
-    + '.big{font-weight:900;font-size:17px;color:#0d1f3c}'
-    + '.big-row td{background:#f4f8ff}'
-    + '.sep{background:#0d1f3c;color:#c9a227;font-size:11px;font-weight:700;letter-spacing:.08em;text-align:center;padding:8px 18px}'
-    + '.monthly-cell{background:#0d1f3c;text-align:center;padding:22px}'
-    + '.m-amount{font-size:46px;font-weight:900;color:#fff;line-height:1}'
-    + '.m-sub{font-size:12px;color:#7a9ccf;margin-top:8px}'
-    + '.ftr{background:#fff;border-radius:0 0 16px 16px;padding:12px 24px;text-align:center;font-size:11px;color:#aab5cc;border-top:1px solid #eef2fb}'
-    + '@page{size:A4 portrait;margin:10mm}'
-    + '@media print{body{background:#fff;padding:0}.wrap{max-width:100%}.hdr{border-radius:0}.ftr{border-radius:0}}'
+    + 'body{font-family:Heebo,Arial,sans-serif;direction:rtl;background:#fff;padding:24px}'
+    + '@page{size:A4 portrait;margin:12mm}'
+    + '@media print{body{padding:0}}'
     + '</style></head><body>'
-    + '<div class="wrap">'
-    + '<div class="hdr">'
-    + '<div class="hdr-title">הצעת מחיר</div>'
-    + '<div class="hdr-date">' + today + '</div>'
-    + ((rep || fRep) ? '<div class="hdr-agents">'
-      + (rep  ? '<span>נציג מכירות: <b>'+rep+'</b></span>' : '')
-      + (fRep ? '<span>נציג מימון: <b>'+fRep+'</b></span>' : '')
+
+    /* כותרת */
+    + '<div style="text-align:center;margin-bottom:18px">'
+    + '<div style="font-size:22px;font-weight:900">הצעת מחיר</div>'
+    + '<div style="font-size:12px;color:#666;margin-top:3px">' + today
+    + (cust ? ' · ' + cust : '')
+    + (phone ? ' · ' + phone : '')
+    + '</div>'
+    + ((rep || fRep) ? '<div style="font-size:12px;color:#666;margin-top:2px">'
+      + (rep  ? 'נציג מכירות: ' + rep : '')
+      + (rep && fRep ? ' | ' : '')
+      + (fRep ? 'נציג מימון: ' + fRep : '')
       + '</div>' : '')
     + '</div>'
-    + '<div class="cust">'
-    + '<span class="cust-name">' + (cust||'לקוח') + '</span>'
-    + (phone ? '<span class="cust-phone">📞 '+phone+'</span>' : '')
+
+    /* layout: monthly box + table */
+    + '<div style="display:flex;gap:20px;align-items:flex-start;direction:rtl">'
+
+    /* table */
+    + '<table style="flex:1;border-collapse:collapse;min-width:0"><tbody>' + rows + '</tbody></table>'
+
+    /* monthly box */
+    + (monthlyBox ? '<div style="flex:0 0 auto">' + monthlyBox + '</div>' : '')
+
     + '</div>'
-    + '<table class="main-table"><tbody>' + rows + '</tbody></table>'
-    + '<div class="ftr">* הצעה זו אינה מהווה התחייבות. בכפוף לאישור הגורם המממן.</div>'
-    + '</div>'
+
+    + '<div style="margin-top:18px;font-size:10px;color:#999;text-align:center">* הצעה זו אינה מהווה התחייבות. בכפוף לאישור הגורם המממן.</div>'
     + '</body></html>';
 
   var w = window.open('', '_blank');
