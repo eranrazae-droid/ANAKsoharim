@@ -382,9 +382,9 @@ function _ownRender() {
    מקפים ורווחים. משימות אינן נושאות שדה לוחית — שם מחפשים בכותרת.
 ─────────────────────────────────────────────────────────────────────── */
 const _PS_SOURCES = [
-  { col: 'intake_assignments', icon: '🚗', label: 'קליטת רכב',      when: d => d.createdAt, desc: d => `סטטוס: ${d.status === 'pending' ? 'ממתינה' : d.status === 'done' ? 'בוצעה' : d.status || ''}${d.assignedTo ? ' · ' + d.assignedTo : ''}` },
+  { col: 'intake_assignments', icon: '🚗', label: 'קליטת רכב',      when: d => d.createdAt, desc: d => `סטטוס: ${d.status === 'pending' ? 'ממתינה' : d.status === 'done' ? 'בוצעה' : d.status === 'not_in_yard' ? 'הרכב לא במגרש' : d.status || ''}${d.assignedTo ? ' · ' + d.assignedTo : ''}` },
   { col: 'intake_archive',     icon: '🗄️', label: 'קליטה בארכיון',  when: d => d.archivedAt || d.createdAt, desc: d => d.assignedTo || '' },
-  { col: 'refreshes',          icon: '✨', label: 'רענון',           when: d => d.createdAt, desc: d => `${d.status === 'pending' ? 'ממתין' : 'בוצע'}${d.assignedTo ? ' · ' + d.assignedTo : ''}` },
+  { col: 'refreshes',          icon: '✨', label: 'רענון',           when: d => d.createdAt, desc: d => `${d.status === 'pending' ? 'ממתין' : d.status === 'not_in_yard' ? 'הרכב לא במגרש' : 'בוצע'}${d.assignedTo ? ' · ' + d.assignedTo : ''}` },
   { col: 'tasks',              icon: '📋', label: 'משימה',           when: d => d.createdAt, desc: d => `${d.title || ''} · ${d.label || ''}${d.assignedTo ? ' · ' + d.assignedTo : ''}`, inTitle: true },
   { col: 'pickup_cars',        icon: '🚙', label: 'ממתין לאיסוף',    when: d => d.createdAt, desc: d => [d.city, d.address, d.assignedDriver].filter(Boolean).join(' · ') },
   { col: 'pickup_archive',     icon: '✅', label: 'נאסף',            when: d => d.collectedAt, desc: d => [d.city, d.collectedBy].filter(Boolean).join(' · ') },

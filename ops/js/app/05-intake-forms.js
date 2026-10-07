@@ -707,9 +707,9 @@ async function _submitVehicleInner() {
   const snap = await getDocs(
     query(collection(window._db, 'intake_assignments'), where('plate','==', plate))
   );
-  const conflict = snap.docs.map(d => d.data()).find(d => ['pending','done','checked'].includes(d.status));
+  const conflict = snap.docs.map(d => d.data()).find(d => ['pending','done','checked','not_in_yard'].includes(d.status));
   if (conflict) {
-    const stLabel = conflict.status === 'pending' ? 'בתהליך קליטה' : conflict.status === 'done' ? 'בוצעה — ממתינה לבדיקה' : 'נבדקה';
+    const stLabel = conflict.status === 'pending' ? 'בתהליך קליטה' : conflict.status === 'done' ? 'בוצעה — ממתינה לבדיקה' : conflict.status === 'not_in_yard' ? 'הרכב סומן כלא במגרש' : 'נבדקה';
     const driver = conflict.completedBy || conflict.assignedTo || '';
     const ts = conflict.completedAt?.toDate
       ? conflict.completedAt.toDate().toLocaleString('he-IL', { day:'numeric', month:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit' })

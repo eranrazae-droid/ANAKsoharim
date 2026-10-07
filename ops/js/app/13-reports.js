@@ -710,9 +710,9 @@ async function sendPickupCarIntake(id) {
     const { getDocs, query, collection, where } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
     // avoid duplicating an active intake for the same plate
     const snap = await getDocs(query(collection(window._db, 'intake_assignments'), where('plate', '==', plate)));
-    const conflict = snap.docs.map(d => d.data()).find(d => ['pending', 'done', 'checked'].includes(d.status));
+    const conflict = snap.docs.map(d => d.data()).find(d => ['pending', 'done', 'checked', 'not_in_yard'].includes(d.status));
     if (conflict) {
-      const stLabel = conflict.status === 'pending' ? 'בתהליך קליטה' : conflict.status === 'done' ? 'בוצעה — ממתינה לבדיקה' : 'נבדקה';
+      const stLabel = conflict.status === 'pending' ? 'בתהליך קליטה' : conflict.status === 'done' ? 'בוצעה — ממתינה לבדיקה' : conflict.status === 'not_in_yard' ? 'הרכב סומן כלא במגרש' : 'נבדקה';
       return showToast(`⚠️ לרכב ${plate} כבר נעשתה קליטה (${stLabel})`, 5000);
     }
     // auto-pull vehicle details from the gov.il registry (same source used elsewhere)

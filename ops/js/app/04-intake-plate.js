@@ -900,13 +900,147 @@ function _intakeBottle(v) {
   </div>`;
 }
 
+/* ── "הרכב לא במגרש" ────────────────────────────────────────────────
+   המנהל מסמן קליטה או רענון שהרכב שלהם לא נמצא במגרש. הסטטוס עובר
+   ל-not_in_yard, ומשם הנהג כבר לא רואה אותה — הוא מציג רק "ממתינה".
+   אצל המנהל היא נשארת, בצבע תכלת. הסטטוס הקודם נשמר, כדי שבחזרה
+   למגרש קליטה שכבר בוצעה תחזור כבוצעה ולא כממתינה. */
+let _icAwayBusy = false;
+async function _icSetAway(kind, id, away) {
+  if (_icAwayBusy) return;
+  const isRef = kind === 'refresh';
+  const item = (isRef ? (_refreshCache || []) : (_intakeCache || [])).find(x => x.id === id);
+  if (!item) return;
+  if (!_requireNet(away ? 'סימון הרכב' : 'החזרת הרכב')) return;
+  _icAwayBusy = true;
+  try {
+    const patch = away
+      ? { status: 'not_in_yard', statusBeforeAway: item.status || 'pending',
+          notInYardAt: _serverTs(), notInYardBy: currentUser?.name || '' }
+      : { status: item.statusBeforeAway || 'pending', statusBeforeAway: null,
+          notInYardAt: null, notInYardBy: null };
+    await _updateDoc(_docRef(isRef ? 'refreshes' : 'intake_assignments', id), patch);
+    showToast(away ? `📍 ${item.plate || 'הרכב'} סומן כלא במגרש — הנהג כבר לא רואה אותה`
+                   : `↩️ ${item.plate || 'הרכב'} חזר למגרש — הקליטה חזרה לנהג`, 4000);
+  } catch (e) {
+    console.error('not in yard', e);
+    showToast('הפעולה נכשלה — נסה שוב');
+  }
+  _icAwayBusy = false;
+}
+function setNotInYard(kind, id)  { return _icSetAway(kind, id, true); }
+function restoreToYard(kind, id) { return _icSetAway(kind, id, false); }
+window.setNotInYard = setNotInYard;
+window.restoreToYard = restoreToYard;
+
+/* ── קוביות הקליטה במחשב ─────────────────────────────────────────────
+   במחשב המנהל רואה קוביות מרובעות עם טבעת מילוי בראשן וכפתורים עגולים,
+   ובטלפון הכרטיסים נשארים כמו שהיו. הגובה נקבע כך ששתי שורות של ארבע
+   קוביות — שמונה קליטות — נכנסות במסך בלי גלילה; מהתשיעית ואילך גוללים. */
+function _icDesk() {
+  return currentUser?.role === 'manager' && !!window.matchMedia && window.matchMedia('(min-width:901px)').matches;
+}
+
+function _icFitTiles() {
+  const box = document.getElementById('vehicle-list-container');
+  if (!box || !box.classList.contains('ic-tiles')) return;
+  const gap = 16;
+  const top = box.getBoundingClientRect().top + (window.scrollY || 0);
+  const row = Math.max(300, Math.min(400, Math.floor((window.innerHeight - top - 100 - gap) / 2)));
+  box.style.setProperty('--ic-row', row + 'px');
+  // הרשת לא נמתחת על כל רוחב המסך הרחב — הקוביות נשארות מרובעות
+  box.style.setProperty('--ic-grid-w', Math.round(4 * row * 1.1 + 3 * gap + 32) + 'px');
+}
+window.addEventListener('resize', () => _icFitTiles());
+
+function _icRing(pct, color, track, center, sub, big) {
+  const R = 20, C = 2 * Math.PI * R, dash = (C * pct / 100).toFixed(1);
+  return `<div class="ict-ring-wrap"><div class="ict-ring">
+    <svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="${R}" fill="none" stroke="${track}" stroke-width="5"/>
+    ${pct ? `<circle cx="24" cy="24" r="${R}" fill="none" stroke="${color}" stroke-width="5" stroke-linecap="round"
+      stroke-dasharray="${dash} ${(C - dash).toFixed(1)}" transform="rotate(-90 24 24)"/>` : ''}</svg>
+    <b style="color:${color};${big ? 'font-size:22px' : ''}">${center}</b></div>
+    ${sub ? `<div class="ict-sub">${sub}</div>` : ''}</div>`;
+}
+
+function _icAct(color, icon, label, js, title) {
+  return `<button type="button" class="ict-a" title="${esc(title || label)}" onclick="event.stopPropagation();${js}"><span style="background:${color}">${icon}</span>${label}</button>`;
+}
+
+function _icTile(kind, x) {
+  const isRef = kind === 'refresh';
+  const id = x.id;
+  const st = x.status || 'pending';
+  const away = st === 'not_in_yard';
+  const done = st === 'done';
+  const cls = away ? 'away' : done ? 'done' : 'pending';
+  const ts = x.createdAt?.toDate
+    ? x.createdAt.toDate().toLocaleString('he-IL', { day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+
+  let ring;
+  if (away) ring = _icRing(0, '#0284c7', '#bae6fd', '📍', '', true);
+  else if (done) ring = _icRing(100, '#16a34a', '#bbf7d0', '✓', '', true);
+  else if (isRef) ring = _icRing(0, '#7c3aed', '#ddd6fe', '🔄', '', true);
+  else {
+    const p = _intakeFilledPct(x);
+    const color = p.pct >= 100 ? '#16a34a' : p.pct >= 60 ? '#22c55e' : p.pct >= 30 ? '#eab308' : '#f97316';
+    ring = _icRing(p.pct, p.pct ? color : '#94a3b8', 'var(--border)', p.pct + '%', `${p.done}/${p.total}`);
+  }
+
+  const info = isRef ? [x.vehicleType, x.year, x.color] : [x.brand, x.model, x.year];
+  const metas = isRef
+    ? [x.assignedTo && `👤 ${esc(x.assignedTo)}`, x.parking && `🅿️ חניה ${esc(x.parking)}`]
+    : [x.color && `🎨 ${esc(x.color)}`, x.assignedTo && `👤 ${esc(x.assignedTo)}`, x.spot && `🅿️ חניה ${esc(x.spot)}`];
+
+  let awayNote = '';
+  if (away) {
+    const d = x.notInYardAt?.toDate ? x.notInYardAt.toDate() : null;
+    const when = d ? ` · סומן ב-${d.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' })} ${d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}` : '';
+    awayNote = `<div class="ict-note">הנהג לא רואה אותה${when}</div>`;
+  }
+
+  const plateJs = esc(x.plate || '');
+  const acts = [];
+  if (isRef) {
+    if (done) acts.push(_icAct('#0f172a', '📁', 'לארכיון', `archiveRefresh('${id}')`, 'שלח לארכיון'));
+    if (!done && !away && x.assignedTo) acts.push(_icAct('#25d366', '📲', 'התראה', `notifyRefreshDriver('${esc(x.assignedTo)}','${plateJs}')`));
+    acts.push(_icAct('#6366f1', '✏️', 'עריכה', `openEditRefresh('${id}')`));
+    if (!away) acts.push(_icAct('#0ea5e9', '📍', 'לא במגרש', `setNotInYard('refresh','${id}')`, 'הרכב לא במגרש'));
+    acts.push(_icAct('#ef4444', '🗑️', 'מחיקה', `deleteRefresh('${id}')`));
+  } else {
+    if (done) acts.push(_icAct('#0f172a', '📁', 'לארכיון', `markChecked('${id}')`, 'שלח לארכיון'));
+    if (done) acts.push(_icAct('#f59e0b', '🔄', 'שליחה מחדש', `resendIntake('${id}')`));
+    if (!away) acts.push(_icAct('#0d9488', '🧽', 'שטיפה', `openWashForVehicle('${plateJs}','${esc(x.brand||'')}','${esc(x.model||'')}','${esc(x.year||'')}','${esc(x.color||'')}','${id}')`, 'פתק לשטיפה'));
+    if (st === 'pending') acts.push(_icAct('#25d366', '📲', 'התראה', `resendIntakeNotify('${esc(x.assignedTo)}','${plateJs}','${esc(x.brand||'')}','${esc(x.model||'')}')`, 'שלח התראה'));
+    if (st === 'pending' || away) acts.push(_icAct('#6366f1', '✏️', 'עריכה', `openEditIntake('${id}')`));
+    if (x.previousIntake) acts.push(_icAct('#0d9488', '↩️', 'קודמת', `restorePrevIntake('${id}')`, 'שחזר קליטה קודמת'));
+    if (!away) acts.push(_icAct('#0ea5e9', '📍', 'לא במגרש', `setNotInYard('intake','${id}')`, 'הרכב לא במגרש'));
+    acts.push(_icAct('#ef4444', '🗑️', 'מחיקה', `deleteIntake('${id}')`));
+  }
+
+  const click = isRef ? `openRefreshForm('${id}')`
+    : st === 'pending' ? `openManagerIntakeLive('${id}')`
+    : done ? `viewIntakeForm('${id}')` : '';
+
+  return `<div class="ict ${cls}"${click ? ` onclick="${click}" style="cursor:pointer"` : ''}>
+    <span class="ict-tag" style="background:${away ? '#0284c7' : isRef ? '#7c3aed' : '#0ea5e9'}">${away ? '📍 לא במגרש' : isRef ? '🔄 רענון' : '🚗 קליטה'}</span>
+    ${ring}
+    <div class="ict-plate"><span onclick="event.stopPropagation();bsmCopyPlate('${plateJs}')" title="לחיצה מעתיקה את מספר הרישוי">${esc(x.plate || '')}</span></div>
+    <div class="ict-car">${info.filter(Boolean).map(esc).join(isRef ? ' · ' : ' ') || '&nbsp;'}</div>
+    <div class="ict-meta">${metas.filter(Boolean).map(m => `<span>${m}</span>`).join('')}</div>
+    ${awayNote || (ts ? `<div class="ict-time">${ts}</div>` : '')}
+    <div class="ict-acts">${acts.join('')}</div>
+    ${away ? `<button type="button" class="ict-back" onclick="event.stopPropagation();restoreToYard('${isRef ? 'refresh' : 'intake'}','${id}')">↩️ הרכב חזר למגרש</button>` : ''}
+  </div>`;
+}
+
 function _renderIntakeList(all) {
   const isManager = currentUser.role === 'manager';
   const summary = document.getElementById('vehicle-open-summary');
   const container = document.getElementById('vehicle-list-container');
 
-  const statusLabel = { pending: 'ממתין לקליטה', done: 'בוצע', checked: 'נבדק' };
-  const statusColor = { pending: 'var(--warning)', done: 'var(--success)', checked: 'var(--info)' };
+  const statusLabel = { pending: 'ממתין לקליטה', done: 'בוצע', checked: 'נבדק', not_in_yard: 'הרכב לא במגרש' };
+  const statusColor = { pending: 'var(--warning)', done: 'var(--success)', checked: 'var(--info)', not_in_yard: '#38bdf8' };
 
   function intakeCard(v) {
     const ts = v.createdAt?.toDate ? v.createdAt.toDate().toLocaleString('he-IL') : '';
@@ -919,9 +1053,10 @@ function _renderIntakeList(all) {
       const cardClick = st === 'pending'
         ? `openManagerIntakeLive('${v.id}')`
         : `viewIntakeForm('${v.id}')`;
-      return `<div class="vehicle-card" style="border-right:5px solid ${color}${st==='done'?';background:#f0fdf4':''}">
+      const away = st === 'not_in_yard';
+      return `<div class="vehicle-card" style="border-right:5px solid ${color}${st==='done'?';background:#f0fdf4':''}${away?';background:#e0f2fe':''}">
         <div class="ic-head" style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
-          <div onclick="${cardClick}" style="flex:1;cursor:pointer;min-width:0">
+          <div ${away ? '' : `onclick="${cardClick}" `}style="flex:1;${away ? '' : 'cursor:pointer;'}min-width:0">
             <span class="tag" style="background:#0ea5e9;color:#fff;margin-bottom:4px">🚗 קליטה</span>
             <div class="vehicle-plate"><span onclick="event.stopPropagation();bsmCopyPlate('${esc(v.plate)}')" title="לחיצה מעתיקה את מספר הרישוי" style="cursor:pointer;border-bottom:1px dashed var(--border)">${esc(v.plate)}</span></div>
             <div class="vehicle-info">${[v.brand,v.model,v.year].filter(Boolean).map(esc).join(' ')}</div>
@@ -930,17 +1065,20 @@ function _renderIntakeList(all) {
               <span class="tag assignee">👤 ${esc(v.assignedTo)}</span>
               ${v.spot ? `<span class="tag assignee">🅿️ חניה ${esc(v.spot)}</span>` : ''}
             </div>
+            ${away ? `<div class="task-time" style="margin-top:4px;color:#0369a1;font-weight:800">📍 הרכב לא במגרש — הנהג לא רואה אותה</div>` : ''}
             ${ts ? `<div class="task-time" style="margin-top:4px">${ts}</div>` : ''}
           </div>
           <div class="ic-side">
             ${st === 'pending' ? _intakeBottle(v) : ''}
             <div class="ic-actions">
-            <button class="ic-btn ${st === 'done' ? 'ic-p2' : 'ic-p1'}" onclick="openWashForVehicle('${esc(v.plate)}','${esc(v.brand||'')}','${esc(v.model||'')}','${esc(v.year||'')}','${esc(v.color||'')}','${v.id}')" style="background:#0d9488;color:#fff;">🧽 פתק לשטיפה</button>
+            ${away ? `<button class="ic-btn ic-p1" onclick="restoreToYard('intake','${v.id}')" style="background:#0284c7;color:#fff;">↩️ חזר למגרש</button>` : ''}
+            ${away ? '' : `<button class="ic-btn ${st === 'done' ? 'ic-p2' : 'ic-p1'}" onclick="openWashForVehicle('${esc(v.plate)}','${esc(v.brand||'')}','${esc(v.model||'')}','${esc(v.year||'')}','${esc(v.color||'')}','${v.id}')" style="background:#0d9488;color:#fff;">🧽 פתק לשטיפה</button>`}
             ${st === 'pending' ? `<button class="ic-btn ic-s" onclick="resendIntakeNotify('${esc(v.assignedTo)}','${esc(v.plate)}','${esc(v.brand||'')}','${esc(v.model||'')}')" style="background:#25d366;color:#fff;">📲 שלח התראה</button>` : ''}
-            ${st === 'pending' ? `<button class="ic-btn ic-p2" onclick="openEditIntake('${v.id}')" style="background:#6366f1;color:#fff;">✏️ עריכה</button>` : ''}
+            ${st === 'pending' || away ? `<button class="ic-btn ic-p2" onclick="openEditIntake('${v.id}')" style="background:#6366f1;color:#fff;">✏️ עריכה</button>` : ''}
             ${v.previousIntake ? `<button class="ic-btn ic-s" onclick="restorePrevIntake('${v.id}')" style="background:#0d9488;color:#fff;">↩️ שחזר קליטה קודמת</button>` : ''}
             ${st === 'done' ? `<button class="ic-btn ic-s" onclick="resendIntake('${v.id}')" style="background:#f59e0b;color:#fff;">🔄 שליחה מחדש</button>` : ''}
             ${canCheck ? `<button class="ic-btn ic-p1" onclick="markChecked('${v.id}')" style="background:var(--dark);color:#fff;">📁 שלח לארכיון</button>` : ''}
+            ${away ? '' : `<button class="ic-btn ic-s" onclick="setNotInYard('intake','${v.id}')" style="background:#0ea5e9;color:#fff;">📍 הרכב לא במגרש</button>`}
             <button class="ic-btn ic-s" onclick="deleteIntake('${v.id}')" style="background:#ef4444;color:#fff;">🗑️ מחיקה</button>
             <button class="ic-btn ic-more" onclick="icMore(this)" title="עוד פעולות">⋯</button>
             </div>
@@ -977,9 +1115,10 @@ function _renderIntakeList(all) {
     const ts = r.createdAt?.toDate ? r.createdAt.toDate().toLocaleDateString('he-IL') : '';
     const typeTag = `<span class="tag" style="background:#7c3aed;color:#fff;margin-bottom:4px">🔄 רענון</span>`;
     if (isManager) {
-      return `<div class="vehicle-card" style="border-right:5px solid ${done?'var(--success)':'var(--warning)'}${done?';background:#f0fdf4':''}">
+      const away = st === 'not_in_yard';
+      return `<div class="vehicle-card" style="border-right:5px solid ${away?'#38bdf8':done?'var(--success)':'var(--warning)'}${done?';background:#f0fdf4':''}${away?';background:#e0f2fe':''}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
-          <div onclick="openRefreshForm('${r.id}')" style="flex:1;cursor:pointer;min-width:0">
+          <div ${away ? '' : `onclick="openRefreshForm('${r.id}')" `}style="flex:1;${away ? '' : 'cursor:pointer;'}min-width:0">
             ${typeTag}
             <div class="vehicle-plate"><span onclick="event.stopPropagation();bsmCopyPlate('${esc(r.plate||'')}')" title="לחיצה מעתיקה את מספר הרישוי" style="cursor:pointer;border-bottom:1px dashed var(--border)">${esc(r.plate||'')}</span></div>
             <div class="vehicle-info">${[r.vehicleType,r.year,r.color].filter(Boolean).map(esc).join(' · ')}</div>
@@ -990,7 +1129,8 @@ function _renderIntakeList(all) {
             </div>
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">
-            <span style="background:${done?'var(--success)':'var(--warning)'};color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;white-space:nowrap">${done ? '✅ הושלם' : '⏳ ממתין'}</span>
+            <span style="background:${away?'#0284c7':done?'var(--success)':'var(--warning)'};color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;white-space:nowrap">${away ? '📍 לא במגרש' : done ? '✅ הושלם' : '⏳ ממתין'}</span>
+            ${away ? `<button onclick="restoreToYard('refresh','${r.id}')" style="background:#0284c7;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">↩️ חזר למגרש</button>` : `<button onclick="setNotInYard('refresh','${r.id}')" style="background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">📍 לא במגרש</button>`}
             <button onclick="openEditRefresh('${r.id}')" style="background:#6366f1;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">✏️ עריכה</button>
             ${!done && r.assignedTo ? `<button onclick="notifyRefreshDriver('${esc(r.assignedTo)}','${esc(r.plate||'')}')" style="background:#16a34a;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">📲 התראה</button>` : ''}
             ${done ? `<button onclick="archiveRefresh('${r.id}')" style="background:var(--dark);color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">📁 שלח לארכיון</button>` : ''}
@@ -1027,18 +1167,26 @@ function _renderIntakeList(all) {
     window._vehicleDriverFilter = null; // nothing can set the filter any more
 
     const f = window._vehicleDriverFilter;
-    const activeRaw = all.filter(v => (v.status === 'pending' || v.status === 'done') && (!f || v.assignedTo === f));
-    const active = [...activeRaw.filter(v => v.status === 'done'), ...activeRaw.filter(v => v.status === 'pending')];
-    const activeRefreshes = refreshes.filter(r => (r.status === 'pending' || r.status === 'done') && (!f || r.assignedTo === f));
-    const activeRefreshSorted = [...activeRefreshes.filter(r => r.status === 'done'), ...activeRefreshes.filter(r => r.status === 'pending')];
+    const live = s => s === 'pending' || s === 'done' || s === 'not_in_yard';
+    const activeRaw = all.filter(v => live(v.status) && (!f || v.assignedTo === f));
+    // ראשונות הבוצעו (מחכות לבדיקה), אחריהן הממתינות, ובסוף אלה שהרכב שלהן לא במגרש
+    const active = [...activeRaw.filter(v => v.status === 'done'), ...activeRaw.filter(v => v.status === 'pending'), ...activeRaw.filter(v => v.status === 'not_in_yard')];
+    const activeRefreshes = refreshes.filter(r => live(r.status) && (!f || r.assignedTo === f));
+    const activeRefreshSorted = [...activeRefreshes.filter(r => r.status === 'done'), ...activeRefreshes.filter(r => r.status === 'pending'), ...activeRefreshes.filter(r => r.status === 'not_in_yard')];
 
-    const listHtml = active.map(intakeCard).join('') + activeRefreshSorted.map(refreshCard).join('');
+    const desk = _icDesk();
+    const listHtml = desk
+      ? active.map(v => _icTile('intake', v)).join('') + activeRefreshSorted.map(r => _icTile('refresh', r)).join('')
+      : active.map(intakeCard).join('') + activeRefreshSorted.map(refreshCard).join('');
+    container.classList.toggle('ic-tiles', desk && !!listHtml);
     container.innerHTML = listHtml
       ? listHtml
       : `<div class="empty-state"><div class="es-icon">🚗</div><h3>${f ? 'אין קליטות/רענונים פעילים עבור ' + f : 'אין קליטות/רענונים פעילים'}</h3><p>לחץ + קליטת רכב או + רענון רכב להוסיף</p></div>`;
 
+    _icFitTiles();
     _renderArchiveSection(archivedAll);
   } else {
+    container.classList.remove('ic-tiles');
     summary.style.display = 'none';
     const mine = all.filter(v => v.assignedTo === currentUser.name && v.status === 'pending');
     const myRefreshes = refreshes.filter(r => r.assignedTo === currentUser.name && r.status === 'pending');
@@ -1049,6 +1197,15 @@ function _renderIntakeList(all) {
     }
     container.innerHTML = listHtml;
   }
+}
+
+// חציית הגבול בין מחשב לטלפון (למשל סיבוב מסך) מציירת את הרשימה מחדש בעיצוב המתאים
+if (window.matchMedia) {
+  window.matchMedia('(min-width:901px)').addEventListener('change', () => {
+    const screen = document.getElementById('screen-vehicles');
+    if (screen && screen.classList.contains('active') && currentUser?.role === 'manager' && _intakeCache !== null)
+      _renderIntakeList(_intakeCache);
+  });
 }
 
 function loadVehicles() {
