@@ -37,7 +37,8 @@ const _BSHOP_GROUPS = [
   ['צד שמאל',      ['כנף אחורי שמאל','דלת אחורי שמאל','עמוד שמאל','סף שמאל','דלת קדמי שמאל','מראה שמאל','כנף קדמי שמאל']],
   ['אחר',          ['גג','פוליש','קריסטל']],
 ];
-let _bshopCats = {};   // {part name: category} — only for parts you added yourself
+function _bshopCachedCatalogCats() { try { return JSON.parse(localStorage.getItem('anak_bshop_catalog') || 'null')?.cats || null; } catch (e) { return null; } }
+let _bshopCats = (_bshopCachedCatalogCats()) || {};   // {part name: category} — only for parts you added yourself
 const _bshopGroupOf = name =>
   _bshopCats[name] || (_BSHOP_GROUPS.find(g => g[1].includes(name)) || ['אחר'])[0];
 
@@ -86,7 +87,19 @@ function _bshopSortNames(names) {
 }
 
 let _bshopJobs = [];        // unpaid jobs only — the current billing cycle
-let _bshopItems = [];       // the fixed catalogue of parts
+/* רשימת החלקים נטענת מהשרת, ובחיבור איטי הטופס נפתח כשהיא עוד ריקה —
+   "רשימת החלקים עדיין נטענת", ואז צריך לסגור את הפתק ולהתחיל מחדש.
+   לכן מתחילים תמיד מהרשימה האחרונה שהמכשיר ראה (או מהרשימה הקבועה),
+   והשרת רק מעדכן אותה כשהיא מגיעה. */
+const _BSHOP_CAT_KEY = 'anak_bshop_catalog';
+function _bshopCachedCatalog() {
+  try {
+    const c = JSON.parse(localStorage.getItem(_BSHOP_CAT_KEY) || 'null');
+    if (c && Array.isArray(c.items) && c.items.length) return c;
+  } catch (e) {}
+  return null;
+}
+let _bshopItems = (_bshopCachedCatalog()?.items) || [..._BSHOP_DEFAULT_ITEMS];       // the fixed catalogue of parts
 let _bshopUnsubJobs = null, _bshopUnsubCfg = null, _bshopUnsubArc = null;
 let _bshopArchive = [];   // one folder per payment to Ibrahim
 let _bsmPicked = [];        // parts selected while composing a new job
@@ -94,34 +107,17 @@ let _bsmVladi = [];         // parts for Vladi — a separate list, never mixed
 let _bsmFocus = null;       // where the number plate sits in the photo, 0..1
 let _bshopFillId = null;
 
+let _bshopJobsLoaded = false;
 function _bshopListen(onChange) {
+  _bshopJobsLoaded = false;
   if (_bshopUnsubJobs) _bshopUnsubJobs();
   if (_bshopUnsubCfg) _bshopUnsubCfg();
   if (_bshopUnsubArc) { _bshopUnsubArc(); _bshopUnsubArc = null; }
-  // the archive is shown to the manager and to the panel beater alike — he
-  // needs to see what he was already paid for
-  _bshopUnsubArc = _onSnap(_colRef('bodyshop_archive'), snap => {
-    _bshopArchive = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-      .sort((a, b) => String(b.paidAt || '').localeCompare(String(a.paidAt || '')));
-    _bsmRenderArchive();
-    _bshopRenderWorkerArchive();
-  });
-  // Only the open cycle is loaded. Paid jobs stay in the database untouched —
-  // they are simply not fetched, so the screens stay fast however many notes
-  // pile up over the years.
-  _bshopUnsubJobs = _onSnap(_query(_colRef('bodyshop_jobs'), _where('paidAt', '==', null)), snap => {
-    _bshopJobs = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(j => !j.paidAt)
-      // החדש למעלה בכל המסכים. פתק ישן בלי createdAt יורד לסוף במקום
-      // לקפוץ לראש.
-      .sort((a, b) => (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0));
-    onChange();
-  }, err => {
-    console.error('bodyshop jobs listen error:', err);
-    showToast('⚠️ בעיה בטעינת הרכבים — רענן את הדף');
-    const c = document.getElementById('bshop-open');
-    if (c) c.innerHTML = `<div class="bshop-span" style="padding:20px;text-align:center;color:#b91c1c;font-weight:800">⚠️ בעיה בטעינת הרכבים<br><span style="font-size:12px;font-weight:600">${esc(err.code || err.message || '')}</span></div>`;
-  });
+  // הרשימה הקטנה נרשמת ראשונה: היא לא ממתינה בתור מאחורי הארכיון הגדול
   _bshopUnsubCfg = _onSnap(_docRef('config', 'bodyshop'), snap => {
+    // תשובה ריקה מהזיכרון של המכשיר (בלי חיבור) אינה "אין רשימה" — לא דורסים
+    // בה את מה שכבר יש
+    if (!snap.exists() && snap.metadata && snap.metadata.fromCache) return;
     const d = snap.exists() ? snap.data() : {};
     // a catalogue saved before the current part list is ignored, so the new
     // walk-around list replaces the old part names instead of merging with them
@@ -144,10 +140,40 @@ function _bshopListen(onChange) {
     } else {
       _bshopItems = [..._BSHOP_DEFAULT_ITEMS];
     }
-    onChange();
+    try { localStorage.setItem(_BSHOP_CAT_KEY, JSON.stringify({ items: _bshopItems, cats: _bshopCats })); } catch (e) {}
+    /* המסך מחליט באיזו לשונית לנחות רק אחרי שהפתקים נטענו. הרשימה מגיעה
+       עכשיו ראשונה, ולכן לא מציירים את המסך לפניהם — הם יציירו אותו. */
+    if (_bshopJobsLoaded) onChange();
+    // טופס פתק פתוח מציג את מה שהיה כשנפתח — מרעננים אותו כשהרשימה מגיעה
+    try { _bsmRenderPicker(); } catch (e) {}
+    try { _bsmVladiRender(); } catch (e) {}
     // the parts-list modal must refresh too, otherwise add/delete looks like it did nothing
     const im = document.getElementById('modal-bsm-items');
     if (im && im.classList.contains('open')) _bsmRenderCatalog();
+  });
+  // the archive is shown to the manager and to the panel beater alike — he
+  // needs to see what he was already paid for
+  _bshopUnsubArc = _onSnap(_colRef('bodyshop_archive'), snap => {
+    _bshopArchive = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => String(b.paidAt || '').localeCompare(String(a.paidAt || '')));
+    _bsmRenderArchive();
+    _bshopRenderWorkerArchive();
+  });
+  // Only the open cycle is loaded. Paid jobs stay in the database untouched —
+  // they are simply not fetched, so the screens stay fast however many notes
+  // pile up over the years.
+  _bshopUnsubJobs = _onSnap(_query(_colRef('bodyshop_jobs'), _where('paidAt', '==', null)), snap => {
+    _bshopJobs = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(j => !j.paidAt)
+      // החדש למעלה בכל המסכים. פתק ישן בלי createdAt יורד לסוף במקום
+      // לקפוץ לראש.
+      .sort((a, b) => (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0));
+    _bshopJobsLoaded = true;
+    onChange();
+  }, err => {
+    console.error('bodyshop jobs listen error:', err);
+    showToast('⚠️ בעיה בטעינת הרכבים — רענן את הדף');
+    const c = document.getElementById('bshop-open');
+    if (c) c.innerHTML = `<div class="bshop-span" style="padding:20px;text-align:center;color:#b91c1c;font-weight:800">⚠️ בעיה בטעינת הרכבים<br><span style="font-size:12px;font-weight:600">${esc(err.code || err.message || '')}</span></div>`;
   });
 }
 
