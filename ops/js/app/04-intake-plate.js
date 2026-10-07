@@ -935,8 +935,8 @@ window.restoreToYard = restoreToYard;
 
 /* ── קוביות הקליטה במחשב ─────────────────────────────────────────────
    במחשב המנהל רואה קוביות מרובעות עם טבעת מילוי בראשן וכפתורים עגולים,
-   ובטלפון הכרטיסים נשארים כמו שהיו. הגובה נקבע כך ששתי שורות של ארבע
-   קוביות — שמונה קליטות — נכנסות במסך בלי גלילה; מהתשיעית ואילך גוללים. */
+   ובטלפון הכרטיסים נשארים כמו שהיו. הגובה נקבע כך ששתי שורות של חמש
+   קוביות — עשר קליטות — נכנסות במסך בלי גלילה (בארבע בשורה: שמונה). */
 function _icDesk() {
   return currentUser?.role === 'manager' && !!window.matchMedia && window.matchMedia('(min-width:901px)').matches;
 }
@@ -948,8 +948,12 @@ function _icFitTiles() {
   const top = box.getBoundingClientRect().top + (window.scrollY || 0);
   const row = Math.max(300, Math.min(400, Math.floor((window.innerHeight - top - 100 - gap) / 2)));
   box.style.setProperty('--ic-row', row + 'px');
+  // חמש קוביות בשורה (עשר במסך) כשיש מקום לחמש כפתורים עגולים בכל אחת; במסך צר יותר ארבע
+  const room = (box.parentElement?.clientWidth || window.innerWidth) - 32;
+  const cols = room >= 5 * 290 + 4 * gap ? 5 : 4;
+  box.style.setProperty('--ic-cols', cols);
   // הרשת לא נמתחת על כל רוחב המסך הרחב — הקוביות נשארות מרובעות
-  box.style.setProperty('--ic-grid-w', Math.round(4 * row * 1.1 + 3 * gap + 32) + 'px');
+  box.style.setProperty('--ic-grid-w', Math.round(cols * row * 1.1 + (cols - 1) * gap + 32) + 'px');
 }
 window.addEventListener('resize', () => _icFitTiles());
 
