@@ -599,7 +599,7 @@ function _renderArchiveSection(archived) {
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
         <div>
           ${typeLabel}
-          <div class="vehicle-plate"><span onclick="event.stopPropagation();bsmCopyPlate('${esc(v.plate)}')" title="לחיצה מעתיקה את מספר הרישוי" style="cursor:pointer;border-bottom:1px dashed var(--border)">${esc(v.plate)}</span></div>
+          <div class="vehicle-plate"><span onclick="event.stopPropagation();bsmCopyPlate('${_jsq(v.plate)}')" title="לחיצה מעתיקה את מספר הרישוי" style="cursor:pointer;border-bottom:1px dashed var(--border)">${esc(v.plate)}</span></div>
           <div class="vehicle-info">${infoLine}</div>
           <div class="vehicle-meta" style="margin-top:4px">
             ${v.color && !isRefresh ? `<span class="tag assignee">🎨 ${esc(v.color)}</span>` : ''}
@@ -611,7 +611,7 @@ function _renderArchiveSection(archived) {
         <div style="display:flex;flex-direction:column;align-items:stretch;gap:8px;flex-shrink:0">
           <span style="background:var(--info,#0ea5e9);color:#fff;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:700;text-align:center">נבדק ✓</span>
           <button onclick="${viewFn}('${v.id}')" style="${_IC_ARC_BTN}background:#0ea5e9">👁️ צפייה</button>
-          <button onclick="openWashForVehicle('${esc(v.plate)}','${esc(washMaker)}','${esc(washModel)}','${esc(v.year||'')}','${esc(v.color||'')}','${washIntake}')" style="${_IC_ARC_BTN}background:#0d9488">🧽 פתק לשטיפה</button>
+          <button onclick="openWashForVehicle('${_jsq(v.plate)}','${_jsq(washMaker)}','${_jsq(washModel)}','${_jsq(v.year||'')}','${_jsq(v.color||'')}','${washIntake}')" style="${_IC_ARC_BTN}background:#0d9488">🧽 פתק לשטיפה</button>
           <button onclick="${delFn}('${v.id}')" style="${_IC_ARC_BTN}background:#ef4444">🗑️ מחיקה</button>
         </div>
       </div>
@@ -900,6 +900,13 @@ function _intakeBottle(v) {
   </div>`;
 }
 
+/* ערך שנכנס למחרוזת בתוך onclick="...('ערך')". esc() מטפל רק ב-HTML, ולכן גרש
+   רגיל בשם (פיג'ו) סגר את המחרוזת באמצע, הקוד נכשל בקומפילציה והכפתור לא
+   פעל — והלחיצה "דלפה" אל הכרטיס שמתחתיו. כאן הגרש מקבל קו נטוי לפני כן. */
+function _jsq(v) {
+  return esc(String(v == null ? '' : v).replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
+}
+
 /* ── "הרכב לא במגרש" ────────────────────────────────────────────────
    המנהל מסמן קליטה או רענון שהרכב שלהם לא נמצא במגרש. הסטטוס עובר
    ל-not_in_yard, ומשם הנהג כבר לא רואה אותה — הוא מציג רק "ממתינה".
@@ -1003,19 +1010,19 @@ function _icTile(kind, x) {
     awayNote = `<div class="ict-note">הנהג לא רואה אותה${when}</div>`;
   }
 
-  const plateJs = esc(x.plate || '');
+  const plateJs = _jsq(x.plate || '');
   const acts = [];
   if (isRef) {
     if (done) acts.push(_icAct('#0f172a', '📁', 'לארכיון', `archiveRefresh('${id}')`, 'שלח לארכיון'));
-    if (!done && !away && x.assignedTo) acts.push(_icAct('#25d366', '📲', 'התראה', `notifyRefreshDriver('${esc(x.assignedTo)}','${plateJs}')`));
+    if (!done && !away && x.assignedTo) acts.push(_icAct('#25d366', '📲', 'התראה', `notifyRefreshDriver('${_jsq(x.assignedTo)}','${plateJs}')`));
     acts.push(_icAct('#6366f1', '✏️', 'עריכה', `openEditRefresh('${id}')`));
     if (!away) acts.push(_icAct('#0ea5e9', '📍', 'לא במגרש', `setNotInYard('refresh','${id}')`, 'הרכב לא במגרש'));
     acts.push(_icAct('#ef4444', '🗑️', 'מחיקה', `deleteRefresh('${id}')`));
   } else {
     if (done) acts.push(_icAct('#0f172a', '📁', 'לארכיון', `markChecked('${id}')`, 'שלח לארכיון'));
     if (done) acts.push(_icAct('#f59e0b', '🔄', 'שליחה מחדש', `resendIntake('${id}')`));
-    if (!away) acts.push(_icAct('#0d9488', '🧽', 'שטיפה', `openWashForVehicle('${plateJs}','${esc(x.brand||'')}','${esc(x.model||'')}','${esc(x.year||'')}','${esc(x.color||'')}','${id}')`, 'פתק לשטיפה'));
-    if (st === 'pending') acts.push(_icAct('#25d366', '📲', 'התראה', `resendIntakeNotify('${esc(x.assignedTo)}','${plateJs}','${esc(x.brand||'')}','${esc(x.model||'')}')`, 'שלח התראה'));
+    if (!away) acts.push(_icAct('#0d9488', '🧽', 'שטיפה', `openWashForVehicle('${plateJs}','${_jsq(x.brand||'')}','${_jsq(x.model||'')}','${_jsq(x.year||'')}','${_jsq(x.color||'')}','${id}')`, 'פתק לשטיפה'));
+    if (st === 'pending') acts.push(_icAct('#25d366', '📲', 'התראה', `resendIntakeNotify('${_jsq(x.assignedTo)}','${plateJs}','${_jsq(x.brand||'')}','${_jsq(x.model||'')}')`, 'שלח התראה'));
     if (st === 'pending' || away) acts.push(_icAct('#6366f1', '✏️', 'עריכה', `openEditIntake('${id}')`));
     if (x.previousIntake) acts.push(_icAct('#0d9488', '↩️', 'קודמת', `restorePrevIntake('${id}')`, 'שחזר קליטה קודמת'));
     if (!away) acts.push(_icAct('#0ea5e9', '📍', 'לא במגרש', `setNotInYard('intake','${id}')`, 'הרכב לא במגרש'));
@@ -1062,7 +1069,7 @@ function _renderIntakeList(all) {
         <div class="ic-head" style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
           <div ${away ? '' : `onclick="${cardClick}" `}style="flex:1;${away ? '' : 'cursor:pointer;'}min-width:0">
             <span class="tag" style="background:#0ea5e9;color:#fff;margin-bottom:4px">🚗 קליטה</span>
-            <div class="vehicle-plate"><span onclick="event.stopPropagation();bsmCopyPlate('${esc(v.plate)}')" title="לחיצה מעתיקה את מספר הרישוי" style="cursor:pointer;border-bottom:1px dashed var(--border)">${esc(v.plate)}</span></div>
+            <div class="vehicle-plate"><span onclick="event.stopPropagation();bsmCopyPlate('${_jsq(v.plate)}')" title="לחיצה מעתיקה את מספר הרישוי" style="cursor:pointer;border-bottom:1px dashed var(--border)">${esc(v.plate)}</span></div>
             <div class="vehicle-info">${[v.brand,v.model,v.year].filter(Boolean).map(esc).join(' ')}</div>
             <div class="vehicle-meta" style="margin-top:4px">
               ${v.color ? `<span class="tag assignee">🎨 ${esc(v.color)}</span>` : ''}
@@ -1076,8 +1083,8 @@ function _renderIntakeList(all) {
             ${st === 'pending' ? _intakeBottle(v) : ''}
             <div class="ic-actions">
             ${away ? `<button class="ic-btn ic-p1" onclick="restoreToYard('intake','${v.id}')" style="background:#0284c7;color:#fff;">↩️ חזר למגרש</button>` : ''}
-            ${away ? '' : `<button class="ic-btn ${st === 'done' ? 'ic-p2' : 'ic-p1'}" onclick="openWashForVehicle('${esc(v.plate)}','${esc(v.brand||'')}','${esc(v.model||'')}','${esc(v.year||'')}','${esc(v.color||'')}','${v.id}')" style="background:#0d9488;color:#fff;">🧽 פתק לשטיפה</button>`}
-            ${st === 'pending' ? `<button class="ic-btn ic-s" onclick="resendIntakeNotify('${esc(v.assignedTo)}','${esc(v.plate)}','${esc(v.brand||'')}','${esc(v.model||'')}')" style="background:#25d366;color:#fff;">📲 שלח התראה</button>` : ''}
+            ${away ? '' : `<button class="ic-btn ${st === 'done' ? 'ic-p2' : 'ic-p1'}" onclick="openWashForVehicle('${_jsq(v.plate)}','${_jsq(v.brand||'')}','${_jsq(v.model||'')}','${_jsq(v.year||'')}','${_jsq(v.color||'')}','${v.id}')" style="background:#0d9488;color:#fff;">🧽 פתק לשטיפה</button>`}
+            ${st === 'pending' ? `<button class="ic-btn ic-s" onclick="resendIntakeNotify('${_jsq(v.assignedTo)}','${_jsq(v.plate)}','${_jsq(v.brand||'')}','${_jsq(v.model||'')}')" style="background:#25d366;color:#fff;">📲 שלח התראה</button>` : ''}
             ${st === 'pending' || away ? `<button class="ic-btn ic-p2" onclick="openEditIntake('${v.id}')" style="background:#6366f1;color:#fff;">✏️ עריכה</button>` : ''}
             ${v.previousIntake ? `<button class="ic-btn ic-s" onclick="restorePrevIntake('${v.id}')" style="background:#0d9488;color:#fff;">↩️ שחזר קליטה קודמת</button>` : ''}
             ${st === 'done' ? `<button class="ic-btn ic-s" onclick="resendIntake('${v.id}')" style="background:#f59e0b;color:#fff;">🔄 שליחה מחדש</button>` : ''}
@@ -1097,14 +1104,14 @@ function _renderIntakeList(all) {
           <div>
             <span class="tag" style="background:#0ea5e9;color:#fff;margin-bottom:4px">🚗 קליטה</span>
             ${wr ? `<span class="tag" style="background:#0284c7;color:#fff;margin-bottom:4px">🧽 נדרש שטיפה — ${esc(wr.type || '')}</span>` : ''}
-            <div class="vehicle-plate"><span onclick="event.stopPropagation();bsmCopyPlate('${esc(v.plate)}')" title="לחיצה מעתיקה את מספר הרישוי" style="cursor:pointer;border-bottom:1px dashed var(--border)">${esc(v.plate)}</span></div>
+            <div class="vehicle-plate"><span onclick="event.stopPropagation();bsmCopyPlate('${_jsq(v.plate)}')" title="לחיצה מעתיקה את מספר הרישוי" style="cursor:pointer;border-bottom:1px dashed var(--border)">${esc(v.plate)}</span></div>
             <div class="vehicle-info">${[v.brand,v.model,v.year].filter(Boolean).map(esc).join(' ')}</div>
             ${v.spot ? `<div style="font-size:13px;font-weight:700;color:var(--dark);margin-top:4px">🅿️ חניה ${esc(v.spot)}</div>` : ''}
             ${ts ? `<div class="task-time" style="margin-top:4px">${ts}</div>` : ''}
           </div>
           <div style="display:flex;flex-direction:column;gap:6px;align-items:stretch;flex:0 0 auto;min-width:0">
             <span style="background:${color};color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;text-align:center;white-space:nowrap">פתיחה ▶</span>
-            <button type="button" onclick="event.stopPropagation();openWashForVehicle('${esc(v.plate)}','${esc(v.brand||'')}','${esc(v.model||'')}','${esc(v.year||'')}','${esc(v.color||'')}','${v.id}')"
+            <button type="button" onclick="event.stopPropagation();openWashForVehicle('${_jsq(v.plate)}','${_jsq(v.brand||'')}','${_jsq(v.model||'')}','${_jsq(v.year||'')}','${_jsq(v.color||'')}','${v.id}')"
               style="background:#0d9488;color:#fff;border:none;border-radius:999px;padding:5px 12px;font-family:Heebo,sans-serif;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap">🧽 פתק לשטיפה</button>
           </div>
         </div>
@@ -1124,7 +1131,7 @@ function _renderIntakeList(all) {
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
           <div ${away ? '' : `onclick="openRefreshForm('${r.id}')" `}style="flex:1;${away ? '' : 'cursor:pointer;'}min-width:0">
             ${typeTag}
-            <div class="vehicle-plate"><span onclick="event.stopPropagation();bsmCopyPlate('${esc(r.plate||'')}')" title="לחיצה מעתיקה את מספר הרישוי" style="cursor:pointer;border-bottom:1px dashed var(--border)">${esc(r.plate||'')}</span></div>
+            <div class="vehicle-plate"><span onclick="event.stopPropagation();bsmCopyPlate('${_jsq(r.plate||'')}')" title="לחיצה מעתיקה את מספר הרישוי" style="cursor:pointer;border-bottom:1px dashed var(--border)">${esc(r.plate||'')}</span></div>
             <div class="vehicle-info">${[r.vehicleType,r.year,r.color].filter(Boolean).map(esc).join(' · ')}</div>
             <div class="vehicle-meta" style="margin-top:4px">
               ${r.assignedTo ? `<span class="tag assignee">👤 ${esc(r.assignedTo)}</span>` : ''}
@@ -1136,7 +1143,7 @@ function _renderIntakeList(all) {
             <span style="background:${away?'#0284c7':done?'var(--success)':'var(--warning)'};color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;white-space:nowrap">${away ? '📍 לא במגרש' : done ? '✅ הושלם' : '⏳ ממתין'}</span>
             ${away ? `<button onclick="restoreToYard('refresh','${r.id}')" style="background:#0284c7;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">↩️ חזר למגרש</button>` : `<button onclick="setNotInYard('refresh','${r.id}')" style="background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">📍 לא במגרש</button>`}
             <button onclick="openEditRefresh('${r.id}')" style="background:#6366f1;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">✏️ עריכה</button>
-            ${!done && r.assignedTo ? `<button onclick="notifyRefreshDriver('${esc(r.assignedTo)}','${esc(r.plate||'')}')" style="background:#16a34a;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">📲 התראה</button>` : ''}
+            ${!done && r.assignedTo ? `<button onclick="notifyRefreshDriver('${_jsq(r.assignedTo)}','${_jsq(r.plate||'')}')" style="background:#16a34a;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">📲 התראה</button>` : ''}
             ${done ? `<button onclick="archiveRefresh('${r.id}')" style="background:var(--dark);color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">📁 שלח לארכיון</button>` : ''}
             <button onclick="deleteRefresh('${r.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:Heebo,sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">🗑️ מחיקה</button>
           </div>
@@ -1148,7 +1155,7 @@ function _renderIntakeList(all) {
         <div style="display:flex;justify-content:space-between;align-items:center">
           <div>
             ${typeTag}
-            <div class="vehicle-plate"><span onclick="event.stopPropagation();bsmCopyPlate('${esc(r.plate||'')}')" title="לחיצה מעתיקה את מספר הרישוי" style="cursor:pointer;border-bottom:1px dashed var(--border)">${esc(r.plate||'')}</span></div>
+            <div class="vehicle-plate"><span onclick="event.stopPropagation();bsmCopyPlate('${_jsq(r.plate||'')}')" title="לחיצה מעתיקה את מספר הרישוי" style="cursor:pointer;border-bottom:1px dashed var(--border)">${esc(r.plate||'')}</span></div>
             <div class="vehicle-info">${[r.vehicleType,r.year,r.color].filter(Boolean).map(esc).join(' · ')}</div>
             ${r.parking ? `<div style="font-size:13px;font-weight:700;color:var(--dark);margin-top:4px">🅿️ חניה ${esc(r.parking)}</div>` : ''}
           </div>
