@@ -35,10 +35,23 @@ window.addEventListener('firebase-ready', async () => {
   if (!window._CONFIG_DONE) {
     showConfigWarning();
   }
+  /* מי שכבר נכנס במכשיר הזה לא מחכה להזדהות מול השרת: בחיבור חלש התשובה
+     מאחרת, וההמתנה הייתה מסתיימת במסך כניסה שמבקש סיסמה מחדש. מחכים
+     רק רגע קצר, ואם התשובה לא הגיעה נכנסים לפי מה שהמכשיר זוכר. */
+  if (!_realUser) {
+    try {
+      const prev = localStorage.getItem('anak_user');
+      if (prev) { _realUser = JSON.parse(prev); localStorage.setItem('anak_real_user', prev); }
+    } catch (e) {}
+  }
+  _connRetryReset();
   // the security rules require a signed-in session — wait for it before any read
   if (window._authReady) {
-    const ok = await window._authReady;
-    if (!ok) showToast('⚠️ בעיית התחברות לשרת — רענן את הדף', 6000);
+    const remembered = !!(_realUser && _realUser.name);
+    const ok = await (remembered
+      ? Promise.race([window._authReady, new Promise(r => setTimeout(() => r('slow'), 2500))])
+      : window._authReady);
+    if (ok === false) showToast('⚠️ בעיית התחברות לשרת — רענן את הדף', 6000);
   }
   // The panel beater gets his own link and never sees the login screen — he
   // opens it and lands straight on his jobs. Nothing else is reachable from
@@ -49,6 +62,12 @@ window.addEventListener('firebase-ready', async () => {
     // his own address no longer walks straight in: it asks for the account
     // once, and from then on the phone remembers it
     if (window._signedInUser) { _enterAsAuthUser(window._signedInUser); return; }
+    // הפחח שכבר נכנס פעם נכנס ישר, גם כשההזדהות מאחרת
+    if (_realUser?.role === 'bodyshop' && _realUser.name) {
+      currentUser = { role: _realUser.role, name: _realUser.name };
+      openBodyShopScreen();
+      return;
+    }
     showScreen('login');
     // גם כאן: אם ההזדהות מאחרת, נכנסים ברגע שהיא מגיעה
     if (!window._authEventSeen && window._onAuthUser) window._onAuthUser(user => {
@@ -72,6 +91,13 @@ window.addEventListener('firebase-ready', async () => {
      שאנחנו מחכים. זה אינו אומר שאין חשבון, ולכן לא מוחקים דבר:
      מציגים כניסה, וברגע שהתשובה מגיעה נכנסים מאליהם. */
   if (!window._authEventSeen) {
+    // מכשיר שכבר נכנס פעם לא מתבקש להזדהות שוב רק כי התשובה מאחרת
+    if (_realUser && _realUser.name) {
+      currentUser = { ..._realUser };
+      localStorage.setItem('anak_user', JSON.stringify(currentUser));
+      if (currentUser.role === 'bodyshop') openBodyShopScreen(); else enterApp();
+      return;
+    }
     showScreen('login');
     if (window._onAuthUser) window._onAuthUser(user => {
       if (user && !document.querySelector('.screen.active:not(#screen-login)')) _enterAsAuthUser(user);
@@ -104,9 +130,57 @@ window.addEventListener('firebase-ready', async () => {
    הכניסה בכל מקרה, כדי שהאפליקציה לא תישאר לבנה. */
 setTimeout(() => {
   if (document.querySelector('.screen.active')) return;
+  /* מכשיר שכבר נכנס פעם נפתח לפי מה שהוא זוכר — מסך כניסה לא יעזור לו,
+     כי הבעיה בחיבור ולא בסיסמה. ואם Firebase עצמו לא נטען, הדף נטען
+     מחדש מאליו ברגע שהחיבור חוזר. */
+  let mem = null;
+  try { mem = _realUser || JSON.parse(localStorage.getItem('anak_user') || 'null'); } catch (e) {}
+  if (mem && mem.name) {
+    // בלי Firebase אין לאפליקציה שום נתונים, ומסך כניסה גם הוא לא יעבוד —
+    // מציגים הודעה ברורה במקום לבקש סיסמה
+    if (!window._CONFIG_DONE) { _showConnHold(); _connRetryStart(); return; }
+    try {
+      currentUser = { role: mem.role, name: mem.name };
+      if (mem.role === 'bodyshop') openBodyShopScreen(); else enterApp();
+    } catch (e) { console.error('enter from memory', e); try { showScreen('login'); } catch (e2) {} }
+    try { showToast('החיבור לשרת חלש — ממשיך לנסות ברקע', 6000); } catch (e) {}
+    return;
+  }
   try { showScreen('login'); } catch (e) {}
   try { showToast('החיבור לשרת איטי — אפשר להתחבר בינתיים', 6000); } catch (e) {}
+  if (!window._CONFIG_DONE) _connRetryStart();
 }, 10000);
+
+/* ה-Firebase נטען מהרשת, ובחיבור חלש הטעינה נכשלת. אז האפליקציה אינה
+   מחוברת לשום דבר עד שהדף נטען מחדש — וזה מה שנראה כ"סגרתי ופתחתי
+   וזה עבד". כאן זה קורה מאליו: ברגע שהחיבור חוזר, או כל חצי דקה, עד
+   ארבעה ניסיונות. */
+function _showConnHold() {
+  if (document.getElementById('conn-hold')) return;
+  const d = document.createElement('div');
+  d.id = 'conn-hold';
+  d.style.cssText = 'position:fixed;inset:0;z-index:99998;background:#0b0b0b;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;text-align:center;font-family:Heebo,sans-serif';
+  d.innerHTML = '<div style="font-size:40px">📶</div>'
+    + '<div style="font-size:19px;font-weight:900">החיבור לשרת חלש</div>'
+    + '<div style="font-size:14px;opacity:.8;max-width:300px;line-height:1.5">אתה מחובר — אין צורך להזין סיסמה שוב. האפליקציה תיפתח מאליה ברגע שהחיבור יחזור.</div>'
+    + '<button onclick="location.reload()" style="margin-top:6px;background:#d4af37;color:#000;border:0;border-radius:12px;padding:12px 26px;font-family:Heebo,sans-serif;font-size:15px;font-weight:900;cursor:pointer">נסה שוב עכשיו</button>';
+  document.body.appendChild(d);
+  const splash = document.getElementById('boot-splash'); if (splash) splash.remove();
+}
+let _connRetryTimer = null;
+function _connRetryReset() { try { sessionStorage.removeItem('anak_conn_retries'); } catch (e) {} }
+function _connRetryStart() {
+  if (_connRetryTimer) return;
+  const go = () => {
+    if (window._CONFIG_DONE) return;
+    let n = 0; try { n = +sessionStorage.getItem('anak_conn_retries') || 0; } catch (e) {}
+    if (n >= 4) { try { showToast('אין חיבור יציב — רענן את הדף כשהחיבור יחזור', 8000); } catch (e) {} return; }
+    try { sessionStorage.setItem('anak_conn_retries', String(n + 1)); } catch (e) {}
+    location.reload();
+  };
+  window.addEventListener('online', () => setTimeout(go, 800), { once: true });
+  _connRetryTimer = setTimeout(go, 30000);
+}
 
 function showConfigWarning() {
   const w = document.createElement('div');
@@ -200,24 +274,57 @@ const _ALL_USERS = [
 
 /* Signing in for real: the phone number is the user name, and the sign-in is
    remembered on the device until the password is changed. */
+const _wait = ms => new Promise(r => setTimeout(r, ms));
+function _withTimeout(promise, ms) {
+  return Promise.race([promise, new Promise((_, rej) => setTimeout(() => rej(Object.assign(new Error('timeout'), { code: 'auth/timeout' })), ms))]);
+}
+// תקלות שמקורן בחיבור ולא בפרטים — שווה לנסות שוב
+const _isNetErr = e => ['auth/network-request-failed', 'auth/timeout', 'auth/internal-error', 'auth/web-storage-unsupported'].includes(e?.code)
+  || e?.message === 'timeout';
+
+let _loginBusy = false;
 async function doPhoneLogin() {
+  if (_loginBusy) return;                       // לחיצה שנייה לא פותחת כניסה נוספת
   const phone = document.getElementById('login-phone').value.replace(/\D/g, '');
   const pass = document.getElementById('login-pass').value;
   const msg = document.getElementById('login-auth-msg');
+  const btn = document.getElementById('login-btn');
   const say = t => { if (msg) msg.textContent = t || ''; };
   if (phone.length < 9 || !pass) return say('נא להזין טלפון וסיסמה');
-  say('מתחבר…');
+  if (!window._auth) return say('אין חיבור לשרת כרגע — הפרטים נשארו, נסה שוב בעוד רגע');
+  _loginBusy = true;
+  if (btn) { btn.disabled = true; btn.style.opacity = '.6'; }
   try {
-    const { signInWithEmailAndPassword, setPersistence, browserLocalPersistence } =
-      await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js");
-    await setPersistence(window._auth, browserLocalPersistence);
-    const cred = await signInWithEmailAndPassword(window._auth, `${phone}@anak.local`, pass);
+    /* בחיבור חלש כל שלב עלול להיתקע או להיכשל פעם אחת. לכן כל ניסיון
+       מוגבל בזמן, וכשל חיבור מנוסה שוב עד ארבע פעמים לפני שמודיעים. */
+    say('מתחבר…');
+    const mod = await _withTimeout(import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js"), 20000);
+    try { await mod.setPersistence(window._auth, mod.browserLocalPersistence); } catch (e) { console.warn('persistence', e); }
+    let cred = null, lastErr = null;
+    for (let attempt = 1; attempt <= 4 && !cred; attempt++) {
+      if (attempt > 1) say(`החיבור חלש — מנסה שוב (${attempt}/4)…`);
+      try {
+        cred = await _withTimeout(mod.signInWithEmailAndPassword(window._auth, `${phone}@anak.local`, pass), 20000);
+      } catch (e) {
+        lastErr = e;
+        if (!_isNetErr(e)) throw e;
+        await _wait(1500 * attempt);
+      }
+    }
+    if (!cred) throw lastErr;
     await _enterAsAuthUser(cred.user);
     say('');
   } catch (e) {
     console.error('login', e);
-    say(e.code === 'auth/invalid-credential' || e.code === 'auth/wrong-password' || e.code === 'auth/user-not-found'
-      ? 'טלפון או סיסמה שגויים' : 'שגיאה בהתחברות');
+    const c = e?.code || '';
+    say(c === 'auth/invalid-credential' || c === 'auth/wrong-password' || c === 'auth/user-not-found' || c === 'auth/invalid-email'
+        ? 'טלפון או סיסמה שגויים'
+      : c === 'auth/too-many-requests' ? 'יותר מדי ניסיונות — נסה שוב בעוד כמה דקות'
+      : _isNetErr(e) ? 'אין חיבור יציב לשרת — הפרטים נשארו, לחץ שוב כשהחיבור משתפר'
+      : 'שגיאה בהתחברות' + (c ? ` (${c})` : ''));
+  } finally {
+    _loginBusy = false;
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; }
   }
 }
 window.doPhoneLogin = doPhoneLogin;
@@ -237,14 +344,16 @@ window.toggleLoginPass = toggleLoginPass;
 // turns a signed-in account into the user the app works with
 async function _enterAsAuthUser(user) {
   let profile = null;
-  try {
-    const snap = await window._getDoc(_docRef('users', user.uid));
-    profile = snap.exists() ? snap.data() : null;
-  } catch (e) { /* offline, or the profile is momentarily unreadable */ }
   // the last known profile of this very account is the fallback, so a bad
   // moment on the network never turns a manager into a driver
   let cached = null;
   try { cached = JSON.parse(localStorage.getItem('anak_profile_' + user.uid) || 'null'); } catch (e) {}
+  try {
+    // עם פרופיל זכור לא מחכים לשרת יותר משניות ספורות; בלעדיו מחכים יותר, כי
+    // בלי הפרופיל לא ידוע אם זה מנהל או נהג
+    const snap = await _withTimeout(window._getDoc(_docRef('users', user.uid)), cached ? 3000 : 12000);
+    profile = snap.exists() ? snap.data() : null;
+  } catch (e) { /* offline, slow, or the profile is momentarily unreadable */ }
   if (profile) {
     try { localStorage.setItem('anak_profile_' + user.uid, JSON.stringify({ name: profile.name, role: profile.role })); } catch (e) {}
   }
@@ -256,8 +365,31 @@ async function _enterAsAuthUser(user) {
   localStorage.setItem('anak_user', JSON.stringify(currentUser));
   localStorage.setItem('anak_real_user', JSON.stringify(_realUser));
   // the panel beater has no home screen of his own — he lands on his jobs
-  if (role === 'bodyshop') { openBodyShopScreen(); return; }
-  enterApp();
+  if (role === 'bodyshop') { openBodyShopScreen(); }
+  else enterApp();
+  // נכנסנו לפי פרופיל זכור או ברירת מחדל — מעדכנים ברקע מהשרת, כך שהתפקיד
+  // הנכון נשמר גם אם בכניסה הזאת החיבור לא הספיק
+  if (!profile) _refreshProfileLater(user, role, name);
+}
+
+async function _refreshProfileLater(user, role, name) {
+  for (let i = 0; i < 4; i++) {
+    await _wait(6000 * (i + 1));
+    try {
+      const snap = await _withTimeout(window._getDoc(_docRef('users', user.uid)), 10000);
+      if (!snap.exists()) return;
+      const p = snap.data();
+      try { localStorage.setItem('anak_profile_' + user.uid, JSON.stringify({ name: p.name, role: p.role })); } catch (e) {}
+      if (p.role !== role || p.name !== name) {
+        // התפקיד שונה ממה שהניחנו — שומרים את הנכון ופותחים מחדש עם התפקיד הנכון
+        const fixed = { role: p.role, name: p.name };
+        localStorage.setItem('anak_user', JSON.stringify(fixed));
+        localStorage.setItem('anak_real_user', JSON.stringify({ ...fixed, uid: user.uid }));
+        location.reload();
+      }
+      return;
+    } catch (e) { /* עוד ניסיון */ }
+  }
 }
 
 // the way back to the sign-in screen, for a device that entered before there
