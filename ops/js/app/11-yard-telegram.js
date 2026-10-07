@@ -1926,6 +1926,11 @@ function _snapCityField(inputId) {
   const el = document.getElementById(inputId);
   const raw = (el?.value || '').trim();
   if (!el || !raw) return;
+  /* שם שכבר מופיע ברשימת הערים — בלי להתחשב במקף, ברווח ובגרשיים — הוא עיר
+     מלאה ולא שגיאת כתיב. בלי הבדיקה הזאת "תל אביב–יפו" שנבחרה מהרשימה עברה
+     התאמה מטושטשת והפכה ל"בית לחם הגלילית", כי המקף חיבר את שתי המילים. */
+  const exact = _CITY_LIST.find(c => _normCityName(c) === _normCityName(raw));
+  if (exact) { if (exact !== raw) el.value = exact; return; }
   if (typeof _fuzzyMatchCity !== 'function') return;
   const m = _fuzzyMatchCity(raw);
   if (m?.city && m.city !== raw) el.value = m.city;
