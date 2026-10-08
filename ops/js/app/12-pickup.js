@@ -1717,7 +1717,7 @@ function _pickupFitRows() {
   if (!list) return;
   const top = list.getBoundingClientRect().top;
   // שלוש שורות + שני רווחים של 12 + שוליים תחתונים, ממלאות בדיוק את הגובה
-  const row = Math.max(210, Math.min(430, (window.innerHeight - top - 40) / 3));
+  const row = Math.max(278, Math.min(430, (window.innerHeight - top - 40) / 3));
   list.style.setProperty('--pk-row', Math.floor(row) + 'px');
 }
 window.addEventListener('resize', () => _pickupFitRows());
@@ -2511,6 +2511,13 @@ function _pickupCardHtml(c) {
   // שם המקום מוצג מעל הכתובת — כך רואים מאיזה מגרש הרכב בלי לזכור כתובות
   const yardName = String(c.yard || _yardNameFor(_city, c.address) || '').trim();
   const nav = _pickupNavUrl(c);
+  const ll0 = _pickupLatLng(c);
+  /* תחנת הרכבת הקרובה — לנהג שמגיע לאסוף ברכבת. נשארה בקוד אחרי עיצוב
+     הקוביות אבל לא הוצגה בהן. אם אין נקודת ציון לכתובת אין מה להציג. */
+  const _st = _stationDisplay(c, ll0);
+  const stLine = _st && _st.name
+    ? `<div class="pk-line" title="תחנת רכבת ${e(_st.name)} · ${e(_stKm(_st.km))} ק&quot;מ" style="color:#1d4ed8">🚆 ${e(_st.name)} · ${_st.walkMin ? `🚶 ${_st.walkMin} דק׳` : `🚗 ${_st.min} דק׳`}</div>`
+    : '';
   const groupColor = _pkAddrColor[c.id] || '';
   const addrStyle = groupColor ? ` style="background:${groupColor}"` : '';
   const sent = !!c.assignedDriver;
@@ -2548,6 +2555,7 @@ function _pickupCardHtml(c) {
       ${place ? (nav
         ? `<a class="pk-line pk-nav" href="${nav}" target="_blank" rel="noopener"${addrStyle} onclick="event.stopPropagation()">📍 ${e(place)} <span style="margin-right:auto;font-size:11px">🚶 ניווט</span></a>`
         : `<div class="pk-line pk-nav"${addrStyle}>📍 ${e(place)}</div>`) : `<div class="pk-line" style="color:var(--muted)">📍 אין כתובת</div>`}
+      ${stLine}
       <div class="pk-line" style="display:flex;align-items:center;gap:6px">
         <span style="${expired ? 'color:#dc2626;font-weight:900' : ''};flex-shrink:0">🔧 טסט: ${c.test ? e(c.test) : '—'}${expired ? ' · פג תוקף' : ''}</span>
         ${c.contact ? `<span title="${e(c.contact)}" style="margin-right:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-weight:700">👤 ${e(c.contact)}</span>` : ''}
