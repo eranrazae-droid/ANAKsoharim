@@ -233,6 +233,11 @@ function _walkMinutes(km) {
 }
 // הליכה ארוכה מזה כבר אינה אפשרות מעשית, ואין טעם להציג אותה
 const _WALK_MAX_KM = 3;
+// דקות הליכה לתחנה — תמיד מוצגות, גם כשהתחנה רחוקה מכדי ללכת אליה:
+// מהמסלול האמיתי אם נשמר, ואחרת מהחישוב המשוער
+function _stWalkMin(st, car) {
+  return st.walkMin || (st.route && car && car.stWalkMin) || _walkMinutes(st.km);
+}
 // מרחק קצר מוצג עם ספרה אחרי הנקודה — "0 ק\"מ" לא אומר כלום
 const _stKm = km => km < 10 ? km.toFixed(1) : Math.round(km);
 
@@ -605,7 +610,7 @@ async function _pickupDrawMarkers(L, cars, say, refit) {
          <b style="font-size:15px">${esc(car.plate || '')}</b><br>
          ${esc(car.type || '')}<br>${esc(addr)}
          ${car.contact ? '<br>☎ ' + esc(car.contact) : ''}
-         ${st ? `<br><span style="color:#1d4ed8;font-weight:800">🚆 ${esc(st.name)} — כ־${st.min} דק׳ נסיעה${st.walkMin ? ` · 🚶 כ־${st.walkMin} דק׳ הליכה` : ''} (${_stKm(st.km)} ק"מ)</span>` : ''}
+         ${st ? `<br><span style="color:#1d4ed8;font-weight:800">🚆 ${esc(st.name)} — 🚶 כ־${_stWalkMin(st, car)} דק׳ הליכה · ${_stKm(st.km)} ק"מ</span>` : ''}
          ${isExact ? '' : '<br><span style="color:#b45309;font-weight:800">מיקום משוער — לפי העיר</span>'}
          <br><a href="https://www.google.com/maps/dir/?api=1&destination=${latlng[0]},${latlng[1]}" target="_blank">ניווט</a>
        </div>`);
@@ -2516,7 +2521,7 @@ function _pickupCardHtml(c) {
      הקוביות אבל לא הוצגה בהן. אם אין נקודת ציון לכתובת אין מה להציג. */
   const _st = _stationDisplay(c, ll0);
   const stLine = _st && _st.name
-    ? `<div class="pk-line" title="תחנת רכבת ${e(_st.name)} · ${e(_stKm(_st.km))} ק&quot;מ" style="color:#1d4ed8">🚆 ${e(_st.name)} · ${_st.walkMin ? `🚶 ${_st.walkMin} דק׳` : `🚗 ${_st.min} דק׳`}</div>`
+    ? `<div class="pk-line" title="תחנת רכבת ${e(_st.name)}" style="color:#1d4ed8">🚆 ${e(_st.name)} · 🚶 ${_stWalkMin(_st, c)} דק׳ · ${_stKm(_st.km)} ק"מ</div>`
     : '';
   const groupColor = _pkAddrColor[c.id] || '';
   const addrStyle = groupColor ? ` style="background:${groupColor}"` : '';
