@@ -2066,8 +2066,6 @@ function _renderViewIntakeModal(v) {
   };
   const cl = v.checklist || {};
   const photos = v.photoUrls || {};
-  console.log('RAW photoUrls:', JSON.stringify(photos));
-  console.log('ALL doc keys:', Object.keys(v));
   const ts = v.completedAt?.toDate ? v.completedAt.toDate().toLocaleString('he-IL') : '';
 
   // Show ALL urls/base64 from photoUrls regardless of structure
@@ -2085,13 +2083,15 @@ function _renderViewIntakeModal(v) {
   const batteryUrls = new Set(Object.values(v.batteryPhotoUrls || {}).flat());
   const filteredUrls = allUrls.filter(u => !batteryUrls.has(u));
 
-  let rows = '';
-  let noteCount = 0;   // כמה הערות יש בקליטה — מוצג כתגית בראש הטופס
+  /* מבנה הטופס: כותרת עם לוחית, אריחי פרטים, שורת סיכום, ואז הליקויים
+     בכרטיסים והתקינים מקופלים לשורת שמות. סעיף תקין שיש בו תמונה, הערה או
+     פירוט אביזרים נשאר כרטיס מלא, כדי שלא יאבד מידע. */
+  const faults = [], oksFull = [], okChips = [];
+  let noteCount = 0;   // כמה הערות יש בקליטה — מוצג בשורת הסיכום
   for (const [key, label] of Object.entries(checklistLabels)) {
     const val = cl[key];
     if (!val) continue;
-    const icon = val === 'v' ? '✅' : '❌';
-    const bg = val === 'v' ? '#f0fff4' : '#fff0f0';
+    const isFault = val === 'x';
     let noteText = cl[key+'_note'] || '';
     // special: מצבר מקורי ✕ — show battery month or "לא ניתן לראות תאריך"
     if (key === 'c-battery-is-original' && val === 'x') {
@@ -2120,14 +2120,14 @@ function _renderViewIntakeModal(v) {
       const subRows = v.safetyChecks['sf-spare'] ? '' :
         Object.entries(sfSubLabels).map(([id, lbl]) =>
           `<div style="padding-right:20px">${v.safetyChecks[id] ? '✅' : '❌'} ${esc(lbl)}</div>`).join('');
-      sfRows = `<div style="margin-top:6px;font-size:13px;line-height:1.9">` +
+      sfRows = `<div class="iv-sf">` +
         Object.entries(sfLabels).map(([id, lbl]) =>
           `<div>${v.safetyChecks[id] ? '✅' : '❌'} ${esc(lbl)}</div>` +
           (id === 'sf-spare' ? subRows : '')).join('') + `</div>`;
     }
     if (noteText) noteCount++;
     // הערה שהנהג כתב על סעיף — מודגשת בענבר כדי שלא תיבלע בטופס
-    const note = noteText ? `<div style="background:#fffbeb;border-right:4px solid #f59e0b;border-radius:8px;padding:7px 10px;margin-top:7px;font-size:13px;font-weight:700;color:#78350f">📝 ${esc(noteText)}</div>` : '';
+    const note = noteText ? `<div class="iv-note">📝 ${esc(noteText)}</div>` : '';
     // match photos by exact key or any key that starts with the same prefix
     const keyPhotos = key === 'c-battery-original'
       ? [...Object.values(v.batteryPhotoUrls || {}).flat(), ...(photos['c-battery-original'] || [])]
@@ -2141,48 +2141,76 @@ function _renderViewIntakeModal(v) {
         : Object.entries(photos).filter(([k]) => k === key || /^-?\d+$/.test(k.slice(key.length))).flatMap(([,v]) => v);
     const plate = esc(v.plate || '');
     const imgs = keyPhotos.length
-      ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${keyPhotos.map(url =>
-          `<img src="${url}" onclick="openPhotoZoom('${url}','${plate}')" style="width:80px;height:80px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid #ccc">`
-        ).join('')}</div>` : '';
-    rows += `<div style="background:${bg};border-radius:10px;padding:10px 14px;margin-bottom:8px">
-      <div style="font-weight:700;font-size:14px">${icon} ${label}</div>${sfRows}${note}${imgs}
-    </div>`;
+      ? `<div class="iv-ph">${keyPhotos.map(url =>
+          `<img src="${url}" onclick="openPhotoZoom('${url}','${plate}')">`).join('')}</div>` : '';
+    if (isFault) {
+      faults.push(`<div class="iv-bad"><h4><span>✕</span>${esc(label)}</h4>${sfRows}${note}${imgs}</div>`);
+    } else if (sfRows || noteText || keyPhotos.length) {
+      oksFull.push(`<div class="iv-okcard"><h4><span>✓</span>${esc(label)}</h4>${sfRows}${note}${imgs}</div>`);
+    } else {
+      okChips.push(`<span class="iv-chip">${esc(label)}</span>`);
+    }
   }
+  const okCount = oksFull.length + okChips.length;
 
+  const hasNotes = !!(v.notes && String(v.notes).trim());
+  if (hasNotes) noteCount++;
+  const notes = hasNotes
+    ? `<div class="iv-gnote"><small>📝 הערה כללית מהנהג</small>${esc(v.notes)}</div>` : '';
 
-  const km = v.km ? `<span style="margin-left:16px;background:#fef08a;padding:2px 8px;border-radius:6px;font-weight:700"><strong>ק"מ:</strong> ${esc(v.km)}</span>` : '';
-  const code = v.code ? `<span style="background:#fef08a;padding:2px 8px;border-radius:6px;font-weight:700"><strong>קוד:</strong> ${esc(v.code)}</span>` : '';
-  if (v.notes && String(v.notes).trim()) noteCount++;
-  const notes = (v.notes && String(v.notes).trim())
-    ? `<div style="background:#fffbeb;border:2px solid #f59e0b;border-right:7px solid #f59e0b;border-radius:12px;padding:11px 14px;margin-bottom:12px;font-size:14.5px;font-weight:700;color:#78350f">
-         <span style="display:block;font-size:11.5px;font-weight:900;color:#b45309;letter-spacing:.4px;margin-bottom:3px">📝 הערה כללית מהנהג</span>${esc(v.notes)}</div>`
-    : '';
-  // תגית בראש הטופס, כדי שתדע שיש מה לקרוא עוד לפני שגללת
-  const noteBadge = noteCount
-    ? `<br><span style="display:inline-block;background:#f59e0b;color:#3b2200;font-size:11.5px;font-weight:900;border-radius:20px;padding:3px 10px;margin-top:4px">📝 ${noteCount} ${noteCount === 1 ? 'הערה מהנהג' : 'הערות מהנהג'}</span>`
-    : '';
-  const evRow = v.isElectric === undefined ? ''
+  // כותרת: הלוחית בעיצוב לוחית רישוי, ואחריה הדגם ומי שקלט ומתי
+  const car = [v.brand, v.model, v.year].filter(Boolean).map(esc).join(' ');
+  const who = esc(v.completedBy || v.assignedTo || '');
+  const when = esc(v.intakeDateTime || ts || '');
+  const tile = (label, val, hl) => `<div class="iv-t${hl ? ' hl' : ''}"><small>${label}</small><b>${val || '—'}</b></div>`;
+  const evVal = v.isElectric === undefined ? ''
     : v.isElectric
-      ? `<div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:14px;font-weight:700;color:#15803d">⚡ רכב חשמלי${v.evCharge !== '' && v.evCharge != null ? ` · אחוז טעינה: ${esc(String(v.evCharge))}%` : ''}${v.evRange ? ` · טווח נסיעה: ${esc(String(v.evRange))} ק״מ` : ''}</div>`
-      : `<div style="background:var(--surface2);border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:14px;font-weight:700;color:var(--muted)">⚡ רכב חשמלי: לא</div>`;
+      ? `כן${v.evCharge !== '' && v.evCharge != null ? ` · ${esc(String(v.evCharge))}%` : ''}${v.evRange ? ` · ${esc(String(v.evRange))} ק״מ` : ''}`
+      : 'לא';
+  const tiles = [
+    tile('ק״מ', v.km ? esc(Number(v.km) ? Number(v.km).toLocaleString('he-IL') : v.km) : '', true),
+    tile('קוד', v.code ? esc(v.code) : '', true),
+    tile('צבע', esc(v.color || '')),
+    tile('חניה', esc(v.spot || '')),
+    tile('נהג קולט', who),
+    tile('רכב חשמלי', evVal),
+  ].join('');
+
+  const summary = `<div class="iv-sum">
+    ${faults.length ? `<span class="iv-pill bad">❌ ${faults.length} ${faults.length === 1 ? 'ליקוי' : 'ליקויים'}</span>` : ''}
+    <span class="iv-pill ok">✅ ${okCount} תקינים</span>
+    ${noteCount ? `<span class="iv-pill note">📝 ${noteCount} ${noteCount === 1 ? 'הערה' : 'הערות'}</span>` : ''}
+  </div>`;
+
+  const faultsHtml = faults.length
+    ? `<div class="iv-sec">❌ ליקויים<i></i></div>${faults.join('')}`
+    : `<div class="iv-allok">✅ כל הסעיפים תקינים — אין ליקויים</div>`;
+  const okHtml = okCount
+    ? `<div class="iv-sec">✅ תקין<i></i></div>${oksFull.join('')}${okChips.length ? `<div class="iv-okbox">${okChips.join('')}</div>` : ''}` : '';
 
   // הקליטה כבר בארכיון מגיעה עם status 'checked' — אז הכפתור לא מוצג שוב
   const arcBtn = (v.status === 'done' && currentUser?.role === 'manager')
-    ? `<button id="view-intake-archive-btn" onclick="archiveIntakeFromView('${v.id}')"
-        style="width:100%;background:var(--dark);color:#fff;border:none;border-radius:12px;padding:12px;margin-bottom:14px;font-family:Heebo,sans-serif;font-size:15px;font-weight:900;cursor:pointer">📁 העבר לארכיון</button>`
+    ? `<button id="view-intake-archive-btn" class="iv-arch" onclick="archiveIntakeFromView('${v.id}')">📁 העבר לארכיון</button>`
     : '';
 
   document.getElementById('view-intake-content').innerHTML = `
-    ${arcBtn}
-    <div style="background:#f0f2ff;border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:13px;line-height:2">
-      <strong>${esc(v.plate)}</strong> · ${esc(v.brand||'')} ${esc(v.model||'')} ${esc(v.year||'')}<br>
-      צבע: ${esc(v.color||'')} · חניה: ${esc(v.spot||'')}${km ? '<br>' + km + code : ''}<br>
-      נהג קולט: <strong>${esc(v.completedBy||v.assignedTo||'')}</strong> · ${ts}${v.intakeDateTime ? '<br>תאריך קליטה: <strong>' + esc(v.intakeDateTime) + '</strong>' : ''}${noteBadge}
+    <div class="iv-cols">
+      <div class="iv-side">
+        ${arcBtn}
+        <div class="iv-head">
+          <span class="iv-plate">${esc(v.plate || '')}</span>
+          <div class="iv-car">${car}</div>
+          <div class="iv-sub">${who ? 'נקלט ע״י ' + who : ''}${who && when ? ' · ' : ''}${when}</div>
+        </div>
+        <div class="iv-tiles">${tiles}</div>
+        ${summary}
+        ${notes}
+      </div>
+      <div class="iv-main">
+        ${(faults.length || okCount) ? faultsHtml : '<div style="color:var(--muted);text-align:center;padding:20px">אין נתוני צ׳קליסט</div>'}
+        ${okHtml}
+      </div>
     </div>
-    ${evRow}
-    ${notes}
-    <div style="font-weight:900;font-size:13px;color:var(--muted);margin-bottom:8px">🔍 ממצאי בדיקה</div>
-    ${rows || '<div style="color:var(--muted);text-align:center;padding:20px">אין נתוני צ׳קליסט</div>'}
   `;
   window._viewIntakeData = v;
   openModal('modal-view-intake');
