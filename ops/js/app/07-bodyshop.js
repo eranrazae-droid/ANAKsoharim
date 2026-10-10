@@ -2606,7 +2606,6 @@ function _bsmMTile(j) {
   const filled = items.filter(it => Number(it.price) > 0).length;
   let pill = '', corner = '', sub = '';
   if (j.status === 'draft') {
-    pill = `<span class="bsmm-pill ind">📝 טיוטה</span>`;
     sub = `<div class="bsmm-sub">חלקים ${items.length}${_bsmMoney() ? ` · מולאו ${filled}` : ''}</div>`;
   } else if (j.status === 'at_shop') {
     pill = d == null ? '' : `<span class="bsmm-pill ${_bsmMDaysClass(d)}">⏱ ${_bsmMDaysTxt(d)}</span>`;
@@ -2621,8 +2620,9 @@ function _bsmMTile(j) {
     ? `<div class="bsmm-ph" style="background-image:url('${src}');background-position:${_bshopFocusCss(j)}"></div>`
     : `<svg class="bsmm-car"><use href="#bsmm-car"/></svg>`;
   return `<div class="bsmm-tile" style="--g:${_bsmMGrad(j.plate)}" onclick="bsmMOpen('${j.id}')">
-    ${photo}${pill}${corner}
-    <div class="bsmm-pl"><span class="bsmm-plate">${esc(j.plate || '')}</span>
+    ${photo}
+    <div class="bsmm-top"><span class="bsmm-plate">${esc(j.plate || '')}</span>${pill || corner ? `<div class="bsmm-bd">${pill}${corner}</div>` : ''}</div>
+    <div class="bsmm-pl">
       <div class="bsmm-m"><span>${esc(j.desc || '')}</span><span class="${pr.est ? 'est' : ''}">${esc(pr.txt)}</span></div>${sub}</div>
   </div>`;
 }
@@ -2745,7 +2745,7 @@ function _bsmMRenderSheet() {
   const total = _bshopTotal(j);
   const dayPill = (j.status === 'at_shop' && d != null)
     ? `<span class="bsmm-pill ${_bsmMDaysClass(d)}">⏱ ${_bsmMDaysTxt(d)} אצל הפחח</span>`
-    : j.status === 'returned' ? `<span class="bsmm-pill grn">✅ סיימנו</span>` : `<span class="bsmm-pill ind">📝 טיוטה</span>`;
+    : j.status === 'returned' ? `<span class="bsmm-pill grn">✅ סיימנו</span>` : "";
   const priceBlock = pr.txt
     ? `<div class="bsmm-sp" ${pr.est ? `onclick="bsmEditEstimate('${id}')"` : ''}><b class="${pr.est ? 'est' : ''}">${esc(pr.txt)}</b><small>${pr.est ? 'עלות משוערת ✏️' : 'לפני מע״מ'}</small></div>` : '';
 
