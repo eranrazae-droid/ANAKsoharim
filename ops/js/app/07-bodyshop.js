@@ -2619,11 +2619,14 @@ function _bsmMTile(j) {
   const photo = src
     ? `<div class="bsmm-ph" style="background-image:url('${src}');background-position:${_bshopFocusCss(j)}"></div>`
     : `<svg class="bsmm-car"><use href="#bsmm-car"/></svg>`;
-  if (src) return `<div class="bsmm-tile has-ph" onclick="bsmMOpen('${j.id}')">${photo}</div>`;
-  return `<div class="bsmm-tile" style="--g:${_bsmMGrad(j.plate)}" onclick="bsmMOpen('${j.id}')">
+  const showPr = j.status !== 'draft' && pr.txt;
+  const showDays = j.status === 'at_shop' && d != null;
+  const foot = (showPr || showDays) ? `<div class="bsmm-ft">${showDays ? `<span class="bsmm-pill ${_bsmMDaysClass(d)}">⏱ ${_bsmMDaysTxt(d)}</span>` : '<span></span>'}${showPr ? `<b class="${pr.est ? 'est' : ''}">${esc(pr.txt)}</b>` : ''}</div>` : '';
+  if (src) return `<div class="bsmm-tile has-ph${foot ? ' has-ft' : ''}" onclick="bsmMOpen('${j.id}')">${photo}${foot}</div>`;
+  return `<div class="bsmm-tile${foot ? ' has-ft' : ''}" style="--g:${_bsmMGrad(j.plate)}" onclick="bsmMOpen('${j.id}')">
     ${photo}
     <div class="bsmm-top"><span class="bsmm-plate">${esc(j.plate || '')}</span></div>
-    <div class="bsmm-pl"><div class="bsmm-m"><span>${esc(j.desc || '')}</span></div></div>
+    <div class="bsmm-pl"><div class="bsmm-m"><span>${esc(j.desc || '')}</span></div></div>${foot}
   </div>`;
 }
 
