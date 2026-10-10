@@ -1451,7 +1451,8 @@ function _mgrHomeSetup() {
   if (bar) {
     const av = document.createElement('div');
     av.id = 'drvh-av';
-    av.textContent = currentUser.name.charAt(0);
+    av.className = 'logo';
+    av.innerHTML = '<img src="img/logo-app.png?v=1" alt="ענק הרכבים">';
     bar.prepend(av);
     const ttl = document.createElement('div');
     ttl.id = 'mgrh-title';
@@ -1473,7 +1474,6 @@ function _mgrHeroRender() {
   const items = [
     [_tasksOpenCount || 0, 'משימות פתוחות', 'tasks'],
     [n('vehicles'), 'קליטות לבדיקה', 'vehicles'],
-    [n('bodyshop-mgr'), 'רכבים לעדכון', 'bodyshop-mgr'],
   ];
   box.innerHTML = `<small>מה מחכה לך היום</small><div class="r">${items.map(([c, l, scr]) =>
     `<div onclick="goToScreen('${scr}')"><b${c ? '' : ' class="z"'}>${c}</b><span>${l}</span></div>`).join('')}</div>`;
