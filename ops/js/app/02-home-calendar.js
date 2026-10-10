@@ -157,13 +157,19 @@ function _phoneBarBuild(isManager) {
   const bar = document.createElement('nav');
   bar.id = 'phone-bar';
   bar.className = isManager ? 'mgr' : 'drv';
+  if (!isManager && currentUser?.role === 'driver') bar.classList.add('drv4');
   bar.setAttribute('aria-label', 'ניווט');
   // לנהג שני כפתורים בלבד: הכל ופתק לשטיפה
   bar.innerHTML = isManager
     ? `<button type="button" id="pb-common" onclick="setPhoneTab('common')"><span>⚡</span>בשימוש נפוץ</button>` +
       `<button type="button" id="pb-wash" onclick="goToScreen('wash')"><span>🧽</span>פתק לשטיפה</button>` +
       `<button type="button" id="pb-all" onclick="setPhoneTab('all')"><span>▦</span>הכל</button>`
-    : `<button type="button" class="on"><span>▦</span>הכל</button>` +
+    : currentUser?.role === 'driver'
+      ? `<button type="button" class="on"><span>🏠</span>בית</button>` +
+        `<button type="button" onclick="goToScreen('tasks')"><span>📋</span>משימות</button>` +
+        `<button type="button" onclick="goToScreen('vehicles')"><span>🚗</span>קליטות</button>` +
+        `<button type="button" onclick="goToScreen('wash')"><span>🧽</span>שטיפה</button>`
+      : `<button type="button" class="on"><span>▦</span>הכל</button>` +
       `<button type="button" onclick="goToScreen('wash')"><span>🧽</span>פתק לשטיפה</button>`;
   scr.appendChild(bar);
 }
@@ -379,6 +385,8 @@ function renderHome() {
      בונה אותה מחדש בענף שלו, וכך היא לא יכולה להישאר ממשתמש קודם
      אצל אחראי איסוף או אצל הפחח. */
   document.getElementById('phone-bar')?.remove();
+  document.getElementById('drvh-hero')?.remove();
+  document.getElementById('screen-home')?.classList.remove('drvh-on');
   // הטופס חוזר למסך השטיפה לפני שהבית נבנה מחדש
   try { window._washMount && window._washMount(); } catch (e) {}
   try { _mgrHomeFit(); _mgrHomeWatch(); } catch (e) {}
@@ -499,13 +507,13 @@ function renderHome() {
       ]
     : [
         // ההנעות אינן קובייה — הן מוצגות כרשימה בתחתית מסך הבית
-        { icon: '📋', title: 'המשימות שלי', sub: 'משימות שהוקצו לך', screen: 'tasks' },
+        { icon: '📋', title: 'המשימות שלי', sub: 'משימות שהוקצו לך', screen: 'tasks', short: 'משימות' },
         { icon: '🔋', title: 'בדיקת סוללה והטענת רכבים חשמליים', sub: 'מילוי אחוזי טעינה וטווח', screen: 'driver-battery' },
-        { icon: _ICON_CAR_BATTERY, title: 'מצברים', sub: 'רישום מצבר שהורכב לרכב', screen: 'driver-battery-install' },
+        { icon: _ICON_CAR_BATTERY, title: 'מצברים', sub: 'רישום מצבר שהורכב לרכב', screen: 'driver-battery-install', short: 'מצברים' },
         /* שתי אלה חולקות את השורה האחרונה. קודם פתק השטיפה עמד בה
            לבדו ונמתח לכל הרוחב; עכשיו הוא קובייה רגילה כמו השאר. */
-        { icon: '🚗', title: 'קליטות ורענון', sub: 'קליטות שממתינות לך', screen: 'vehicles' },
-        { icon: '🧽', title: 'פתק שטיפה', sub: 'הכנה והדפסה של פתק לרכב', screen: 'wash' },
+        { icon: '🚗', title: 'קליטות ורענון', sub: 'קליטות שממתינות לך', screen: 'vehicles', short: 'קליטות' },
+        { icon: '🧽', title: 'פתק שטיפה', sub: 'הכנה והדפסה של פתק לרכב', screen: 'wash', short: 'שטיפה' },
       ];
 
 
@@ -518,7 +526,7 @@ function _cardHtml(m) {
         <div class="mc-icon">${m.icon}</div>
         <span id="badge-${m.screen}" style="display:none;position:absolute;top:-6px;right:-10px;background:#ef4444;color:#fff;border-radius:999px;font-size:11px;font-weight:900;padding:1px 6px;min-width:18px;text-align:center"></span>
       </div>
-      <div class="mc-title">${m.title}</div>
+      <div class="mc-title" data-short="${m.short || ""}">${m.title}</div>
       <div class="mc-sub" id="sub-${m.screen}">${m.sub}</div>
     </div>`;
   }
@@ -553,6 +561,7 @@ function _cardHtml(m) {
         ? `<img src="${_GIL_BG}" style="width:100%;border-radius:16px;object-fit:cover;max-height:16vh;display:block">`
         : '') +
       `<div id="home-morning"></div>`;
+    _drvHomeSetup();
     _phoneBarBuild(false);
     _reapplyCardBadges();
     _msRenderHome();
@@ -1403,21 +1412,74 @@ function _setDriverVehiclesBadge() {
   if (cnt) cnt.textContent = total;
 }
 
+/* ── מסך הבית של הנהג בטלפון ─────────────────────────────────────
+   שכבת תצוגה: כל הקוביות והמספרים עדיין מגיעים מאותה לוגיקה כמו קודם,
+   ורק כרטיס "המשימה הבאה" נבנה מרשימת המשימות הפתוחות של הנהג — בסדר
+   שבו הן מופיעות אצלו במסך המשימות. */
+let _drvTasks = {};
+function _drvTasksFeed(snap) {
+  snap.docs.forEach(d => {
+    const t = d.data();
+    if (t.status !== 'done' && t.type !== 'divider') _drvTasks[d.id] = { id: d.id, ...t };
+    else delete _drvTasks[d.id];
+  });
+  _drvHeroRender();
+}
+function _drvHomeSetup() {
+  const scr = document.getElementById('screen-home');
+  const area = document.getElementById('home-cards-area');
+  if (!scr || !area || currentUser?.role !== 'driver') return;
+  scr.classList.add('drvh-on');
+  if (!document.getElementById('drvh-hero')) {
+    const hero = document.createElement('div');
+    hero.id = 'drvh-hero';
+    area.insertBefore(hero, document.getElementById('stats-row'));
+  }
+  _drvHeroRender();
+}
+function _drvHeroRender() {
+  const box = document.getElementById('drvh-hero');
+  if (!box) return;
+  const list = Object.values(_drvTasks).sort((a, b) => {
+    const cA = a.color ? 0 : 1, cB = b.color ? 0 : 1;
+    if (cA !== cB) return cA - cB;
+    return (a.sortOrder ?? a.createdAt?.toMillis?.() ?? 0) - (b.sortOrder ?? b.createdAt?.toMillis?.() ?? 0);
+  });
+  if (!list.length) {
+    box.className = 'calm';
+    box.innerHTML = `<h2>אין משימות פתוחות 🎉</h2><p>הכל מסודר, אפשר לנשום</p>`;
+    box.onclick = null;
+    return;
+  }
+  const t = list[0];
+  const ms = t.createdAt?.toMillis?.();
+  const days = ms ? Math.max(0, Math.floor((Date.now() - ms) / 86400000)) : null;
+  const age = days == null ? '' : days === 0 ? 'נפתחה היום' : days === 1 ? 'נפתחה אתמול' : `נפתחה לפני ${days} ימים`;
+  const more = list.length > 1 ? `עוד ${list.length - 1} משימות` : '';
+  box.className = '';
+  box.innerHTML = `<small>המשימה הבאה שלך</small><h2>${esc(t.title || 'משימה')}</h2>
+    <p>${[age, more].filter(Boolean).join(' · ')}</p><span class="go">פתח משימות ←</span>`;
+  box.onclick = () => goToScreen('tasks');
+}
+
 function loadDriverBadges() {
   if (!window._CONFIG_DONE || !currentUser) return;
   _reSnapReset('driverBadges');   // סוגר את המאזינים מהכניסה הקודמת
   const name = currentUser.name;
+  _drvTasks = {};
   try {
     const _badgeTaskIds = new Set();
     _reSnap('driverBadges', _query(_colRef('tasks'), _where('assignedTo','==',name)), snap => {
       snap.docs.forEach(d => { if (d.data().status !== 'done') _badgeTaskIds.add(d.id); else _badgeTaskIds.delete(d.id); });
       _tasksOpenCount = _badgeTaskIds.size;
       _syncTasksBadge();
+      _drvTasksFeed(snap);
     });
     _reSnap('driverBadges', _query(_colRef('tasks'), _where('label','==',name)), snap => {
       snap.docs.forEach(d => { if (d.data().status !== 'done') _badgeTaskIds.add(d.id); else _badgeTaskIds.delete(d.id); });
       _tasksOpenCount = _badgeTaskIds.size;
       _syncTasksBadge();
+      _drvTasksFeed(snap);
     });
     _reSnap('driverBadges', _query(_colRef('intake_assignments'), _where('assignedTo','==',name)), snap => {
       _driverIntakeDocs = snap.docs.map(d => _fixBrand({ id: d.id, ...d.data() }));
