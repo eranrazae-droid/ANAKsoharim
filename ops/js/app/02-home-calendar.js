@@ -126,6 +126,10 @@ function _applyPhoneTab() {
   const on = (id, v) => { const e = document.getElementById(id); if (e) e.classList.toggle('on', v); };
   on('pb-common', _phoneTab === 'common');
   on('pb-all', _phoneTab === 'all');
+  // המסך החדש של המנהל: כפתור אחד שמתחלף בין "הכל" ל"בשימוש נפוץ"
+  document.getElementById('screen-home')?.classList.toggle('mgrh-all', _phoneTab === 'all');
+  const tg = document.getElementById('pb-toggle');
+  if (tg) tg.innerHTML = _phoneTab === 'common' ? '<span>▦</span>הכל' : '<span>⚡</span>בשימוש נפוץ';
 }
 let _tabAnimTimer = null;
 function setPhoneTab(t) {
@@ -156,14 +160,15 @@ function _phoneBarBuild(isManager) {
   if (old) old.remove();                       // התפקיד התחלף — בונים מחדש
   const bar = document.createElement('nav');
   bar.id = 'phone-bar';
-  bar.className = isManager ? 'mgr' : 'drv';
+  bar.className = isManager ? 'mgr mgr4' : 'drv';
   if (!isManager && currentUser?.role === 'driver') bar.classList.add('drv4');
   bar.setAttribute('aria-label', 'ניווט');
   // לנהג שני כפתורים בלבד: הכל ופתק לשטיפה
   bar.innerHTML = isManager
-    ? `<button type="button" id="pb-common" onclick="setPhoneTab('common')"><span>⚡</span>בשימוש נפוץ</button>` +
-      `<button type="button" id="pb-wash" onclick="goToScreen('wash')"><span>🧽</span>פתק לשטיפה</button>` +
-      `<button type="button" id="pb-all" onclick="setPhoneTab('all')"><span>▦</span>הכל</button>`
+    ? `<button type="button" id="pb-bell" onclick="openNotifyMgr()"><span>🔔</span>התראות</button>` +
+      `<button type="button" id="pb-toggle" class="on" onclick="setPhoneTab(_phoneTab === 'common' ? 'all' : 'common')"><span>▦</span>הכל</button>` +
+      `<button type="button" id="pb-cal" onclick="openHomeCal()"><span>🗓️</span>יומן</button>` +
+      `<button type="button" id="pb-settings" onclick="openSettings()"><span>⚙️</span>הגדרות</button>`
     : currentUser?.role === 'driver'
       ? `<button type="button" id="pb-bell" onclick="openPushSettings()"><span>🔔</span>התראות</button>` +
         `<button type="button" class="on"><span>🏠</span>בית</button>` +
@@ -398,7 +403,9 @@ function renderHome() {
   document.getElementById('phone-bar')?.remove();
   document.getElementById('drvh-hero')?.remove();
   document.getElementById('drvh-av')?.remove();
-  document.getElementById('screen-home')?.classList.remove('drvh-on');
+  document.getElementById('mgrh-hero')?.remove();
+  document.getElementById('mgrh-title')?.remove();
+  document.getElementById('screen-home')?.classList.remove('drvh-on', 'mgrh-on', 'mgrh-all');
   // הטופס חוזר למסך השטיפה לפני שהבית נבנה מחדש
   try { window._washMount && window._washMount(); } catch (e) {}
   try { _mgrHomeFit(); _mgrHomeWatch(); } catch (e) {}
@@ -506,16 +513,16 @@ function renderHome() {
 
   const menuItems = isManager
     ? [
-        { icon: '📋', title: 'לוח משימות', sub: 'ניהול משימות לנהגים', screen: 'tasks' },
-        { icon: '🚗', title: 'קליטות ורענון רכבים', sub: 'קליטה ורענון במסך אחד', screen: 'vehicles' },
+        { icon: '📋', title: 'לוח משימות', sub: 'ניהול משימות לנהגים', screen: 'tasks', short: 'לוח משימות' },
+        { icon: '🚗', title: 'קליטות ורענון רכבים', sub: 'קליטה ורענון במסך אחד', screen: 'vehicles', short: 'קליטות' },
         // row 2 — ההנעות אינן קובייה אצל המנהל: החלונית קופצת מ-08:00
-        { icon: _ICON_CAR_BATTERY, title: 'ארון מצברים', sub: 'מלאי, הרכבות וסטטיסטיקה', screen: 'battery-stock' },
+        { icon: _ICON_CAR_BATTERY, title: 'ארון מצברים', sub: 'מלאי, הרכבות וסטטיסטיקה', screen: 'battery-stock', short: 'ארון מצברים' },
         // row 3 — recall is not here, it lives on the floating home button
-        { icon: '🚙', title: 'מכוניות לאיסוף', sub: 'ניהול רכבים לאיסוף', screen: 'pickup' },
+        { icon: '🚙', title: 'מכוניות לאיסוף', sub: 'ניהול רכבים לאיסוף', screen: 'pickup', short: 'איסוף' },
         // השטיפה אינה קובייה אצל המנהל — היא כפתור רחב באזור הצדדי
         // בדיקת המלאי אינה קובייה: היא אחת משלוש בדיקות הבוקר שבראש
         // חלונית הפעולות, ואין טעם שתהיה בשני מקומות
-        { icon: '🔨', title: 'פחחות', sub: 'עבודות, מחירים וחשבון חודשי', screen: 'bodyshop-mgr' },
+        { icon: '🔨', title: 'פחחות', sub: 'עבודות, מחירים וחשבון חודשי', screen: 'bodyshop-mgr', short: 'פחחות' },
       ]
     : [
         // ההנעות אינן קובייה — הן מוצגות כרשימה בתחתית מסך הבית
@@ -553,10 +560,11 @@ function _cardHtml(m) {
     const c = (id, icon, title, sub, click) =>
       `<div class="menu-card mc-phone" id="${id}" onclick="${click}">
         <div style="position:relative;display:inline-block"><div class="mc-icon">${icon}</div></div>
-        <div class="mc-title">${title}</div><div class="mc-sub">${sub}</div></div>`;
+        <div class="mc-title" data-short="${title}">${title}</div><div class="mc-sub">${sub}</div></div>`;
     // ארבע האחרונות מופיעות רק ב"הכל", ולכן רק הן מקבלות מעבר
     const x = (id, ...a) => c(id, ...a).replace('menu-card mc-phone', 'menu-card mc-phone mc-extra');
     return c('mc-phone-cal', '🗓️', 'יומן', 'לוח החודש', 'openHomeCal()')
+         + c('mc-phone-wash', '🧽', 'פתק שטיפה', 'הכנה והדפסה של פתק', "goToScreen('wash')")
          + x('mc-phone-pits', '🕳️', 'בורות', 'מצב הבורות במגרש', "goToScreen('pits')")
          + x('mc-phone-td', '🚗', 'נסיעות מבחן', 'מי לקח רכב ומתי', "goToScreen('test-drive')")
          + x('mc-phone-battery', '🔋', 'בדיקת טעינה', 'רכבים חשמליים בטעינה', "goToScreen('battery')")
@@ -590,6 +598,7 @@ function _cardHtml(m) {
     grid.style.gap = '';
     grid.innerHTML = menuItems.map(_cardHtml).join('') + _phoneOnlyCards();
     _phoneBarBuild(true);
+    _mgrHomeSetup();
     _reapplyCardBadges();
     try { _renderHomeChecks(); } catch (e) {}
     try { _applyPhoneTab(); } catch (e) {}
@@ -1350,6 +1359,7 @@ function _paintHomeCard(card, tint) {
 
 function _setCardBadge(screen, count, color) {
   _badgeCache[screen] = { count, color };
+  try { _mgrHeroRender(); } catch (e) {}
   const card = document.getElementById('menu-card-' + screen);
   const badge = document.getElementById('badge-' + screen);
   // הקוביות אולי עוד לא נבנו — הערך נשמר ויוחל ברגע שהן ייבנו
@@ -1426,6 +1436,47 @@ function _setDriverVehiclesBadge() {
   const cnt = document.getElementById('stat-intake-driver-count');
   if (el)  el.style.display = total ? 'block' : 'none';
   if (cnt) cnt.textContent = total;
+}
+
+/* ── מסך הבית של המנהל בטלפון ─────────────────────────────────────
+   שכבת תצוגה: אותן קוביות ואותם מספרים, בעיצוב אפליקציה. כרטיס
+   "מה מחכה לך" נבנה מהמספרים שכבר יושבים על הקוביות. */
+function _mgrHomeSetup() {
+  const scr = document.getElementById('screen-home');
+  const area = document.getElementById('home-cards-area');
+  if (!scr || !area || currentUser?.role !== 'manager') return;
+  scr.classList.add('mgrh-on');
+  const bar = scr.querySelector('.welcome-bar');
+  document.getElementById('drvh-av')?.remove();
+  if (bar) {
+    const av = document.createElement('div');
+    av.id = 'drvh-av';
+    av.textContent = currentUser.name.charAt(0);
+    bar.prepend(av);
+    const ttl = document.createElement('div');
+    ttl.id = 'mgrh-title';
+    ttl.innerHTML = '<h2>כל המסכים</h2><p>כל הקוביות במקום אחד</p>';
+    bar.appendChild(ttl);
+  }
+  if (!document.getElementById('mgrh-hero')) {
+    const hero = document.createElement('div');
+    hero.id = 'mgrh-hero';
+    area.insertBefore(hero, document.getElementById('menu-grid'));
+  }
+  _applyPhoneTab();
+  _mgrHeroRender();
+}
+function _mgrHeroRender() {
+  const box = document.getElementById('mgrh-hero');
+  if (!box) return;
+  const n = k => (_badgeCache[k]?.count) || 0;
+  const items = [
+    [_tasksOpenCount || 0, 'משימות פתוחות', 'tasks'],
+    [n('vehicles'), 'קליטות לבדיקה', 'vehicles'],
+    [n('bodyshop-mgr'), 'רכבים לעדכון', 'bodyshop-mgr'],
+  ];
+  box.innerHTML = `<small>מה מחכה לך היום</small><div class="r">${items.map(([c, l, scr]) =>
+    `<div onclick="goToScreen('${scr}')"><b${c ? '' : ' class="z"'}>${c}</b><span>${l}</span></div>`).join('')}</div>`;
 }
 
 /* ── מסך הבית של הנהג בטלפון ─────────────────────────────────────
