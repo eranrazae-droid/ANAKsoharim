@@ -874,7 +874,6 @@ const APP_BUILD = (() => {
    פתק השטיפה, הבורות ונסיעות המבחן אינם כאן: הם יושבים בלשוניות של
    החלונית במסך הבית, ואין טעם שיהיו בשני מקומות.                   */
 const _ALL_SCREENS = [
-  { id: 'menu-card-ownership',    icon: '📑', label: 'בדיקת בעלויות',        badge: 'badge-ownership' },
   { id: 'menu-card-recall',       icon: '⚠️', label: 'בדיקת ריקול',          badge: 'recall-home-count' },
   { id: 'menu-card-battery',      icon: '🔋', label: 'בדיקת טעינה',          badge: 'badge-battery' },
   { id: 'menu-card-yard',         icon: '🅿️', label: 'סידור מגרש',           badge: 'badge-yard' },

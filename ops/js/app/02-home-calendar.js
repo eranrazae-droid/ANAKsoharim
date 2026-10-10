@@ -70,7 +70,6 @@ function _dailyNote(id) {
    אותו חישוב שכבר הציג את הסטטוס ברשימת "כל המסכים" — ולכן אין כאן
    מקור אמת חדש. המסכים עצמם כבר מוגדרים להיפתח כחלונית.          */
 const _HOME_CHECKS = [
-  { btn: 'hck-ownership', note: 'menu-card-ownership', idle: 'בדיקת בעלויות' },
   { btn: 'hck-inventory', note: 'menu-card-inventory', idle: 'בדיקת מלאי' },
   { btn: 'hck-recall',    note: 'menu-card-recall',    idle: 'בדיקת ריקול' },
 ];
@@ -592,7 +591,8 @@ function _cardHtml(m) {
   const psBtn = document.getElementById('menu-card-plate-search');
   if (psBtn) psBtn.style.display = 'none';
   const ownBtn = document.getElementById('menu-card-ownership');
-  if (ownBtn) ownBtn.style.display = isManager ? '' : 'none';
+  // בדיקת הבעלויות הוסתרה לבקשת המנהל. המסך נשאר; להחזרה — isManager במקום 'none'
+  if (ownBtn) ownBtn.style.display = 'none';
   if (isManager) _startOwnMorning();
   // כפתור "כל המסכים" מתעדכן לפי התגיות של הכפתורים שמאחוריו
   if (isManager) _dailyChecksListen();
