@@ -515,14 +515,17 @@ function renderHome() {
            לבדו ונמתח לכל הרוחב; עכשיו הוא קובייה רגילה כמו השאר. */
         { icon: '🚗', title: 'קליטות ורענון', sub: 'קליטות שממתינות לך', screen: 'vehicles', short: 'קליטות' },
         { icon: '🧽', title: 'פתק שטיפה', sub: 'הכנה והדפסה של פתק לרכב', screen: 'wash', short: 'שטיפה' },
+        // קיים רק בטלפון. במחשב ההצעה נשארת כפתור צף במסך המשימות
+        ...(currentUser.role === 'driver' ? [{ icon: '💡', title: 'הצע משימה', sub: 'שלח בקשה למנהל', screen: 'request-task', short: 'הצע משימה', phone: true }] : []),
       ];
 
 
 function _cardHtml(m) {
     const _onclick = m.screen === 'driver-battery' ? "goToScreen('driver-battery-unified')"
       : m.screen === 'driver-battery-install' ? "openDriverBatteryInstall()"
+      : m.screen === 'request-task' ? "openRequestTaskModal()"
       : `goToScreen('${m.screen}')`;
-    return `<div class="menu-card" id="menu-card-${m.screen}" onclick="${_onclick}">
+    return `<div class="menu-card${m.phone ? ' mc-phone' : ''}" id="menu-card-${m.screen}" onclick="${_onclick}">
       <div style="position:relative;display:inline-block">
         <div class="mc-icon">${m.icon}</div>
         <span id="badge-${m.screen}" style="display:none;position:absolute;top:-6px;right:-10px;background:#ef4444;color:#fff;border-radius:999px;font-size:11px;font-weight:900;padding:1px 6px;min-width:18px;text-align:center"></span>
@@ -1435,10 +1438,11 @@ function _drvHomeSetup() {
   // תמונה עגולה ליד הברכה: התמונה של גיל, ואצל השאר האות הראשונה
   const bar = scr.querySelector('.welcome-bar');
   document.getElementById('drvh-av')?.remove();
+  bar?.classList.remove('has-wide');
   if (bar) {
     const av = document.createElement('div');
     av.id = 'drvh-av';
-    if (currentUser.name === 'גיל' && typeof _GIL_BG !== 'undefined') av.innerHTML = `<img src="${_GIL_BG}" alt="">`;
+    if (currentUser.name === 'גיל' && typeof _GIL_BG !== 'undefined') { av.innerHTML = `<img src="${_GIL_BG}" alt="">`; av.classList.add('wide'); bar.classList.add('has-wide'); }
     else av.textContent = currentUser.name.charAt(0);
     bar.prepend(av);
   }
@@ -1487,7 +1491,7 @@ function _drvTilesRender() {
         <div class="drvh-tl">${esc(text)}</div></div>`);
     });
     // תמיד יש מקום לארבע קוביות: מה שלא בשימוש נשאר ריבוע ריק עדין
-    while (tiles.length < 4) tiles.push('<div class="drvh-t drvh-empty"><div class="drvh-ti"></div></div>');
+    while (tiles.length < 5) tiles.push('<div class="drvh-t drvh-empty"><div class="drvh-ti"></div></div>');
     const html = tiles.join('');
     if (box.innerHTML !== html) box.innerHTML = html;
   } finally { _drvTilesBusy = false; }
@@ -1930,7 +1934,9 @@ function openTasksScreen() {
   const _arcBtn = document.getElementById('btn-tasks-archive');
   if (_arcBtn) _arcBtn.style.display = isManager ? 'inline-flex' : 'none';
   const _fabReq = document.getElementById('fab-request-task');
-  const _showFabReq = !isManager || currentUser.role === 'pickup_agent';
+  // בטלפון הנהג מצביע על "הצע משימה" מקוביה במסך הבית, ולכן הכפתור הצף מוסתר
+  const _showFabReq = (!isManager || currentUser.role === 'pickup_agent')
+    && !(currentUser.role === 'driver' && window.innerWidth <= 900);
   if (_fabReq) { _fabReq.style.cssText = _showFabReq ? 'display:flex !important;position:fixed;bottom:24px;left:16px;transform:none;background:#7c3aed;z-index:999' : 'display:none'; }
   console.log('[FAB] isManager=', isManager, 'fab=', !!_fabReq);
   activeTaskFilter = isManager ? 'משימות כלליות' : 'שלי';
