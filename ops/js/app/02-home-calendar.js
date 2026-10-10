@@ -406,7 +406,9 @@ function renderHome() {
   document.getElementById('drvh-av')?.remove();
   document.getElementById('mgrh-hero')?.remove();
   document.getElementById('mgrh-title')?.remove();
-  document.getElementById('screen-home')?.classList.remove('drvh-on', 'mgrh-on', 'mgrh-all');
+  document.getElementById('agh-hero')?.remove();
+  document.getElementById('agh-list')?.remove();
+  document.getElementById('screen-home')?.classList.remove('drvh-on', 'mgrh-on', 'mgrh-all', 'agh-on');
   document.getElementById('screen-home')?.classList.add('hdr-off');   // בטלפון אין כותרת כחולה בבית של אף אחד
   // הטופס חוזר למסך השטיפה לפני שהבית נבנה מחדש
   try { window._washMount && window._washMount(); } catch (e) {}
@@ -453,9 +455,11 @@ function renderHome() {
       if (card) card.style.display = cars.length ? 'block' : 'none';
       if (cnt) cnt.textContent = cars.length;
       _driverPickupCars = cars;
+      try { _agHeroRender(); } catch (e) {}
       const modal = document.getElementById('modal-driver-pickup');
       if (modal && modal.classList.contains('open')) _renderDriverPickupModal();
     });
+    _agHomeSetup();
     _phoneBarBuild(false);
     return;
   }
@@ -477,7 +481,7 @@ function renderHome() {
           <div class="mc-icon">🚙</div>
           <span id="badge-pickup" style="display:none;position:absolute;top:-6px;right:-10px;background:#ef4444;color:#fff;border-radius:999px;font-size:11px;font-weight:900;padding:1px 6px;min-width:18px;text-align:center"></span>
         </div>
-        <div class="mc-title">מכוניות לאיסוף</div>
+        <div class="mc-title" data-short="איסוף">מכוניות לאיסוף</div>
         <div class="mc-sub" id="sub-pickup">ניהול רכבים לאיסוף</div>
       </div>
       <div class="menu-card" id="menu-card-bodyshop-mgr" onclick="openBodyShopMgrScreen()">
@@ -485,20 +489,21 @@ function renderHome() {
           <div class="mc-icon">🔨</div>
           <span id="badge-bodyshop-mgr" style="display:none;position:absolute;top:-6px;right:-10px;background:#b45309;color:#fff;border-radius:999px;font-size:11px;font-weight:900;padding:1px 6px;min-width:18px;text-align:center"></span>
         </div>
-        <div class="mc-title">פחחות</div>
+        <div class="mc-title" data-short="פחחות">פחחות</div>
         <div class="mc-sub" id="sub-bodyshop-mgr">עבודות אצל הפחח</div>
       </div>
       <div class="menu-card" id="menu-card-wash" onclick="goToScreen('wash')">
         <div class="mc-icon">🧽</div>
-        <div class="mc-title">פתק שטיפה</div>
+        <div class="mc-title" data-short="שטיפה">פתק שטיפה</div>
         <div class="mc-sub">הכנה והדפסה של פתק לרכב</div>
       </div>
-      <div class="menu-card" onclick="openRequestTaskModal()">
+      <div class="menu-card" id="menu-card-request-task" onclick="openRequestTaskModal()">
         <div class="mc-icon">📋</div>
-        <div class="mc-title">הצעת משימה</div>
+        <div class="mc-title" data-short="הצע משימה">הצעת משימה</div>
         <div class="mc-sub">שלח בקשה למנהל</div>
       </div>`;
     loadManagerBadges();
+    _agHomeSetup();
     _phoneBarBuild(false);
     return;
   }
@@ -1442,6 +1447,60 @@ function _setDriverVehiclesBadge() {
   if (cnt) cnt.textContent = total;
 }
 
+/* ── מסך הבית של משה והילה בטלפון ───────────────────────────────────
+   אותו עיצוב אפליקציה כמו אצל הנהגים והמנהל. כרטיס הסיכום נבנה מהמספרים
+   שכבר מחושבים: אצל משה כמה לאיסוף וכמה אצל הפחח, ואצל הילה הרכבים שלה. */
+function _agHomeSetup() {
+  const scr = document.getElementById('screen-home');
+  const area = document.getElementById('home-cards-area');
+  const role = currentUser?.role;
+  if (!scr || !area || (role !== 'pickup_agent' && role !== 'pickup_driver')) return;
+  scr.classList.add('agh-on');
+  const bar = scr.querySelector('.welcome-bar');
+  document.getElementById('drvh-av')?.remove();
+  if (bar) {
+    const av = document.createElement('div');
+    av.id = 'drvh-av';
+    av.textContent = currentUser.name.charAt(0);
+    bar.prepend(av);
+  }
+  if (!document.getElementById('agh-hero')) {
+    const hero = document.createElement('div');
+    hero.id = 'agh-hero';
+    area.insertBefore(hero, document.getElementById('stats-row'));
+    const lst = document.createElement('div');
+    lst.id = 'agh-list';
+    area.insertBefore(lst, document.getElementById('stats-row'));
+  }
+  _agHeroRender();
+}
+function _agHeroRender() {
+  const box = document.getElementById('agh-hero');
+  if (!box) return;
+  if (currentUser?.role === 'pickup_agent') {
+    const n = k => (_badgeCache[k]?.count) || 0;
+    box.className = 'agent';
+    box.innerHTML = `<small>מה מחכה לך היום</small><div class="r">
+      <div onclick="openPickupScreen()"><b${n('pickup') ? '' : ' class="z"'}>${n('pickup')}</b><span>לאיסוף</span></div>
+      <div onclick="openBodyShopMgrScreen()"><b${_mgrAtShop ? '' : ' class="z"'}>${_mgrAtShop}</b><span>אצל הפחח</span></div></div>`;
+    return;
+  }
+  const cars = (typeof _driverPickupCars !== 'undefined' && _driverPickupCars) ? _driverPickupCars : [];
+  const lst = document.getElementById('agh-list');
+  if (lst) lst.innerHTML = cars.map(c => `<div class="agh-car" onclick="openDriverPickupModal()">
+      <span class="agh-plate">${esc(c.plate || '')}</span>
+      <div><b>${esc([c.type, c.year].filter(Boolean).join(' · '))}</b><small>${esc(c.city || '')}</small></div></div>`).join('');
+  if (!cars.length) {
+    box.className = 'calm';
+    box.innerHTML = '<h2>אין רכבים לאיסוף 🎉</h2><p>כשיוקצה לך רכב הוא יופיע כאן</p>';
+    box.onclick = null;
+    return;
+  }
+  box.className = '';
+  box.innerHTML = `<small>הרכבים שלך לאיסוף</small><h2>${cars.length === 1 ? 'רכב אחד לאיסוף' : cars.length + ' רכבים לאיסוף'}</h2><span class="go">פתח רשימה ←</span>`;
+  box.onclick = () => openDriverPickupModal();
+}
+
 /* ── מסך הבית של המנהל בטלפון ─────────────────────────────────────
    שכבת תצוגה: אותן קוביות ואותם מספרים, בעיצוב אפליקציה. כרטיס
    "מה מחכה לך" נבנה מהמספרים שכבר יושבים על הקוביות. */
@@ -1473,6 +1532,7 @@ function _mgrHomeSetup() {
 }
 let _mgrAtShop = 0;   // כמה רכבים נמצאים עכשיו אצל הפחח
 function _mgrHeroRender() {
+  try { _agHeroRender(); } catch (e) {}
   const box = document.getElementById('mgrh-hero');
   if (!box) return;
   const n = k => (_badgeCache[k]?.count) || 0;
