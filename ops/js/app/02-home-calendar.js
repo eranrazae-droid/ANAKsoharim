@@ -789,7 +789,8 @@ function renderAgenda() {
   if (!box) return;
   const sel = _calSelected || _ymd(new Date());
   const [yy,mm,dd] = sel.split('-');
-  if (at) at.textContent = `משימות ${dd}/${mm}`;
+  document.getElementById('cal-today-btn')?.classList.toggle('away', sel !== _ymd(new Date()));
+  if (at) at.innerHTML = `<span class="at-w">משימות </span>${dd}/${mm}`;
   const items = _calEvents.filter(e => _calOccursOn(e, sel))
     .sort((a,b) => (a.startTime||'').localeCompare(b.startTime||''));
   if (!items.length) {
@@ -809,6 +810,14 @@ function renderAgenda() {
     </div>`;
   }).join('');
 }
+
+// חזרה להיום: החודש הנוכחי והיום הנבחר
+function calGoToday() {
+  _calMonth = new Date(); _calMonth.setDate(1);
+  _calSelected = _ymd(new Date());
+  renderCalendar(); renderAgenda();
+}
+window.calGoToday = calGoToday;
 
 function calNav(dir) {
   _calMonth = new Date(_calMonth.getFullYear(), _calMonth.getMonth()+dir, 1);
