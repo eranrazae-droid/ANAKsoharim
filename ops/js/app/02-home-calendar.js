@@ -186,7 +186,17 @@ async function driverWhatsAppManager() {
   if (!phone) { showToast('מספר המנהל עדיין לא הוגדר'); return; }
   if (phone.startsWith('0')) phone = '972' + phone.slice(1);
   const text = encodeURIComponent(`היי ליאל, זה ${currentUser?.name || ''}`);
-  window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
+  /* פותחים את אפליקציית הוואטסאפ ישירות. פתיחה בדפדפן (wa.me) משאירה
+     חלונית דפדפן פתוחה מעל האפליקציה אחרי החזרה. רק אם הוואטסאפ לא
+     הותקן, ואף מעבר לא קרה, עוברים לקישור הרגיל. */
+  let left = false;
+  const onHide = () => { if (document.hidden) left = true; };
+  document.addEventListener('visibilitychange', onHide);
+  window.location.href = `whatsapp://send?phone=${phone}&text=${text}`;
+  setTimeout(() => {
+    document.removeEventListener('visibilitychange', onHide);
+    if (!left && !document.hidden) window.location.href = `https://wa.me/${phone}?text=${text}`;
+  }, 1500);
 }
 window.driverWhatsAppManager = driverWhatsAppManager;
 
