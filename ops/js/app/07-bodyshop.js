@@ -647,6 +647,7 @@ let _bshopFillMgr = false;   // the manager edits the same note, with more freed
 let _bshopFillMoney = false;
 
 function bshopOpenFill(id) {
+  _bsmMAddFor = null;
   const j = _bshopJobs.find(x => x.id === id);
   if (!j) return;
   _bshopFillId = id;
@@ -784,6 +785,8 @@ function openBshopAddPart() {
 window.openBshopAddPart = openBshopAddPart;
 
 function bshopAddPart(name) {
+  // נבחר מחלונית הרכב של הטלפון — חוזרים אליה ולא פותחים את עורך הפתק
+  if (_bsmMAddFor && _bsmMAddFor === _bshopFillId) return _bsmMAddPartDone(_bshopFillId, name);
   const j = _bshopJobs.find(x => x.id === _bshopFillId);
   if (!j) return;
   _bshopSyncPrices(j);
@@ -1217,6 +1220,7 @@ function bsmShowView(name) {
   if (_bsmView === 'stats' && money) _bsmRenderStats();
   toggleBsmMenu(false);
   window.scrollTo({ top: 0 });
+  try { _bsmMRender(); } catch (e) { console.error('bsm mobile render', e); }
 }
 window.bsmShowView = bsmShowView;
 
@@ -1306,6 +1310,7 @@ function _bshopRenderMgr() {
     if (el) { el.textContent = n; el.style.display = n ? 'inline-block' : 'none'; }
   }
   _bshopUpgradeCardPhotos();
+  try { _bsmMRender(); } catch (e) { console.error('bsm mobile render', e); }
 }
 
 function bsmOpenJob(id) { bshopOpenFill(id); }
@@ -2539,3 +2544,290 @@ const _SCAN_SKIP_PLATES = new Set([
 /* ── רכבים שירדו מהמלאי ──────────────────────────────────────────────
    זה המצב היחיד שדורש אישור שלך. אחרי אישור הרכב לא מוצג שוב.
    כל שאר שינויי הבעלות מוצגים כרגיל ואינם דורשים כלום.            */
+
+/* ═══ מסך הפחחות של המנהל בטלפון ═══════════════════════════════════
+   בטלפון כל רכב הוא אריח תמונה: הצילום של הרכב, עליו הלוחית, הדגם,
+   המחיר ותגית הימים. לחיצה על אריח פותחת אותו מלמטה — התמונה בגדול,
+   החלקים, והפעולה הראשית של המצב. הלשוניות והפעולות עברו לסרגל תחתון.
+
+   זו שכבת תצוגה בלבד: אותם נתונים (_bshopJobs) ואותן פעולות קיימות.
+   במחשב שום דבר מזה לא מוצג, ולאיברהים המסך נשאר כמו שהיה. */
+let _bsmMSheetId = null;       // הרכב שהחלונית התחתונה פתוחה עליו
+let _bsmMSheetStatus = '';     // והמצב שלו כשנפתחה — אם השתנה, היא נסגרת
+let _bsmMAddFor = null;        // רכב שמוסיפים לו חלק מהחלונית התחתונה
+
+const _bsmMOn = () => !!window.matchMedia && window.matchMedia('(max-width:900px)').matches;
+
+const _BSMM_GRADS = [
+  'linear-gradient(135deg,#475569,#0f172a)', 'linear-gradient(135deg,#7c3a1d,#3b1d0e)',
+  'linear-gradient(135deg,#1d4e89,#0b2447)', 'linear-gradient(135deg,#0f766e,#064e3b)',
+  'linear-gradient(135deg,#6d28d9,#2e1065)', 'linear-gradient(135deg,#be185d,#500724)',
+  'linear-gradient(135deg,#9f1239,#4c0519)', 'linear-gradient(135deg,#0e7490,#083344)',
+];
+// רכב בלי תמונה מקבל רקע צבעוני קבוע לפי הלוחית, כך שהוא נראה אותו דבר בכל כניסה
+function _bsmMGrad(plate) {
+  let h = 0; for (const ch of String(plate || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return _BSMM_GRADS[h % _BSMM_GRADS.length];
+}
+const _bsmMPhoto = j => j.photo || j.photoThumb || '';
+
+function _bsmMDaysClass(d) { return d >= 14 ? 'red' : d >= 7 ? 'amb' : 'grn'; }
+function _bsmMDaysTxt(d) { return d === 0 ? 'נשלח היום' : d === 1 ? 'יום אחד' : `${d} ימים`; }
+
+// הרכבים של כל לשונית, באותם כללים כמו במסך הרגיל
+function _bsmMLists() {
+  const live = _bshopJobs.filter(j => !j.onHold);
+  const draft = live.filter(j => j.status === 'draft').reverse();   // מי שמחכה הכי הרבה קודם
+  // אצל הפחח: מי שעומד שם הכי הרבה זמן ראשון — שם הדחיפות
+  const open = live.filter(j => j.status === 'at_shop')
+    .sort((a, b) => (_bshopDays(b) ?? -1) - (_bshopDays(a) ?? -1));
+  const ret = live.filter(j => j.status === 'returned');
+  return { draft, open, ret };
+}
+
+// מחיר על האריח: מה שנרשם, ואצל הפחח — הערכה כשעוד לא תומחר
+function _bsmMPrice(j) {
+  if (!_bsmMoney()) return { txt: '', est: false };
+  const total = _bshopTotal(j);
+  if (total > 0) return { txt: total.toLocaleString('he-IL') + ' ₪', est: false };
+  if (j.status === 'at_shop') {
+    const manual = Number(j.estManual) > 0 ? Number(j.estManual) : null;
+    const v = manual != null ? manual : _bshopEstimate(j).sum;
+    if (v > 0) return { txt: '~' + v.toLocaleString('he-IL') + ' ₪', est: true };
+  }
+  return { txt: '', est: false };
+}
+
+function _bsmMTile(j) {
+  const src = _bsmMPhoto(j);
+  const pr = _bsmMPrice(j);
+  const d = _bshopDays(j);
+  const items = j.items || [];
+  const filled = items.filter(it => Number(it.price) > 0).length;
+  let pill = '', corner = '', sub = '';
+  if (j.status === 'draft') {
+    pill = `<span class="bsmm-pill ind">📝 טיוטה</span>`;
+    sub = `<div class="bsmm-sub">חלקים ${items.length}${_bsmMoney() ? ` · מולאו ${filled}` : ''}</div>`;
+  } else if (j.status === 'at_shop') {
+    pill = d == null ? '' : `<span class="bsmm-pill ${_bsmMDaysClass(d)}">⏱ ${_bsmMDaysTxt(d)}</span>`;
+  } else {
+    pill = `<span class="bsmm-pill grn">✅ סיימנו</span>`;
+    const missing = items.some(it => it.price == null || it.price === '');
+    corner = missing ? `<span class="bsmm-corner warn">⚠️ חסר מחיר</span>`
+      : j.swUpdated ? `<span class="bsmm-corner okc">✔ עודכן</span>`
+      : `<span class="bsmm-corner warn">💳 לעדכן</span>`;
+  }
+  const photo = src
+    ? `<div class="bsmm-ph" style="background-image:url('${src}');background-position:${_bshopFocusCss(j)}"></div>`
+    : `<svg class="bsmm-car"><use href="#bsmm-car"/></svg>`;
+  return `<div class="bsmm-tile" style="--g:${_bsmMGrad(j.plate)}" onclick="bsmMOpen('${j.id}')">
+    ${photo}${pill}${corner}
+    <div class="bsmm-pl"><span class="bsmm-plate">${esc(j.plate || '')}</span>
+      <div class="bsmm-m"><span>${esc(j.desc || '')}</span><span class="${pr.est ? 'est' : ''}">${esc(pr.txt)}</span></div>${sub}</div>
+  </div>`;
+}
+
+function _bsmMRender() {
+  const box = document.getElementById('bsmm');
+  const scr = document.getElementById('screen-bodyshop-mgr');
+  if (!box || !scr) return;
+  const mainView = _bsmView === 'draft' || _bsmView === 'open' || _bsmView === 'done';
+  scr.classList.toggle('bsmm-on', mainView);
+  const L = _bsmMLists();
+  const cur = mainView ? L[_bsmView === 'done' ? 'ret' : _bsmView] : [];
+  const money = _bsmMoney();
+
+  const tab = (v, label, n) => `<div class="${_bsmView === v ? 'on' : ''}" onclick="bsmShowView('${v}')">${label} <b>${n}</b></div>`;
+  let sub = '';
+  if (_bsmView === 'draft') sub = L.draft.length ? `${L.draft.length} ${L.draft.length === 1 ? 'פתק מוכן' : 'פתקים מוכנים'} לשליחה` : 'אין פתקים שממתינים לשליחה';
+  else if (_bsmView === 'open') {
+    const oldest = L.open.length ? _bshopDays(L.open[0]) : null;
+    sub = L.open.length ? `${L.open.length} רכבים אצל הפחח${oldest ? ` · הכי ותיק ${oldest} ימים` : ''}` : 'אין רכבים אצל הפחח';
+  } else if (_bsmView === 'done') sub = L.ret.length ? `${L.ret.length} רכבים ממתינים לתשלום` : 'אין רכבים שממתינים לתשלום';
+
+  // הסכום לתשלום — בלשונית הסיימנו; ובלשונית אצל הפחח מה שכבר נרשם עליהם
+  let bar = '';
+  if (money && _bsmView === 'done' && L.ret.length) {
+    const sum = L.ret.reduce((s, j) => s + _bshopTotal(j), 0);
+    bar = `<div class="bsmm-sum"><div><small>סכום לתשלום</small><b>${Math.round(sum).toLocaleString('he-IL')} ₪</b></div>
+      <div style="text-align:left"><small>כולל מע״מ ${Math.round(_VAT_RATE * 100)}%</small><b class="g">${Math.round(sum * (1 + _VAT_RATE)).toLocaleString('he-IL')} ₪</b></div></div>`;
+  } else if (money && _bsmView === 'open') {
+    const openSum = L.open.reduce((s, j) => s + _bshopTotal(j), 0);
+    if (openSum) bar = `<div class="bsmm-note">בנוסף ${openSum.toLocaleString('he-IL')} ₪ נרשמו על רכבים שעדיין אצלו</div>`;
+  }
+
+  const empty = { draft: ['📝', 'אין פתקים שממתינים', 'לחץ על ＋ כדי ליצור פתק חדש'],
+                  open: ['🔨', 'אין רכבים אצל הפחח', 'פתק שנשלח לפחח יופיע כאן'],
+                  done: ['✅', 'אין רכבים שסיימנו', 'רכב שהפחח סיים יופיע כאן'] }[_bsmView];
+  const grid = !mainView ? '' : cur.length
+    ? `<div class="bsmm-grid">${cur.map(_bsmMTile).join('')}</div>`
+    : `<div class="bsmm-empty"><div>${empty[0]}</div><b>${empty[1]}</b><span>${empty[2]}</span></div>`;
+  const pay = (money && _bsmView === 'done' && L.ret.length)
+    ? `<div class="bsmm-pay"><button onclick="bsmSettle()" style="background:var(--success)">💰 שילמתי — סגור חשבון</button>
+        <button onclick="bsmExportPdf()" style="background:var(--dark)">📄 ייצוא ל-PDF</button></div>` : '';
+
+  box.innerHTML = mainView ? `
+    <div class="bsmm-sub1">${sub}</div>
+    <div class="bsmm-tabs">${tab('draft', '📝 לשליחה', L.draft.length)}${tab('open', '🔨 אצל הפחח', L.open.length)}${tab('done', '✅ סיימנו', L.ret.length)}</div>
+    ${bar}${grid}${pay}` : '';
+
+  const navOn = v => (_bsmView === v ? 'on' : '');
+  const nav = document.getElementById('bsmm-nav');
+  if (nav) nav.innerHTML = `
+    <div class="${navOn('open')}" onclick="bsmShowView('open')"><i>🔨</i>אצל הפחח</div>
+    <div class="${navOn('draft')}" onclick="bsmShowView('draft')"><i>📝</i>לשליחה</div>
+    <div class="bsmm-fab" onclick="openBsmSendModal()">＋</div>
+    <div class="${navOn('done')}" onclick="bsmShowView('done')"><i>✅</i>סיימנו</div>
+    <div class="${(_bsmView === 'arc' || _bsmView === 'stats') ? 'on' : ''}" onclick="bsmMMore()"><i>⋯</i>עוד</div>`;
+
+  // חלונית פתוחה שהרכב שלה השתנה או נעלם (נשלח, הוקפא, נמחק) — נסגרת
+  if (_bsmMSheetId) {
+    const j = _bshopJobs.find(x => x.id === _bsmMSheetId);
+    if (!j || j.onHold || j.status !== _bsmMSheetStatus) bsmMClose();
+    else _bsmMRenderSheet();
+  }
+}
+window._bsmMRender = _bsmMRender;
+
+/* ── "עוד": כל מה שהיה בשורת הכפתורים ──────────────────────────── */
+function bsmMMore() {
+  const money = _bsmMoney();
+  const it = (ic, t, s, fn, cls) => `<div class="bsmm-it ${cls || ''}" onclick="bsmMClose();${fn}"><span>${ic}</span><div>${t}${s ? `<small>${s}</small>` : ''}</div></div>`;
+  const wrap = document.getElementById('bsmm-sheet');
+  wrap.innerHTML = `<div class="bsmm-dim" onclick="bsmMClose()"></div>
+    <div class="bsmm-sheet bsmm-small"><div class="bsmm-grab"></div><h5>פעולות</h5>
+      ${money ? it('🗄️', 'ארכיון', 'תשלומים קודמים', `bsmShowView('arc')`) : ''}
+      ${money ? it('📊', 'סטטיסטיקה', '', `bsmShowView('stats')`) : ''}
+      ${it('🔗', 'קישור לפחח', 'העתקה ושליחה של הקישור לאיברהים', 'bsmCopyLink()')}
+      ${it('⚙️', 'רשימת חלקים', 'עריכת הרשימה הקבועה', 'openBsmItemsModal()')}
+      ${it('🚗', 'תיעוד נסיעות', 'מי לקח ומתי', 'openBsmTrips()')}
+      ${it('❄️', 'מוקפאים', 'פתקים שהוצאו מהמסך', 'openBsmHold()')}
+      ${it('🗑', 'מחיקת פתק', 'פעולה שלא ניתנת לביטול', 'openBsmDelete()', 'dng')}
+    </div>`;
+  wrap.classList.add('open');
+  _bsmMSheetId = null;
+}
+window.bsmMMore = bsmMMore;
+
+/* ── חלונית הרכב ─────────────────────────────────────────────────── */
+function bsmMOpen(id) {
+  const j = _bshopJobs.find(x => x.id === id);
+  if (!j) return;
+  _bsmMSheetId = id;
+  _bsmMSheetStatus = j.status;
+  _bsmMRenderSheet();
+  document.getElementById('bsmm-sheet').classList.add('open');
+  // התמונה המלאה נטענת ברקע ומחליפה את הקטנה
+  _bshopFullPhoto(id).then(url => {
+    const el = document.getElementById('bsmm-simg');
+    if (url && el && _bsmMSheetId === id) el.style.backgroundImage = `url('${url}')`;
+  });
+}
+window.bsmMOpen = bsmMOpen;
+
+function bsmMClose() {
+  _bsmMSheetId = null;
+  const w = document.getElementById('bsmm-sheet');
+  if (w) { w.classList.remove('open'); w.innerHTML = ''; }
+}
+window.bsmMClose = bsmMClose;
+
+function _bsmMRenderSheet() {
+  const j = _bshopJobs.find(x => x.id === _bsmMSheetId);
+  const w = document.getElementById('bsmm-sheet');
+  if (!j || !w) return;
+  const money = _bsmMoney();
+  const src = _bsmMPhoto(j);
+  const pr = _bsmMPrice(j);
+  const d = _bshopDays(j);
+  const id = j.id;
+  const items = j.items || [];
+  const total = _bshopTotal(j);
+  const dayPill = (j.status === 'at_shop' && d != null)
+    ? `<span class="bsmm-pill ${_bsmMDaysClass(d)}">⏱ ${_bsmMDaysTxt(d)} אצל הפחח</span>`
+    : j.status === 'returned' ? `<span class="bsmm-pill grn">✅ סיימנו</span>` : `<span class="bsmm-pill ind">📝 טיוטה</span>`;
+  const priceBlock = pr.txt
+    ? `<div class="bsmm-sp" ${pr.est ? `onclick="bsmEditEstimate('${id}')"` : ''}><b class="${pr.est ? 'est' : ''}">${esc(pr.txt)}</b><small>${pr.est ? 'עלות משוערת ✏️' : 'לפני מע״מ'}</small></div>` : '';
+
+  const parts = items.length
+    ? `<div class="bsmm-parts">${items.map(it => `<div class="p"><span>${esc(it.name)}${it.addedByShop ? ' <em>➕ איברהים הוסיף</em>' : ''}</span>${money ? `<b>${it.price != null && it.price !== '' ? Number(it.price).toLocaleString('he-IL') + ' ₪' : '—'}</b>` : ''}</div>`).join('')}
+        <div class="p tot"><span>סה״כ חלקים</span><b>${items.length}${money && total > 0 ? ` · ${total.toLocaleString('he-IL')} ₪` : ''}</b></div></div>`
+    : `<div class="bsmm-noparts">עוד לא נוספו חלקים לפתק</div>`;
+
+  const warns = [
+    j.photoFailed ? '⚠️ התמונה לא נשמרה' : '',
+  ].filter(Boolean).map(t => `<div class="bsmm-warn">${t}</div>`).join('');
+
+  let primary = '';
+  if (j.status === 'draft') {
+    primary = `<div class="bsmm-cta"><button class="g" onclick="bsmSendToShop('${id}')">📤 שלח לאיברהים</button>
+      <button class="d" style="flex:.8" onclick="(window.innerWidth <= 900 ? bsmShareNote : bsmPrint)('${id}')">📄 קובץ</button></div>`;
+  } else if (j.status === 'at_shop') {
+    primary = `<div class="bsmm-cta"><button class="d" onclick="bsmMarkReturned('${id}')">✅ סיימנו עם הרכב</button></div>`;
+  } else if (j.status === 'returned') {
+    primary = j.swUpdated
+      ? `<div class="bsmm-cta"><button class="g" onclick="bsmSetSwUpdated('${id}',false)">✅ עודכן בתוכנה — ביטול סימון</button></div>`
+      : `<div class="bsmm-cta"><button class="o" onclick="bsmSetSwUpdated('${id}',true)">💳 עדכנתי בתוכנה</button></div>`;
+  }
+  const sec = `<div class="bsmm-mini">
+      <div onclick="bsmAddPhoto('${id}')">📷 ${src ? 'החלף תמונה' : 'הוסף תמונה'}</div>
+      ${j.status !== 'returned' ? `<div onclick="bsmSetHold('${id}',true)">❄️ הקפאה</div><div class="rm" onclick="bsmDeleteOne('job:${id}')">🗑 מחיקה</div>` : ''}
+    </div>`;
+
+  const keepOpen = w.classList.contains('open');
+  w.innerHTML = `<div class="bsmm-dim" onclick="bsmMClose()"></div>
+    <div class="bsmm-sheet">
+      <div class="bsmm-simg" id="bsmm-simg" style="--g:${_bsmMGrad(j.plate)};${src ? `background-image:url('${src}');background-position:${_bshopFocusCss(j)}` : ''}">
+        ${src ? '' : `<svg class="bsmm-car"><use href="#bsmm-car"/></svg>`}
+        <span class="bsmm-grab"></span><span class="bsmm-x" onclick="bsmMClose()">✕</span>
+        <span class="bsmm-dp">${dayPill}</span>
+        <div class="bsmm-sb"><div><span class="bsmm-plate lg" onclick="bsmCopyPlate('${esc(j.plate)}')" title="לחץ להעתקה">${esc(j.plate || '')}</span>
+          <div class="bsmm-sd">${esc(j.desc || '')}</div></div>${priceBlock}</div>
+      </div>
+      <div class="bsmm-sbody">
+        ${j.note ? `<div class="bsmm-snote">📝 ${esc(j.note)}</div>` : ''}${warns}
+        ${parts}
+        <button class="bsmm-addpart" onclick="bsmMAddPart('${id}')">➕ הוסף חלק לפתק</button>
+        ${primary}${sec}
+        <div class="bsmm-full" onclick="bsmMClose();bsmOpenJob('${id}')">✏️ פתח את הפתק המלא</div>
+      </div>
+    </div>`;
+  if (keepOpen) w.classList.add('open');
+}
+
+/* הוספת חלק לפתק שכבר נוצר — מאותה רשימה קבועה שהגדרת (_bshopItems).
+   נפתחת אותה בחירת חלקים כמו בעורך הפתק, ובסיום חוזרים לחלונית. */
+function bsmMAddPart(id) {
+  const j = _bshopJobs.find(x => x.id === id);
+  if (!j) return;
+  _bshopFillId = id;
+  _bshopFillMgr = (typeof _canBodyshop === 'function') ? _canBodyshop() : true;
+  _bshopFillMoney = currentUser?.role === 'manager';
+  _bsmMAddFor = id;
+  openBshopAddPart();
+}
+window.bsmMAddPart = bsmMAddPart;
+
+// מופעל מ-bshopAddPart כשהחלק נבחר מחלונית הרכב ולא מעורך הפתק
+async function _bsmMAddPartDone(id, name) {
+  const j = _bshopJobs.find(x => x.id === id);
+  _bsmMAddFor = null;
+  _bshopFillId = null;
+  if (!j) return;
+  if ((j.items || []).some(it => it.name === name)) { showToast('החלק כבר ברשימה'); return; }
+  const before = j.items || [];
+  j.items = [...before, { name, price: null }];
+  closeModal('modal-bshop-add');
+  _bsmMRenderSheet();
+  try {
+    await _updateDoc(_docRef('bodyshop_jobs', id), { items: j.items, updatedAt: _serverTs() });
+    showToast(`✅ ${name} נוסף לפתק`);
+  } catch (e) {
+    console.error('add part', e);
+    j.items = before;                // השמירה נכשלה — לא משאירים חלק שלא נשמר
+    _bsmMRenderSheet();
+    showToast('ההוספה נכשלה — נסה שוב');
+  }
+}
+
+window.addEventListener('resize', () => { try { _bsmMRender(); } catch (e) {} });
