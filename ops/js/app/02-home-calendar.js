@@ -167,6 +167,7 @@ function _phoneBarBuild(isManager) {
   bar.innerHTML = isManager
     ? `<button type="button" id="pb-bell" onclick="openNotifyMgr()"><span>🔔</span>התראות</button>` +
       `<button type="button" id="pb-toggle" class="on" onclick="setPhoneTab(_phoneTab === 'common' ? 'all' : 'common')"><span>▦</span>הכל</button>` +
+      `<button type="button" id="pb-users" onclick="openSwitchUser()"><span>👥</span>משתמשים</button>` +
       `<button type="button" id="pb-settings" onclick="openSettings()"><span>⚙️</span>הגדרות</button>`
     : currentUser?.role === 'driver'
       ? `<button type="button" id="pb-bell" onclick="openPushSettings()"><span>🔔</span>התראות</button>` +

@@ -676,10 +676,28 @@ function switchToUser(name) {
   localStorage.setItem('anak_user', JSON.stringify(currentUser));
   closeModal('modal-switch-user');
   _applyUserBg();
+  _syncBackPill();
   if (u.role === 'bodyshop') openBodyShopScreen(); else enterApp();
   showToast(u.role === 'manager' ? 'חזרת למסך שלך' : `אתה רואה עכשיו את המסך של ${name}`);
 }
 window.switchToUser = switchToUser;
+
+/* כפתור "חזור למשתמש שלי": מופיע רק כשהמנהל המחובר באמת מסתכל על
+   המסך של מישהו אחר. אצל כל משתמש אחר הוא לא נוצר בכלל. */
+function _syncBackPill() {
+  const show = _realUser?.role === 'manager' && currentUser && currentUser.name !== _realUser.name;
+  let el = document.getElementById('back-to-me');
+  if (!show) { el?.remove(); return; }
+  if (!el) {
+    el = document.createElement('button');
+    el.id = 'back-to-me';
+    el.type = 'button';
+    el.onclick = () => switchToUser(_realUser.name);
+    document.body.appendChild(el);
+  }
+  el.textContent = '↩ חזור למשתמש שלי';
+}
+window._syncBackPill = _syncBackPill;
 
 /* ═══════════════════════════════════════════════════════
    SCREEN NAVIGATION
@@ -733,6 +751,7 @@ function closeScreenModal() {
 window.closeScreenModal = closeScreenModal;
 
 function showScreen(name) {
+  try { _syncBackPill(); } catch (e) {}
   // מסך מהרשימה נכנס לחלונית במקום להחליף את מסך הבית — לא משנה מאיזה
   // כפתור או תהליך הגיעו אליו
   if (_SCREEN_MODALS.includes(name)) {
