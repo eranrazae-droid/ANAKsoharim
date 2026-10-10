@@ -173,8 +173,9 @@ function _phoneBarBuild(isManager) {
       ? `<button type="button" id="pb-bell" onclick="openPushSettings()"><span>🔔</span>התראות</button>` +
         `<button type="button" class="on"><span>🏠</span>בית</button>` +
         `<button type="button" onclick="driverWhatsAppManager()"><span>💬</span>וואטסאפ למנהל</button>`
-      : `<button type="button" class="on"><span>▦</span>הכל</button>` +
-      `<button type="button" onclick="goToScreen('wash')"><span>🧽</span>פתק לשטיפה</button>`;
+      : `<button type="button" onclick="openPushSettings()"><span>🔔</span>התראות</button>` +
+        `<button type="button" class="on"><span>🏠</span>בית</button>` +
+        (currentUser?.role === 'pickup_agent' ? `<button type="button" onclick="goToScreen('wash')"><span>🧽</span>פתק לשטיפה</button>` : '');
   scr.appendChild(bar);
   try { if (typeof Notification !== 'undefined' && Notification.permission !== 'granted') bar.querySelector('#pb-bell')?.classList.add('off'); } catch (e) {}
 }
@@ -406,6 +407,7 @@ function renderHome() {
   document.getElementById('mgrh-hero')?.remove();
   document.getElementById('mgrh-title')?.remove();
   document.getElementById('screen-home')?.classList.remove('drvh-on', 'mgrh-on', 'mgrh-all');
+  document.getElementById('screen-home')?.classList.add('hdr-off');   // בטלפון אין כותרת כחולה בבית של אף אחד
   // הטופס חוזר למסך השטיפה לפני שהבית נבנה מחדש
   try { window._washMount && window._washMount(); } catch (e) {}
   try { _mgrHomeFit(); _mgrHomeWatch(); } catch (e) {}
@@ -454,6 +456,7 @@ function renderHome() {
       const modal = document.getElementById('modal-driver-pickup');
       if (modal && modal.classList.contains('open')) _renderDriverPickupModal();
     });
+    _phoneBarBuild(false);
     return;
   }
 
@@ -496,6 +499,7 @@ function renderHome() {
         <div class="mc-sub">שלח בקשה למנהל</div>
       </div>`;
     loadManagerBadges();
+    _phoneBarBuild(false);
     return;
   }
 
