@@ -1311,7 +1311,8 @@ body.td-panel-min .screen.active{margin-left:0 !important;width:auto !important}
 /* ═══ מסך הבית של הנהג בטלפון ═══════════════════════════════════
    שכבת תצוגה בלבד: אותן קוביות ואותם מספרים, בעיצוב אפליקציה.
    במחשב הכל נשאר כמו שהיה. */
-#drvh-hero{display:none}
+#drvh-hero,#drvh-av{display:none}
+#drvh-tiles{display:none}
 @media(max-width:900px){
   #screen-home.drvh-on .home-body{background:#fff;padding:14px 14px 18px}
   #screen-home.drvh-on .welcome-bar{margin-bottom:12px}
@@ -1328,16 +1329,16 @@ body.td-panel-min .screen.active{margin-left:0 !important;width:auto !important}
   #drvh-hero.calm:after{content:"✨"}
   #drvh-hero.calm h2{font-size:18px;margin:0 0 2px}
 
-  /* שורות "מחכה לך": קוביות שמופיעות רק כשיש עבודה */
-  #screen-home.drvh-on #stats-row{display:flex;flex-direction:column;gap:8px;margin-bottom:6px}
-  #screen-home.drvh-on #stats-row>.stat-card:first-child{display:none !important}
-  #screen-home.drvh-on #stats-row>.stat-card{display:none !important}
-  #screen-home.drvh-on #stats-row>.stat-card[style*="display: block"]{display:flex !important;flex-direction:row-reverse;align-items:center;justify-content:space-between;gap:10px;
-    background:#f3f5fb !important;border-radius:18px;padding:12px 14px;box-shadow:none;text-align:right}
-  #screen-home.drvh-on #stats-row>.stat-card[style*="display: block"][style*="16a34a"]{background:#e9f9ef !important}
-  #screen-home.drvh-on #stats-row .stat-card .lbl{color:#0b1020 !important;font-size:14px;font-weight:900;margin:0;flex:1}
-  #screen-home.drvh-on #stats-row .stat-card .num{color:#fff !important;background:#0b1020;border-radius:12px;min-width:40px;padding:3px 10px;font-size:18px;line-height:1.3;text-align:center}
-  #screen-home.drvh-on #stats-row>.stat-card[style*="16a34a"] .num{background:#16a34a}
+  /* הקוביות שמופיעות רק כשיש עבודה נבנות ב-JS מכרטיסי הספירה, והכרטיסים עצמם מוסתרים */
+  #screen-home.drvh-on #stats-row{display:none !important}
+  #screen-home.drvh-on #drvh-tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px 6px;padding:8px 0 4px}
+  .drvh-t{text-align:center;cursor:pointer;min-width:0}
+  .drvh-ti{position:relative;display:flex;align-items:center;justify-content:center;width:62px;height:62px;margin:0 auto;border-radius:20px;
+    font-size:28px;color:#fff;box-shadow:0 8px 16px rgba(11,16,32,.16)}
+  .drvh-n{position:absolute;top:-5px;left:-5px;background:#ef4444;color:#fff;border:2px solid #fff;border-radius:99px;font-size:11px;font-weight:900;padding:1px 6px;min-width:20px;line-height:1.3}
+  .drvh-tl{font-size:11.5px;font-weight:800;color:#2a3350;margin-top:6px;line-height:1.2}
+  .drvh-empty{cursor:default}
+  .drvh-empty .drvh-ti{background:none;box-shadow:none;border:2px dashed #e1e5f0}
 
   /* האייקונים הקבועים */
   #screen-home.drvh-on .menu-grid{gap:0 !important}
@@ -1366,7 +1367,12 @@ body.td-panel-min .screen.active{margin-left:0 !important;width:auto !important}
   /* להיום */
   #screen-home.drvh-on #home-morning:before{content:"להיום";display:block;font-weight:900;font-size:14px;color:#0b1020;padding:12px 4px 6px}
   #screen-home.drvh-on .drv-morning{background:#f3f5fb;border:none;border-radius:18px}
-  #screen-home.drvh-on .menu-grid>img{border-radius:20px !important;margin-top:10px}
+  #screen-home.drvh-on .menu-grid>img{display:none !important}
+  #screen-home.drvh-on #drvh-av{display:flex}
+  #screen-home.drvh-on .welcome-bar{position:relative;padding-left:58px;min-height:48px}
+  #drvh-av{position:absolute;left:0;top:0;width:48px;height:48px;border-radius:50%;overflow:hidden;background:linear-gradient(135deg,#ffdf6b,#f5b800);
+    color:#201600;font-weight:900;font-size:20px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(11,16,32,.2)}
+  #drvh-av img{width:100%;height:100%;object-fit:cover;object-position:50% 40%}
 
   /* שורת הניווט */
   #phone-bar.drv.drv4{grid-template-columns:repeat(4,1fr);background:#fff;border-top:none;box-shadow:0 -6px 24px rgba(11,16,32,.1)}
@@ -4503,20 +4509,20 @@ window.dispatchEvent(new Event('firebase-ready'));
 </script>
 
 <script src="js/utils.js?v=214"></script>
-<script src="js/app/01-core.js?v=472"></script>
-<script src="js/app/02-home-calendar.js?v=472"></script>
-<script src="js/app/03-tasks.js?v=472"></script>
-<script src="js/app/04-intake-plate.js?v=472"></script>
-<script src="js/app/05-intake-forms.js?v=472"></script>
-<script src="js/app/06-recall-inventory.js?v=472"></script>
-<script src="js/app/07-bodyshop.js?v=472"></script>
-<script src="js/app/08-ownership-wash.js?v=472"></script>
-<script src="js/app/09-battery.js?v=472"></script>
-<script src="js/app/10-battery-plate.js?v=472"></script>
-<script src="js/app/11-yard-telegram.js?v=472"></script>
-<script src="js/app/12-pickup.js?v=472"></script>
-<script src="js/app/13-reports.js?v=472"></script>
-<script src="js/app/14-tow-invoice.js?v=472"></script>
+<script src="js/app/01-core.js?v=473"></script>
+<script src="js/app/02-home-calendar.js?v=473"></script>
+<script src="js/app/03-tasks.js?v=473"></script>
+<script src="js/app/04-intake-plate.js?v=473"></script>
+<script src="js/app/05-intake-forms.js?v=473"></script>
+<script src="js/app/06-recall-inventory.js?v=473"></script>
+<script src="js/app/07-bodyshop.js?v=473"></script>
+<script src="js/app/08-ownership-wash.js?v=473"></script>
+<script src="js/app/09-battery.js?v=473"></script>
+<script src="js/app/10-battery-plate.js?v=473"></script>
+<script src="js/app/11-yard-telegram.js?v=473"></script>
+<script src="js/app/12-pickup.js?v=473"></script>
+<script src="js/app/13-reports.js?v=473"></script>
+<script src="js/app/14-tow-invoice.js?v=473"></script>
 
 <!-- ═══ רענון רכב modals ═══ -->
 <div class="modal-overlay" id="modal-refresh-edit">

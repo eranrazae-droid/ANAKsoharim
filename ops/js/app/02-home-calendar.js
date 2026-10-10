@@ -386,6 +386,7 @@ function renderHome() {
      אצל אחראי איסוף או אצל הפחח. */
   document.getElementById('phone-bar')?.remove();
   document.getElementById('drvh-hero')?.remove();
+  document.getElementById('drvh-av')?.remove();
   document.getElementById('screen-home')?.classList.remove('drvh-on');
   // הטופס חוזר למסך השטיפה לפני שהבית נבנה מחדש
   try { window._washMount && window._washMount(); } catch (e) {}
@@ -557,6 +558,7 @@ function _cardHtml(m) {
     grid.style.gap = '10px';
     grid.innerHTML =
       `<div class="drv-row">${menuItems.map(_cardHtml).join('')}</div>` +
+      `<div id="drvh-tiles"></div>` +
       (currentUser.name === 'גיל'
         ? `<img src="${_GIL_BG}" style="width:100%;border-radius:16px;object-fit:cover;max-height:16vh;display:block">`
         : '') +
@@ -1430,6 +1432,23 @@ function _drvHomeSetup() {
   const area = document.getElementById('home-cards-area');
   if (!scr || !area || currentUser?.role !== 'driver') return;
   scr.classList.add('drvh-on');
+  // תמונה עגולה ליד הברכה: התמונה של גיל, ואצל השאר האות הראשונה
+  const bar = scr.querySelector('.welcome-bar');
+  document.getElementById('drvh-av')?.remove();
+  if (bar) {
+    const av = document.createElement('div');
+    av.id = 'drvh-av';
+    if (currentUser.name === 'גיל' && typeof _GIL_BG !== 'undefined') av.innerHTML = `<img src="${_GIL_BG}" alt="">`;
+    else av.textContent = currentUser.name.charAt(0);
+    bar.prepend(av);
+  }
+  // הקוביות שמופיעות רק כשיש עבודה נבנות מהמצב של כרטיסי הספירה הקיימים
+  const sr = document.getElementById('stats-row');
+  if (sr && !sr._drvObs) {
+    sr._drvObs = new MutationObserver(() => _drvTilesRender());
+    sr._drvObs.observe(sr, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['style'] });
+  }
+  _drvTilesRender();
   if (!document.getElementById('drvh-hero')) {
     const hero = document.createElement('div');
     hero.id = 'drvh-hero';
@@ -1437,6 +1456,44 @@ function _drvHomeSetup() {
   }
   _drvHeroRender();
 }
+const _DRV_TILE_BG = {
+  'stat-pickup-driver-card':    'linear-gradient(135deg,#3b82f6,#1e3a8a)',
+  'stat-inventory-driver-card': 'linear-gradient(135deg,#8b5cf6,#5b21b6)',
+  'stat-battery-driver-card':   'linear-gradient(135deg,#06b6d4,#0e7490)',
+  'stat-intake-driver-card':    'linear-gradient(135deg,#10b981,#047857)',
+  'stat-pits-driver-card':      'linear-gradient(135deg,#14b8a6,#115e59)',
+  'stat-td-driver-card':        'linear-gradient(135deg,#a855f7,#6d28d9)',
+  'stat-yard-driver-card':      'linear-gradient(135deg,#f59e0b,#92400e)',
+};
+let _drvTilesBusy = false;
+function _drvTilesRender() {
+  const box = document.getElementById('drvh-tiles');
+  const sr = document.getElementById('stats-row');
+  if (!box || !sr || _drvTilesBusy) return;
+  _drvTilesBusy = true;
+  try {
+    const tiles = [];
+    sr.querySelectorAll('.stat-card[id$="-driver-card"]').forEach(card => {
+      if (card.style.display === 'none') return;
+      const num = (card.querySelector('.num')?.textContent || '').trim();
+      const lbl = (card.querySelector('.lbl')?.textContent || '').trim();
+      const m = lbl.match(/^(\p{Extended_Pictographic}[\uFE0F\u200D\p{Extended_Pictographic}]*)\s*(.*)$/u);
+      const numeric = /^\d+$/.test(num);
+      const icon = numeric ? (m ? m[1] : '•') : num;
+      const text = m ? m[2] : lbl;
+      const bg = card.id === 'stat-battery-driver-card' && card.style.background ? card.style.background : _DRV_TILE_BG[card.id];
+      tiles.push(`<div class="drvh-t" onclick="document.getElementById('${card.id}').click()">
+        <div class="drvh-ti" style="background:${bg || 'linear-gradient(135deg,#64748b,#334155)'}">${icon}${numeric && num !== '0' ? `<span class="drvh-n">${num}</span>` : ''}</div>
+        <div class="drvh-tl">${esc(text)}</div></div>`);
+    });
+    // תמיד יש מקום לארבע קוביות: מה שלא בשימוש נשאר ריבוע ריק עדין
+    while (tiles.length < 4) tiles.push('<div class="drvh-t drvh-empty"><div class="drvh-ti"></div></div>');
+    const html = tiles.join('');
+    if (box.innerHTML !== html) box.innerHTML = html;
+  } finally { _drvTilesBusy = false; }
+}
+window._drvTilesRender = _drvTilesRender;
+
 function _drvHeroRender() {
   const box = document.getElementById('drvh-hero');
   if (!box) return;
