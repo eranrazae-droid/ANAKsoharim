@@ -780,7 +780,7 @@ function renderAgenda() {
   const items = _calEvents.filter(e => _calOccursOn(e, sel))
     .sort((a,b) => (a.startTime||'').localeCompare(b.startTime||''));
   if (!items.length) {
-    box.innerHTML = `<div style="color:var(--muted);font-size:13px;padding:14px 4px;text-align:center">אין משימות ליום זה</div>`;
+    box.innerHTML = `<div style="color:var(--muted);font-size:13px;padding:14px 4px;text-align:center">${sel === _ymd(new Date()) ? 'אין משימות להיום' : 'אין משימות לתאריך זה'}</div>`;
     return;
   }
   box.innerHTML = items.map(e => {
@@ -1466,13 +1466,15 @@ function _mgrHomeSetup() {
   _applyPhoneTab();
   _mgrHeroRender();
 }
+let _mgrAtShop = 0;   // כמה רכבים נמצאים עכשיו אצל הפחח
 function _mgrHeroRender() {
   const box = document.getElementById('mgrh-hero');
   if (!box) return;
   const n = k => (_badgeCache[k]?.count) || 0;
   const items = [
-    [_tasksOpenCount || 0, 'משימות פתוחות', 'tasks'],
     [n('vehicles'), 'קליטות לבדיקה', 'vehicles'],
+    [_mgrAtShop, 'אצל הפחח', 'bodyshop-mgr'],
+    [n('pickup'), 'לאיסוף', 'pickup'],
   ];
   box.innerHTML = `<small>מה מחכה לך היום</small><div class="r">${items.map(([c, l, scr]) =>
     `<div onclick="goToScreen('${scr}')"><b${c ? '' : ' class="z"'}>${c}</b><span>${l}</span></div>`).join('')}</div>`;
@@ -1855,6 +1857,8 @@ function loadManagerBadges() {
     // paidAt ומשאירה את הסטטוס, ולכן בלי הסינון הזה רכבים ששולמו
     // מזמן ממשיכים להיספר לנצח.
     _reSnap('mgrBadges', _query(_colRef('bodyshop_jobs'), _where('paidAt', '==', null)), snap => {
+      _mgrAtShop = snap.docs.filter(d => d.data().status === 'at_shop').length;
+      try { _mgrHeroRender(); } catch (e) {}
       _setBodyshopSwCard(snap.docs.filter(d => {
         const j = d.data();
         return j.status === 'returned' && !j.swUpdated;
