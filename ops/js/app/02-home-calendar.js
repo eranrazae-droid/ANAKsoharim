@@ -165,14 +165,25 @@ function _phoneBarBuild(isManager) {
       `<button type="button" id="pb-wash" onclick="goToScreen('wash')"><span>🧽</span>פתק לשטיפה</button>` +
       `<button type="button" id="pb-all" onclick="setPhoneTab('all')"><span>▦</span>הכל</button>`
     : currentUser?.role === 'driver'
-      ? `<button type="button" class="on"><span>🏠</span>בית</button>` +
-        `<button type="button" onclick="goToScreen('tasks')"><span>📋</span>משימות</button>` +
-        `<button type="button" onclick="goToScreen('vehicles')"><span>🚗</span>קליטות</button>` +
-        `<button type="button" onclick="goToScreen('wash')"><span>🧽</span>שטיפה</button>`
+      ? `<button type="button" id="pb-bell" onclick="openPushSettings()"><span>🔔</span>התראות</button>` +
+        `<button type="button" class="on"><span>🏠</span>בית</button>` +
+        `<button type="button" onclick="driverWhatsAppManager()"><span>💬</span>וואטסאפ למנהל</button>`
       : `<button type="button" class="on"><span>▦</span>הכל</button>` +
       `<button type="button" onclick="goToScreen('wash')"><span>🧽</span>פתק לשטיפה</button>`;
   scr.appendChild(bar);
+  try { if (typeof Notification !== 'undefined' && Notification.permission !== 'granted') bar.querySelector('#pb-bell')?.classList.add('off'); } catch (e) {}
 }
+
+/* פותח וואטסאפ אל המנהל. המספר נלקח מאותו שדה "טלפון מנהל" שבהגדרות. */
+async function driverWhatsAppManager() {
+  let phone = '';
+  try { phone = ((await _loadDriverContacts())['_managerPhone']?.value || '').replace(/\D/g, ''); } catch (e) {}
+  if (!phone) { showToast('מספר המנהל עדיין לא הוגדר'); return; }
+  if (phone.startsWith('0')) phone = '972' + phone.slice(1);
+  const text = encodeURIComponent(`היי ליאל, זה ${currentUser?.name || ''}`);
+  window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
+}
+window.driverWhatsAppManager = driverWhatsAppManager;
 
 /* היומן עובר פיזית לתוך החלונית וחוזר למקומו בסגירה, כך שהוא נשאר
    אותו לוח שנה עם אותם מאזינים — לא עותק שני. */
