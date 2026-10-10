@@ -2619,11 +2619,11 @@ function _bsmMTile(j) {
   const photo = src
     ? `<div class="bsmm-ph" style="background-image:url('${src}');background-position:${_bshopFocusCss(j)}"></div>`
     : `<svg class="bsmm-car"><use href="#bsmm-car"/></svg>`;
+  if (src) return `<div class="bsmm-tile has-ph" onclick="bsmMOpen('${j.id}')">${photo}</div>`;
   return `<div class="bsmm-tile" style="--g:${_bsmMGrad(j.plate)}" onclick="bsmMOpen('${j.id}')">
     ${photo}
-    <div class="bsmm-top"><span class="bsmm-plate">${esc(j.plate || '')}</span>${pill || corner ? `<div class="bsmm-bd">${pill}${corner}</div>` : ''}</div>
-    <div class="bsmm-pl">
-      <div class="bsmm-m"><span>${esc(j.desc || '')}</span><span class="${pr.est ? 'est' : ''}">${esc(pr.txt)}</span></div>${sub}</div>
+    <div class="bsmm-top"><span class="bsmm-plate">${esc(j.plate || '')}</span></div>
+    <div class="bsmm-pl"><div class="bsmm-m"><span>${esc(j.desc || '')}</span></div></div>
   </div>`;
 }
 
