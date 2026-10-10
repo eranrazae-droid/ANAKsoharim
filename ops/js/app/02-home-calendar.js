@@ -174,8 +174,7 @@ function _phoneBarBuild(isManager) {
         `<button type="button" class="on"><span>🏠</span>בית</button>` +
         `<button type="button" onclick="driverWhatsAppManager()"><span>💬</span>וואטסאפ למנהל</button>`
       : `<button type="button" onclick="openPushSettings()"><span>🔔</span>התראות</button>` +
-        `<button type="button" class="on"><span>🏠</span>בית</button>` +
-        (currentUser?.role === 'pickup_agent' ? `<button type="button" onclick="goToScreen('wash')"><span>🧽</span>פתק לשטיפה</button>` : '');
+        `<button type="button" class="on"><span>🏠</span>בית</button>`;
   scr.appendChild(bar);
   try { if (typeof Notification !== 'undefined' && Notification.permission !== 'granted') bar.querySelector('#pb-bell')?.classList.add('off'); } catch (e) {}
 }
@@ -447,7 +446,11 @@ function renderHome() {
     if (rcBtn) rcBtn.style.display = 'none';
     const pcBtn = document.getElementById('btn-parts-home');
     if (pcBtn) pcBtn.style.display = 'none';
-    document.getElementById('menu-grid').innerHTML = '';
+    document.getElementById('menu-grid').innerHTML =
+      `<div class="menu-card" id="menu-card-pickup-hila" onclick="openDriverPickupModal()">
+        <div style="position:relative;display:inline-block"><div class="mc-icon">🚙</div>
+          <span id="badge-pickup-hila" style="display:none;position:absolute;top:-6px;right:-10px;background:#ef4444;color:#fff;border-radius:999px;font-size:11px;font-weight:900;padding:1px 6px;min-width:18px;text-align:center"></span></div>
+        <div class="mc-title" data-short="איסוף">רכבים לאיסוף</div></div>`;
     _onSnap(_query(_colRef('pickup_cars'), _where('assignedDriver','==',currentUser.name)), snap => {
       const cars = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       const card = document.getElementById('stat-pickup-driver-card');
@@ -1486,6 +1489,8 @@ function _agHeroRender() {
     return;
   }
   const cars = (typeof _driverPickupCars !== 'undefined' && _driverPickupCars) ? _driverPickupCars : [];
+  const hb = document.getElementById('badge-pickup-hila');
+  if (hb) { hb.textContent = cars.length; hb.style.display = cars.length ? 'inline-block' : 'none'; }
   const lst = document.getElementById('agh-list');
   if (lst) lst.innerHTML = cars.map(c => `<div class="agh-car" onclick="openDriverPickupModal()">
       <span class="agh-plate">${esc(c.plate || '')}</span>
