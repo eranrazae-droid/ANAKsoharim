@@ -678,7 +678,6 @@ function switchToUser(name) {
   _applyUserBg();
   _syncBackPill();
   if (u.role === 'bodyshop') openBodyShopScreen(); else enterApp();
-  showToast(u.role === 'manager' ? 'חזרת למסך שלך' : `אתה רואה עכשיו את המסך של ${name}`);
 }
 window.switchToUser = switchToUser;
 
