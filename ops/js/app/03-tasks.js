@@ -300,18 +300,19 @@ function _tkAge(t) {
   if (!ms || isNaN(ms)) return null;
   return Math.max(0, Math.floor((Date.now() - ms) / 86400000));
 }
-function _tkRow(t, readOnly) {
+function _tkRow(t, readOnly, mgr) {
   const pt = _tkParseTitle(t.title);
   const age = _tkAge(t);
   const ageTxt = age == null ? '' : age === 0 ? 'היום' : age === 1 ? 'אתמול' : `${age} ימים`;
   const ageBg = age == null ? '#94a3b8' : age >= 7 ? '#ef4444' : age >= 3 ? '#f59e0b' : '#8b5cf6';
   const sub = [pt.plate, pt.car].filter(Boolean).join(' · ');
-  const fn = readOnly ? `driverClearVladiTask('${t.id}')` : `driverCompleteTask('${t.id}')`;
+  const fn = mgr ? `managerCompleteTask('${t.id}')` : readOnly ? `driverClearVladiTask('${t.id}')` : `driverCompleteTask('${t.id}')`;
   const photos = Array.isArray(t.photos) && t.photos.length
     ? `<div class="tkr-ph">${t.photos.map(p => `<img src="${p}" onclick="event.stopPropagation();openLightbox(this.src)">`).join('')}</div>` : '';
-  const more = (t.notes || photos) ? `<div class="tkr-more">${t.notes ? `<div>${esc(t.notes)}</div>` : ''}${photos}</div>` : '';
+  const mgrBtns = mgr ? `<div class="tkr-acts"><button type="button" onclick="event.stopPropagation();openEditTask('${t.id}')">✏️ עריכה</button><button type="button" class="del" onclick="event.stopPropagation();deleteTask('${t.id}')">🗑 מחק</button></div>` : '';
+  const more = (t.notes || photos || mgr) ? `<div class="tkr-more">${t.notes ? `<div>${esc(t.notes)}</div>` : ''}${photos}${mgrBtns}</div>` : '';
   const el = document.createElement('div');
-  el.className = 'tkr' + (t.color ? ' u' : '');
+  el.className = 'tkr' + (t.color ? ' u' : '') + (t.status === 'done' ? ' dn' : '');
   el.dataset.id = t.id;
   el.innerHTML = `<div class="tkr-main">
       <button type="button" class="tkr-ck" onclick="event.stopPropagation();${fn}" aria-label="בוצע"></button>
@@ -340,6 +341,39 @@ function _tkDriverPhone(container, mine, vladi) {
   fill('v', vladi.filter(t => t.status !== 'done'), true);
   _tkRowsDrag(container);
 }
+/* ── לוח המשימות של המנהל בטלפון ─────────────────────────────────────
+   כל הקטגוריות מופיעות כשבבים בראש המסך (גם ריקות, עם מספר), ולחיצה
+   על שבב מציגה את המשימות שלו כרשימה, עם אותה החלפת סדר בגרירה.    */
+const _TK_CATS = [
+  ['משימות בעדיפות עליונה', '#dc2626', 'עדיפות עליונה'], ['משימות כלליות', '#6366f1', 'כלליות'],
+  ['חביב', '#f59e0b', 'חביב'], ['ולאדי', '#3b82f6', 'ולאדי'], ['רדארים', '#8b5cf6', 'רדארים'],
+  ['מוסך', '#f97316', 'מוסך'], ['רפד', '#ec4899', 'רפד'], ['זגג', '#10b981', 'זגג'],
+  ['עופר', '#0ea5e9', 'עופר'], ['גיל', '#f97316', 'גיל'], ['איתי', '#84cc16', 'איתי'],
+];
+let _tkMgrCat = '';
+function _tkMgrPick(label) { _tkMgrCat = label; renderTasksFromCache(); }
+window._tkMgrPick = _tkMgrPick;
+function _tkManagerPhone(container, allTasks, sortTasks) {
+  const real = allTasks.filter(t => t.type !== 'divider');
+  const openOf = l => real.filter(t => t.label === l && t.status !== 'done').length;
+  if (!_tkMgrCat || !_TK_CATS.some(c => c[0] === _tkMgrCat)) {
+    _tkMgrCat = (_TK_CATS.find(c => openOf(c[0]) > 0) || _TK_CATS[0])[0];
+  }
+  const chips = _TK_CATS.map(([l, color, short]) => {
+    const n = openOf(l), on = l === _tkMgrCat;
+    return `<button type="button" class="tkc${on ? ' on' : ''}" style="${on ? `background:${color};color:#fff` : ''}" onclick="_tkMgrPick('${l}')">${short}<b>${n}</b></button>`;
+  }).join('');
+  const list = sortTasks(real.filter(t => t.label === _tkMgrCat));
+  const openL = list.filter(t => t.status !== 'done'), doneL = list.filter(t => t.status === 'done');
+  container.innerHTML = `<div class="tkr-wrap tkr-mgr"><div class="tkc-bar">${chips}</div>
+    ${openL.length ? '<div class="tkr-list" data-grp="m"></div>' : '<div class="tkr-empty">אין משימות בקטגוריה הזו</div>'}
+    ${doneL.length ? '<div class="tkr-sec">הושלמו</div><div class="tkr-list" data-grp="d"></div>' : ''}
+    ${openL.length > 1 ? '<div class="tkr-hint">גרור את ⠿ להחלפת מקום בין משימות</div>' : ''}</div>`;
+  const m = container.querySelector('[data-grp="m"]'); if (m) openL.forEach(t => m.appendChild(_tkRow(t, false, true)));
+  const d = container.querySelector('[data-grp="d"]'); if (d) doneL.forEach(t => d.appendChild(_tkRow(t, true, true)));
+  _tkRowsDrag(container);
+}
+
 function _tkRowsDrag(root) {
   root.querySelectorAll('.tkr-h').forEach(h => {
     h.style.touchAction = 'none';
@@ -566,6 +600,8 @@ function renderTasksFromCache() {
     container.appendChild(buildDriverCol('ולאדי', '#3b82f6', vladiTasks, true, 'ולאדי'));
     return;
   }
+
+  if (window.innerWidth <= 900) { _tkManagerPhone(container, allTasks, sortTasks); return; }
 
   const colColors = {
     'משימות בעדיפות עליונה':'#dc2626','משימות כלליות':'#6366f1','חביב':'#f59e0b','ולאדי':'#3b82f6',
