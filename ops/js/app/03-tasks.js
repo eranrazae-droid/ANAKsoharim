@@ -326,21 +326,33 @@ function _tkRow(t, readOnly, mgr) {
   });
   return el;
 }
+let _tkDrvCat = 'me';
+function _tkDrvPick(c) { _tkDrvCat = c; renderTasksFromCache(); }
+window._tkDrvPick = _tkDrvPick;
 function _tkDriverPhone(container, mine, vladi) {
   const open = mine.filter(t => t.status !== 'done' && t.type !== 'divider');
+  const vOpen = vladi.filter(t => t.status !== 'done');
+  const cat = _tkDrvCat === 'v' ? 'v' : 'me';
+  const chip = (id, label, n, color) => `<button type="button" class="tkc${cat === id ? ' on' : ''}" style="${cat === id ? `background:${color};color:#fff` : ''}" onclick="_tkDrvPick('${id}')">${label}<b>${n}</b></button>`;
   const urgent = open.filter(t => t.color), rest = open.filter(t => !t.color);
-  const sec = (title, list, readOnly, id) => list.length
-    ? `<div class="tkr-sec">${title}</div><div class="tkr-list task-drop-rows" data-grp="${id}"></div>` : '';
-  container.innerHTML = `<div class="tkr-wrap">
-    <div class="tkr-sum">${open.length ? `${open.length} משימות פתוחות` : 'אין משימות פתוחות 🎉'}</div>
-    ${sec('דחוף', urgent, false, 'u')}${sec(urgent.length ? 'שאר המשימות' : 'המשימות שלי', rest, false, 'r')}
-    ${vladi.filter(t => t.status !== 'done').length ? `<div class="tkr-sec">ולאדי · לעיון</div><div class="tkr-list" data-grp="v"></div>` : ''}
-    ${open.length > 1 ? '<div class="tkr-hint">גרור את ⠿ להחלפת מקום בין משימות</div>' : ''}</div>`;
-  const fill = (id, list, ro) => { const b = container.querySelector(`[data-grp="${id}"]`); if (b) list.forEach(t => b.appendChild(_tkRow(t, ro))); };
-  fill('u', urgent, false); fill('r', rest, false);
-  fill('v', vladi.filter(t => t.status !== 'done'), true);
+  const sec = (title, list, id) => list.length
+    ? `${title ? `<div class="tkr-sec">${title}</div>` : ''}<div class="tkr-list" data-grp="${id}"></div>` : '';
+  let body;
+  if (cat === 'me') {
+    body = open.length
+      ? sec(urgent.length ? 'דחוף' : '', urgent, 'u') + sec(urgent.length ? 'שאר המשימות' : '', rest, 'r')
+        + (open.length > 1 ? '<div class="tkr-hint">גרור את ⠿ להחלפת מקום בין משימות</div>' : '')
+      : '<div class="tkr-empty">אין משימות פתוחות 🎉</div>';
+  } else {
+    body = vOpen.length ? '<div class="tkr-list" data-grp="v"></div>' : '<div class="tkr-empty">אין משימות של ולאדי</div>';
+  }
+  container.innerHTML = `<div class="tkr-wrap"><div class="tkc-bar">${chip('me', 'המשימות שלי', open.length, '#ef4444')}${chip('v', 'ולאדי', vOpen.length, '#3b82f6')}</div>${body}</div>`;
+  const fill = (id, list, ro) => { const bx = container.querySelector(`[data-grp="${id}"]`); if (bx) list.forEach(t => bx.appendChild(_tkRow(t, ro))); };
+  if (cat === 'me') { fill('u', urgent, false); fill('r', rest, false); }
+  else fill('v', vOpen, true);
   _tkRowsDrag(container);
 }
+
 /* ── לוח המשימות של המנהל בטלפון ─────────────────────────────────────
    כל הקטגוריות מופיעות כשבבים בראש המסך (גם ריקות, עם מספר), ולחיצה
    על שבב מציגה את המשימות שלו כרשימה, עם אותה החלפת סדר בגרירה.    */
