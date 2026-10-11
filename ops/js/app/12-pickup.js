@@ -2181,6 +2181,7 @@ function renderPickupCars() {
   if (!cars.length) {
     list.innerHTML = `<div style="text-align:center;padding:60px 20px;color:var(--muted);font-size:15px">${term ? 'לא נמצא רכב במספר הזה' : 'אין רכבים לאיסוף'}</div>`;
     _syncSelectAllLabel();
+    try { _pkmRender(cars); } catch (e) { console.error('pkm', e); }
     return;
   }
   // ציור מחדש באמצע גרירה הורס את הקובייה שנגררת ומחזיר את הסדר.
@@ -2192,6 +2193,7 @@ function renderPickupCars() {
   _pickupEnableDrag();
   _syncSelectAllLabel();
   _schedulePickupMap();
+  try { _pkmRender(cars); } catch (e) { console.error('pkm', e); }
 }
 
 // המפה עוקבת אחרי מה שמוצג ברשימה, אבל לא מצטיירת מחדש על כל הקלדה
@@ -3613,3 +3615,103 @@ const _TECHNO = { contact: 'שרית 0525816341', city: 'טירת הכרמל', a
 /* Our own yard. The list writes it as "שנקר פ״ת", which the city matcher used to
    twist into some other town — the name is now recognised outright. */
 const _SHENKAR_RE = /שנקר/;
+
+
+/* ═══ מכוניות לאיסוף בטלפון: אריחים, תצוגה לפי ערים וחלון פרטים ═══════
+   שכבת תצוגה בלבד. הרשימה, הסדר, הבחירה והפעולות הן אלה שכבר קיימים;
+   כאן רק מציירים אותם מחדש. בטלפון אין מפה ואין מסננים. */
+let _pkmMode = 'all';        // 'all' | 'city'
+let _pkmSheetId = null;
+let _pkmCars = [];
+
+const _pkmPhone = () => window.innerWidth <= 900;
+const _pkmDaysColor = d => d == null ? '#64748b' : d > 14 ? '#ef4444' : d > 7 ? '#f59e0b' : '#22c55e';
+
+function _pkmTile(c) {
+  const e = s => esc(String(s || ''));
+  const days = _pickupDays(c);
+  const city = _pickupCity(c) || '';
+  const sel = _pickupSelected.has(c.id);
+  const toTow = c.assignedDriver === _TOW_NAME;
+  const drv = c.assignedDriver
+    ? `<div class="pkm-dv sent${toTow ? ' tow' : ''}">${toTow ? '🚛' : '🚗'} ${e(c.assignedDriver)}</div>`
+    : '<div class="pkm-dv">לא נשלח לנהג</div>';
+  return `<div class="pkm-t${sel ? ' sl' : ''}${c.pinned ? ' pin' : ''}" data-id="${e(c.id)}" onclick="pkmOpen('${e(c.id)}')">
+    <div class="pkm-top"><span class="pkm-co">${e(c.source || '')}</span>
+      <span class="pkm-cb${sel ? ' on' : ''}" onclick="event.stopPropagation();togglePickupSelect('${e(c.id)}')">${sel ? '✓' : ''}</span></div>
+    <span class="pkm-plate">${e(c.plate)}</span>
+    <h4>${e(c.type || '—')}</h4>
+    <small>${c.year ? e(c.year) + ' · ' : ''}📍 ${e(city || 'ללא עיר')}</small>
+    ${c.address ? `<small class="st">${e(c.address)}</small>` : ''}
+    <div class="pkm-bt"><span class="pkm-w" style="background:${_pkmDaysColor(days)}">⏱ ${days == null ? 'חדש' : days + ' ימים'}</span>${c.note ? '<span class="pkm-nt">📝</span>' : ''}</div>
+    ${drv}</div>`;
+}
+
+function _pkmRender(cars) {
+  const scr = document.getElementById('screen-pickup');
+  if (!scr) return;
+  const phone = _pkmPhone();
+  scr.classList.toggle('pkm-on', phone);
+  let box = document.getElementById('pkm');
+  if (!phone) { box?.remove(); document.getElementById('pkm-fab')?.remove(); return; }
+  _pkmCars = cars;
+  const list = document.getElementById('pickup-list');
+  if (!box) { box = document.createElement('div'); box.id = 'pkm'; list.parentElement.insertBefore(box, list); }
+  const unsent = cars.filter(c => !c.assignedDriver).length;
+  const sub = document.getElementById('pkm-sub');
+  if (sub) sub.textContent = `${cars.length} רכבים · ${unsent} לא נשלחו`;
+  let body = '';
+  if (!cars.length) body = '<div class="pkm-empty">אין רכבים לאיסוף</div>';
+  else if (_pkmMode === 'city') {
+    const order = [], by = {};
+    cars.forEach(c => { const k = _pickupCity(c) || 'ללא עיר'; if (!by[k]) { by[k] = []; order.push(k); } by[k].push(c); });
+    body = order.map(k => `<div class="pkm-g">${esc(k)}<em>${by[k].length} רכבים</em></div><div class="pkm-grid">${by[k].map(_pkmTile).join('')}</div>`).join('');
+  } else body = `<div class="pkm-grid">${cars.map(_pkmTile).join('')}</div>`;
+  box.innerHTML = `<div class="pkm-seg"><span class="${_pkmMode === 'all' ? 'on' : ''}" onclick="pkmMode('all')">הכל</span><span class="${_pkmMode === 'city' ? 'on' : ''}" onclick="pkmMode('city')">לפי ערים</span></div>${body}`;
+  let fab = document.getElementById('pkm-fab');
+  if (!fab) { fab = document.createElement('button'); fab.id = 'pkm-fab'; fab.type = 'button'; fab.onclick = () => openPickupActions(); fab.innerHTML = '⚙️ פעולות'; scr.appendChild(fab); }
+  fab.style.display = _pickupSelected.size ? 'none' : '';
+  if (_pkmSheetId) _pkmRenderSheet();
+}
+function pkmMode(m) { _pkmMode = m; _pkmRender(_pkmCars); const hb = document.getElementById('screen-pickup'); if (hb) hb.scrollTop = 0; }
+window.pkmMode = pkmMode;
+function pkmOpen(id) { _pkmSheetId = id; _pkmRenderSheet(); }
+function pkmClose() { _pkmSheetId = null; document.getElementById('pkm-sheet')?.remove(); }
+window.pkmOpen = pkmOpen; window.pkmClose = pkmClose;
+function _pkmAct(fn, id) { pkmClose(); try { fn(id); } catch (e) { console.error(e); } }
+window._pkmAct = _pkmAct;
+
+function _pkmRenderSheet() {
+  const c = _pickupAllCars.find(x => x.id === _pkmSheetId);
+  if (!c) { pkmClose(); return; }
+  const e = s => esc(String(s || ''));
+  const days = _pickupDays(c);
+  const km = c.km ? _fmtKm(c.km) : '';
+  const city = _pickupCity(c) || '';
+  const place = [c.address || '', c.address && city && !c.address.includes(city) ? city : (c.address ? '' : city)].filter(Boolean).join(', ');
+  const nav = _pickupNavUrl(c);
+  const st = _stationDisplay(c, _pickupLatLng(c));
+  const stTxt = st && st.name ? `🚆 ${e(st.name)} · 🚶 ${_stWalkMin(st, c)} דק׳ · ${_stKm(st.km)} ק"מ` : '';
+  const sent = !!c.assignedDriver;
+  const toTow = c.assignedDriver === _TOW_NAME;
+  let sh = document.getElementById('pkm-sheet');
+  if (!sh) { sh = document.createElement('div'); sh.id = 'pkm-sheet'; document.body.appendChild(sh); }
+  const chip = (t, bg, fg) => `<span style="background:${bg};color:${fg}">${t}</span>`;
+  sh.innerHTML = `<div class="pkm-dim" onclick="pkmClose()"></div><div class="pkm-sheetbox">
+    <div class="pkm-grab"></div>
+    <span class="pkm-plate lg" onclick="bsmCopyPlate('${e(c.plate)}')">${e(c.plate)}</span>
+    <h3>${e(c.type || '—')}${c.year ? ' · ' + e(c.year) : ''}</h3>
+    <div class="pkm-chips">${c.source ? chip(e(c.source), '#e9f9ef', '#16a34a') : ''}${c.color ? chip(e(c.color), '#f3f5fb', '#5b6486') : ''}${km ? chip(e(km) + ' ק"מ', '#f3f5fb', '#5b6486') : ''}
+      ${chip('⏱ ' + (days == null ? 'חדש' : days + ' ימי המתנה'), _pkmDaysColor(days), '#fff')}${c.doc ? chip('✓ בעלות', '#e0f2fe', '#0369a1') : ''}${c.test ? chip('🔧 טסט ' + e(c.test), '#f3f5fb', '#5b6486') : ''}</div>
+    ${c.note ? `<div class="pkm-note">📝 ${e(c.note)}</div>` : ''}
+    <p>${place ? '📍 ' + e(place) : '📍 אין כתובת'}${stTxt ? '<br>' + stTxt : ''}${c.contact ? `<br>👤 <a href="tel:${e(c.contact)}" style="color:inherit">${e(c.contact)}</a>` : ''}
+      <br>${sent ? `${toTow ? '🚛' : '🚗'} נשלח ל${e(c.assignedDriver)}` : 'לא נשלח לנהג'}</p>
+    ${nav ? `<a class="pkm-nav" href="${nav}" target="_blank" rel="noopener"><span>🧭 ניווט לכתובת</span></a>` : ''}
+    <div class="pkm-bts"><button style="background:#0ea5e9" onclick="_pkmAct(openSendPickupToDriver,'${e(c.id)}')">📲 שלח לנהג</button>
+      <button style="background:#16a34a" onclick="_pkmAct(collectPickupCar,'${e(c.id)}')">✅ נאסף</button>
+      <button style="background:${sent ? '#7c3aed' : '#94a3b8'}" onclick="${sent ? `_pkmAct(sendPickupCarIntake,'${e(c.id)}')` : `showToast('קודם שלח את הרכב לנהג, ואז אפשר לשלוח קליטה', 4000)`}">📥 קליטה</button></div>
+    <div class="pkm-sm"><button onclick="togglePickupPin('${e(c.id)}');pkmClose()">${c.pinned ? '📌 בטל נעיצה' : '📌 נעץ'}</button>
+      <button onclick="_pkmAct(openEditPickupModal,'${e(c.id)}')">✏️ עריכה</button>
+      <button class="del" onclick="_pkmAct(deletePickupCar,'${e(c.id)}')">🗑 מחק</button></div></div>`;
+}
+window.addEventListener('resize', () => { try { if (document.getElementById('screen-pickup')?.classList.contains('active')) renderPickupCars(); } catch (e) {} });
