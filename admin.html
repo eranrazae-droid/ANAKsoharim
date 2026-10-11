@@ -3031,20 +3031,30 @@
       return b?(m?(b+' '+m):b):'';
     }).filter(Boolean);
     l.interest_cars=icv.join(' | ');
+    // טקסט סיכום שכולל גם עיר ורכבים - גיבוי למקרה שהעמודות חסרות ב-Supabase, כדי שהמידע לא יאבד
+    const extras=[];
+    if((l.city||'').trim()) extras.push('עיר: '+l.city.trim());
+    if((l.interest_cars||'').trim()) extras.push('רכבים: '+l.interest_cars.trim());
+    const sumPlus=((l.summary||'').replace(/\s*\|\s*(עיר|רכבים):[^|]*/g,'').trim()+(extras.length?('  |  '+extras.join('  |  ')):'')).trim();
     const payload={status:l.status,followup_at:l.followup_at,call_attempts:l.call_attempts,summary:l.summary,tradein_plate:l.tradein_plate,tradein_credit:l.tradein_credit,interest_cars:l.interest_cars,city:l.city};
-    let saved=false;
+    // ניסיונות שמירה מהמלא לצר - בכל צמצום, עיר+רכבים נשמרים בתוך הסיכום כדי שלא יאבדו
+    const attempts=[
+      payload,
+      {status:l.status,followup_at:l.followup_at,call_attempts:l.call_attempts,summary:sumPlus,tradein_plate:l.tradein_plate,tradein_credit:l.tradein_credit},
+      {status:l.status,followup_at:l.followup_at,call_attempts:l.call_attempts,summary:sumPlus},
+      {status:l.status,followup_at:l.followup_at,summary:sumPlus},
+      {status:l.status}
+    ];
+    let saved=false, usedFallback=false;
     try{ const c=sbClient(); if(c){
-      let res=await c.from('leads').update(payload).eq('id',id);
-      if(res&&res.error){
-        console.warn('lead save retry (missing columns?)', res.error.message);
-        // ניסיון עם עמודות בסיס בלבד - לפחות הסטטוס יישמר
-        res=await c.from('leads').update({status:l.status,followup_at:l.followup_at}).eq('id',id);
-        if(res&&res.error){ res=await c.from('leads').update({status:l.status}).eq('id',id); }
+      for(let i=0;i<attempts.length;i++){
+        const res=await c.from('leads').update(attempts[i]).eq('id',id);
+        if(!(res&&res.error)){ saved=true; usedFallback=(i>0); if(i>=1 && attempts[i].summary===sumPlus) l.summary=sumPlus; break; }
+        if(i===0) console.warn('lead save retry (missing columns?)', res.error.message);
       }
-      saved=!(res&&res.error);
     } }
     catch(e){ console.warn('lead save', e); }
-    toast&&toast(saved?'הליד נשמר ✓':'שגיאה בשמירה - יש להריץ את ה-SQL ב-Supabase'); renderLeads();
+    toast&&toast(saved?(usedFallback?'הליד נשמר ✓ (מומלץ להריץ את ה-SQL ב-Supabase לשמירה מלאה)':'הליד נשמר ✓'):'שגיאה בשמירה - יש להריץ את ה-SQL ב-Supabase'); renderLeads();
   }
   // אישור תשלום ידני → שולח Purchase לפייסבוק מצד השרת (rewrite ל-/.netlify/functions/mark-paid)
   async function markPaid(id){
