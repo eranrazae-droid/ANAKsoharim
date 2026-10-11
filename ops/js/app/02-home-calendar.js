@@ -1616,7 +1616,7 @@ const _DRV_TILE_BG = {
   'stat-pickup-driver-card':    'linear-gradient(135deg,#3b82f6,#1e3a8a)',
   'stat-inventory-driver-card': 'linear-gradient(135deg,#8b5cf6,#5b21b6)',
   'stat-battery-driver-card':   'linear-gradient(135deg,#06b6d4,#0e7490)',
-  'stat-intake-driver-card':    'linear-gradient(135deg,#10b981,#047857)',
+  'stat-intake-driver-card':    'linear-gradient(135deg,#ef4444,#b91c1c)',
   'stat-pits-driver-card':      'linear-gradient(135deg,#14b8a6,#115e59)',
   'stat-td-driver-card':        'linear-gradient(135deg,#a855f7,#6d28d9)',
   'stat-yard-driver-card':      'linear-gradient(135deg,#f59e0b,#92400e)',
