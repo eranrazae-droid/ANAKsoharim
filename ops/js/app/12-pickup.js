@@ -2093,10 +2093,54 @@ function _pickupGeoSort(cars) {
       }
     }
   }
-  const rank = new Map([...order, ...unknown].map((n, i) => [n, i]));
-  cars.sort((a, b) =>
-    (rank.get(cityOf(a)) - rank.get(cityOf(b))) ||
-    ((b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)));
+  // קבוצה לכל עיר, בסדר המסלול. בתוך קבוצה — החדשים קודם
+  const cityList = [...order, ...unknown];
+  const groups = cityList.map(n => ({
+    city: n,
+    cars: cars.filter(c => cityOf(c) === n).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)),
+  }));
+  // כמה קוביות בשורה במסך הזה
+  const list = document.getElementById('pickup-list');
+  let cols = 1;
+  try {
+    if (list && list.clientWidth > 0) {
+      // המסך גלוי: סופרים את העמודות האמיתיות
+      cols = Math.max(1, getComputedStyle(list).gridTemplateColumns.split(' ').filter(Boolean).length);
+    } else {
+      // המסך עוד לא גלוי: אותם גבולות כמו ב-CSS
+      const w = window.innerWidth;
+      cols = w <= 900 ? 1 : w >= 1750 ? 5 : w >= 1400 ? 4 : Math.max(1, Math.floor(w / 332));
+    }
+  } catch (e) {}
+  const out = [];
+  if (cols <= 1) { groups.forEach(g => out.push(...g.cars)); }
+  else {
+    /* ממלאים שורות: אם הרכבים של עיר נכנסים בשארית השורה — נכנסים. אחרת
+       ממלאים את השארית בעיר קטנה אחרת שנכנסת, הקרובה ביותר לעיר
+       האחרונה. רק אם אין כזו, הקבוצה מתפצלת בין שורות. */
+    const queue = groups.filter(g => g.cars.length);
+    let last = null;
+    while (queue.length) {
+      const col = out.length % cols;
+      const room = col === 0 ? cols : cols - col;
+      let i = 0;
+      if (col !== 0 && queue[0].cars.length > room) {
+        let best = -1, bestD = Infinity;
+        queue.forEach((g, k) => {
+          if (g.cars.length > room) return;
+          const d = (last && _coordOfCity(last) && _coordOfCity(g.city)) ? dist(last, g.city) : 1e6 + k;
+          if (d < bestD) { bestD = d; best = k; }
+        });
+        if (best >= 0) i = best;
+      }
+      const g = queue[i];
+      const take = (col !== 0 && i === 0 && g.cars.length > room) ? room : g.cars.length;
+      out.push(...g.cars.splice(0, take));
+      last = g.city;
+      if (!g.cars.length) queue.splice(i, 1);
+    }
+  }
+  cars.splice(0, cars.length, ...out);
 }
 
 function renderPickupCars() {
