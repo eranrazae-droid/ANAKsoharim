@@ -2058,6 +2058,47 @@ function pickupAddrContactHint() {
 }
 window.pickupAddrContactHint = pickupAddrContactHint;
 
+/* ברירת המחדל: הרכבים מסודרים לפי מיקום. כל רכבי אותה עיר יושבים יחד
+   (רעננה ליד רעננה), והערים עצמן מסודרות במסלול רציף של ערים סמוכות.
+   בתוך עיר — החדשים קודם.
+   עיר בלי מיקום ידוע יורדת לסוף, מקובצת לפי שם. */
+function _pickupGeoSort(cars) {
+  const cityOf = c => _pickupCity(c).trim();
+  const names = [...new Set(cars.map(cityOf))];
+  const known = names.filter(n => _coordOfCity(n));
+  const unknown = names.filter(n => !_coordOfCity(n)).sort((a, b) => a.localeCompare(b, 'he'));
+  /* מסלול רציף בין הערים: מתחילים מהדרומית ביותר, ממשיכים תמיד לקרובה
+     ביותר שעוד לא ביקרנו בה, ואז משפרים (החלפת קטעים) כל עוד המסלול
+     מתקצר. כך אין קפיצה הלוך ושוב בין צפון לדרום. */
+  const dist = (x, y) => _haversineKm(_coordOfCity(x), _coordOfCity(y));
+  let order = [];
+  if (known.length) {
+    const left = new Set(known);
+    let cur = known.reduce((m, n) => _coordOfCity(n)[0] < _coordOfCity(m)[0] ? n : m);
+    order.push(cur); left.delete(cur);
+    while (left.size) {
+      let best = null, bestD = Infinity;
+      for (const n of left) { const d = dist(cur, n); if (d < bestD) { bestD = d; best = n; } }
+      order.push(best); left.delete(best); cur = best;
+    }
+    const len = o => o.reduce((t, n, i) => i ? t + dist(o[i - 1], n) : 0, 0);
+    let improved = true, guard = 0;
+    while (improved && guard++ < 50) {
+      improved = false;
+      for (let i = 1; i < order.length - 1; i++) {
+        for (let j = i + 1; j < order.length; j++) {
+          const cand = [...order.slice(0, i), ...order.slice(i, j + 1).reverse(), ...order.slice(j + 1)];
+          if (len(cand) + 1e-9 < len(order)) { order = cand; improved = true; }
+        }
+      }
+    }
+  }
+  const rank = new Map([...order, ...unknown].map((n, i) => [n, i]));
+  cars.sort((a, b) =>
+    (rank.get(cityOf(a)) - rank.get(cityOf(b))) ||
+    ((b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)));
+}
+
 function renderPickupCars() {
   const list = document.getElementById('pickup-list');
   if (!list) return;
@@ -2077,7 +2118,7 @@ function renderPickupCars() {
   } else
   // sort
   if (_pickupSortMode === 0) {
-    cars.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+    _pickupGeoSort(cars);
   } else if (_pickupSortMode === 1) {
     cars.sort((a, b) => (_pickupDays(b) || 0) - (_pickupDays(a) || 0));
   } else {
