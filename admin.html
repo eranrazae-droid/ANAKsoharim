@@ -1335,6 +1335,22 @@
       function fname(c){ return (c.brand+'-'+c.model).replace(/[^\w֐-׿]+/g,'_').slice(0,40); }
       function dl(href,name){ var a=document.createElement('a'); a.href=href; a.download=name; document.body.appendChild(a); a.click(); document.body.removeChild(a); }
       function extOf(u){ var m=String(u).split('?')[0].match(/\.(jpe?g|png|webp|gif|avif)$/i); return m?m[1].toLowerCase().replace('jpeg','jpg'):'jpg'; }
+      // המרת כל תמונה ל-JPG תקין (avif/webp לא נפתחים באינסטגרם/גלריה) - טעינה לקנבס וייצוא כ-JPEG
+      function fetchAsJpeg(url, cb){
+        // ל-Cloudinary אפשר לכפות פורמט jpg ישירות מהשרת
+        var u=url; try{ if(url.indexOf('res.cloudinary.com')>=0 && url.indexOf('/upload/')>=0){ u=url.replace(/\/upload\/(f_[^\/,]+,?)?/, '/upload/f_jpg,q_auto/'); } }catch(e){}
+        var img=new Image(); img.crossOrigin='anonymous';
+        img.onload=function(){
+          try{
+            var cv=document.createElement('canvas'); cv.width=img.naturalWidth||img.width; cv.height=img.naturalHeight||img.height;
+            var ctx=cv.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,cv.width,cv.height); ctx.drawImage(img,0,0);
+            cv.toBlob(function(b){ if(b){ cb(b); } else { rawFallback(); } }, 'image/jpeg', 0.92);
+          }catch(e){ rawFallback(); }
+        };
+        img.onerror=rawFallback;
+        img.src=u;
+        function rawFallback(){ fetch(url,{mode:'cors'}).then(function(r){return r.blob();}).then(function(b){ cb(b,true); }).catch(function(){ cb(null); }); }
+      }
       if(single){
         // רכב בודד - אוספים את כרטיס הסטורי (תמונה ראשית + החזר חודשי) + כל תמונות הרכב
         var c0=cars2[0], base=fname(c0);
@@ -1349,10 +1365,10 @@
           (function nextP(){
             if(pi>=photos.length){ finishSingle(); return; }
             if(btn) btn.textContent='⏳ '+(pi+1)+'/'+photos.length;
-            fetch(photos[pi],{mode:'cors'}).then(function(r){return r.blob();}).then(function(pb){
-              var ext=extOf(photos[pi]); var mt=pb.type||('image/'+(ext==='jpg'?'jpeg':ext));
-              files.push(new File([pb], base+'-'+(pi+1)+'.'+ext, {type:mt})); pi++; nextP();
-            }).catch(function(){ pi++; nextP(); });
+            fetchAsJpeg(photos[pi], function(b, raw){
+              if(b){ var ext=raw?extOf(photos[pi]):'jpg'; files.push(new File([b], base+'-'+(pi+1)+'.'+ext, {type:(raw?(b.type||'image/jpeg'):'image/jpeg')})); }
+              pi++; nextP();
+            });
           })();
         }
         // 1) כרטיס הסטורי (תמונה ראשית + החזר חודשי + טלפון)
