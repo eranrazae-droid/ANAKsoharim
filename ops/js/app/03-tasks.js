@@ -283,6 +283,123 @@ async function _onDrop(e, newLabel, beforeId, afterId) {
 }
 // ─────────────────────────────────────────────────────────
 
+/* ── המשימות שלי בטלפון: רשימה קומפקטית ───────────────────────────────
+   עיגול = בוצע, לחיצה על השורה = פרטים, וידית הגרירה (או לחיצה ארוכה)
+   מחליפה מקומות. הסדר נשמר באותו שדה (sortOrder) שבו הלוח של המנהל
+   משתמש, ולכן הוא נשמר בין מכשירים. דחופות (צבועות) נשארות בקבוצה
+   שלהן, ואפשר להחליף מקום רק בתוך אותה קבוצה.                        */
+function _tkParseTitle(title) {
+  const m = String(title || '').match(/^(\d{7,8})\s+(.*?)\s+—\s+(.*)$/);
+  if (m) return { plate: m[1], car: m[2], text: m[3] };
+  const m2 = String(title || '').match(/^(\d{7,8})\s+(.*)$/);
+  if (m2) return { plate: m2[1], car: '', text: m2[2] };
+  return { plate: '', car: '', text: String(title || '') };
+}
+function _tkAge(t) {
+  const ms = t.createdAt?.toMillis?.() ?? (t.createdAt ? Date.parse(t.createdAt) : NaN);
+  if (!ms || isNaN(ms)) return null;
+  return Math.max(0, Math.floor((Date.now() - ms) / 86400000));
+}
+function _tkRow(t, readOnly) {
+  const pt = _tkParseTitle(t.title);
+  const age = _tkAge(t);
+  const ageTxt = age == null ? '' : age === 0 ? 'היום' : age === 1 ? 'אתמול' : `${age} ימים`;
+  const ageBg = age == null ? '#94a3b8' : age >= 7 ? '#ef4444' : age >= 3 ? '#f59e0b' : '#8b5cf6';
+  const sub = [pt.plate, pt.car].filter(Boolean).join(' · ');
+  const fn = readOnly ? `driverClearVladiTask('${t.id}')` : `driverCompleteTask('${t.id}')`;
+  const photos = Array.isArray(t.photos) && t.photos.length
+    ? `<div class="tkr-ph">${t.photos.map(p => `<img src="${p}" onclick="event.stopPropagation();openLightbox(this.src)">`).join('')}</div>` : '';
+  const more = (t.notes || photos) ? `<div class="tkr-more">${t.notes ? `<div>${esc(t.notes)}</div>` : ''}${photos}</div>` : '';
+  const el = document.createElement('div');
+  el.className = 'tkr' + (t.color ? ' u' : '');
+  el.dataset.id = t.id;
+  el.innerHTML = `<div class="tkr-main">
+      <button type="button" class="tkr-ck" onclick="event.stopPropagation();${fn}" aria-label="בוצע"></button>
+      <div class="tkr-tx"><h3>${esc(pt.text)}</h3>${sub ? `<small>${esc(sub)}</small>` : ''}</div>
+      ${ageTxt ? `<span class="tkr-lb" style="background:${t.color ? '#ef4444' : ageBg}">${ageTxt}</span>` : ''}
+      ${readOnly ? '' : '<span class="tkr-h" title="גרור להחלפת מקום">⠿</span>'}
+    </div>${more}`;
+  if (more) el.querySelector('.tkr-main').addEventListener('click', e => {
+    if (e.target.closest('.tkr-ck,.tkr-h')) return;
+    el.classList.toggle('open');
+  });
+  return el;
+}
+function _tkDriverPhone(container, mine, vladi) {
+  const open = mine.filter(t => t.status !== 'done' && t.type !== 'divider');
+  const urgent = open.filter(t => t.color), rest = open.filter(t => !t.color);
+  const sec = (title, list, readOnly, id) => list.length
+    ? `<div class="tkr-sec">${title}</div><div class="tkr-list task-drop-rows" data-grp="${id}"></div>` : '';
+  container.innerHTML = `<div class="tkr-wrap">
+    <div class="tkr-sum">${open.length ? `${open.length} משימות פתוחות` : 'אין משימות פתוחות 🎉'}</div>
+    ${sec('דחוף', urgent, false, 'u')}${sec(urgent.length ? 'שאר המשימות' : 'המשימות שלי', rest, false, 'r')}
+    ${vladi.filter(t => t.status !== 'done').length ? `<div class="tkr-sec">ולאדי · לעיון</div><div class="tkr-list" data-grp="v"></div>` : ''}
+    ${open.length > 1 ? '<div class="tkr-hint">גרור את ⠿ להחלפת מקום בין משימות</div>' : ''}</div>`;
+  const fill = (id, list, ro) => { const b = container.querySelector(`[data-grp="${id}"]`); if (b) list.forEach(t => b.appendChild(_tkRow(t, ro))); };
+  fill('u', urgent, false); fill('r', rest, false);
+  fill('v', vladi.filter(t => t.status !== 'done'), true);
+  _tkRowsDrag(container);
+}
+function _tkRowsDrag(root) {
+  root.querySelectorAll('.tkr-h').forEach(h => {
+    h.style.touchAction = 'none';
+    h.addEventListener('pointerdown', ev => {
+      ev.preventDefault();
+      const row = h.closest('.tkr'), list = row.parentElement;
+      const r = row.getBoundingClientRect();
+      const ghost = row.cloneNode(true);
+      ghost.classList.add('tkr-ghost');
+      ghost.style.cssText = `position:fixed;left:${r.left}px;top:${r.top}px;width:${r.width}px;z-index:9999;pointer-events:none`;
+      document.body.appendChild(ghost);
+      row.classList.add('tkr-dragging');
+      const dy = ev.clientY - r.top;
+      _tkPressing = true;
+      try { if (navigator.vibrate) navigator.vibrate(12); } catch (e) {}
+      const move = e => {
+        ghost.style.top = (e.clientY - dy) + 'px';
+        const sibs = [...list.querySelectorAll('.tkr')].filter(x => x !== row);
+        let ref = null;
+        for (const x of sibs) { const b = x.getBoundingClientRect(); if (e.clientY < b.top + b.height / 2) { ref = x; break; } }
+        if (ref !== row.nextElementSibling) list.insertBefore(row, ref);
+        // גלילה אוטומטית ליד הקצוות
+        const sc = document.querySelector('#screen-tasks'); 
+        if (sc) { if (e.clientY < 90) sc.scrollTop -= 12; else if (e.clientY > window.innerHeight - 90) sc.scrollTop += 12; }
+      };
+      const up = () => {
+        document.removeEventListener('pointermove', move);
+        document.removeEventListener('pointerup', up);
+        document.removeEventListener('pointercancel', up);
+        ghost.remove(); row.classList.remove('tkr-dragging'); _tkPressing = false;
+        _tkSaveRowOrder(row);
+        if (_tkPendingRender) { _tkPendingRender = false; renderTasksFromCache(); }
+      };
+      document.addEventListener('pointermove', move);
+      document.addEventListener('pointerup', up);
+      document.addEventListener('pointercancel', up);
+    });
+  });
+}
+async function _tkSaveRowOrder(row) {
+  const id = row.dataset.id;
+  const sibs = [...row.parentElement.querySelectorAll('.tkr')];
+  const i = sibs.indexOf(row);
+  const orderOf = el => {
+    const t = tasksCache.find(x => x.id === el?.dataset.id);
+    return t ? (t.sortOrder ?? t.createdAt?.toMillis?.() ?? null) : null;
+  };
+  const prev = orderOf(sibs[i - 1]), next = orderOf(sibs[i + 1]);
+  let sortOrder;
+  if (prev !== null && next !== null) sortOrder = (prev + next) / 2;
+  else if (prev !== null) sortOrder = prev + 1000;
+  else if (next !== null) sortOrder = next - 1000;
+  else return;
+  const t = tasksCache.find(x => x.id === id);
+  if (t) t.sortOrder = sortOrder;
+  if (!_requireNet('החלפת סדר המשימות')) return;
+  try { await _updateDoc(_docRef('tasks', id), { sortOrder }); }
+  catch (e) { showToast('שגיאה בשמירת הסדר: ' + (e.code || e.message), 6000); }
+}
+
 function renderTasksFromCache() {
   const container = document.getElementById('task-list-container');
   if (!container) return;
@@ -420,6 +537,13 @@ function renderTasksFromCache() {
   container.innerHTML = '';
   // הגרירה החדשה יושבת על הלוח עצמו, ולכן שורדת ציור מחדש של הכרטיסים
   setTimeout(() => _tkEnableDrag(container), 0);
+
+  if (!isManager && window.innerWidth <= 900) {
+    // טלפון: רשימה קומפקטית עם גרירה להחלפת סדר
+    _tkDriverPhone(container, sortTasks(allTasks),
+      sortTasks(tasksCache.filter(t => t.label === 'ולאדי' && t.type !== 'divider')));
+    return;
+  }
 
   if (!isManager) {
     // הנהג רואה שתי עמודות זו לצד זו: המשימות שלו, ולעיון גם ולאדי.
