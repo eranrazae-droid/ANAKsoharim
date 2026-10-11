@@ -2621,7 +2621,8 @@ function _bsmMTile(j) {
     : `<svg class="bsmm-car"><use href="#bsmm-car"/></svg>`;
   const showPr = j.status !== 'draft' && pr.txt;
   const showDays = j.status === 'at_shop' && d != null;
-  const foot = (showPr || showDays) ? `<div class="bsmm-ft">${showDays ? `<span class="bsmm-pill ${_bsmMDaysClass(d)}">⏱ ${_bsmMDaysTxt(d)}</span>` : '<span></span>'}${showPr ? `<b class="${pr.est ? 'est' : ''}">${esc(pr.txt)}</b>` : ''}</div>` : '';
+  const showCnt = j.status === 'draft' && items.length;
+  const foot = (showPr || showDays || showCnt) ? `<div class="bsmm-ft">${showDays ? `<span class="bsmm-pill ${_bsmMDaysClass(d)}">⏱ ${_bsmMDaysTxt(d)}</span>` : showCnt ? `<span class="bsmm-pill ind">🔧 ${items.length === 1 ? 'חלק אחד' : items.length + ' חלקים'}</span>` : '<span></span>'}${showPr ? `<b class="${pr.est ? 'est' : ''}">${esc(pr.txt)}</b>` : ''}</div>` : '';
   if (src) return `<div class="bsmm-tile has-ph${foot ? ' has-ft' : ''}" onclick="bsmMOpen('${j.id}')">${photo}${foot}</div>`;
   return `<div class="bsmm-tile${foot ? ' has-ft' : ''}" style="--g:${_bsmMGrad(j.plate)}" onclick="bsmMOpen('${j.id}')">
     ${photo}
