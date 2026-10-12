@@ -3678,7 +3678,7 @@ window.pkmMode = pkmMode;
 function pkmOpen(id) { _pkmSheetId = id; _pkmRenderSheet(); }
 function pkmClose() { _pkmSheetId = null; document.getElementById('pkm-sheet')?.remove(); }
 window.pkmOpen = pkmOpen; window.pkmClose = pkmClose;
-function _pkmAct(fn, id) { pkmClose(); try { fn(id); } catch (e) { console.error(e); } }
+function _pkmAct(fn, id) { try { fn(id); } catch (e) { console.error(e); } }   // החלון נשאר פתוח; אם הרכב נעלם הוא נסגר מעצמו
 window._pkmAct = _pkmAct;
 
 function _pkmRenderSheet() {
@@ -3710,7 +3710,7 @@ function _pkmRenderSheet() {
     <div class="pkm-bts"><button style="background:#0ea5e9" onclick="_pkmAct(openSendPickupToDriver,'${e(c.id)}')">📲 שלח לנהג</button>
       <button style="background:#16a34a" onclick="_pkmAct(collectPickupCar,'${e(c.id)}')">✅ נאסף</button>
       <button style="background:${sent ? '#7c3aed' : '#94a3b8'}" onclick="${sent ? `_pkmAct(sendPickupCarIntake,'${e(c.id)}')` : `showToast('קודם שלח את הרכב לנהג, ואז אפשר לשלוח קליטה', 4000)`}">📥 קליטה</button></div>
-    <div class="pkm-sm"><button onclick="togglePickupPin('${e(c.id)}');pkmClose()">${c.pinned ? '📌 בטל נעיצה' : '📌 נעץ'}</button>
+    <div class="pkm-sm"><button onclick="togglePickupPin('${e(c.id)}')">${c.pinned ? '📌 בטל נעיצה' : '📌 נעץ'}</button>
       <button onclick="_pkmAct(openEditPickupModal,'${e(c.id)}')">✏️ עריכה</button>
       <button class="del" onclick="_pkmAct(deletePickupCar,'${e(c.id)}')">🗑 מחק</button></div></div>`;
 }

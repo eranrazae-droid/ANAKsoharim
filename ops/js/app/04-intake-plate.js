@@ -2505,7 +2505,9 @@ function _ivmTile(kind, x) {
 function ivmOpen(kind, id) { _ivmSheet = { kind, id }; _ivmRenderSheet(); }
 function ivmClose() { _ivmSheet = null; document.getElementById('ivm-sheet')?.remove(); }
 window.ivmOpen = ivmOpen; window.ivmClose = ivmClose;
-function _ivmDo(js) { ivmClose(); try { (0, eval)(js); } catch (e) { console.error(e); } }
+// החלון נשאר פתוח מתחת לחלונית שנפתחת, כדי שאחרי הסגירה חוזרים אליו.
+// אם הרכב נעלם (ארכיון, מחיקה) החלון נסגר מעצמו כשהרשימה מתעדכנת.
+function _ivmDo(js) { try { (0, eval)(js); } catch (e) { console.error(e); } }
 window._ivmDo = _ivmDo;
 
 function _ivmRenderSheet() {
