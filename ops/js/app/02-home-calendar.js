@@ -587,7 +587,7 @@ function _cardHtml(m) {
     const x = (id, ...a) => c(id, ...a).replace('menu-card mc-phone', 'menu-card mc-phone mc-extra');
     return c('mc-phone-cal', '🗓️', 'יומן', 'לוח החודש', 'openHomeCal()')
          + c('mc-phone-wash', '🧽', 'פתק שטיפה', 'הכנה והדפסה של פתק', "goToScreen('wash')")
-         + x('mc-phone-pits', '🕳️', 'בורות', 'מצב הבורות במגרש', "goToScreen('pits')")
+         + c('mc-phone-pits', '🕳️', 'בורות', 'מצב הבורות במגרש', "goToScreen('pits')")
          + x('mc-phone-td', '🚗', 'נסיעות מבחן', 'מי לקח רכב ומתי', "goToScreen('test-drive')")
          + x('mc-phone-battery', '🔋', 'בדיקת טעינה', 'רכבים חשמליים בטעינה', "goToScreen('battery')")
          + x('mc-phone-yard', '🅿️', 'סידור מגרש', 'איפה עומד כל רכב', "goToScreen('yard')");
