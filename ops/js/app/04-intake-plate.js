@@ -1196,7 +1196,9 @@ function _renderIntakeList(all) {
 
     _icFitTiles();
     _renderArchiveSection(archivedAll);
+    try { _ivmRender(active, activeRefreshSorted, archivedAll.length); } catch (e) { console.error('ivm', e); }
   } else {
+    try { _ivmRender(null); } catch (e) {}
     container.classList.remove('ic-tiles');
     summary.style.display = 'none';
     const mine = all.filter(v => v.assignedTo === currentUser.name && v.status === 'pending');
@@ -2445,3 +2447,116 @@ function icMore(btn) {
   openModal('modal-ic-more');
 }
 window.icMore = icMore;
+
+
+/* ═══ קליטות ורענון של המנהל בטלפון ═══════════════════════════════════
+   שכבת תצוגה בלבד: אריחים בשני טורים, לשוניות קליטות / רענון / ארכיון
+   וחלון פעולות. הפעולות עצמן הן אלה שכבר קיימות באריחי המחשב.          */
+let _ivmTab = 'in', _ivmSheet = null, _ivmData = { ins: [], refs: [], arc: 0 };
+
+function _ivmRender(ins, refs, arcCount) {
+  const scr = document.getElementById('screen-vehicles');
+  if (!scr) return;
+  const phone = ins !== null && ins !== undefined && window.innerWidth <= 900 && currentUser?.role === 'manager';
+  scr.classList.toggle('ivm-on', phone);
+  let box = document.getElementById('ivm');
+  if (!phone) { box?.remove(); document.getElementById('ivm-fab')?.remove(); document.getElementById('ivm-menu')?.remove(); return; }
+  _ivmData = { ins, refs, arc: arcCount || 0 };
+  const cont = document.getElementById('vehicle-list-container');
+  if (!box) { box = document.createElement('div'); box.id = 'ivm'; cont.parentElement.insertBefore(box, cont); }
+  scr.classList.toggle('ivm-arc', _ivmTab === 'arc');
+  const list = _ivmTab === 'ref' ? refs : ins;
+  const seg = `<div class="ivm-seg"><span class="${_ivmTab === 'in' ? 'on' : ''}" onclick="ivmTab('in')">קליטות ${ins.length}</span><span class="${_ivmTab === 'ref' ? 'on' : ''}" onclick="ivmTab('ref')">רענון ${refs.length}</span><span class="${_ivmTab === 'arc' ? 'on' : ''}" onclick="ivmTab('arc')">ארכיון</span></div>`;
+  const body = _ivmTab === 'arc' ? '' : (list.length
+    ? `<div class="ivm-grid">${list.map(x => _ivmTile(_ivmTab === 'ref' ? 'refresh' : 'intake', x)).join('')}</div>`
+    : `<div class="ivm-empty">${_ivmTab === 'ref' ? 'אין רענונים פעילים' : 'אין קליטות פעילות'}</div>`);
+  box.innerHTML = seg + body;
+  const arcBody = document.getElementById('intake-archive-body');
+  if (arcBody && _ivmTab === 'arc') arcBody.style.display = 'block';
+  if (!document.getElementById('ivm-fab')) {
+    const f = document.createElement('button'); f.id = 'ivm-fab'; f.type = 'button'; f.textContent = '＋ חדש'; f.onclick = ivmMenu; scr.appendChild(f);
+  }
+  if (_ivmSheet) _ivmRenderSheet();
+}
+function ivmTab(t) { _ivmTab = t; if (_intakeCache) _renderIntakeList(_intakeCache); }
+window.ivmTab = ivmTab;
+
+function _ivmTile(kind, x) {
+  const isRef = kind === 'refresh';
+  const st = x.status || 'pending';
+  const away = st === 'not_in_yard', done = st === 'done';
+  let pct = 0, c = '#f59e0b', txt = '';
+  if (away) { pct = 0; c = '#0284c7'; txt = '📍'; }
+  else if (done) { pct = 100; c = '#16c784'; txt = '✓'; }
+  else if (isRef) { pct = 0; c = '#8b5cf6'; txt = '🔄'; }
+  else { const p = _intakeFilledPct(x); pct = p.pct; c = pct >= 60 ? '#22c55e' : pct >= 30 ? '#eab308' : '#f97316'; txt = pct + '%'; }
+  const info = (isRef ? [x.vehicleType, x.year] : [x.brand, x.model, x.year]).filter(Boolean).map(esc).join(' ');
+  const col = isRef ? x.color : x.color;
+  const b = away ? '#0284c7' : done ? '#22c55e' : isRef ? '#8b5cf6' : '#f59e0b';
+  const stLine = away ? '<span class="ivm-st a">📍 לא במגרש</span>' : done ? `<span class="ivm-st d">✓ בוצע${x.assignedTo ? ' · ' + esc(x.assignedTo) : ''}</span>` : (x.assignedTo ? `<span class="ivm-st">👤 ${esc(x.assignedTo)}</span>` : '');
+  return `<div class="ivm-t" style="--b:${b}" onclick="ivmOpen('${kind}','${x.id}')">
+    <div class="ivm-tp"><span class="ivm-ty" style="background:${isRef ? '#7c3aed' : '#0ea5e9'}">${isRef ? '🔄 רענון' : '🚗 קליטה'}</span>
+      <span class="ivm-ring" style="--p:${pct};--c:${c}"><i>${txt}</i></span></div>
+    <span class="ivm-plate">${esc(x.plate || '')}</span>
+    <h4>${info || '&nbsp;'}</h4>
+    <small>${col ? '🎨 ' + esc(col) : '&nbsp;'}</small>
+    <div class="ivm-bt">${stLine}</div></div>`;
+}
+function ivmOpen(kind, id) { _ivmSheet = { kind, id }; _ivmRenderSheet(); }
+function ivmClose() { _ivmSheet = null; document.getElementById('ivm-sheet')?.remove(); }
+window.ivmOpen = ivmOpen; window.ivmClose = ivmClose;
+function _ivmDo(js) { ivmClose(); try { (0, eval)(js); } catch (e) { console.error(e); } }
+window._ivmDo = _ivmDo;
+
+function _ivmRenderSheet() {
+  const { kind, id } = _ivmSheet || {};
+  const isRef = kind === 'refresh';
+  const x = (isRef ? _ivmData.refs : _ivmData.ins).find(v => v.id === id);
+  if (!x) { ivmClose(); return; }
+  const st = x.status || 'pending', away = st === 'not_in_yard', done = st === 'done';
+  const j = _jsq, plateJs = j(x.plate || '');
+  const btn = (bg, label, js) => `<button style="background:${bg}" onclick="_ivmDo(&quot;${js.replace(/"/g, '&quot;')}&quot;)">${label}</button>`;
+  const acts = [];
+  const open = isRef ? `openRefreshForm('${id}')` : st === 'pending' ? `openManagerIntakeLive('${id}')` : done ? `viewIntakeForm('${id}')` : '';
+  if (open) acts.push(btn('#6366f1', st === 'pending' && !isRef ? '👁 מעקב חי' : '👁 פתח טופס', open));
+  if (isRef) {
+    if (done) acts.push(btn('#0f172a', '📁 שלח לארכיון', `archiveRefresh('${id}')`));
+    if (!done && !away && x.assignedTo) acts.push(btn('#25d366', '📲 שלח התראה', `notifyRefreshDriver('${j(x.assignedTo)}','${plateJs}')`));
+    acts.push(btn('#4f46e5', '✏️ עריכה', `openEditRefresh('${id}')`));
+    if (!away) acts.push(btn('#0ea5e9', '📍 הרכב לא במגרש', `setNotInYard('refresh','${id}')`));
+    if (away) acts.push(btn('#0284c7', '↩️ חזר למגרש', `restoreToYard('refresh','${id}')`));
+  } else {
+    if (done) acts.push(btn('#0f172a', '📁 שלח לארכיון', `markChecked('${id}')`));
+    if (done) acts.push(btn('#f59e0b', '🔄 שליחה מחדש', `resendIntake('${id}')`));
+    if (!away) acts.push(btn('#0d9488', '🧽 פתק שטיפה', `openWashForVehicle('${plateJs}','${j(x.brand || '')}','${j(x.model || '')}','${j(x.year || '')}','${j(x.color || '')}','${id}')`));
+    if (st === 'pending') acts.push(btn('#25d366', '📲 שלח התראה', `resendIntakeNotify('${j(x.assignedTo)}','${plateJs}','${j(x.brand || '')}','${j(x.model || '')}')`));
+    if (st === 'pending' || away) acts.push(btn('#4f46e5', '✏️ עריכה', `openEditIntake('${id}')`));
+    if (x.previousIntake) acts.push(btn('#0d9488', '↩️ שחזר קליטה קודמת', `restorePrevIntake('${id}')`));
+    if (!away) acts.push(btn('#0ea5e9', '📍 הרכב לא במגרש', `setNotInYard('intake','${id}')`));
+    if (away) acts.push(btn('#0284c7', '↩️ חזר למגרש', `restoreToYard('intake','${id}')`));
+  }
+  acts.push(btn('#ef4444', '🗑 מחיקה', isRef ? `deleteRefresh('${id}')` : `deleteIntake('${id}')`));
+  const ts = x.createdAt?.toDate ? x.createdAt.toDate().toLocaleString('he-IL', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+  const info = (isRef ? [x.vehicleType, x.year, x.color] : [x.brand, x.model, x.year, x.color]).filter(Boolean).map(esc).join(' · ');
+  let sh = document.getElementById('ivm-sheet');
+  if (!sh) { sh = document.createElement('div'); sh.id = 'ivm-sheet'; document.body.appendChild(sh); }
+  sh.innerHTML = `<div class="ivm-dim" onclick="ivmClose()"></div><div class="ivm-sbox"><div class="ivm-grab"></div>
+    <span class="ivm-plate lg" onclick="bsmCopyPlate('${plateJs}')">${esc(x.plate || '')}</span>
+    <h3>${info}</h3>
+    <p>${isRef ? '🔄 רענון' : '🚗 קליטה'}${x.assignedTo ? ' · 👤 ' + esc(x.assignedTo) : ''}${(x.spot || x.parking) ? ' · 🅿️ חניה ' + esc(x.spot || x.parking) : ''}${ts ? '<br>' + ts : ''}</p>
+    <div class="ivm-acts">${acts.join('')}</div></div>`;
+}
+
+function ivmMenu() {
+  let m = document.getElementById('ivm-menu');
+  if (m) { m.remove(); return; }
+  m = document.createElement('div'); m.id = 'ivm-menu';
+  m.innerHTML = `<div class="ivm-dim" onclick="document.getElementById('ivm-menu').remove()"></div><div class="ivm-mbox">
+    <button onclick="document.getElementById('ivm-menu').remove();openNewVehicleModal()">🚗 קליטה חדשה</button>
+    <button onclick="document.getElementById('ivm-menu').remove();openNewRefreshAssign()">🔄 רענון חדש</button>
+    <button onclick="document.getElementById('ivm-menu').remove();openIntakeRules()">✏️ שיוך משימות</button>
+    <button onclick="document.getElementById('ivm-menu').remove();openLiveIntakeView()">👁 מעקב קליטה בזמן אמת</button></div>`;
+  document.body.appendChild(m);
+}
+window.ivmMenu = ivmMenu;
+window.addEventListener('resize', () => { try { const s = document.getElementById('screen-vehicles'); if (s?.classList.contains('active') && _intakeCache) _renderIntakeList(_intakeCache); } catch (e) {} });
