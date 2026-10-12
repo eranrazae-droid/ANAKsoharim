@@ -1467,7 +1467,18 @@ function _bsRenderStock() {
   c.innerHTML = pendHtml + `<div class="bs-box">
       <div class="bs-box-head"><span>🔋 יש בארון</span>
         <span style="font-size:12.5px;font-weight:800;color:var(--muted)">${total} יחידות · ${rows.length} סוגים</span></div>` +
-    rows.map(r => {
+    (window.innerWidth <= 900 ? `<div class="bsq-grid">${rows.map(r => {
+      // טלפון: אריח לכל סוג, טבעת לפי הכמות. אותן פעולות ואותם צבעים כמו ברשימה.
+      const q = r.qty || 0;
+      const color = q <= 1 ? '#f59e0b' : '#16a34a';
+      const price = Number(_bsPriceOf(r) || 0);
+      return `<div class="bsq-t">
+        <button onclick="bsRemoveStock('${r.id}')" title="הורד מהארון" class="bsq-x">🗑</button>
+        <span class="bsq-ring" style="--p:${Math.min(q, 4) * 25};--c:${color}"><i style="color:${color}">${q}</i></span>
+        <b>${esc(_bsModelOf(r))}</b>
+        <small>${price ? price.toLocaleString('he-IL') + ' ₪' : 'מחיר לא הוגדר'}</small></div>`;
+    }).join('')}</div>` : '') +
+    (window.innerWidth <= 900 ? [] : rows).map(r => {
       const q = r.qty || 0;
       // ארון שמתרוקן הוא מה שחשוב לראות מיד
       const color = q === 0 ? '#ef4444' : q <= 1 ? '#f59e0b' : '#16a34a';
