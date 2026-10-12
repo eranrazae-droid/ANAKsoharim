@@ -742,6 +742,7 @@ function openWashScreen() {
   _washSavedListen();
   _washNotesListen();
   _washRenderList();
+  try { _washmSetup(); } catch (e) { console.error('washm', e); }
 }
 window.openWashScreen = openWashScreen;
 
@@ -761,9 +762,9 @@ window._washNotesListen = _washNotesListen;
 function _washRenderTypes() {
   const c = document.getElementById('wash-types');
   if (!c) return;
-  c.innerHTML = _WASH_TYPES.map(t => {
+  c.innerHTML = _WASH_TYPES.map((t, ti) => {
     const on = t === _washType;
-    return `<button onclick="washPickType('${esc(t)}')" style="padding:12px 8px;border-radius:12px;font-family:'Heebo',sans-serif;font-size:15px;font-weight:900;cursor:pointer;${on
+    return `<button class="wt${on ? ' on' : ''}" data-t="${ti}" onclick="washPickType('${esc(t)}')" style="padding:12px 8px;border-radius:12px;font-family:'Heebo',sans-serif;font-size:15px;font-weight:900;cursor:pointer;${on
       ? 'background:#0d9488;color:#fff;border:2px solid #0d9488'
       : 'background:var(--surface2);color:var(--text);border:2px solid var(--border)'}">${esc(t)}</button>`;
   }).join('');
@@ -813,6 +814,7 @@ window.washLookupPlate = washLookupPlate;
 let _washBatch = [];
 
 function _washRenderBatch() {
+  try { _washmSync(); } catch (e) {}
   const box = document.getElementById('wash-batch');
   if (!box) return;
   if (!_washBatch.length) { box.innerHTML = ''; box.style.display = 'none'; return; }
@@ -1010,18 +1012,20 @@ window.openWashSaved = openWashSaved;
 
 function _washRenderSaved() {
   const box = document.getElementById('wash-saved-list');
-  if (!box) return;
+  const box2 = document.getElementById('washm-saved-list');   // הלשונית בטלפון
+  if (!box && !box2) return;
   const mgr = currentUser?.role === 'manager';
-  const term = (document.getElementById('wash-saved-search')?.value || '').trim().toLowerCase();
+  const term = (document.getElementById('wash-saved-search')?.value || document.getElementById('washm-saved-search')?.value || '').trim().toLowerCase();
+  const put = html => { if (box) box.innerHTML = html; if (box2) box2.innerHTML = html; };
   const rows = _washSaved.filter(v => !term ||
     String(v.plate || '').includes(term.replace(/\D/g, '')) ||
     [v.maker, v.model, v.subModel, v.label].filter(Boolean).join(' ').toLowerCase().includes(term));
   if (!rows.length) {
-    box.innerHTML = `<div style="padding:26px;text-align:center;color:var(--muted);font-weight:700">${
-      _washSaved.length ? 'לא נמצא רכב' : 'עדיין אין רכבים שמורים'}</div>`;
+    put(`<div style="padding:26px;text-align:center;color:var(--muted);font-weight:700">${
+      _washSaved.length ? 'לא נמצא רכב' : 'עדיין אין רכבים שמורים'}</div>`);
     return;
   }
-  box.innerHTML = rows.map(v => {
+  put(rows.map(v => {
     const desc = [v.maker, v.model, v.subModel, v.color, v.year].filter(Boolean).join(' ');
     return `<div style="display:flex;align-items:center;gap:8px;border:2px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:8px;background:var(--card)">
       <div onclick="washPickSaved('${esc(v.id)}')" style="flex:1;min-width:0;cursor:pointer">
@@ -1031,7 +1035,7 @@ function _washRenderSaved() {
       <button onclick="washPickSaved('${esc(v.id)}')" style="background:var(--dark);color:#fff;border:none;border-radius:9px;padding:8px 14px;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap">בחר</button>
       ${mgr ? `<button onclick="washSavedDelete('${esc(v.id)}')" title="הסר מהרשימה" style="background:#ef4444;color:#fff;border:none;border-radius:9px;width:34px;height:34px;font-size:14px;cursor:pointer">🗑</button>` : ''}
     </div>`;
-  }).join('');
+  }).join(''));
 }
 window._washRenderSaved = _washRenderSaved;
 
@@ -1046,6 +1050,7 @@ function washPickSaved(id) {
   if (msg) { msg.textContent = ''; msg.style.color = 'var(--muted)'; }
   _washPlateFeedback();
   closeModal('modal-wash-saved');
+  try { washmTab('new'); } catch (e) {}
   showToast(`🚗 ${v.plate}`);
 }
 window.washPickSaved = washPickSaved;
@@ -1609,10 +1614,20 @@ function _washRenderList() {
     c.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted)">עדיין לא נשלחו רכבים לשטיפה</div>`;
     return;
   }
+  let _lastDay = '';
+  const _dayLabel = d => {
+    if (!d) return '';
+    const t = new Date(); t.setHours(0, 0, 0, 0);
+    const k = new Date(d); k.setHours(0, 0, 0, 0);
+    const diff = Math.round((t - k) / 86400000);
+    return diff === 0 ? 'היום' : diff === 1 ? 'אתמול' : d.toLocaleDateString('he-IL');
+  };
   c.innerHTML = rows.map(n => {
     const d = n.createdAt?.toDate ? n.createdAt.toDate() : null;
+    const head = window.innerWidth <= 900 && _dayLabel(d) !== _lastDay ? `<div class="washm-day">${_dayLabel(d)}</div>` : '';
+    _lastDay = _dayLabel(d);
     const when = d ? d.toLocaleDateString('he-IL') + ' ' + d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : '';
-    return `<div style="display:flex;align-items:center;gap:10px;border:2px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:8px;background:var(--card)">
+    return head + `<div class="washm-row" style="display:flex;align-items:center;gap:10px;border:2px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:8px;background:var(--card)">
       <div style="flex:1;min-width:0">
         <div style="font-weight:900;font-size:16px">${esc(n.plate || '')} <span style="font-size:13px;color:#0d9488">· ${esc(n.type || '')}</span></div>
         <div style="font-size:12px;color:var(--muted);font-weight:700">${esc(n.desc || '')}${when ? ' · ' + esc(when) : ''}${n.createdBy ? ' · ' + esc(n.createdBy) : ''}</div>
@@ -2380,3 +2395,76 @@ function washPayMatched() {
   washMarkPaid(only);
 }
 window.washPayMatched = washPayMatched;
+
+
+/* ═══ פתק שטיפה בטלפון: לשוניות, אריחים וסרגל הדפסה ═══════════════════
+   שכבת תצוגה בלבד: אותן פונקציות הוספה, הדפסה, שמירה ומחיקה. */
+let _washmTab = 'new', _washmTimer = null;
+const _washmPhone = () => window.innerWidth <= 900;
+
+function _washmSetup() {
+  const scr = document.getElementById('screen-wash');
+  const body = document.getElementById('wash-form-body');
+  if (!scr || !body) return;
+  const phone = _washmPhone();
+  scr.classList.toggle('washm-on', phone);
+  if (!phone) {
+    ['washm-tabs', 'washm-add', 'washm-saved', 'washm-bar'].forEach(id => document.getElementById(id)?.remove());
+    clearInterval(_washmTimer); _washmTimer = null;
+    return;
+  }
+  if (!document.getElementById('washm-tabs')) {
+    const t = document.createElement('div');
+    t.id = 'washm-tabs';
+    t.innerHTML = `<span data-t="new" onclick="washmTab('new')">פתק חדש</span><span data-t="saved" onclick="washmTab('saved')">רכבים שמורים</span><span data-t="hist" onclick="washmTab('hist')">היסטוריה</span>`;
+    body.prepend(t);
+  }
+  if (!document.getElementById('washm-add')) {
+    const a = document.createElement('button');
+    a.id = 'washm-add'; a.type = 'button';
+    a.textContent = '＋ הוסף לרשימה להדפסה';
+    a.onclick = () => washAddAnother();
+    const note = document.getElementById('wash-note');
+    note.insertAdjacentElement('afterend', a);
+  }
+  if (!document.getElementById('washm-saved')) {
+    const sv = document.createElement('div');
+    sv.id = 'washm-saved';
+    sv.innerHTML = `<div class="washm-hint">רכבים שאתה שוטף הרבה. לחיצה על רכב מעבירה אותו ישר לפתק חדש.</div>
+      <input class="form-input" id="washm-saved-search" placeholder="🔎 חפש מספר רישוי או דגם" oninput="_washRenderSaved()">
+      <div id="washm-saved-list"></div>
+      <button type="button" class="washm-addsaved" onclick="openWashSaved()">＋ הוסף רכב שמור</button>`;
+    body.appendChild(sv);
+  }
+  if (!document.getElementById('washm-bar')) {
+    const b = document.createElement('div');
+    b.id = 'washm-bar';
+    b.innerHTML = '<button type="button" onclick="washSaveAndPrint()"></button>';
+    body.appendChild(b);
+  }
+  _washRenderSaved();
+  washmTab(_washmTab === 'new' ? 'new' : _washmTab);
+  clearInterval(_washmTimer);
+  _washmTimer = setInterval(_washmSync, 500);
+}
+function washmTab(t) {
+  _washmTab = t;
+  const scr = document.getElementById('screen-wash');
+  if (!scr) return;
+  scr.dataset.washmTab = t;
+  document.querySelectorAll('#washm-tabs span').forEach(e => e.classList.toggle('on', e.dataset.t === t));
+  const body = document.getElementById('wash-form-body'); if (body) body.scrollTop = 0;
+}
+window.washmTab = washmTab;
+
+// כמה פתקים יצאו בלחיצה על ההדפסה: מי שברשימה, ועוד הרכב שבטופס אם הוא מלא
+function _washmSync() {
+  const bar = document.querySelector('#washm-bar button');
+  if (!bar) return;
+  const plate = (document.getElementById('wash-plate')?.value || '').trim();
+  const n = (_washBatch?.length || 0) + (plate && _washType ? 1 : 0);
+  const txt = n ? `🖨️ הדפס ושמור · ${n === 1 ? 'פתק אחד' : n + ' פתקים'}` : '🖨️ הדפס ושמור';
+  if (bar.textContent !== txt) bar.textContent = txt;
+  bar.classList.toggle('idle', !n);
+}
+window.addEventListener('resize', () => { try { if (document.getElementById('screen-wash')) _washmSetup(); } catch (e) {} });
