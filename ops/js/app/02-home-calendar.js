@@ -1415,12 +1415,15 @@ function _setBatteryStockCard(units, maxSameType) {
   const card = document.getElementById('menu-card-battery-stock');
   const sub  = document.getElementById('sub-battery-stock');
   if (!card || !sub) return;
+  // כל מצבר שהורכב ועוד לא הוזמן חזרה נספר כרכב אחד שממתין להזמנה
   sub.textContent = !units ? 'אין מה להזמין'
-    : units === 1 ? 'מצבר אחד להזמנה' : `${units} מצברים להזמנה`;
-  // הצביעה נדלקת רק כשבאמת שווה להזמין: שלושה מצברים בסך הכל, או שניים
-  // מאותו סוג. מצבר בודד אינו סיבה לצבוע את הקוביה.
+    : units === 1 ? 'רכב אחד' : `${units} רכבים`;
+  card.classList.toggle('bs-has', units > 0);
+  // הקובייה נצבעת ומקבלת מונה ברגע שיש לפחות רכב אחד. המלל מסומן בצהוב
+  // כשהגיע הזמן להזמין: שלושה ומעלה בסך הכל, או שניים מאותו סוג.
   const mark = units >= _BS_CARD_MIN || (maxSameType || 0) >= 2;
-  _paintHomeCard(card, mark ? _HOME_CARD_TINT['battery-stock'] : null);
+  _setCardBadge('battery-stock', units, '#ef4444');
+  _paintHomeCard(card, units > 0 ? _HOME_CARD_TINT['battery-stock'] : null);
   if (mark) {
     sub.style.background = '#fde68a';
     sub.style.color = '#78350f';
