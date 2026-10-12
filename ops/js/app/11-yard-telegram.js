@@ -128,12 +128,13 @@ function _renderPits(all, isManager) {
   if (isManager) {
     const active   = all.filter(p => p.status !== 'archived');
     const archived = all.filter(p => p.status === 'archived');
-    _pitAddInline(active.length === 0);
+    _pitAddInline(active.length === 0 && window.innerWidth > 900);
     _setHtml(list, active.map(p => _pitCard(p, true, true)).join(''));
     _setDisp(archiveWrap, archived.length ? 'block' : 'none');
     _setDisp(document.getElementById('pits-archive-search'), archived.length ? 'block' : 'none');
     window._pitsArchiveAll = archived;
     _setHtml(archiveBody, archived.map(p => _pitCard(p, true, false)).join(''));
+    try { _pitmRender(all, true); } catch (e) { console.error('pitm', e); }
   } else {
     _pitAddInline(false);
     const items = all.filter(p => p.status === 'pending');
@@ -141,6 +142,7 @@ function _renderPits(all, isManager) {
       ? items.map(p => _pitCard(p, false, false)).join('')
       : `<div class="empty-state"><div class="es-icon">\u{1F573}\uFE0F</div><h3>אין בדיקות ממתינות</h3></div>`);
     _setDisp(archiveWrap, 'none');
+    try { _pitmRender(all, false); } catch (e) { console.error('pitm', e); }
   }
 }
 
@@ -2199,3 +2201,75 @@ async function _pushNotify(driverName, message, url) {
     return !!(j.ok && j.sent);
   } catch (e) { console.error('push notify', e); return false; }
 }
+
+
+/* ═══ בורות בטלפון: לשוניות וכרטיסים ═══════════════════════════════════
+   שכבת תצוגה בלבד. הפעולות הן אלה שכבר קיימות: סימון נשלח, ארכיון,
+   מחיקה והוספה. הנהג רואה רק בדיקות שממתינות לו.                      */
+let _pitmTab = 'pending', _pitmAll = [], _pitmMgr = false;
+const _PITM_ICO = { 'בור': '🕳️', 'בדיקה מלאה': '🔍', 'פרונט': '🚗' };
+
+function _pitmAge(p) {
+  const ms = p.createdAt?.toDate ? p.createdAt.toDate().getTime() : 0;
+  if (!ms) return '';
+  const h = Math.floor((Date.now() - ms) / 3600000);
+  if (h < 1) return 'לפני דקות';
+  if (h < 24) return h === 1 ? 'לפני שעה' : `לפני ${h} שעות`;
+  const d = Math.floor(h / 24);
+  return d === 1 ? 'אתמול' : `לפני ${d} ימים`;
+}
+
+function _pitmCard(p, mgr) {
+  const sent = p.status === 'sent', arch = p.status === 'archived';
+  const veh = [p.brand, p.model, p.color, p.year].filter(Boolean).map(esc).join(' · ');
+  const types = String(p.checkType || '').split(',').map(t => t.trim()).filter(Boolean)
+    .map(t => `<span class="pitm-ty">${_PITM_ICO[t] || '🔧'} ${esc(t)}</span>`).join('');
+  const tag = arch ? '<span class="pitm-tag a">📁 בארכיון</span>' : sent ? '<span class="pitm-tag s">✅ נשלח</span>' : '<span class="pitm-tag w">⏳ ממתין</span>';
+  const q = s => esc(String(s || '')).replace(/'/g, '');
+  let act = '';
+  if (!sent && !arch && !mgr) act = `<button class="pitm-go" onclick="markPitSent('${p.id}')">✔ בוצע ושלחתי</button>`;
+  else if (!sent && !arch && mgr) act = `<button class="pitm-go" onclick="managerPitSent('${p.id}','${q(p.plate)}','${q(p.checkType)}','${q(p.brand)}','${q(p.model)}','${q(p.color)}','${q(p.year)}')">✅ נשלח</button>`;
+  else if (sent && mgr) act = `<button class="pitm-go rec" onclick="archivePit('${p.id}')">📋 קיבלתי טופס ועדכנתי</button>`;
+  const del = mgr ? `<button class="pitm-del" onclick="deletePitCheck('${p.id}')" title="מחק">🗑</button>` : '';
+  return `<div class="pitm-c${sent ? ' sent' : ''}${arch ? ' arch' : ''}">
+    <div class="pitm-r1"><span class="pitm-plate">${esc(p.plate)}</span><em>${veh}</em>${tag}</div>
+    <div class="pitm-tys">${types}</div>
+    <div class="pitm-r3"><small>${_pitmAge(p)}</small></div>
+    ${act || del ? `<div class="pitm-acts">${act}${del}</div>` : ''}</div>`;
+}
+
+function _pitmRender(all, mgr) {
+  const scr = document.getElementById('screen-pits');
+  if (!scr) return;
+  const phone = window.innerWidth <= 900;
+  scr.classList.toggle('pitm-on', phone);
+  let box = document.getElementById('pitm');
+  if (!phone) { box?.remove(); document.getElementById('pitm-fab')?.remove(); return; }
+  _pitmAll = all; _pitmMgr = mgr;
+  const slot = document.getElementById('pits-list');
+  if (!box) { box = document.createElement('div'); box.id = 'pitm'; slot.parentElement.insertBefore(box, slot); }
+  const pending = all.filter(p => p.status === 'pending');
+  const sentL = all.filter(p => p.status === 'sent');
+  const arch = all.filter(p => p.status === 'archived');
+  if (!mgr) _pitmTab = 'pending';
+  const list = _pitmTab === 'sent' ? sentL : _pitmTab === 'arch' ? arch : pending;
+  const tabs = mgr ? `<div class="pitm-seg"><span class="${_pitmTab === 'pending' ? 'on' : ''}" onclick="pitmTab('pending')">ממתינות ${pending.length}</span><span class="${_pitmTab === 'sent' ? 'on' : ''}" onclick="pitmTab('sent')">נשלחו ${sentL.length}</span><span class="${_pitmTab === 'arch' ? 'on' : ''}" onclick="pitmTab('arch')">ארכיון</span></div>` : '';
+  const search = mgr && _pitmTab === 'arch' ? '<input class="form-input pitm-q" id="pitm-q" placeholder="🔍 חיפוש לפי מספר רכב" inputmode="numeric" oninput="pitmFilter()">' : '';
+  box.innerHTML = `${tabs}${search}<div id="pitm-list">${_pitmListHtml(list)}</div>`;
+  let fab = document.getElementById('pitm-fab');
+  if (mgr) {
+    if (!fab) { fab = document.createElement('button'); fab.id = 'pitm-fab'; fab.type = 'button'; fab.onclick = () => openModal('modal-add-pit'); fab.textContent = '＋ הוצא בדיקה'; scr.appendChild(fab); }
+  } else fab?.remove();
+}
+function _pitmListHtml(list) {
+  if (!list.length) return `<div class="pitm-empty">${_pitmTab === 'arch' ? 'הארכיון ריק' : _pitmTab === 'sent' ? 'אין בדיקות שנשלחו' : 'אין בדיקות ממתינות 🎉'}</div>`;
+  return list.map(p => _pitmCard(p, _pitmMgr)).join('');
+}
+function pitmTab(t) { _pitmTab = t; _pitmRender(_pitmAll, _pitmMgr); }
+function pitmFilter() {
+  const q = (document.getElementById('pitm-q')?.value || '').trim();
+  const l = _pitmAll.filter(p => p.status === 'archived' && (!q || (p.plate || '').includes(q)));
+  const el = document.getElementById('pitm-list'); if (el) el.innerHTML = _pitmListHtml(l);
+}
+window.pitmTab = pitmTab; window.pitmFilter = pitmFilter;
+window.addEventListener('resize', () => { try { if (_pitsLast) _renderPits(_pitsLast, currentUser?.role === 'manager'); } catch (e) {} });
