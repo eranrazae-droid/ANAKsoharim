@@ -3636,7 +3636,7 @@ function _pkmTile(c) {
   const drv = c.assignedDriver
     ? `<div class="pkm-dv sent${toTow ? ' tow' : ''}">${toTow ? '🚛' : '🚗'} ${e(c.assignedDriver)}</div>`
     : '<div class="pkm-dv">לא נשלח לנהג</div>';
-  return `<div class="pkm-t${sel ? ' sl' : ''}${c.pinned ? ' pin' : ''}" data-id="${e(c.id)}" onclick="pkmOpen('${e(c.id)}')">
+  return `<div class="pkm-t${sel ? ' sl' : ''}${c.pinned ? ' pin' : ''}${c.assignedDriver ? (toTow ? ' tow' : ' sent') : ''}" data-id="${e(c.id)}" onclick="pkmOpen('${e(c.id)}')">
     <div class="pkm-top"><span class="pkm-co">${e(c.source || '')}</span>
       <span class="pkm-cb${sel ? ' on' : ''}" onclick="event.stopPropagation();togglePickupSelect('${e(c.id)}')">${sel ? '✓' : ''}</span></div>
     <span class="pkm-plate">${e(c.plate)}</span>
