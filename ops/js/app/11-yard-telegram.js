@@ -1080,7 +1080,13 @@ async function _openNotifySettingsInner() {
     <button type="button" onclick="_toggleBox('nc-drivers','nc-drivers-btn','👥 הצגת משתמשים','👥 הסתרת משתמשים')"
       id="nc-drivers-btn" class="btn-submit" style="width:100%;margin-top:0;margin-bottom:10px;background:var(--surface2);color:var(--text);border:2px solid var(--border)">👥 הצגת משתמשים</button>
     <div id="nc-drivers" style="display:none">${rows}</div>`;
-  document.getElementById('notify-settings-body').innerHTML = telegramRow + videoGroupRow + driversBlock;
+  const mgrPhoneRow = `
+    <div style="border:2px solid #25D366;border-radius:12px;padding:12px 14px;margin-bottom:14px;background:#f0fdf4">
+      <div style="font-weight:900;font-size:14px;margin-bottom:4px;color:#15803d">📱 הוואטסאפ שלי</div>
+      <div style="font-size:11px;color:#333;margin-bottom:8px;line-height:1.6">המספר שנפתח כשנהג לוחץ על כפתור הוואטסאפ במסך הבית. למשל 0501234567.</div>
+      <input id="nc-manager-phone" type="tel" inputmode="tel" value="${esc(managerPhone)}" placeholder="05X-XXXXXXX" style="border:1.5px solid #25D366;border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:14px;width:100%;box-sizing:border-box;direction:ltr">
+    </div>`;
+  document.getElementById('notify-settings-body').innerHTML = mgrPhoneRow + telegramRow + videoGroupRow + driversBlock;
   _renderPahachGroups();
 }
 
@@ -1129,6 +1135,8 @@ async function saveNotifySettings() {
   const data = {};
   const telegramToken = document.getElementById('nc-telegram-token')?.value.trim();
   if (telegramToken) data['_telegramToken'] = { value: telegramToken };
+  const mgrPhone = document.getElementById('nc-manager-phone')?.value.trim();
+  if (mgrPhone) data['_managerPhone'] = { value: mgrPhone };
   drivers.forEach(name => {
     const phone = document.getElementById(`nc-phone-${name}`)?.value.trim();
     const telegramId = document.getElementById(`nc-telegram-${name}`)?.value.trim();
