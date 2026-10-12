@@ -624,6 +624,8 @@ window.washToggleVeh = washToggleVeh;
 
 // אחרי משיכת פרטים מוצלחת הפרטים נפתחים מעצמם, כדי שיראו מה נמשך
 function _washRevealVeh() {
+  // בטלפון הפרטים מופיעים בשורת סיכום אחת, ולא נפתחים מעצמם
+  if (document.getElementById('screen-wash')?.classList.contains('washm-on')) return;
   const f = document.getElementById('wash-veh-fields');
   if (!f || f.classList.contains('show')) return;
   const any = ['wash-maker','wash-model','wash-submodel','wash-color','wash-year']
@@ -2463,6 +2465,15 @@ function _washmSync() {
   if (!bar) return;
   const plate = (document.getElementById('wash-plate')?.value || '').trim();
   const n = (_washBatch?.length || 0) + (plate && _washType ? 1 : 0);
+  // שורת הסיכום של פרטי הרכב: דגם, שנה וצבע, ולחיצה עליה פותחת עריכה
+  const tg = document.getElementById('wash-veh-toggle');
+  if (tg) {
+    const v = id => (document.getElementById(id)?.value || '').trim();
+    const desc = [v('wash-maker'), v('wash-model'), v('wash-year'), v('wash-color')].filter(Boolean).join(' · ');
+    const open = document.getElementById('wash-veh-fields')?.classList.contains('show');
+    const t2 = `🚗 ${desc || 'פרטי הרכב'} ${open ? '▴' : '▾'}`;
+    if (tg.textContent !== t2) tg.textContent = t2;
+  }
   const txt = n ? `🖨️ הדפס ושמור · ${n === 1 ? 'פתק אחד' : n + ' פתקים'}` : '🖨️ הדפס ושמור';
   if (bar.textContent !== txt) bar.textContent = txt;
   bar.classList.toggle('idle', !n);
