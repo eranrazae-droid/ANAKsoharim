@@ -2465,11 +2465,12 @@ function _ivmRender(ins, refs, arcCount) {
   const cont = document.getElementById('vehicle-list-container');
   if (!box) { box = document.createElement('div'); box.id = 'ivm'; cont.parentElement.insertBefore(box, cont); }
   scr.classList.toggle('ivm-arc', _ivmTab === 'arc');
-  const list = _ivmTab === 'ref' ? refs : ins;
-  const seg = `<div class="ivm-seg"><span class="${_ivmTab === 'in' ? 'on' : ''}" onclick="ivmTab('in')">קליטות ${ins.length}</span><span class="${_ivmTab === 'ref' ? 'on' : ''}" onclick="ivmTab('ref')">רענון ${refs.length}</span><span class="${_ivmTab === 'arc' ? 'on' : ''}" onclick="ivmTab('arc')">ארכיון</span></div>`;
+  const live = ins.filter(x => (x.status || 'pending') === 'pending' && x.liveDraft && Object.keys(x.liveDraft.checks || {}).length);
+  const list = _ivmTab === 'ref' ? refs : _ivmTab === 'live' ? live : ins;
+  const seg = `<div class="ivm-seg"><span class="${_ivmTab === 'in' ? 'on' : ''}" onclick="ivmTab('in')">קליטות ${ins.length}</span><span class="${_ivmTab === 'live' ? 'on' : ''}${live.length ? ' live' : ''}" onclick="ivmTab('live')">קליטות בשידור חי${live.length ? ' ' + live.length : ''}</span><span class="${_ivmTab === 'ref' ? 'on' : ''}" onclick="ivmTab('ref')">רענון ${refs.length}</span><span class="${_ivmTab === 'arc' ? 'on' : ''}" onclick="ivmTab('arc')">ארכיון</span></div>`;
   const body = _ivmTab === 'arc' ? '' : (list.length
     ? `<div class="ivm-grid">${list.map(x => _ivmTile(_ivmTab === 'ref' ? 'refresh' : 'intake', x)).join('')}</div>`
-    : `<div class="ivm-empty">${_ivmTab === 'ref' ? 'אין רענונים פעילים' : 'אין קליטות פעילות'}</div>`);
+    : `<div class="ivm-empty">${_ivmTab === 'ref' ? 'אין רענונים פעילים' : _ivmTab === 'live' ? 'אין קליטות בשידור חי כרגע' : 'אין קליטות פעילות'}</div>`);
   box.innerHTML = seg + body;
   const arcBody = document.getElementById('intake-archive-body');
   if (arcBody && _ivmTab === 'arc') arcBody.style.display = 'block';
