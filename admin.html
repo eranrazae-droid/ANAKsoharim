@@ -2947,8 +2947,8 @@
         || list.find(x=>m&&_n(x.model).indexOf(_n(m))>=0) || null;
   }
   // ===== יומן שיחות לכל ליד =====
-  const _CALL_OUTCOMES=['לא ענה','ענה - מעוניין','ענה - לא מעוניין','ביקש לחזור אליו','השאיר הודעה','תפוס / נותק','מספר שגוי','סגר עסקה 🎉'];
-  const _CALL_OUTCOME_COLORS={'לא ענה':'#f59e0b','ענה - מעוניין':'#16a34a','ענה - לא מעוניין':'#dc2626','ביקש לחזור אליו':'#2563eb','השאיר הודעה':'#7c3aed','תפוס / נותק':'#f59e0b','מספר שגוי':'#64748b','סגר עסקה 🎉':'#15803d'};
+  const _CALL_OUTCOMES=['לא ענה','ענה - מעוניין','ענה - יחשוב (פולואפ שבוע הבא)','ענה - לא מעוניין','ביקש לחזור אליו','השאיר הודעה','תפוס / נותק','מספר שגוי','סגר עסקה 🎉'];
+  const _CALL_OUTCOME_COLORS={'לא ענה':'#f59e0b','ענה - מעוניין':'#16a34a','ענה - יחשוב (פולואפ שבוע הבא)':'#ca8a04','ענה - לא מעוניין':'#dc2626','ביקש לחזור אליו':'#2563eb','השאיר הודעה':'#7c3aed','תפוס / נותק':'#f59e0b','מספר שגוי':'#64748b','סגר עסקה 🎉':'#15803d'};
   function _callLogArr(l){ try{ var a=JSON.parse(l&&l.call_log||'[]'); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
   function _callLogHTML(l){
     var arr=_callLogArr(l);
@@ -2976,8 +2976,18 @@
     l.call_attempts=arr.length;
     const el=document.getElementById('calllog_'+id); if(el) el.innerHTML=_callLogHTML(l);
     const at=document.getElementById('at_'+id); if(at){ for(var i=0;i<at.options.length;i++){ if(Number(at.options[i].value)===Math.min(arr.length,3)){ at.selectedIndex=i; break; } } }
-    await _saveCallLog(l);
-    toast&&toast('שיחה תועדה: '+(out||'')+' ✓');
+    // "יחשוב" → קובע אוטומטית פולואפ לשבוע הבא (08:00)
+    var setFu=false;
+    if(out.indexOf('יחשוב')>=0){
+      var d7=new Date(); d7.setDate(d7.getDate()+7);
+      var iso=d7.getFullYear()+'-'+String(d7.getMonth()+1).padStart(2,'0')+'-'+String(d7.getDate()).padStart(2,'0')+'T08:00';
+      l.status='פולואפ'; l.followup_at=iso; setFu=true;
+      try{ const c=sbClient(); if(c){ const r=await c.from('leads').update({status:'פולואפ',followup_at:iso,call_log:l.call_log}).eq('id',id); if(r&&r.error) await _saveCallLog(l); } }catch(e){ await _saveCallLog(l); }
+      renderLeads();
+    } else {
+      await _saveCallLog(l);
+    }
+    toast&&toast(setFu?('שיחה תועדה ✓ פולואפ נקבע לשבוע הבא 📅'):('שיחה תועדה: '+(out||'')+' ✓'));
   }
   async function removeCallLog(id, idx){
     const l=leads.find(x=>String(x.id)===String(id)); if(!l) return;
