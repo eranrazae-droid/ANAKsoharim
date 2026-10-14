@@ -1,0 +1,357 @@
+<!doctype html>
+<html dir="rtl" lang="he">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>פתק לשטיפה — ענק הרכבים</title>
+<link rel="manifest" href="wash.webmanifest">
+<meta name="theme-color" content="#0f766e">
+<link rel="apple-touch-icon" href="wash-icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="פתק שטיפה">
+<!--
+  דף עצמאי להנפקת פתק לשטיפה, ותו לא — באותו עיקרון כמו task.html.
+  הוא לא טוען שום קובץ מהמערכת, ולכן עדכון במערכת לא יכול לשבור אותו.
+  הפתק נשמר קודם במכשיר ורק אז נשלח למסד (REST) — כך שהדפסה ושמירה
+  מצליחות גם ברשת חלשה, והפתק נשלח לבד כשיש חיבור.
+  הנוסח והעיצוב של הפתק זהים לאלה שבמסך השטיפה של המערכת. אם משנים
+  שם את הפתק — יש לעדכן גם כאן את _SHEET_CSS ואת sheet().
+-->
+<style>
+  :root{
+    --bg:#f3f4f8; --card:#fff; --line:#dde1ec;
+    --ink:#1a1a2e; --ink-2:#575e79; --ink-3:#8b93ad;
+    --teal:#0f766e; --ok:#16a34a; --warn:#b45309; --bad:#dc2626;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{ --bg:#10121c; --card:#1a1d2b; --line:#2b3044; --ink:#eef0f8; --ink-2:#a8b0c9; --ink-3:#7a83a0;
+           --teal:#14b8a6; --ok:#22c55e; --warn:#f59e0b; --bad:#f87171; }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--ink);font-family:"Heebo","Segoe UI",system-ui,-apple-system,sans-serif;font-size:16px;display:flex;flex-direction:column}
+  header{background:#0f766e;color:#fff;padding:14px 16px;padding-top:calc(14px + env(safe-area-inset-top));display:flex;align-items:center;gap:10px;flex-shrink:0}
+  header .t{font-size:17px;font-weight:900}
+  header .s{margin-right:auto;font-size:12px;color:#bce5e0;font-weight:700}
+  main{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px}
+  label.f{display:block;font-size:12px;font-weight:800;color:var(--ink-3);margin-bottom:6px;letter-spacing:.04em}
+  input,textarea{width:100%;padding:13px 14px;border-radius:12px;border:2px solid var(--line);background:var(--card);color:var(--ink);font-family:inherit;font-size:16px;font-weight:700}
+  input:focus,textarea:focus{outline:none;border-color:var(--teal)}
+  textarea{resize:vertical;min-height:64px;line-height:1.45}
+  #plate{direction:ltr;text-align:right;letter-spacing:.06em;font-size:22px}
+  #lk{min-height:18px;margin-top:6px;font-size:13px;font-weight:800}
+  .types{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .ty{padding:14px 8px;border-radius:12px;cursor:pointer;border:2px solid var(--line);background:var(--card);color:var(--ink);font-family:inherit;font-size:16px;font-weight:900}
+  .ty[aria-pressed="true"]{background:var(--teal);color:#fff;border-color:var(--teal)}
+  details summary{cursor:pointer;font-size:13px;font-weight:800;color:var(--ink-2);padding:2px 0}
+  .veh{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+  .veh input{padding:10px 12px;font-size:15px}
+  footer{padding:12px 16px calc(16px + env(safe-area-inset-bottom));border-top:2px solid var(--line);background:var(--card);flex-shrink:0}
+  #save{width:100%;height:58px;border:0;border-radius:14px;cursor:pointer;background:var(--teal);color:#fff;font-family:inherit;font-size:19px;font-weight:900}
+  #save:disabled{opacity:.6}
+  #msg{margin-top:10px;text-align:center;font-size:14px;font-weight:800;min-height:20px}
+  .ok{color:var(--ok)} .warn{color:var(--warn)} .bad{color:var(--bad)}
+  #pend{display:none;margin:0 16px;padding:9px 12px;border-radius:11px;background:color-mix(in srgb,var(--warn) 14%,transparent);border:1.5px solid var(--warn);color:var(--warn);font-size:13px;font-weight:800}
+</style>
+</head>
+<body>
+
+<header>
+  <span class="t">🧽 פתק לשטיפה</span>
+  <span class="s" id="who">ליאל</span>
+</header>
+
+<div id="pend"></div>
+
+<main>
+  <div>
+    <label class="f" for="plate">מספר רכב</label>
+    <input id="plate" inputmode="numeric" placeholder="12345678" autocomplete="off">
+    <div id="lk"></div>
+  </div>
+  <div>
+    <label class="f">סוג שטיפה</label>
+    <div class="types" id="types"></div>
+  </div>
+  <div>
+    <label class="f" for="note">הערה <span style="font-weight:600">(לא חובה)</span></label>
+    <textarea id="note" placeholder="לדוגמה: כתם בכיסא האחורי"></textarea>
+  </div>
+  <details id="vd">
+    <summary>🚗 פרטי הרכב (נמשכים לבד, אפשר לתקן)</summary>
+    <div class="veh">
+      <input id="maker" placeholder="יצרן">
+      <input id="model" placeholder="דגם">
+      <input id="sub" placeholder="תת דגם">
+      <input id="color" placeholder="צבע">
+      <input id="year" placeholder="שנה" inputmode="numeric">
+    </div>
+  </details>
+</main>
+
+<footer>
+  <button id="save">שמור והדפס 🖨️</button>
+  <div id="msg"></div>
+</footer>
+
+<script>
+(function () {
+  'use strict';
+
+  var CFG = { key: 'AIzaSyAVrNBg_EgCKc0B2YUAX9Ga6QZyOVQiiZE', project: 'anak-soharim', db: 'default' };
+  var FN = 'https://europe-west1-anak-soharim.cloudfunctions.net/';
+  var PLATE_DS = '053cea08-09bc-40ec-8f7a-156f0677aff3';
+  var TYPES = ['חיצוני', 'חיצוני ידני', 'פנימי', 'חיצוני + פנימי'];
+  var VENDOR = { name: 'מאסטר קלין', addr: 'רוזנסקי 2, ראשון לציון' };
+  var LS = { type: 'wn_type', queue: 'wn_queue', rt: 'wn_refresh', who: 'wn_who' };
+
+  function get(k, d) { try { return localStorage.getItem(k) || d; } catch (e) { return d; } }
+  function set(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } }
+  function queue()   { try { return JSON.parse(get(LS.queue, '[]')) || []; } catch (e) { return []; } }
+  function setQueue(q){ return set(LS.queue, JSON.stringify(q)); }
+  var el = function (id) { return document.getElementById(id); };
+  var esc = function (s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+
+  var who = get(LS.who, 'ליאל');
+  el('who').textContent = who;
+  var type = get(LS.type, '');
+  if (TYPES.indexOf(type) < 0) type = '';
+
+  el('types').innerHTML = TYPES.map(function (t) {
+    return '<button type="button" class="ty" data-t="' + t + '" aria-pressed="' + (t === type) + '">' + t + '</button>';
+  }).join('');
+  el('types').addEventListener('click', function (e) {
+    var b = e.target.closest('.ty'); if (!b) return;
+    type = (type === b.dataset.t) ? '' : b.dataset.t; set(LS.type, type);
+    Array.prototype.forEach.call(el('types').children, function (x) { x.setAttribute('aria-pressed', x.dataset.t === type); });
+  });
+
+  function say(text, cls) { var m = el('msg'); m.textContent = text || ''; m.className = cls || ''; }
+  function showPending() {
+    var q = queue(), p = el('pend');
+    if (!q.length) { p.style.display = 'none'; return; }
+    p.style.display = 'block';
+    p.textContent = '⏳ ' + q.length + (q.length === 1 ? ' פתק ממתין לשליחה' : ' פתקים ממתינים לשליחה') + ' — יישלחו לבד כשתהיה רשת';
+  }
+
+  /* ── שם היצרן בלי המדינה, כמו בשאר המערכת ───────────────────── */
+  var COUNTRIES = ['ישראל','גרמניה','יפן','קוריאה','דרום קוריאה','צרפת','פרנסה','איטליה','שבדיה','שוודיה','אנגליה','בריטניה','רומניה','הונגריה','סלובקיה','סלובניה','צ׳כיה','צכיה',"צ'כיה",'טורקיה','סין','הודו','ספרד','אמריקה','ארה"ב','ארהב','ארצות הברית','מקסיקו','ברזיל','רוסיה','תאילנד','מלזיה','אוסטריה','הולנד','בלגיה','פולין','פורטוגל','ארגנטינה','דרום אפריקה','קנדה','אינדונזיה','ויאטנם','אוקראינה']
+    .sort(function (a, b) { return b.length - a.length; });
+  function cleanMaker(raw) {
+    var s = String(raw || '').trim(), changed = true;
+    while (changed) {
+      changed = false;
+      for (var i = 0; i < COUNTRIES.length && !changed; i++) {
+        var seps = [' ', '-', '־', ' - '];
+        for (var j = 0; j < seps.length; j++) {
+          var suf = seps[j] + COUNTRIES[i];
+          if (s.length > suf.length && s.slice(-suf.length) === suf) { s = s.slice(0, -suf.length).trim(); changed = true; break; }
+        }
+      }
+      var cut = s.replace(/\s+[א-ת]\.\s*$/, '').trim();
+      if (cut !== s && cut) { s = cut; changed = true; }
+    }
+    return s.trim();
+  }
+
+  /* ── משיכת פרטי הרכב ובדיקת מלאי ──────────────────────────────── */
+  var inStock = null;          // true / false / null = לא ידוע
+  var seq = 0;
+  function digits(v) { return String(v || '').replace(/\D/g, ''); }
+
+  function lookup() {
+    var p = digits(el('plate').value), my = ++seq;
+    inStock = null;
+    if (p.length < 7) { el('lk').textContent = ''; return; }
+    el('lk').textContent = '⏳ מחפש...'; el('lk').className = '';
+    var filters = encodeURIComponent(JSON.stringify({ mispar_rechev: p }));
+    fetch(FN + 'govilProxy?resource_id=' + PLATE_DS + '&filters=' + filters + '&limit=1')
+      .then(function (r) { if (!r.ok) throw 0; return r.json(); })
+      .then(function (j) {
+        if (my !== seq) return;
+        var rec = j && j.result && j.result.records && j.result.records[0];
+        if (!rec) { el('lk').textContent = '❌ לא נמצא — אפשר למלא ידנית'; el('lk').className = 'bad'; return; }
+        el('maker').value = cleanMaker(rec.tozeret_nm || '');
+        el('model').value = rec.kinuy_mishari || rec.degem_nm || '';
+        el('sub').value = rec.ramat_gimur || rec.degem_cd_nm || '';
+        el('color').value = rec.tzeva_rechev || '';
+        el('year').value = rec.shnat_yitzur || '';
+        el('lk').textContent = '✅ ' + [el('maker').value, el('model').value, el('color').value, el('year').value].filter(Boolean).join(' · ');
+        el('lk').className = 'ok';
+      })
+      .catch(function () { if (my === seq) { el('lk').textContent = '⚠️ אין חיבור — אפשר למלא ידנית'; el('lk').className = 'warn'; } });
+    fetch(FN + 'crmVehicle?plate=' + p)
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (my !== seq || !d || d.ok !== true) return;
+        inStock = !!d.found;
+        if (!inStock) { var m = el('lk'); m.textContent += (m.textContent ? '  ' : '') + '⚠️ אינו במלאי'; m.className = 'warn'; }
+      }).catch(function () {});
+  }
+  var lkT = null;
+  el('plate').addEventListener('input', function () { clearTimeout(lkT); lkT = setTimeout(lookup, 250); });
+
+  /* ── עיצוב הפתק — זהה לזה שבמסך השטיפה של המערכת ─────────────── */
+  var GREEN = '#0f766e';
+  var SHEET_CSS =
+    '@page{size:A4;margin:0}html,body{height:100%;margin:0}' +
+    'body{font-family:"Segoe UI",Arial,sans-serif;color:#1a1a2e;-webkit-print-color-adjust:exact;print-color-adjust:exact}' +
+    '.sheet{height:100%;box-sizing:border-box;display:flex;flex-direction:column;page-break-inside:avoid;break-inside:avoid;page-break-after:avoid}' +
+    '.bd{flex:1;display:flex;flex-direction:column}.stamp{flex:1}' +
+    '.hd{background:' + GREEN + ';color:#fff}.hd .ttl{text-align:center;font-weight:800}.hd .pair{display:flex;align-items:stretch}' +
+    '.hd .side{flex:1;text-align:center}.hd .side u{display:block;color:#9ed6cf;text-decoration:none;font-weight:700}' +
+    '.hd .side b{display:block;font-weight:800;line-height:1.3}.hd .side i{display:block;color:#bce5e0;font-style:normal}' +
+    '.hd .sep{width:1px;background:rgba(255,255,255,.3)}.bd{text-align:center}.pl{color:#9aa2b1;font-weight:800}' +
+    '.plate{font-family:Arial,sans-serif;font-weight:800;color:#111;line-height:1.05}' +
+    '.spec{display:grid;grid-template-columns:1fr 1fr;text-align:right}.spec div{border-bottom:1px solid #eceef2}' +
+    '.spec div.wide{grid-column:1/-1}.spec span{display:block;color:#8a93a3;letter-spacing:.5px}.spec b{font-weight:800;color:#1a1a2e}' +
+    '.type{background:#f0fdfa;border:2px solid ' + GREEN + '}.type span{display:block;color:' + GREEN + ';font-weight:800}.type b{color:' + GREEN + ';font-weight:800}' +
+    '.note{border:1px solid #dde1e8;text-align:right;color:#3b4250;line-height:1.5}.note i{display:block;color:#9aa2b1;font-style:normal}' +
+    '.stamp{border:1.5px solid #dde1e8;position:relative}.stamp i{position:absolute;color:#b6bdc9;font-style:normal}' +
+    '.foot{border-top:1px solid #eceef2;color:#9aa2b1;display:flex;justify-content:space-between}' +
+    '.hd{padding:13mm 14mm 9mm}.hd .ttl{font-size:20px;letter-spacing:7px;margin-bottom:13px}' +
+    '.hd .side u{font-size:9px;letter-spacing:3px;margin-bottom:4px}.hd .side b{font-size:17px}.hd .side i{font-size:11.5px;margin-top:3px}' +
+    '.bd{padding:11mm 14mm 12mm}.pl{font-size:12px;letter-spacing:4px}.plate{font-size:58px;letter-spacing:2px;margin-top:5px}' +
+    '.spec{gap:9px 18px;margin-top:11mm}.spec div{font-size:15px;padding-bottom:6px}.spec span{font-size:11px}' +
+    '.type{padding:16px 10px;margin-top:10mm;border-radius:12px}.type span{font-size:11px;letter-spacing:4px;margin-bottom:6px}.type b{font-size:34px}' +
+    '.note{font-size:15px;padding:11px 15px;margin-top:7mm;border-radius:12px}.note i{font-size:11px;letter-spacing:2px;margin-bottom:3px}' +
+    '.stamp{min-height:42mm;margin-top:9mm;border-radius:12px}.stamp i{top:9px;right:15px;font-size:11px;letter-spacing:2px}' +
+    '.foot{margin-top:8mm;padding-top:9px;font-size:11px}';
+
+  function plateFmt(plate) {
+    var d = digits(plate);
+    if (d.length === 8) return d.slice(0,3) + '-' + d.slice(3,5) + '-' + d.slice(5);
+    if (d.length === 7) return d.slice(0,2) + '-' + d.slice(2,5) + '-' + d.slice(5);
+    return String(plate || '');
+  }
+  function sheet(f) {
+    var now = new Date(f.at);
+    var when = now.toLocaleDateString('he-IL') + ' · ' + now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+    var cell = function (l, v) { return v ? '<div><span>' + l + '</span><b>' + esc(v) + '</b></div>' : ''; };
+    var mm = [f.maker, f.model].filter(Boolean).join(' ');
+    var spec = [f.maker, f.model, f.subModel, f.color, f.year].some(Boolean)
+      ? cell('יצרן ודגם', mm) + cell('תת דגם', f.subModel) + cell('צבע', f.color) + cell('שנה', f.year) : '';
+    return '<div class="sheet"><div class="hd"><div class="ttl">פתק לשטיפה</div><div class="pair">' +
+      '<div class="side"><u>מאת</u><b>ענק הרכבים</b></div><div class="sep"></div>' +
+      '<div class="side"><u>לביצוע אצל</u><b>' + esc(VENDOR.name) + '</b><i>' + esc(VENDOR.addr) + '</i></div></div></div>' +
+      '<div class="bd"><div class="pl">מספר רישוי</div><div class="plate">' + esc(plateFmt(f.plate)) + '</div>' +
+      (spec ? '<div class="spec">' + spec + '</div>' : '') +
+      '<div class="type"><span>סוג שטיפה</span><b>' + esc(f.type) + '</b></div>' +
+      (f.note ? '<div class="note"><i>הערה</i>' + esc(f.note) + '</div>' : '') +
+      '<div class="stamp"><i>חותמת ואישור ביצוע</i></div>' +
+      '<div class="foot"><span>הוציא: ' + esc(f.createdBy) + '</span><span>' + esc(when) + '</span></div></div></div>';
+  }
+  function printNote(f, onDone) {
+    var html = '<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8"><title>פתק לשטיפה</title><style>' +
+      SHEET_CSS + '</style></head><body>' + sheet(f) + '</body></html>';
+    var fr = document.createElement('iframe');
+    fr.style.cssText = 'position:fixed;left:-9999px;top:0;width:210mm;height:297mm;border:0';
+    document.body.appendChild(fr);
+    var w = fr.contentWindow;
+    w.document.write(html); w.document.close();
+    var finished = false;
+    var finish = function () { if (finished) return; finished = true; try { onDone && onDone(); } catch (e) {} };
+    setTimeout(function () {
+      try {
+        w.onafterprint = finish;
+        window.addEventListener('focus', finish, { once: true });
+        w.focus(); w.print();
+        setTimeout(finish, 4000);
+      } catch (e) { finish(); }
+      setTimeout(function () { fr.remove(); }, 5000);
+    }, 250);
+  }
+
+  /* ── חיבור למסד (REST), כמו בדף המשימה ──────────────────────────── */
+  function json(url, body) {
+    return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      .then(function (r) {
+        return r.json().then(function (j) {
+          if (!r.ok) { var err = new Error((j.error && j.error.message) || ('HTTP ' + r.status)); err.rejected = true; throw err; }
+          return j;
+        });
+      });
+  }
+  function token() {
+    var rt = get(LS.rt, '');
+    if (!rt) return signUp();
+    return json('https://securetoken.googleapis.com/v1/token?key=' + CFG.key, { grant_type: 'refresh_token', refresh_token: rt })
+      .then(function (j) { return j.id_token; })
+      .catch(function (e) { if (!e.rejected) throw e; set(LS.rt, ''); return signUp(); });
+  }
+  function signUp() {
+    return json('https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=' + CFG.key, { returnSecureToken: true })
+      .then(function (j) { set(LS.rt, j.refreshToken || ''); return j.idToken; });
+  }
+  function send(n, idToken) {
+    var url = 'https://firestore.googleapis.com/v1/projects/' + CFG.project + '/databases/' + CFG.db + '/documents/wash_notes';
+    var S = function (v) { return { stringValue: String(v || '') }; };
+    var fields = {
+      plate: S(n.plate), maker: S(n.maker), model: S(n.model), subModel: S(n.subModel),
+      color: S(n.color), year: S(n.year), type: S(n.type), note: S(n.note), desc: S(n.desc),
+      createdBy: S(n.createdBy), createdAt: { timestampValue: n.at }
+    };
+    return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + idToken }, body: JSON.stringify({ fields: fields }) })
+      .then(function (r) { if (!r.ok) return r.text().then(function (t) { throw new Error('HTTP ' + r.status + ' ' + t.slice(0, 120)); }); return true; });
+  }
+  var flushing = false;
+  function flush() {
+    var q = queue();
+    if (!q.length || flushing) return Promise.resolve(0);
+    flushing = true;
+    return token().then(function (t) {
+      var left = [], sent = 0;
+      return q.reduce(function (chain, n) {
+        return chain.then(function () { return send(n, t).then(function () { sent++; }).catch(function () { left.push(n); }); });
+      }, Promise.resolve()).then(function () { setQueue(left); showPending(); return sent; });
+    }).catch(function () { return 0; }).then(function (n) { flushing = false; return n; });
+  }
+
+  function clearForm() {
+    ['plate', 'note', 'maker', 'model', 'sub', 'color', 'year'].forEach(function (id) { el(id).value = ''; });
+    el('lk').textContent = ''; inStock = null; seq++;
+  }
+
+  el('save').addEventListener('click', function () {
+    var plate = el('plate').value.trim();
+    if (!digits(plate)) { say('נא להזין מספר רכב', 'bad'); el('plate').focus(); return; }
+    if (!type) { say('נא לבחור סוג שטיפה', 'bad'); return; }
+    if (inStock === false && !confirm(plate + ' אינו נמצא במלאי.\n\nלהדפיס לו פתק בכל זאת?')) return;
+    var f = {
+      plate: plate, maker: el('maker').value.trim(), model: el('model').value.trim(), subModel: el('sub').value.trim(),
+      color: el('color').value.trim(), year: el('year').value.trim(), type: type, note: el('note').value.trim(),
+      createdBy: who, at: new Date().toISOString()
+    };
+    f.desc = [f.maker, f.model, f.subModel, f.color, f.year].filter(Boolean).join(' ');
+
+    // נשמר קודם במכשיר: מכאן הפתק כבר לא יכול ללכת לאיבוד
+    var q = queue(); q.push(f);
+    var stored = setQueue(q);
+    showPending();
+    el('save').disabled = true;
+    say('🖨️ מדפיס...', 'warn');
+    printNote(f, function () {
+      clearForm();
+      var done = stored ? flush() : token().then(function (t) { return send(f, t).then(function () { return 1; }); }).catch(function () { return 0; });
+      done.then(function (n) {
+        el('save').disabled = false;
+        if (n > 0 && !queue().length) say('✅ הפתק נשמר', 'ok');
+        else if (stored) say('📥 נשמר במכשיר — יישלח כשתהיה רשת', 'warn');
+        else say('⚠️ אין מקום במכשיר והשליחה נכשלה — הדפס שוב', 'bad');
+        el('plate').focus();
+      });
+    });
+  });
+
+  showPending();
+  if (queue().length) flush().then(function (n) { if (n) say('✅ ' + n + ' פתקים ממתינים נשלחו', 'ok'); });
+  window.addEventListener('online', function () { flush(); });
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('wash-sw.js', { scope: 'wash.html' }).catch(function () {});
+  }
+})();
+</script>
+</body>
+</html>
