@@ -2518,6 +2518,19 @@ function _washInvType(desc) {
 
 const _washNum = s => { const m = String(s).replace(/,/g, '').match(/^-?\d+(\.\d+)?$/); return m ? parseFloat(m[0]) : null; };
 
+/* החשבונית מכסה חודש שלם: הפתקים שנשלחו באותו חודש בלבד, גם אם התקבלה
+   אחרי תחילת החודש הבא. החודש נלקח משורת "חודש 9/26"; אם היא חסרה —
+   מתאריך החשבונית, ואם הוא בחצי הראשון של החודש, החודש הקודם. */
+function _washInvPeriod(text) {
+  let m = String(text).match(/חודש\s*(\d{1,2})\s*\/\s*(\d{2,4})/);
+  if (m) { const y = +m[2] < 100 ? 2000 + +m[2] : +m[2]; return { month: +m[1], year: y }; }
+  m = String(text).match(/(\d{2})\/(\d{2})\/(\d{4})/);
+  if (!m) return null;
+  let mo = +m[2], y = +m[3];
+  if (+m[1] <= 15) { mo--; if (!mo) { mo = 12; y--; } }
+  return { month: mo, year: y };
+}
+
 async function _washParseInvoice(file) {
   if (!window.pdfjsLib) throw new Error('pdf.js not loaded');
   const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
@@ -2559,6 +2572,7 @@ async function _washParseInvoice(file) {
     beforeVat: pick(/סה"כ ללא מע"מ/), discount: pick(/הנחה/), afterDiscount: pick(/לאחר הנחה/),
     vat: pick(/מע"מ\s*[\d.]+%|[\d.]+%\s*מע"מ/), grand: pick(/סה"כ לתשלום/),
     number: (all.match(/\d{2}\/\d{4,7}/) || [''])[0], date: (all.match(/\d{2}\/\d{2}\/\d{4}/) || [''])[0],
+    period: _washInvPeriod(all),
   };
 }
 
@@ -2611,8 +2625,14 @@ window.washCheckBack = washCheckBack;
 function _washChkRound(n) { return Math.round(n * 100) / 100; }
 
 function _washChkAnalyze() {
-  const inv = _washChk.inv, ours = _washSummaryData(), rec = _washRec;
+  const inv = _washChk.inv, ours0 = _washSummaryData(), rec = _washRec;
   const m = _washMoney, R = _washChkRound;
+  // רק פתקים שנשלחו בחודש שהחשבונית מכסה
+  const per = inv.period;
+  const inPer = n => { if (!per) return true; const d = n.createdAt?.toDate ? n.createdAt.toDate() : null; return !!d && d.getMonth() + 1 === per.month && d.getFullYear() === per.year; };
+  const ours = { ...ours0, rows: ours0.rows.filter(inPer) };
+  const outside = ours0.rows.filter(n => !inPer(n));
+  const outsideRet = outside.filter(n => rec.matched.has(n.id));
   const ret = ours.rows.filter(n => rec.matched.has(n.id));
   const notRet = ours.rows.filter(n => !rec.matched.has(n.id));
   const retC = {};
@@ -2661,9 +2681,10 @@ function _washChkAnalyze() {
   const seen = {}, dups = [];
   for (const n of ours.rows) { const k = _normPlate(n.plate) + '|' + (n.createdAt?.toDate ? _washYmd(n.createdAt.toDate()) : ''); if (seen[k]) dups.push(n.plate); seen[k] = 1; }
   if (dups.length) { warns.push(`${new Set(dups).size} רכבים הוצאו פעמיים באותו יום`); details.push('הוצאו פעמיים באותו יום: ' + [...new Set(dups)].join(', ')); }
-  if (notRet.length) details.push(`הוצאו ולא חזרו (נשארים בחשבון הפתוח): ${notRet.map(n => n.plate).join(', ')}`);
+  if (notRet.length) details.push(`הוצאו בחודש ולא חזרו (נשארים בחשבון הפתוח): ${notRet.map(n => n.plate).join(', ')}`);
+  if (outsideRet.length) warns.push(`${outsideRet.length} פתקים שחזרו הם מחוץ לחודש החשבונית — לא ייכללו בתשלום`);
   const verdict = errors.length ? 'bad' : (warns.length ? 'warn' : 'ok');
-  return { errors, warns, details, rows, verdict, inv, expSub, gotSub, extraSum, notRet: notRet.length, retN: ret.length };
+  return { errors, warns, details, rows, verdict, inv, expSub, gotSub, extraSum, notRet: notRet.length, retN: ret.length, retIds: ret.map(n => n.id), per, monthN: ours.rows.length };
 }
 
 function _washChkRender() {
@@ -2718,7 +2739,8 @@ function _washChkRender() {
   const pay = a.verdict !== 'bad'
     ? `<button class="btn-submit" onclick="washCheckPay()" style="background:#0d9488;color:#fff;width:100%;margin-top:12px;font-size:17px;padding:16px 8px">💳 סגור את התשלום (${a.retN} רכבים)</button>`
     : '';
-  box.innerHTML = '<div class="wchk-wrap">' + `<div style="background:${head[1]};border:2px solid ${head[2]};border-radius:14px;padding:12px 15px">
+  const monthLine = a.per ? `<div style="font-size:12.5px;font-weight:800;color:var(--muted);margin-bottom:8px">חשבונית לחודש ${String(a.per.month).padStart(2, '0')}/${a.per.year} · ${a.monthN} פתקים נשלחו בחודש</div>` : '';
+  box.innerHTML = '<div class="wchk-wrap">' + monthLine + `<div style="background:${head[1]};border:2px solid ${head[2]};border-radius:14px;padding:12px 15px">
       <div style="font-weight:900;font-size:21px;color:${head[0]}">${head[3]}</div>
       <div style="font-size:12.5px;font-weight:700;color:${head[0]};margin-top:2px">${head[4]}</div></div>` +
     table + sums + bullets(a.errors) + warnB(a.warns) + det + pay + back + '</div>';
@@ -2728,6 +2750,8 @@ function _washChkRender() {
 function washCheckPay() {
   closeModal('modal-wash-check');
   // משלמים על מה שחזר ואושר בבדיקה; מה שלא חזר נשאר בחשבון הפתוח
-  washMarkPaid(_washRec && _washRec.matched && _washRec.matched.size ? new Set(_washRec.matched.keys()) : null);
+  let ids = null;
+  try { if (_washChk && _washChk.inv && _washRec && _washRec.matched) ids = new Set(_washChkAnalyze().retIds); } catch (e) {}
+  washMarkPaid(ids && ids.size ? ids : null);
 }
 window.washCheckPay = washCheckPay;
