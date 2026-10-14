@@ -607,6 +607,8 @@ function _cardHtml(m) {
         ? `<img src="${_GIL_BG}" style="width:100%;border-radius:16px;object-fit:cover;max-height:16vh;display:block">`
         : '') +
       `<div id="home-morning"></div>`;
+    // יותר מחמש קוביות קבועות: כולן נשארות בשורה אחת ולא יורדות לשורה שנייה
+    { const r = grid.querySelector('.drv-row'); const n = r ? r.children.length : 0; if (n > 5 && window.innerWidth <= 900) r.style.gridTemplateColumns = `repeat(${n},minmax(0,1fr))`; }
     _drvHomeSetup();
     _phoneBarBuild(false);
     _reapplyCardBadges();
@@ -1634,6 +1636,7 @@ function _drvTilesRender() {
     const tiles = [];
     sr.querySelectorAll('.stat-card[id$="-driver-card"]').forEach(card => {
       if (card.style.display === 'none') return;
+      if (card.id === 'stat-intake-driver-card') return;   // הקליטות יושבות עכשיו בקובייה הקבועה
       const num = (card.querySelector('.num')?.textContent || '').trim();
       const lbl = (card.querySelector('.lbl')?.textContent || '').trim();
       const m = lbl.match(/^(\p{Extended_Pictographic}[\uFE0F\u200D\p{Extended_Pictographic}]*)\s*(.*)$/u);
