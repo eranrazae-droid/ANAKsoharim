@@ -2050,6 +2050,12 @@ window.washPayConfirm = washPayConfirm;
 function washPayCancel() { _washPayOnly = null; closeModal('modal-wash-pay-confirm'); }
 window.washPayCancel = washPayCancel;
 
+function openWashPayHub() {
+  if (currentUser?.role !== 'manager') return;
+  openModal('modal-wash-payhub');
+}
+window.openWashPayHub = openWashPayHub;
+
 function openWashPayments() {
   if (currentUser?.role !== 'manager') return;
   if (!_washPayUnsub && window._onSnap) {
@@ -2585,6 +2591,16 @@ async function washCheckScan(input) {
 }
 window.washCheckScan = washCheckScan;
 
+// גרירת קובץ לשטח ההעלאה (במחשב)
+function _washChkDrop(ev, label) {
+  ev.preventDefault();
+  const inp = label.querySelector('input[type=file]');
+  if (!inp || !ev.dataTransfer || !ev.dataTransfer.files.length) return;
+  inp.files = ev.dataTransfer.files;
+  inp.dispatchEvent(new Event('change'));
+}
+window._washChkDrop = _washChkDrop;
+
 function washCheckBack() {
   if (_washRec) _washRec = null; else _washChk = null;
   _washChkMsg = '';
@@ -2682,19 +2698,20 @@ function _washChkRender() {
     return `<div style="flex:1;text-align:center;padding:8px 4px;border-radius:11px;font-size:12.5px;font-weight:900;background:${on ? '#0ea5e9' : done ? '#dcfce7' : 'var(--surface2)'};color:${on ? '#fff' : done ? '#166534' : 'var(--muted)'}">${done ? '✓' : i + 1} ${n}</div>`;
   }).join('');
   const err = _washChkMsg ? `<div style="background:#fef2f2;border:2px solid #fca5a5;border-radius:12px;padding:10px 13px;font-size:13px;font-weight:800;color:#991b1b;margin-bottom:12px;line-height:1.6">${esc(_washChkMsg)}</div>` : '';
-  const big = (color, label, handler, accept, multi) => `<label class="btn-submit" style="background:${color};color:#fff;margin:0;width:100%;text-align:center;cursor:pointer;display:block;font-size:17px;padding:18px 8px">${label}
-      <input type="file" accept="${accept}" ${multi ? 'multiple' : ''} onchange="${handler}(this)" style="display:none"></label>`;
+  const big = (color, label, handler, accept, multi) => `<label class="btn-submit wchk-drop" style="background:${color};color:#fff;margin:0;width:100%;text-align:center;cursor:pointer;display:block;font-size:17px;padding:18px 8px"
+      ondragover="event.preventDefault()" ondrop="_washChkDrop(event,this)">${label}
+      <input type="file" accept="${accept}" ${multi ? 'multiple' : ''} onchange="${handler}(this)" style="display:none"><br><span style="font-size:12px;font-weight:700;opacity:.85">או גרור לכאן את הקובץ</span></label>`;
   const back = `<button class="btn-submit" onclick="washCheckBack()" style="background:var(--surface2);color:var(--text);margin:10px 0 0;width:100%">→ חזרה</button>`;
   if (step === 1) {
-    box.innerHTML = err + `<div style="font-size:14px;font-weight:800;color:var(--text);line-height:1.6;margin-bottom:14px;text-align:center">שלב ראשון: העלה את החשבונית שקיבלת מהשטיפה<br><span style="font-size:12.5px;color:var(--muted);font-weight:700">קובץ ה-PDF המקורי</span></div>` +
-      big('#0ea5e9', '📄 בחר את החשבונית', 'washCheckInvoice', 'application/pdf', false);
+    box.innerHTML = '<div class="wchk-wrap">' + err + `<div style="font-size:14px;font-weight:800;color:var(--text);line-height:1.6;margin-bottom:14px;text-align:center">שלב ראשון: העלה את החשבונית שקיבלת מהשטיפה<br><span style="font-size:12.5px;color:var(--muted);font-weight:700">קובץ ה-PDF המקורי</span></div>` +
+      big('#0ea5e9', '📄 בחר את החשבונית', 'washCheckInvoice', 'application/pdf', false) + '</div>';
     return;
   }
   const inv = _washChk.inv;
   if (step === 2) {
-    box.innerHTML = err + `<div style="background:#f0fdf4;border:2px solid #86efac;border-radius:12px;padding:10px 13px;font-size:13px;font-weight:800;color:#166534;margin-bottom:14px">✅ החשבונית נקראה${inv.number ? ' · ' + esc(inv.number) : ''} · ${_washMoney(inv.grand || 0)} כולל מע״מ</div>` +
+    box.innerHTML = '<div class="wchk-wrap">' + err + `<div style="background:#f0fdf4;border:2px solid #86efac;border-radius:12px;padding:10px 13px;font-size:13px;font-weight:800;color:#166534;margin-bottom:14px">✅ החשבונית נקראה${inv.number ? ' · ' + esc(inv.number) : ''} · ${_washMoney(inv.grand || 0)} כולל מע״מ</div>` +
       `<div style="font-size:14px;font-weight:800;color:var(--text);line-height:1.6;margin-bottom:14px;text-align:center">שלב שני: העלה את הפתקים שקיבלת מהשטיפה<br><span style="font-size:12.5px;color:var(--muted);font-weight:700">קובץ PDF אחד או כמה תמונות — כל עמוד הוא פתק</span></div>` +
-      big('#6366f1', '📂 בחר את הפתקים', 'washCheckScan', 'application/pdf,image/*', true) + back;
+      big('#6366f1', '📂 בחר את הפתקים', 'washCheckScan', 'application/pdf,image/*', true) + back + '</div>';
     return;
   }
   // שלב 3 — התוצאה
