@@ -314,14 +314,16 @@ function _tkRow(t, readOnly, mgr) {
   const el = document.createElement('div');
   el.className = 'tkr' + (t.color ? ' u' : '') + (t.status === 'done' ? ' dn' : '');
   el.dataset.id = t.id;
-  el.innerHTML = `<div class="tkr-main">
+  el.innerHTML = `${mgr ? `<button type="button" class="tkr-del" onclick="tkSwipeDelete('${t.id}')">🗑<span>מחק</span></button><div class="tkr-fg">` : ''}<div class="tkr-main">
       <button type="button" class="tkr-ck" onclick="event.stopPropagation();${fn}" aria-label="בוצע"></button>
       <div class="tkr-tx"><h3>${esc(pt.text)}</h3>${sub ? `<small>${esc(sub)}</small>` : ''}</div>
       ${ageTxt ? `<span class="tkr-lb" style="background:${t.color ? '#ef4444' : ageBg}">${ageTxt}</span>` : ''}
       ${readOnly ? '' : '<span class="tkr-h" title="גרור להחלפת מקום">⠿</span>'}
-    </div>${more}`;
+    </div>${more}${mgr ? '</div>' : ''}`;
+  if (mgr) { el.classList.add('tkr-sw'); _tkSwipeAttach(el); }
   if (more) el.querySelector('.tkr-main').addEventListener('click', e => {
     if (e.target.closest('.tkr-ck,.tkr-h')) return;
+    if (_tkSwipeBlock(el)) return;
     el.classList.toggle('open');
   });
   return el;
@@ -1054,3 +1056,89 @@ function _fixBrand(v) {
    • שאילתה מדויקת אחת בלבד, עם גבול זמן, בלי חיפוש חופשי איטי אחריה
    בקשה שכבר רצה על אותה לוחית לא נשלחת פעמיים.
 ─────────────────────────────────────────────────────────────────────── */
+
+
+/* ── מחיקה בהחלקה שמאלה (מנהל, טלפון) ────────────────────────────
+   ההחלקה נעולה רק כשהתנועה אופקית בבירור, כך שגלילה אנכית וגרירת ⠿
+   נשארות כמו שהיו. המחיקה האמיתית מתבצעת רק אחרי חלון הביטול. */
+const _TK_SW_W = 96;
+let _tkSwOpen = null, _tkSwMovedAt = 0;
+const _tkPendingDel = new Map();
+function _tkSwipeClose(el, anim = true) {
+  const fg = el?.querySelector('.tkr-fg');
+  if (fg) { fg.style.transition = anim ? '' : 'none'; fg.style.transform = ''; }
+  if (_tkSwOpen === el) _tkSwOpen = null;
+}
+function _tkSwipeBlock(el) {
+  // שורה פתוחה — לחיצה עליה רק סוגרת אותה; ואחרי החלקה אין "קליק" מקרי
+  if (Date.now() - _tkSwMovedAt < 350) return true;
+  if (_tkSwOpen === el) { _tkSwipeClose(el); return true; }
+  return false;
+}
+function _tkSwipeAttach(el) {
+  const fg = el.querySelector('.tkr-fg');
+  let sx = 0, sy = 0, base = 0, dx = 0, mode = 0, pid = null;   // mode: 0 ממתין, 1 אופקי, 2 אנכי
+  fg.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (e.target.closest('.tkr-h,.tkr-ck,.tkr-acts,img,button')) return;
+    if (_tkSwOpen && _tkSwOpen !== el) _tkSwipeClose(_tkSwOpen);
+    sx = e.clientX; sy = e.clientY; dx = 0; mode = 0; pid = e.pointerId;
+    base = _tkSwOpen === el ? -_TK_SW_W : 0;
+  });
+  fg.addEventListener('pointermove', e => {
+    if (pid !== e.pointerId || mode === 2) return;
+    const mx = e.clientX - sx, my = e.clientY - sy;
+    if (mode === 0) {
+      if (Math.abs(my) > 9 && Math.abs(my) > Math.abs(mx)) { mode = 2; return; }
+      if (Math.abs(mx) > 9 && Math.abs(mx) > Math.abs(my) * 1.3) {
+        mode = 1; fg.style.transition = 'none';
+        try { fg.setPointerCapture(pid); } catch (er) {}
+      } else return;
+    }
+    dx = Math.max(-_TK_SW_W - 14, Math.min(0, base + mx));
+    fg.style.transform = `translateX(${dx}px)`;
+  });
+  const end = e => {
+    if (pid !== e.pointerId) return;
+    pid = null;
+    if (mode !== 1) return;
+    _tkSwMovedAt = Date.now();
+    fg.style.transition = '';
+    if (dx < -_TK_SW_W * 0.45) { fg.style.transform = `translateX(${-_TK_SW_W}px)`; _tkSwOpen = el; }
+    else _tkSwipeClose(el);
+    mode = 0;
+  };
+  fg.addEventListener('pointerup', end);
+  fg.addEventListener('pointercancel', end);
+}
+function tkSwipeDelete(id) {
+  const t = tasksCache.find(x => x.id === id);
+  if (!t || _tkPendingDel.has(id)) return;
+  const row = document.querySelector(`.tkr[data-id="${id}"]`);
+  if (row) { row.style.transition = 'opacity .2s'; row.style.opacity = '0'; setTimeout(() => { row.style.display = 'none'; }, 200); }
+  _tkSwOpen = null;
+  const timer = setTimeout(async () => {
+    _tkPendingDel.delete(id);
+    _tkUndoHide();
+    try { await _tkDeleteNow(id); } catch (e) { showToast('שגיאה במחיקה'); renderTasksFromCache(); }
+  }, 5000);
+  _tkPendingDel.set(id, timer);
+  let bar = document.getElementById('tk-undo');
+  if (!bar) {
+    bar = document.createElement('div'); bar.id = 'tk-undo';
+    bar.innerHTML = '<span>🗑 המשימה נמחקה</span><b>בטל ↩</b>';
+    document.body.appendChild(bar);
+  }
+  bar.querySelector('b').onclick = () => {
+    clearTimeout(timer); _tkPendingDel.delete(id); _tkUndoHide(); renderTasksFromCache();
+  };
+  bar.classList.add('show');
+}
+function _tkUndoHide() { if (!_tkPendingDel.size) document.getElementById('tk-undo')?.classList.remove('show'); }
+async function _tkDeleteNow(id) {
+  if (!window._CONFIG_DONE) return;
+  await _archiveTask(id, 'deleted');
+  const { deleteDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  await deleteDoc(doc(window._db, 'tasks', id));
+}
+window.tkSwipeDelete = tkSwipeDelete;
