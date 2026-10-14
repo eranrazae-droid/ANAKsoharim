@@ -2493,9 +2493,7 @@ function openWashCheck() {
   if (currentUser?.role !== 'manager') return;
   const { total } = _washSummaryData();
   if (!total) return showToast('אין פתקים פתוחים לבדיקה');
-  _washChk = null;
-  const f = document.getElementById('wash-chk-file'); if (f) f.value = '';
-  const s = document.getElementById('wash-chk-scan'); if (s) s.value = '';
+  _washChk = null; _washRec = null; _washChkMsg = '';
   _washChkRender();
   openModal('modal-wash-check');
 }
@@ -2558,30 +2556,41 @@ async function _washParseInvoice(file) {
   };
 }
 
+let _washChkMsg = '';
+const _washChkBusy = t => { const b = document.getElementById('wash-chk-body'); if (b) b.innerHTML = `<div style="text-align:center;padding:30px 10px;font-size:14px;font-weight:800;color:var(--muted)">⏳ ${t}</div>`; };
+
 async function washCheckInvoice(input) {
   const f = input.files && input.files[0];
   if (!f) return;
-  const st = document.getElementById('wash-chk-status');
-  if (st) st.innerHTML = '<div style="font-size:13px;font-weight:800;color:var(--muted)">⏳ קורא את החשבונית…</div>';
+  _washChkBusy('קורא את החשבונית…');
+  _washChkMsg = '';
   try {
     const inv = await _washParseInvoice(f);
-    _washChk = { ...(_washChk || {}), inv, name: f.name };
-  } catch (e) {
-    console.error(e);
-    _washChk = { ...(_washChk || {}), inv: { error: true } };
-  }
+    if (inv.noText || !inv.lines || !inv.lines.length) { _washChk = null; _washChkMsg = 'לא הצלחתי לקרוא את החשבונית. יש להעלות את קובץ ה-PDF המקורי שהתקבל מהשטיפה (לא צילום או סריקה).'; }
+    else _washChk = { inv };
+  } catch (e) { console.error(e); _washChk = null; _washChkMsg = 'לא הצלחתי לקרוא את הקובץ. נסה שוב עם ה-PDF המקורי.'; }
   _washChkRender();
 }
 window.washCheckInvoice = washCheckInvoice;
 
-// סריקת הפתקים שחזרו — אותה הצלבה שכבר קיימת, ואז הבדיקה מתעדכנת
+// סריקת הפתקים שחזרו — אותה הצלבה שכבר קיימת
 async function washCheckScan(input) {
-  const st = document.getElementById('wash-chk-status');
-  if (st) st.innerHTML = '<div style="font-size:13px;font-weight:800;color:var(--muted)">⏳ קורא את הסריקה — זה יכול לקחת דקה…</div>';
+  if (!(input.files && input.files.length)) return;
+  _washChkBusy('קורא את הפתקים — זה יכול לקחת דקה…');
+  _washChkMsg = '';
+  _washRec = null;
   try { await washReconcileFiles(input); } catch (e) { console.error(e); }
+  if (!_washRec || !_washRec.matched) _washChkMsg = 'לא הצלחתי לקרוא את הפתקים. נסה שוב.';
   _washChkRender();
 }
 window.washCheckScan = washCheckScan;
+
+function washCheckBack() {
+  if (_washRec) _washRec = null; else _washChk = null;
+  _washChkMsg = '';
+  _washChkRender();
+}
+window.washCheckBack = washCheckBack;
 
 function _washChkRound(n) { return Math.round(n * 100) / 100; }
 
@@ -2618,7 +2627,7 @@ function _washChkAnalyze() {
         ? `${t}: מחויבים על ${qi}, הוצאו ${q0} — ${d} יותר מדי (בערך ${money(d * price)} + מע״מ)`
         : `${t}: מחויבים על ${qi}, הוצאו ${q0} — חסרים בחשבונית ${-d}`);
     }
-    if (retNotes && qi > (retCounts[t] || 0)) {
+    if (retNotes && qi <= q0 && qi > (retCounts[t] || 0)) {
       row.ok = false;
       const missing = ours.rows.filter(n => (n.type || '') === t && !rec.matched.has(n.id)).map(n => n.plate);
       errors.push(`${t}: מחויבים על ${qi}, אבל רק ${retCounts[t] || 0} פתקים חזרו מהשטיפה` + (missing.length ? ` — לא חזרו: ${missing.join(', ')}` : ''));
@@ -2658,57 +2667,68 @@ function _washChkAnalyze() {
   const seen = {}, dups = [];
   for (const n of ours.rows) { const k = _normPlate(n.plate) + '|' + (n.createdAt?.toDate ? _washYmd(n.createdAt.toDate()) : ''); if (seen[k]) dups.push(n.plate); seen[k] = 1; }
   if (dups.length) warns.push(`אותו רכב הוצא פעמיים באותו יום: ${[...new Set(dups)].join(', ')}`);
-  if (!rec) warns.push('לא הועלתה סריקה של הפתקים שחזרו — לא נבדק אם כל הרכבים שמחויבים אכן נשטפו');
-  const verdict = errors.length ? 'bad' : (warns.some(w => !w.startsWith('לא הועלתה')) || !rec ? 'warn' : 'ok');
+  const verdict = errors.length ? 'bad' : (warns.length ? 'warn' : 'ok');
   return { errors, warns, rows, tot, verdict, inv, ours, rec, expSub, extraSum };
 }
 
 function _washChkRender() {
-  const box = document.getElementById('wash-chk-body'), st = document.getElementById('wash-chk-status');
+  const box = document.getElementById('wash-chk-body'), stepsEl = document.getElementById('wash-chk-steps');
   if (!box) return;
-  const scanOn = !!(_washRec && _washRec.matched);
-  const bar = document.getElementById('wash-chk-scanstate');
-  if (bar) bar.textContent = scanOn ? `✅ הסריקה נקראה · ${_washRec.matched.size} רכבים הוצלבו` : 'לא הועלתה סריקה';
-  const inv = _washChk && _washChk.inv;
-  if (!inv) {
-    if (st) st.innerHTML = `<div style="font-size:13px;font-weight:700;color:var(--muted);line-height:1.6">בחר את החשבונית (קובץ PDF) ולאחר מכן, מומלץ, את סריקת הפתקים שחזרו.</div>`;
-    box.innerHTML = ''; return;
+  const hasInv = !!(_washChk && _washChk.inv), hasScan = !!(_washRec && _washRec.matched);
+  const step = !hasInv ? 1 : !hasScan ? 2 : 3;
+  const names = ['החשבונית', 'הפתקים', 'בדיקה', 'תשלום'];
+  if (stepsEl) stepsEl.innerHTML = names.map((n, i) => {
+    const on = i + 1 === step, done = i + 1 < step;
+    return `<div style="flex:1;text-align:center;padding:8px 4px;border-radius:11px;font-size:12.5px;font-weight:900;background:${on ? '#0ea5e9' : done ? '#dcfce7' : 'var(--surface2)'};color:${on ? '#fff' : done ? '#166534' : 'var(--muted)'}">${done ? '✓' : i + 1} ${n}</div>`;
+  }).join('');
+  const err = _washChkMsg ? `<div style="background:#fef2f2;border:2px solid #fca5a5;border-radius:12px;padding:10px 13px;font-size:13px;font-weight:800;color:#991b1b;margin-bottom:12px;line-height:1.6">${esc(_washChkMsg)}</div>` : '';
+  const big = (color, label, handler, accept, multi) => `<label class="btn-submit" style="background:${color};color:#fff;margin:0;width:100%;text-align:center;cursor:pointer;display:block;font-size:17px;padding:18px 8px">${label}
+      <input type="file" accept="${accept}" ${multi ? 'multiple' : ''} onchange="${handler}(this)" style="display:none"></label>`;
+  const back = `<button class="btn-submit" onclick="washCheckBack()" style="background:var(--surface2);color:var(--text);margin:10px 0 0;width:100%">→ חזרה</button>`;
+  if (step === 1) {
+    box.innerHTML = err + `<div style="font-size:14px;font-weight:800;color:var(--text);line-height:1.6;margin-bottom:14px;text-align:center">שלב ראשון: העלה את החשבונית שקיבלת מהשטיפה<br><span style="font-size:12.5px;color:var(--muted);font-weight:700">קובץ ה-PDF המקורי</span></div>` +
+      big('#0ea5e9', '📄 בחר את החשבונית', 'washCheckInvoice', 'application/pdf', false);
+    return;
   }
-  if (inv.error || inv.noText || !inv.lines || !inv.lines.length) {
-    if (st) st.innerHTML = `<div style="background:#fef2f2;border:2px solid #fca5a5;border-radius:12px;padding:11px 13px;font-size:13px;font-weight:800;color:#991b1b;line-height:1.6">
-      לא הצלחתי לקרוא את החשבונית. יש להעלות את קובץ ה-PDF המקורי שהתקבל מהשטיפה (לא צילום או סריקה).</div>`;
-    box.innerHTML = ''; return;
+  const inv = _washChk.inv;
+  if (step === 2) {
+    box.innerHTML = err + `<div style="background:#f0fdf4;border:2px solid #86efac;border-radius:12px;padding:10px 13px;font-size:13px;font-weight:800;color:#166534;margin-bottom:14px">✅ החשבונית נקראה${inv.number ? ' · ' + esc(inv.number) : ''} · ${_washMoney(inv.grand || 0)} כולל מע״מ</div>` +
+      `<div style="font-size:14px;font-weight:800;color:var(--text);line-height:1.6;margin-bottom:14px;text-align:center">שלב שני: העלה את הפתקים שקיבלת מהשטיפה<br><span style="font-size:12.5px;color:var(--muted);font-weight:700">קובץ PDF אחד או כמה תמונות — כל עמוד הוא פתק</span></div>` +
+      big('#6366f1', '📂 בחר את הפתקים', 'washCheckScan', 'application/pdf,image/*', true) + back;
+    return;
   }
+  // שלב 3 — התוצאה
   const a = _washChkAnalyze();
   const m = _washMoney;
   const head = {
-    ok:   ['#166534', '#f0fdf4', '#86efac', '✅ תקין', 'הכמויות, המחירים והסכומים תואמים. אפשר לשלם.'],
-    warn: ['#92400e', '#fffbeb', '#fcd34d', '⚠️ תקין, עם הערות', 'לא נמצאו הפרשים, אבל יש דברים שכדאי לבדוק לפני התשלום.'],
+    ok:   ['#166534', '#f0fdf4', '#86efac', '✅ הכל תקין', 'הכמויות, המחירים והסכומים תואמים.'],
+    warn: ['#92400e', '#fffbeb', '#fcd34d', '⚠️ יש הערות', 'לא נמצאו הפרשים, אבל כדאי לבדוק את ההערות לפני התשלום.'],
     bad:  ['#991b1b', '#fef2f2', '#fca5a5', '❌ יש הפרשים', 'אל תשלם לפני שמבררים את ההפרשים שמופיעים למטה.'],
   }[a.verdict];
-  if (st) st.innerHTML = `<div style="font-size:12px;font-weight:800;color:var(--muted)">חשבונית ${esc(inv.number || '')} ${esc(inv.date || '')} · ${m(inv.grand || 0)}</div>`;
   const th = 'padding:6px 7px;font-size:11.5px;font-weight:800;color:var(--muted);text-align:center';
   const td = 'padding:7px;font-size:13.5px;font-weight:900;text-align:center;border-top:1px solid var(--border)';
   const table = `<table style="width:100%;border-collapse:collapse;background:var(--card);border:2px solid var(--border);border-radius:12px;overflow:hidden;margin:10px 0">
-    <tr style="background:var(--surface2)"><td style="${th};text-align:right">סוג</td><td style="${th}">הוצאו</td>${a.rec ? `<td style="${th}">חזרו</td>` : ''}<td style="${th}">בחשבונית</td><td style="${th}"></td></tr>
-    ${a.rows.map(r => `<tr><td style="${td};text-align:right">${esc(r.type)}</td><td style="${td}">${r.ours}</td>${a.rec ? `<td style="${td}">${r.ret}</td>` : ''}<td style="${td}">${r.inv}</td><td style="${td}">${r.ok ? '✅' : '❌'}</td></tr>`).join('')}
+    <tr style="background:var(--surface2)"><td style="${th};text-align:right">סוג</td><td style="${th}">הוצאו</td><td style="${th}">חזרו</td><td style="${th}">בחשבונית</td><td style="${th}"></td></tr>
+    ${a.rows.map(r => `<tr><td style="${td};text-align:right">${esc(r.type)}</td><td style="${td}">${r.ours}</td><td style="${td}">${r.ret}</td><td style="${td}">${r.inv}</td><td style="${td}">${r.ok ? '✅' : '❌'}</td></tr>`).join('')}
   </table>`;
   const list = (arr, color, icon) => arr.length ? `<div style="margin-bottom:8px">${arr.map(x =>
     `<div style="font-size:13px;font-weight:700;color:${color};line-height:1.55;border-right:4px solid ${color};padding:4px 10px;margin-bottom:5px;background:var(--card);border-radius:6px">${icon} ${esc(x)}</div>`).join('')}</div>` : '';
-  const exp = `<div style="font-size:12.5px;font-weight:800;color:var(--muted);line-height:1.7">
+  const exp = `<div style="font-size:12.5px;font-weight:800;color:var(--muted);line-height:1.7;margin-top:4px">
     לפי הרשימה שלך: ${m(a.expSub)}${a.extraSum ? ` + פריטים נוספים ${m(a.extraSum)}` : ''} ללא מע״מ<br>
     בחשבונית: ${inv.beforeVat != null ? m(inv.beforeVat) : '—'} ללא מע״מ · ${inv.grand != null ? m(inv.grand) : '—'} כולל מע״מ</div>`;
   const pay = a.verdict !== 'bad'
-    ? `<button class="btn-submit" onclick="washCheckPay()" style="background:#0d9488;color:#fff;width:100%;margin-top:12px">💳 המשך לאישור תשלום</button>` : '';
+    ? `<button class="btn-submit" onclick="washCheckPay()" style="background:#0d9488;color:#fff;width:100%;margin-top:14px;font-size:17px;padding:16px 8px">💳 סגור את התשלום</button>`
+    : `<div style="font-size:12.5px;font-weight:800;color:#991b1b;text-align:center;margin-top:12px">בירור ההפרשים מול השטיפה, ואז אפשר להתחיל בדיקה מחדש.</div>`;
   box.innerHTML = `<div style="background:${head[1]};border:2px solid ${head[2]};border-radius:14px;padding:13px 15px">
-      <div style="font-weight:900;font-size:20px;color:${head[0]}">${head[3]}</div>
+      <div style="font-weight:900;font-size:21px;color:${head[0]}">${head[3]}</div>
       <div style="font-size:12.5px;font-weight:700;color:${head[0]};margin-top:2px">${head[4]}</div></div>` +
-    table + list(a.errors, '#b91c1c', '❌') + list(a.warns, '#b45309', '⚠️') + exp + pay;
+    table + list(a.errors, '#b91c1c', '❌') + list(a.warns, '#b45309', '⚠️') + exp + pay + back;
 }
 
 // ממשיך לאותה חלונית אישור תשלום: רק מי שחזר אם הועלתה סריקה, אחרת הכל
 function washCheckPay() {
   closeModal('modal-wash-check');
+  // משלמים על מה שחזר ואושר בבדיקה; מה שלא חזר נשאר בחשבון הפתוח
   washMarkPaid(_washRec && _washRec.matched && _washRec.matched.size ? new Set(_washRec.matched.keys()) : null);
 }
 window.washCheckPay = washCheckPay;
