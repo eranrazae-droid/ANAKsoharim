@@ -2479,3 +2479,236 @@ function _washmSync() {
   bar.classList.toggle('idle', !n);
 }
 window.addEventListener('resize', () => { try { if (document.getElementById('screen-wash')) _washmSetup(); } catch (e) {} });
+
+
+/* ═══ בדיקת חשבונית לפני תשלום ═════════════════════════════════════
+   משווה שלושה מקורות: מה שהוצא (החשבון הפתוח), מה שחזר מהשטיפה
+   (סריקת הפתקים, אופציונלי) ומה שהם מחייבים (החשבונית). החשבונית
+   נקראת משכבת הטקסט של ה-PDF, ולכן צריך להעלות את הקובץ המקורי ולא
+   צילום. התוצאה: תקין, או רשימת הפרשים עם הסכום שכל אחד מהם משנה.
+   אינה משנה שום נתון — רק קוראת.                                   */
+let _washChk = null;   // { inv, rec }
+
+function openWashCheck() {
+  if (currentUser?.role !== 'manager') return;
+  const { total } = _washSummaryData();
+  if (!total) return showToast('אין פתקים פתוחים לבדיקה');
+  _washChk = null;
+  const f = document.getElementById('wash-chk-file'); if (f) f.value = '';
+  const s = document.getElementById('wash-chk-scan'); if (s) s.value = '';
+  _washChkRender();
+  openModal('modal-wash-check');
+}
+window.openWashCheck = openWashCheck;
+
+// סוג שטיפה לפי תיאור השורה בחשבונית ("פנימי +חיצוני" ← "חיצוני + פנימי")
+function _washInvType(desc) {
+  const d = String(desc || '');
+  const out = d.includes('חיצוני'), inn = d.includes('פנימי');
+  if (out && inn) return 'חיצוני + פנימי';
+  if (out && d.includes('ידני')) return 'חיצוני ידני';
+  if (out) return 'חיצוני';
+  if (inn) return 'פנימי';
+  return null;
+}
+
+const _washNum = s => { const m = String(s).replace(/,/g, '').match(/^-?\d+(\.\d+)?$/); return m ? parseFloat(m[0]) : null; };
+
+async function _washParseInvoice(file) {
+  if (!window.pdfjsLib) throw new Error('pdf.js not loaded');
+  const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+  const items = [];
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const tc = await (await pdf.getPage(p)).getTextContent();
+    for (const it of tc.items) if (String(it.str).trim()) items.push({ s: String(it.str).trim(), x: it.transform[4], y: it.transform[5] + (p - 1) * -2000 });
+  }
+  if (!items.length) return { noText: true };
+  // שורות לפי גובה, בסובלנות קטנה, ובתוך שורה מימין לשמאל
+  items.sort((a, b) => b.y - a.y);
+  const rows = [];
+  for (const it of items) {
+    const r = rows.find(r => Math.abs(r.y - it.y) <= 4);
+    if (r) r.items.push(it); else rows.push({ y: it.y, items: [it] });
+  }
+  rows.forEach(r => r.items.sort((a, b) => b.x - a.x));
+  const txt = r => r.items.map(i => i.s).join(' ');
+  const decimals = r => r.items.filter(i => /^-?[\d,]+\.\d{2}$/.test(i.s));
+  const lines = [];
+  for (const r of rows) {
+    const nums = decimals(r);
+    if (nums.length < 3) continue;
+    const desc = r.items.filter(i => !/^-?[\d,]+(\.\d+)?$/.test(i.s) && i.s !== '#').map(i => i.s).join(' ').trim();
+    if (!desc) continue;
+    // סדר העמודות מימין לשמאל: כמות, ליחידה, סה"כ
+    const n = nums.slice(-3).map(i => _washNum(i.s));
+    lines.push({ desc, qty: n[0], unit: n[1], total: n[2], type: _washInvType(desc) });
+  }
+  // סיכומים: הערך הוא המספר השמאלי ביותר בשורה (עמודת הסכומים)
+  const leftmost = r => {
+    const c = r.items.filter(i => /^-?[\d,]+\.\d{2}$/.test(i.s));
+    return c.length ? _washNum(c.sort((a, b) => a.x - b.x)[0].s) : null;
+  };
+  const pick = re => { const r = rows.find(r => re.test(txt(r))); return r ? leftmost(r) : null; };
+  const all = rows.map(txt).join('\n');
+  return {
+    lines,
+    beforeVat: pick(/סה"כ ללא מע"מ/), discount: pick(/הנחה/), afterDiscount: pick(/לאחר הנחה/),
+    vat: pick(/מע"מ\s*[\d.]+%|[\d.]+%\s*מע"מ/), grand: pick(/סה"כ לתשלום/),
+    number: (all.match(/\d{2}\/\d{4,7}/) || [''])[0], date: (all.match(/\d{2}\/\d{2}\/\d{4}/) || [''])[0],
+  };
+}
+
+async function washCheckInvoice(input) {
+  const f = input.files && input.files[0];
+  if (!f) return;
+  const st = document.getElementById('wash-chk-status');
+  if (st) st.innerHTML = '<div style="font-size:13px;font-weight:800;color:var(--muted)">⏳ קורא את החשבונית…</div>';
+  try {
+    const inv = await _washParseInvoice(f);
+    _washChk = { ...(_washChk || {}), inv, name: f.name };
+  } catch (e) {
+    console.error(e);
+    _washChk = { ...(_washChk || {}), inv: { error: true } };
+  }
+  _washChkRender();
+}
+window.washCheckInvoice = washCheckInvoice;
+
+// סריקת הפתקים שחזרו — אותה הצלבה שכבר קיימת, ואז הבדיקה מתעדכנת
+async function washCheckScan(input) {
+  const st = document.getElementById('wash-chk-status');
+  if (st) st.innerHTML = '<div style="font-size:13px;font-weight:800;color:var(--muted)">⏳ קורא את הסריקה — זה יכול לקחת דקה…</div>';
+  try { await washReconcileFiles(input); } catch (e) { console.error(e); }
+  _washChkRender();
+}
+window.washCheckScan = washCheckScan;
+
+function _washChkRound(n) { return Math.round(n * 100) / 100; }
+
+function _washChkAnalyze() {
+  const inv = _washChk?.inv;
+  const ours = _washSummaryData();
+  const rec = _washRec && _washRec.matched ? _washRec : null;
+  const errors = [], warns = [], rows = [];
+  const retNotes = rec ? ours.rows.filter(n => rec.matched.has(n.id)) : null;
+  const retCounts = {}; if (retNotes) for (const n of retNotes) retCounts[n.type || 'ללא סוג'] = (retCounts[n.type || 'ללא סוג'] || 0) + 1;
+  const money = _washMoney;
+
+  // סוג שיש בחשבונית ואין אצלנו, או להפך
+  const invBy = {};
+  const extras = [];
+  for (const l of inv.lines) {
+    if (l.type) {
+      const b = invBy[l.type] || (invBy[l.type] = { qty: 0, total: 0, units: new Set() });
+      b.qty += l.qty; b.total += l.total; b.units.add(l.unit);
+    } else extras.push(l);
+  }
+  const types = [..._WASH_TYPES];
+  for (const t of Object.keys(ours.counts)) if (!types.includes(t)) types.push(t);
+
+  for (const t of types) {
+    const q0 = ours.counts[t] || 0, b = invBy[t];
+    const qi = b ? b.qty : 0, listPrice = _WASH_PRICES[t];
+    if (!q0 && !qi) continue;
+    const row = { type: t, ours: q0, inv: qi, ret: retNotes ? (retCounts[t] || 0) : null, ok: true, notes: [] };
+    if (qi !== q0) {
+      row.ok = false;
+      const d = qi - q0, price = (b && b.units.size === 1 ? [...b.units][0] : listPrice) || 0;
+      errors.push(d > 0
+        ? `${t}: מחויבים על ${qi}, הוצאו ${q0} — ${d} יותר מדי (בערך ${money(d * price)} + מע״מ)`
+        : `${t}: מחויבים על ${qi}, הוצאו ${q0} — חסרים בחשבונית ${-d}`);
+    }
+    if (retNotes && qi > (retCounts[t] || 0)) {
+      row.ok = false;
+      const missing = ours.rows.filter(n => (n.type || '') === t && !rec.matched.has(n.id)).map(n => n.plate);
+      errors.push(`${t}: מחויבים על ${qi}, אבל רק ${retCounts[t] || 0} פתקים חזרו מהשטיפה` + (missing.length ? ` — לא חזרו: ${missing.join(', ')}` : ''));
+    }
+    if (b) {
+      if (b.units.size > 1) { row.ok = false; errors.push(`${t}: יש כמה מחירים ליחידה בחשבונית (${[...b.units].join(', ')})`); }
+      else if (listPrice != null && !b.units.has(listPrice)) {
+        row.ok = false;
+        errors.push(`${t}: המחיר ליחידה בחשבונית ${[...b.units][0]} ₪, במחירון ${listPrice} ₪`);
+      }
+      if (_washChkRound(b.total) !== _washChkRound(b.qty * [...b.units][0])) { row.ok = false; errors.push(`${t}: הסכום בשורה (${money(b.total)}) לא שווה לכמות כפול מחיר`); }
+    }
+    rows.push(row);
+  }
+  for (const l of extras) warns.push(`פריט שאינו שטיפה: ${l.desc} — ${l.qty} × ${money(l.unit)} = ${money(l.total)} (לא קיים אצלנו — ודא שהזמנת)`);
+
+  // חישוב הסכומים
+  const expSub = _washChkRound(types.reduce((s, t) => s + (ours.counts[t] || 0) * (_WASH_PRICES[t] || 0), 0));
+  const extraSum = _washChkRound(extras.reduce((s, l) => s + l.total, 0));
+  const lineSum = _washChkRound(inv.lines.reduce((s, l) => s + l.total, 0));
+  const tot = [];
+  if (inv.beforeVat == null) warns.push('לא זוהה סכום "ללא מע״מ" בחשבונית — הסכומים לא נבדקו');
+  else {
+    if (_washChkRound(inv.beforeVat) !== lineSum) errors.push(`סכום השורות (${money(lineSum)}) שונה מ"סה״כ ללא מע״מ" (${money(inv.beforeVat)})`);
+    const diff = _washChkRound(inv.beforeVat - extraSum - expSub);
+    tot.push({ label: 'שטיפות ללא מע״מ', exp: expSub, got: _washChkRound(inv.beforeVat - extraSum), ok: diff === 0 });
+    if (diff !== 0) errors.push(`סכום השטיפות לפני מע״מ: לפי הרשימה ${money(expSub)}, בחשבונית ${money(inv.beforeVat - extraSum)} — הפרש ${diff > 0 ? '+' : ''}${money(diff)}`);
+    const after = inv.afterDiscount != null ? inv.afterDiscount : inv.beforeVat - (inv.discount || 0);
+    if (inv.discount) warns.push(`בחשבונית יש הנחה של ${money(inv.discount)}`);
+    if (inv.vat != null) {
+      const expVat = _washChkRound(after * _WASH_VAT);
+      if (Math.abs(inv.vat - expVat) > 0.011) errors.push(`מע״מ בחשבונית ${money(inv.vat)}, צריך להיות ${money(expVat)} (18%)`);
+      if (inv.grand != null && Math.abs(inv.grand - (after + inv.vat)) > 0.011) errors.push(`סה״כ לתשלום ${money(inv.grand)} לא שווה לסכום + מע״מ (${money(after + inv.vat)})`);
+    }
+  }
+  // כפילויות ברשימה שלנו
+  const seen = {}, dups = [];
+  for (const n of ours.rows) { const k = _normPlate(n.plate) + '|' + (n.createdAt?.toDate ? _washYmd(n.createdAt.toDate()) : ''); if (seen[k]) dups.push(n.plate); seen[k] = 1; }
+  if (dups.length) warns.push(`אותו רכב הוצא פעמיים באותו יום: ${[...new Set(dups)].join(', ')}`);
+  if (!rec) warns.push('לא הועלתה סריקה של הפתקים שחזרו — לא נבדק אם כל הרכבים שמחויבים אכן נשטפו');
+  const verdict = errors.length ? 'bad' : (warns.some(w => !w.startsWith('לא הועלתה')) || !rec ? 'warn' : 'ok');
+  return { errors, warns, rows, tot, verdict, inv, ours, rec, expSub, extraSum };
+}
+
+function _washChkRender() {
+  const box = document.getElementById('wash-chk-body'), st = document.getElementById('wash-chk-status');
+  if (!box) return;
+  const scanOn = !!(_washRec && _washRec.matched);
+  const bar = document.getElementById('wash-chk-scanstate');
+  if (bar) bar.textContent = scanOn ? `✅ הסריקה נקראה · ${_washRec.matched.size} רכבים הוצלבו` : 'לא הועלתה סריקה';
+  const inv = _washChk && _washChk.inv;
+  if (!inv) {
+    if (st) st.innerHTML = `<div style="font-size:13px;font-weight:700;color:var(--muted);line-height:1.6">בחר את החשבונית (קובץ PDF) ולאחר מכן, מומלץ, את סריקת הפתקים שחזרו.</div>`;
+    box.innerHTML = ''; return;
+  }
+  if (inv.error || inv.noText || !inv.lines || !inv.lines.length) {
+    if (st) st.innerHTML = `<div style="background:#fef2f2;border:2px solid #fca5a5;border-radius:12px;padding:11px 13px;font-size:13px;font-weight:800;color:#991b1b;line-height:1.6">
+      לא הצלחתי לקרוא את החשבונית. יש להעלות את קובץ ה-PDF המקורי שהתקבל מהשטיפה (לא צילום או סריקה).</div>`;
+    box.innerHTML = ''; return;
+  }
+  const a = _washChkAnalyze();
+  const m = _washMoney;
+  const head = {
+    ok:   ['#166534', '#f0fdf4', '#86efac', '✅ תקין', 'הכמויות, המחירים והסכומים תואמים. אפשר לשלם.'],
+    warn: ['#92400e', '#fffbeb', '#fcd34d', '⚠️ תקין, עם הערות', 'לא נמצאו הפרשים, אבל יש דברים שכדאי לבדוק לפני התשלום.'],
+    bad:  ['#991b1b', '#fef2f2', '#fca5a5', '❌ יש הפרשים', 'אל תשלם לפני שמבררים את ההפרשים שמופיעים למטה.'],
+  }[a.verdict];
+  if (st) st.innerHTML = `<div style="font-size:12px;font-weight:800;color:var(--muted)">חשבונית ${esc(inv.number || '')} ${esc(inv.date || '')} · ${m(inv.grand || 0)}</div>`;
+  const th = 'padding:6px 7px;font-size:11.5px;font-weight:800;color:var(--muted);text-align:center';
+  const td = 'padding:7px;font-size:13.5px;font-weight:900;text-align:center;border-top:1px solid var(--border)';
+  const table = `<table style="width:100%;border-collapse:collapse;background:var(--card);border:2px solid var(--border);border-radius:12px;overflow:hidden;margin:10px 0">
+    <tr style="background:var(--surface2)"><td style="${th};text-align:right">סוג</td><td style="${th}">הוצאו</td>${a.rec ? `<td style="${th}">חזרו</td>` : ''}<td style="${th}">בחשבונית</td><td style="${th}"></td></tr>
+    ${a.rows.map(r => `<tr><td style="${td};text-align:right">${esc(r.type)}</td><td style="${td}">${r.ours}</td>${a.rec ? `<td style="${td}">${r.ret}</td>` : ''}<td style="${td}">${r.inv}</td><td style="${td}">${r.ok ? '✅' : '❌'}</td></tr>`).join('')}
+  </table>`;
+  const list = (arr, color, icon) => arr.length ? `<div style="margin-bottom:8px">${arr.map(x =>
+    `<div style="font-size:13px;font-weight:700;color:${color};line-height:1.55;border-right:4px solid ${color};padding:4px 10px;margin-bottom:5px;background:var(--card);border-radius:6px">${icon} ${esc(x)}</div>`).join('')}</div>` : '';
+  const exp = `<div style="font-size:12.5px;font-weight:800;color:var(--muted);line-height:1.7">
+    לפי הרשימה שלך: ${m(a.expSub)}${a.extraSum ? ` + פריטים נוספים ${m(a.extraSum)}` : ''} ללא מע״מ<br>
+    בחשבונית: ${inv.beforeVat != null ? m(inv.beforeVat) : '—'} ללא מע״מ · ${inv.grand != null ? m(inv.grand) : '—'} כולל מע״מ</div>`;
+  const pay = a.verdict !== 'bad'
+    ? `<button class="btn-submit" onclick="washCheckPay()" style="background:#0d9488;color:#fff;width:100%;margin-top:12px">💳 המשך לאישור תשלום</button>` : '';
+  box.innerHTML = `<div style="background:${head[1]};border:2px solid ${head[2]};border-radius:14px;padding:13px 15px">
+      <div style="font-weight:900;font-size:20px;color:${head[0]}">${head[3]}</div>
+      <div style="font-size:12.5px;font-weight:700;color:${head[0]};margin-top:2px">${head[4]}</div></div>` +
+    table + list(a.errors, '#b91c1c', '❌') + list(a.warns, '#b45309', '⚠️') + exp + pay;
+}
+
+// ממשיך לאותה חלונית אישור תשלום: רק מי שחזר אם הועלתה סריקה, אחרת הכל
+function washCheckPay() {
+  closeModal('modal-wash-check');
+  washMarkPaid(_washRec && _washRec.matched && _washRec.matched.size ? new Set(_washRec.matched.keys()) : null);
+}
+window.washCheckPay = washCheckPay;
