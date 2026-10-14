@@ -2611,80 +2611,59 @@ window.washCheckBack = washCheckBack;
 function _washChkRound(n) { return Math.round(n * 100) / 100; }
 
 function _washChkAnalyze() {
-  const inv = _washChk?.inv;
-  const ours = _washSummaryData();
-  const rec = _washRec && _washRec.matched ? _washRec : null;
-  const errors = [], warns = [], rows = [];
-  const retNotes = rec ? ours.rows.filter(n => rec.matched.has(n.id)) : null;
-  const retCounts = {}; if (retNotes) for (const n of retNotes) retCounts[n.type || 'ללא סוג'] = (retCounts[n.type || 'ללא סוג'] || 0) + 1;
-  const money = _washMoney;
-
-  // סוג שיש בחשבונית ואין אצלנו, או להפך
-  const invBy = {};
-  const extras = [];
+  const inv = _washChk.inv, ours = _washSummaryData(), rec = _washRec;
+  const m = _washMoney, R = _washChkRound;
+  const ret = ours.rows.filter(n => rec.matched.has(n.id));
+  const notRet = ours.rows.filter(n => !rec.matched.has(n.id));
+  const retC = {};
+  for (const n of ret) { const t = n.type || 'ללא סוג'; retC[t] = (retC[t] || 0) + 1; }
+  const invBy = {}, extras = [];
   for (const l of inv.lines) {
-    if (l.type) {
-      const b = invBy[l.type] || (invBy[l.type] = { qty: 0, total: 0, units: new Set() });
-      b.qty += l.qty; b.total += l.total; b.units.add(l.unit);
-    } else extras.push(l);
+    if (l.type) { const b = invBy[l.type] || (invBy[l.type] = { qty: 0, total: 0, units: new Set() }); b.qty += l.qty; b.total += l.total; b.units.add(l.unit); }
+    else extras.push(l);
   }
   const types = [..._WASH_TYPES];
-  for (const t of Object.keys(ours.counts)) if (!types.includes(t)) types.push(t);
-
+  for (const t of Object.keys(retC)) if (!types.includes(t)) types.push(t);
+  const errors = [], warns = [], details = [], rows = [];
+  let priceBad = [];
+  let over = 0, overMoney = 0, under = 0;
   for (const t of types) {
-    const q0 = ours.counts[t] || 0, b = invBy[t];
-    const qi = b ? b.qty : 0, listPrice = _WASH_PRICES[t];
-    if (!q0 && !qi) continue;
-    const row = { type: t, ours: q0, inv: qi, ret: retNotes ? (retCounts[t] || 0) : null, ok: true, notes: [] };
-    if (qi !== q0) {
-      row.ok = false;
-      const d = qi - q0, price = (b && b.units.size === 1 ? [...b.units][0] : listPrice) || 0;
-      errors.push(d > 0
-        ? `${t}: מחויבים על ${qi}, הוצאו ${q0} — ${d} יותר מדי (בערך ${money(d * price)} + מע״מ)`
-        : `${t}: מחויבים על ${qi}, הוצאו ${q0} — חסרים בחשבונית ${-d}`);
-    }
-    if (retNotes && qi <= q0 && qi > (retCounts[t] || 0)) {
-      row.ok = false;
-      const missing = ours.rows.filter(n => (n.type || '') === t && !rec.matched.has(n.id)).map(n => n.plate);
-      errors.push(`${t}: מחויבים על ${qi}, אבל רק ${retCounts[t] || 0} פתקים חזרו מהשטיפה` + (missing.length ? ` — לא חזרו: ${missing.join(', ')}` : ''));
-    }
+    const r = retC[t] || 0, b = invBy[t], q = b ? b.qty : 0, price = _WASH_PRICES[t];
+    if (!r && !q) continue;
+    const diff = q - r;
+    rows.push({ type: t, ret: r, inv: q, diff });
+    if (diff > 0) {
+      over += diff; overMoney += diff * (price || 0);
+      const miss = notRet.filter(n => (n.type || '') === t).map(n => n.plate);
+      if (miss.length) details.push(`${t} — הוצאו ולא חזרו: ${miss.join(', ')}`);
+    } else if (diff < 0) under += -diff;
     if (b) {
-      if (b.units.size > 1) { row.ok = false; errors.push(`${t}: יש כמה מחירים ליחידה בחשבונית (${[...b.units].join(', ')})`); }
-      else if (listPrice != null && !b.units.has(listPrice)) {
-        row.ok = false;
-        errors.push(`${t}: המחיר ליחידה בחשבונית ${[...b.units][0]} ₪, במחירון ${listPrice} ₪`);
-      }
-      if (_washChkRound(b.total) !== _washChkRound(b.qty * [...b.units][0])) { row.ok = false; errors.push(`${t}: הסכום בשורה (${money(b.total)}) לא שווה לכמות כפול מחיר`); }
+      if (b.units.size > 1 || (price != null && !b.units.has(price))) priceBad.push(`${t}: ${[...b.units].join('/')} ₪ במקום ${price} ₪`);
+      if (R(b.total) !== R(b.qty * [...b.units][0])) errors.push(`${t}: הסכום בשורה לא שווה לכמות כפול מחיר`);
     }
-    rows.push(row);
   }
-  for (const l of extras) warns.push(`פריט שאינו שטיפה: ${l.desc} — ${l.qty} × ${money(l.unit)} = ${money(l.total)} (לא קיים אצלנו — ודא שהזמנת)`);
-
-  // חישוב הסכומים
-  const expSub = _washChkRound(types.reduce((s, t) => s + (ours.counts[t] || 0) * (_WASH_PRICES[t] || 0), 0));
-  const extraSum = _washChkRound(extras.reduce((s, l) => s + l.total, 0));
-  const lineSum = _washChkRound(inv.lines.reduce((s, l) => s + l.total, 0));
-  const tot = [];
+  if (over) errors.unshift(`חויבו ${over} רכבים יותר ממה שחזר מהשטיפה (בערך ${m(overMoney)} + מע״מ)`);
+  if (under) warns.push(`חזרו ${under} רכבים יותר ממה שחויב — התשלום יכלול אותם`);
+  if (priceBad.length) errors.push('מחיר ליחידה שונה מהמחירון — ' + priceBad.join(' · '));
+  for (const l of extras) warns.push(`פריט שאינו שטיפה בחשבונית: ${l.desc} (${m(l.total)})`);
+  const lineSum = R(inv.lines.reduce((s, l) => s + l.total, 0));
+  const extraSum = R(extras.reduce((s, l) => s + l.total, 0));
+  const expSub = R(types.reduce((s, t) => s + (retC[t] || 0) * (_WASH_PRICES[t] || 0), 0));
+  const gotSub = inv.beforeVat != null ? R(inv.beforeVat - extraSum) : null;
   if (inv.beforeVat == null) warns.push('לא זוהה סכום "ללא מע״מ" בחשבונית — הסכומים לא נבדקו');
   else {
-    if (_washChkRound(inv.beforeVat) !== lineSum) errors.push(`סכום השורות (${money(lineSum)}) שונה מ"סה״כ ללא מע״מ" (${money(inv.beforeVat)})`);
-    const diff = _washChkRound(inv.beforeVat - extraSum - expSub);
-    tot.push({ label: 'שטיפות ללא מע״מ', exp: expSub, got: _washChkRound(inv.beforeVat - extraSum), ok: diff === 0 });
-    if (diff !== 0) errors.push(`סכום השטיפות לפני מע״מ: לפי הרשימה ${money(expSub)}, בחשבונית ${money(inv.beforeVat - extraSum)} — הפרש ${diff > 0 ? '+' : ''}${money(diff)}`);
+    if (R(inv.beforeVat) !== lineSum) errors.push('סכום השורות בחשבונית שונה מהסה״כ שלה');
     const after = inv.afterDiscount != null ? inv.afterDiscount : inv.beforeVat - (inv.discount || 0);
-    if (inv.discount) warns.push(`בחשבונית יש הנחה של ${money(inv.discount)}`);
-    if (inv.vat != null) {
-      const expVat = _washChkRound(after * _WASH_VAT);
-      if (Math.abs(inv.vat - expVat) > 0.011) errors.push(`מע״מ בחשבונית ${money(inv.vat)}, צריך להיות ${money(expVat)} (18%)`);
-      if (inv.grand != null && Math.abs(inv.grand - (after + inv.vat)) > 0.011) errors.push(`סה״כ לתשלום ${money(inv.grand)} לא שווה לסכום + מע״מ (${money(after + inv.vat)})`);
-    }
+    if (inv.discount) warns.push(`בחשבונית יש הנחה של ${m(inv.discount)}`);
+    if (inv.vat != null && Math.abs(inv.vat - R(after * _WASH_VAT)) > 0.011) errors.push(`המע״מ בחשבונית ${m(inv.vat)}, צריך להיות ${m(after * _WASH_VAT)}`);
+    if (inv.vat != null && inv.grand != null && Math.abs(inv.grand - (after + inv.vat)) > 0.011) errors.push('הסה״כ לתשלום לא שווה לסכום + מע״מ');
   }
-  // כפילויות ברשימה שלנו
   const seen = {}, dups = [];
   for (const n of ours.rows) { const k = _normPlate(n.plate) + '|' + (n.createdAt?.toDate ? _washYmd(n.createdAt.toDate()) : ''); if (seen[k]) dups.push(n.plate); seen[k] = 1; }
-  if (dups.length) warns.push(`אותו רכב הוצא פעמיים באותו יום: ${[...new Set(dups)].join(', ')}`);
+  if (dups.length) { warns.push(`${new Set(dups).size} רכבים הוצאו פעמיים באותו יום`); details.push('הוצאו פעמיים באותו יום: ' + [...new Set(dups)].join(', ')); }
+  if (notRet.length) details.push(`הוצאו ולא חזרו (נשארים בחשבון הפתוח): ${notRet.map(n => n.plate).join(', ')}`);
   const verdict = errors.length ? 'bad' : (warns.length ? 'warn' : 'ok');
-  return { errors, warns, rows, tot, verdict, inv, ours, rec, expSub, extraSum };
+  return { errors, warns, details, rows, verdict, inv, expSub, gotSub, extraSum, notRet: notRet.length, retN: ret.length };
 }
 
 function _washChkRender() {
@@ -2714,32 +2693,35 @@ function _washChkRender() {
       big('#6366f1', '📂 בחר את הפתקים', 'washCheckScan', 'application/pdf,image/*', true) + back + '</div>';
     return;
   }
-  // שלב 3 — התוצאה
+  // שלב 3 — התוצאה, בקצרה
   const a = _washChkAnalyze();
   const m = _washMoney;
   const head = {
-    ok:   ['#166534', '#f0fdf4', '#86efac', '✅ הכל תקין', 'הכמויות, המחירים והסכומים תואמים.'],
-    warn: ['#92400e', '#fffbeb', '#fcd34d', '⚠️ יש הערות', 'לא נמצאו הפרשים, אבל כדאי לבדוק את ההערות לפני התשלום.'],
-    bad:  ['#991b1b', '#fef2f2', '#fca5a5', '❌ יש הפרשים', 'אל תשלם לפני שמבררים את ההפרשים שמופיעים למטה.'],
+    ok:   ['#166534', '#f0fdf4', '#86efac', '✅ הכל תקין', 'החשבונית תואמת לפתקים שחזרו.'],
+    warn: ['#92400e', '#fffbeb', '#fcd34d', '⚠️ תקין, עם הערות', 'כדאי להסתכל על ההערות לפני התשלום.'],
+    bad:  ['#991b1b', '#fef2f2', '#fca5a5', '❌ יש הפרשים', 'אל תשלם לפני בירור מול השטיפה.'],
   }[a.verdict];
-  const th = 'padding:6px 7px;font-size:11.5px;font-weight:800;color:var(--muted);text-align:center';
-  const td = 'padding:7px;font-size:13.5px;font-weight:900;text-align:center;border-top:1px solid var(--border)';
+  const th = 'padding:6px 8px;font-size:12px;font-weight:800;color:var(--muted);text-align:center';
+  const td = 'padding:8px;font-size:14px;font-weight:900;text-align:center;border-top:1px solid var(--border)';
   const table = `<table style="width:100%;border-collapse:collapse;background:var(--card);border:2px solid var(--border);border-radius:12px;overflow:hidden;margin:10px 0">
-    <tr style="background:var(--surface2)"><td style="${th};text-align:right">סוג</td><td style="${th}">הוצאו</td><td style="${th}">חזרו</td><td style="${th}">בחשבונית</td><td style="${th}"></td></tr>
-    ${a.rows.map(r => `<tr><td style="${td};text-align:right">${esc(r.type)}</td><td style="${td}">${r.ours}</td><td style="${td}">${r.ret}</td><td style="${td}">${r.inv}</td><td style="${td}">${r.ok ? '✅' : '❌'}</td></tr>`).join('')}
+    <tr style="background:var(--surface2)"><td style="${th};text-align:right">סוג</td><td style="${th}">חזרו</td><td style="${th}">בחשבונית</td><td style="${th}">הפרש</td></tr>
+    ${a.rows.map(r => `<tr><td style="${td};text-align:right">${esc(r.type)}</td><td style="${td}">${r.ret}</td><td style="${td}">${r.inv}</td><td style="${td};color:${r.diff === 0 ? '#16a34a' : '#dc2626'}">${r.diff === 0 ? '✓' : (r.diff > 0 ? '+' : '') + r.diff}</td></tr>`).join('')}
   </table>`;
-  const list = (arr, color, icon) => arr.length ? `<div style="margin-bottom:8px">${arr.map(x =>
-    `<div style="font-size:13px;font-weight:700;color:${color};line-height:1.55;border-right:4px solid ${color};padding:4px 10px;margin-bottom:5px;background:var(--card);border-radius:6px">${icon} ${esc(x)}</div>`).join('')}</div>` : '';
-  const exp = `<div style="font-size:12.5px;font-weight:800;color:var(--muted);line-height:1.7;margin-top:4px">
-    לפי הרשימה שלך: ${m(a.expSub)}${a.extraSum ? ` + פריטים נוספים ${m(a.extraSum)}` : ''} ללא מע״מ<br>
-    בחשבונית: ${inv.beforeVat != null ? m(inv.beforeVat) : '—'} ללא מע״מ · ${inv.grand != null ? m(inv.grand) : '—'} כולל מע״מ</div>`;
+  const bullets = arr => arr.length ? arr.map(x => `<div style="font-size:13px;font-weight:800;color:#b91c1c;margin:5px 0;line-height:1.5">• ${esc(x)}</div>`).join('') : '';
+  const warnB = arr => arr.length ? arr.map(x => `<div style="font-size:13px;font-weight:800;color:#b45309;margin:5px 0;line-height:1.5">• ${esc(x)}</div>`).join('') : '';
+  const diffMoney = a.gotSub != null ? _washChkRound(a.gotSub - a.expSub) : null;
+  const sums = `<div style="display:flex;justify-content:space-between;gap:8px;background:var(--surface2);border-radius:11px;padding:10px 13px;margin:8px 0;font-size:13px;font-weight:800;flex-wrap:wrap">
+    <span>לפי הפתקים: ${m(a.expSub)}</span><span>בחשבונית: ${a.gotSub != null ? m(a.gotSub) : '—'}</span>
+    <span style="color:${diffMoney ? '#dc2626' : '#16a34a'}">${diffMoney == null ? '' : diffMoney ? 'הפרש ' + (diffMoney > 0 ? '+' : '') + m(diffMoney) : 'ללא הפרש'}</span></div>`;
+  const det = a.details.length ? `<details style="margin:8px 0;font-size:12.5px;font-weight:700;color:var(--muted)"><summary style="cursor:pointer;font-weight:900">פירוט רכבים</summary>${
+    a.details.map(x => `<div style="margin-top:6px;line-height:1.6">${esc(x)}</div>`).join('')}</details>` : '';
   const pay = a.verdict !== 'bad'
-    ? `<button class="btn-submit" onclick="washCheckPay()" style="background:#0d9488;color:#fff;width:100%;margin-top:14px;font-size:17px;padding:16px 8px">💳 סגור את התשלום</button>`
-    : `<div style="font-size:12.5px;font-weight:800;color:#991b1b;text-align:center;margin-top:12px">בירור ההפרשים מול השטיפה, ואז אפשר להתחיל בדיקה מחדש.</div>`;
-  box.innerHTML = `<div style="background:${head[1]};border:2px solid ${head[2]};border-radius:14px;padding:13px 15px">
+    ? `<button class="btn-submit" onclick="washCheckPay()" style="background:#0d9488;color:#fff;width:100%;margin-top:12px;font-size:17px;padding:16px 8px">💳 סגור את התשלום (${a.retN} רכבים)</button>`
+    : '';
+  box.innerHTML = '<div class="wchk-wrap">' + `<div style="background:${head[1]};border:2px solid ${head[2]};border-radius:14px;padding:12px 15px">
       <div style="font-weight:900;font-size:21px;color:${head[0]}">${head[3]}</div>
       <div style="font-size:12.5px;font-weight:700;color:${head[0]};margin-top:2px">${head[4]}</div></div>` +
-    table + list(a.errors, '#b91c1c', '❌') + list(a.warns, '#b45309', '⚠️') + exp + pay + back;
+    table + sums + bullets(a.errors) + warnB(a.warns) + det + pay + back + '</div>';
 }
 
 // ממשיך לאותה חלונית אישור תשלום: רק מי שחזר אם הועלתה סריקה, אחרת הכל
