@@ -2316,6 +2316,7 @@ async function washReconcileFiles(input) {
 
     const matched = new Map();   // noteId → מספר הרישוי שזוהה
     const unknown = [];          // עמודים שלא הצלחנו לשייך
+    const repeats = [];          // עמודים נוספים לרכב שכבר הוצלב
     let byText = 0, byOcr = 0;
 
     for (let i = 0; i < pages.length; i++) {
@@ -2343,11 +2344,16 @@ async function washReconcileFiles(input) {
         }
         if (hit) byOcr++;
       }
-      if (hit && !matched.has(hit.id)) matched.set(hit.id, hit.plate);
-      else if (!hit) unknown.push(i + 1);
+      if (hit) {
+        // אותו מספר רישוי יכול להופיע בכמה פתקים (שטיפה חוזרת) — כל עמוד משויך לפתק אחר
+        const same = known.filter(k => k.plate === hit.plate);
+        const free = same.find(k => !matched.has(k.id));
+        if (free) matched.set(free.id, hit.plate);
+        else repeats.push(i + 1);          // עמוד נוסף לרכב שכבר הוצלב במלואו
+      } else unknown.push(i + 1);
     }
     if (worker) { try { await worker.terminate(); } catch (e) {} }
-    _washRec = { pages: pages.length, matched, unknown, byText, byOcr };
+    _washRec = { pages: pages.length, matched, unknown, repeats, byText, byOcr };
     say(`<div style="font-size:13px;font-weight:800;color:var(--muted)">✅ נקראו ${pages.length} עמודים · ${byText} משכבת הטקסט · ${byOcr} מזיהוי תווים</div>`);
     _washRenderReconcile();
   } catch (e) {
@@ -2702,6 +2708,7 @@ function _washChkAnalyze() {
   const extraSum = 0;
   const expSub = R(types.reduce((s, t) => s + (retC[t] || 0) * (_WASH_PRICES[t] || 0), 0));
   const gotSub = R(Object.keys(invBy).reduce((s, t) => s + invBy[t].total, 0));
+  if (rec.unknown && rec.unknown.length) warns.push(`${rec.unknown.length} עמודים בסריקה לא זוהו — הרכבים שלהם לא נספרו`);
   let under = 0;
   for (const t of Object.keys(underBy)) under += underBy[t];
   if (under) warns.push(`חזרו ${under} רכבים יותר ממה שחויב — התשלום יכלול אותם`);
@@ -2709,7 +2716,7 @@ function _washChkAnalyze() {
   if (notRet.length) details.push(`הוצאו בחודש ולא חזרו (נשארים בחשבון הפתוח): ${notRet.map(n => n.plate).join(', ')}`);
   if (outsideRet.length) warns.push(`${outsideRet.length} פתקים שחזרו הם מחוץ לחודש החשבונית — לא ייכללו בתשלום`);
   const verdict = errors.length ? 'bad' : (warns.length ? 'warn' : 'ok');
-  return { errors, warns, details, rows, verdict, inv, expSub, gotSub, extraSum, notRet: notRet.length, retN: ret.length, retIds: ret.filter(n => !skipIds.has(n.id)).map(n => n.id), per, monthN: ours.rows.length };
+  return { errors, warns, details, rows, verdict, inv, expSub, gotSub, extraSum, notRet: notRet.length, retN: ret.length, scan: { pages: rec.pages, matched: rec.matched.size, outside: outsideRet.length, skipped: skipIds.size, unknown: rec.unknown || [], repeats: rec.repeats || [] }, retIds: ret.filter(n => !skipIds.has(n.id)).map(n => n.id), per, monthN: ours.rows.length };
 }
 
 function _washChkRender() {
@@ -2756,6 +2763,9 @@ function _washChkRender() {
   const bullets = arr => arr.length ? arr.map(x => `<div style="font-size:13px;font-weight:800;color:#b91c1c;margin:5px 0;line-height:1.5">• ${esc(x)}</div>`).join('') : '';
   const warnB = arr => arr.length ? arr.map(x => `<div style="font-size:13px;font-weight:800;color:#b45309;margin:5px 0;line-height:1.5">• ${esc(x)}</div>`).join('') : '';
   const diffMoney = a.gotSub != null ? _washChkRound(a.gotSub - a.expSub) : null;
+  const sc = a.scan;
+  const scanLine = `<div style="background:var(--surface2);border-radius:11px;padding:9px 13px;margin:8px 0;font-size:12.5px;font-weight:800;color:var(--muted);line-height:1.7">
+    📂 נסרקו ${sc.pages} עמודים: ${a.retN + sc.skipped} של החודש${sc.skipped ? ` (מהם ${sc.skipped} כפולים שלא חויבו, לא נכללו)` : ''}${sc.outside ? ` · ${sc.outside} של חודש אחר` : ''}${sc.repeats.length ? ` · ${sc.repeats.length} עמודים נוספים לרכב שכבר הוצלב` : ''}${sc.unknown.length ? ` · <span style="color:#dc2626">${sc.unknown.length} לא זוהו</span>` : ''}</div>` + (sc.unknown.length ? `<div style="font-size:12.5px;font-weight:800;color:#dc2626;margin:4px 0">❓ לא זוהו (מספרי עמוד בסריקה): ${sc.unknown.join(', ')} — בדוק אותם ידנית; ייתכן שהמספר לא ברור בסריקה או שהרכב לא בחשבון הפתוח.</div>` : '');
   const sums = `<div style="display:flex;justify-content:space-between;gap:8px;background:var(--surface2);border-radius:11px;padding:10px 13px;margin:8px 0;font-size:13px;font-weight:800;flex-wrap:wrap">
     <span>לפי הפתקים: ${m(a.expSub)}</span><span>בחשבונית: ${a.gotSub != null ? m(a.gotSub) : '—'}</span>
     <span style="color:${diffMoney ? '#dc2626' : '#16a34a'}">${diffMoney == null ? '' : diffMoney ? 'הפרש ' + (diffMoney > 0 ? '+' : '') + m(diffMoney) : 'ללא הפרש'}</span></div>`;
@@ -2768,7 +2778,7 @@ function _washChkRender() {
   box.innerHTML = '<div class="wchk-wrap">' + monthLine + `<div style="background:${head[1]};border:2px solid ${head[2]};border-radius:14px;padding:12px 15px">
       <div style="font-weight:900;font-size:21px;color:${head[0]}">${head[3]}</div>
       <div style="font-size:12.5px;font-weight:700;color:${head[0]};margin-top:2px">${head[4]}</div></div>` +
-    table + sums + bullets(a.errors) + warnB(a.warns) + det + pay + back + '</div>';
+    table + scanLine + sums + bullets(a.errors) + warnB(a.warns) + det + pay + back + '</div>';
 }
 
 // ממשיך לאותה חלונית אישור תשלום: רק מי שחזר אם הועלתה סריקה, אחרת הכל
