@@ -2034,7 +2034,7 @@ async function washPayConfirm() {
       catch (e) { failed++; }
     }
     closeModal('modal-wash-pay-confirm');
-    _washPayOnly = null; _washRec = null;
+    _washPayOnly = null; _washRec = null; _washChk = null;
     _washRenderSummary();
     showToast(failed
       ? `⚠️ התשלום נשמר, אך ${failed} פתקים לא סומנו והם נשארו בחשבון הפתוח`
@@ -2299,7 +2299,7 @@ async function washReconcileFiles(input) {
   const st = document.getElementById('wash-rec-status');
   const say = h => { if (st) st.innerHTML = h; };
   const { rows } = _washSummaryData();
-  const known = rows.map(n => ({ id: n.id, plate: _normPlate(n.plate) })).filter(k => k.plate.length >= 7);
+  const known = rows.map(n => ({ id: n.id, plate: _normPlate(n.plate), n })).filter(k => k.plate.length >= 7);
   let worker = null;
   try {
     say('<div style="font-size:13px;font-weight:800;color:var(--muted)">⏳ מפצל את הקובץ לעמודים…</div>');
@@ -2346,14 +2346,16 @@ async function washReconcileFiles(input) {
       }
       if (hit) {
         // אותו מספר רישוי יכול להופיע בכמה פתקים (שטיפה חוזרת) — כל עמוד משויך לפתק אחר
-        const same = known.filter(k => k.plate === hit.plate);
+        // כשיש לאותו רכב כמה פתקים — קודם אלה של החודש שהחשבונית מכסה
+        const pref = window._washPrefer;
+        const same = known.filter(k => k.plate === hit.plate).sort((x, y) => (pref ? (pref(y.n) ? 1 : 0) - (pref(x.n) ? 1 : 0) : 0));
         const free = same.find(k => !matched.has(k.id));
         if (free) matched.set(free.id, hit.plate);
         else repeats.push(i + 1);          // עמוד נוסף לרכב שכבר הוצלב במלואו
       } else unknown.push(i + 1);
     }
     if (worker) { try { await worker.terminate(); } catch (e) {} }
-    _washRec = { pages: pages.length, matched, unknown, repeats, byText, byOcr };
+    _washRec = { pages: pages.length, matched, unknown, repeats, byText, byOcr, imgs: pages.map(p => p.img) };
     say(`<div style="font-size:13px;font-weight:800;color:var(--muted)">✅ נקראו ${pages.length} עמודים · ${byText} משכבת הטקסט · ${byOcr} מזיהוי תווים</div>`);
     _washRenderReconcile();
   } catch (e) {
@@ -2505,7 +2507,10 @@ function openWashCheck() {
   if (currentUser?.role !== 'manager') return;
   const { total } = _washSummaryData();
   if (!total) return showToast('אין פתקים פתוחים לבדיקה');
-  _washChk = null; _washRec = null; _washChkMsg = '';
+  _washChkMsg = '';
+  // תהליך שנעצר באמצע: מציעים להמשיך ממנו או להתחיל חדש
+  _washChkAsk = !!(_washChk && _washChk.inv) || !!(_washRec && _washRec.matched);
+  if (!_washChkAsk) { _washChk = null; _washRec = null; }
   _washChkRender();
   openModal('modal-wash-check');
 }
@@ -2582,7 +2587,7 @@ async function _washParseInvoice(file) {
   };
 }
 
-let _washChkMsg = '';
+let _washChkMsg = '', _washChkAsk = false;
 const _washChkBusy = t => { const b = document.getElementById('wash-chk-body'); if (b) b.innerHTML = `<div style="text-align:center;padding:30px 10px;font-size:14px;font-weight:800;color:var(--muted)">⏳ ${t}</div>`; };
 
 async function washCheckInvoice(input) {
@@ -2605,6 +2610,8 @@ async function washCheckScan(input) {
   _washChkBusy('קורא את הפתקים — זה יכול לקחת דקה…');
   _washChkMsg = '';
   _washRec = null;
+  const per = _washChk && _washChk.inv && _washChk.inv.period;
+  window._washPrefer = per ? (n => { const d = n.createdAt?.toDate ? n.createdAt.toDate() : null; return !!d && d.getMonth() + 1 === per.month && d.getFullYear() === per.year; }) : null;
   try { await washReconcileFiles(input); } catch (e) { console.error(e); }
   if (!_washRec || !_washRec.matched) _washChkMsg = 'לא הצלחתי לקרוא את הפתקים. נסה שוב.';
   _washChkRender();
@@ -2620,6 +2627,22 @@ function _washChkDrop(ev, label) {
   inp.dispatchEvent(new Event('change'));
 }
 window._washChkDrop = _washChkDrop;
+
+// שיוך ידני של עמוד שלא זוהה לפתק שהוצא ולא הוצלב
+function washCheckAssign(pg, noteId) {
+  if (!noteId || !_washRec) return;
+  if (noteId !== '-') {
+    const n = _washSummaryData().rows.find(r => r.id === noteId);
+    if (n) _washRec.matched.set(noteId, _normPlate(n.plate));
+  }
+  _washRec.unknown = (_washRec.unknown || []).filter(x => x !== pg);
+  _washChkRender();
+}
+window.washCheckAssign = washCheckAssign;
+
+function washCheckResume() { _washChkAsk = false; _washChkRender(); }
+function washCheckRestart() { _washChk = null; _washRec = null; _washChkMsg = ''; _washChkAsk = false; _washChkRender(); }
+window.washCheckResume = washCheckResume; window.washCheckRestart = washCheckRestart;
 
 function washCheckBack() {
   if (_washRec) _washRec = null; else _washChk = null;
@@ -2713,10 +2736,10 @@ function _washChkAnalyze() {
   for (const t of Object.keys(underBy)) under += underBy[t];
   if (under) warns.push(`חזרו ${under} רכבים יותר ממה שחויב — התשלום יכלול אותם`);
   if (skipIds.size) details.push(`${skipIds.size} פתקים כפולים (עד יומיים) שלא חויבו פעמיים — לא נכללים בתשלום ונשארים בחשבון הפתוח; אפשר למחוק אותם מההיסטוריה`);
-  if (notRet.length) details.push(`הוצאו בחודש ולא חזרו (נשארים בחשבון הפתוח): ${notRet.map(n => n.plate).join(', ')}`);
+  if (notRet.length) details.push(`הוצאו בחודש ולא חזרו (נשארים בחשבון הפתוח): ${notRet.map(n => n.plate || `(ללא מספר · ${n.type || ''})`).join(', ')}`);
   if (outsideRet.length) warns.push(`${outsideRet.length} פתקים שחזרו הם מחוץ לחודש החשבונית — לא ייכללו בתשלום`);
   const verdict = errors.length ? 'bad' : (warns.length ? 'warn' : 'ok');
-  return { errors, warns, details, rows, verdict, inv, expSub, gotSub, extraSum, notRet: notRet.length, retN: ret.length, scan: { pages: rec.pages, matched: rec.matched.size, outside: outsideRet.length, skipped: skipIds.size, unknown: rec.unknown || [], repeats: rec.repeats || [] }, retIds: ret.filter(n => !skipIds.has(n.id)).map(n => n.id), per, monthN: ours.rows.length };
+  return { errors, warns, details, rows, verdict, inv, expSub, gotSub, extraSum, notRet: notRet.length, retN: ret.length, notRetList: notRet.map(n => ({ id: n.id, plate: n.plate || '', type: n.type || '', d: n.createdAt?.toDate ? n.createdAt.toDate() : null, by: n.createdBy || '' })), scan: { pages: rec.pages, matched: rec.matched.size, outside: outsideRet.length, skipped: skipIds.size, unknown: rec.unknown || [], repeats: rec.repeats || [] }, retIds: ret.filter(n => !skipIds.has(n.id)).map(n => n.id), per, monthN: ours.rows.length };
 }
 
 function _washChkRender() {
@@ -2729,6 +2752,16 @@ function _washChkRender() {
     const on = i + 1 === step, done = i + 1 < step;
     return `<div style="flex:1;text-align:center;padding:8px 4px;border-radius:11px;font-size:12.5px;font-weight:900;background:${on ? '#0ea5e9' : done ? '#dcfce7' : 'var(--surface2)'};color:${on ? '#fff' : done ? '#166534' : 'var(--muted)'}">${done ? '✓' : i + 1} ${n}</div>`;
   }).join('');
+  if (_washChkAsk) {
+    const i = _washChk && _washChk.inv;
+    const per = i && i.period ? ` · חודש ${String(i.period.month).padStart(2, '0')}/${i.period.year}` : '';
+    const where = hasScan ? 'הועלו חשבונית ופתקים, ומחכה התוצאה' : hasInv ? 'הועלתה החשבונית, חסרים הפתקים' : 'לא הועלה כלום';
+    box.innerHTML = `<div class="wchk-wrap"><div style="font-size:15px;font-weight:900;text-align:center;margin-bottom:6px">יש בדיקה שלא הסתיימה</div>
+      <div style="font-size:13px;font-weight:700;color:var(--muted);text-align:center;line-height:1.6;margin-bottom:16px">${i ? 'חשבונית ' + esc(i.number || '') + per + '<br>' : ''}${where}</div>
+      <button class="btn-submit" onclick="washCheckResume()" style="background:#0ea5e9;color:#fff;margin:0 0 10px;width:100%;font-size:17px;padding:16px 8px">▶️ המשך מאיפה שעצרתי</button>
+      <button class="btn-submit" onclick="washCheckRestart()" style="background:var(--surface2);color:var(--text);margin:0;width:100%;font-size:16px;padding:14px 8px">🔄 התחל תהליך חדש</button></div>`;
+    return;
+  }
   const err = _washChkMsg ? `<div style="background:#fef2f2;border:2px solid #fca5a5;border-radius:12px;padding:10px 13px;font-size:13px;font-weight:800;color:#991b1b;margin-bottom:12px;line-height:1.6">${esc(_washChkMsg)}</div>` : '';
   const big = (color, label, handler, accept, multi) => `<label class="btn-submit wchk-drop" style="background:${color};color:#fff;margin:0;width:100%;text-align:center;cursor:pointer;display:block;font-size:17px;padding:18px 8px"
       ondragover="event.preventDefault()" ondrop="_washChkDrop(event,this)">${label}
@@ -2765,7 +2798,19 @@ function _washChkRender() {
   const diffMoney = a.gotSub != null ? _washChkRound(a.gotSub - a.expSub) : null;
   const sc = a.scan;
   const scanLine = `<div style="background:var(--surface2);border-radius:11px;padding:9px 13px;margin:8px 0;font-size:12.5px;font-weight:800;color:var(--muted);line-height:1.7">
-    📂 נסרקו ${sc.pages} עמודים: ${a.retN + sc.skipped} של החודש${sc.skipped ? ` (מהם ${sc.skipped} כפולים שלא חויבו, לא נכללו)` : ''}${sc.outside ? ` · ${sc.outside} של חודש אחר` : ''}${sc.repeats.length ? ` · ${sc.repeats.length} עמודים נוספים לרכב שכבר הוצלב` : ''}${sc.unknown.length ? ` · <span style="color:#dc2626">${sc.unknown.length} לא זוהו</span>` : ''}</div>` + (sc.unknown.length ? `<div style="font-size:12.5px;font-weight:800;color:#dc2626;margin:4px 0">❓ לא זוהו (מספרי עמוד בסריקה): ${sc.unknown.join(', ')} — בדוק אותם ידנית; ייתכן שהמספר לא ברור בסריקה או שהרכב לא בחשבון הפתוח.</div>` : '');
+    📂 נסרקו ${sc.pages} עמודים: ${a.retN + sc.skipped} של החודש${sc.skipped ? ` (מהם ${sc.skipped} כפולים שלא חויבו, לא נכללו)` : ''}${sc.outside ? ` · ${sc.outside} של חודש אחר` : ''}${sc.repeats.length ? ` · ${sc.repeats.length} עמודים נוספים לרכב שכבר הוצלב` : ''}${sc.unknown.length ? ` · <span style="color:#dc2626">${sc.unknown.length} לא זוהו</span>` : ''}</div>` ;
+  const dstr = d => d ? d.toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' }) : '';
+  const assign = sc.unknown.length ? `<div style="margin:6px 0 10px">` + sc.unknown.map(pg => {
+    const img = (_washRec.imgs || [])[pg - 1];
+    return `<div style="display:flex;align-items:center;gap:10px;border:2px solid #fca5a5;border-radius:12px;padding:8px 10px;margin-bottom:6px;background:var(--card)">
+      ${img ? `<img src="${img}" onclick="openLightbox(this.src)" style="width:64px;height:84px;object-fit:cover;object-position:top;border-radius:7px;border:1px solid var(--border);cursor:zoom-in;flex-shrink:0">` : ''}
+      <div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:900;margin-bottom:5px">עמוד ${pg} — לאיזה רכב הפתק?</div>
+      <select onchange="washCheckAssign(${pg}, this.value)" style="width:100%;padding:8px;border-radius:9px;border:2px solid var(--border);font-family:inherit;font-size:13px;font-weight:700">
+        <option value="">בחר רכב…</option>
+        ${a.notRetList.map(n => `<option value="${esc(n.id)}">${esc(n.plate || '(ללא מספר)')} · ${esc(n.type)} · ${dstr(n.d)} · ${esc(n.by)}</option>`).join('')}
+        <option value="-">לא שייך לחשבון (התעלם)</option>
+      </select></div></div>`;
+  }).join('') + `</div>` : '';
   const sums = `<div style="display:flex;justify-content:space-between;gap:8px;background:var(--surface2);border-radius:11px;padding:10px 13px;margin:8px 0;font-size:13px;font-weight:800;flex-wrap:wrap">
     <span>לפי הפתקים: ${m(a.expSub)}</span><span>בחשבונית: ${a.gotSub != null ? m(a.gotSub) : '—'}</span>
     <span style="color:${diffMoney ? '#dc2626' : '#16a34a'}">${diffMoney == null ? '' : diffMoney ? 'הפרש ' + (diffMoney > 0 ? '+' : '') + m(diffMoney) : 'ללא הפרש'}</span></div>`;
@@ -2778,7 +2823,7 @@ function _washChkRender() {
   box.innerHTML = '<div class="wchk-wrap">' + monthLine + `<div style="background:${head[1]};border:2px solid ${head[2]};border-radius:14px;padding:12px 15px">
       <div style="font-weight:900;font-size:21px;color:${head[0]}">${head[3]}</div>
       <div style="font-size:12.5px;font-weight:700;color:${head[0]};margin-top:2px">${head[4]}</div></div>` +
-    table + scanLine + sums + bullets(a.errors) + warnB(a.warns) + det + pay + back + '</div>';
+    table + scanLine + assign + sums + bullets(a.errors) + warnB(a.warns) + det + pay + back + '</div>';
 }
 
 // ממשיך לאותה חלונית אישור תשלום: רק מי שחזר אם הועלתה סריקה, אחרת הכל
