@@ -2635,18 +2635,52 @@ function _washChkAnalyze() {
   const outsideRet = outside.filter(n => rec.matched.has(n.id));
   const ret = ours.rows.filter(n => rec.matched.has(n.id));
   const notRet = ours.rows.filter(n => !rec.matched.has(n.id));
-  const retC = {};
-  for (const n of ret) { const t = n.type || 'ללא סוג'; retC[t] = (retC[t] || 0) + 1; }
   const invBy = {}, extras = [];
   for (const l of inv.lines) {
     if (l.type) { const b = invBy[l.type] || (invBy[l.type] = { qty: 0, total: 0, units: new Set() }); b.qty += l.qty; b.total += l.total; b.units.add(l.unit); }
     else extras.push(l);
   }
+  const errors = [], warns = [], details = [], rows = [];
+  /* פתק כפול = אותו רכב ואותו סוג בטווח של יומיים (שטיפה חוזרת אחרי שבוע
+     היא רגילה). זו בעיה רק אם החשבונית אכן חייבה על שניהם: כשיש יותר שורות
+     מהרכבים הייחודיים. פתק כפול שלא חויב פעמיים — מתעלמים. */
+  const byKey = {};
+  for (const n of ours.rows) {
+    const d = n.createdAt?.toDate ? n.createdAt.toDate().getTime() : null;
+    if (d == null) continue;
+    (byKey[_normPlate(n.plate) + '|' + (n.type || '')] = byKey[_normPlate(n.plate) + '|' + (n.type || '')] || []).push({ n, d });
+  }
+  const dupExtra = {}, dupPlates = {}, dupNotes = {}, skipIds = new Set();
+  for (const k of Object.keys(byKey)) {
+    const arr = byKey[k].sort((x, y) => x.d - y.d);
+    for (let i = 1; i < arr.length; i++) {
+      if (arr[i].d - arr[i - 1].d <= 2 * 86400000) {
+        const t = arr[i].n.type || '';
+        dupExtra[t] = (dupExtra[t] || 0) + 1;
+        (dupPlates[t] = dupPlates[t] || []).push(`${arr[i].n.plate} (${arr[i - 1].n.createdBy || ''} / ${arr[i].n.createdBy || ''})`);
+        (dupNotes[t] = dupNotes[t] || []).push(arr[i].n);
+      }
+    }
+  }
+  for (const t of Object.keys(dupExtra)) {
+    const ourN = ours.rows.filter(n => (n.type || '') === t).length;
+    const unique = ourN - dupExtra[t];
+    const billedTwice = Math.min(dupExtra[t], Math.max(0, (invBy[t] ? invBy[t].qty : 0) - unique));
+    // פתקים כפולים שלא חויבו פעמיים: לא נכללים בתשלום, כדי שיתאים לחשבונית
+    for (const dn of (dupNotes[t] || []).slice(0, dupExtra[t] - billedTwice)) skipIds.add(dn.id);
+    if (billedTwice > 0) {
+      const price = _WASH_PRICES[t] || 0;
+      errors.push(`חיוב כפול אפשרי — ${t}: ${billedTwice} רכבים חויבו פעמיים (בערך ${m(billedTwice * price)} + מע״מ)`);
+      details.push(`${t} — פתקים כפולים (עד יומיים): ${dupPlates[t].join(', ')}`);
+    }
+  }
+  const retC = {};
+  for (const n of ret) { if (skipIds.has(n.id)) continue; const t = n.type || 'ללא סוג'; retC[t] = (retC[t] || 0) + 1; }
   const types = [..._WASH_TYPES];
   for (const t of Object.keys(retC)) if (!types.includes(t)) types.push(t);
-  const errors = [], warns = [], details = [], rows = [];
   let priceBad = [];
-  let over = 0, overMoney = 0, under = 0;
+  let over = 0, overMoney = 0;
+  const underBy = {};
   for (const t of types) {
     const r = retC[t] || 0, b = invBy[t], q = b ? b.qty : 0, price = _WASH_PRICES[t];
     if (!r && !q) continue;
@@ -2656,14 +2690,13 @@ function _washChkAnalyze() {
       over += diff; overMoney += diff * (price || 0);
       const miss = notRet.filter(n => (n.type || '') === t).map(n => n.plate);
       if (miss.length) details.push(`${t} — הוצאו ולא חזרו: ${miss.join(', ')}`);
-    } else if (diff < 0) under += -diff;
+    } else if (diff < 0) underBy[t] = -diff;
     if (b) {
       if (b.units.size > 1 || (price != null && !b.units.has(price))) priceBad.push(`${t}: ${[...b.units].join('/')} ₪ במקום ${price} ₪`);
       if (R(b.total) !== R(b.qty * [...b.units][0])) errors.push(`${t}: הסכום בשורה לא שווה לכמות כפול מחיר`);
     }
   }
   if (over) errors.unshift(`חויבו ${over} רכבים יותר ממה שחזר מהשטיפה (בערך ${m(overMoney)} + מע״מ)`);
-  if (under) warns.push(`חזרו ${under} רכבים יותר ממה שחויב — התשלום יכלול אותם`);
   if (priceBad.length) errors.push('מחיר ליחידה שונה מהמחירון — ' + priceBad.join(' · '));
   for (const l of extras) warns.push(`פריט שאינו שטיפה בחשבונית: ${l.desc} (${m(l.total)})`);
   const lineSum = R(inv.lines.reduce((s, l) => s + l.total, 0));
@@ -2678,13 +2711,14 @@ function _washChkAnalyze() {
     if (inv.vat != null && Math.abs(inv.vat - R(after * _WASH_VAT)) > 0.011) errors.push(`המע״מ בחשבונית ${m(inv.vat)}, צריך להיות ${m(after * _WASH_VAT)}`);
     if (inv.vat != null && inv.grand != null && Math.abs(inv.grand - (after + inv.vat)) > 0.011) errors.push('הסה״כ לתשלום לא שווה לסכום + מע״מ');
   }
-  const seen = {}, dups = [];
-  for (const n of ours.rows) { const k = _normPlate(n.plate) + '|' + (n.createdAt?.toDate ? _washYmd(n.createdAt.toDate()) : ''); if (seen[k]) dups.push(n.plate); seen[k] = 1; }
-  if (dups.length) { warns.push(`${new Set(dups).size} רכבים הוצאו פעמיים באותו יום`); details.push('הוצאו פעמיים באותו יום: ' + [...new Set(dups)].join(', ')); }
+  let under = 0;
+  for (const t of Object.keys(underBy)) under += underBy[t];
+  if (under) warns.push(`חזרו ${under} רכבים יותר ממה שחויב — התשלום יכלול אותם`);
+  if (skipIds.size) details.push(`${skipIds.size} פתקים כפולים (עד יומיים) שלא חויבו פעמיים — לא נכללים בתשלום ונשארים בחשבון הפתוח; אפשר למחוק אותם מההיסטוריה`);
   if (notRet.length) details.push(`הוצאו בחודש ולא חזרו (נשארים בחשבון הפתוח): ${notRet.map(n => n.plate).join(', ')}`);
   if (outsideRet.length) warns.push(`${outsideRet.length} פתקים שחזרו הם מחוץ לחודש החשבונית — לא ייכללו בתשלום`);
   const verdict = errors.length ? 'bad' : (warns.length ? 'warn' : 'ok');
-  return { errors, warns, details, rows, verdict, inv, expSub, gotSub, extraSum, notRet: notRet.length, retN: ret.length, retIds: ret.map(n => n.id), per, monthN: ours.rows.length };
+  return { errors, warns, details, rows, verdict, inv, expSub, gotSub, extraSum, notRet: notRet.length, retN: ret.length, retIds: ret.filter(n => !skipIds.has(n.id)).map(n => n.id), per, monthN: ours.rows.length };
 }
 
 function _washChkRender() {
