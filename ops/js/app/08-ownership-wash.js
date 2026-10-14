@@ -2685,7 +2685,7 @@ function _washChkAnalyze() {
     const r = retC[t] || 0, b = invBy[t], q = b ? b.qty : 0, price = _WASH_PRICES[t];
     if (!r && !q) continue;
     const diff = q - r;
-    rows.push({ type: t, ret: r, inv: q, diff });
+    rows.push({ type: t, out: ours.rows.filter(n => (n.type || '') === t).length, ret: r, inv: q, diff });
     if (diff > 0) {
       over += diff; overMoney += diff * (price || 0);
       const miss = notRet.filter(n => (n.type || '') === t).map(n => n.plate);
@@ -2698,19 +2698,10 @@ function _washChkAnalyze() {
   }
   if (over) errors.unshift(`חויבו ${over} רכבים יותר ממה שחזר מהשטיפה (בערך ${m(overMoney)} + מע״מ)`);
   if (priceBad.length) errors.push('מחיר ליחידה שונה מהמחירון — ' + priceBad.join(' · '));
-  for (const l of extras) warns.push(`פריט שאינו שטיפה בחשבונית: ${l.desc} (${m(l.total)})`);
-  const lineSum = R(inv.lines.reduce((s, l) => s + l.total, 0));
-  const extraSum = R(extras.reduce((s, l) => s + l.total, 0));
+  // פריטים שאינם שטיפה (מגבים וכו') מתעלמים מהם לגמרי — בודקים רכבים בלבד
+  const extraSum = 0;
   const expSub = R(types.reduce((s, t) => s + (retC[t] || 0) * (_WASH_PRICES[t] || 0), 0));
-  const gotSub = inv.beforeVat != null ? R(inv.beforeVat - extraSum) : null;
-  if (inv.beforeVat == null) warns.push('לא זוהה סכום "ללא מע״מ" בחשבונית — הסכומים לא נבדקו');
-  else {
-    if (R(inv.beforeVat) !== lineSum) errors.push('סכום השורות בחשבונית שונה מהסה״כ שלה');
-    const after = inv.afterDiscount != null ? inv.afterDiscount : inv.beforeVat - (inv.discount || 0);
-    if (inv.discount) warns.push(`בחשבונית יש הנחה של ${m(inv.discount)}`);
-    if (inv.vat != null && Math.abs(inv.vat - R(after * _WASH_VAT)) > 0.011) errors.push(`המע״מ בחשבונית ${m(inv.vat)}, צריך להיות ${m(after * _WASH_VAT)}`);
-    if (inv.vat != null && inv.grand != null && Math.abs(inv.grand - (after + inv.vat)) > 0.011) errors.push('הסה״כ לתשלום לא שווה לסכום + מע״מ');
-  }
+  const gotSub = R(Object.keys(invBy).reduce((s, t) => s + invBy[t].total, 0));
   let under = 0;
   for (const t of Object.keys(underBy)) under += underBy[t];
   if (under) warns.push(`חזרו ${under} רכבים יותר ממה שחויב — התשלום יכלול אותם`);
@@ -2759,8 +2750,8 @@ function _washChkRender() {
   const th = 'padding:6px 8px;font-size:12px;font-weight:800;color:var(--muted);text-align:center';
   const td = 'padding:8px;font-size:14px;font-weight:900;text-align:center;border-top:1px solid var(--border)';
   const table = `<table style="width:100%;border-collapse:collapse;background:var(--card);border:2px solid var(--border);border-radius:12px;overflow:hidden;margin:10px 0">
-    <tr style="background:var(--surface2)"><td style="${th};text-align:right">סוג</td><td style="${th}">חזרו</td><td style="${th}">בחשבונית</td><td style="${th}">הפרש</td></tr>
-    ${a.rows.map(r => `<tr><td style="${td};text-align:right">${esc(r.type)}</td><td style="${td}">${r.ret}</td><td style="${td}">${r.inv}</td><td style="${td};color:${r.diff === 0 ? '#16a34a' : '#dc2626'}">${r.diff === 0 ? '✓' : (r.diff > 0 ? '+' : '') + r.diff}</td></tr>`).join('')}
+    <tr style="background:var(--surface2)"><td style="${th};text-align:right">סוג</td><td style="${th}">הוצאו</td><td style="${th}">חזרו</td><td style="${th}">בחשבונית</td><td style="${th}">הפרש</td></tr>
+    ${a.rows.map(r => `<tr><td style="${td};text-align:right">${esc(r.type)}</td><td style="${td}">${r.out}</td><td style="${td}">${r.ret}</td><td style="${td}">${r.inv}</td><td style="${td};color:${r.diff === 0 ? '#16a34a' : '#dc2626'}">${r.diff === 0 ? '✓' : (r.diff > 0 ? '+' : '') + r.diff}</td></tr>`).join('')}
   </table>`;
   const bullets = arr => arr.length ? arr.map(x => `<div style="font-size:13px;font-weight:800;color:#b91c1c;margin:5px 0;line-height:1.5">• ${esc(x)}</div>`).join('') : '';
   const warnB = arr => arr.length ? arr.map(x => `<div style="font-size:13px;font-weight:800;color:#b45309;margin:5px 0;line-height:1.5">• ${esc(x)}</div>`).join('') : '';
