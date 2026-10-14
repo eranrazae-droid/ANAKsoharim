@@ -3,7 +3,7 @@
    נפתח באותה שנייה גם כשהחיבור חלש. הוא מוגבל לכתובת wash.html
    ולכן אינו נוגע במערכת עצמה ואינו מושפע מעדכוניה.
    ברקע נמשכת גרסה טרייה לפעם הבאה. */
-const CACHE = 'wash-note-v1';
+const CACHE = 'wash-note-v2';
 const PAGE = 'wash.html';
 
 self.addEventListener('install', e => {
