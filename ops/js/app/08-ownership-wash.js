@@ -2827,7 +2827,7 @@ function _washChkAnalyze() {
   if (skipIds.size) details.push(`${skipIds.size} פתקים כפולים (עד יומיים) שלא חויבו פעמיים — לא נכללים בתשלום ונשארים בחשבון הפתוח; אפשר למחוק אותם מההיסטוריה`);
   if (notRet.length) details.push(`הוצאו בחודש ולא חזרו (נשארים בחשבון הפתוח): ${notRet.map(n => n.plate || `(ללא מספר · ${n.type || ''})`).join(', ')}`);
   if (outsideRet.length) warns.push(`${outsideRet.length} פתקים שחזרו הם מחוץ לחודש החשבונית — לא ייכללו בתשלום`);
-  const verdict = errors.length ? 'bad' : (warns.length ? 'warn' : 'ok');
+  const verdict = errors.length ? 'bad' : ((rec.unknown && rec.unknown.length) ? 'warn' : 'ok');
   return { errors, warns, details, rows, verdict, inv, expSub, gotSub, extraSum, notRet: notRet.length, retN: ret.length, tot: { out: totOut, ret: totRet, inv: totInv }, notRetList: notRet.map(n => ({ id: n.id, plate: n.plate || '', type: n.type || '', d: n.createdAt?.toDate ? n.createdAt.toDate() : null, by: n.createdBy || '' })), scan: { pages: rec.pages, matched: rec.matched.size, outside: outsideRet.length, skipped: skipIds.size, unknown: rec.unknown || [], repeats: rec.repeats || [] }, retIds: ret.filter(n => !skipIds.has(n.id)).map(n => n.id), per, monthN: ours.rows.length };
 }
 
@@ -2871,10 +2871,12 @@ function _washChkRender() {
   // שלב 3 — התוצאה, בקצרה
   const a = _washChkAnalyze();
   const m = _washMoney;
+  const overRows = a.rows.filter(r => r.diff > 0);
+  const overN0 = overRows.reduce((x, r) => x + r.diff, 0);
   const head = {
-    ok:   ['#166534', '#f0fdf4', '#86efac', '✅ הכל תקין', 'החשבונית תואמת לפתקים שחזרו.'],
-    warn: ['#92400e', '#fffbeb', '#fcd34d', '⚠️ תקין, עם הערות', 'כדאי להסתכל על ההערות לפני התשלום.'],
-    bad:  ['#991b1b', '#fef2f2', '#fca5a5', '❌ יש הפרשים', 'אל תשלם לפני בירור מול השטיפה.'],
+    ok:   ['#166534', '#f0fdf4', '#86efac', '✅ תקין', 'החשבונית לא חייבה אותך על יותר ממה שקיבלת פתקים.'],
+    warn: ['#92400e', '#fffbeb', '#fcd34d', '⚠️ יש עמודים שלא זוהו', 'שייך אותם לרכב כדי לקבל תוצאה מדויקת.'],
+    bad:  ['#991b1b', '#fef2f2', '#fca5a5', '❌ לא תקין', overN0 ? `חויבת על ${overN0} רכבים יותר ממה שקיבלת פתקים.` : 'יש הפרש — ראה בפירוט.'],
   }[a.verdict];
   const th = 'padding:6px 8px;font-size:12px;font-weight:800;color:var(--muted);text-align:center';
   const td = 'padding:8px;font-size:14px;font-weight:900;text-align:center;border-top:1px solid var(--border)';
@@ -2925,10 +2927,14 @@ function _washChkRender() {
     ? `<button class="btn-submit" onclick="washCheckPay()" style="background:#0d9488;color:#fff;width:100%;margin-top:12px;font-size:17px;padding:16px 8px">💳 סגור את התשלום (${a.retN} רכבים)</button>`
     : '';
   const monthLine = a.per ? `<div style="font-size:12.5px;font-weight:800;color:var(--muted);margin-bottom:8px">חשבונית לחודש ${String(a.per.month).padStart(2, '0')}/${a.per.year} · ${a.monthN} פתקים נשלחו בחודש</div>` : '';
+  const overTxt = overRows.length ? `<div style="font-size:14px;font-weight:900;color:#b91c1c;margin:10px 2px;line-height:1.7">${overRows.map(r => `${esc(r.type)}: חויבת על ${r.diff} יותר`).join('<br>')}${diffMoney > 0 ? `<br>בערך ${m(diffMoney)} + מע״מ` : ''}</div>` : '';
+  const dblTxt = a.errors.filter(e => e.startsWith('חיוב כפול') || e.startsWith('מחיר')).map(e => `<div style="font-size:13px;font-weight:800;color:#b91c1c;margin:5px 2px;line-height:1.5">• ${esc(e)}</div>`).join('');
   box.innerHTML = '<div class="wchk-wrap">' + monthLine + `<div style="background:${head[1]};border:2px solid ${head[2]};border-radius:14px;padding:12px 15px">
-      <div style="font-weight:900;font-size:21px;color:${head[0]}">${head[3]}</div>
-      <div style="font-size:12.5px;font-weight:700;color:${head[0]};margin-top:2px">${head[4]}</div></div>` +
-    '<div style="margin-top:10px">' + checks + '</div>' + table + legend + scanLine + assign + sums + bullets(a.errors) + warnB(a.warns) + det + pay + back + '</div>';
+      <div style="font-weight:900;font-size:22px;color:${head[0]}">${head[3]}</div>
+      <div style="font-size:13px;font-weight:700;color:${head[0]};margin-top:2px">${head[4]}</div></div>` +
+    overTxt + dblTxt + assign + pay +
+    `<details style="margin-top:14px"><summary style="cursor:pointer;font-size:13px;font-weight:900;color:var(--muted)">פירוט</summary><div style="margin-top:8px">` +
+    '<div>' + checks + '</div>' + table + legend + scanLine + sums + bullets(a.errors) + warnB(a.warns) + det + `</div></details>` + back + '</div>';
 }
 
 // ממשיך לאותה חלונית אישור תשלום: רק מי שחזר אם הועלתה סריקה, אחרת הכל
