@@ -2067,7 +2067,7 @@ async function washPayConfirm() {
       catch (e) { failed++; }
     }
     closeModal('modal-wash-pay-confirm');
-    _washPayOnly = null; _washRec = null; _washChk = null; _washPayRest = [];
+    _washPayOnly = null; _washRec = null; _washChk = null; _washPayRest = []; _wckClear();
     _washRenderSummary();
     showToast(failed
       ? `⚠️ התשלום נשמר, אך ${failed} פתקים לא סומנו והם נשארו בחשבון הפתוח`
@@ -2611,8 +2611,44 @@ window.addEventListener('resize', () => { try { if (document.getElementById('scr
    אינה משנה שום נתון — רק קוראת.                                   */
 let _washChk = null;   // { inv, rec }
 
-function openWashCheck() {
+/* מצב הבדיקה נשמר במכשיר (IndexedDB), כך שרענון או סגירה של האתר באמצע
+   לא מוחקים אותו: החשבונית שנקראה, הפתקים שנסרקו והשיוכים הידניים. */
+const _wckOpen = () => new Promise((res, rej) => {
+  const r = indexedDB.open('anak-wash-check', 1);
+  r.onupgradeneeded = () => r.result.createObjectStore('s');
+  r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+});
+async function _wckSave() {
+  try {
+    const rec = _washRec && _washRec.matched ? { pages: _washRec.pages, matched: [..._washRec.matched.entries()], unknown: _washRec.unknown || [], repeats: _washRec.repeats || [], byText: _washRec.byText || 0, byOcr: _washRec.byOcr || 0, imgs: _washRec.imgs || [] } : null;
+    const inv = _washChk && _washChk.inv ? _washChk.inv : null;
+    if (!inv && !rec) return _wckClear();
+    const db = await _wckOpen();
+    await new Promise((res, rej) => { const tx = db.transaction('s', 'readwrite'); tx.objectStore('s').put({ inv, rec, at: Date.now() }, 'cur'); tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
+    db.close();
+  } catch (e) { console.warn('wash check save', e); }
+}
+async function _wckClear() {
+  try {
+    const db = await _wckOpen();
+    await new Promise(res => { const tx = db.transaction('s', 'readwrite'); tx.objectStore('s').delete('cur'); tx.oncomplete = res; tx.onerror = res; });
+    db.close();
+  } catch (e) {}
+}
+async function _wckRestore() {
+  try {
+    const db = await _wckOpen();
+    const st = await new Promise(res => { const r = db.transaction('s').objectStore('s').get('cur'); r.onsuccess = () => res(r.result); r.onerror = () => res(null); });
+    db.close();
+    if (!st || Date.now() - (st.at || 0) > 30 * 86400000) return;
+    if (st.inv) _washChk = { inv: st.inv };
+    if (st.rec) _washRec = { ...st.rec, matched: new Map(st.rec.matched) };
+  } catch (e) {}
+}
+
+async function openWashCheck() {
   if (currentUser?.role !== 'manager') return;
+  if (!(_washChk && _washChk.inv) && !(_washRec && _washRec.matched)) await _wckRestore();
   const { total } = _washSummaryData();
   if (!total) return showToast('אין פתקים פתוחים לבדיקה');
   _washChkMsg = '';
@@ -2718,6 +2754,7 @@ async function washCheckInvoice(input) {
     if (inv.noText || !inv.lines || !inv.lines.length) { _washChk = null; _washChkMsg = 'לא הצלחתי לקרוא את החשבונית. יש להעלות את קובץ ה-PDF המקורי שהתקבל מהשטיפה (לא צילום או סריקה).'; }
     else _washChk = { inv };
   } catch (e) { console.error(e); _washChk = null; _washChkMsg = 'לא הצלחתי לקרוא את הקובץ. נסה שוב עם ה-PDF המקורי.'; }
+  _wckSave();
   _washChkRender();
 }
 window.washCheckInvoice = washCheckInvoice;
@@ -2734,6 +2771,7 @@ async function washCheckScan(input) {
   try { await washReconcileFiles(input); } catch (e) { console.error(e); }
   window._washProg = null;
   if (!_washRec || !_washRec.matched) _washChkMsg = 'לא הצלחתי לקרוא את הפתקים. נסה שוב.';
+  _wckSave();
   _washChkRender();
 }
 window.washCheckScan = washCheckScan;
@@ -2756,17 +2794,19 @@ function washCheckAssign(pg, noteId) {
     if (n) _washRec.matched.set(noteId, _normPlate(n.plate));
   }
   _washRec.unknown = (_washRec.unknown || []).filter(x => x !== pg);
+  _wckSave();
   _washChkRender();
 }
 window.washCheckAssign = washCheckAssign;
 
 function washCheckResume() { _washChkAsk = false; _washChkRender(); }
-function washCheckRestart() { _washChk = null; _washRec = null; _washChkMsg = ''; _washChkAsk = false; _washChkRender(); }
+function washCheckRestart() { _washChk = null; _washRec = null; _washChkMsg = ''; _washChkAsk = false; _wckClear(); _washChkRender(); }
 window.washCheckResume = washCheckResume; window.washCheckRestart = washCheckRestart;
 
 function washCheckBack() {
   if (_washRec) _washRec = null; else _washChk = null;
   _washChkMsg = '';
+  _wckSave();
   _washChkRender();
 }
 window.washCheckBack = washCheckBack;
