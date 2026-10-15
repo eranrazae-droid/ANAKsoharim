@@ -2847,6 +2847,8 @@ function _washChkAnalyze() {
     if (l.type) { const b = invBy[l.type] || (invBy[l.type] = { qty: 0, total: 0, units: new Set() }); b.qty += l.qty; b.total += l.total; b.units.add(l.unit); }
     else extras.push(l);
   }
+  // המחיר ליחידה לכל סוג נלקח מהחשבונית עצמה (המחירים של השטיפה קבועים), ורק סוג שאינו בחשבונית מתומחר במחירון
+  const priceOf = t => (invBy[t] && invBy[t].units.size ? [...invBy[t].units][0] : _WASH_PRICES[t]) || 0;
   const errors = [], warns = [], details = [], rows = [], dbl = [];
   /* פתק כפול = אותו רכב ואותו סוג בטווח של יומיים (שטיפה חוזרת אחרי שבוע
      היא רגילה). זו בעיה רק אם החשבונית אכן חייבה על שניהם: כשיש יותר שורות
@@ -2877,21 +2879,20 @@ function _washChkAnalyze() {
     // פתקים כפולים שלא חויבו פעמיים: לא נכללים בתשלום, כדי שיתאים לחשבונית
     for (const dn of (dupNotes[t] || []).slice(0, dupExtra[t] - billedTwice)) skipIds.add(dn.id);
     if (billedTwice > 0) {
-      const price = _WASH_PRICES[t] || 0;
+      const price = priceOf(t);
       errors.push(`חיוב כפול אפשרי — ${t}: ${billedTwice} רכבים חויבו פעמיים (בערך ${m(billedTwice * price)} + מע״מ)`);
       details.push(`${t} — פתקים כפולים (עד יומיים): ${dupPlates[t].join(', ')}`);
-      dbl.push(...(dupInfo[t] || []).slice(0, billedTwice).map(x => ({ ...x, type: t })));
+      dbl.push(...(dupInfo[t] || []).slice(0, billedTwice).map(x => ({ ...x, type: t, price: priceOf(t) })));
     }
   }
   const retC = {};
   for (const n of ret) { if (skipIds.has(n.id)) continue; const t = n.type || 'ללא סוג'; retC[t] = (retC[t] || 0) + 1; }
   const types = [..._WASH_TYPES];
   for (const t of Object.keys(retC)) if (!types.includes(t)) types.push(t);
-  let priceBad = [];
   let over = 0, overMoney = 0;
   const underBy = {};
   for (const t of types) {
-    const r = retC[t] || 0, b = invBy[t], q = b ? b.qty : 0, price = _WASH_PRICES[t];
+    const r = retC[t] || 0, b = invBy[t], q = b ? b.qty : 0, price = priceOf(t);
     if (!r && !q) continue;
     const diff = q - r;
     const out = ours.rows.filter(n => (n.type || '') === t && !skipIds.has(n.id)).length;
@@ -2902,15 +2903,13 @@ function _washChkAnalyze() {
       if (miss.length) details.push(`${t} — הוצאו ולא חזרו: ${miss.join(', ')}`);
     } else if (diff < 0) underBy[t] = -diff;
     if (b) {
-      if (b.units.size > 1 || (price != null && !b.units.has(price))) priceBad.push(`${t}: ${[...b.units].join('/')} ₪ במקום ${price} ₪`);
       if (R(b.total) !== R(b.qty * [...b.units][0])) errors.push(`${t}: הסכום בשורה לא שווה לכמות כפול מחיר`);
     }
   }
   if (over) errors.unshift(`חויבת על ${over} רכבים יותר ממה שקיבלת פתקים (בערך ${m(overMoney)} + מע״מ)`);
-  if (priceBad.length) errors.push('מחיר ליחידה שונה מהמחירון — ' + priceBad.join(' · '));
   // פריטים שאינם שטיפה (מגבים וכו') מתעלמים מהם לגמרי — בודקים רכבים בלבד
   const extraSum = 0;
-  const expSub = R(types.reduce((s, t) => s + (retC[t] || 0) * (_WASH_PRICES[t] || 0), 0));
+  const expSub = R(types.reduce((s, t) => s + (retC[t] || 0) * priceOf(t), 0));
   const gotSub = R(Object.keys(invBy).reduce((s, t) => s + invBy[t].total, 0));
   if (rec.unknown && rec.unknown.length) warns.push(`${rec.unknown.length} עמודים בסריקה לא זוהו — הרכבים שלהם לא נספרו`);
   const totOut = rows.reduce((x, r) => x + r.out, 0), totRet = rows.reduce((x, r) => x + r.ret, 0), totInv = rows.reduce((x, r) => x + r.inv, 0);
@@ -3032,7 +3031,7 @@ function _washChkRender() {
   const overTxt = overRows.length ? `<div style="font-size:14px;font-weight:900;color:#b91c1c;margin:10px 2px;line-height:1.7">${overRows.map(r => `${esc(r.type)}: חויבת על ${r.diff} יותר`).join('<br>')}${diffMoney > 0 ? `<br>בערך ${m(diffMoney)} + מע״מ` : ''}</div>` : '';
   const gapTxt = ms => ms < 3600000 ? `${Math.max(1, Math.round(ms / 60000))} דקות` : ms < 86400000 * 1.5 ? `${Math.round(ms / 3600000)} שעות` : `${Math.round(ms / 86400000)} ימים`;
   const dblCars = a.dbl.length ? `<div style="background:#fef2f2;border:2px solid #fca5a5;border-radius:12px;padding:10px 13px;margin:8px 0">
-    <div style="font-size:13px;font-weight:900;color:#991b1b;margin-bottom:6px">🚗 רכבים שייתכן שחויבו פעמיים (בערך ${m(a.dbl.reduce((x, d) => x + (_WASH_PRICES[d.type] || 0), 0))} + מע״מ):</div>` +
+    <div style="font-size:13px;font-weight:900;color:#991b1b;margin-bottom:6px">🚗 רכבים שייתכן שחויבו פעמיים (בערך ${m(a.dbl.reduce((x, d) => x + (d.price || 0), 0))} + מע״מ):</div>` +
     a.dbl.map(x => `<div style="font-size:14px;font-weight:900;margin:4px 0;color:#111">${esc(_washPlateFmt(x.plate) || '(ללא מספר)')} <span style="font-size:12px;font-weight:700;color:var(--muted)">· ${esc(x.type)} · פתק של ${esc(x.by1)}${x.by2 && x.by2 !== x.by1 ? ' ו' + esc(x.by2) : ' פעמיים'} בהפרש ${gapTxt(x.gap)}</span></div>`).join('') + `</div>` : '';
   const dblTxt = a.errors.filter(e => e.startsWith('מחיר')).map(e => `<div style="font-size:13px;font-weight:800;color:#b91c1c;margin:5px 2px;line-height:1.5">• ${esc(e)}</div>`).join('');
   box.innerHTML = '<div class="wchk-wrap">' + monthLine + `<div style="background:${head[1]};border:2px solid ${head[2]};border-radius:14px;padding:12px 15px">
