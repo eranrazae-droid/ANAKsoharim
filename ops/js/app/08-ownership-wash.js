@@ -1983,6 +1983,7 @@ function _washPaySelection() {
            fromV: days[0] ? _washYmd(days[0]) : '', toV: days[days.length - 1] ? _washYmd(days[days.length - 1]) : '' };
 }
 
+let _washPayInv = null;   // חשבונית השטיפה שלפיה משלמים (כשמגיעים מבדיקת החשבונית)
 let _washPayRest = [];   // פתקי החודש שלא שולמו ויועברו לארכיון יחד עם התשלום
 function washMarkPaid(only) {
   if (currentUser?.role !== 'manager') return;
@@ -2005,9 +2006,21 @@ function washMarkPaid(only) {
       <td colspan="3" style="padding:${strong ? '10px' : '6px'} 10px;font-weight:${strong ? 900 : 800};font-size:${strong ? 15 : 13.5}px;color:${strong ? 'var(--text)' : 'var(--muted)'};${strong ? 'border-top:2px solid var(--border)' : ''}">${label}</td>
       <td style="padding:${strong ? '10px' : '6px'} 10px;text-align:left;font-weight:900;font-size:${strong ? 19 : 13.5}px;white-space:nowrap;${strong ? 'border-top:2px solid var(--border)' : ''}">${val}</td>
     </tr>`;
+  // כשמשלמים לפי חשבונית — הסכומים הם אלה שבחשבונית, שורה אחר שורה
+  const I = _washPayInv;
+  const invItems = I ? I.lines.map(l => `<tr>
+      <td style="padding:8px 10px;border-bottom:1px solid var(--border);font-weight:900;font-size:15px;white-space:nowrap">${l.qty}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid var(--border);font-weight:800;font-size:14px">${esc(l.type || l.desc)}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid var(--border);font-size:13px;color:var(--muted);font-weight:700;text-align:center;white-space:nowrap">${l.unit} ₪</td>
+      <td style="padding:8px 10px;border-bottom:1px solid var(--border);font-weight:900;font-size:14px;text-align:left;white-space:nowrap">${_washMoney(l.total)}</td></tr>`).join('') : '';
+  const m2 = n => Number(n).toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ₪';
+  const invFoot = I ? foot('סה״כ ללא מע״מ', m2(I.beforeVat != null ? I.beforeVat : I.lines.reduce((x, l) => x + l.total, 0))) +
+    (I.discount ? foot('הנחה', '-' + m2(I.discount)) : '') +
+    foot('מע״מ 18%', m2(I.vat != null ? I.vat : 0)) +
+    foot('סה״כ לתשלום', m2(I.grand != null ? I.grand : 0), true) : '';
   if (box) box.innerHTML = `
     <div style="font-size:13.5px;font-weight:700;color:var(--muted);margin-bottom:12px">
-      ${_washPayOnly ? 'תשלום על הרכבים שהפתק שלהם חזר מהשטיפה. השאר נשארים בחשבון הפתוח. ' : ''}הפתקים יעברו לארכיון התשלומים ויֵצאו מהחשבון הפתוח. שום פתק לא יימחק.</div>
+      ${I ? `הסכומים זהים לחשבונית ${esc(I.number || '')} של השטיפה. ${total} רכבים לפי הפתקים עוברים לארכיון. ` : ''}${_washPayOnly && !I ? 'תשלום על הרכבים שהפתק שלהם חזר מהשטיפה. השאר נשארים בחשבון הפתוח. ' : ''}הפתקים יעברו לארכיון התשלומים ויֵצאו מהחשבון הפתוח. שום פתק לא יימחק.</div>
     <div style="border:2px solid var(--border);border-radius:13px;overflow:hidden;margin-bottom:12px">
       <table style="width:100%;border-collapse:collapse;background:var(--card)">
         <tr style="background:var(--surface2)">
@@ -2016,10 +2029,8 @@ function washMarkPaid(only) {
           <td style="padding:7px 10px;font-size:11.5px;font-weight:800;color:var(--muted);text-align:center">ליחידה</td>
           <td style="padding:7px 10px;font-size:11.5px;font-weight:800;color:var(--muted);text-align:left">סה״כ</td>
         </tr>
-        ${items}
-        ${foot(`סה״כ ללא מע״מ · ${total} רכבים`, _washMoney(subtotal))}
-        ${foot('מע״מ 18%', _washMoney(vat))}
-        ${foot('סה״כ לתשלום', _washMoney(grand), true)}
+        ${I ? invItems : items}
+        ${I ? invFoot : foot(`סה״כ ללא מע״מ · ${total} רכבים`, _washMoney(subtotal)) + foot('מע״מ 18%', _washMoney(vat)) + foot('סה״כ לתשלום', _washMoney(grand), true)}
       </table>
     </div>
     ${_washPayRest.length ? `<div style="background:#eff6ff;border:2px solid #93c5fd;border-radius:11px;padding:9px 12px;font-size:12.5px;font-weight:700;color:#1e40af;margin-bottom:12px">🗄️ ${_washPayRest.length} פתקים נוספים של החודש שלא שולמו (לא חזרו או כפולים) יועברו גם הם לארכיון.</div>` : ''}
@@ -2048,11 +2059,15 @@ async function washPayConfirm() {
     maker: n.maker || '', model: n.model || '', year: n.year || '', color: n.color || '',
   }));
   try {
+    const I = _washPayInv;
+    const invBy = I ? I.lines.map(l => ({ type: l.type || l.desc, qty: l.qty, unit: l.unit, sum: l.total })) : null;
+    const invSub = I ? (I.beforeVat != null ? I.beforeVat : I.lines.reduce((x, l) => x + l.total, 0)) : 0;
     const ref = await _addDoc(_colRef('wash_payments'), {
       paidAt: _serverTs(), paidBy: currentUser.name,
       from: fromV, to: toV, count: total,
-      subtotal, vat, total: subtotal + vat,
-      byType, cars, hasDoc: false,
+      ...(I ? { subtotal: invSub, vat: I.vat != null ? I.vat : 0, total: I.grand != null ? I.grand : invSub + (I.vat || 0), invoiceNumber: I.number || '', invoiceMonth: I.period ? `${I.period.year}-${String(I.period.month).padStart(2, '0')}` : '' }
+         : { subtotal, vat, total: subtotal + vat }),
+      byType: invBy || byType, cars, hasDoc: false,
       ...(_washPayRest.length ? { closedUnpaid: _washPayRest.length, restCars: _washPayRest.map(n => ({ plate: n.plate || '', type: n.type || '', date: n.createdAt?.toDate ? _washYmd(n.createdAt.toDate()) : '' })) } : {}),
     });
     // סימון הפתקים רק אחרי שרשומת התשלום נשמרה בהצלחה
@@ -2067,7 +2082,7 @@ async function washPayConfirm() {
       catch (e) { failed++; }
     }
     closeModal('modal-wash-pay-confirm');
-    _washPayOnly = null; _washRec = null; _washChk = null; _washPayRest = []; _wckClear();
+    _washPayOnly = null; _washRec = null; _washChk = null; _washPayRest = []; _washPayInv = null; _wckClear();
     _washRenderSummary();
     showToast(failed
       ? `⚠️ התשלום נשמר, אך ${failed} פתקים לא סומנו והם נשארו בחשבון הפתוח`
@@ -2080,7 +2095,7 @@ async function washPayConfirm() {
 window.washPayConfirm = washPayConfirm;
 
 // ביטול מחזיר את הבחירה למצב הרגיל — החשבון הפתוח כולו
-function washPayCancel() { _washPayOnly = null; _washPayRest = []; closeModal('modal-wash-pay-confirm'); }
+function washPayCancel() { _washPayOnly = null; _washPayRest = []; _washPayInv = null; closeModal('modal-wash-pay-confirm'); }
 window.washPayCancel = washPayCancel;
 
 function openWashPayHub() {
@@ -3025,6 +3040,7 @@ function washCheckPay() {
   let ids = null;
   try { if (_washChk && _washChk.inv && _washRec && _washRec.matched) ids = new Set(_washChkAnalyze().retIds); } catch (e) {}
   _washPayRest = [];
+  _washPayInv = _washChk && _washChk.inv ? _washChk.inv : null;
   try {
     const per = _washChk && _washChk.inv && _washChk.inv.period;
     if (per) {
