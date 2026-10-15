@@ -2884,12 +2884,13 @@ function _washChkRender() {
     <tr style="background:var(--surface2)"><td style="${th};text-align:right">סוג</td><td style="${th}">במערכת</td><td style="${th}">פתקים</td><td style="${th}">חשבונית</td><td style="${th}">מצב</td></tr>
     ${a.rows.map(r => {
       const parts = [];
-      if (r.diff) parts.push('חשבונית ' + sg(r.diff));
-      if (r.sysDiff) parts.push('מערכת ' + sg(r.sysDiff));
+      if (r.diff) parts.push(`בחשבונית ${Math.abs(r.diff)} ${r.diff > 0 ? 'יותר' : 'פחות'}`);
+      if (r.sysDiff) parts.push(`במערכת ${Math.abs(r.sysDiff)} ${r.sysDiff > 0 ? 'יותר' : 'פחות'}`);
       return `<tr><td style="${td};text-align:right">${esc(r.type)}</td><td style="${td}">${r.out}</td><td style="${td}">${r.ret}</td><td style="${td}">${r.inv}</td><td style="${td};font-size:12px;color:${parts.length ? '#dc2626' : '#16a34a'}">${parts.length ? parts.join('<br>') : '✓'}</td></tr>`;
     }).join('')}
     <tr style="background:var(--surface2)"><td style="${td};text-align:right">סה״כ</td><td style="${td}">${a.tot.out}</td><td style="${td}">${a.tot.ret}</td><td style="${td}">${a.tot.inv}</td><td style="${td}"></td></tr>
   </table>`;
+  const legend = '<div style="font-size:11.5px;font-weight:700;color:var(--muted);margin:-4px 0 8px">ההשוואה היא מול עמודת "פתקים" — מה שהתקבל מהשטיפה.</div>';
   const chk = (ok, text) => `<div style="display:flex;align-items:center;gap:8px;background:${ok ? '#f0fdf4' : '#fef2f2'};border:2px solid ${ok ? '#86efac' : '#fca5a5'};border-radius:11px;padding:9px 12px;margin-bottom:6px;font-size:13.5px;font-weight:900;color:${ok ? '#166534' : '#991b1b'}">
       <span style="font-size:18px">${ok ? '✅' : '❌'}</span><span>${text}</span></div>`;
   const checks = chk(a.tot.inv === a.tot.ret && a.rows.every(r => !r.diff),
@@ -2926,7 +2927,7 @@ function _washChkRender() {
   box.innerHTML = '<div class="wchk-wrap">' + monthLine + `<div style="background:${head[1]};border:2px solid ${head[2]};border-radius:14px;padding:12px 15px">
       <div style="font-weight:900;font-size:21px;color:${head[0]}">${head[3]}</div>
       <div style="font-size:12.5px;font-weight:700;color:${head[0]};margin-top:2px">${head[4]}</div></div>` +
-    '<div style="margin-top:10px">' + checks + '</div>' + table + scanLine + assign + sums + bullets(a.errors) + warnB(a.warns) + det + pay + back + '</div>';
+    '<div style="margin-top:10px">' + checks + '</div>' + table + legend + scanLine + assign + sums + bullets(a.errors) + warnB(a.warns) + det + pay + back + '</div>';
 }
 
 // ממשיך לאותה חלונית אישור תשלום: רק מי שחזר אם הועלתה סריקה, אחרת הכל
