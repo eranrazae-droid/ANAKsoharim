@@ -1994,6 +1994,8 @@ let _washPayInv = null;   // חשבונית השטיפה שלפיה משלמים
 let _washPayRest = [];   // פתקי החודש שלא שולמו ויועברו לארכיון יחד עם התשלום
 function washMarkPaid(only) {
   if (currentUser?.role !== 'manager') return;
+  // אין מחירון: סוגרים תשלום רק לפי חשבונית (תשלומים → התחלת תהליך תשלום)
+  if (!_washPayInv && !_washHasPrices()) return showToast('סגירת תשלום נעשית דרך "תשלומים" ← "התחלת תהליך תשלום", לפי החשבונית', 6000);
   _washPayOnly = only || null;
   const { total, counts, unknown, subtotal, vat, grand } = _washPaySelection();
   if (!total) return showToast('אין פתקים פתוחים');
