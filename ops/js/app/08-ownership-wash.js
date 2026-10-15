@@ -2812,7 +2812,7 @@ function _washChkAnalyze() {
       if (R(b.total) !== R(b.qty * [...b.units][0])) errors.push(`${t}: הסכום בשורה לא שווה לכמות כפול מחיר`);
     }
   }
-  if (over) errors.unshift(`חויבו ${over} רכבים יותר ממה שחזר מהשטיפה (בערך ${m(overMoney)} + מע״מ)`);
+  if (over) errors.unshift(`חויבת על ${over} רכבים יותר ממה שקיבלת פתקים (בערך ${m(overMoney)} + מע״מ)`);
   if (priceBad.length) errors.push('מחיר ליחידה שונה מהמחירון — ' + priceBad.join(' · '));
   // פריטים שאינם שטיפה (מגבים וכו') מתעלמים מהם לגמרי — בודקים רכבים בלבד
   const extraSum = 0;
@@ -2824,7 +2824,6 @@ function _washChkAnalyze() {
   else if (totRet > totOut) warns.push(`התקבלו ${totRet} פתקים, ובמערכת הוצאו ${totOut} — ${totRet - totOut} פתקים שאינם במערכת`);
   let under = 0;
   for (const t of Object.keys(underBy)) under += underBy[t];
-  if (under) warns.push(`חזרו ${under} רכבים יותר ממה שחויב — התשלום יכלול אותם`);
   if (skipIds.size) details.push(`${skipIds.size} פתקים כפולים (עד יומיים) שלא חויבו פעמיים — לא נכללים בתשלום ונשארים בחשבון הפתוח; אפשר למחוק אותם מההיסטוריה`);
   if (notRet.length) details.push(`הוצאו בחודש ולא חזרו (נשארים בחשבון הפתוח): ${notRet.map(n => n.plate || `(ללא מספר · ${n.type || ''})`).join(', ')}`);
   if (outsideRet.length) warns.push(`${outsideRet.length} פתקים שחזרו הם מחוץ לחודש החשבונית — לא ייכללו בתשלום`);
@@ -2884,7 +2883,7 @@ function _washChkRender() {
     <tr style="background:var(--surface2)"><td style="${th};text-align:right">סוג</td><td style="${th}">במערכת</td><td style="${th}">פתקים</td><td style="${th}">חשבונית</td><td style="${th}">מצב</td></tr>
     ${a.rows.map(r => {
       const parts = [];
-      if (r.diff) parts.push(`בחשבונית ${Math.abs(r.diff)} ${r.diff > 0 ? 'יותר' : 'פחות'}`);
+      if (r.diff > 0) parts.push(`חויבת על ${r.diff} יותר`);
       if (r.sysDiff) parts.push(`במערכת ${Math.abs(r.sysDiff)} ${r.sysDiff > 0 ? 'יותר' : 'פחות'}`);
       return `<tr><td style="${td};text-align:right">${esc(r.type)}</td><td style="${td}">${r.out}</td><td style="${td}">${r.ret}</td><td style="${td}">${r.inv}</td><td style="${td};font-size:12px;color:${parts.length ? '#dc2626' : '#16a34a'}">${parts.length ? parts.join('<br>') : '✓'}</td></tr>`;
     }).join('')}
@@ -2893,8 +2892,10 @@ function _washChkRender() {
   const legend = '<div style="font-size:11.5px;font-weight:700;color:var(--muted);margin:-4px 0 8px">ההשוואה היא מול עמודת "פתקים" — מה שהתקבל מהשטיפה.</div>';
   const chk = (ok, text) => `<div style="display:flex;align-items:center;gap:8px;background:${ok ? '#f0fdf4' : '#fef2f2'};border:2px solid ${ok ? '#86efac' : '#fca5a5'};border-radius:11px;padding:9px 12px;margin-bottom:6px;font-size:13.5px;font-weight:900;color:${ok ? '#166534' : '#991b1b'}">
       <span style="font-size:18px">${ok ? '✅' : '❌'}</span><span>${text}</span></div>`;
-  const checks = chk(a.tot.inv === a.tot.ret && a.rows.every(r => !r.diff),
-      a.tot.inv === a.tot.ret && a.rows.every(r => !r.diff) ? `החשבונית זהה לפתקים שהתקבלו (${a.tot.inv})` : `החשבונית (${a.tot.inv}) לא זהה לפתקים שהתקבלו (${a.tot.ret})`) +
+  const invOk = a.rows.every(r => r.diff <= 0);
+  const overN = a.rows.reduce((x, r) => x + Math.max(0, r.diff), 0);
+  const checks = chk(invOk,
+      invOk ? `החשבונית לא חייבה יותר מהפתקים שהתקבלו (${a.tot.inv} מתוך ${a.tot.ret})` : `חויבת על ${overN} רכבים יותר מהפתקים שהתקבלו`) +
     chk(a.tot.out === a.tot.ret && a.rows.every(r => !r.sysDiff),
       a.tot.out === a.tot.ret && a.rows.every(r => !r.sysDiff) ? `הפתקים שהתקבלו זהים למה שהוצא במערכת (${a.tot.ret})` : `הפתקים שהתקבלו (${a.tot.ret}) לא זהים למה שהוצא במערכת (${a.tot.out})`);
   const bullets = arr => arr.length ? arr.map(x => `<div style="font-size:13px;font-weight:800;color:#b91c1c;margin:5px 0;line-height:1.5">• ${esc(x)}</div>`).join('') : '';
@@ -2917,7 +2918,7 @@ function _washChkRender() {
   }).join('') + `</div>` : '';
   const sums = `<div style="display:flex;justify-content:space-between;gap:8px;background:var(--surface2);border-radius:11px;padding:10px 13px;margin:8px 0;font-size:13px;font-weight:800;flex-wrap:wrap">
     <span>לפי הפתקים: ${m(a.expSub)}</span><span>בחשבונית: ${a.gotSub != null ? m(a.gotSub) : '—'}</span>
-    <span style="color:${diffMoney ? '#dc2626' : '#16a34a'}">${diffMoney == null ? '' : diffMoney ? 'הפרש ' + (diffMoney > 0 ? '+' : '') + m(diffMoney) : 'ללא הפרש'}</span></div>`;
+    <span style="color:${diffMoney > 0 ? '#dc2626' : '#16a34a'}">${diffMoney == null ? '' : diffMoney > 0 ? 'חויבת ב-' + m(diffMoney) + ' יותר' : diffMoney < 0 ? 'החשבונית נמוכה ב-' + m(-diffMoney) : 'ללא הפרש'}</span></div>`;
   const det = a.details.length ? `<details style="margin:8px 0;font-size:12.5px;font-weight:700;color:var(--muted)"><summary style="cursor:pointer;font-weight:900">פירוט רכבים</summary>${
     a.details.map(x => `<div style="margin-top:6px;line-height:1.6">${esc(x)}</div>`).join('')}</details>` : '';
   const pay = a.verdict !== 'bad'
