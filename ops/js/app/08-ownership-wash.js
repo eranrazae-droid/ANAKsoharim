@@ -2862,8 +2862,9 @@ function _washChkAnalyze() {
   /* פתק כפול = אותו רכב ואותו סוג בטווח של יומיים (שטיפה חוזרת אחרי שבוע
      היא רגילה). זו בעיה רק אם החשבונית אכן חייבה על שניהם: כשיש יותר שורות
      מהרכבים הייחודיים. פתק כפול שלא חויב פעמיים — מתעלמים. */
+  // כפילות נבחנת רק בין הפתקים שחזרו מהשטיפה: כפילות במערכת בלבד אינה כפילות
   const byKey = {};
-  for (const n of ours.rows) {
+  for (const n of ret) {
     const d = n.createdAt?.toDate ? n.createdAt.toDate().getTime() : null;
     if (d == null) continue;
     (byKey[_normPlate(n.plate) + '|' + (n.type || '')] = byKey[_normPlate(n.plate) + '|' + (n.type || '')] || []).push({ n, d });
@@ -2882,7 +2883,7 @@ function _washChkAnalyze() {
     }
   }
   for (const t of Object.keys(dupExtra)) {
-    const ourN = ours.rows.filter(n => (n.type || '') === t).length;
+    const ourN = ret.filter(n => (n.type || '') === t).length;
     const unique = ourN - dupExtra[t];
     const billedTwice = Math.min(dupExtra[t], Math.max(0, (invBy[t] ? invBy[t].qty : 0) - unique));
     // פתקים כפולים שלא חויבו פעמיים: לא נכללים בתשלום, כדי שיתאים לחשבונית
@@ -2890,7 +2891,7 @@ function _washChkAnalyze() {
     if (billedTwice > 0) {
       const price = priceOf(t);
       errors.push(`חיוב כפול אפשרי — ${t}: ${billedTwice} רכבים חויבו פעמיים (בערך ${m(billedTwice * price)} + מע״מ)`);
-      details.push(`${t} — פתקים כפולים (עד יומיים): ${dupPlates[t].join(', ')}`);
+      details.push(`${t} — פתקים כפולים שהתקבלו מהשטיפה (עד יומיים): ${dupPlates[t].join(', ')}`);
       dbl.push(...(dupInfo[t] || []).slice(0, billedTwice).map(x => ({ ...x, type: t, price: priceOf(t) })));
     }
   }
