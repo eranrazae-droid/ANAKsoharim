@@ -2331,6 +2331,7 @@ function _washRotate(dataUrl, deg) {
 
 async function washReconcileFiles(input) {
   const files = [...(input.files || [])];
+  const prog = (pct, label) => { try { if (typeof window._washProg === 'function') window._washProg(pct, label); } catch (e) {} };
   if (!files.length) return;
   const st = document.getElementById('wash-rec-status');
   const say = h => { if (st) st.innerHTML = h; };
@@ -2340,15 +2341,17 @@ async function washReconcileFiles(input) {
   try {
     say('<div style="font-size:13px;font-weight:800;color:var(--muted)">⏳ מפצל את הקובץ לעמודים…</div>');
     const pages = [];        // { img, text }
+    prog(2, 'מפצל את הקובץ לעמודים…');
     for (const f of files) {
       if (f.type === 'application/pdf') {
-        const imgs = await _pdfFileToImages(f);
+        const imgs = await _pdfFileToImages(f, (i, n) => prog(2 + 8 * i / n, `מפצל עמוד ${i} מתוך ${n}`));
         imgs.forEach((img, i) => pages.push({ img, text: (window._ownPdfText || [])[i] || '' }));
       } else if (f.type.startsWith('image/')) {
         pages.push({ img: await _fileToDataUrl(f), text: '' });
       }
     }
     if (!pages.length) { say('<div style="font-size:13px;font-weight:800;color:#991b1b">לא זוהו עמודים בקובץ</div>'); return; }
+    prog(10, `${pages.length} עמודים`);
 
     const matched = new Map();   // noteId → מספר הרישוי שזוהה
     const unknown = [];          // עמודים שלא הצלחנו לשייך
@@ -2358,6 +2361,7 @@ async function washReconcileFiles(input) {
 
     for (let i = 0; i < pages.length; i++) {
       say(`<div style="font-size:13px;font-weight:800;color:var(--muted)">🔎 קורא עמוד ${i + 1} מתוך ${pages.length}…</div>`);
+      prog(10 + 75 * i / pages.length, `קורא עמוד ${i + 1} מתוך ${pages.length}`);
       const p = pages[i];
       let hit = _washSnap(_washPlatesInText(p.text), known);
       if (hit) byText++;
@@ -2401,8 +2405,10 @@ async function washReconcileFiles(input) {
         worker = await Tesseract.createWorker('eng', 1);
         await worker.setParameters({ tessedit_char_whitelist: '0123456789' });
       }
-      for (const pg of [...unknown]) {
+      const deepList = [...unknown];
+      for (const pg of deepList) {
         const i = pg - 1;
+        prog(85 + 14 * deepList.indexOf(pg) / deepList.length, `בדיקה מעמיקה של עמוד ${pg}`);
         say(`<div style="font-size:13px;font-weight:800;color:var(--muted)">🔍 בדיקה מעמיקה של עמוד ${pg}…</div>`);
         const pool = () => known.filter(k => !matched.has(k.id));
         let hit = _washRelaxed(seen[i].tokens, seen[i].squash, pool());
@@ -2422,6 +2428,7 @@ async function washReconcileFiles(input) {
       }
     }
     if (worker) { try { await worker.terminate(); } catch (e) {} }
+    prog(100, 'סיום');
     _washRec = { pages: pages.length, matched, unknown, repeats, byText, byOcr, imgs: pages.map(p => p.img) };
     say(`<div style="font-size:13px;font-weight:800;color:var(--muted)">✅ נקראו ${pages.length} עמודים · ${byText} משכבת הטקסט · ${byOcr} מזיהוי תווים</div>`);
     _washRenderReconcile();
@@ -2655,6 +2662,16 @@ async function _washParseInvoice(file) {
 }
 
 let _washChkMsg = '', _washChkAsk = false;
+function _washChkProgress(pct, label) {
+  const b = document.getElementById('wash-chk-body'); if (!b) return;
+  pct = Math.max(0, Math.min(100, Math.round(pct)));
+  b.innerHTML = `<div class="wchk-wrap" style="text-align:center;padding:26px 6px">
+    <div style="font-size:15px;font-weight:900;margin-bottom:12px">📂 קורא את הפתקים</div>
+    <div style="height:16px;border-radius:999px;background:var(--surface2);overflow:hidden">
+      <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#6366f1,#0ea5e9);border-radius:999px;transition:width .25s"></div></div>
+    <div style="font-size:30px;font-weight:900;color:#0ea5e9;margin-top:10px">${pct}%</div>
+    <div style="font-size:12.5px;font-weight:700;color:var(--muted);margin-top:4px">${esc(label || '')}</div></div>`;
+}
 const _washChkBusy = t => { const b = document.getElementById('wash-chk-body'); if (b) b.innerHTML = `<div style="text-align:center;padding:30px 10px;font-size:14px;font-weight:800;color:var(--muted)">⏳ ${t}</div>`; };
 
 async function washCheckInvoice(input) {
@@ -2674,12 +2691,14 @@ window.washCheckInvoice = washCheckInvoice;
 // סריקת הפתקים שחזרו — אותה הצלבה שכבר קיימת
 async function washCheckScan(input) {
   if (!(input.files && input.files.length)) return;
-  _washChkBusy('קורא את הפתקים — זה יכול לקחת דקה…');
+  _washChkProgress(0, 'מתחיל…');
+  window._washProg = _washChkProgress;
   _washChkMsg = '';
   _washRec = null;
   const per = _washChk && _washChk.inv && _washChk.inv.period;
   window._washPrefer = per ? (n => { const d = n.createdAt?.toDate ? n.createdAt.toDate() : null; return !!d && d.getMonth() + 1 === per.month && d.getFullYear() === per.year; }) : null;
   try { await washReconcileFiles(input); } catch (e) { console.error(e); }
+  window._washProg = null;
   if (!_washRec || !_washRec.matched) _washChkMsg = 'לא הצלחתי לקרוא את הפתקים. נסה שוב.';
   _washChkRender();
 }

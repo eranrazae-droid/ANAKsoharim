@@ -2865,13 +2865,14 @@ function _ownPlateFromText(text) {
   return m ? m[1] : '';
 }
 
-async function _pdfFileToImages(file) {
+async function _pdfFileToImages(file, onPage) {
   if (!window.pdfjsLib) throw new Error('pdf.js not loaded');
   const buf = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
   const imgs = [];
   _ownPdfText = [];
   for (let i = 1; i <= pdf.numPages; i++) {
+    if (onPage) { try { onPage(i, pdf.numPages); } catch (e) {} }
     const page = await pdf.getPage(i);
     try {
       const tc = await page.getTextContent();
