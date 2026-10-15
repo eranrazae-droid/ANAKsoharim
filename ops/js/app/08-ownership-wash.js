@@ -2293,6 +2293,42 @@ function _washSnap(tokens, known) {
   return best.id && best.dist <= 1 ? best : null;
 }
 
+// התאמה מקלה מול מאגר קטן של פתקים שלא הוצלבו: ספרות מדויקות, טעות של עד
+// שתי ספרות, או חלון של שש ספרות רצופות מתוך המספר. מחזיר רק התאמה חד-משמעית.
+function _washRelaxed(tokens, squash, pool) {
+  const scored = [];
+  for (const k of pool) {
+    let best = 99;
+    const pl = k.plate;
+    if (squash.includes(pl)) best = 0;
+    for (const t of tokens) {
+      if (t.length < 6 || Math.abs(t.length - pl.length) > 2) continue;
+      best = Math.min(best, _levenshtein(t, pl));
+    }
+    if (best > 2) {
+      for (let a = 0; a + 6 <= pl.length; a++) if (squash.includes(pl.slice(a, a + 6))) { best = Math.min(best, 1.5); break; }
+    }
+    if (best <= 2) scored.push({ k, best });
+  }
+  if (!scored.length) return null;
+  scored.sort((x, y) => x.best - y.best);
+  // יותר ממועמד אחד בציון זהה, ולא אותו רכב — לא מכריעים
+  if (scored.length > 1 && scored[1].best === scored[0].best && scored[1].k.plate !== scored[0].k.plate) return null;
+  return { id: scored[0].k.id, plate: scored[0].k.plate };
+}
+
+function _washRotate(dataUrl, deg) {
+  return _loadImg(dataUrl).then(img => {
+    const c = document.createElement('canvas');
+    const swap = deg === 90 || deg === 270;
+    c.width = swap ? img.height : img.width; c.height = swap ? img.width : img.height;
+    const ctx = c.getContext('2d');
+    ctx.translate(c.width / 2, c.height / 2); ctx.rotate(deg * Math.PI / 180);
+    ctx.drawImage(img, -img.width / 2, -img.height / 2);
+    return c.toDataURL('image/jpeg', 0.8);
+  });
+}
+
 async function washReconcileFiles(input) {
   const files = [...(input.files || [])];
   if (!files.length) return;
@@ -2318,6 +2354,7 @@ async function washReconcileFiles(input) {
     const unknown = [];          // עמודים שלא הצלחנו לשייך
     const repeats = [];          // עמודים נוספים לרכב שכבר הוצלב
     let byText = 0, byOcr = 0;
+    const seen = pages.map(p => ({ tokens: _washPlatesInText(p.text), squash: String(p.text || '').replace(/\D/g, '') }));
 
     for (let i = 0; i < pages.length; i++) {
       say(`<div style="font-size:13px;font-weight:800;color:var(--muted)">🔎 קורא עמוד ${i + 1} מתוך ${pages.length}…</div>`);
@@ -2336,6 +2373,8 @@ async function washReconcileFiles(input) {
           const prep = await _prepRegion(p.img, box, scale);
           const txt = (await worker.recognize(prep)).data.text;
           tokens = tokens.concat(_washPlatesInText(txt));
+          seen[i].tokens = seen[i].tokens.concat(_washPlatesInText(txt));
+          seen[i].squash += '|' + String(txt).replace(/\D/g, '');
           // המדרג הגס: כל מספר מהחשבון הפתוח שמופיע בתוך ספרות העמוד
           const squash = String(txt).replace(/\D/g, '');
           for (const k of known) if (squash.includes(k.plate)) tokens.push(k.plate);
@@ -2353,6 +2392,34 @@ async function washReconcileFiles(input) {
         if (free) matched.set(free.id, hit.plate);
         else repeats.push(i + 1);          // עמוד נוסף לרכב שכבר הוצלב במלואו
       } else unknown.push(i + 1);
+    }
+    /* מעבר שני לעמודים שלא זוהו: ההשוואה מתבצעת רק מול הפתקים שעדיין לא
+       הוצלבו (מעט מאוד), ולכן אפשר להקל — טעות של עד שתי ספרות מתקבלת.
+       אם עדיין לא — מנסים את העמוד הפוך ומסובב. */
+    if (unknown.length) {
+      if (!worker) {
+        worker = await Tesseract.createWorker('eng', 1);
+        await worker.setParameters({ tessedit_char_whitelist: '0123456789' });
+      }
+      for (const pg of [...unknown]) {
+        const i = pg - 1;
+        say(`<div style="font-size:13px;font-weight:800;color:var(--muted)">🔍 בדיקה מעמיקה של עמוד ${pg}…</div>`);
+        const pool = () => known.filter(k => !matched.has(k.id));
+        let hit = _washRelaxed(seen[i].tokens, seen[i].squash, pool());
+        const tries = [[0, { y0: 0.05, y1: 0.5 }, 3, '6'], [0, { y0: 0.1, y1: 0.4 }, 3, '7'], [180, null, 1.5, '6'], [90, null, 1.5, '6'], [270, null, 1.5, '6'], [180, { y1: 0.5 }, 2, '6']];
+        for (const [deg, box, scale, psm] of tries) {
+          if (hit) break;
+          try {
+            const src = deg ? await _washRotate(pages[i].img, deg) : pages[i].img;
+            await worker.setParameters({ tessedit_pageseg_mode: psm });
+            const txt = (await worker.recognize(await _prepRegion(src, box || {}, scale))).data.text;
+            seen[i].tokens = seen[i].tokens.concat(_washPlatesInText(txt));
+            seen[i].squash += '|' + String(txt).replace(/\D/g, '');
+            hit = _washRelaxed(seen[i].tokens, seen[i].squash, pool());
+          } catch (e) { /* ממשיכים לניסיון הבא */ }
+        }
+        if (hit) { matched.set(hit.id, hit.plate); unknown.splice(unknown.indexOf(pg), 1); byOcr++; }
+      }
     }
     if (worker) { try { await worker.terminate(); } catch (e) {} }
     _washRec = { pages: pages.length, matched, unknown, repeats, byText, byOcr, imgs: pages.map(p => p.img) };
