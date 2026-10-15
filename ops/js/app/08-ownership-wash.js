@@ -601,7 +601,9 @@ const _WASH_TYPES = ['חיצוני', 'חיצוני ידני', 'פנימי', 'ח�
 /* המחירון של מאסטר קלין, כפי שהוא מופיע בחשבונית. הסכום נשמר בתוך רשומת
    התשלום עצמה, ולכן עדכון מחיר כאן לא משנה תשלומים שכבר בוצעו.
    סוג שטיפה שאין לו מחיר כאן מסומן בהערה במקום להיחשב אפס בשקט. */
-const _WASH_PRICES = { 'חיצוני': 30, 'פנימי': 40, 'חיצוני ידני': 50, 'חיצוני + פנימי': 65 };
+// אין מחירון במערכת: המחירים של השטיפה נלקחים מהחשבונית בלבד (בדיקת חשבונית לפני תשלום)
+const _WASH_PRICES = {};
+const _washHasPrices = () => Object.keys(_WASH_PRICES).length > 0;
 const _WASH_VAT = 0.18;
 const _washMoney = n => Math.round(n).toLocaleString('he-IL') + ' ₪';
 let _washType = '';
@@ -1455,7 +1457,7 @@ function _washSummaryData(byMonth) {
     const t = n.type || 'ללא סוג';
     counts[t] = (counts[t] || 0) + 1;
     const price = _WASH_PRICES[t];
-    if (price == null) unknown[t] = (unknown[t] || 0) + 1;
+    if (price == null) { if (_washHasPrices()) unknown[t] = (unknown[t] || 0) + 1; }
     else subtotal += price;
   }
   if (_washSort === 'plate') {
@@ -1499,16 +1501,21 @@ function _washRenderSummary() {
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;border:2px solid var(--border);border-radius:11px;padding:9px 13px;margin-bottom:6px;background:var(--card)">
         <span style="font-weight:800;font-size:15px;flex:1;min-width:0">${esc(t)}</span>
         <span style="font-weight:900;font-size:19px;color:${n ? '#0d9488' : 'var(--muted)'};min-width:30px;text-align:center">${n}</span>
-        <span style="font-size:12px;color:var(--muted);font-weight:700;min-width:46px;text-align:center">${price == null ? '—' : price + ' ₪'}</span>
-        <span style="font-weight:900;font-size:15px;min-width:74px;text-align:left">${price == null ? '—' : _washMoney(price * n)}</span>
+        ${_washHasPrices() ? `<span style="font-size:12px;color:var(--muted);font-weight:700;min-width:46px;text-align:center">${price == null ? '—' : price + ' ₪'}</span>
+        <span style="font-weight:900;font-size:15px;min-width:74px;text-align:left">${price == null ? '—' : _washMoney(price * n)}</span>` : ''}
       </div>`;
   }).join('') +
-    line(`סה״כ לפני מע״מ · ${total} רכבים`, _washMoney(subtotal)) +
-    line('מע״מ 18%', _washMoney(vat)) +
-    `<div style="display:flex;align-items:center;justify-content:space-between;border-radius:11px;padding:11px 14px;margin:6px 0 12px;background:var(--dark);color:#fff">
+    (_washHasPrices()
+      ? line(`סה״כ לפני מע״מ · ${total} רכבים`, _washMoney(subtotal)) +
+        line('מע״מ 18%', _washMoney(vat)) +
+        `<div style="display:flex;align-items:center;justify-content:space-between;border-radius:11px;padding:11px 14px;margin:6px 0 12px;background:var(--dark);color:#fff">
        <span style="font-weight:900;font-size:15px">סה״כ לתשלום</span>
        <span style="font-weight:900;font-size:22px">${_washMoney(grand)}</span>
-     </div>` +
+     </div>`
+      : `<div style="display:flex;align-items:center;justify-content:space-between;border-radius:11px;padding:11px 14px;margin:6px 0 12px;background:var(--dark);color:#fff">
+       <span style="font-weight:900;font-size:15px">סה״כ רכבים</span>
+       <span style="font-weight:900;font-size:22px">${total}</span>
+     </div>`) +
     _washHistoryHtml();
 }
 
@@ -1615,10 +1622,10 @@ function washPrintSummary() {
   <div class="range">${esc(he(fromV))} — ${esc(he(toV))}</div>
   <hr>
   <table>
-    ${Object.entries(counts).map(([t, n]) => `<tr><td>${esc(t)}${_WASH_PRICES[t] != null ? ` · ${_WASH_PRICES[t]} ₪` : ''}</td><td class="n">${n}</td><td class="n">${_WASH_PRICES[t] != null ? _washMoney(_WASH_PRICES[t] * n) : '—'}</td></tr>`).join('')}
-    <tr><td>סה״כ לפני מע״מ</td><td class="n">${total}</td><td class="n">${_washMoney(subtotal)}</td></tr>
+    ${Object.entries(counts).map(([t, n]) => `<tr><td>${esc(t)}</td><td class="n">${n}</td>${_washHasPrices() ? `<td class="n">${_WASH_PRICES[t] != null ? _washMoney(_WASH_PRICES[t] * n) : '—'}</td>` : ''}</tr>`).join('')}
+    ${_washHasPrices() ? `<tr><td>סה״כ לפני מע״מ</td><td class="n">${total}</td><td class="n">${_washMoney(subtotal)}</td></tr>
     <tr><td>מע״מ 18%</td><td class="n"></td><td class="n">${_washMoney(vat)}</td></tr>
-    <tr class="tot"><td>סה״כ לתשלום</td><td class="n"></td><td class="n">${_washMoney(grand)}</td></tr>
+    <tr class="tot"><td>סה״כ לתשלום</td><td class="n"></td><td class="n">${_washMoney(grand)}</td></tr>` : `<tr class="tot"><td>סה״כ רכבים</td><td class="n">${total}</td></tr>`}
   </table>
   <div class="det-l">פירוט הרכבים · ${_washSort === 'plate' ? 'לפי מספר רישוי' : 'לפי תאריך'}</div>
   ${detail[0] || ''}
