@@ -2008,6 +2008,8 @@ function washMarkPaid(only) {
     </tr>`;
   // כשמשלמים לפי חשבונית — הסכומים הם אלה שבחשבונית, שורה אחר שורה
   const I = _washPayInv;
+  let matchLine = '';
+  if (I) { try { const A = _washChkAnalyze(); matchLine = `<div style="background:${A.moneyDiff > 0 ? '#fef2f2' : '#f0fdf4'};border:2px solid ${A.moneyDiff > 0 ? '#fca5a5' : '#86efac'};border-radius:11px;padding:9px 12px;font-size:12.5px;font-weight:800;color:${A.moneyDiff > 0 ? '#991b1b' : '#166534'};margin-bottom:12px;line-height:1.7">התאמה לפתקים (שטיפות, לפני מע״מ): לפי הפתקים ${_washMoney(A.expSub)} · בחשבונית ${_washMoney(A.gotSub)}<br>${A.moneyDiff > 0 ? '❌ חויבת ב-' + _washMoney(A.moneyDiff) + ' יותר' : A.moneyDiff < 0 ? '✅ החשבונית נמוכה ב-' + _washMoney(-A.moneyDiff) : '✅ הסכום תואם'}</div>`; } catch (e) {} }
   const invItems = I ? I.lines.map(l => `<tr>
       <td style="padding:8px 10px;border-bottom:1px solid var(--border);font-weight:900;font-size:15px;white-space:nowrap">${l.qty}</td>
       <td style="padding:8px 10px;border-bottom:1px solid var(--border);font-weight:800;font-size:14px">${esc(l.type || l.desc)}</td>
@@ -2021,6 +2023,7 @@ function washMarkPaid(only) {
   if (box) box.innerHTML = `
     <div style="font-size:13.5px;font-weight:700;color:var(--muted);margin-bottom:12px">
       ${I ? `הסכומים זהים לחשבונית ${esc(I.number || '')} של השטיפה. ${total} רכבים לפי הפתקים עוברים לארכיון. ` : ''}${_washPayOnly && !I ? 'תשלום על הרכבים שהפתק שלהם חזר מהשטיפה. השאר נשארים בחשבון הפתוח. ' : ''}הפתקים יעברו לארכיון התשלומים ויֵצאו מהחשבון הפתוח. שום פתק לא יימחק.</div>
+    ${matchLine}
     <div style="border:2px solid var(--border);border-radius:13px;overflow:hidden;margin-bottom:12px">
       <table style="width:100%;border-collapse:collapse;background:var(--card)">
         <tr style="background:var(--surface2)">
@@ -2918,8 +2921,11 @@ function _washChkAnalyze() {
   if (skipIds.size) details.push(`${skipIds.size} פתקים כפולים (עד יומיים) שלא חויבו פעמיים — לא נכללים בתשלום ונשארים בחשבון הפתוח; אפשר למחוק אותם מההיסטוריה`);
   if (notRet.length) details.push(`הוצאו בחודש ולא חזרו (נשארים בחשבון הפתוח): ${notRet.map(n => n.plate || `(ללא מספר · ${n.type || ''})`).join(', ')}`);
   if (outsideRet.length) warns.push(`${outsideRet.length} פתקים שחזרו הם מחוץ לחודש החשבונית — לא ייכללו בתשלום`);
+  // התאמת סכום: מה שחויב בשורות השטיפה מול הפתקים שהתקבלו כפול המחירון
+  const moneyDiff = R(gotSub - expSub);
+  if (moneyDiff > 0 && !errors.length) errors.push(`הסכום בחשבונית (${m(gotSub)}) גבוה ב-${m(moneyDiff)} מהסכום לפי הפתקים (${m(expSub)}), לפני מע״מ`);
   const verdict = errors.length ? 'bad' : ((rec.unknown && rec.unknown.length) ? 'warn' : 'ok');
-  return { errors, warns, details, rows, verdict, inv, expSub, gotSub, extraSum, notRet: notRet.length, retN: ret.length, dbl, tot: { out: totOut, ret: totRet, inv: totInv }, notRetList: notRet.map(n => ({ id: n.id, plate: n.plate || '', type: n.type || '', d: n.createdAt?.toDate ? n.createdAt.toDate() : null, by: n.createdBy || '' })), scan: { pages: rec.pages, matched: rec.matched.size, outside: outsideRet.length, skipped: skipIds.size, unknown: rec.unknown || [], repeats: rec.repeats || [] }, retIds: ret.filter(n => !skipIds.has(n.id)).map(n => n.id), per, monthN: ours.rows.length };
+  return { errors, warns, details, rows, verdict, inv, expSub, gotSub, extraSum, notRet: notRet.length, retN: ret.length, moneyDiff, dbl, tot: { out: totOut, ret: totRet, inv: totInv }, notRetList: notRet.map(n => ({ id: n.id, plate: n.plate || '', type: n.type || '', d: n.createdAt?.toDate ? n.createdAt.toDate() : null, by: n.createdBy || '' })), scan: { pages: rec.pages, matched: rec.matched.size, outside: outsideRet.length, skipped: skipIds.size, unknown: rec.unknown || [], repeats: rec.repeats || [] }, retIds: ret.filter(n => !skipIds.has(n.id)).map(n => n.id), per, monthN: ours.rows.length };
 }
 
 function _washChkRender() {
@@ -3019,6 +3025,10 @@ function _washChkRender() {
     ? `<button class="btn-submit" onclick="washCheckPay()" style="background:#0d9488;color:#fff;width:100%;margin-top:12px;font-size:17px;padding:16px 8px">💳 סגור את התשלום (${a.retN} רכבים)</button>`
     : '';
   const monthLine = a.per ? `<div style="font-size:12.5px;font-weight:800;color:var(--muted);margin-bottom:8px">חשבונית לחודש ${String(a.per.month).padStart(2, '0')}/${a.per.year} · ${a.monthN} פתקים נשלחו בחודש</div>` : '';
+  const moneyLine = `<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;background:var(--surface2);border-radius:11px;padding:10px 13px;margin:10px 0 0;font-size:13px;font-weight:800">
+    <span>לפי הפתקים: ${m(a.expSub)}</span><span>בחשבונית: ${m(a.gotSub)}</span>
+    <span style="color:${a.moneyDiff > 0 ? '#dc2626' : '#16a34a'}">${a.moneyDiff > 0 ? 'חויבת ב-' + m(a.moneyDiff) + ' יותר' : a.moneyDiff < 0 ? 'החשבונית נמוכה ב-' + m(-a.moneyDiff) : '✓ הסכום תואם'}</span></div>
+    <div style="font-size:11.5px;font-weight:700;color:var(--muted);margin:3px 2px 0">סכומי שטיפות בלבד, לפני מע״מ.</div>`;
   const overTxt = overRows.length ? `<div style="font-size:14px;font-weight:900;color:#b91c1c;margin:10px 2px;line-height:1.7">${overRows.map(r => `${esc(r.type)}: חויבת על ${r.diff} יותר`).join('<br>')}${diffMoney > 0 ? `<br>בערך ${m(diffMoney)} + מע״מ` : ''}</div>` : '';
   const gapTxt = ms => ms < 3600000 ? `${Math.max(1, Math.round(ms / 60000))} דקות` : ms < 86400000 * 1.5 ? `${Math.round(ms / 3600000)} שעות` : `${Math.round(ms / 86400000)} ימים`;
   const dblCars = a.dbl.length ? `<div style="background:#fef2f2;border:2px solid #fca5a5;border-radius:12px;padding:10px 13px;margin:8px 0">
@@ -3028,7 +3038,7 @@ function _washChkRender() {
   box.innerHTML = '<div class="wchk-wrap">' + monthLine + `<div style="background:${head[1]};border:2px solid ${head[2]};border-radius:14px;padding:12px 15px">
       <div style="font-weight:900;font-size:22px;color:${head[0]}">${head[3]}</div>
       <div style="font-size:13px;font-weight:700;color:${head[0]};margin-top:2px">${head[4]}</div></div>` +
-    overTxt + dblCars + dblTxt + assign + pay + payAnyway +
+    moneyLine + overTxt + dblCars + dblTxt + assign + pay + payAnyway +
     `<details style="margin-top:14px"><summary style="cursor:pointer;font-size:13px;font-weight:900;color:var(--muted)">פירוט</summary><div style="margin-top:8px">` +
     '<div>' + checks + '</div>' + table + legend + scanLine + sums + bullets(a.errors) + warnB(a.warns) + det + `</div></details>` + back + '</div>';
 }
