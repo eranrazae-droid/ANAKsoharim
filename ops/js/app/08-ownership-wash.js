@@ -2755,7 +2755,7 @@ function _washChkAnalyze() {
     if (l.type) { const b = invBy[l.type] || (invBy[l.type] = { qty: 0, total: 0, units: new Set() }); b.qty += l.qty; b.total += l.total; b.units.add(l.unit); }
     else extras.push(l);
   }
-  const errors = [], warns = [], details = [], rows = [];
+  const errors = [], warns = [], details = [], rows = [], dbl = [];
   /* פתק כפול = אותו רכב ואותו סוג בטווח של יומיים (שטיפה חוזרת אחרי שבוע
      היא רגילה). זו בעיה רק אם החשבונית אכן חייבה על שניהם: כשיש יותר שורות
      מהרכבים הייחודיים. פתק כפול שלא חויב פעמיים — מתעלמים. */
@@ -2765,7 +2765,7 @@ function _washChkAnalyze() {
     if (d == null) continue;
     (byKey[_normPlate(n.plate) + '|' + (n.type || '')] = byKey[_normPlate(n.plate) + '|' + (n.type || '')] || []).push({ n, d });
   }
-  const dupExtra = {}, dupPlates = {}, dupNotes = {}, skipIds = new Set();
+  const dupExtra = {}, dupPlates = {}, dupNotes = {}, dupInfo = {}, skipIds = new Set();
   for (const k of Object.keys(byKey)) {
     const arr = byKey[k].sort((x, y) => x.d - y.d);
     for (let i = 1; i < arr.length; i++) {
@@ -2774,6 +2774,7 @@ function _washChkAnalyze() {
         dupExtra[t] = (dupExtra[t] || 0) + 1;
         (dupPlates[t] = dupPlates[t] || []).push(`${arr[i].n.plate} (${arr[i - 1].n.createdBy || ''} / ${arr[i].n.createdBy || ''})`);
         (dupNotes[t] = dupNotes[t] || []).push(arr[i].n);
+        (dupInfo[t] = dupInfo[t] || []).push({ plate: arr[i].n.plate, by1: arr[i - 1].n.createdBy || '', by2: arr[i].n.createdBy || '', gap: arr[i].d - arr[i - 1].d });
       }
     }
   }
@@ -2787,6 +2788,7 @@ function _washChkAnalyze() {
       const price = _WASH_PRICES[t] || 0;
       errors.push(`חיוב כפול אפשרי — ${t}: ${billedTwice} רכבים חויבו פעמיים (בערך ${m(billedTwice * price)} + מע״מ)`);
       details.push(`${t} — פתקים כפולים (עד יומיים): ${dupPlates[t].join(', ')}`);
+      dbl.push(...(dupInfo[t] || []).slice(0, billedTwice).map(x => ({ ...x, type: t })));
     }
   }
   const retC = {};
@@ -2828,7 +2830,7 @@ function _washChkAnalyze() {
   if (notRet.length) details.push(`הוצאו בחודש ולא חזרו (נשארים בחשבון הפתוח): ${notRet.map(n => n.plate || `(ללא מספר · ${n.type || ''})`).join(', ')}`);
   if (outsideRet.length) warns.push(`${outsideRet.length} פתקים שחזרו הם מחוץ לחודש החשבונית — לא ייכללו בתשלום`);
   const verdict = errors.length ? 'bad' : ((rec.unknown && rec.unknown.length) ? 'warn' : 'ok');
-  return { errors, warns, details, rows, verdict, inv, expSub, gotSub, extraSum, notRet: notRet.length, retN: ret.length, tot: { out: totOut, ret: totRet, inv: totInv }, notRetList: notRet.map(n => ({ id: n.id, plate: n.plate || '', type: n.type || '', d: n.createdAt?.toDate ? n.createdAt.toDate() : null, by: n.createdBy || '' })), scan: { pages: rec.pages, matched: rec.matched.size, outside: outsideRet.length, skipped: skipIds.size, unknown: rec.unknown || [], repeats: rec.repeats || [] }, retIds: ret.filter(n => !skipIds.has(n.id)).map(n => n.id), per, monthN: ours.rows.length };
+  return { errors, warns, details, rows, verdict, inv, expSub, gotSub, extraSum, notRet: notRet.length, retN: ret.length, dbl, tot: { out: totOut, ret: totRet, inv: totInv }, notRetList: notRet.map(n => ({ id: n.id, plate: n.plate || '', type: n.type || '', d: n.createdAt?.toDate ? n.createdAt.toDate() : null, by: n.createdBy || '' })), scan: { pages: rec.pages, matched: rec.matched.size, outside: outsideRet.length, skipped: skipIds.size, unknown: rec.unknown || [], repeats: rec.repeats || [] }, retIds: ret.filter(n => !skipIds.has(n.id)).map(n => n.id), per, monthN: ours.rows.length };
 }
 
 function _washChkRender() {
@@ -2876,7 +2878,7 @@ function _washChkRender() {
   const head = {
     ok:   ['#166534', '#f0fdf4', '#86efac', '✅ תקין', 'החשבונית לא חייבה אותך על יותר ממה שקיבלת פתקים.'],
     warn: ['#92400e', '#fffbeb', '#fcd34d', '⚠️ יש עמודים שלא זוהו', 'שייך אותם לרכב כדי לקבל תוצאה מדויקת.'],
-    bad:  ['#991b1b', '#fef2f2', '#fca5a5', '❌ לא תקין', overN0 ? `חויבת על ${overN0} רכבים יותר ממה שקיבלת פתקים.` : 'יש הפרש — ראה בפירוט.'],
+    bad:  ['#991b1b', '#fef2f2', '#fca5a5', '❌ לא תקין', overN0 ? `חויבת על ${overN0} רכבים יותר ממה שקיבלת פתקים.` : a.dbl.length ? `ייתכן חיוב כפול על ${a.dbl.length === 1 ? 'רכב אחד' : a.dbl.length + ' רכבים'}.` : 'יש הפרש — ראה בפירוט.'],
   }[a.verdict];
   const th = 'padding:6px 8px;font-size:12px;font-weight:800;color:var(--muted);text-align:center';
   const td = 'padding:8px;font-size:14px;font-weight:900;text-align:center;border-top:1px solid var(--border)';
@@ -2923,16 +2925,21 @@ function _washChkRender() {
     <span style="color:${diffMoney > 0 ? '#dc2626' : '#16a34a'}">${diffMoney == null ? '' : diffMoney > 0 ? 'חויבת ב-' + m(diffMoney) + ' יותר' : diffMoney < 0 ? 'החשבונית נמוכה ב-' + m(-diffMoney) : 'ללא הפרש'}</span></div>`;
   const det = a.details.length ? `<details style="margin:8px 0;font-size:12.5px;font-weight:700;color:var(--muted)"><summary style="cursor:pointer;font-weight:900">פירוט רכבים</summary>${
     a.details.map(x => `<div style="margin-top:6px;line-height:1.6">${esc(x)}</div>`).join('')}</details>` : '';
+  const payAnyway = a.verdict === 'bad' ? `<button class="btn-submit" onclick="washCheckPay()" style="background:#fff;color:#0d9488;border:2px solid #0d9488;width:100%;margin-top:12px;font-size:16px;padding:14px 8px">💳 המשך לתשלום בכל זאת (${a.retN} רכבים)</button>` : '';
   const pay = a.verdict !== 'bad'
     ? `<button class="btn-submit" onclick="washCheckPay()" style="background:#0d9488;color:#fff;width:100%;margin-top:12px;font-size:17px;padding:16px 8px">💳 סגור את התשלום (${a.retN} רכבים)</button>`
     : '';
   const monthLine = a.per ? `<div style="font-size:12.5px;font-weight:800;color:var(--muted);margin-bottom:8px">חשבונית לחודש ${String(a.per.month).padStart(2, '0')}/${a.per.year} · ${a.monthN} פתקים נשלחו בחודש</div>` : '';
   const overTxt = overRows.length ? `<div style="font-size:14px;font-weight:900;color:#b91c1c;margin:10px 2px;line-height:1.7">${overRows.map(r => `${esc(r.type)}: חויבת על ${r.diff} יותר`).join('<br>')}${diffMoney > 0 ? `<br>בערך ${m(diffMoney)} + מע״מ` : ''}</div>` : '';
-  const dblTxt = a.errors.filter(e => e.startsWith('חיוב כפול') || e.startsWith('מחיר')).map(e => `<div style="font-size:13px;font-weight:800;color:#b91c1c;margin:5px 2px;line-height:1.5">• ${esc(e)}</div>`).join('');
+  const gapTxt = ms => ms < 3600000 ? `${Math.max(1, Math.round(ms / 60000))} דקות` : ms < 86400000 * 1.5 ? `${Math.round(ms / 3600000)} שעות` : `${Math.round(ms / 86400000)} ימים`;
+  const dblCars = a.dbl.length ? `<div style="background:#fef2f2;border:2px solid #fca5a5;border-radius:12px;padding:10px 13px;margin:8px 0">
+    <div style="font-size:13px;font-weight:900;color:#991b1b;margin-bottom:6px">🚗 רכבים שייתכן שחויבו פעמיים (בערך ${m(a.dbl.reduce((x, d) => x + (_WASH_PRICES[d.type] || 0), 0))} + מע״מ):</div>` +
+    a.dbl.map(x => `<div style="font-size:14px;font-weight:900;margin:4px 0;color:#111">${esc(_washPlateFmt(x.plate) || '(ללא מספר)')} <span style="font-size:12px;font-weight:700;color:var(--muted)">· ${esc(x.type)} · פתק של ${esc(x.by1)}${x.by2 && x.by2 !== x.by1 ? ' ו' + esc(x.by2) : ' פעמיים'} בהפרש ${gapTxt(x.gap)}</span></div>`).join('') + `</div>` : '';
+  const dblTxt = a.errors.filter(e => e.startsWith('מחיר')).map(e => `<div style="font-size:13px;font-weight:800;color:#b91c1c;margin:5px 2px;line-height:1.5">• ${esc(e)}</div>`).join('');
   box.innerHTML = '<div class="wchk-wrap">' + monthLine + `<div style="background:${head[1]};border:2px solid ${head[2]};border-radius:14px;padding:12px 15px">
       <div style="font-weight:900;font-size:22px;color:${head[0]}">${head[3]}</div>
       <div style="font-size:13px;font-weight:700;color:${head[0]};margin-top:2px">${head[4]}</div></div>` +
-    overTxt + dblTxt + assign + pay +
+    overTxt + dblCars + dblTxt + assign + pay + payAnyway +
     `<details style="margin-top:14px"><summary style="cursor:pointer;font-size:13px;font-weight:900;color:var(--muted)">פירוט</summary><div style="margin-top:8px">` +
     '<div>' + checks + '</div>' + table + legend + scanLine + sums + bullets(a.errors) + warnB(a.warns) + det + `</div></details>` + back + '</div>';
 }
