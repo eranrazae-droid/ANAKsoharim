@@ -1424,9 +1424,29 @@ window.openWashSummary = openWashSummary;
 
 /* מחזיר את החשבון הפתוח: כל פתק שעדיין לא נכלל בתשלום.
    פתק שעבר לארכיון התשלומים נושא paidId ולכן יוצא מכאן. */
-function _washSummaryData() {
+/* לשוניות חודשים בסיכום. החשבון הפתוח מתחלק לפי החודש שבו הפתק נשלח;
+   כל לשונית היא חודש אחד, כי כל חשבונית מכסה חודש שלם. */
+let _washSumMonth = '';
+const _WASH_MONTHS = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
+const _washMonthKey = n => { const d = n.createdAt?.toDate ? n.createdAt.toDate() : null; return d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` : ''; };
+const _washMonthLabel = k => { const [y, m] = String(k).split('-'); return `${_WASH_MONTHS[+m - 1] || m} ${y}`; };
+function _washOpenMonths() {
   const mine = currentUser.role === 'manager' ? _washNotes : _washNotes.filter(n => n.createdBy === currentUser.name);
-  const rows = mine.filter(n => !n.paidId && n.createdAt?.toDate);
+  const by = {};
+  for (const n of mine) if (!n.paidId && n.createdAt?.toDate) { const k = _washMonthKey(n); by[k] = (by[k] || 0) + 1; }
+  return Object.keys(by).sort().map(k => ({ key: k, n: by[k] }));
+}
+function washSumMonth(k) { _washSumMonth = k; _washRenderSummary(); }
+window.washSumMonth = washSumMonth;
+
+function _washSummaryData(byMonth) {
+  const mine = currentUser.role === 'manager' ? _washNotes : _washNotes.filter(n => n.createdBy === currentUser.name);
+  let rows = mine.filter(n => !n.paidId && n.createdAt?.toDate);
+  if (byMonth) {
+    const months = _washOpenMonths();
+    if (!months.some(m => m.key === _washSumMonth)) _washSumMonth = months.length ? months[0].key : '';
+    if (_washSumMonth) rows = rows.filter(n => _washMonthKey(n) === _washSumMonth);
+  }
   const counts = {};
   for (const t of _WASH_TYPES) counts[t] = 0;
   const unknown = {};
@@ -1454,7 +1474,12 @@ function _washSummaryData() {
 function _washRenderSummary() {
   const box = document.getElementById('wash-sum-body');
   if (!box) return;
-  const { counts, unknown, total, subtotal, vat, grand } = _washSummaryData();
+  const { counts, unknown, total, subtotal, vat, grand } = _washSummaryData(true);
+  const monthTabs = (() => {
+    const ms = _washOpenMonths();
+    if (!ms.length) return '';
+    return `<div style="display:flex;gap:6px;overflow-x:auto;margin-bottom:12px;padding-bottom:2px">` + ms.map(m => `<button type="button" onclick="washSumMonth('${m.key}')" style="flex:0 0 auto;border:2px solid ${m.key === _washSumMonth ? '#0d9488' : 'var(--border)'};background:${m.key === _washSumMonth ? '#0d9488' : 'var(--card)'};color:${m.key === _washSumMonth ? '#fff' : 'var(--text)'};border-radius:999px;padding:8px 14px;font-family:inherit;font-size:13.5px;font-weight:900;cursor:pointer">${esc(_washMonthLabel(m.key))} · ${m.n}</button>`).join('') + `</div>`;
+  })();
   const line = (label, val, strong) => `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 14px;font-size:13.5px;font-weight:800;color:${strong ? 'var(--text)' : 'var(--muted)'}">
       <span>${label}</span><span>${val}</span></div>`;
@@ -1468,7 +1493,7 @@ function _washRenderSummary() {
     payBtn.style.background = total ? '#0d9488' : 'var(--surface2)';
     payBtn.style.color = total ? '#fff' : 'var(--muted)';
   }
-  box.innerHTML = warn + Object.entries(counts).map(([t, n]) => {
+  box.innerHTML = monthTabs + warn + Object.entries(counts).map(([t, n]) => {
     const price = _WASH_PRICES[t];
     return `
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;border:2px solid var(--border);border-radius:11px;padding:9px 13px;margin-bottom:6px;background:var(--card)">
@@ -1489,7 +1514,7 @@ function _washRenderSummary() {
 
 /* ההיסטוריה עצמה, בתוך הסיכום: כל פתק בטווח שנבחר, שורה לרכב. */
 function _washHistoryHtml() {
-  const { rows } = _washSummaryData();
+  const { rows } = _washSummaryData(true);
   if (!rows.length) return '<div style="text-align:center;color:var(--muted);font-size:13px;font-weight:700;padding:10px">אין פתקים בטווח הזה</div>';
   return `<div style="font-weight:900;font-size:14px;margin:4px 0 6px">🧾 היסטוריית הפתקים (${rows.length})</div>` +
     rows.slice().reverse().map(n => {
@@ -1550,7 +1575,7 @@ function _washDetailPages(rows) {
 }
 
 function washPrintSummary() {
-  const { counts, total, fromV, toV, rows, subtotal, vat, grand } = _washSummaryData();
+  const { counts, total, fromV, toV, rows, subtotal, vat, grand } = _washSummaryData(true);
   if (!total) return showToast('אין שטיפות בטווח שנבחר');
   const he = v => v ? new Date(v + 'T00:00:00').toLocaleDateString('he-IL') : '';
   const detail = _washDetailPages(rows);
@@ -1958,6 +1983,7 @@ function _washPaySelection() {
            fromV: days[0] ? _washYmd(days[0]) : '', toV: days[days.length - 1] ? _washYmd(days[days.length - 1]) : '' };
 }
 
+let _washPayRest = [];   // פתקי החודש שלא שולמו ויועברו לארכיון יחד עם התשלום
 function washMarkPaid(only) {
   if (currentUser?.role !== 'manager') return;
   _washPayOnly = only || null;
@@ -1996,6 +2022,7 @@ function washMarkPaid(only) {
         ${foot('סה״כ לתשלום', _washMoney(grand), true)}
       </table>
     </div>
+    ${_washPayRest.length ? `<div style="background:#eff6ff;border:2px solid #93c5fd;border-radius:11px;padding:9px 12px;font-size:12.5px;font-weight:700;color:#1e40af;margin-bottom:12px">🗄️ ${_washPayRest.length} פתקים נוספים של החודש שלא שולמו (לא חזרו או כפולים) יועברו גם הם לארכיון.</div>` : ''}
     ${missing ? `<div style="background:#fffbeb;border:2px solid #fcd34d;border-radius:11px;padding:9px 12px;font-size:12.5px;font-weight:700;color:#92400e;margin-bottom:12px">
       ⚠️ ל-${missing} רכבים אין מחיר ולכן הם לא נספרו בסכום. הם בכל זאת ייכללו בתשלום ויֵצאו מהחשבון הפתוח.</div>` : ''}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
@@ -2026,6 +2053,7 @@ async function washPayConfirm() {
       from: fromV, to: toV, count: total,
       subtotal, vat, total: subtotal + vat,
       byType, cars, hasDoc: false,
+      ...(_washPayRest.length ? { closedUnpaid: _washPayRest.length, restCars: _washPayRest.map(n => ({ plate: n.plate || '', type: n.type || '', date: n.createdAt?.toDate ? _washYmd(n.createdAt.toDate()) : '' })) } : {}),
     });
     // סימון הפתקים רק אחרי שרשומת התשלום נשמרה בהצלחה
     let failed = 0;
@@ -2033,8 +2061,13 @@ async function washPayConfirm() {
       try { await _updateDoc(_docRef('wash_notes', n.id), { paidId: ref.id }); }
       catch (e) { failed++; }
     }
+    // שאר פתקי החודש עוברים לארכיון יחד עם התשלום, מסומנים כלא שולמו
+    for (const n of _washPayRest) {
+      try { await _updateDoc(_docRef('wash_notes', n.id), { paidId: ref.id, closedUnpaid: true }); }
+      catch (e) { failed++; }
+    }
     closeModal('modal-wash-pay-confirm');
-    _washPayOnly = null; _washRec = null; _washChk = null;
+    _washPayOnly = null; _washRec = null; _washChk = null; _washPayRest = [];
     _washRenderSummary();
     showToast(failed
       ? `⚠️ התשלום נשמר, אך ${failed} פתקים לא סומנו והם נשארו בחשבון הפתוח`
@@ -2047,7 +2080,7 @@ async function washPayConfirm() {
 window.washPayConfirm = washPayConfirm;
 
 // ביטול מחזיר את הבחירה למצב הרגיל — החשבון הפתוח כולו
-function washPayCancel() { _washPayOnly = null; closeModal('modal-wash-pay-confirm'); }
+function washPayCancel() { _washPayOnly = null; _washPayRest = []; closeModal('modal-wash-pay-confirm'); }
 window.washPayCancel = washPayCancel;
 
 function openWashPayHub() {
@@ -2130,6 +2163,7 @@ function _washPayDetail(p) {
     ${rows}
     <div style="font-size:12.5px;font-weight:800;color:var(--muted);margin:9px 0 5px">הרכבים שנכללו (${(p.cars || []).length})</div>
     ${cars}
+    ${(p.restCars || []).length ? `<div style="font-size:12.5px;font-weight:800;color:#1e40af;margin:9px 0 5px">🗄️ נסגרו בלי תשלום (${p.restCars.length}) — לא חזרו או כפולים</div>` + p.restCars.map(c => `<div style="border:1.5px dashed var(--border);border-radius:10px;padding:5px 9px;margin-bottom:4px;font-size:12px;font-weight:700;color:var(--muted);display:flex;gap:8px"><span style="font-weight:900;direction:ltr">${esc(c.plate || '(ללא מספר)')}</span><span style="flex:1">${esc(c.type)}</span><span>${esc(c.date ? new Date(c.date + 'T00:00:00').toLocaleDateString('he-IL') : '')}</span></div>`).join('') : ''}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">
       <button class="btn-submit" onclick="washPrintPayment('${p.id}')" style="background:var(--dark);color:#fff;font-size:13.5px;padding:10px;margin:0;width:100%">🖨️ הדפס פירוט</button>
       ${p.hasDoc
@@ -2950,6 +2984,15 @@ function washCheckPay() {
   // משלמים על מה שחזר ואושר בבדיקה; מה שלא חזר נשאר בחשבון הפתוח
   let ids = null;
   try { if (_washChk && _washChk.inv && _washRec && _washRec.matched) ids = new Set(_washChkAnalyze().retIds); } catch (e) {}
+  _washPayRest = [];
+  try {
+    const per = _washChk && _washChk.inv && _washChk.inv.period;
+    if (per) {
+      const key = `${per.year}-${String(per.month).padStart(2, '0')}`;
+      const sel = ids && ids.size ? ids : null;
+      _washPayRest = _washSummaryData().rows.filter(n => _washMonthKey(n) === key && (!sel || !sel.has(n.id)));
+    }
+  } catch (e) { _washPayRest = []; }
   washMarkPaid(ids && ids.size ? ids : null);
 }
 window.washCheckPay = washCheckPay;
