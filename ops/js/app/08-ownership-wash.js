@@ -2714,7 +2714,8 @@ function _washChkAnalyze() {
     const r = retC[t] || 0, b = invBy[t], q = b ? b.qty : 0, price = _WASH_PRICES[t];
     if (!r && !q) continue;
     const diff = q - r;
-    rows.push({ type: t, out: ours.rows.filter(n => (n.type || '') === t).length, ret: r, inv: q, diff });
+    const out = ours.rows.filter(n => (n.type || '') === t && !skipIds.has(n.id)).length;
+    rows.push({ type: t, out, ret: r, inv: q, diff, sysDiff: out - r });
     if (diff > 0) {
       over += diff; overMoney += diff * (price || 0);
       const miss = notRet.filter(n => (n.type || '') === t).map(n => n.plate);
@@ -2732,6 +2733,9 @@ function _washChkAnalyze() {
   const expSub = R(types.reduce((s, t) => s + (retC[t] || 0) * (_WASH_PRICES[t] || 0), 0));
   const gotSub = R(Object.keys(invBy).reduce((s, t) => s + invBy[t].total, 0));
   if (rec.unknown && rec.unknown.length) warns.push(`${rec.unknown.length} עמודים בסריקה לא זוהו — הרכבים שלהם לא נספרו`);
+  const totOut = rows.reduce((x, r) => x + r.out, 0), totRet = rows.reduce((x, r) => x + r.ret, 0), totInv = rows.reduce((x, r) => x + r.inv, 0);
+  if (totOut > totRet) warns.push(`במערכת הוצאו ${totOut} פתקים, והתקבלו מהשטיפה ${totRet} — ${totOut - totRet} פתקים לא התקבלו`);
+  else if (totRet > totOut) warns.push(`התקבלו ${totRet} פתקים, ובמערכת הוצאו ${totOut} — ${totRet - totOut} פתקים שאינם במערכת`);
   let under = 0;
   for (const t of Object.keys(underBy)) under += underBy[t];
   if (under) warns.push(`חזרו ${under} רכבים יותר ממה שחויב — התשלום יכלול אותם`);
@@ -2739,7 +2743,7 @@ function _washChkAnalyze() {
   if (notRet.length) details.push(`הוצאו בחודש ולא חזרו (נשארים בחשבון הפתוח): ${notRet.map(n => n.plate || `(ללא מספר · ${n.type || ''})`).join(', ')}`);
   if (outsideRet.length) warns.push(`${outsideRet.length} פתקים שחזרו הם מחוץ לחודש החשבונית — לא ייכללו בתשלום`);
   const verdict = errors.length ? 'bad' : (warns.length ? 'warn' : 'ok');
-  return { errors, warns, details, rows, verdict, inv, expSub, gotSub, extraSum, notRet: notRet.length, retN: ret.length, notRetList: notRet.map(n => ({ id: n.id, plate: n.plate || '', type: n.type || '', d: n.createdAt?.toDate ? n.createdAt.toDate() : null, by: n.createdBy || '' })), scan: { pages: rec.pages, matched: rec.matched.size, outside: outsideRet.length, skipped: skipIds.size, unknown: rec.unknown || [], repeats: rec.repeats || [] }, retIds: ret.filter(n => !skipIds.has(n.id)).map(n => n.id), per, monthN: ours.rows.length };
+  return { errors, warns, details, rows, verdict, inv, expSub, gotSub, extraSum, notRet: notRet.length, retN: ret.length, tot: { out: totOut, ret: totRet, inv: totInv }, notRetList: notRet.map(n => ({ id: n.id, plate: n.plate || '', type: n.type || '', d: n.createdAt?.toDate ? n.createdAt.toDate() : null, by: n.createdBy || '' })), scan: { pages: rec.pages, matched: rec.matched.size, outside: outsideRet.length, skipped: skipIds.size, unknown: rec.unknown || [], repeats: rec.repeats || [] }, retIds: ret.filter(n => !skipIds.has(n.id)).map(n => n.id), per, monthN: ours.rows.length };
 }
 
 function _washChkRender() {
@@ -2789,10 +2793,23 @@ function _washChkRender() {
   }[a.verdict];
   const th = 'padding:6px 8px;font-size:12px;font-weight:800;color:var(--muted);text-align:center';
   const td = 'padding:8px;font-size:14px;font-weight:900;text-align:center;border-top:1px solid var(--border)';
+  const sg = n => (n > 0 ? '+' : '') + n;
   const table = `<table style="width:100%;border-collapse:collapse;background:var(--card);border:2px solid var(--border);border-radius:12px;overflow:hidden;margin:10px 0">
-    <tr style="background:var(--surface2)"><td style="${th};text-align:right">סוג</td><td style="${th}">הוצאו</td><td style="${th}">חזרו</td><td style="${th}">בחשבונית</td><td style="${th}">הפרש</td></tr>
-    ${a.rows.map(r => `<tr><td style="${td};text-align:right">${esc(r.type)}</td><td style="${td}">${r.out}</td><td style="${td}">${r.ret}</td><td style="${td}">${r.inv}</td><td style="${td};color:${r.diff === 0 ? '#16a34a' : '#dc2626'}">${r.diff === 0 ? '✓' : (r.diff > 0 ? '+' : '') + r.diff}</td></tr>`).join('')}
+    <tr style="background:var(--surface2)"><td style="${th};text-align:right">סוג</td><td style="${th}">במערכת</td><td style="${th}">פתקים</td><td style="${th}">חשבונית</td><td style="${th}">מצב</td></tr>
+    ${a.rows.map(r => {
+      const parts = [];
+      if (r.diff) parts.push('חשבונית ' + sg(r.diff));
+      if (r.sysDiff) parts.push('מערכת ' + sg(r.sysDiff));
+      return `<tr><td style="${td};text-align:right">${esc(r.type)}</td><td style="${td}">${r.out}</td><td style="${td}">${r.ret}</td><td style="${td}">${r.inv}</td><td style="${td};font-size:12px;color:${parts.length ? '#dc2626' : '#16a34a'}">${parts.length ? parts.join('<br>') : '✓'}</td></tr>`;
+    }).join('')}
+    <tr style="background:var(--surface2)"><td style="${td};text-align:right">סה״כ</td><td style="${td}">${a.tot.out}</td><td style="${td}">${a.tot.ret}</td><td style="${td}">${a.tot.inv}</td><td style="${td}"></td></tr>
   </table>`;
+  const chk = (ok, text) => `<div style="display:flex;align-items:center;gap:8px;background:${ok ? '#f0fdf4' : '#fef2f2'};border:2px solid ${ok ? '#86efac' : '#fca5a5'};border-radius:11px;padding:9px 12px;margin-bottom:6px;font-size:13.5px;font-weight:900;color:${ok ? '#166534' : '#991b1b'}">
+      <span style="font-size:18px">${ok ? '✅' : '❌'}</span><span>${text}</span></div>`;
+  const checks = chk(a.tot.inv === a.tot.ret && a.rows.every(r => !r.diff),
+      a.tot.inv === a.tot.ret && a.rows.every(r => !r.diff) ? `החשבונית זהה לפתקים שהתקבלו (${a.tot.inv})` : `החשבונית (${a.tot.inv}) לא זהה לפתקים שהתקבלו (${a.tot.ret})`) +
+    chk(a.tot.out === a.tot.ret && a.rows.every(r => !r.sysDiff),
+      a.tot.out === a.tot.ret && a.rows.every(r => !r.sysDiff) ? `הפתקים שהתקבלו זהים למה שהוצא במערכת (${a.tot.ret})` : `הפתקים שהתקבלו (${a.tot.ret}) לא זהים למה שהוצא במערכת (${a.tot.out})`);
   const bullets = arr => arr.length ? arr.map(x => `<div style="font-size:13px;font-weight:800;color:#b91c1c;margin:5px 0;line-height:1.5">• ${esc(x)}</div>`).join('') : '';
   const warnB = arr => arr.length ? arr.map(x => `<div style="font-size:13px;font-weight:800;color:#b45309;margin:5px 0;line-height:1.5">• ${esc(x)}</div>`).join('') : '';
   const diffMoney = a.gotSub != null ? _washChkRound(a.gotSub - a.expSub) : null;
@@ -2823,7 +2840,7 @@ function _washChkRender() {
   box.innerHTML = '<div class="wchk-wrap">' + monthLine + `<div style="background:${head[1]};border:2px solid ${head[2]};border-radius:14px;padding:12px 15px">
       <div style="font-weight:900;font-size:21px;color:${head[0]}">${head[3]}</div>
       <div style="font-size:12.5px;font-weight:700;color:${head[0]};margin-top:2px">${head[4]}</div></div>` +
-    table + scanLine + assign + sums + bullets(a.errors) + warnB(a.warns) + det + pay + back + '</div>';
+    '<div style="margin-top:10px">' + checks + '</div>' + table + scanLine + assign + sums + bullets(a.errors) + warnB(a.warns) + det + pay + back + '</div>';
 }
 
 // ממשיך לאותה חלונית אישור תשלום: רק מי שחזר אם הועלתה סריקה, אחרת הכל
