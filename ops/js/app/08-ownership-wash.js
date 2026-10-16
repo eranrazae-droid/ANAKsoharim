@@ -1990,6 +1990,7 @@ function _washPaySelection() {
            fromV: days[0] ? _washYmd(days[0]) : '', toV: days[days.length - 1] ? _washYmd(days[days.length - 1]) : '' };
 }
 
+let _washPayFile = null;  // קובץ החשבונית שהועלה — נשמר בארכיון יחד עם התשלום
 let _washPayInv = null;   // חשבונית השטיפה שלפיה משלמים (כשמגיעים מבדיקת החשבונית)
 let _washPayRest = [];   // פתקי החודש שלא שולמו ויועברו לארכיון יחד עם התשלום
 function washMarkPaid(only) {
@@ -2088,13 +2089,23 @@ async function washPayConfirm() {
       try { await _updateDoc(_docRef('wash_notes', n.id), { paidId: ref.id }); }
       catch (e) { failed++; }
     }
+    // החשבונית שהועלתה נשמרת ליד התשלום בארכיון
+    if (_washPayFile) {
+      if (_washPayFile.data.length * 0.75 > _WASH_DOC_MAX) showToast('⚠️ החשבונית גדולה מדי לשמירה בארכיון (מעל 0.7MB). אפשר לצרף אותה ידנית מהארכיון.', 9000);
+      else {
+        try {
+          await _setDoc(_docRef('wash_payment_docs', ref.id), { doc: _washPayFile.data, docMime: _washPayFile.mime, docName: _washPayFile.name });
+          await _updateDoc(_docRef('wash_payments', ref.id), { hasDoc: true });
+        } catch (e) { showToast('⚠️ התשלום נשמר, אך צירוף החשבונית נכשל. אפשר לצרף אותה מהארכיון.', 9000); }
+      }
+    }
     // שאר פתקי החודש עוברים לארכיון יחד עם התשלום, מסומנים כלא שולמו
     for (const n of _washPayRest) {
       try { await _updateDoc(_docRef('wash_notes', n.id), { paidId: ref.id, closedUnpaid: true }); }
       catch (e) { failed++; }
     }
     closeModal('modal-wash-pay-confirm');
-    _washPayOnly = null; _washRec = null; _washChk = null; _washPayRest = []; _washPayInv = null; _wckClear();
+    _washPayOnly = null; _washRec = null; _washChk = null; _washPayRest = []; _washPayInv = null; _washPayFile = null; _wckClear();
     _washRenderSummary();
     showToast(failed
       ? `⚠️ התשלום נשמר, אך ${failed} פתקים לא סומנו והם נשארו בחשבון הפתוח`
@@ -2107,7 +2118,7 @@ async function washPayConfirm() {
 window.washPayConfirm = washPayConfirm;
 
 // ביטול מחזיר את הבחירה למצב הרגיל — החשבון הפתוח כולו
-function washPayCancel() { _washPayOnly = null; _washPayRest = []; _washPayInv = null; closeModal('modal-wash-pay-confirm'); }
+function washPayCancel() { _washPayOnly = null; _washPayRest = []; _washPayInv = null; _washPayFile = null; closeModal('modal-wash-pay-confirm'); }
 window.washPayCancel = washPayCancel;
 
 function openWashPayHub() {
@@ -2137,6 +2148,9 @@ function washPayToggle(id) {
 window.washPayToggle = washPayToggle;
 
 function _washPayTitle(p) {
+  // השם הוא החודש שהחשבונית מכסה, לא חודש התשלום ("חודש 9/26" בחשבונית = ספטמבר 2026)
+  if (p.invoiceMonth) return _washMonthLabel(p.invoiceMonth);
+  if (p.from && p.to && String(p.from).slice(0, 7) === String(p.to).slice(0, 7)) return _washMonthLabel(String(p.from).slice(0, 7));
   const d = p.paidAt?.toDate ? p.paidAt.toDate() : null;
   return d ? d.toLocaleDateString('he-IL', { month: 'long', year: 'numeric' }) : 'תשלום';
 }
@@ -2649,9 +2663,10 @@ async function _wckSave() {
   try {
     const rec = _washRec && _washRec.matched ? { pages: _washRec.pages, matched: [..._washRec.matched.entries()], unknown: _washRec.unknown || [], repeats: _washRec.repeats || [], byText: _washRec.byText || 0, byOcr: _washRec.byOcr || 0, imgs: _washRec.imgs || [] } : null;
     const inv = _washChk && _washChk.inv ? _washChk.inv : null;
+    const file = _washChk && _washChk.file ? _washChk.file : null;
     if (!inv && !rec) return _wckClear();
     const db = await _wckOpen();
-    await new Promise((res, rej) => { const tx = db.transaction('s', 'readwrite'); tx.objectStore('s').put({ inv, rec, at: Date.now() }, 'cur'); tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
+    await new Promise((res, rej) => { const tx = db.transaction('s', 'readwrite'); tx.objectStore('s').put({ inv, file, rec, at: Date.now() }, 'cur'); tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
     db.close();
   } catch (e) { console.warn('wash check save', e); }
 }
@@ -2668,7 +2683,7 @@ async function _wckRestore() {
     const st = await new Promise(res => { const r = db.transaction('s').objectStore('s').get('cur'); r.onsuccess = () => res(r.result); r.onerror = () => res(null); });
     db.close();
     if (!st || Date.now() - (st.at || 0) > 30 * 86400000) return;
-    if (st.inv) _washChk = { inv: st.inv };
+    if (st.inv) _washChk = { inv: st.inv, file: st.file || null };
     if (st.rec) _washRec = { ...st.rec, matched: new Map(st.rec.matched) };
   } catch (e) {}
 }
@@ -2778,8 +2793,9 @@ async function washCheckInvoice(input) {
   _washChkMsg = '';
   try {
     const inv = await _washParseInvoice(f);
+    const fileData = await _fileToDataUrl(f);
     if (inv.noText || !inv.lines || !inv.lines.length) { _washChk = null; _washChkMsg = 'לא הצלחתי לקרוא את החשבונית. יש להעלות את קובץ ה-PDF המקורי שהתקבל מהשטיפה (לא צילום או סריקה).'; }
-    else _washChk = { inv };
+    else _washChk = { inv, file: { name: f.name || 'חשבונית.pdf', mime: f.type || 'application/pdf', data: fileData } };
   } catch (e) { console.error(e); _washChk = null; _washChkMsg = 'לא הצלחתי לקרוא את הקובץ. נסה שוב עם ה-PDF המקורי.'; }
   _wckSave();
   _washChkRender();
@@ -3060,6 +3076,7 @@ function washCheckPay() {
   try { if (_washChk && _washChk.inv && _washRec && _washRec.matched) ids = new Set(_washChkAnalyze().retIds); } catch (e) {}
   _washPayRest = [];
   _washPayInv = _washChk && _washChk.inv ? _washChk.inv : null;
+  _washPayFile = _washChk && _washChk.file ? _washChk.file : null;
   try {
     const per = _washChk && _washChk.inv && _washChk.inv.period;
     if (per) {
