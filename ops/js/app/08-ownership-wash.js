@@ -2136,6 +2136,7 @@ function openWashPayments() {
       _washRenderPayments();
     }, () => {});
   }
+  _washPayOpen = null;          // תמיד נפתח ברשימה, לא בפירוט של התשלום שנפתח בפעם הקודמת
   _washRenderPayments();
   openModal('modal-wash-payments');
 }
