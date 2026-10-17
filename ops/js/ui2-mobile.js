@@ -4,8 +4,13 @@
   const KEY = 'anak_ui2m';
   const phone = window.matchMedia('(max-width:900px)');
   const roles = new Set(['manager', 'driver', 'pickup_agent', 'pickup_driver']);
-  let enabled = false, row = null, checkbox = null, pending = false;
-  try { enabled = localStorage.getItem(KEY) === '1'; } catch (e) {}
+  let enabled = true, row = null, checkbox = null, pending = false;
+  // העיצוב החדש הוא ברירת המחדל לכולם (איברהים אינו ברשימת התפקידים). פעם אחת
+  // בכל מכשיר מתאפסת בחירה ישנה; המתג בהגדרות ממשיך להחזיר לעיצוב הישן.
+  try {
+    if (localStorage.getItem('anak_ui2m_default') !== '1') { localStorage.removeItem(KEY); localStorage.setItem('anak_ui2m_default', '1'); }
+    enabled = localStorage.getItem(KEY) !== '0';
+  } catch (e) {}
   try {
     const value = new URLSearchParams(location.search).get('ui2m');
     if (value === '1' || value === '0') {

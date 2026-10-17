@@ -6,9 +6,12 @@
 (function () {
   'use strict';
   const KEY = 'anak_ui2';
+  // העיצוב החדש הוא ברירת המחדל. פעם אחת בכל מכשיר מתאפסת בחירה ישנה,
+  // כדי שגם מי שכיבה אותו בעבר יקבל אותו; "חזרה לעיצוב הישן" ממשיך לעבוד.
+  try { if (localStorage.getItem('anak_ui2_default') !== '1') { localStorage.removeItem(KEY); localStorage.setItem('anak_ui2_default', '1'); } } catch (e) {}
   try { const q = new URLSearchParams(location.search).get('ui2'); if (q === '1' || q === '0') localStorage.setItem(KEY, q); } catch (e) {}
   const WIDE = () => window.innerWidth > 900;
-  const flag = () => { try { return localStorage.getItem(KEY) === '1'; } catch (e) { return false; } };
+  const flag = () => { try { return localStorage.getItem(KEY) !== '0'; } catch (e) { return true; } };
   const setFlag = v => { try { localStorage.setItem(KEY, v ? '1' : '0'); } catch (e) {} };
   const SRC = (document.currentScript && document.currentScript.src) || '';
   const VER = (SRC.match(/[?&]v=(\d+)/) || [])[1] || '1';
