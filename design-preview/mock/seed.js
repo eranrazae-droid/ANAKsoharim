@@ -126,5 +126,7 @@ export function SEED(TS) {
   put('pro_payments', 'pp1', { who: 'חביב', amount: 400, date: ymd(2 * D), note: '', createdBy: 'ליאל', createdAt: ago(2 * D) });
   put('battery_orders', 'bo0', { lines: [], units: 6, total: 2980, at: iso(9 * D), createdBy: 'ליאל', createdAt: ago(9 * D) });
 
+  put('ai_chats', 'עופר_demo1', { user: 'עופר', role: 'driver', sid: 'demo1', at: now - 3 * H, plate: '2345678', car: 'יונדאי איוניק 5 2023',
+    msgs: [{ role: 'user', content: 'איפה השקע לטעינה איטית?' }, { role: 'assistant', content: '(הדגמה) בצד ימין מאחור, מתחת לדלת הטעינה.', sources: [] }] });
   return out;
 }

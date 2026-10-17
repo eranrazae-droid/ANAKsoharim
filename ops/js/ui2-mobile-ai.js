@@ -147,7 +147,7 @@
     }
   }
   function startSession(plate) {
-    session = { id: Date.now().toString(36), at: Date.now(), plate: plate || '', car: '', msgs: [] };
+    session = { id: Date.now().toString(36), at: Date.now(), user: who(), plate: plate || '', car: '', msgs: [] };
   }
   function logMsg(m) {
     if (!session) startSession('');
@@ -157,7 +157,37 @@
     session.at = Date.now();
     const list = loadHist().filter(x => x.id !== session.id);
     list.unshift(session); saveHist(list);
+    // גם בשרת — הנהג רואה את השיחות שלו בכל טלפון, והמנהל רואה את כולן
+    try {
+      if (typeof window._setDoc === 'function') window._setDoc(window._docRef('ai_chats', session.user + '_' + session.id), {
+        user: session.user, role: (typeof currentUser !== 'undefined' && currentUser?.role) || '',
+        sid: session.id, at: session.at, plate: session.plate, car: session.car, msgs: session.msgs,
+      }).catch(e => console.warn('ai_chats', e));
+    } catch (e) {}
   }
+  const isMgr = () => typeof currentUser !== 'undefined' && currentUser?.role === 'manager';
+  function fetchOnce(q) {
+    return new Promise(res => {
+      let u = null, done = false;
+      const fin = v => { if (done) return; done = true; setTimeout(() => { try { u && u(); } catch (e) {} }, 0); res(v); };
+      try { u = window._onSnap(q, sn => fin(sn.docs.map(d => ({ id: d.id, ...d.data() }))), () => fin([])); } catch (e) { fin([]); }
+      setTimeout(() => fin([]), 8000);
+    });
+  }
+  // השיחות מהשרת (שלי, או של כולם אצל המנהל) יחד עם מה ששמור בטלפון
+  async function allChats() {
+    const local = loadHist().map(x => ({ ...x, user: x.user || who() }));
+    let remote = [];
+    if (typeof window._onSnap === 'function') {
+      const col = window._colRef('ai_chats');
+      remote = await fetchOnce(isMgr() ? window._query(col, window._orderBy('at', 'desc')) : window._query(col, window._where('user', '==', who())));
+      remote = remote.map(d => ({ ...d, id: d.sid || d.id }));
+    }
+    const by = new Map();
+    [...remote, ...local].forEach(x => { const k = (x.user || '') + '_' + x.id; const o = by.get(k); if (!o || (x.at || 0) > (o.at || 0)) by.set(k, x); });
+    return [...by.values()].sort((a, b) => (b.at || 0) - (a.at || 0)).slice(0, 150);
+  }
+  let shown = [];
   function newChat() {
     session = null;
     const ms = $('ui2m-messages'); if (ms) ms.replaceChildren();
@@ -168,9 +198,10 @@
   function bubble(text, mine) {
     const e = document.createElement('div'); e.className = 'u2m-message' + (mine ? ' u2m-mine' : ''); e.textContent = text; return e;
   }
-  function openSession(id) {
-    const s = loadHist().find(x => x.id === id); if (!s) return;
-    session = s;
+  function openSession(key) {
+    const s = shown.find(x => (x.user || '') + '_' + x.id === key); if (!s) return;
+    // שיחה של משתמש אחר (המנהל צופה) — לקריאה בלבד; שאלה חדשה תפתח שיחה משלו
+    session = (s.user || who()) === who() ? { ...s, user: who() } : null;
     const pl = $('ui2m-plate'); if (pl) pl.value = s.plate || '';
     const ms = $('ui2m-messages'); if (!ms) return;
     ms.replaceChildren();
@@ -186,21 +217,30 @@
     ms.lastElementChild?.scrollIntoView({ block: 'nearest' });
   }
   function closeHist() { const h = $('ui2m-hist'); if (h) h.hidden = true; }
-  function openHist() {
+  async function openHist() {
     const h = $('ui2m-hist'); if (!h) return;
-    const list = loadHist();
     const body = h.querySelector('.u2m-hist-list');
+    body.replaceChildren(Object.assign(document.createElement('p'), { textContent: 'טוען…' }));
+    h.querySelector('.u2m-hist-clear').hidden = isMgr();
+    const hd0 = document.querySelector('#ui2m-chat .u2m-chat-sheet > header');
+    if (hd0) h.style.top = (hd0.offsetTop + hd0.offsetHeight) + 'px';
+    h.hidden = false;
+    const all = await allChats();
+    // אצל המנהל: סינון לפי משתמש
+    let flt = h.dataset.flt || '';
+    const users = [...new Set(all.map(x => x.user).filter(Boolean))];
+    const bar = h.querySelector('.u2m-hist-users');
+    bar.hidden = !isMgr() || users.length < 2;
+    bar.replaceChildren(...['', ...users].map(u => { const b = document.createElement('button'); b.type = 'button'; b.dataset.u = u; b.textContent = u || 'כולם'; b.classList.toggle('on', u === flt); return b; }));
+    const list = shown = all.filter(x => !flt || x.user === flt);
     body.replaceChildren(...(list.length ? list.map(x => {
-      const b = document.createElement('button'); b.type = 'button'; b.className = 'u2m-hist-row'; b.dataset.id = x.id;
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'u2m-hist-row'; b.dataset.id = (x.user || '') + '_' + x.id;
       const t = document.createElement('b'); t.textContent = (x.msgs.find(m => m.role === 'user')?.content || 'שיחה').slice(0, 70);
       const sub = document.createElement('small');
-      sub.textContent = [x.plate && ('🚗 ' + (x.car || x.plate)), new Date(x.at).toLocaleString('he-IL', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }),
+      sub.textContent = [isMgr() && x.user && x.user !== who() && ('👤 ' + x.user), x.plate && ('🚗 ' + (x.car || x.plate)), new Date(x.at).toLocaleString('he-IL', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }),
         Math.ceil(x.msgs.length / 2) + ' שאלות'].filter(Boolean).join(' · ');
       b.append(t, sub); return b;
     }) : [Object.assign(document.createElement('p'), { textContent: 'עוד אין שיחות שמורות.' })]));
-    const hd = document.querySelector('#ui2m-chat .u2m-chat-sheet > header');
-    if (hd) h.style.top = (hd.offsetTop + hd.offsetHeight) + 'px';
-    h.hidden = false;
   }
   function histUi() {
     const sheet = document.querySelector('#ui2m-chat .u2m-chat-sheet'); if (!sheet || $('ui2m-hist-btn')) return;
@@ -208,11 +248,18 @@
     const mk = (id, txt, label, fn) => { const b = document.createElement('button'); b.type = 'button'; b.id = id; b.className = 'u2m-hbtn'; b.textContent = txt; b.setAttribute('aria-label', label); b.title = label; b.onclick = fn; return b; };
     close?.before(mk('ui2m-new-btn', '＋', 'שיחה חדשה', newChat), mk('ui2m-hist-btn', '🕘', 'היסטוריית שיחות', openHist));
     const h = document.createElement('div'); h.id = 'ui2m-hist'; h.className = 'u2m-hist'; h.hidden = true;
-    h.innerHTML = '<div class="u2m-hist-head"><b>היסטוריית שיחות</b><button type="button" data-x aria-label="חזרה לשיחה">חזרה</button></div><div class="u2m-hist-list"></div>' +
+    h.innerHTML = '<div class="u2m-hist-head"><b>היסטוריית שיחות</b><button type="button" data-x aria-label="חזרה לשיחה">חזרה</button></div><div class="u2m-hist-users" hidden></div><div class="u2m-hist-list"></div>' +
       '<button type="button" class="u2m-hist-clear">מחיקת כל ההיסטוריה</button>';
     h.addEventListener('click', e => {
       if (e.target.closest('[data-x]')) return closeHist();
-      if (e.target.closest('.u2m-hist-clear')) { if (confirm('למחוק את כל השיחות השמורות?')) { saveHist([]); session = null; openHist(); } return; }
+      const uf = e.target.closest('.u2m-hist-users [data-u]'); if (uf) { h.dataset.flt = uf.dataset.u; openHist(); return; }
+      if (e.target.closest('.u2m-hist-clear')) {
+        if (!confirm('למחוק את כל השיחות שלך? הן יימחקו גם מהשרת.')) return;
+        const mine = shown.filter(x => (x.user || who()) === who());
+        import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js').then(({ deleteDoc, doc }) =>
+          mine.forEach(x => deleteDoc(doc(window._db, 'ai_chats', who() + '_' + x.id)).catch(() => {}))).catch(() => {});
+        saveHist([]); session = null; openHist(); return;
+      }
       const row = e.target.closest('.u2m-hist-row'); if (row) openSession(row.dataset.id);
     });
     sheet.appendChild(h);
