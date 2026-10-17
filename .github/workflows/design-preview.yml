@@ -1,0 +1,75 @@
+# סביבת הדגמה: עותק של האפליקציה עם נתונים מדומים, בכתובת נפרדת.
+# שום דבר בה לא נוגע באפליקציה האמיתית — אין חיבור למסד הנתונים, לשרת או להודעות.
+#  • דחיפה לענף החי → ערוץ "demo" (כתובת קבועה של המצב הנוכחי).
+#  • בקשת שינוי של עיצוב → רק בהפעלה ידנית (Run workflow + מספר הבקשה),
+#    אחרי שהשינוי נבדק. לא רץ אוטומטית על קוד שלא נבדק.
+# קוד סביבת ההדגמה (design-preview/) נלקח תמיד מהענף החי. מבקשת השינוי
+# נלקחת רק התיקייה ops/, כקבצים סטטיים בלבד — שום דבר ממנה לא מורץ.
+name: Design preview
+on:
+  push:
+    branches: [claude/charming-archimedes-nlfl58]
+    paths: ['ops/**', 'design-preview/**', '.github/workflows/design-preview.yml']
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: 'מספר בקשת השינוי (ריק = הענף החי)'
+        required: false
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+concurrency:
+  group: design-preview-${{ inputs.pr || 'demo' }}
+  cancel-in-progress: true
+jobs:
+  preview:
+    if: github.ref == 'refs/heads/claude/charming-archimedes-nlfl58'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Take ops/ from the design pull request
+        if: inputs.pr != ''
+        env:
+          PR: ${{ inputs.pr }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -eu
+          case "$PR" in ''|*[!0-9]*) echo "::error::bad PR number"; exit 1;; esac
+          INFO=$(gh api "repos/$REPO/pulls/$PR" --jq '[.head.repo.full_name, .head.ref, .head.sha, .base.ref] | @tsv')
+          IFS=$'\t' read -r HREPO HREF HSHA BREF <<< "$INFO"
+          [ "$HREPO" = "$REPO" ] || { echo "::error::PR from another repository"; exit 1; }
+          case "$HREF" in design/*) ;; *) echo "::error::not a design/* branch"; exit 1;; esac
+          git fetch --no-tags --depth=1 "https://x-access-token:${GH_TOKEN}@github.com/$REPO" "$HSHA"
+          rm -rf ops
+          git checkout FETCH_HEAD -- ops
+          find ops -type l -print -delete
+          echo "CHANNEL=design-pr-$PR" >> "$GITHUB_ENV"
+      - name: Build demo
+        run: bash design-preview/build.sh ops _preview
+      - name: Deploy to preview channel
+        id: deploy
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: anak-soharim
+          entryPoint: _preview
+          channelId: ${{ env.CHANNEL || 'demo' }}
+          expires: 30d
+      - name: Post link on the pull request
+        if: inputs.pr != ''
+        env:
+          PR: ${{ inputs.pr }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          URL: ${{ steps.deploy.outputs.details_url }}
+        run: |
+          gh api "repos/$REPO/issues/$PR/comments" -f body="🧪 תצוגה מקדימה (נתונים מדומים, שום דבר לא נשמר): ${URL%/}/ops/?ui2=1"
+      - name: Summary
+        env:
+          URL: ${{ steps.deploy.outputs.details_url }}
+        run: echo "### 🧪 ${URL%/}/ops/?ui2=1" >> "$GITHUB_STEP_SUMMARY"
