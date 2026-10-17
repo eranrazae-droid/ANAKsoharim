@@ -69,7 +69,7 @@
     phone.addEventListener('change', schedule);
     window.addEventListener('storage', event => {
       if (event.key !== KEY && event.key !== null) return;
-      try { enabled = localStorage.getItem(KEY) === '1'; } catch (e) { enabled = false; }
+      try { enabled = localStorage.getItem(KEY) !== '0'; } catch (e) { enabled = false; }
       schedule();
     });
   }
