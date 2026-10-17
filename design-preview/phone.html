@@ -9,8 +9,7 @@
 <script>
   /* בטלפון אמיתי אין טעם במסגרת — נכנסים ישר לאפליקציה */
   if (Math.min(screen.width, innerWidth) < 600) {
-    var as = new URLSearchParams(location.search).get('as');
-    location.replace('/ops/' + (as ? '?as=' + encodeURIComponent(as) : ''));
+    location.replace('/ops/' + location.search);
   }
 </script>
 <style>
@@ -74,9 +73,12 @@
     cur = name;
     try { sessionStorage.clear(); } catch (e) {}
     document.querySelectorAll('.u').forEach(function (b) { b.classList.toggle('on', b.dataset.n === name); });
-    var q = '?as=' + encodeURIComponent(name);
+    /* שאר הפרמטרים בכתובת (למשל מתג עיצוב) עוברים לאפליקציה כמו שהם */
+    var ps = new URLSearchParams(location.search);
+    ps.set('as', name);
+    var q = '?' + ps.toString();
     document.getElementById('f').src = '/ops/' + q + '&t=' + Date.now();
-    document.getElementById('link').textContent = location.origin + '/phone.html?as=' + name;
+    document.getElementById('link').textContent = decodeURIComponent(location.origin + '/phone.html' + q);
     history.replaceState(null, '', q);
   }
   go(cur);
