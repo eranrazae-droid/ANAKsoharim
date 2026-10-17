@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>הדגמה בטלפון</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;900&display=swap" rel="stylesheet">
+<script>
+  /* בטלפון אמיתי אין טעם במסגרת — נכנסים ישר לאפליקציה */
+  if (Math.min(screen.width, innerWidth) < 600) {
+    var as = new URLSearchParams(location.search).get('as');
+    location.replace('/ops/' + (as ? '?as=' + encodeURIComponent(as) : ''));
+  }
+</script>
+<style>
+  :root { --bg:#141d1b; --panel:#1c2725; --line:#303a34; --ink:#eef2ee; --mut:#9da9a0; --gold:#c4a463; --gold2:#e1c887; }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: radial-gradient(circle at 50% 0, #22302d, var(--bg) 60%); color: var(--ink); font-family: Heebo, Arial, sans-serif;
+    min-height: 100vh; display: flex; gap: 40px; align-items: center; justify-content: center; padding: 24px; }
+  .side { width: 280px; display: flex; flex-direction: column; gap: 18px; }
+  h1 { font-size: 26px; font-weight: 900; }
+  h1 span { color: var(--gold2); }
+  .sub { color: var(--mut); font-size: 13px; line-height: 1.6; }
+  .lbl { font-size: 12px; font-weight: 700; color: var(--mut); margin-bottom: 8px; }
+  .users { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .u { background: var(--panel); border: 1px solid var(--line); color: var(--ink); border-radius: 10px; padding: 10px 12px;
+    font: 600 14px Heebo, sans-serif; cursor: pointer; text-align: right; display: flex; flex-direction: column; gap: 2px; }
+  .u small { color: var(--mut); font-size: 11px; font-weight: 400; }
+  .u:hover { border-color: var(--gold); }
+  .u.on { background: var(--gold); border-color: var(--gold2); color: #18221b; }
+  .u.on small { color: #3b3220; }
+  .btn { background: none; border: 1px solid var(--line); color: var(--ink); border-radius: 10px; padding: 10px; font: 600 13px Heebo, sans-serif; cursor: pointer; }
+  .btn:hover { border-color: var(--gold); }
+  .link { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 12px; direction: ltr; text-align: left;
+    color: var(--gold2); word-break: break-all; user-select: all; }
+  .note { font-size: 12px; color: var(--mut); background: #7c3aed22; border: 1px solid #7c3aed55; border-radius: 10px; padding: 10px 12px; line-height: 1.6; }
+  .phone { width: 410px; height: 864px; max-height: calc(100vh - 48px); border-radius: 54px; background: #050505; padding: 10px;
+    box-shadow: 0 0 0 2px #2a2a2a, 0 30px 80px #0009; position: relative; flex: none; }
+  .phone iframe { width: 100%; height: 100%; border: 0; border-radius: 44px; background: #fff; display: block; }
+  @media (max-height: 900px) { .phone { transform: scale(calc((100vh - 48px) / 864)); transform-origin: center; max-height: none; } }
+</style>
+</head>
+<body>
+  <div class="side">
+    <div>
+      <h1>ענק <span>הרכבים</span></h1>
+      <div class="sub">הדגמה בטלפון — נתונים מומצאים. אפשר ללחוץ על הכול, שום דבר לא נשמר ולא נשלח.</div>
+    </div>
+    <div>
+      <div class="lbl">להיכנס בתור</div>
+      <div class="users" id="users"></div>
+    </div>
+    <button class="btn" onclick="go(cur)">↻ להתחיל מחדש</button>
+    <div>
+      <div class="lbl">לפתוח בטלפון האמיתי</div>
+      <div class="link" id="link"></div>
+    </div>
+    <div class="note">🧪 זו הדגמה בלבד. האפליקציה האמיתית לא משתנה מכלום שקורה כאן.</div>
+  </div>
+  <div class="phone"><iframe id="f" title="האפליקציה בטלפון"></iframe></div>
+<script>
+  var USERS = [['ליאל', 'מנהל'], ['גיל', 'נהג'], ['עופר', 'נהג'], ['איתי', 'נהג'], ['משה', 'אחראי איסוף'], ['הילה', 'נהגת איסוף'], ['איברהים', 'פחח']];
+  var cur = new URLSearchParams(location.search).get('as') || 'ליאל';
+  var box = document.getElementById('users');
+  USERS.forEach(function (u) {
+    var b = document.createElement('button');
+    b.className = 'u'; b.dataset.n = u[0];
+    b.innerHTML = u[0] + '<small>' + u[1] + '</small>';
+    b.onclick = function () { go(u[0]); };
+    box.appendChild(b);
+  });
+  function go(name) {
+    cur = name;
+    try { sessionStorage.clear(); } catch (e) {}
+    document.querySelectorAll('.u').forEach(function (b) { b.classList.toggle('on', b.dataset.n === name); });
+    var q = '?as=' + encodeURIComponent(name);
+    document.getElementById('f').src = '/ops/' + q + '&t=' + Date.now();
+    document.getElementById('link').textContent = location.origin + '/phone.html?as=' + name;
+    history.replaceState(null, '', q);
+  }
+  go(cur);
+</script>
+</body>
+</html>

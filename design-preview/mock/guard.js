@@ -69,7 +69,7 @@
 
   /* תווית קבועה */
   function badge() {
-    if (document.getElementById('demo-badge')) return;
+    if (document.getElementById('demo-badge') || window.top !== window) return;  // בתוך מסגרת הטלפון התווית כבר מוצגת בצד
     var b = document.createElement('div');
     b.id = 'demo-badge';
     b.textContent = '🧪 הדגמה — שום דבר לא נשמר';

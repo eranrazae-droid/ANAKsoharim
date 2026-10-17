@@ -12,6 +12,7 @@ mkdir -p "$OUT/ops"
 cp -R "$SRC"/. "$OUT/ops/"
 mkdir -p "$OUT/ops/__demo"
 cp "$HERE"/mock/*.js "$OUT/ops/__demo/"
+cp "$HERE/phone.html" "$OUT/phone.html"
 
 FB=https://www.gstatic.com/firebasejs/10.12.0
 MAP='<script src="/ops/__demo/guard.js"></script><script type="importmap">{"imports":{'
