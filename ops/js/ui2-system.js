@@ -108,7 +108,9 @@
     all.forEach(col => {
       const key = columnKey(col); if (!key) return;
       remember(col); col.dataset.u2ColumnKey = key; col.dataset.u2Tone = tone(key);
-      col.hidden = originals.get(col).hidden || (mode === 'high' ? !HIGH_COLS.includes(key) : hidden.has(key));
+      // עמודה בלי אף משימה לא מוצגת; כשנכנסת אליה משימה היא חוזרת למקומה הקבוע
+      const empty = !col.querySelector('.task-card');
+      col.hidden = originals.get(col).hidden || empty || (mode === 'high' ? !HIGH_COLS.includes(key) : hidden.has(key));
       available.push(key);
     });
     const signature = JSON.stringify(available);
@@ -130,9 +132,10 @@
     picker.classList.toggle('u2-high', mode === 'high');
     board.classList.toggle('u2-high', mode === 'high');
     const count = all.filter(col => !col.hidden).length;
-    picker.querySelector('.u2-column-status').textContent = count + ' מתוך ' + all.length + ' עמודות מוצגות' +
-      (count < all.length ? ' · יש עמודות שהסתרת' : ' · אין עמודות מוסתרות');
-    picker.querySelector('.u2-columns-empty').hidden = all.length === 0 || count > 0;
+    const userHidden = all.filter(col => hidden.has(col.dataset.u2ColumnKey || '')).length;
+    picker.querySelector('.u2-column-status').textContent = count + ' עמודות עם משימות' +
+      (userHidden ? ' · ' + userHidden + ' הסתרת' : '');
+    picker.querySelector('.u2-columns-empty').hidden = all.length === 0 || count > 0 || !userHidden;
   }
   function activeNavigation() {
     // The legacy host keeps the home active behind it. Mark the hosted screen instead.
