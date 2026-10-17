@@ -533,8 +533,10 @@ async function drawPickupMap() {
   const say = t => { if (st) st.textContent = t; };
   say('⏳ טוען מפה…');
   // לפני בדיקת הנקודות השמורות חייבים לדעת אם יש מפתח גוגל — זהות
-  // המפתח של כל נקודה תלויה במקור הנתונים
-  await _mapsPing();
+  // המפתח של כל נקודה תלויה במקור הנתונים. הבדיקה מול השרת יכולה לקחת
+  // כמה שניות (שרת שמתעורר), ולכן היא רצה במקביל: המפה עצמה מוצגת מיד,
+  // ורק סימון הרכבים מחכה לתשובה.
+  const pingP = _mapsPing();
   let L;
   try { L = await _loadLeaflet(); } catch (e) { return say('❌ ' + e.message); }
 
@@ -556,9 +558,15 @@ async function drawPickupMap() {
     _drawCityLabels(L);
     _drawTrainStations(L);
     _pickupMap.on('zoomend', () => { _drawCityLabels(L); _drawTrainStations(L); });
+    // כל שינוי בגודל המסגרת (פתיחת המסך, סידור העמודות, שינוי חלון) —
+    // המפה נמדדת מחדש מיד. בלעדיו האריחים לא נטענו עד שהקטינו את החלון.
+    if (window.ResizeObserver) {
+      new ResizeObserver(() => { if (_pickupMap) _pickupMap.invalidateSize(); }).observe(document.getElementById('pickup-map'));
+    }
   }
   // המודאל נפתח אחרי שהמפה נבנתה, אז צריך למדוד את הגודל מחדש
   setTimeout(() => _pickupMap.invalidateSize(), 250);
+  await pingP;
 
   const cars = _pickupMapCars();
   if (!cars.length) { _pickupMapLayer.clearLayers(); _pickupMapSig = ''; return say('אין רכבים לאיסוף'); }

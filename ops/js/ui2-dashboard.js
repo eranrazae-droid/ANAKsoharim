@@ -38,8 +38,8 @@
 
   /* מפת הניווט. screens = המסכים שבהם הפריט מסומן כפעיל */
   const NAV = [
-    ['home',    'מסך הבית',        'home',    () => goHome(),                       ['screen-home']],
     ['tasks',   'לוח משימות',      'tasks',   () => goToScreen('tasks'),            ['screen-tasks']],
+    ['home',    'מסך הבית',        'home',    () => goHome(),                       ['screen-home']],
     ['vehicles','קליטות ורענון',   'car',     () => goToScreen('vehicles'),         ['screen-vehicles', 'screen-refresh']],
     ['shop',    'פחחות',           'wrench',  () => goToScreen('bodyshop-mgr'),     ['screen-bodyshop-mgr']],
     ['pickup',  'מכוניות לאיסוף',  'truck',   () => goToScreen('pickup'),           ['screen-pickup']],
