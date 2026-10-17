@@ -662,7 +662,7 @@ function openSwitchUser() {
   c.innerHTML = _ALL_USERS.map(u => {
     const active = currentUser?.name === u.name;
     return `<button onclick="switchToUser('${u.name}')" style="display:block;width:100%;text-align:right;background:${active ? 'var(--dark)' : 'var(--surface2)'};color:${active ? '#fff' : 'var(--text)'};border:2px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:8px;font-family:'Heebo',sans-serif;font-size:16px;font-weight:800;cursor:pointer">
-      ${u.name} <span style="font-size:12px;font-weight:600;opacity:.7">· ${u.role === 'manager' ? 'מנהל' : u.role === 'driver' ? 'נהג' : 'איסוף'}</span>${active ? ' ✓' : ''}
+      ${u.name} <span style="font-size:12px;font-weight:600;opacity:.7">· ${u.role === 'manager' ? 'מנהל' : u.role === 'driver' ? 'נהג' : u.role === 'bodyshop' ? 'פחח' : 'איסוף'}</span>${active ? ' ✓' : ''}
     </button>`;
   }).join('');
   openModal('modal-switch-user');
