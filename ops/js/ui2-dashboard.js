@@ -90,18 +90,13 @@
     document.body.appendChild(side);
 
     const home = document.getElementById('screen-home');
-    const header = home && home.querySelector(':scope > .app-header');
-    if (header) {
-      const mk = (cls, html, fn, id) => { const d = document.createElement('button'); d.type = 'button'; d.className = cls; d.id = id; d.innerHTML = html; d.addEventListener('click', fn); return d; };
-      header.appendChild(mk('u2-search', `${svg('search')}<span>חיפוש רכב לפי מספר לוחית…</span>`, () => goToScreen('plate-search'), 'u2-h-search'));
-      header.appendChild(mk('u2-ibtn', svg('bell'), () => { try { openPushSettings(); } catch (e) {} }, 'u2-h-bell'));
-      document.getElementById('u2-h-bell').setAttribute('aria-label', 'הגדרות התראות');
-      header.appendChild(mk('u2-ibtn', svg('gear'), () => openSettings(), 'u2-h-gear'));
-      document.getElementById('u2-h-gear').setAttribute('aria-label', 'הגדרות');
-      const u = mk('u2-user', `<i></i><div><b></b><small>מנהל המערכת</small></div>`, () => logout(), 'u2-h-user');
-      u.setAttribute('aria-label', 'יציאה מהמערכת');
-      header.appendChild(u);
-    }
+    // המשתמש — בסרגל, מתחת ל"ענק הרכבים" (השורה העליונה של מסך הבית הוסרה)
+    const u = document.createElement('button');
+    u.type = 'button'; u.className = 'u2-user'; u.id = 'u2-h-user';
+    u.innerHTML = `<i></i><div><b></b><small>מנהל המערכת</small></div>`;
+    u.addEventListener('click', () => logout());
+    u.setAttribute('aria-label', 'יציאה מהמערכת');
+    side.querySelector('.u2-brand').appendChild(u);
 
     if (home) {
       const hero = document.createElement('section');
