@@ -628,67 +628,10 @@ function renderTasksFromCache() {
     container.appendChild(makeCol(label, colColors[label], sortTasks(allTasks.filter(t => t.label === label))));
   });
 
-  // Combined רדארים/מוסך column
-  const radarMosakCol = document.createElement('div');
-  radarMosakCol.className = 'task-col';
-  radarMosakCol.style.minWidth = '260px'; radarMosakCol.style.maxWidth = '260px';
-  const rmOpenCount = ['רדארים','מוסך'].reduce((s,l) => s + allTasks.filter(t=>t.label===l&&t.status!=='done').length, 0);
-  radarMosakCol.innerHTML = `<div class="task-col-header" style="background:#475569"><span class="task-col-title">רדארים / מוסך</span><span class="task-col-count">${rmOpenCount}</span></div>`;
-  const rmCards = document.createElement('div');
-  rmCards.className = 'task-col-cards';
-  ['רדארים','מוסך'].forEach(name => {
-    const tasks = sortTasks(allTasks.filter(t => t.label === name));
-    const sub = document.createElement('div');
-    sub.className = 'task-drop';
-    sub.dataset.label = name;
-    sub.style.marginBottom = '10px';
-    const subHeader = document.createElement('div');
-    subHeader.style.cssText = `font-size:12px;font-weight:900;color:${colColors[name]};padding:4px 2px 6px;border-bottom:2px solid ${colColors[name]};margin-bottom:6px`;
-    subHeader.textContent = name;
-    sub.appendChild(subHeader);
-    if (tasks.length === 0) {
-      const zone = makeDropZone(name, null, null);
-      zone.innerHTML = `<div style="text-align:center;color:var(--muted);font-size:12px;padding:8px 0">אין משימות</div>`;
-      sub.appendChild(zone);
-    } else {
-      sub.appendChild(makeDropZone(name, null, tasks[0].id));
-      tasks.forEach((t,i) => { sub.appendChild(makeCard(t, false, false, colColors[name], name)); sub.appendChild(makeDropZone(name, t.id, tasks[i+1]?.id??null)); });
-    }
-    rmCards.appendChild(sub);
+  // רדארים, מוסך, רפד וזגג — כל אחד בעמודה נפרדת
+  ['רדארים','מוסך','רפד','זגג'].forEach(label => {
+    container.appendChild(makeCol(label, colColors[label], sortTasks(allTasks.filter(t => t.label === label))));
   });
-  radarMosakCol.appendChild(rmCards);
-  container.appendChild(radarMosakCol);
-
-  // Combined זגג/רפד column
-  const zagRafadCol = document.createElement('div');
-  zagRafadCol.className = 'task-col';
-  zagRafadCol.style.minWidth = '260px'; zagRafadCol.style.maxWidth = '260px';
-  const zrOpenCount = ['רפד','זגג'].reduce((s,l) => s + allTasks.filter(t=>t.label===l&&t.status!=='done').length, 0);
-  zagRafadCol.innerHTML = `<div class="task-col-header" style="background:#475569"><span class="task-col-title">זגג / רפד</span><span class="task-col-count">${zrOpenCount}</span></div>`;
-  const zrCards = document.createElement('div');
-  zrCards.className = 'task-col-cards';
-  ['רפד','זגג'].forEach(name => {
-    const tasks = sortTasks(allTasks.filter(t => t.label === name));
-    const sub = document.createElement('div');
-    sub.className = 'task-drop';
-    sub.dataset.label = name;
-    sub.style.marginBottom = '10px';
-    const subHeader = document.createElement('div');
-    subHeader.style.cssText = `font-size:12px;font-weight:900;color:${colColors[name]};padding:4px 2px 6px;border-bottom:2px solid ${colColors[name]};margin-bottom:6px`;
-    subHeader.textContent = name;
-    sub.appendChild(subHeader);
-    if (tasks.length === 0) {
-      const zone = makeDropZone(name, null, null);
-      zone.innerHTML = `<div style="text-align:center;color:var(--muted);font-size:12px;padding:8px 0">אין משימות</div>`;
-      sub.appendChild(zone);
-    } else {
-      sub.appendChild(makeDropZone(name, null, tasks[0].id));
-      tasks.forEach((t,i) => { sub.appendChild(makeCard(t, false, false, colColors[name], name)); sub.appendChild(makeDropZone(name, t.id, tasks[i+1]?.id??null)); });
-    }
-    zrCards.appendChild(sub);
-  });
-  zagRafadCol.appendChild(zrCards);
-  container.appendChild(zagRafadCol);
 
   // Combined נהגים column
   const driversCol = document.createElement('div');
