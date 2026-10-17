@@ -182,7 +182,7 @@
     ];
     const mb = document.getElementById('u2-mods');
     if (mb) {
-      const html = MODS.map((m, i) => `<button type="button" class="u2-mod" data-i="${i}" style="--img:url(img/ui2/mod-${m[4]}.jpg);--ph:linear-gradient(135deg,${m[5]},#121828)">
+      const html = MODS.map((m, i) => `<button type="button" class="u2-mod" data-i="${i}" style="--img:url(${new URL(`img/ui2/mod-${m[4]}.jpg`, location.href).href});--ph:linear-gradient(135deg,${m[5]},#121828)">
         <div class="mi">${svg(m[1])}</div><div class="ml">${m[2] ? `<span class="mc">${m[2]}</span>` : ''}<span>${m[0]}</span></div><div class="ma" aria-hidden="true">‹</div></button>`).join('');
       if (mb.dataset.h !== html) { mb.innerHTML = html; mb.dataset.h = html; }
       mb.onclick = e => { const c = e.target.closest('.u2-mod'); if (c) MODS[+c.dataset.i][3](); };
