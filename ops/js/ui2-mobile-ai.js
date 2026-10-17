@@ -31,6 +31,10 @@
   let pending = [];   // קבצים שצורפו לשאלה הבאה: { mime, data(base64), url(תצוגה) }
   async function ask({ plate, message, history, signal }) {
     const media = pending; pending = []; paintPending();
+    // ההקשר לשאלת המשך נלקח מהשיחה השמורה (גם אחרי פתיחה מההיסטוריה)
+    if (!session || session.plate !== plate) startSession(plate);
+    history = session.msgs.map(m => ({ role: m.role, content: m.content }));
+    logMsg({ role: 'user', content: message || '(תמונה / סרטון)', media: media.length });
     if (media.length) showSent(media);
     const dots = typing();
     let status, j;
@@ -44,7 +48,9 @@
     if (status === 413) return { answer: 'הקבצים גדולים מדי. נסה סרטון קצר יותר או פחות תמונות.', sources: [] };
     if (status !== 200 || typeof j.answer !== 'string') throw new Error('ai ' + status);
     setTimeout(() => { if (Array.isArray(j.media) && j.media.length) showMedia(j.media); const m = $('ui2m-messages'); if (m) m.lastElementChild?.scrollIntoView({ block: 'nearest' }); }, 60);
-    return { answer: j.answer, sources: Array.isArray(j.sources) ? j.sources : [] };
+    const src = Array.isArray(j.sources) ? j.sources : [];
+    logMsg({ role: 'assistant', content: j.answer, sources: src.slice(0, 6), media: (j.media || []).filter(x => x.type !== 'image') });
+    return { answer: j.answer, sources: src };
   }
 
   /* תמונות וסרטונים שהעוזר מצרף לתשובה — מוצגים ומתנגנים בתוך השיחה */
@@ -131,7 +137,89 @@
     const mine = [...m.querySelectorAll('.u2m-mine')].pop();
     (mine ? mine.after(row) : m.appendChild(row));
   }
+  /* ── היסטוריית שיחות: נשמרת בטלפון, לכל משתמש בנפרד (טקסט, מקורות וסרטונים) ── */
+  let session = null;
+  const histKey = () => 'anak_ai_hist:' + who();
+  function loadHist() { try { return JSON.parse(localStorage.getItem(histKey()) || '[]'); } catch (e) { return []; } }
+  function saveHist(list) {
+    for (let n = Math.min(list.length, 40); n > 0; n -= 5) {   // אם אין מקום — שומרים פחות שיחות
+      try { localStorage.setItem(histKey(), JSON.stringify(list.slice(0, n))); return; } catch (e) {}
+    }
+  }
+  function startSession(plate) {
+    session = { id: Date.now().toString(36), at: Date.now(), plate: plate || '', car: '', msgs: [] };
+  }
+  function logMsg(m) {
+    if (!session) startSession('');
+    const c = session.plate && cards.get(session.plate);
+    if (c) session.car = [c.maker, c.model, c.year].filter(Boolean).join(' ');
+    session.msgs.push({ ...m, content: String(m.content || '').slice(0, 4000) });
+    session.at = Date.now();
+    const list = loadHist().filter(x => x.id !== session.id);
+    list.unshift(session); saveHist(list);
+  }
+  function newChat() {
+    session = null;
+    const ms = $('ui2m-messages'); if (ms) ms.replaceChildren();
+    const pl = $('ui2m-plate'); if (pl) pl.value = '';
+    pending = []; paintPending();
+    closeHist(); $('ui2m-message')?.focus();
+  }
+  function bubble(text, mine) {
+    const e = document.createElement('div'); e.className = 'u2m-message' + (mine ? ' u2m-mine' : ''); e.textContent = text; return e;
+  }
+  function openSession(id) {
+    const s = loadHist().find(x => x.id === id); if (!s) return;
+    session = s;
+    const pl = $('ui2m-plate'); if (pl) pl.value = s.plate || '';
+    const ms = $('ui2m-messages'); if (!ms) return;
+    ms.replaceChildren();
+    s.msgs.forEach(m => {
+      ms.appendChild(bubble(m.content + (m.role === 'user' && m.media ? ' 📎' : ''), m.role === 'user'));
+      (m.sources || []).forEach(x => {
+        try { const u = new URL(x.url); if (u.protocol !== 'https:') return;
+          const a = document.createElement('a'); a.href = u.href; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = String(x.title || u.hostname); ms.appendChild(a); } catch (e) {}
+      });
+      if (m.media && m.media.length) { showMedia(m.media); }
+    });
+    closeHist();
+    ms.lastElementChild?.scrollIntoView({ block: 'nearest' });
+  }
+  function closeHist() { const h = $('ui2m-hist'); if (h) h.hidden = true; }
+  function openHist() {
+    const h = $('ui2m-hist'); if (!h) return;
+    const list = loadHist();
+    const body = h.querySelector('.u2m-hist-list');
+    body.replaceChildren(...(list.length ? list.map(x => {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'u2m-hist-row'; b.dataset.id = x.id;
+      const t = document.createElement('b'); t.textContent = (x.msgs.find(m => m.role === 'user')?.content || 'שיחה').slice(0, 70);
+      const sub = document.createElement('small');
+      sub.textContent = [x.plate && ('🚗 ' + (x.car || x.plate)), new Date(x.at).toLocaleString('he-IL', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }),
+        Math.ceil(x.msgs.length / 2) + ' שאלות'].filter(Boolean).join(' · ');
+      b.append(t, sub); return b;
+    }) : [Object.assign(document.createElement('p'), { textContent: 'עוד אין שיחות שמורות.' })]));
+    const hd = document.querySelector('#ui2m-chat .u2m-chat-sheet > header');
+    if (hd) h.style.top = (hd.offsetTop + hd.offsetHeight) + 'px';
+    h.hidden = false;
+  }
+  function histUi() {
+    const sheet = document.querySelector('#ui2m-chat .u2m-chat-sheet'); if (!sheet || $('ui2m-hist-btn')) return;
+    const close = sheet.querySelector('header [data-u2m-action="close-chat"]');
+    const mk = (id, txt, label, fn) => { const b = document.createElement('button'); b.type = 'button'; b.id = id; b.className = 'u2m-hbtn'; b.textContent = txt; b.setAttribute('aria-label', label); b.title = label; b.onclick = fn; return b; };
+    close?.before(mk('ui2m-new-btn', '＋', 'שיחה חדשה', newChat), mk('ui2m-hist-btn', '🕘', 'היסטוריית שיחות', openHist));
+    const h = document.createElement('div'); h.id = 'ui2m-hist'; h.className = 'u2m-hist'; h.hidden = true;
+    h.innerHTML = '<div class="u2m-hist-head"><b>היסטוריית שיחות</b><button type="button" data-x aria-label="חזרה לשיחה">חזרה</button></div><div class="u2m-hist-list"></div>' +
+      '<button type="button" class="u2m-hist-clear">מחיקת כל ההיסטוריה</button>';
+    h.addEventListener('click', e => {
+      if (e.target.closest('[data-x]')) return closeHist();
+      if (e.target.closest('.u2m-hist-clear')) { if (confirm('למחוק את כל השיחות השמורות?')) { saveHist([]); session = null; openHist(); } return; }
+      const row = e.target.closest('.u2m-hist-row'); if (row) openSession(row.dataset.id);
+    });
+    sheet.appendChild(h);
+  }
+
   function aiUi() {
+    histUi();
     const form = $('ui2m-chat-form'); if (!form || $('ui2m-attach')) return;
     const row = form.querySelector('div');
     const btn = document.createElement('button');
@@ -190,7 +278,7 @@
   // מעקב אחרי מספר הרישוי שבחלונית; החלפת משתמש מנקה את הזיכרון
   setInterval(() => {
     const me = who();
-    if (me !== owner) { owner = me; cards.clear(); shownFor = ''; idCtrl?.abort(); pending = []; paintPending(); }
+    if (me !== owner) { owner = me; cards.clear(); shownFor = ''; idCtrl?.abort(); pending = []; paintPending(); session = null; closeHist(); }
     aiUi();
     const inp = $('ui2m-plate'); if (!inp) return;
     const plate = inp.value.replace(/\D/g, '');
