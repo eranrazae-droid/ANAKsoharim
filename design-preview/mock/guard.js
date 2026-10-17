@@ -4,7 +4,7 @@
 (function () {
   'use strict';
   window.__DEMO__ = true;
-  var ALLOW = /^(https?:\/\/(cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|unpkg\.com|cdn\.sheetjs\.com|fonts\.googleapis\.com|fonts\.gstatic\.com)\/)/;
+  var ALLOW = /^(https?:\/\/(claude\.ai|cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|unpkg\.com|cdn\.sheetjs\.com|fonts\.googleapis\.com|fonts\.gstatic\.com)\/)/;
   function ok(url, method) {
     try {
       var u = new URL(url, location.href);

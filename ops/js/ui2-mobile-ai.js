@@ -1,7 +1,6 @@
-/* חיבור צ׳אט ה-AI של הטלפון לשרת (פונקציה vehicleAI).
-   מגדיר את window.AnakMobileAI.ask שהחלונית קוראת לו, ומציג בחלונית כרטיס
-   של הרכב שזוהה במשרד התחבורה. בלי מפתחות בדפדפן: כל בקשה נושאת את אסימון
-   ההזדהות של Firebase, והשרת מחזיק את המפתח ובודק מגבלות שימוש. */
+/* צ׳אט ה-AI של הטלפון.
+   מזהה את הרכב במשרד התחבורה דרך השרת (חינמי) ומציג כרטיס רכב, ומגדיר את
+   window.AnakMobileAI.ask שפותח את השאלה ב-Claude של המשתמש עם פרטי הרכב. */
 (function () {
   'use strict';
   const URL_AI = 'https://europe-west1-anak-soharim.cloudfunctions.net/vehicleAI';
@@ -27,15 +26,28 @@
     } finally { clearTimeout(t); signal?.removeEventListener('abort', stop); }
   }
 
-  async function ask({ plate, message, history, signal }) {
-    const { status, j } = await call({ action: 'ask', plate, message, history }, signal, 110000);
-    if (signal?.aborted) throw new DOMException('aborted', 'AbortError');
-    if (j.vehicle) { cards.set(plate, j.vehicle); paint(); }
-    if (status === 503 && j.error === 'not-configured') return { answer: 'שירות ה-AI עדיין לא הוגדר בשרת. פנה למנהל המערכת.', sources: [] };
-    if (status === 429) return { answer: j.answer || 'הגעת למגבלת השאלות היומית. אפשר להמשיך מחר.', sources: [] };
-    if (status === 502) return { answer: 'מאגר משרד התחבורה לא זמין כרגע. נסה שוב בעוד כמה דקות.', sources: [] };
-    if (status !== 200 || typeof j.answer !== 'string') throw new Error('ai ' + status);
-    return { answer: j.answer, sources: Array.isArray(j.sources) ? j.sources : [] };
+  /* השאלה נפתחת ב-Claude של המשתמש עצמו (אתר או אפליקציה), עם פרטי הרכב
+     שזוהו — בלי מפתח API ובלי עלות לעסק. Claude מחפש ברשת ומציג מקורות. */
+  function prompt(plate, c, message) {
+    const car = c ? [
+      `יצרן: ${c.maker}`, `דגם: ${c.model}`, c.modelCode && `קוד דגם: ${c.modelCode}`, c.trim && `רמת גימור: ${c.trim}`,
+      `שנת ייצור: ${c.year}`, c.fuel && `דלק: ${c.fuel}`, c.engine && `דגם מנוע: ${c.engine}`,
+    ].filter(Boolean).join('\n') : '(הרכב לא זוהה במרשם)';
+    return `רכב בישראל, מספר רישוי ${plate}. פרטים ממאגר משרד התחבורה:\n${car}\n\n` +
+      `השאלה: ${message}\n\n` +
+      'חפש מקורות יצרן, ספר הרכב, היבואן בישראל וקטלוגי התאמה (למשל VARTA, Bosch). ציין מקורות. ' +
+      'אם התשובה תלויה בגרסה או ברמת גימור ואין התאמה ודאית — אמור זאת ובקש פרט נוסף, אל תנחש. ענה בעברית, בקצרה.';
+  }
+  // נקראת מתוך לחיצת השליחה — פותחים את החלון מיד, לפני כל המתנה, כדי שהדפדפן לא יחסום
+  function ask({ plate, message }) {
+    const url = 'https://claude.ai/new?q=' + encodeURIComponent(prompt(plate, cards.get(plate), message));
+    let w = null;
+    try { w = window.open(url, '_blank'); if (w) w.opener = null; } catch (e) {}
+    return Promise.resolve({
+      answer: w ? 'השאלה נפתחה ב-Claude בחלון חדש, עם פרטי הרכב. התשובה והמקורות יופיעו שם.'
+                : 'הדפדפן חסם פתיחת חלון. לחץ על הקישור למטה כדי לפתוח את השאלה ב-Claude.',
+      sources: [{ title: '↗ פתח את השאלה ב-Claude', url }],
+    });
   }
   window.AnakMobileAI = { ask };
 
