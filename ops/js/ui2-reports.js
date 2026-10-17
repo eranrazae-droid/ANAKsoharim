@@ -5,7 +5,8 @@
   'use strict';
   const DRIVERS = ['גיל', 'עופר', 'איתי'];
   const KINDS = [['intake', 'קליטות'], ['inventory', 'בדיקת מלאי'], ['testdrive', 'נסיעות מבחן']];
-  const EXPECT = { intake: [5 * 60e3, 10 * 60e3] };      // קליטה אמורה לקחת 5–10 דקות
+  const EXPECT = { intake: [5 * 60e3, 10 * 60e3], testdrive: [5 * 60e3, 10 * 60e3] };   // קליטה ונסיעת מבחן: 5–10 דקות
+  const FROM_FIRST_MARK = ['intake', 'testdrive'];   // הספירה מתחילה מהסימון הראשון של הנהג, לא מפתיחת הטופס
   const IDLE = 90e3;            // הפסקה ארוכה מזה לא נספרת כזמן עבודה
   const LONG_IDLE = 3 * 60e3;   // הפסקה ארוכה מזה מסומנת בדוח
   const FAST_GAP = 2000, FAST_RUN = 6;   // 6 סעיפים ברצף, פחות מ-2 שניות בין אחד לשני
@@ -16,17 +17,21 @@
   const fmt = v => { v = Math.max(0, Math.round(v / 1000)); const m = Math.floor(v / 60), s = v % 60; return m >= 60 ? `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')} ש׳` : `${m}:${String(s).padStart(2, '0')}`; };
   const range = ex => `<bdi dir="ltr">${Math.round(ex[0] / 60e3)}–${Math.round(ex[1] / 60e3)}</bdi> דקות`;
   const words = v => { v = Math.round(v / 1000); const m = Math.floor(v / 60), s = v % 60; return m ? `${m} דקות${s ? ` ו-${s} שניות` : ''}` : `${s} שניות`; };
+  const gapTxt = v => { const t = Math.round(v / 100) / 10; return t < 60 ? `${t} שנ׳` : words(v); };
   const nis = n => '₪' + Math.round(n || 0).toLocaleString('he-IL');
   const day = t => t ? new Date(t).toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' }) : '';
 
   /* ── ניתוח רשומת זמנים ── */
   function analyze(L) {
-    const open = L.openedAt, end = L.submittedAt || open;
+    const marks = Object.values(L.marks || {}).sort((a, b) => a - b);
+    const open = FROM_FIRST_MARK.includes(L.kind) && marks.length ? marks[0] : L.openedAt, end = L.submittedAt || open;
     const pts = [open, ...(L.acts || []).filter(t => t >= open && t <= end), end].sort((a, b) => a - b);
     let active = 0, idleMax = 0;
     for (let i = 1; i < pts.length; i++) { const g = pts[i] - pts[i - 1]; active += Math.min(g, IDLE); idleMax = Math.max(idleMax, g); }
-    const marks = Object.values(L.marks || {}).sort((a, b) => a - b);
     const gaps = marks.slice(1).map((t, i) => t - marks[i]);
+    // ממוצע בין סימון לסימון; הפסקה ארוכה (מעל דקה וחצי) לא נכנסת לממוצע
+    const work = gaps.filter(g => g <= IDLE);
+    const meanGap = work.length ? work.reduce((t, g) => t + g, 0) / work.length : 0;
     let run = 0, best = 0, bestSpan = 0, runStart = 0;
     gaps.forEach((g, i) => { if (g < FAST_GAP) { if (!run) runStart = i; run++; if (run > best) { best = run; bestSpan = marks[i + 1] - marks[runStart]; } } else run = 0; });
     const sorted = gaps.slice().sort((a, b) => a - b);
@@ -43,7 +48,7 @@
       opinion = `בממוצע ${s} שניות בין סעיף לסעיף — ` + (median < 3000 ? 'מהיר מאוד, כנראה סימון בלי בדיקה בפועל'
         : median < 8000 ? 'מהיר, כדאי לבדוק מדגמית' : median <= 45000 ? 'קצב סביר של בדיקה אמיתית' : 'איטי, עם הפסקות בין הסעיפים');
     }
-    return { total: end - open, active, idleMax, marks, median, flags, opinion, suspicious: flags.some(f => f[0] === 'fast' || f[0] === 'short'), open, end };
+    return { total: end - open, active, idleMax, marks, median, meanGap, gaps: work.length, flags, opinion, suspicious: flags.some(f => f[0] === 'fast' || f[0] === 'short'), open, end };
   }
 
   /* ── נתונים ── */
@@ -100,26 +105,31 @@
     const since = Date.now() - 30 * 864e5;
     return DRIVERS.map(name => {
       const logs = D.logs.filter(l => l.kind === k && l.driver === name && (l.submittedAt || 0) >= since).map(l => ({ l, a: analyze(l) }));
-      const avg = logs.length ? logs.reduce((s, x) => s + x.a.active, 0) / logs.length : 0;
+      // בבדיקת מלאי: ממוצע הזמן בין סימון לסימון; בשאר: זמן העבודה בפועל
+      const val = x => k === 'inventory' ? x.a.meanGap : x.a.active;
+      const counted = k === 'inventory' ? logs.filter(x => x.a.gaps) : logs;
+      const avg = counted.length ? counted.reduce((s, x) => s + val(x), 0) / counted.length : 0;
       return { name, n: logs.length, avg, sus: logs.filter(x => x.a.suspicious).length };
     });
   }
   function timeHtml() {
     const st = timeStats(kind), ex = EXPECT[kind];
-    const top = Math.max(ex ? ex[1] * 1.3 : 0, ...st.map(s => s.avg), 60e3);
+    const top = Math.max(ex ? ex[1] * 1.3 : 0, ...st.map(s => s.avg * 1.15), kind === 'inventory' ? 5e3 : 60e3);
     const band = ex ? `<div class="u2r-band" style="bottom:${ex[0] / top * 100}%;height:${(ex[1] - ex[0]) / top * 100}%"><span>טווח תקין ${range(ex)}</span></div>` : '';
     const bars = st.map(s => {
       const h = s.avg / top * 100;
       const cls = !s.n ? 'none' : ex && s.avg < ex[0] ? 'low' : ex && s.avg > ex[1] ? 'high' : 'ok';
       return `<button type="button" class="u2r-bar ${cls}" data-driver="${esc2(s.name)}" ${s.n ? '' : 'disabled'}>
           ${s.sus ? `<em class="u2r-sus" title="פעולות חשודות">⚠ ${s.sus} חשודות</em>` : ''}
-          <span class="u2r-bar-v">${s.n ? fmt(s.avg) : '—'}</span>
+          <span class="u2r-bar-v">${s.n ? (kind === 'inventory' ? gapTxt(s.avg) : fmt(s.avg)) : '—'}</span>
           <span class="u2r-bar-f" style="height:${s.n ? Math.max(h, 3) : 0}%"></span>
           <b>${esc2(s.name)}</b><small>${s.n} פעולות</small></button>`;
     }).join('');
     return `<div class="u2r-kinds">${KINDS.map(([k, t]) => `<button type="button" data-kind="${k}" class="${k === kind ? 'on' : ''}">${t}</button>`).join('')}</div>
       <div class="u2r-chart">${band}${bars}</div>
-      <div class="u2r-note">ממוצע זמן עבודה בפועל ב-30 הימים האחרונים. זמן שהטופס עמד פתוח בלי פעולה לא נספר. לחיצה על נהג — פירוט.</div>`;
+      <div class="u2r-note">${kind === 'inventory'
+        ? 'ממוצע הזמן בין סימון לסימון ב-30 הימים האחרונים. הפסקה של יותר מדקה וחצי לא נספרת. לחיצה על נהג — פירוט.'
+        : 'ממוצע זמן עבודה בפועל ב-30 הימים האחרונים, מהסימון הראשון של הנהג ועד השליחה. זמן שהטופס עמד פתוח בלי פעולה לא נספר. לחיצה על נהג — פירוט.'}</div>`;
   }
   function driverReport(name) {
     const logs = D.logs.filter(l => l.kind === kind && l.driver === name).sort((a, b) => b.submittedAt - a.submittedAt).slice(0, 15);
@@ -129,6 +139,7 @@
       const dots = a.marks.map(t => `<i style="right:${a.total ? (t - a.open) / a.total * 100 : 0}%"></i>`).join('');
       return `<div class="u2r-act${a.suspicious ? ' sus' : ''}">
         <div class="u2r-act-h"><b>${esc2(l.plate || title)}</b><span>${new Date(l.submittedAt).toLocaleString('he-IL', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })}</span></div>
+        ${kind === 'inventory' && a.gaps ? `<div class="u2r-act-t">ממוצע ${gapTxt(a.meanGap)} בין סימון לסימון</div>` : ''}
         <div class="u2r-act-t">ארכה ${words(a.active)}${a.total - a.active > 30e3 ? ` <small>(פתוח ${words(a.total)} בסך הכל)</small>` : ''}</div>
         <div class="u2r-tl" title="כל נקודה = סעיף שסומן">${dots}</div>
         ${a.flags.map(f => `<div class="u2r-flag ${f[0]}">${f[0] === 'idle' ? '⏸' : f[0] === 'fast' ? '⚡' : f[0] === 'short' ? '⏱' : '🐢'} ${f[1]}</div>`).join('')}
