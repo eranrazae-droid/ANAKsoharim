@@ -382,7 +382,7 @@ function _showTaskReqApproval(id, req) {
     <div style="margin-bottom:10px">
       <label style="font-size:13px;color:var(--muted)">בעל מקצוע (עמודה):</label>
       <select id="approve-col-select" style="width:100%;margin-top:4px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:Heebo,sans-serif">
-        ${['חביב','ולאדי','רדארים','מוסך','רפד','עופר','גיל','איתי','משימות כלליות'].map(c=>`<option value="${c}" ${c===req.column?'selected':''}>${c}</option>`).join('')}
+        ${['חביב','ולאדי','רדארים','מוסך','רפד','עופר','גיל','איתי','משימות כלליות','משימות ללקוחות ומוסך'].map(c=>`<option value="${c}" ${c===req.column?'selected':''}>${c}</option>`).join('')}
       </select>
     </div>`;
   openModal('modal-approve-task-req');

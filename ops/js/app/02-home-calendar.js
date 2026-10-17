@@ -2055,7 +2055,7 @@ function getSeenTasks() {
 }
 function markLabelSeen(label) {
   const seen = getSeenTasks();
-  const labelFilters = ['משימות בעדיפות עליונה','משימות כלליות','חביב','ולאדי','רפד','זגג','רדארים','מוסך'];
+  const labelFilters = ['משימות בעדיפות עליונה','משימות ללקוחות ומוסך','משימות כלליות','חביב','ולאדי','רפד','זגג','רדארים','מוסך'];
   let tasks = tasksCache;
   if (labelFilters.includes(label)) tasks = tasks.filter(t => t.label === label);
   tasks.forEach(t => seen.add(t.id));
@@ -2075,7 +2075,7 @@ function renderTaskTabs() {
   const tabEl = document.getElementById('task-filter-tabs');
   if (!tabEl) return;
   const isManager = currentUser?.role === 'manager';
-  const labelTabs = ['משימות בעדיפות עליונה','משימות כלליות','חביב','ולאדי','רפד','זגג','רדארים','מוסך'];
+  const labelTabs = ['משימות בעדיפות עליונה','משימות ללקוחות ומוסך','משימות כלליות','חביב','ולאדי','רפד','זגג','רדארים','מוסך'];
   const tabs = isManager ? labelTabs : ['שלי', ...labelTabs];
   const counts = isManager ? unreadCountByLabel() : {};
   tabEl.innerHTML = tabs.map(t => {

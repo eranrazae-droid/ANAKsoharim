@@ -6,6 +6,11 @@
   const version = ((scriptUrl || '').match(/[?&]v=(\d+)/) || [])[1] || '554';
   let running = false, owner = '', hidden = new Set(), picker = null, board = null;
   let scheduled = false;
+  /* מצב הלוח: 'high' — דחיפות גבוהה בלבד, 'all' — כל המשימות */
+  const HIGH_COLS = ['משימות בעדיפות עליונה', 'משימות ללקוחות ומוסך'];
+  let mode = 'all';
+  function readMode() { try { mode = localStorage.getItem('anak_ui2_task_mode:' + owner) === 'high' ? 'high' : 'all'; } catch (e) { mode = 'all'; } }
+  function saveMode() { try { localStorage.setItem('anak_ui2_task_mode:' + owner, mode); } catch (e) {} }
   const originals = new WeakMap();
   const pageModals = ['modal-screen-host', 'modal-settings', 'modal-all-screens'];
   const columnsObserver = new MutationObserver(schedule);
@@ -47,6 +52,7 @@
   }
   function tone(key) {
     if (key.indexOf('עדיפות') >= 0) return 'gold';
+    if (key.indexOf('לקוחות') >= 0) return 'teal';
     if (key === 'משימות כלליות' || key === 'ולאדי') return 'blue';
     if (key === 'נהגים') return 'sage';
     return 'lavender';
@@ -68,7 +74,10 @@
     picker = document.createElement('section');
     picker.id = 'ui2-column-tools';
     picker.setAttribute('aria-label', 'תצוגת עמודות משימות');
-    picker.innerHTML = '<div class="u2-column-status" role="status" aria-live="polite"></div>' +
+    picker.innerHTML = '<div class="u2-mode" role="radiogroup" aria-label="תצוגת משימות">' +
+      '<button type="button" role="radio" data-u2-mode="high">🔥 דחיפות גבוהה</button>' +
+      '<button type="button" role="radio" data-u2-mode="all">כל המשימות</button></div>' +
+      '<div class="u2-column-status" role="status" aria-live="polite"></div>' +
       '<details class="u2-column-picker"><summary>הצגת עמודות <span aria-hidden="true">▾</span></summary>' +
       '<div class="u2-column-popover"><h3>אילו עמודות להציג?</h3><div class="u2-column-options"></div>' +
       '<div class="u2-column-footer"><small>הסתרה משנה תצוגה בלבד</small>' +
@@ -81,6 +90,8 @@
       savePreference(); updateColumns();
     });
     picker.addEventListener('click', e => {
+      const m = e.target.closest('[data-u2-mode]');
+      if (m) { mode = m.dataset.u2Mode; saveMode(); updateColumns(); return; }
       if (!e.target.closest('[data-u2-show-all]')) return;
       hidden.clear(); savePreference(); updateColumns();
     });
@@ -97,7 +108,7 @@
     all.forEach(col => {
       const key = columnKey(col); if (!key) return;
       remember(col); col.dataset.u2ColumnKey = key; col.dataset.u2Tone = tone(key);
-      col.hidden = originals.get(col).hidden || hidden.has(key);
+      col.hidden = originals.get(col).hidden || (mode === 'high' ? !HIGH_COLS.includes(key) : hidden.has(key));
       available.push(key);
     });
     const signature = JSON.stringify(available);
@@ -112,6 +123,12 @@
       options.dataset.signature = signature;
     }
     options.querySelectorAll('input[data-u2-column]').forEach(input => { input.checked = !hidden.has(input.dataset.u2Column); });
+    picker.querySelectorAll('[data-u2-mode]').forEach(b => {
+      const on = b.dataset.u2Mode === mode;
+      b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false');
+    });
+    picker.classList.toggle('u2-high', mode === 'high');
+    board.classList.toggle('u2-high', mode === 'high');
     const count = all.filter(col => !col.hidden).length;
     picker.querySelector('.u2-column-status').textContent = count + ' מתוך ' + all.length + ' עמודות מוצגות' +
       (count < all.length ? ' · יש עמודות שהסתרת' : ' · אין עמודות מוסתרות');
@@ -145,6 +162,7 @@
   function stop() {
     columnsObserver.disconnect(); restoreColumns();
     pageModals.forEach(id => { const el = document.getElementById(id); if (el) el.style.removeProperty('--u2-page-depth'); });
+    if (board) board.classList.remove('u2-high');
     if (picker) picker.remove(); picker = null; board = null; running = false; owner = '';
   }
   function sync() {
@@ -152,7 +170,7 @@
     if (!eligible()) { if (running) stop(); return; }
     const name = currentUser.name || '';
     if (owner !== name) {
-      if (running) stop(); owner = name; readPreference();
+      if (running) stop(); owner = name; readPreference(); readMode();
     }
     running = true; loadCss();
     const next = document.getElementById('task-list-container');
