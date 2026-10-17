@@ -1,6 +1,6 @@
 /* צ׳אט ה-AI של הטלפון.
    מזהה את הרכב במשרד התחבורה דרך השרת (חינמי) ומציג כרטיס רכב, ומגדיר את
-   window.AnakMobileAI.ask שפותח את השאלה ב-Claude של המשתמש עם פרטי הרכב. */
+   window.AnakMobileAI.ask שמכין את השאלה עם פרטי הרכב לפתיחה ב-Claude או ב-ChatGPT. */
 (function () {
   'use strict';
   const URL_AI = 'https://europe-west1-anak-soharim.cloudfunctions.net/vehicleAI';
@@ -38,15 +38,17 @@
       'חפש מקורות יצרן, ספר הרכב, היבואן בישראל וקטלוגי התאמה (למשל VARTA, Bosch). ציין מקורות. ' +
       'אם התשובה תלויה בגרסה או ברמת גימור ואין התאמה ודאית — אמור זאת ובקש פרט נוסף, אל תנחש. ענה בעברית, בקצרה.';
   }
-  // נקראת מתוך לחיצת השליחה — פותחים את החלון מיד, לפני כל המתנה, כדי שהדפדפן לא יחסום
+  // השאלה מוכנה עם פרטי הרכב, והנהג בוחר איפה לשאול — Claude או ChatGPT
   function ask({ plate, message }) {
-    const url = 'https://claude.ai/new?q=' + encodeURIComponent(prompt(plate, cards.get(plate), message));
-    let w = null;
-    try { w = window.open(url, '_blank'); if (w) w.opener = null; } catch (e) {}
+    const q = encodeURIComponent(prompt(plate, cards.get(plate), message));
+    // אחרי שהכפתורים נוספו לשיחה — גוללים אליהם שיהיו גלויים
+    setTimeout(() => { const m = $('ui2m-messages'); if (m) { m.scrollTop = m.scrollHeight; m.lastElementChild?.scrollIntoView({ block: 'nearest' }); } }, 60);
     return Promise.resolve({
-      answer: w ? 'השאלה נפתחה ב-Claude בחלון חדש, עם פרטי הרכב. התשובה והמקורות יופיעו שם.'
-                : 'הדפדפן חסם פתיחת חלון. לחץ על הקישור למטה כדי לפתוח את השאלה ב-Claude.',
-      sources: [{ title: '↗ פתח את השאלה ב-Claude', url }],
+      answer: 'השאלה מוכנה עם פרטי הרכב. בחר איפה לשאול — התשובה והמקורות יופיעו שם:',
+      sources: [
+        { title: 'שאל ב-Claude', url: 'https://claude.ai/new?q=' + q },
+        { title: 'שאל ב-ChatGPT', url: 'https://chatgpt.com/?q=' + q },
+      ],
     });
   }
   window.AnakMobileAI = { ask };
