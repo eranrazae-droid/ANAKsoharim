@@ -328,17 +328,21 @@
 /* מונה פריטים פתוחים ליד כל פריט בסרגל (מנהל בלבד). קריאה בלבד מהשרת. */
 (function () {
   'use strict';
-  const counts = {};
+  const counts = {}, warn = {};
   let started = false;
   const DEFS = [
     // [מפתח בסרגל, אוסף, פילטר בשרת, חישוב המספר מתוך המסמכים]
     ['tasks',   'tasks',                 ['status', '!=', 'done'],   ds => ds.filter(d => d.type !== 'divider').length],
     ['vehicles:i', 'intake_assignments', ['status', 'in', ['pending', 'done']], ds => ds.length],
     ['vehicles:r', 'refreshes',          ['status', '==', 'pending'], ds => ds.length],
-    ['shop',    'bodyshop_jobs',         ['paidAt', '==', null],      ds => ds.length],
     ['pickup',  'pickup_cars',           null,                        ds => ds.length],
-    ['battery', 'battery_installs',      ['ordered', '==', false],    ds => ds.length],
-    ['wash',    'wash_notes',            null,                        ds => ds.filter(d => !d.paidId).length],
+    // כמו בעיצוב הקודם: כל מצבר שהורכב ועוד לא הוזמן. המונה נצבע בצהוב כשהגיע
+    // הזמן להזמין — שלושה ומעלה בסך הכל, או שניים מאותו סוג.
+    ['battery', 'battery_installs',      ['ordered', '==', false],    ds => {
+        const by = {}; ds.forEach(v => { const k = v.sku || v.model || '—'; by[k] = (by[k] || 0) + 1; });
+        const min = typeof _BS_CARD_MIN !== 'undefined' ? _BS_CARD_MIN : 3;
+        warn.battery = ds.length >= min || Math.max(0, ...Object.values(by)) >= 2;
+        return ds.length; }],
     ['td',      'test_drives',           ['status', 'in', ['pending', 'done']], ds => ds.length],
     ['charge',  'charging_tasks',        ['status', '==', 'active'],  ds => ds.reduce((s, d) => {
         try { return s + JSON.parse(d.carsJson || '[]').filter(c => !c.charged).length; } catch (e) { return s; } }, 0)],
@@ -370,6 +374,7 @@
       let em = btn.querySelector(':scope > .u2-cnt');
       if (!n) { if (em) em.remove(); return; }
       if (!em) { em = document.createElement('em'); em.className = 'u2-cnt'; btn.querySelector(':scope > span')?.after(em); }
+      em.classList.toggle('warn', !!warn[btn.dataset.k]);
       const txt = n > 999 ? '999+' : String(n);
       if (em.textContent !== txt) em.textContent = txt;
     });
