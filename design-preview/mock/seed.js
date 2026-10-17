@@ -108,5 +108,23 @@ export function SEED(TS) {
   /* ── חלקים ── */
   put('parts', 'part0', { name: 'מראה צד ימין', plate: car(2).plate, qty: '1', supplier: 'אוטו-פרטס', notes: '', status: 'pending', requestedBy: 'גיל', requestedAt: ago(6 * H) });
 
+  /* ── זמני ביצוע (timing_logs) — דפוסים שונים לכל נהג ── */
+  const mkLog = (id, kind, driver, plate, agoMs, gapsSec, extraIdleAt, extraIdleSec) => {
+    const end = now - agoMs; let t = end - gapsSec.reduce((x, y) => x + y, 0) * 1000 - (extraIdleSec || 0) * 1000;
+    const openedAt = t; const acts = [], marks = {};
+    gapsSec.forEach((g, i) => { t += g * 1000; if (i === extraIdleAt) t += (extraIdleSec || 0) * 1000; acts.push(t); marks['k' + i] = t; });
+    put('timing_logs', id, { kind, refId: id, driver, plate, openedAt, submittedAt: end, sessions: [{ o: openedAt, c: end }], acts, marks, changes: 0 });
+  };
+  const norm = n => Array.from({ length: n }, (_, i) => 12 + (i * 7) % 25);
+  const fast = n => Array.from({ length: n }, (_, i) => i < 3 ? 15 : 1);
+  for (let i = 0; i < 6; i++) mkLog('tl-g' + i, 'intake', 'גיל', car(i).plate, i * 20 * H + H, norm(20));
+  for (let i = 0; i < 5; i++) mkLog('tl-o' + i, 'intake', 'עופר', car(i + 5).plate, i * 22 * H + 2 * H, i % 2 ? fast(20) : norm(14));
+  for (let i = 0; i < 5; i++) mkLog('tl-i' + i, 'intake', 'איתי', car(i + 9).plate, i * 18 * H + 3 * H, norm(22), 8, i % 2 ? 600 : 0);
+  for (let i = 0; i < 4; i++) DRV.forEach((d, j) => mkLog(`tl-inv${i}${j}`, 'inventory', d, '', (i * 30 + j) * H, Array.from({ length: 30 + j * 10 }, () => 4 + j * 3)));
+  for (let i = 0; i < 3; i++) DRV.forEach((d, j) => mkLog(`tl-td${i}${j}`, 'testdrive', d, car(i + j).plate, (i * 25 + j) * H, norm(12 + j * 2)));
+  put('pro_payments', 'pp0', { who: 'חביב', amount: 850, date: ymd(12 * D), note: 'חלונות — 3 רכבים', createdBy: 'ליאל', createdAt: ago(12 * D) });
+  put('pro_payments', 'pp1', { who: 'חביב', amount: 400, date: ymd(2 * D), note: '', createdBy: 'ליאל', createdAt: ago(2 * D) });
+  put('battery_orders', 'bo0', { lines: [], units: 6, total: 2980, at: iso(9 * D), createdBy: 'ליאל', createdAt: ago(9 * D) });
+
   return out;
 }
