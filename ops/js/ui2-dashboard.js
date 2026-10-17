@@ -33,6 +33,7 @@
     list: '<path d="M4 6h16M4 12h16M4 18h16"/>',
     bolt: '<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>',
     bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/>',
+    more: '<path d="M6 9l6 6 6-6"/>',
   };
   const svg = k => `<svg aria-hidden="true" viewBox="0 0 24 24">${P[k]}</svg>`;
 
@@ -66,12 +67,18 @@
   }
 
   /* ── בניה ─────────────────────────────────────────────────────── */
+  // מ"פתק שטיפה" ועד "חיפוש רכב" — מוסתרים תחת "הצג עוד" עד שלוחצים
+  const MORE_AT = NAV.findIndex(n => n[0] === 'wash');
+  const item = n => `<button type="button" class="u2-item" data-k="${n[0]}">${svg(n[2])}<span>${n[1]}</span></button>`;
+
   function build() {
     if (built) return;
     const side = document.createElement('aside');
     side.id = 'ui2-side';
     side.innerHTML = `<div class="u2-brand"><b>ענק <span>הרכבים</span></b><small>ניהול תפעול רכבים</small></div>
-      <nav>${NAV.map(n => `<button type="button" class="u2-item" data-k="${n[0]}">${svg(n[2])}<span>${n[1]}</span></button>`).join('')}</nav>
+      <nav>${NAV.slice(0, MORE_AT).map(item).join('')}
+        <button type="button" class="u2-item u2-more-btn" aria-expanded="false" aria-controls="u2-more">${svg('more')}<span>הצג עוד</span></button>
+        <div class="u2-more" id="u2-more">${NAV.slice(MORE_AT).map(item).join('')}</div></nav>
       <div class="u2-sep"></div>
       <div class="u2-foot">
         <button type="button" class="u2-item" data-act="settings">${svg('gear')}<span>הגדרות</span></button>
@@ -79,6 +86,13 @@
         <button type="button" class="u2-old" data-act="old">↩ חזרה לעיצוב הישן</button>
       </div>`;
     side.addEventListener('click', e => {
+      const more = e.target.closest('.u2-more-btn');
+      if (more) {
+        const open = side.querySelector('#u2-more').classList.toggle('open');
+        more.setAttribute('aria-expanded', String(open));
+        more.querySelector('span').textContent = open ? 'הצג פחות' : 'הצג עוד';
+        return;
+      }
       const b = e.target.closest('[data-k],[data-act]'); if (!b) return;
       if (b.dataset.k) { const n = NAV.find(x => x[0] === b.dataset.k); if (n) n[3](); return; }
       const a = b.dataset.act;
