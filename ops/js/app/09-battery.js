@@ -926,7 +926,10 @@ window.bsmRemoveCatalogItem = bsmRemoveCatalogItem;
 let _bsStock = [];      // [{id, model, qty, updatedAt}]
 let _bsInstalls = [];   // [{id, model, plate, installedAt, note}]
 let _bsUnsubStock = null, _bsUnsubInstalls = null, _bsUnsubCatalog = null, _bsUnsubDeliv = null;
-let _bsUnsubPending = null;
+let _bsUnsubPending = null, _bsUnsubOrders = null;
+/* הזמנות "הזמנתי" מלפני שהן התחילו להופיע כממתינות להגעה — רק מהשבועיים
+   האחרונים, ורק אלה שעוד לא הועברו לממתינים או סומנו שהגיעו. */
+let _bsOldOrders = [];
 let _bsDeliveries = [];   // one entry per delivery — the order history
 /* הזמנה שנקלטה ועדיין לא הגיעה פיזית. היא אינה מלאי: היא לא נספרת
    בארון ולא משפיעה על "צריך להזמין". רק לחיצה על "הגיע" מעבירה
@@ -1264,6 +1267,14 @@ function _bsListen() {
     _bsRenderDeliveries();
     _bsRenderAll();
   });
+  if (_bsUnsubOrders) _bsUnsubOrders();
+  _bsUnsubOrders = _onSnap(_colRef('battery_orders'), snap => {
+    const since = Date.now() - 14 * 86400000;
+    _bsOldOrders = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .filter(o => !o.pendingId && (o.lines || []).length && new Date(o.at || 0).getTime() >= since)
+      .sort((a, b) => String(a.at || '').localeCompare(String(b.at || '')));
+    _bsRenderStock();
+  }, () => {});
   if (_bsUnsubPending) _bsUnsubPending();
   _bsUnsubPending = _onSnap(_colRef('battery_pending'), snap => {
     _bsPending = snap.docs.map(d => ({ id: d.id, ...d.data() }))
@@ -1385,7 +1396,7 @@ async function bsMarkOrdered() {
   try {
     // the order is filed first, so a record of what was ordered survives even
     // if marking the installations fails half way
-    await _addDoc(_colRef('battery_orders'), {
+    const orderRef = await _addDoc(_colRef('battery_orders'), {
       lines, units, total, at: new Date().toISOString(),
       createdBy: currentUser.name, createdAt: _serverTs()
     });
@@ -1395,15 +1406,47 @@ async function bsMarkOrdered() {
       for (const r of pending.slice(i, i + 400)) batch.update(_docRef('battery_installs', r.id), { ordered: true });
       await batch.commit();
     }
-    showToast(`🧾 נרשמה הזמנה על ${units} מצברים`);
+    // ההזמנה מופיעה מעל הארון כממתינה להגעה, עד שלוחצים "הגיע"
+    try { await _bsOrderToPending({ id: orderRef.id, lines, units, total }); }
+    catch (e) { showToast('ההזמנה נרשמה, אבל לא נוספה לממתינות להגעה: ' + (e.code || e.message), 7000); return; }
+    showToast(`🚚 ${units} מצברים הוזמנו וממתינים להגעה — לחץ ״הגיע״ כשיגיעו`, 6000);
   } catch (e) { showToast('שגיאה: ' + (e.code || e.message)); }
 }
 window.bsMarkOrdered = bsMarkOrdered;
 
+async function _bsOrderToPending(order) {
+  const lines = (order.lines || []).filter(l => (l.qty || 0) > 0);
+  const units = lines.reduce((t, l) => t + (l.qty || 0), 0);
+  const ref = await _addDoc(_colRef('battery_pending'), {
+    at: new Date().toISOString(), invoice: '', invoiceDate: '',
+    lines, origLines: lines, origUnits: units,
+    origTotal: order.total != null ? order.total : lines.reduce((t, l) => t + (l.price || 0) * l.qty, 0),
+    units, note: '', orderId: order.id, createdBy: currentUser.name, createdAt: _serverTs()
+  });
+  await _updateDoc(_docRef('battery_orders', order.id), { pendingId: ref.id });
+}
+
+// הזמנה ישנה: להעביר לממתינות להגעה, או לסמן שכבר הגיעה ולא להציע אותה שוב
+async function bsOldOrder(id, arrived) {
+  const o = _bsOldOrders.find(x => x.id === id);
+  if (!o || !_requireNet('עדכון הזמנה')) return;
+  try {
+    if (arrived) await _updateDoc(_docRef('battery_orders', id), { pendingId: 'arrived' });
+    else await _bsOrderToPending(o);
+  } catch (e) { showToast('שגיאה: ' + (e.code || e.message)); }
+}
+window.bsOldOrder = bsOldOrder;
+
 /* ההזמנות שבדרך יושבות מעל הארון, בקופסה צהובה נפרדת לכל חשבונית.
    הן אינן חלק מהמלאי — רק תזכורת גלויה למה שאמור להגיע. */
 function _bsPendingHtml() {
-  if (!_bsPending.length) return '';
+  const old = _bsOldOrders.map(o => `<div class="bs-box" style="border:2px dashed #cbd5e1;margin-bottom:10px;padding:10px 12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <div style="flex:1;min-width:180px;font-weight:800;font-size:13px">🧾 הזמנה מ-${esc(new Date(o.at).toLocaleDateString('he-IL'))} · ${o.units || 0} מצברים
+        <div style="font-size:11.5px;color:var(--muted);font-weight:700">${(o.lines || []).map(l => `${esc(l.model || l.sku || '')} × ${l.qty || 0}`).join(' · ')}</div></div>
+      <button onclick="bsOldOrder('${esc(o.id)}')" style="background:#f59e0b;color:#fff;border:none;border-radius:9px;padding:8px 12px;font-family:Heebo,sans-serif;font-weight:800;font-size:12.5px;cursor:pointer">🚚 ממתין להגעה</button>
+      <button onclick="bsOldOrder('${esc(o.id)}',true)" style="background:var(--surface2);border:2px solid var(--border);border-radius:9px;padding:6px 10px;font-family:Heebo,sans-serif;font-weight:800;font-size:12.5px;cursor:pointer">כבר הגיע</button>
+    </div>`).join('');
+  if (!_bsPending.length) return old;
   const money = n => Number(n || 0).toLocaleString('he-IL') + ' ₪';
   const ago = (iso) => {
     const d = new Date(iso);
@@ -1413,7 +1456,7 @@ function _bsPendingHtml() {
     if (days === 1) return 'אתמול';
     return `לפני ${days} ימים`;
   };
-  return _bsPending.map(p => {
+  return old + _bsPending.map(p => {
     const lines = p.lines || [];
     const units = lines.reduce((t, l) => t + (l.qty || 0), 0);
     const head = [p.invoiceDate || '', ago(p.at), `${units} יחידות`].filter(Boolean).join(' · ');
@@ -1929,7 +1972,7 @@ async function bsPendingArrive(id, sku) {
   if (!take.length) return;
   const units = take.reduce((t, l) => t + (l.qty || 0), 0);
   const what = sku == null
-    ? `כל ההזמנה של חשבונית ${pend.invoice || ''} (${units} יחידות)`
+    ? `כל ההזמנה${pend.invoice ? ' של חשבונית ' + pend.invoice : ''} (${units} יחידות)`
     : `${take[0].model || take[0].sku} · ${units} יחידות`;
   if (!confirm(`להעביר לארון את ${what}?`)) return;
   if (!_requireNet('העברה לארון')) return;
@@ -1955,7 +1998,7 @@ window.bsPendingArrive = bsPendingArrive;
 async function bsPendingCancel(id) {
   const pend = _bsPending.find(p => p.id === id);
   if (!pend) return;
-  if (!confirm(`לבטל את ההזמנה של חשבונית ${pend.invoice || ''}?\n\nהמצברים לא ייכנסו לארון.`)) return;
+  if (!confirm(`לבטל את ההזמנה${pend.invoice ? ' של חשבונית ' + pend.invoice : ''}?\n\nהמצברים לא ייכנסו לארון.`)) return;
   if (!_requireNet('ביטול הזמנה')) return;
   try {
     const { deleteDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");

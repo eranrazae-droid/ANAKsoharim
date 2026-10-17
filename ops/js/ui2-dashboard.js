@@ -108,9 +108,34 @@
     const u = document.createElement('button');
     u.type = 'button'; u.className = 'u2-user'; u.id = 'u2-h-user';
     u.innerHTML = `<i></i><div><b></b><small>מנהל המערכת</small></div>`;
-    u.addEventListener('click', () => logout());
-    u.setAttribute('aria-label', 'יציאה מהמערכת');
+    u.setAttribute('aria-label', 'החלפת משתמש');
+    u.setAttribute('aria-haspopup', 'menu'); u.setAttribute('aria-expanded', 'false');
     side.querySelector('.u2-brand').appendChild(u);
+
+    // לחיצה על השם: רשימת המשתמשים נפתחת ממש מתחתיו, ו"התנתק" בסופה.
+    // לחיצה בכל מקום אחר במסך סוגרת אותה.
+    const menu = document.createElement('div');
+    menu.className = 'u2-umenu'; menu.id = 'u2-umenu'; menu.setAttribute('role', 'menu'); menu.hidden = true;
+    side.querySelector('.u2-brand').appendChild(menu);
+    const roleName = r => r === 'manager' ? 'מנהל' : r === 'driver' ? 'נהג' : r === 'bodyshop' ? 'פחח' : 'איסוף';
+    const closeMenu = () => { menu.hidden = true; u.setAttribute('aria-expanded', 'false'); };
+    u.addEventListener('click', () => {
+      if (!menu.hidden) { closeMenu(); return; }
+      if (typeof _realUser === 'undefined' || _realUser?.role !== 'manager' || typeof _ALL_USERS === 'undefined') { logout(); return; }
+      menu.innerHTML = _ALL_USERS.map(x => {
+        const on = currentUser?.name === x.name;
+        return `<button type="button" role="menuitem" class="u2-umenu-item${on ? ' on' : ''}" data-user="${x.name}">
+          <b>${x.name}</b><small>${roleName(x.role)}</small>${on ? '<span aria-hidden="true">✓</span>' : ''}</button>`;
+      }).join('') + `<button type="button" role="menuitem" class="u2-umenu-item u2-umenu-out" data-out="1"><b>התנתק</b></button>`;
+      menu.hidden = false; u.setAttribute('aria-expanded', 'true');
+    });
+    menu.addEventListener('click', e => {
+      const b = e.target.closest('button'); if (!b) return;
+      closeMenu();
+      if (b.dataset.out) goToLoginScreen(); else if (b.dataset.user) switchToUser(b.dataset.user);
+    });
+    document.addEventListener('click', e => { if (!menu.hidden && !menu.contains(e.target) && !u.contains(e.target)) closeMenu(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !menu.hidden) { closeMenu(); u.focus(); } });
 
     if (home) {
       const hero = document.createElement('section');
