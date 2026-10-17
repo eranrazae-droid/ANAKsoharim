@@ -47,7 +47,6 @@
     ['td',      'נסיעות מבחן',     'gauge',   () => goToScreen('test-drive'),       ['screen-test-drive']],
     ['yard',    'סידור מגרש',      'park',    () => goToScreen('yard'),             ['screen-yard']],
     ['recall',  'ריקול',           'warn',    () => goToScreen('recall'),           ['screen-recall']],
-    ['own',     'בדיקת בעלויות',   'doc',     () => goToScreen('ownership'),        ['screen-ownership']],
     ['inv',     'מלאי',            'box',     () => goToScreen('inventory'),        ['screen-inventory']],
     ['plate',   'חיפוש רכב',       'search',  () => goToScreen('plate-search'),     ['screen-plate-search']],
   ];
@@ -73,7 +72,6 @@
       <nav>${NAV.map(n => `<button type="button" class="u2-item" data-k="${n[0]}">${svg(n[2])}<span>${n[1]}</span></button>`).join('')}</nav>
       <div class="u2-sep"></div>
       <div class="u2-foot">
-        <button type="button" class="u2-item" data-act="all">${svg('list')}<span>כל המסכים</span></button>
         <button type="button" class="u2-item" data-act="settings">${svg('gear')}<span>הגדרות</span></button>
         <button type="button" class="u2-old" data-act="old">↩ חזרה לעיצוב הישן</button>
       </div>`;
