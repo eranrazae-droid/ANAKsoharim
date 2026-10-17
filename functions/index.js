@@ -2841,7 +2841,7 @@ async function _vehicleCard(plate) {
 const _AI_PROJECT = "anak-soharim";
 const _AI_DAILY_LIMIT = 40;                       // שאלות למשתמש ביום
 const _GEMINI_MODEL = "gemini-flash-latest";
-const _AI_MEDIA_MAX = 18 * 1024 * 1024;           // סך הקבצים בשאלה אחת
+const _AI_MEDIA_MAX = 13 * 1024 * 1024;           // סך הקבצים בשאלה אחת (Gemini מקבל עד ~20MB לבקשה, כולל קידוד)
 let _geminiKey = null, _geminiKeyAt = 0;
 
 async function _secret(name) {
@@ -2868,9 +2868,46 @@ const _AI_SYSTEM = `אתה עוזר ידע לצוות מגרש רכבים ביש
 - חפש ב-Google מקורות יצרן, ספרי רכב, היבואן בישראל וקטלוגי התאמה לפני שאתה עונה.
 - אל תנחש. אם התשובה תלויה בגרסה, ברמת גימור, במנוע או בשנה ואין התאמה ודאית — אמור זאת ובקש פרט נוסף (מספר רכב, רמת גימור, צילום של המצבר/התווית/הנורה).
 - כשמצורפת תמונה או סרטון — תאר מה רואים ואל תמציא מה שלא רואים.
+- כשתמונה או סרטון הדרכה יעזרו להבין (מיקום רכיב, פעולה), הוסף בסוף התשובה שורה אחת או שתיים בדיוק בפורמט:
+  סרטון: <מילות חיפוש ביוטיוב, באנגלית>
+  תמונה: <מילות חיפוש לתמונה, באנגלית>
+  למשל: "סרטון: Toyota Corolla 2021 battery replacement". המערכת תמצא ותציג אותם — אל תכתוב קישורים בעצמך.
 - אם יש סרטון הדרכה מתאים (למשל ביוטיוב), אפשר להמליץ עליו — הוא יופיע במקורות.
 - טקסט רגיל בלבד: בלי Markdown, בלי כוכביות וטבלאות. משפטים קצרים או רשימה עם מקפים.
 - אל תעסוק בנושאים שאינם קשורים לרכב.`;
+
+/* מדיה לתשובה: סרטוני יוטיוב (מקורות שהחיפוש מצא, או חיפוש ביוטיוב) ותמונות
+   מ-Wikimedia Commons. הכל חינמי; YouTube Data API פועל רק אם הופעל בפרויקט
+   של המפתח, ואחרת מוצג קישור לחיפוש ביוטיוב. */
+async function _aiMedia(key, vids, imgs, sources) {
+  const out = [];
+  const ytId = (u) => { const m = String(u).match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{11})/); return m && m[1]; };
+  for (const s of sources) { const id = ytId(s.url); if (id && out.length < 2) out.push({ type: "youtube", id, title: s.title }); }
+  for (const q of vids) {
+    if (out.some((m) => m.type === "youtube")) break;
+    let found = false;
+    try {
+      const r = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=2&safeSearch=strict&q=${encodeURIComponent(q)}`, { headers: { "x-goog-api-key": key } });
+      if (r.ok) {
+        const j = await r.json();
+        for (const it of j.items || []) if (it.id?.videoId) { out.push({ type: "youtube", id: it.id.videoId, title: it.snippet?.title || q }); found = true; }
+      }
+    } catch (e) { /* לקישור חיפוש */ }
+    if (!found) out.push({ type: "ytsearch", q, url: "https://www.youtube.com/results?search_query=" + encodeURIComponent(q) });
+  }
+  for (const q of imgs) {
+    try {
+      const u = "https://commons.wikimedia.org/w/api.php?action=query&format=json&generator=search&gsrnamespace=6&gsrlimit=3&prop=imageinfo&iiprop=url&iiurlwidth=640&gsrsearch=" + encodeURIComponent(q);
+      const r = await fetch(u, { headers: { "User-Agent": "anak-ops/1.0 (vehicle chat)" } });
+      const j = await r.json();
+      for (const p of Object.values(j.query?.pages || {})) {
+        const ii = p.imageinfo?.[0];
+        if (ii?.thumburl && /\.(jpe?g|png|webp)$/i.test(ii.url || "")) out.push({ type: "image", src: ii.thumburl, page: ii.descriptionurl, title: (p.title || "").replace(/^File:/, "") });
+      }
+    } catch (e) { /* בלי תמונות */ }
+  }
+  return out.slice(0, 5);
+}
 
 exports.vehicleAI = onRequest({ cors: true, region: "europe-west1", timeoutSeconds: 120, memory: "512MiB", maxInstances: 5 }, async (req, res) => {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
@@ -2946,17 +2983,21 @@ exports.vehicleAI = onRequest({ cors: true, region: "europe-west1", timeoutSecon
     if (r.status === 429) return res.status(429).json({ error: "limit", detail: lastErr, answer: "השירות החינמי עמוס כרגע. נסה שוב בעוד דקה." });
     if (!r.ok) return res.status(502).json({ error: "ai-failed", detail: lastErr });
     const cand = (j.candidates || [])[0] || {};
-    const answer = (cand.content?.parts || []).map((p) => p.text || "").join("").replace(/\*\*/g, "").replace(/^\s*[*]\s+/gm, "- ").trim();
+    let answer = (cand.content?.parts || []).map((p) => p.text || "").join("").replace(/\*\*/g, "").replace(/^\s*[*]\s+/gm, "- ").trim();
+    // בקשות של המודל לתמונה/סרטון — מוסרות מהטקסט ומוחלפות במדיה אמיתית
+    const wantVid = [], wantImg = [];
+    answer = answer.replace(/^\s*(סרטון|תמונה)\s*:\s*(.+)$/gm, (_, k, q) => { (k === "סרטון" ? wantVid : wantImg).push(q.trim().slice(0, 120)); return ""; }).trim();
     const seen = new Set(), sources = [];
     for (const c of cand.groundingMetadata?.groundingChunks || []) {
       const u = c.web?.uri; if (!u || !/^https:\/\//.test(u) || seen.has(u)) continue;
       seen.add(u); sources.push({ title: c.web.title || "מקור", url: u });
     }
     if (card) sources.push(card.source);
+    const outMedia = await _aiMedia(key, wantVid.slice(0, 1), wantImg.slice(0, 1), sources).catch((e) => { console.warn("media", e.message); return []; });
     console.log("vehicleAI ask", { uid, plate: plate || "-", media: media.length, model: used.model, search: used.search, tokens: j.usageMetadata?.totalTokenCount });
     return res.json({
       answer: answer || (cand.finishReason === "SAFETY" ? "לא אוכל לענות על זה. נסה לנסח אחרת." : "לא התקבלה תשובה. נסה שוב."),
-      sources: sources.slice(0, 6), vehicle: card,
+      sources: sources.slice(0, 6), vehicle: card, media: outMedia,
     });
   } catch (e) {
     console.error("vehicleAI", e?.code, e?.message);

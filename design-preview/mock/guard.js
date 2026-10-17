@@ -30,7 +30,8 @@
     var vehicle = car ? { plate: plate, maker: car.maker || car.brand, model: car.model, year: car.year, color: car.color, trim: 'Premium', fuel: 'בנזין', engine: 'G4FG', fetchedAt: new Date().toISOString() } : null;
     var out = body.action === 'identify' ? (vehicle ? { found: true, vehicle: vehicle } : { found: false })
       : { vehicle: vehicle, answer: vehicle ? '(הדגמה — תשובה מדומה) לרכב ' + vehicle.maker + ' ' + vehicle.model + ' ' + vehicle.year + ' מתאים בדרך כלל מצבר 60Ah, קוטב פלוס מימין. בתא המטען יש גלגל חלופי מצומצם מתחת לרצפה. לאישור סופי כדאי לצלם את התווית של המצבר הקיים.' : 'המספר לא נמצא במרשם (הדגמה).',
-          sources: vehicle ? [{ title: 'מקור לדוגמה — ספר הרכב', url: 'https://example.com/manual' }] : [] };
+          sources: vehicle ? [{ title: 'מקור לדוגמה — ספר הרכב', url: 'https://example.com/manual' }] : [],
+          media: [{ type: 'youtube', id: 'dQw4w9WgXcQ', title: 'דוגמה — החלפת מצבר' }, { type: 'ytsearch', q: 'Toyota Corolla battery location', url: 'https://www.youtube.com/results?search_query=Toyota+Corolla+battery' }] };
     return new Promise(function (r) { setTimeout(function () { r(new Response(JSON.stringify(out), { status: 200, headers: { 'Content-Type': 'application/json' } })); }, body.action === 'identify' ? 500 : 1500); });
   }
   var _fetch = window.fetch.bind(window);

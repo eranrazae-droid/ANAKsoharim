@@ -43,8 +43,32 @@
     if (status === 429) return { answer: j.answer || 'הגעת למגבלת השאלות היומית. אפשר להמשיך מחר.', sources: [] };
     if (status === 413) return { answer: 'הקבצים גדולים מדי. נסה סרטון קצר יותר או פחות תמונות.', sources: [] };
     if (status !== 200 || typeof j.answer !== 'string') throw new Error('ai ' + status);
-    setTimeout(() => { const m = $('ui2m-messages'); if (m) m.lastElementChild?.scrollIntoView({ block: 'nearest' }); }, 60);
+    setTimeout(() => { if (Array.isArray(j.media) && j.media.length) showMedia(j.media); const m = $('ui2m-messages'); if (m) m.lastElementChild?.scrollIntoView({ block: 'nearest' }); }, 60);
     return { answer: j.answer, sources: Array.isArray(j.sources) ? j.sources : [] };
+  }
+
+  /* תמונות וסרטונים שהעוזר מצרף לתשובה — מוצגים ומתנגנים בתוך השיחה */
+  function showMedia(list) {
+    const m = $('ui2m-messages'); if (!m) return;
+    const box = document.createElement('div'); box.className = 'u2m-media';
+    list.forEach(x => {
+      if (x.type === 'youtube' && /^[\w-]{11}$/.test(x.id)) {
+        const f = document.createElement('div'); f.className = 'u2m-yt';
+        const ifr = document.createElement('iframe');
+        ifr.src = 'https://www.youtube-nocookie.com/embed/' + x.id; ifr.title = x.title || 'סרטון';
+        ifr.allow = 'encrypted-media; picture-in-picture; fullscreen'; ifr.allowFullscreen = true; ifr.loading = 'lazy';
+        const cap = document.createElement('small'); cap.textContent = '▶ ' + (x.title || 'סרטון הדרכה');
+        f.append(ifr, cap); box.appendChild(f);
+      } else if (x.type === 'ytsearch' && /^https:\/\/www\.youtube\.com\//.test(x.url)) {
+        const a = document.createElement('a'); a.className = 'u2m-ytsearch'; a.href = x.url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+        a.textContent = '▶ סרטוני הדרכה ביוטיוב: ' + x.q; box.appendChild(a);
+      } else if (x.type === 'image' && /^https:\/\//.test(x.src)) {
+        const a = document.createElement('a'); a.className = 'u2m-img'; a.href = /^https:\/\//.test(x.page) ? x.page : x.src; a.target = '_blank'; a.rel = 'noopener noreferrer';
+        const img = document.createElement('img'); img.src = x.src; img.alt = x.title || ''; img.loading = 'lazy';
+        a.appendChild(img); box.appendChild(a);
+      }
+    });
+    if (box.childElementCount) m.appendChild(box);
   }
 
   /* סימן "מקליד…" — שלוש נקודות בבועה עד שהתשובה מגיעה */
@@ -57,7 +81,7 @@
   }
 
   /* ── צירוף תמונות וסרטונים ── */
-  const MAX_VIDEO = 15 * 1024 * 1024;
+  const MAX_VIDEO = 9 * 1024 * 1024;   // Gemini מקבל עד ~20MB לבקשה אחרי קידוד
   function toBase64(blob) {
     return new Promise((ok, bad) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.onerror = bad; r.readAsDataURL(blob); });
   }
@@ -82,7 +106,7 @@
           const b = await shrink(f);
           pending.push({ mime: 'image/jpeg', data: await toBase64(b), url: URL.createObjectURL(b), kind: 'image' });
         } else if (f.type.startsWith('video/')) {
-          if (f.size > MAX_VIDEO) { if (status) status.textContent = 'הסרטון ארוך מדי — עד כחצי דקה (15MB).'; continue; }
+          if (f.size > MAX_VIDEO) { if (status) status.textContent = 'הסרטון ארוך מדי — עד כ-20 שניות (9MB). אפשר לצלם קטע קצר יותר.'; continue; }
           pending.push({ mime: f.type, data: await toBase64(f), url: URL.createObjectURL(f), kind: 'video' });
         }
       } catch (e) { if (status) status.textContent = 'לא הצלחתי לצרף את הקובץ.'; }
