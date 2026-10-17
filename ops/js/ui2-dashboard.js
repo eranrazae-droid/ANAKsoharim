@@ -269,3 +269,63 @@
   window._ui2Apply = apply;
 })();
 
+
+/* תהליכים שרצים ברקע — פס התקדמות עם אחוזים בפריט המתאים בסרגל.
+   קורא בלבד: מה שכבר מוצג על המסך (או נשמר בשרת), בלי לגעת בתהליך עצמו. */
+(function () {
+  'use strict';
+  const pctIn = el => {
+    if (!el || !el.isConnected) return null;
+    const m = (el.textContent || '').match(/(\d{1,3})\s*%/);
+    return m ? Math.min(100, +m[1]) : null;
+  };
+  const shown = el => !!el && el.style.display !== 'none' && getComputedStyle(el).display !== 'none';
+  let recall = null;           // מצב סריקת הריקול מהשרת
+  let recallUnsub = null;
+  const SOURCES = {
+    // קריאת פתקי שטיפה (סגירת חשבון)
+    wash: () => {
+      const b = document.getElementById('wash-chk-body');
+      return b && b.textContent.includes('קורא את הפתקים') ? pctIn(b) : null;
+    },
+    // קליטת רכבים לאיסוף מתמונה / משיכת נתוני רכב
+    pickup: () => {
+      const l = document.getElementById('freetext-img-loading');
+      return shown(l) ? pctIn(l) : null;
+    },
+    // סריקת ריקול בשרת
+    recall: () => {
+      if (!recall || !recall.running) return null;
+      const at = recall.at && recall.at.toDate ? recall.at.toDate() : (recall.at ? new Date(recall.at) : null);
+      if (!at || Date.now() - at.getTime() > 3 * 60000) return null;
+      const total = recall.total || 0, done = Math.min(recall.done || 0, total);
+      return total ? Math.round(done / total * 100) : 0;
+    },
+  };
+  function listenRecall() {
+    if (recallUnsub || typeof window._onSnap !== 'function' || typeof window._docRef !== 'function') return;
+    try { recallUnsub = window._onSnap(window._docRef('recall_status', 'progress'), s => { recall = s.exists() ? s.data() : null; }, () => {}); } catch (e) {}
+  }
+  function paint(key, pct) {
+    const btn = document.querySelector(`#ui2-side .u2-item[data-k="${key}"]`);
+    if (!btn) return;
+    let bar = btn.querySelector('.u2-prog');
+    if (pct == null) { if (bar) bar.remove(); btn.classList.remove('u2-busy'); return; }
+    if (!bar) {
+      bar = document.createElement('span');
+      bar.className = 'u2-prog';
+      bar.innerHTML = '<i></i><b></b>';
+      btn.appendChild(bar);
+    }
+    btn.classList.add('u2-busy');
+    bar.querySelector('i').style.width = pct + '%';
+    bar.querySelector('b').textContent = pct + '%';
+    bar.setAttribute('aria-label', 'בתהליך: ' + pct + '%');
+  }
+  function tick() {
+    if (!document.body.classList.contains('ui2') || !document.getElementById('ui2-side')) return;
+    if (typeof currentUser !== 'undefined' && currentUser && currentUser.role === 'manager') listenRecall();
+    for (const key in SOURCES) { let v = null; try { v = SOURCES[key](); } catch (e) {} paint(key, v); }
+  }
+  setInterval(tick, 700);
+})();
