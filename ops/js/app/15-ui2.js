@@ -6,6 +6,7 @@
 (function () {
   'use strict';
   const KEY = 'anak_ui2';
+  try { const q = new URLSearchParams(location.search).get('ui2'); if (q === '1' || q === '0') localStorage.setItem(KEY, q); } catch (e) {}
   const WIDE = () => window.innerWidth > 900;
   const flag = () => { try { return localStorage.getItem(KEY) === '1'; } catch (e) { return false; } };
   const setFlag = v => { try { localStorage.setItem(KEY, v ? '1' : '0'); } catch (e) {} };
@@ -233,13 +234,19 @@
     title ? title.after(row) : box.prepend(row);
     row.querySelector('#ui2-sw').onclick = () => { setFlag(!flag()); apply(); injectToggle(); };
   }
+  // המתג מוזרק בכל פתיחה של חלון ההגדרות, בלי תלות באופן שבו נפתח
   const _os = window.openSettings;
   if (typeof _os === 'function') {
     window.openSettings = async function () {
-      const r = await _os.apply(this, arguments);
-      try { injectToggle(); } catch (e) {}
-      return r;
+      try { return await _os.apply(this, arguments); }
+      finally { try { injectToggle(); } catch (e) {} }
     };
+  }
+  function watchSettings() {
+    const m = document.getElementById('modal-settings');
+    if (!m) return;
+    new MutationObserver(() => { if (m.classList.contains('open')) { try { injectToggle(); } catch (e) {} } })
+      .observe(m, { attributes: true, attributeFilter: ['class'] });
   }
 
   /* המספרים בכרטיסים מתעדכנים בכל פעם שהקוד הקיים מעדכן את הכרטיס העליון */
@@ -252,7 +259,7 @@
     };
   }
 
-  const start = () => { watch(); apply(); };
+  const start = () => { watch(); watchSettings(); apply(); };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
   window._ui2Apply = apply;
 })();
