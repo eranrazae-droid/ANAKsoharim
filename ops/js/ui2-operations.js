@@ -1,7 +1,7 @@
 /* Presentation only: reuse the live yard fields and battery cards, never copy their data. */
 (function () {
   'use strict';
-  const version = (document.currentScript.src.match(/[?&]v=(\d+)/) || [])[1] || '571';
+  const version = (document.currentScript.src.match(/[?&]v=(\d+)/) || [])[1] || '578';
   const observer = new MutationObserver(schedule);
   let queued = false;
 

@@ -8,6 +8,11 @@ on:
     paths: ['functions/**', '.github/workflows/deploy-functions.yml']
   workflow_dispatch:
 
+# Both workflows upload the functions; two uploads at once fail with 409, so they queue.
+concurrency:
+  group: functions-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -16,7 +21,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
       - name: Install functions dependencies
         run: npm --prefix functions install
       - name: Write service account

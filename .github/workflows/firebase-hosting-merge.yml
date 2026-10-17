@@ -6,6 +6,11 @@ on:
       - main
       - claude/charming-archimedes-nlfl58
 
+# Both workflows upload the functions; two uploads at once fail with 409, so they queue.
+concurrency:
+  group: functions-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest

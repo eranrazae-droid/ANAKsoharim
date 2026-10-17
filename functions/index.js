@@ -2789,3 +2789,66 @@ exports.scheduledNotifications = onSchedule(
 );
 
 // פריסה חוזרת — הריצה הקודמת נפלה על שגיאת API זמנית של גוגל
+
+/* ─────────────────────────────────────────────────────────────────────────
+   זיהוי רכב לצ׳אט בטלפון החדש: מספר רישוי -> פרטי הרכב ממאגר משרד התחבורה
+   (חינמי). השאלה עצמה נפתחת ב-Claude של המשתמש בדפדפן — אין כאן שום
+   קריאה בתשלום. כל בקשה מאומתת מול Firebase Auth, ויש מגבלה יומית. */
+const _AI_IDENTIFY_LIMIT = 150;      // זיהויי רכב למשתמש ביום
+const _VEH_RESOURCE = "053cea08-09bc-40ec-8f7a-156f0677aff3";   // מרשם כלי רכב פרטיים ומסחריים
+const _vehCache = new Map();          // רישוי -> { at, card }
+
+async function _aiQuota(uid, kind, limit) {
+  const day = new Date().toISOString().slice(0, 10);
+  const ref = getFirestore("default").collection("ai_usage").doc(`${uid}_${day}`);
+  return getFirestore("default").runTransaction(async (tx) => {
+    const s = await tx.get(ref);
+    const n = (s.exists && s.data()[kind]) || 0;
+    if (n >= limit) return false;
+    tx.set(ref, { [kind]: n + 1, uid, day, at: FieldValue.serverTimestamp() }, { merge: true });
+    return true;
+  });
+}
+
+async function _vehicleCard(plate) {
+  const hit = _vehCache.get(plate);
+  if (hit && Date.now() - hit.at < 6 * 3600e3) return hit.card;
+  const params = new URLSearchParams({ resource_id: _VEH_RESOURCE, filters: JSON.stringify({ mispar_rechev: plate }), limit: "1" });
+  const res = await _govFetch(`https://data.gov.il/api/3/action/datastore_search?${params}`);
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data?.success) { const e = new Error("gov unavailable"); e.code = "gov"; throw e; }
+  const r = data.result?.records?.[0];
+  if (!r) return null;
+  const pick = (k) => (r[k] == null ? "" : String(r[k]).trim());
+  const card = {
+    plate,
+    maker: pick("tozeret_nm"), model: pick("kinuy_mishari") || pick("degem_nm"), modelCode: pick("degem_nm"),
+    trim: pick("ramat_gimur"), year: pick("shnat_yitzur"), fuel: pick("sug_delek_nm"), color: pick("tzeva_rechev"),
+    engine: pick("degem_manoa"),
+    source: { title: "משרד התחבורה — מאגר כלי רכב פרטיים ומסחריים",
+      url: "https://data.gov.il/he/datasets/ministry_of_transport/private-and-commercial-vehicles" },
+    fetchedAt: new Date().toISOString(),
+  };
+  _vehCache.set(plate, { at: Date.now(), card });
+  return card;
+}
+
+exports.vehicleAI = onRequest({ cors: true, region: "europe-west1", timeoutSeconds: 30, maxInstances: 5 }, async (req, res) => {
+  if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
+  let uid;
+  try {
+    const tok = String(req.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+    uid = (await getAuth().verifyIdToken(tok)).uid;
+  } catch (e) { return res.status(401).json({ error: "unauthenticated" }); }
+  const plate = String((req.body || {}).plate || "").replace(/\D/g, "");
+  if (!/^\d{7,8}$/.test(plate)) return res.status(400).json({ error: "bad-plate" });
+  try {
+    if (!(await _aiQuota(uid, "identify", _AI_IDENTIFY_LIMIT))) return res.status(429).json({ error: "limit" });
+    const card = await _vehicleCard(plate);
+    return res.json(card ? { found: true, vehicle: card } : { found: false });
+  } catch (e) {
+    console.error("vehicleAI", e?.code, e?.message);
+    if (e?.code === "gov") return res.status(502).json({ error: "gov-unavailable" });
+    return res.status(500).json({ error: "failed" });
+  }
+});
