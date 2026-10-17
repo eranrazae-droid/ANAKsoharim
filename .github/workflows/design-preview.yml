@@ -28,12 +28,14 @@ concurrency:
   cancel-in-progress: true
 jobs:
   preview:
+    # תווית: GitHub מריץ את הקובץ מהענף הראשי (main), ולכן עותק זהה שלו יושב גם שם.
     if: >-
-      github.ref == 'refs/heads/claude/charming-archimedes-nlfl58' &&
-      (github.event_name != 'pull_request_target' || (
-        github.event.label.name == 'preview' &&
-        github.event.pull_request.head.repo.full_name == github.repository &&
-        startsWith(github.event.pull_request.head.ref, 'design/')))
+      (github.event_name != 'pull_request_target' &&
+       github.ref == 'refs/heads/claude/charming-archimedes-nlfl58') ||
+      (github.event_name == 'pull_request_target' &&
+       github.event.label.name == 'preview' &&
+       github.event.pull_request.head.repo.full_name == github.repository &&
+       startsWith(github.event.pull_request.head.ref, 'design/'))
     runs-on: ubuntu-latest
     environment: production
     env:
@@ -41,6 +43,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: claude/charming-archimedes-nlfl58
           persist-credentials: false
       - name: Take ops/ from the design pull request
         if: env.PR != ''
