@@ -324,3 +324,59 @@
   }
   setInterval(tick, 700);
 })();
+
+/* מונה פריטים פתוחים ליד כל פריט בסרגל (מנהל בלבד). קריאה בלבד מהשרת. */
+(function () {
+  'use strict';
+  const counts = {};
+  let started = false;
+  const DEFS = [
+    // [מפתח בסרגל, אוסף, פילטר בשרת, חישוב המספר מתוך המסמכים]
+    ['tasks',   'tasks',                 ['status', '!=', 'done'],   ds => ds.filter(d => d.type !== 'divider').length],
+    ['vehicles:i', 'intake_assignments', ['status', 'in', ['pending', 'done']], ds => ds.length],
+    ['vehicles:r', 'refreshes',          ['status', '==', 'pending'], ds => ds.length],
+    ['shop',    'bodyshop_jobs',         ['paidAt', '==', null],      ds => ds.length],
+    ['pickup',  'pickup_cars',           null,                        ds => ds.length],
+    ['battery', 'battery_installs',      ['ordered', '==', false],    ds => ds.length],
+    ['wash',    'wash_notes',            null,                        ds => ds.filter(d => !d.paidId).length],
+    ['td',      'test_drives',           ['status', 'in', ['pending', 'done']], ds => ds.length],
+    ['charge',  'charging_tasks',        ['status', '==', 'active'],  ds => ds.reduce((s, d) => {
+        try { return s + JSON.parse(d.carsJson || '[]').filter(c => !c.charged).length; } catch (e) { return s; } }, 0)],
+    ['inv',     'inventory_assignments', ['status', '==', 'pending'], ds => ds.length],
+  ];
+  function start() {
+    if (started || typeof window._onSnap !== 'function') return;
+    started = true;
+    DEFS.forEach(([key, col, w, fn]) => {
+      try {
+        const ref = w ? window._query(window._colRef(col), window._where(w[0], w[1], w[2])) : window._colRef(col);
+        window._onSnap(ref, snap => { counts[key] = fn(snap.docs.map(d => d.data())); paint(); }, () => {});
+      } catch (e) { console.warn('ui2 count', key, e); }
+    });
+    try {
+      window._onSnap(window._docRef('recall_status', 'current'), snap => {
+        const cars = snap.exists() ? (snap.data().cars || []) : [];
+        counts.recall = cars.filter(c => !c.resolved).length; paint();
+      }, () => {});
+    } catch (e) {}
+  }
+  function total(key) {
+    if (key === 'vehicles') return (counts['vehicles:i'] || 0) + (counts['vehicles:r'] || 0);
+    return counts[key] || 0;
+  }
+  function paint() {
+    document.querySelectorAll('#ui2-side .u2-item[data-k]').forEach(btn => {
+      const n = total(btn.dataset.k);
+      let em = btn.querySelector(':scope > .u2-cnt');
+      if (!n) { if (em) em.remove(); return; }
+      if (!em) { em = document.createElement('em'); em.className = 'u2-cnt'; btn.querySelector(':scope > span')?.after(em); }
+      const txt = n > 999 ? '999+' : String(n);
+      if (em.textContent !== txt) em.textContent = txt;
+    });
+  }
+  setInterval(() => {
+    if (!document.body.classList.contains('ui2') || !document.getElementById('ui2-side')) return;
+    if (typeof currentUser === 'undefined' || !currentUser || currentUser.role !== 'manager') return;
+    start(); paint();
+  }, 1000);
+})();
