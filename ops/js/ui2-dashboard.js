@@ -31,6 +31,7 @@
     gear: '<circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/>',
     drop: '<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>',
     list: '<path d="M4 6h16M4 12h16M4 18h16"/>',
+    bolt: '<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>',
     bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/>',
   };
   const svg = k => `<svg aria-hidden="true" viewBox="0 0 24 24">${P[k]}</svg>`;
@@ -46,6 +47,7 @@
     ['wash',    'פתק שטיפה',       'drop',    () => goToScreen('wash'),             ['screen-wash']],
     ['td',      'נסיעות מבחן',     'gauge',   () => goToScreen('test-drive'),       ['screen-test-drive']],
     ['yard',    'סידור מגרש',      'park',    () => goToScreen('yard'),             ['screen-yard']],
+    ['charge',  'בדיקת טעינה',     'bolt',    () => goToScreen('battery'),          ['screen-battery']],
     ['recall',  'ריקול',           'warn',    () => goToScreen('recall'),           ['screen-recall']],
     ['inv',     'מלאי',            'box',     () => goToScreen('inventory'),        ['screen-inventory']],
     ['plate',   'חיפוש רכב',       'search',  () => goToScreen('plate-search'),     ['screen-plate-search']],
@@ -73,6 +75,7 @@
       <div class="u2-sep"></div>
       <div class="u2-foot">
         <button type="button" class="u2-item" data-act="settings">${svg('gear')}<span>הגדרות</span></button>
+        <button type="button" class="u2-item" data-act="push">${svg('bell')}<span>התראות</span></button>
         <button type="button" class="u2-old" data-act="old">↩ חזרה לעיצוב הישן</button>
       </div>`;
     side.addEventListener('click', e => {
@@ -81,6 +84,7 @@
       const a = b.dataset.act;
       if (a === 'all') openAllScreens();
       else if (a === 'settings') openSettings();
+      else if (a === 'push') { try { openPushSettings(); } catch (e) {} }
       else if (a === 'old') { setFlag(false); apply(); }
     });
     document.body.appendChild(side);

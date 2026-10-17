@@ -125,7 +125,7 @@
     const screen = active ? active.id : '';
     const map = { home: ['home'], tasks: ['tasks'], vehicles: ['vehicles', 'refresh'], shop: ['bodyshop-mgr'],
       pickup: ['pickup'], battery: ['battery-stock', 'battery-stats'], wash: ['wash'], td: ['test-drive'],
-      yard: ['yard'], recall: ['recall'], own: ['ownership'], inv: ['inventory'], plate: ['plate-search'] };
+      yard: ['yard'], charge: ['battery'], recall: ['recall'], own: ['ownership'], inv: ['inventory'], plate: ['plate-search'] };
     document.querySelectorAll('#ui2-side .u2-item[data-k]').forEach(button => {
       const selected = (map[button.dataset.k] || []).some(name => screen === 'screen-' + name);
       if (button.classList.contains('on') !== selected) button.classList.toggle('on', selected);
