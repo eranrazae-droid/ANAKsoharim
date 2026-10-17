@@ -32,8 +32,12 @@
   async function ask({ plate, message, history, signal }) {
     const media = pending; pending = []; paintPending();
     if (media.length) showSent(media);
-    const { status, j } = await call({ action: 'ask', plate, message, history, media: media.map(m => ({ mime: m.mime, data: m.data })) }, signal, 115000);
+    const dots = typing();
+    let status, j;
+    try { ({ status, j } = await call({ action: 'ask', plate, message, history, media: media.map(m => ({ mime: m.mime, data: m.data })) }, signal, 115000)); }
+    finally { dots.remove(); }
     if (signal?.aborted) throw new DOMException('aborted', 'AbortError');
+    if (status === 429 && j.detail) console.warn('AI limit:', j.detail);
     if (j.vehicle) { cards.set(plate, j.vehicle); paint(); }
     if (status === 503) return { answer: 'שירות ה-AI עוד לא הוגדר בשרת. פנה למנהל המערכת.', sources: [] };
     if (status === 429) return { answer: j.answer || 'הגעת למגבלת השאלות היומית. אפשר להמשיך מחר.', sources: [] };
@@ -41,6 +45,15 @@
     if (status !== 200 || typeof j.answer !== 'string') throw new Error('ai ' + status);
     setTimeout(() => { const m = $('ui2m-messages'); if (m) m.lastElementChild?.scrollIntoView({ block: 'nearest' }); }, 60);
     return { answer: j.answer, sources: Array.isArray(j.sources) ? j.sources : [] };
+  }
+
+  /* סימן "מקליד…" — שלוש נקודות בבועה עד שהתשובה מגיעה */
+  function typing() {
+    const m = $('ui2m-messages');
+    const e = document.createElement('div'); e.className = 'u2m-message u2m-typing'; e.setAttribute('aria-label', 'העוזר מקליד');
+    e.innerHTML = '<i></i><i></i><i></i>';
+    if (m) { m.appendChild(e); e.scrollIntoView({ block: 'nearest' }); }
+    return e;
   }
 
   /* ── צירוף תמונות וסרטונים ── */

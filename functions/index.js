@@ -2917,19 +2917,34 @@ exports.vehicleAI = onRequest({ cors: true, region: "europe-west1", timeoutSecon
       ...media.map((m) => ({ inline_data: { mime_type: m.mime, data: m.data } })),
       { text: `${carText}${message || "מה רואים כאן ומה כדאי לעשות?"}` },
     ];
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${_GEMINI_MODEL}:generateContent`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: _AI_SYSTEM }] },
-        contents: [...hist, { role: "user", parts }],
-        tools: [{ google_search: {} }],
-        generationConfig: { maxOutputTokens: 2048, temperature: 0.3 },
-      }),
-    });
-    const j = await r.json().catch(() => ({}));
-    if (r.status === 429) return res.status(429).json({ error: "limit", answer: "השירות החינמי עמוס כרגע. נסה שוב בעוד דקה." });
-    if (!r.ok) { console.error("gemini", r.status, JSON.stringify(j).slice(0, 300)); return res.status(502).json({ error: "ai-failed" }); }
+    /* במסלול החינמי חלק מהיכולות (חיפוש Google, דגמים מסוימים) עשויות להיות
+       חסומות במכסה — אז עוברים לניסיון הבא: אותו דגם בלי חיפוש, ואז דגם קל. */
+    const tries = [
+      { model: _GEMINI_MODEL, search: true },
+      { model: _GEMINI_MODEL, search: false },
+      { model: "gemini-flash-lite-latest", search: false },
+    ];
+    let r, j, used, lastErr = "";
+    for (const t of tries) {
+      r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${t.model}:generateContent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: _AI_SYSTEM + (t.search ? "" : "\nאין לך כרגע גישה לחיפוש — ענה מהידע שלך, ואמור במפורש מה כדאי לאמת מול ספר הרכב.") }] },
+          contents: [...hist, { role: "user", parts }],
+          ...(t.search ? { tools: [{ google_search: {} }] } : {}),
+          generationConfig: { maxOutputTokens: 2048, temperature: 0.3 },
+        }),
+      });
+      j = await r.json().catch(() => ({}));
+      used = t;
+      if (r.ok) break;
+      lastErr = `${t.model}${t.search ? "+search" : ""}: ${r.status} ${String(j.error?.message || "").slice(0, 160)}`;
+      console.error("gemini", lastErr);
+      if (r.status !== 429 && r.status !== 404 && r.status !== 400) break;
+    }
+    if (r.status === 429) return res.status(429).json({ error: "limit", detail: lastErr, answer: "השירות החינמי עמוס כרגע. נסה שוב בעוד דקה." });
+    if (!r.ok) return res.status(502).json({ error: "ai-failed", detail: lastErr });
     const cand = (j.candidates || [])[0] || {};
     const answer = (cand.content?.parts || []).map((p) => p.text || "").join("").replace(/\*\*/g, "").replace(/^\s*[*]\s+/gm, "- ").trim();
     const seen = new Set(), sources = [];
@@ -2938,7 +2953,7 @@ exports.vehicleAI = onRequest({ cors: true, region: "europe-west1", timeoutSecon
       seen.add(u); sources.push({ title: c.web.title || "מקור", url: u });
     }
     if (card) sources.push(card.source);
-    console.log("vehicleAI ask", { uid, plate: plate || "-", media: media.length, tokens: j.usageMetadata?.totalTokenCount });
+    console.log("vehicleAI ask", { uid, plate: plate || "-", media: media.length, model: used.model, search: used.search, tokens: j.usageMetadata?.totalTokenCount });
     return res.json({
       answer: answer || (cand.finishReason === "SAFETY" ? "לא אוכל לענות על זה. נסה לנסח אחרת." : "לא התקבלה תשובה. נסה שוב."),
       sources: sources.slice(0, 6), vehicle: card,
