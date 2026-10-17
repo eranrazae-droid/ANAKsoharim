@@ -1,0 +1,32 @@
+# בדיקה אוטומטית לכל בקשת שינוי: שינויים רק בתוך ops/, בלי לגעת בלוגיקה העסקית.
+# רצה בלי סודות ובלי פרסום.
+name: Design guard
+on:
+  pull_request:
+    branches: [claude/charming-archimedes-nlfl58, main]
+permissions:
+  contents: read
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Files must stay inside ops/
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: |
+          set -eu
+          case "$HEAD_REF" in design/*) ;; *) echo "Not a design branch — skipping."; exit 0;; esac
+          FILES=$(git diff --name-only "$BASE" "$HEAD")
+          echo "$FILES"
+          BAD=$(echo "$FILES" | grep -v '^ops/' || true)
+          if [ -n "$BAD" ]; then echo "::error::קבצים מחוץ ל-ops/: $BAD"; exit 1; fi
+          LOGIC=$(echo "$FILES" | grep '^ops/js/app/' || true)
+          case ",$LABELS," in *,approved-logic,*) LOGIC="";; esac
+          if [ -n "$LOGIC" ]; then echo "::error::שינוי בלוגיקה העסקית דורש אישור (תווית approved-logic): $LOGIC"; exit 1; fi
+          echo "OK"
