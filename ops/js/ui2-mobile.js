@@ -241,7 +241,11 @@
     $('ui2m-ai-state').textContent = typeof window.AnakMobileAI?.ask === 'function'?'עוזר הידע שלך לרכב':'החיבור ל־AI עדיין לא פעיל';
     locked = [...document.body.children].filter(e=>e!==chat && !['SCRIPT','STYLE','LINK'].includes(e.tagName)).map(e=>[e,e.inert]);
     locked.forEach(([e])=>e.inert=true);
-    document.body.classList.add('ui2m-chat-open'); $('ui2m-message').focus();
+    // הפוקוס עובר לחלונית עצמה ולא לשדה ההקלדה, כדי שהמקלדת לא תקפוץ מיד;
+    // היא נפתחת רק כשנוגעים בשדה
+    document.body.classList.add('ui2m-chat-open');
+    const sheet = chat.querySelector('.u2m-chat-sheet');
+    if (sheet) { sheet.tabIndex = -1; sheet.focus({preventScroll:true}); }
   }
   function closeChat() {
     if (!chat || chat.hidden) return;
