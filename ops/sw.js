@@ -1,10 +1,10 @@
-// v549 — force update
+// v550 — force update
 /* מטמון האפליקציה.
    כל קובץ קוד נטען עם ?v=<גרסה> בכתובת, ולכן גרסה חדשה היא כתובת
    חדשה — בטוח לחלוטין להגיש אותו מהמטמון בלי לשאול את השרת.
    שם המטמון נושא את הגרסה: העלאת גרסה מוחקת הכל ומתמלא מחדש.
    הדף עצמו (HTML) נשאר תמיד מהשרת, כדי שגרסה ישנה לא תיתקע. */
-const CACHE = 'anak-v549';
+const CACHE = 'anak-v550';
 
 self.addEventListener('install', () => self.skipWaiting());
 
@@ -85,3 +85,4 @@ self.addEventListener('notificationclick', e => {
     return clients.openWindow(url);
   })());
 });
+
