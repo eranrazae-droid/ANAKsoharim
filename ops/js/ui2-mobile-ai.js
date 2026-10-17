@@ -1,12 +1,13 @@
-/* צ׳אט ה-AI של הטלפון.
-   מזהה את הרכב במשרד התחבורה דרך השרת (חינמי) ומציג כרטיס רכב, ומגדיר את
-   window.AnakMobileAI.ask שפותח את השאלה בעוזר שהנהג בחר (Claude או ChatGPT). */
+/* צ׳אט ה-AI של הטלפון — כל השיחה בתוך האפליקציה.
+   מזהה את הרכב במשרד התחבורה ומציג כרטיס רכב, מצרף תמונות וסרטונים, ושולח
+   את השאלה לשרת (vehicleAI → Gemini במסלול החינמי). המפתח בשרת בלבד. */
 (function () {
   'use strict';
   const URL_AI = 'https://europe-west1-anak-soharim.cloudfunctions.net/vehicleAI';
   const cards = new Map();   // רישוי -> כרטיס (או null כשלא נמצא) — רק לזמן העבודה הנוכחי
   let shownFor = '', idCtrl = null, owner = '';
 
+  const who = () => (typeof currentUser !== 'undefined' && currentUser?.name) || '';
   async function token() {
     try { const u = window._auth?.currentUser; return u ? await u.getIdToken() : ''; } catch (e) { return ''; }
   }
@@ -26,77 +27,86 @@
     } finally { clearTimeout(t); signal?.removeEventListener('abort', stop); }
   }
 
-  /* העוזר שהנהג בחר (Claude / ChatGPT) — נשמר לכל משתמש במכשיר שלו.
-     השאלה נפתחת אצל העוזר עצמו עם פרטי הרכב, בלי מפתח API ובלי עלות לעסק. */
-  const AI = {
-    claude:  { name: 'Claude',  url: q => 'https://claude.ai/new?q=' + q },
-    chatgpt: { name: 'ChatGPT', url: q => 'https://chatgpt.com/?q=' + q },
-  };
-  const who = () => (typeof currentUser !== 'undefined' && currentUser?.name) || '';
-  const pickKey = () => 'anak_ai_pick:' + who();
-  function getPick() { try { const v = localStorage.getItem(pickKey()); return AI[v] ? v : ''; } catch (e) { return ''; } }
-  function setPick(v) { try { localStorage.setItem(pickKey(), v); } catch (e) {} }
-  const other = k => (k === 'claude' ? 'chatgpt' : 'claude');
-
-  function prompt(plate, c, message) {
-    const tail = '\n\nחפש מקורות יצרן, ספר הרכב, היבואן בישראל וקטלוגי התאמה (למשל VARTA, Bosch). ציין מקורות. ' +
-      'אם התשובה תלויה בדגם, בגרסה או ברמת גימור ואין התאמה ודאית — אמור זאת ובקש פרט נוסף, אל תנחש. ענה בעברית, בקצרה.';
-    if (!plate) return `שאלה על רכב (בישראל):\n${message}${tail}`;
-    const car = c ? [
-      `יצרן: ${c.maker}`, `דגם: ${c.model}`, c.modelCode && `קוד דגם: ${c.modelCode}`, c.trim && `רמת גימור: ${c.trim}`,
-      `שנת ייצור: ${c.year}`, c.fuel && `דלק: ${c.fuel}`, c.engine && `דגם מנוע: ${c.engine}`,
-    ].filter(Boolean).join('\n') : '(הרכב לא זוהה במרשם)';
-    return `רכב בישראל, מספר רישוי ${plate}. פרטים ממאגר משרד התחבורה:\n${car}\n\nהשאלה: ${message}${tail}`;
+  /* ── שאלה: נשלחת לשרת (Gemini, מסלול חינמי) והתשובה מוצגת כאן בתוך האפליקציה ── */
+  let pending = [];   // קבצים שצורפו לשאלה הבאה: { mime, data(base64), url(תצוגה) }
+  async function ask({ plate, message, history, signal }) {
+    const media = pending; pending = []; paintPending();
+    if (media.length) showSent(media);
+    const { status, j } = await call({ action: 'ask', plate, message, history, media: media.map(m => ({ mime: m.mime, data: m.data })) }, signal, 115000);
+    if (signal?.aborted) throw new DOMException('aborted', 'AbortError');
+    if (j.vehicle) { cards.set(plate, j.vehicle); paint(); }
+    if (status === 503) return { answer: 'שירות ה-AI עוד לא הוגדר בשרת. פנה למנהל המערכת.', sources: [] };
+    if (status === 429) return { answer: j.answer || 'הגעת למגבלת השאלות היומית. אפשר להמשיך מחר.', sources: [] };
+    if (status === 413) return { answer: 'הקבצים גדולים מדי. נסה סרטון קצר יותר או פחות תמונות.', sources: [] };
+    if (status !== 200 || typeof j.answer !== 'string') throw new Error('ai ' + status);
+    setTimeout(() => { const m = $('ui2m-messages'); if (m) m.lastElementChild?.scrollIntoView({ block: 'nearest' }); }, 60);
+    return { answer: j.answer, sources: Array.isArray(j.sources) ? j.sources : [] };
   }
-  // נקראת מתוך לחיצת "שלח" — פותחים מיד, לפני כל המתנה, כדי שהדפדפן לא יחסום
-  function ask({ plate, message }) {
-    const k = getPick() || 'claude', o = other(k);
-    const q = encodeURIComponent(prompt(plate, cards.get(plate), message));
-    let w = null;
-    try { w = window.open(AI[k].url(q), '_blank'); if (w) w.opener = null; } catch (e) {}
-    setTimeout(() => {
-      const m = $('ui2m-messages'); if (!m) return;
-      const links = m.querySelectorAll('a'); const alt = links[links.length - 1];
-      if (alt && alt.href.startsWith(AI[o].url(''))) alt.classList.add('u2m-alt');
-      m.scrollTop = m.scrollHeight; m.lastElementChild?.scrollIntoView({ block: 'nearest' });
-    }, 60);
-    return Promise.resolve({
-      answer: w ? `נפתח ב-${AI[k].name} ✓ התשובה והמקורות מופיעים שם.` : `הדפדפן חסם את פתיחת ${AI[k].name} — לחץ על הכפתור כדי לפתוח.`,
-      sources: [
-        { title: `↗ פתח${w ? ' שוב' : ''} ב-${AI[k].name}`, url: AI[k].url(q) },
-        { title: `או: שאל את אותה שאלה ב-${AI[o].name}`, url: AI[o].url(q) },
-      ],
+
+  /* ── צירוף תמונות וסרטונים ── */
+  const MAX_VIDEO = 15 * 1024 * 1024;
+  function toBase64(blob) {
+    return new Promise((ok, bad) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.onerror = bad; r.readAsDataURL(blob); });
+  }
+  function shrink(file) {   // תמונה עד 1600 פיקסלים, JPEG — חוסך זמן ומקום
+    return new Promise(ok => {
+      const img = new Image(), url = URL.createObjectURL(file);
+      img.onload = () => {
+        const k = Math.min(1, 1600 / Math.max(img.width, img.height));
+        const c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        c.toBlob(b => { URL.revokeObjectURL(url); ok(b || file); }, 'image/jpeg', 0.82);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); ok(file); };
+      img.src = url;
     });
   }
-
-  /* בחירה ראשונה ומתג החלפה בראש החלונית */
-  function note(text) {
+  async function addFiles(files) {
+    const status = $('ui2m-chat-status');
+    for (const f of [...files].slice(0, 4 - pending.length)) {
+      try {
+        if (f.type.startsWith('image/')) {
+          const b = await shrink(f);
+          pending.push({ mime: 'image/jpeg', data: await toBase64(b), url: URL.createObjectURL(b), kind: 'image' });
+        } else if (f.type.startsWith('video/')) {
+          if (f.size > MAX_VIDEO) { if (status) status.textContent = 'הסרטון ארוך מדי — עד כחצי דקה (15MB).'; continue; }
+          pending.push({ mime: f.type, data: await toBase64(f), url: URL.createObjectURL(f), kind: 'video' });
+        }
+      } catch (e) { if (status) status.textContent = 'לא הצלחתי לצרף את הקובץ.'; }
+    }
+    paintPending();
+  }
+  function paintPending() {
+    const box = $('ui2m-attach-list'); if (!box) return;
+    box.replaceChildren(...pending.map((m, i) => {
+      const d = document.createElement('div'); d.className = 'u2m-att';
+      const v = document.createElement(m.kind === 'video' ? 'video' : 'img'); v.src = m.url; if (m.kind === 'video') v.muted = true;
+      const x = document.createElement('button'); x.type = 'button'; x.textContent = '×'; x.setAttribute('aria-label', 'הסר קובץ');
+      x.onclick = () => { pending.splice(i, 1); paintPending(); };
+      d.append(v, x); return d;
+    }));
+    box.hidden = !pending.length;
+  }
+  function showSent(media) {   // הקבצים שנשלחו מוצגים בשיחה, מתחת לשאלה
     const m = $('ui2m-messages'); if (!m) return;
-    const e = document.createElement('div'); e.className = 'u2m-message u2m-ai-note'; e.textContent = text;
-    m.appendChild(e); e.scrollIntoView({ block: 'nearest' });
+    const row = document.createElement('div'); row.className = 'u2m-sent-media';
+    media.forEach(x => { const v = document.createElement(x.kind === 'video' ? 'video' : 'img'); v.src = x.url; if (x.kind === 'video') { v.controls = true; v.muted = true; } row.appendChild(v); });
+    const mine = [...m.querySelectorAll('.u2m-mine')].pop();
+    (mine ? mine.after(row) : m.appendChild(row));
   }
   function aiUi() {
-    const sheet = document.querySelector('#ui2m-chat .u2m-chat-sheet'); if (!sheet) return;
-    let seg = $('ui2m-ai-seg'), pick = $('ui2m-ai-pick');
-    if (!seg) {
-      seg = document.createElement('div'); seg.id = 'ui2m-ai-seg'; seg.className = 'u2m-ai-seg'; seg.setAttribute('role', 'radiogroup'); seg.setAttribute('aria-label', 'העוזר שלי');
-      seg.innerHTML = '<button type="button" role="radio" data-ai="claude">Claude</button><button type="button" role="radio" data-ai="chatgpt">ChatGPT</button>';
-      seg.addEventListener('click', e => {
-        const b = e.target.closest('[data-ai]'); if (!b || b.dataset.ai === getPick()) return;
-        setPick(b.dataset.ai); aiUi(); note(`מעכשיו השאלות ייפתחו ב-${AI[b.dataset.ai].name}`);
-      });
-      sheet.querySelector('header')?.after(seg);
-    }
-    if (!pick) {
-      pick = document.createElement('div'); pick.id = 'ui2m-ai-pick'; pick.className = 'u2m-ai-pick';
-      pick.innerHTML = '<b>באיזה עוזר תרצה להשתמש?</b><p>אפשר להחליף בכל רגע.<br>בפעם הראשונה תתבקש להתחבר אליו — ומאז זה נשמר.</p>' +
-        '<button type="button" data-ai="claude" class="c">Claude</button><button type="button" data-ai="chatgpt" class="g">ChatGPT</button>';
-      pick.addEventListener('click', e => { const b = e.target.closest('[data-ai]'); if (!b) return; setPick(b.dataset.ai); aiUi(); $('ui2m-plate')?.focus(); });
-      sheet.appendChild(pick);
-    }
-    const cur = getPick();
-    pick.hidden = !!cur;
-    seg.querySelectorAll('[data-ai]').forEach(b => { const on = b.dataset.ai === cur; b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false'); });
+    const form = $('ui2m-chat-form'); if (!form || $('ui2m-attach')) return;
+    const row = form.querySelector('div');
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.id = 'ui2m-attach'; btn.className = 'u2m-attach-btn'; btn.textContent = '📷';
+    btn.setAttribute('aria-label', 'צירוף תמונה או סרטון');
+    const inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = 'image/*,video/*'; inp.multiple = true; inp.hidden = true;
+    inp.onchange = () => { addFiles(inp.files); inp.value = ''; };
+    btn.onclick = () => inp.click();
+    row.prepend(btn, inp);
+    const list = document.createElement('div'); list.id = 'ui2m-attach-list'; list.className = 'u2m-attach-list'; list.hidden = true;
+    form.prepend(list);
   }
   window.AnakMobileAI = { ask };
 
@@ -143,7 +153,7 @@
   // מעקב אחרי מספר הרישוי שבחלונית; החלפת משתמש מנקה את הזיכרון
   setInterval(() => {
     const me = who();
-    if (me !== owner) { owner = me; cards.clear(); shownFor = ''; idCtrl?.abort(); }
+    if (me !== owner) { owner = me; cards.clear(); shownFor = ''; idCtrl?.abort(); pending = []; paintPending(); }
     aiUi();
     const inp = $('ui2m-plate'); if (!inp) return;
     const plate = inp.value.replace(/\D/g, '');

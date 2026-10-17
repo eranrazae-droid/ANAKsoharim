@@ -2833,21 +2833,119 @@ async function _vehicleCard(plate) {
   return card;
 }
 
-exports.vehicleAI = onRequest({ cors: true, region: "europe-west1", timeoutSeconds: 30, maxInstances: 5 }, async (req, res) => {
+/* צ׳אט AI בתוך האפליקציה — Gemini של Google במסלול החינמי.
+   המפתח נשמר ב-Secret Manager (GEMINI_API_KEY) ונקרא כאן בזמן ריצה; הדפדפן לא
+   רואה אותו. המפתח שייך לפרויקט Google נפרד בלי חיוב, ולכן אין עלות.
+   המודל עונה עם חיפוש Google ומקורות, ומקבל תמונות וסרטונים קצרים. אין לו שום
+   גישה לנתוני התפעול. */
+const _AI_PROJECT = "anak-soharim";
+const _AI_DAILY_LIMIT = 40;                       // שאלות למשתמש ביום
+const _GEMINI_MODEL = "gemini-flash-latest";
+const _AI_MEDIA_MAX = 18 * 1024 * 1024;           // סך הקבצים בשאלה אחת
+let _geminiKey = null, _geminiKeyAt = 0;
+
+async function _secret(name) {
+  const t = await fetch("http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token",
+    { headers: { "Metadata-Flavor": "Google" } });
+  if (!t.ok) throw new Error("metadata token " + t.status);
+  const { access_token } = await t.json();
+  const r = await fetch(`https://secretmanager.googleapis.com/v1/projects/${_AI_PROJECT}/secrets/${name}/versions/latest:access`,
+    { headers: { Authorization: "Bearer " + access_token } });
+  if (!r.ok) { const e = new Error("secret " + r.status); e.code = "no-key"; throw e; }
+  const j = await r.json();
+  return Buffer.from(j.payload.data, "base64").toString("utf8").trim();
+}
+async function _geminiApiKey() {
+  if (_geminiKey && Date.now() - _geminiKeyAt < 30 * 60e3) return _geminiKey;
+  _geminiKey = await _secret("GEMINI_API_KEY"); _geminiKeyAt = Date.now();
+  return _geminiKey;
+}
+
+const _AI_SYSTEM = `אתה עוזר ידע לצוות מגרש רכבים בישראל (נהגים ומנהל). עונים בעברית, בקצרה ובשפה פשוטה.
+אם צורפו פרטי רכב ממשרד התחבורה — השאלה מתייחסת לרכב הזה.
+המטרה: מידע מעשי — איזה מצבר מתאים (גודל, קיבולת, AGM/EFB, צד הקטבים), האם יש גלגל ספייר או ערכת תיקון, היכן נמצאים רכיבים (מצבר, ג׳ק, נתיכים, OBD וכו׳), נורות אזהרה, אבזור, ואיך מבצעים פעולה פשוטה.
+כללים:
+- חפש ב-Google מקורות יצרן, ספרי רכב, היבואן בישראל וקטלוגי התאמה לפני שאתה עונה.
+- אל תנחש. אם התשובה תלויה בגרסה, ברמת גימור, במנוע או בשנה ואין התאמה ודאית — אמור זאת ובקש פרט נוסף (מספר רכב, רמת גימור, צילום של המצבר/התווית/הנורה).
+- כשמצורפת תמונה או סרטון — תאר מה רואים ואל תמציא מה שלא רואים.
+- אם יש סרטון הדרכה מתאים (למשל ביוטיוב), אפשר להמליץ עליו — הוא יופיע במקורות.
+- טקסט רגיל בלבד: בלי Markdown, בלי כוכביות וטבלאות. משפטים קצרים או רשימה עם מקפים.
+- אל תעסוק בנושאים שאינם קשורים לרכב.`;
+
+exports.vehicleAI = onRequest({ cors: true, region: "europe-west1", timeoutSeconds: 120, memory: "512MiB", maxInstances: 5 }, async (req, res) => {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
   let uid;
   try {
     const tok = String(req.get("Authorization") || "").replace(/^Bearer\s+/i, "");
     uid = (await getAuth().verifyIdToken(tok)).uid;
   } catch (e) { return res.status(401).json({ error: "unauthenticated" }); }
-  const plate = String((req.body || {}).plate || "").replace(/\D/g, "");
-  if (!/^\d{7,8}$/.test(plate)) return res.status(400).json({ error: "bad-plate" });
+  const body = req.body || {};
+  const plate = String(body.plate || "").replace(/\D/g, "");
+  if (plate && !/^\d{7,8}$/.test(plate)) return res.status(400).json({ error: "bad-plate" });
+
   try {
-    if (!(await _aiQuota(uid, "identify", _AI_IDENTIFY_LIMIT))) return res.status(429).json({ error: "limit" });
-    const card = await _vehicleCard(plate);
-    return res.json(card ? { found: true, vehicle: card } : { found: false });
+    // זיהוי רכב בלבד (חינמי)
+    if (body.action === "identify") {
+      if (!plate) return res.status(400).json({ error: "bad-plate" });
+      if (!(await _aiQuota(uid, "identify", _AI_IDENTIFY_LIMIT))) return res.status(429).json({ error: "limit" });
+      const card = await _vehicleCard(plate);
+      return res.json(card ? { found: true, vehicle: card } : { found: false });
+    }
+
+    // שאלה
+    const message = String(body.message || "").trim().slice(0, 1500);
+    const media = (Array.isArray(body.media) ? body.media : []).slice(0, 4)
+      .filter((m) => m && /^(image|video)\/[\w.+-]+$/.test(m.mime || "") && typeof m.data === "string");
+    if (!message && !media.length) return res.status(400).json({ error: "empty" });
+    if (media.reduce((s, m) => s + m.data.length * 0.75, 0) > _AI_MEDIA_MAX) return res.status(413).json({ error: "too-big" });
+    let card = null;
+    if (plate) { try { card = await _vehicleCard(plate); } catch (e) { /* בלי פרטי רכב — עדיין עונים */ } }
+    if (!(await _aiQuota(uid, "ask", _AI_DAILY_LIMIT))) {
+      return res.status(429).json({ error: "limit", answer: "הגעת למגבלת השאלות היומית. אפשר להמשיך מחר." });
+    }
+    const key = await _geminiApiKey();
+
+    const hist = (Array.isArray(body.history) ? body.history : []).slice(-10)
+      .filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
+      .map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content.slice(0, 2000) }] }));
+    while (hist.length && hist[0].role !== "user") hist.shift();
+    const carText = card ? `פרטי הרכב ממשרד התחבורה (מספר ${plate}):\n${[
+      `יצרן: ${card.maker}`, `דגם: ${card.model}`, card.modelCode && `קוד דגם: ${card.modelCode}`, card.trim && `רמת גימור: ${card.trim}`,
+      `שנת ייצור: ${card.year}`, card.fuel && `דלק: ${card.fuel}`, card.engine && `דגם מנוע: ${card.engine}`].filter(Boolean).join("\n")}\n\n`
+      : (plate ? `מספר רכב ${plate} (לא נמצא במרשם).\n\n` : "");
+    const parts = [
+      ...media.map((m) => ({ inline_data: { mime_type: m.mime, data: m.data } })),
+      { text: `${carText}${message || "מה רואים כאן ומה כדאי לעשות?"}` },
+    ];
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${_GEMINI_MODEL}:generateContent`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: _AI_SYSTEM }] },
+        contents: [...hist, { role: "user", parts }],
+        tools: [{ google_search: {} }],
+        generationConfig: { maxOutputTokens: 2048, temperature: 0.3 },
+      }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 429) return res.status(429).json({ error: "limit", answer: "השירות החינמי עמוס כרגע. נסה שוב בעוד דקה." });
+    if (!r.ok) { console.error("gemini", r.status, JSON.stringify(j).slice(0, 300)); return res.status(502).json({ error: "ai-failed" }); }
+    const cand = (j.candidates || [])[0] || {};
+    const answer = (cand.content?.parts || []).map((p) => p.text || "").join("").replace(/\*\*/g, "").replace(/^\s*[*]\s+/gm, "- ").trim();
+    const seen = new Set(), sources = [];
+    for (const c of cand.groundingMetadata?.groundingChunks || []) {
+      const u = c.web?.uri; if (!u || !/^https:\/\//.test(u) || seen.has(u)) continue;
+      seen.add(u); sources.push({ title: c.web.title || "מקור", url: u });
+    }
+    if (card) sources.push(card.source);
+    console.log("vehicleAI ask", { uid, plate: plate || "-", media: media.length, tokens: j.usageMetadata?.totalTokenCount });
+    return res.json({
+      answer: answer || (cand.finishReason === "SAFETY" ? "לא אוכל לענות על זה. נסה לנסח אחרת." : "לא התקבלה תשובה. נסה שוב."),
+      sources: sources.slice(0, 6), vehicle: card,
+    });
   } catch (e) {
     console.error("vehicleAI", e?.code, e?.message);
+    if (e?.code === "no-key") return res.status(503).json({ error: "not-configured" });
     if (e?.code === "gov") return res.status(502).json({ error: "gov-unavailable" });
     return res.status(500).json({ error: "failed" });
   }

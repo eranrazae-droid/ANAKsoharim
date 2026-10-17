@@ -218,7 +218,7 @@
     if (!chat) return;
     $('ui2m-plate').value = ''; $('ui2m-message').value = ''; $('ui2m-messages').replaceChildren();
     $('ui2m-chat-status').textContent = ''; $('ui2m-chat-form').querySelector('button').disabled = false;
-    addMessage('הזן מספר רכב ושאל על גלגל ספייר, מצבר, אבזור או מיקום של רכיב. השאלה תוכן עם פרטי הרכב, ותבחר אם לשאול ב-Claude או ב-ChatGPT.',false);
+    addMessage('הזן מספר רכב ושאל על גלגל ספייר, מצבר, אבזור או מיקום של רכיב. אפשר לצרף תמונה או סרטון קצר בכפתור 📷. התשובה תופיע כאן, עם מקורות.',false);
   }
   function addMessage(text, mine) {
     const e = document.createElement('div'); e.className = 'u2m-message'+(mine?' u2m-mine':''); e.textContent = text;
