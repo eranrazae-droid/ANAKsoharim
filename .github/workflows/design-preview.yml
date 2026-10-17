@@ -1,8 +1,9 @@
 # סביבת הדגמה: עותק של האפליקציה עם נתונים מדומים, בכתובת נפרדת.
 # שום דבר בה לא נוגע באפליקציה האמיתית — אין חיבור למסד הנתונים, לשרת או להודעות.
 #  • דחיפה לענף החי → ערוץ "demo" (כתובת קבועה של המצב הנוכחי).
-#  • בקשת שינוי של עיצוב → רק בהפעלה ידנית (Run workflow + מספר הבקשה),
-#    אחרי שהשינוי נבדק. לא רץ אוטומטית על קוד שלא נבדק.
+#  • בקשת שינוי של עיצוב → רק אחרי בדיקה, באחת משתי דרכים:
+#    הדבקת התווית "preview" על הבקשה, או Run workflow + מספר הבקשה.
+#    לא רץ אוטומטית על שינוי שלא נבדק.
 # קוד סביבת ההדגמה (design-preview/) נלקח תמיד מהענף החי. מבקשת השינוי
 # נלקחת רק התיקייה ops/, כקבצים סטטיים בלבד — שום דבר ממנה לא מורץ.
 name: Design preview
@@ -10,6 +11,9 @@ on:
   push:
     branches: [claude/charming-archimedes-nlfl58]
     paths: ['ops/**', 'design-preview/**', '.github/workflows/design-preview.yml']
+  pull_request_target:
+    types: [labeled]
+    branches: [claude/charming-archimedes-nlfl58]
   workflow_dispatch:
     inputs:
       pr:
@@ -20,21 +24,27 @@ permissions:
   pull-requests: write
   checks: write
 concurrency:
-  group: design-preview-${{ inputs.pr || 'demo' }}
+  group: design-preview-${{ inputs.pr || github.event.pull_request.number || 'demo' }}
   cancel-in-progress: true
 jobs:
   preview:
-    if: github.ref == 'refs/heads/claude/charming-archimedes-nlfl58'
+    if: >-
+      github.ref == 'refs/heads/claude/charming-archimedes-nlfl58' &&
+      (github.event_name != 'pull_request_target' || (
+        github.event.label.name == 'preview' &&
+        github.event.pull_request.head.repo.full_name == github.repository &&
+        startsWith(github.event.pull_request.head.ref, 'design/')))
     runs-on: ubuntu-latest
     environment: production
+    env:
+      PR: ${{ inputs.pr || github.event.pull_request.number }}
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
       - name: Take ops/ from the design pull request
-        if: inputs.pr != ''
+        if: env.PR != ''
         env:
-          PR: ${{ inputs.pr }}
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
         run: |
@@ -61,14 +71,15 @@ jobs:
           channelId: ${{ env.CHANNEL || 'demo' }}
           expires: 30d
       - name: Post link on the pull request
-        if: inputs.pr != ''
+        if: env.PR != ''
         env:
-          PR: ${{ inputs.pr }}
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           URL: ${{ steps.deploy.outputs.details_url }}
         run: |
-          gh api "repos/$REPO/issues/$PR/comments" -f body="🧪 תצוגה מקדימה (נתונים מדומים, שום דבר לא נשמר): ${URL%/}/ops/?ui2=1"
+          gh api "repos/$REPO/issues/$PR/comments" -f body="🧪 תצוגה מקדימה (נתונים מדומים, שום דבר לא נשמר)
+          מחשב: ${URL%/}/ops/?ui2=1
+          טלפון: ${URL%/}/phone.html"
       - name: Summary
         env:
           URL: ${{ steps.deploy.outputs.details_url }}
