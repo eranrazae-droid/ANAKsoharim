@@ -153,11 +153,27 @@
     openModal('modal-ui2-report');
     return m;
   }
-  function habibHistory() {
-    const hab = D.pro.filter(p => p.who === 'חביב').sort((a, b) => ms(b.date || b.createdAt) - ms(a.date || a.createdAt));
-    const list = hab.map(p => `<div class="u2r-hrow"><b>${nis(p.amount)}</b><span>${day(ms(p.date) || ms(p.createdAt))}</span><small>${esc2(p.note || '')}</small></div>`).join('')
-      || '<div class="u2r-empty">עוד לא נרשמו תשלומים</div>';
-    showModal('🪟 חביב · תשלומים', `<button type="button" class="u2r-btn wide" onclick="window._u2rHabibAdd()">➕ רישום תשלום</button><div class="u2r-hist">${list}</div>`);
+  /* היסטוריית התשלומים של בעל מקצוע אחד */
+  function history(act) {
+    const full = t => t ? new Date(t).toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric', year: '2-digit' }) : '';
+    const rows = (arr, when, amount, note) => arr.slice().sort((a, b) => when(b) - when(a))
+      .map(x => `<div class="u2r-hrow"><b>${nis(amount(x))}</b><span>${full(when(x))}</span><small>${esc2(note(x) || '')}</small></div>`).join('');
+    let title, body, top = '';
+    if (act === 'shop') {
+      title = '🔨 איברהים · תשלומים';
+      body = rows(D.shopArch, x => ms(x.paidAt) || ms(x.createdAt), x => x.total, x => `${(x.cars || []).length} רכבים${x.title ? ' · ' + x.title : ''}`);
+    } else if (act === 'wash') {
+      title = '🧽 שטיפות · תשלומים';
+      body = rows(D.washPays, x => ms(x.paidAt), x => x.total, x => `${x.count || 0} רכבים${x.invoiceNumber ? ' · חשבונית ' + x.invoiceNumber : ''}`);
+    } else if (act === 'battery') {
+      title = '🔋 מצברים · הזמנות';
+      body = rows(D.orders, x => ms(x.createdAt) || ms(x.at), x => x.total, x => `${x.units || 0} מצברים`);
+    } else {
+      title = '🪟 חביב · תשלומים';
+      top = `<button type="button" class="u2r-btn wide" onclick="window._u2rHabibAdd()">➕ רישום תשלום</button>`;
+      body = rows(D.pro.filter(p => p.who === 'חביב'), x => ms(x.date) || ms(x.createdAt), x => x.amount, x => x.note);
+    }
+    showModal(title, top + `<div class="u2r-hist">${body || '<div class="u2r-empty">אין עדיין תשלומים</div>'}</div>`);
   }
   function habibAdd() {
     const today = new Date().toISOString().slice(0, 10);
@@ -201,10 +217,7 @@
       e.stopPropagation();
       const act = a.dataset.act;
       if (act === 'habib-add') habibAdd();
-      else if (act === 'habib') habibHistory();
-      else if (act === 'shop') goToScreen('bodyshop-mgr');
-      else if (act === 'wash') { try { openWashPayHub(); } catch (x) { goToScreen('wash'); } }
-      else if (act === 'battery') goToScreen('battery-stock');
+      else history(act);
     });
     layout.appendChild(s);
   }
