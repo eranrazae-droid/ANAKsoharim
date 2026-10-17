@@ -207,7 +207,7 @@
   }
   function buildChat() {
     chat = document.createElement('div'); chat.id = 'ui2m-chat'; chat.className = 'u2m-chat'; chat.hidden = true; chat.style.display = 'none';
-    chat.innerHTML = '<section class="u2m-chat-sheet" role="dialog" aria-modal="true" aria-labelledby="ui2m-chat-title"><header>'+art('chat')+'<div><h2 id="ui2m-chat-title">צ׳אט AI</h2><small id="ui2m-ai-state">החיבור ל־AI עדיין לא פעיל</small></div><button type="button" data-u2m-action="close-chat" aria-label="סגירת הצ׳אט">×</button></header><form id="ui2m-plate-form" class="u2m-plate-form"><label for="ui2m-plate">מספר רכב</label><input id="ui2m-plate" inputmode="numeric" autocomplete="off" maxlength="10" placeholder="מספר רישוי"><small>השיחה תתייחס למספר שתזין</small></form><div id="ui2m-messages" class="u2m-messages" role="log" aria-live="polite"></div><form id="ui2m-chat-form" class="u2m-composer"><label for="ui2m-message">מה תרצה לדעת על הרכב?</label><div><textarea id="ui2m-message" rows="2" placeholder="למשל: איזה מצבר מתאים לרכב?" required></textarea><button type="submit" aria-label="שליחת שאלה">שלח</button></div><small id="ui2m-chat-status" role="status"></small></form></section>';
+    chat.innerHTML = '<section class="u2m-chat-sheet" role="dialog" aria-modal="true" aria-labelledby="ui2m-chat-title"><header>'+art('chat')+'<div><h2 id="ui2m-chat-title">צ׳אט AI</h2><small id="ui2m-ai-state">החיבור ל־AI עדיין לא פעיל</small></div><button type="button" data-u2m-action="close-chat" aria-label="סגירת הצ׳אט">×</button></header><form id="ui2m-plate-form" class="u2m-plate-form"><label for="ui2m-plate">מספר רכב <small>(לא חובה)</small></label><input id="ui2m-plate" inputmode="numeric" autocomplete="off" maxlength="10" placeholder="מספר רישוי"><small>אם תזין מספר — השאלות יתייחסו לרכב הזה</small></form><div id="ui2m-messages" class="u2m-messages" role="log" aria-live="polite"></div><form id="ui2m-chat-form" class="u2m-composer"><label for="ui2m-message">מה תרצה לדעת על הרכב?</label><div><textarea id="ui2m-message" rows="2" placeholder="למשל: איזה מצבר מתאים לרכב?" required></textarea><button type="submit" aria-label="שליחת שאלה">שלח</button></div><small id="ui2m-chat-status" role="status"></small></form></section>';
     document.body.appendChild(chat);
     $('ui2m-plate-form').addEventListener('submit',e=>{e.preventDefault();$('ui2m-message').focus();});
     $('ui2m-chat-form').addEventListener('submit',send);
@@ -250,7 +250,7 @@
     const message = $('ui2m-message').value.trim(), plate = $('ui2m-plate').value.replace(/\D/g,'');
     const status = $('ui2m-chat-status');
     if (!message) return;
-    if (!/^\d{7,8}$/.test(plate)) { status.textContent = 'יש להזין מספר רכב בן 7 או 8 ספרות'; $('ui2m-plate').focus(); return; }
+    if (plate && !/^\d{7,8}$/.test(plate)) { status.textContent = 'מספר רכב צריך 7 או 8 ספרות — או להשאיר את השדה ריק'; $('ui2m-plate').focus(); return; }
     const adapter = window.AnakMobileAI;
     if (typeof adapter?.ask !== 'function') { status.textContent = 'הצ׳אט עדיין לא מחובר לשירות AI. השאלה נשמרת כאן עד לחיבור.'; return; }
     const previous = conversation.filter(m=>m.plate===plate), token = generation;
