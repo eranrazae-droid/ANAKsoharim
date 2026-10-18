@@ -870,13 +870,14 @@ async function _notifyDriver(driverName, message) {
   return false;
 }
 
+/* הודעה לכל הנהגים — דרך אותו ערוץ שנבחר בהגדרות (פוש / טלגרם / שניהם),
+   כמו כל הודעה אחרת. קודם נשלחה רק בטלגרם/SMS, ולכן כשהערוץ היה "פוש"
+   הודעת סידור המגרש לא הגיעה לנהגים. */
 async function _notifyAllDrivers(message) {
   const contacts = await _loadDriverContacts();
-  for (const [key, c] of Object.entries(contacts)) {
-    if (key.startsWith('_') || key === 'ליאל') continue;
-    if (c?.telegramId) { const ok = await _sendTelegram(c.telegramId, message); if (ok) continue; }
-    if (c?.phone) _sendSms(c.phone, message);
-  }
+  const names = new Set(_ALL_USERS.filter(u => u.role === 'driver').map(u => u.name));
+  Object.keys(contacts).forEach(k => { if (!k.startsWith('_') && k !== 'ליאל') names.add(k); });
+  await Promise.all([...names].map(n => _notifyDriver(n, message).catch(e => console.warn('notify', n, e))));
 }
 
 // ─── Settings screen ───────────────────────────────────
