@@ -128,5 +128,7 @@ export function SEED(TS) {
 
   put('ai_chats', 'עופר_demo1', { user: 'עופר', role: 'driver', sid: 'demo1', at: now - 3 * H, plate: '2345678', car: 'יונדאי איוניק 5 2023',
     msgs: [{ role: 'user', content: 'איפה השקע לטעינה איטית?' }, { role: 'assistant', content: '(הדגמה) בצד ימין מאחור, מתחת לדלת הטעינה.', sources: [] }] });
+  const msDay = new Date(now - 4 * 3600000).toLocaleDateString('sv-SE');
+  put('morning_starts', msDay, { day: msDay, byDriver: { 'גיל': Array.from({ length: 11 }, (_, i) => ({ spot: 24 + i })), 'עופר': [{ spot: 1 }, { spot: 2 }] } });
   return out;
 }
