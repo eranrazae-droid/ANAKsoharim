@@ -7,7 +7,7 @@
   let running = false, owner = '', hidden = new Set(), picker = null, board = null;
   let scheduled = false;
   /* מצב הלוח: 'high' — דחיפות גבוהה בלבד, 'all' — כל המשימות */
-  const HIGH_COLS = ['משימות בעדיפות עליונה', 'משימות ללקוחות ומוסך'];
+  const HIGH_COLS = ['משימות בעדיפות עליונה', 'משימות ללקוחות ומוסך', 'מוסך'];
   let mode = 'all';
   function readMode() { try { mode = localStorage.getItem('anak_ui2_task_mode:' + owner) === 'high' ? 'high' : 'all'; } catch (e) { mode = 'all'; } }
   function saveMode() { try { localStorage.setItem('anak_ui2_task_mode:' + owner, mode); } catch (e) {} }
@@ -131,6 +131,8 @@
     });
     picker.classList.toggle('u2-high', mode === 'high');
     board.classList.toggle('u2-high', mode === 'high');
+    // רוחב עמודה קבוע — כאילו כל העמודות מוצגות ויש מקום לכולן
+    board.style.setProperty('--u2-ncols', Math.max(1, all.filter(col => !originals.get(col)?.hidden).length));
     const count = all.filter(col => !col.hidden).length;
     const userHidden = all.filter(col => hidden.has(col.dataset.u2ColumnKey || '')).length;
     picker.querySelector('.u2-column-status').textContent = count + ' עמודות עם משימות' +
