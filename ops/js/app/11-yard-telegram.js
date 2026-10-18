@@ -472,6 +472,22 @@ function _yardRightRowCard(r, editable) {
   return `<div class="yard-card"><div class="yard-num" style="font-size:13px;line-height:1.15">${esc(badge)}</div><div class="yard-fields">${f1}${f2}</div></div>`;
 }
 
+/* החלק העליון של סידור המגרש נפתח ונסגר בחץ; הבחירה נזכרת במכשיר */
+function toggleYardTop(force) {
+  const scr = document.getElementById('screen-yard'); if (!scr) return;
+  const hide = typeof force === 'boolean' ? force : !scr.classList.contains('yard-top-hidden');
+  scr.classList.toggle('yard-top-hidden', hide);
+  const b = document.getElementById('yard-top-toggle');
+  if (b) {
+    b.setAttribute('aria-expanded', hide ? 'false' : 'true');
+    b.querySelector('.yt-arrow').textContent = hide ? '▼' : '▲';
+    b.querySelector('.yt-text').textContent = hide ? 'הצג כפתורים ורכבים' : 'הסתר כפתורים ורכבים';
+  }
+  try { localStorage.setItem('anak_yard_top_hidden', hide ? '1' : '0'); } catch (e) {}
+}
+window.toggleYardTop = toggleYardTop;
+try { if (localStorage.getItem('anak_yard_top_hidden') === '1') setTimeout(() => toggleYardTop(true), 0); } catch (e) {}
+
 let _yardFilterEmpty = false;
 function toggleYardFilter() { _yardFilterEmpty = !_yardFilterEmpty; renderYardTable(); }
 window.toggleYardFilter = toggleYardFilter;
