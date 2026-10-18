@@ -341,6 +341,14 @@
         <div class="section-hd"><div><div class="eyebrow">הוספה</div><h2>רכב חדש</h2></div></div>
         <div class="card panel">
           <div class="form-grid">
+            <div class="form-group" style="grid-column:1/-1">
+              <label>🔍 מספר רכב (שליפה אוטומטית ממשרד התחבורה)</label>
+              <div style="display:flex;gap:8px;align-items:center">
+                <input id="f-plate" type="text" placeholder="הקלד מספר רכב ולחץ שליפה / Enter" onkeydown="if(event.key==='Enter'){event.preventDefault();lookupAddCarPlate();}" style="flex:1"/>
+                <button type="button" class="btn btn-black" onclick="lookupAddCarPlate()" style="white-space:nowrap">🔍 שלוף פרטים</button>
+                <span id="f-plate-status" style="font-size:12px;color:#64748b;white-space:nowrap"></span>
+              </div>
+            </div>
             <div class="form-group"><label>יצרן</label><input id="f-brand" placeholder="יונדאי, BYD..."/></div>
             <div class="form-group"><label>דגם</label><input id="f-model" placeholder="Elantra, Atto 3..."/></div>
             <div class="form-group"><label>שנה</label><input id="f-year" value="2026"/></div>
@@ -1719,6 +1727,33 @@
     }catch(e){ msg.textContent='❌ שגיאת רשת: '+String(e); }
   }
 
+  // שליפת פרטי רכב ממשרד התחבורה לפי מספר רישוי - ממלא יצרן/דגם/שנה בטופס הוספת רכב
+  async function lookupAddCarPlate(){
+    const inp=document.getElementById('f-plate'), st=document.getElementById('f-plate-status');
+    if(!inp) return;
+    const plate=(inp.value||'').replace(/[^0-9]/g,'').trim();
+    if(!plate){ if(st){st.textContent='הקלד מספר רכב';st.style.color='#dc2626';} return; }
+    if(st){ st.textContent='מחפש…'; st.style.color='#64748b'; }
+    const resources=['053cea08-09bc-40ec-8f7a-156f0677aff3','cd3acc5c-03c3-4c89-9c54-d40f93c0d790','bf9df4e2-d90d-4c0a-a400-19e15af8e95f'];
+    try{
+      for(const rid of resources){
+        const url='https://data.gov.il/api/3/action/datastore_search?resource_id='+rid+'&q='+plate;
+        let r; try{ r=await fetch(url); }catch(e){ continue; }
+        if(!r.ok) continue;
+        const j=await r.json();
+        const rec=(j&&j.result&&j.result.records||[]).find(x=>String(x.mispar_rechev)===plate);
+        if(rec){
+          const setV=(id,v)=>{ const e=document.getElementById(id); if(e&&v){ e.value=v; } };
+          setV('f-brand', rec.tozeret_nm ? String(rec.tozeret_nm).replace(/\s+/g,' ').trim() : '');
+          setV('f-model', (rec.kinuy_mishari||rec.degem_nm) ? String(rec.kinuy_mishari||rec.degem_nm).replace(/\s+/g,' ').trim() : '');
+          setV('f-year', rec.shnat_yitzur ? String(rec.shnat_yitzur).trim() : '');
+          if(st){ st.textContent='✓ נשלף'; st.style.color='#15803d'; }
+          return;
+        }
+      }
+      if(st){ st.textContent='לא נמצא במאגר'; st.style.color='#dc2626'; }
+    }catch(e){ if(st){ st.textContent='שגיאה בשליפה'; st.style.color='#dc2626'; } }
+  }
   function addCar(){
     const brand=document.getElementById('f-brand').value.trim();
     const model=document.getElementById('f-model').value.trim();
