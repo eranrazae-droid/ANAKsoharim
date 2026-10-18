@@ -2617,7 +2617,7 @@ function _pickupCardHtml(c) {
   const _st = _stationDisplay(c, ll0);
   const stLine = _st && _st.name
     ? `<div class="pk-line" title="תחנת רכבת ${e(_st.name)}" style="color:#1d4ed8">🚆 ${e(_st.name)} · 🚶 ${_stWalkMin(_st, c)} דק׳ · ${_stKm(_st.km)} ק"מ</div>`
-    : '';
+    : '<div class="pk-line pk-empty" aria-hidden="true">&nbsp;</div>';
   const groupColor = _pkAddrColor[c.id] || '';
   const addrStyle = groupColor ? ` style="background:${groupColor}"` : '';
   const sent = !!c.assignedDriver;
@@ -2651,10 +2651,10 @@ function _pickupCardHtml(c) {
     </div>
 
     <div class="pk-lines">
-      ${yardName ? `<div class="pk-line" style="font-weight:900">🏢 ${e(yardName)}</div>` : ''}
+      ${yardName ? `<div class="pk-line" style="font-weight:900">🏢 ${e(yardName)}</div>` : '<div class="pk-line pk-empty" aria-hidden="true">&nbsp;</div>'}
       ${place ? (nav
-        ? `<a class="pk-line pk-nav" href="${nav}" target="_blank" rel="noopener"${addrStyle} onclick="event.stopPropagation()">📍 ${e(place)} <span style="margin-right:auto;font-size:11px">🚶 ניווט</span></a>`
-        : `<div class="pk-line pk-nav"${addrStyle}>📍 ${e(place)}</div>`) : `<div class="pk-line" style="color:var(--muted)">📍 אין כתובת</div>`}
+        ? `<a class="pk-line pk-nav" href="${nav}" target="_blank" rel="noopener"${addrStyle} onclick="event.stopPropagation()" title="${e(place)}"><span class="pk-navt">📍 ${e(place)}</span><span style="margin-right:auto;font-size:11px;flex:none">🚶 ניווט</span></a>`
+        : `<div class="pk-line pk-nav"${addrStyle} title="${e(place)}"><span class="pk-navt">📍 ${e(place)}</span></div>`) : `<div class="pk-line" style="color:var(--muted)">📍 אין כתובת</div>`}
       ${stLine}
       <div class="pk-line" style="display:flex;align-items:center;gap:6px">
         <span style="${expired ? 'color:#dc2626;font-weight:900' : ''};flex-shrink:0">🔧 טסט: ${c.test ? e(c.test) : '—'}${expired ? ' · פג תוקף' : ''}</span>
