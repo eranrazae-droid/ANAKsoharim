@@ -399,7 +399,9 @@ function renderYardTable() {
   const isManager = currentUser.role === 'manager';
   // Show/hide manager controls
   document.getElementById('yard-manager-toolbar').style.display = isManager ? 'flex' : 'none';
-  document.getElementById('yard-driver-toolbar').style.display = 'none'; // shown dynamically after data loads
+  // נהג: כפתור "בוצע" מופיע כל עוד יש סידור פעיל (קודם הציור מחדש הסתיר אותו מיד אחרי שהוצג)
+  const hasYard = Object.values(yardData || {}).some(v => v && String(v).trim());
+  document.getElementById('yard-driver-toolbar').style.display = !isManager && hasYard ? 'flex' : 'none';
   document.getElementById('yard-to-place-panel').style.display = isManager ? 'block' : 'none';
   if (isManager) renderToPlaceGrid(true);
 
