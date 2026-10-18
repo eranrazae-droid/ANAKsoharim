@@ -9,7 +9,69 @@
   const shortTitle = label => ({ 'משימות בעדיפות עליונה': 'עדיפות עליונה', 'משימות ללקוחות ומוסך': 'לקוחות ומוסך', 'משימות כלליות': 'כללי' }[label] || label);
   let tabKey = 'priority';
   let frame = 0;
+  let swipeOpen = null;
+  let swipeMovedAt = 0;
   const eligible = () => document.body.classList.contains('ui2m') && window.innerWidth <= 900 && typeof currentUser !== 'undefined' && currentUser?.role === 'manager';
+  const swipeWidth = 88;
+  function closeSwipe(row) {
+    const fg = row?.querySelector('.tkr-fg');
+    if (fg) { fg.style.transition = ''; fg.style.transform = ''; }
+    if (swipeOpen === row) swipeOpen = null;
+  }
+  function rightSwipe(row) {
+    const fg = row.querySelector('.tkr-fg');
+    const label = row.querySelector('.tkr-del span');
+    if (label) label.textContent = 'מחיקה';
+    if (!fg) return row;
+    let startX = 0, startY = 0, base = 0, distance = 0, mode = 0, pointer = null;
+    fg.addEventListener('pointerdown', event => {
+      if (!eligible() || (event.pointerType === 'mouse' && event.button !== 0)) return;
+      if (event.target.closest('.tkr-h,.tkr-ck,.tkr-acts,img,button')) return;
+      // Replace only the source row's left-swipe gesture; keep its click actions.
+      event.stopImmediatePropagation();
+      if (swipeOpen && swipeOpen !== row) closeSwipe(swipeOpen);
+      startX = event.clientX; startY = event.clientY;
+      base = swipeOpen === row ? swipeWidth : 0;
+      distance = base; mode = 0; pointer = event.pointerId;
+    }, true);
+    fg.addEventListener('pointermove', event => {
+      if (pointer !== event.pointerId || mode === 2) return;
+      const x = event.clientX - startX, y = event.clientY - startY;
+      if (!mode) {
+        if (Math.abs(y) > 9 && Math.abs(y) > Math.abs(x)) { mode = 2; return; }
+        if (Math.abs(x) <= 9 || Math.abs(x) <= Math.abs(y) * 1.3) return;
+        mode = 1;
+        fg.style.transition = 'none';
+        try { fg.setPointerCapture(pointer); } catch (_) {}
+      }
+      event.stopImmediatePropagation();
+      distance = Math.max(0, Math.min(swipeWidth + 12, base + x));
+      fg.style.transform = 'translateX(' + distance + 'px)';
+    }, true);
+    const finish = event => {
+      if (pointer !== event.pointerId) return;
+      const captured = pointer; pointer = null;
+      if (mode === 1) {
+        event.stopImmediatePropagation();
+        swipeMovedAt = Date.now();
+        fg.style.transition = '';
+        if (event.type !== 'pointercancel' && distance > swipeWidth * 0.45) {
+          fg.style.transform = 'translateX(' + swipeWidth + 'px)'; swipeOpen = row;
+        } else closeSwipe(row);
+        try { if (fg.hasPointerCapture(captured)) fg.releasePointerCapture(captured); } catch (_) {}
+      }
+      mode = 0;
+    };
+    fg.addEventListener('pointerup', finish, true);
+    fg.addEventListener('pointercancel', finish, true);
+    fg.addEventListener('click', event => {
+      if (swipeOpen === row || Date.now() - swipeMovedAt < 350) {
+        event.preventDefault(); event.stopImmediatePropagation();
+        if (Date.now() - swipeMovedAt >= 350) closeSwipe(row);
+      }
+    }, true);
+    return row;
+  }
   // Same display ordering as the source task board; no cache values are changed.
   const sorted = list => [...list].sort((a, b) =>
     Number(a.status === 'done') - Number(b.status === 'done') ||
@@ -82,20 +144,21 @@
         const rows = node('div', 'tkr-list');
         rows.dataset.grp = label || 'unlabelled';
         if (!open.length) rows.appendChild(node('div', 'u2tasks-empty', 'אין משימות פתוחות'));
-        open.forEach(task => rows.appendChild(_tkRow(task, false, true)));
+        open.forEach(task => rows.appendChild(rightSwipe(_tkRow(task, false, true))));
         section.appendChild(rows);
         if (done.length) {
           const details = node('details', 'u2tasks-done');
           details.appendChild(node('summary', '', 'הושלמו · ' + done.length));
           const completed = node('div', 'tkr-list');
           completed.dataset.grp = label + '-done';
-          done.forEach(task => completed.appendChild(_tkRow(task, true, true)));
+          done.forEach(task => completed.appendChild(rightSwipe(_tkRow(task, true, true))));
           details.appendChild(completed);
           section.appendChild(details);
         }
         panel.appendChild(section);
       }
       _tkRowsDrag(wrap);
+      closeSwipe(swipeOpen);
       container.replaceChildren(wrap);
     };
     const schedule = () => {
@@ -105,6 +168,9 @@
     new MutationObserver(schedule).observe(container, { childList: true });
     new MutationObserver(schedule).observe(document.body, { attributes: true, attributeFilter: ['class'] });
     window.addEventListener('resize', schedule);
+    document.addEventListener('pointerdown', event => {
+      if (swipeOpen && !swipeOpen.contains(event.target)) closeSwipe(swipeOpen);
+    }, true);
     render();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true });
