@@ -147,8 +147,12 @@
     // Preserve source nodes, their IDs, listeners and live counters; render only this new home.
     const live = Object.values(definitions).map(d=>d[2]+':'+visible(d[2])+':'+count(d[3])).join('|');
     const morningSource = $('home-morning');
+    // מצב בדיקות הבוקר של המנהל (מלאי / ריקול / הנעות) — אותו מצב שהמחשב מציג על הכפתורים
+    const hck = id => { const e = $(id); return e ? { st: (['ok','warn','wait','rev'].find(c => e.classList.contains(c)) || ''), txt: (e.querySelector('i')?.textContent || '').trim() } : { st: '', txt: '' }; };
+    const checks = ['hck-recall','hck-inventory','hck-morning'].map(hck);
+    const checksKey = checks.map(c => c.st + '/' + c.txt).join('|');
     const approvals = visible('task-req-pills') ? ($('task-req-pills')?.querySelector('span')?.textContent || '').trim() : '';
-    const stamp = approvals + ':' + key + ':' + view + ':' + live + ':' + morning() + ':' + (morningSource?.innerHTML || '') + ':' + count('stat-intake-driver-count') + ':' + count('stat-pits-driver-count') + ':' + visible('stat-yard-driver-card') + ':' + visible('stat-pickup-driver-card') + ':' + count('stat-pickup-driver-count');
+    const stamp = approvals + ':' + key + ':' + view + ':' + live + ':' + morning() + ':' + (morningSource?.innerHTML || '') + ':' + count('stat-intake-driver-count') + ':' + count('stat-pits-driver-count') + ':' + visible('stat-yard-driver-card') + ':' + visible('stat-pickup-driver-card') + ':' + count('stat-pickup-driver-count') + ':' + checksKey;
     if (stamp === signature) return;
     signature = stamp;
     if (view === 'more' && manager) {
@@ -160,7 +164,9 @@
     if (morning()) {
       lead = '<section class="u2m-morning"><div class="u2m-morning-source"></div><button type="button" data-u2m-action="morning">לרשימת ההנעות</button></section>';
     }
-    const shortcuts = manager ? '<div class="u2m-shortcuts"><button type="button" data-u2m-proxy="hck-recall" aria-label="Recall"><span class="u2m-recall" lang="en" dir="ltr">Recall</span></button><button type="button" data-u2m-proxy="hck-inventory">'+art('inventory')+'מלאי</button><button type="button" data-u2m-proxy="hck-morning">'+art('ignitions')+'חלוקת הנעות</button></div>' : '';
+    const chk = c => (c.st ? ' class="u2m-ck '+c.st+'"' : '') ;
+    const chkTxt = c => c.st && c.txt ? '<small class="u2m-ck-t">'+esc(c.txt)+'</small>' : '';
+    const shortcuts = manager ? '<div class="u2m-shortcuts"><button type="button" data-u2m-proxy="hck-recall" aria-label="Recall"'+chk(checks[0])+'><span class="u2m-recall" lang="en" dir="ltr">Recall</span>'+chkTxt(checks[0])+'</button><button type="button" data-u2m-proxy="hck-inventory"'+chk(checks[1])+'>'+art('inventory')+'מלאי'+chkTxt(checks[1])+'</button><button type="button" data-u2m-proxy="hck-morning"'+chk(checks[2])+'>'+art('ignitions')+'חלוקת הנעות'+chkTxt(checks[2])+'</button></div>' : '';
     let cards;
     if (manager) cards = ['bodyshop','tasks','pits','intakes','battery','wash'].map(k=>tile(k)).join('');
     else {
