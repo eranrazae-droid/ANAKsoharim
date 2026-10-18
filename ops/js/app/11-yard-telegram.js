@@ -447,13 +447,173 @@ function renderYardTable() {
   ];
   const filled = allKeys.filter(isFilled).length;
 
+  const rowsHtml =
+    _yardSection('חניות צד שמאל (1–34)', leftRows) +
+    _yardSection('חניות מגרש', rightRowsHtml ? rightHeader + rightRowsHtml : '');
+  // נהג: כל הסידור בתמונה אחת; הרשימה המפורטת נפתחת בלחיצה
+  const asList = !isManager && _yardDriverList;
   list.innerHTML =
     `<div class="yard-summary"><span>מולאו <b>${filled}</b> מתוך ${allKeys.length}</span>` +
       (isManager ? `<button class="yard-flt ${flt ? 'on' : ''}" onclick="toggleYardFilter()">${flt ? '↩ הצג הכל' : '🔎 ריקים בלבד'}</button>` : '') +
     `</div>` +
-    _yardSection('חניות צד שמאל (1–34)', leftRows) +
-    _yardSection('חניות מגרש', rightRowsHtml ? rightHeader + rightRowsHtml : '');
+    (isManager ? rowsHtml :
+      `<div class="yard-img-acts">
+        <button type="button" onclick="toggleYardDriverList()">${asList ? '🖼️ הצג כתמונה' : '📋 הצג כרשימה'}</button>
+        ${asList ? '' : '<button type="button" onclick="saveYardImage()">💾 שמור תמונה</button>'}
+      </div>` +
+      (asList ? rowsHtml : `<div class="yard-img-wrap"><img id="yard-img" alt="סידור מגרש" onclick="this.parentNode.classList.toggle('zoom')"></div><div class="yard-img-hint">לחיצה על התמונה מגדילה / מקטינה</div>`));
   renderYardInputValues();
+  if (!isManager && !asList) _yardImage(yardData).then(url => {
+    const img = document.getElementById('yard-img'); if (img && url) img.src = url;
+  }).catch(e => console.warn('yard image', e));
+}
+
+let _yardDriverList = false;
+function toggleYardDriverList() { _yardDriverList = !_yardDriverList; renderYardTable(); }
+window.toggleYardDriverList = toggleYardDriverList;
+
+/* תמונה אחת של כל סידור המגרש — לנהג במסך ובהודעת הטלגרם */
+async function _yardImage(data) {
+  data = data || {};
+  try { await document.fonts.load('700 20px Heebo'); await document.fonts.load('900 20px Heebo'); } catch (e) {}
+  const v = k => String(data[k] || '').trim();
+  const F = 'Heebo, Arial, sans-serif';
+  const W = 1080, pad = 22, rh = 32, gap = 4, numW = 64;
+  const colW = (W - pad * 3) / 2;
+  const toPlace = [1, 2, 3, 4, 5, 6].map(i => v('TO_PLACE_' + i)).filter(Boolean);
+  const sold = [1, 2, 3, 4, 5, 6].map(i => v('SOLD_' + i)).filter(Boolean);
+  const bandH = (toPlace.length ? 52 : 0) + (sold.length ? 52 : 0);
+  const blocks = [];   // right-side yard rows; null marks a gap
+  RIGHT_ROWS.forEach(r => { if (r) blocks.push(r); else if (blocks.length && blocks[blocks.length - 1]) blocks.push(null); });
+  const rightH = blocks.reduce((h, b) => h + (b ? rh + gap : 12), 0);
+  const leftH = LEFT_SPOTS.length * (rh + gap);
+  const top = 92 + bandH + 14;
+  const H = top + 44 + Math.max(leftH, rightH) + pad;
+  const S = 1.5;
+  const c = document.createElement('canvas');
+  c.width = W * S; c.height = H * S;
+  const x = c.getContext('2d');
+  x.scale(S, S);
+  x.direction = 'rtl';
+  x.textBaseline = 'middle';
+  const rect = (rx, ry, w, h, r, fill, stroke) => {
+    x.beginPath(); x.roundRect ? x.roundRect(rx, ry, w, h, r) : x.rect(rx, ry, w, h);
+    if (fill) { x.fillStyle = fill; x.fill(); }
+    if (stroke) { x.strokeStyle = stroke; x.lineWidth = 1; x.stroke(); }
+  };
+  const text = (t, cx, cy, maxW, size, weight, color) => {
+    x.fillStyle = color; x.textAlign = 'center';
+    let s = size;
+    x.font = `${weight} ${s}px ${F}`;
+    while (s > 12 && x.measureText(t).width > maxW) { s--; x.font = `${weight} ${s}px ${F}`; }
+    while (t.length > 1 && x.measureText(t).width > maxW) t = t.slice(0, -2) + '…';
+    x.fillText(t, cx, cy);
+  };
+  const cell = (cx, cy, w, val) => {
+    rect(cx, cy, w, rh, 7, val ? '#dcfce7' : '#f4f6f2', val ? '#16a34a' : '#e2e7de');
+    text(val || '—', cx + w / 2, cy + rh / 2 + 1, w - 10, 19, val ? 800 : 400, val ? '#14532d' : '#b8c0b5');
+  };
+  const num = (cx, cy, label, on) => {
+    rect(cx, cy, numW, rh, 7, on ? '#c4a463' : '#e9ece6');
+    text(label, cx + numW / 2, cy + rh / 2 + 1, numW - 6, 17, 900, on ? '#18221b' : '#5b6b5f');
+  };
+
+  // רקע וכותרת
+  x.fillStyle = '#ffffff'; x.fillRect(0, 0, W, H);
+  x.fillStyle = '#142b29'; x.fillRect(0, 0, W, 76);
+  x.textAlign = 'right'; x.fillStyle = '#e1c887'; x.font = `900 34px ${F}`;
+  x.fillText('🅿️ סידור מגרש', W - pad, 40);
+  const now = new Date();
+  x.textAlign = 'left'; x.fillStyle = '#ffffff'; x.font = `700 20px ${F}`;
+  x.fillText(now.toLocaleDateString('he-IL', { weekday: 'long', day: '2-digit', month: '2-digit' }) + ' · ' +
+    now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }), pad, 40);
+
+  // רכבים להכניס / מכורים
+  let by = 92;
+  const band = (title, items, fill, stroke, color) => {
+    x.textAlign = 'right'; x.fillStyle = '#142b29'; x.font = `800 20px ${F}`;
+    x.fillText(title, W - pad, by + 20);
+    const tw = x.measureText(title).width + 16;
+    const avail = W - pad * 2 - tw, cw = Math.min(150, (avail - (items.length - 1) * 8) / items.length);
+    items.forEach((t, i) => {
+      const cx = W - pad - tw - (i + 1) * cw - i * 8;
+      rect(cx, by + 3, cw, 34, 8, fill, stroke);
+      text(t, cx + cw / 2, by + 21, cw - 10, 19, 800, color);
+    });
+    by += 52;
+  };
+  if (toPlace.length) band('🚗 להכניס לחניות:', toPlace, '#dcfce7', '#16a34a', '#14532d');
+  if (sold.length) band('🏷️ מכורות:', sold, '#fef08a', '#ca8a04', '#854d0e');
+
+  // כותרות העמודות
+  const head = (cx, title, subs) => {
+    rect(cx, top, colW, 26, 7, '#142b29');
+    text(title, cx + colW / 2, top + 14, colW - 10, 17, 800, '#ffffff');
+    const fw = (colW - numW - gap) / subs.length;
+    subs.forEach((s, i) => text(s, cx + colW - numW - gap - fw * i - fw / 2, top + 37, fw - 4, 14, 700, '#5b6b5f'));
+  };
+  const rx = W - pad - colW, lx = pad;
+  head(rx, 'חניות צד שמאל (1–34)', ['חניה', 'כביש']);
+  head(lx, 'חניות מגרש', ['בפנים', 'בחוץ']);
+
+  // צד ימין בתמונה: חניות 1–34
+  let y = top + 48;
+  LEFT_SPOTS.forEach(spot => {
+    const keys = ['L_' + spot + '_כניסה', 'L_' + spot + '_כביש_1'];
+    if (+spot >= 30 && +spot <= 34) keys.push('L_' + spot + '_כביש_2');
+    const vals = keys.map(v);
+    num(rx + colW - numW, y, spot, vals.some(Boolean));
+    const fw = (colW - numW - gap - gap) / 2;
+    cell(rx + colW - numW - gap - fw, y, fw, vals[0]);
+    if (vals.length === 3) {
+      const hw = (fw - gap) / 2;
+      cell(rx + hw + gap, y, hw, vals[1]);
+      cell(rx, y, hw, vals[2]);
+    } else cell(rx, y, fw, vals[1]);
+    y += rh + gap;
+  });
+
+  // צד שמאל בתמונה: חניות המגרש — זוגי בפנים, אי-זוגי בחוץ
+  y = top + 48;
+  blocks.forEach(r => {
+    if (!r) { y += 12; return; }
+    let even = '', odd = '';
+    r.forEach(n => { if (parseInt(n) % 2 === 0) even = n; else odd = n; });
+    const vi = even ? v('R_' + even + '_בפנים') : '', vo = odd ? v('R_' + odd + '_בחוץ') : '';
+    num(lx + colW - numW, y, [even, odd].filter(Boolean).join('/'), !!(vi || vo));
+    const fw = (colW - numW - gap - gap) / 2;
+    if (even) cell(lx + colW - numW - gap - fw, y, fw, vi);
+    if (odd) cell(lx, y, fw, vo);
+    y += rh + gap;
+  });
+  return c.toDataURL('image/jpeg', 0.9);
+}
+window._yardImage = _yardImage;
+
+async function saveYardImage() {
+  const url = document.getElementById('yard-img')?.src || await _yardImage(yardData);
+  if (!url) return;
+  const name = 'סידור-מגרש-' + new Date().toISOString().slice(0, 10) + '.jpg';
+  try {
+    const blob = await (await fetch(url)).blob();
+    const file = new File([blob], name, { type: 'image/jpeg' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'סידור מגרש' }); return; }
+  } catch (e) { if (e && e.name === 'AbortError') return; }
+  const a = document.createElement('a'); a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+window.saveYardImage = saveYardImage;
+
+/* התמונה יוצאת בטלגרם לכל נהג שיש לו צ'אט — כשערוץ ההודעות כולל טלגרם */
+async function _sendYardImageToDrivers(data) {
+  if (_notifChannel === 'push') return;
+  const url = await _yardImage(data);
+  const contacts = await _loadDriverContacts();
+  const names = new Set(_ALL_USERS.filter(u => u.role === 'driver').map(u => u.name));
+  Object.keys(contacts).forEach(k => { if (!k.startsWith('_') && k !== 'ליאל') names.add(k); });
+  await Promise.all([...names].map(n => contacts[n]?.telegramId
+    ? _sendTelegramPhoto(contacts[n].telegramId, url, '🅿️ סידור מגרש חדש').catch(e => console.warn('yard photo', n, e))
+    : null));
 }
 
 function _yardRightRowCard(r, editable) {
@@ -626,6 +786,7 @@ async function publishYard() {
   await _yardUpdate({ data: yardData, updatedAt: _serverTs(), publishedAt: _serverTs(), status: 'pending' });
   showToast('📤 הטבלה נשלחה לנהגים!');
   _notifyAllDrivers('🅿️ סידור מגרש חדש נשלח. כנס לאפליקציה ענק הרכבים לצפייה בטבלה.');
+  _sendYardImageToDrivers({ ...yardData }).catch(e => console.warn('yard photo', e));
   const btn = document.getElementById('yard-publish-btn');
   if (btn) {
     btn.textContent = '✅ בוצע';
