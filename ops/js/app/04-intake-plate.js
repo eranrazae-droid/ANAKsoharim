@@ -963,6 +963,22 @@ function _icFitTiles() {
   box.style.setProperty('--ic-grid-w', Math.round(cols * row * 1.1 + (cols - 1) * gap + 32) + 'px');
 }
 window.addEventListener('resize', () => _icFitTiles());
+/* שתי שורות קוביות בגובה קבוע שממלא את המקום שבין הכפתורים העליונים לארכיון (מחשב) */
+function _icRowH() {
+  const box = document.getElementById('vehicle-list-container');
+  if (!box || !box.classList.contains('ic-tiles')) return;
+  const cs = getComputedStyle(box);
+  const inner = box.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+  if (inner > 200) box.style.setProperty('--ic-rowh', Math.floor((inner - 14) / 2) + 'px');
+}
+(function () {
+  const wire = () => {
+    const box = document.getElementById('vehicle-list-container');
+    if (!box || box._icRO || !window.ResizeObserver) return !!box;
+    box._icRO = true; new ResizeObserver(_icRowH).observe(box); return true;
+  };
+  if (!wire()) document.addEventListener('DOMContentLoaded', wire);
+})();
 
 function _icRing(pct, color, track, center, sub, big) {
   const R = 20, C = 2 * Math.PI * R, dash = (C * pct / 100).toFixed(1);
@@ -1194,7 +1210,7 @@ function _renderIntakeList(all) {
       ? listHtml
       : `<div class="empty-state"><div class="es-icon">🚗</div><h3>${f ? 'אין קליטות/רענונים פעילים עבור ' + f : 'אין קליטות/רענונים פעילים'}</h3><p>לחץ + קליטת רכב או + רענון רכב להוסיף</p></div>`;
 
-    _icFitTiles();
+    _icFitTiles(); _icRowH();
     _renderArchiveSection(archivedAll);
     try { _ivmRender(active, activeRefreshSorted, archivedAll.length); } catch (e) { console.error('ivm', e); }
   } else {
