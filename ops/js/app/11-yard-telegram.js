@@ -452,27 +452,18 @@ function renderYardTable() {
   const rowsHtml =
     _yardSection('חניות צד שמאל (1–34)', leftRows) +
     _yardSection('חניות מגרש', rightRowsHtml ? rightHeader + rightRowsHtml : '');
-  // נהג: כל הסידור בתמונה אחת; הרשימה המפורטת נפתחת בלחיצה
-  const asList = !isManager && _yardDriverList;
+  // נהג: כל הסידור בתמונה אחת בלבד
   list.innerHTML =
     `<div class="yard-summary"><span>מולאו <b>${filled}</b> מתוך ${allKeys.length}</span>` +
       (isManager ? `<button class="yard-flt ${flt ? 'on' : ''}" onclick="toggleYardFilter()">${flt ? '↩ הצג הכל' : '🔎 ריקים בלבד'}</button>` : '') +
     `</div>` +
     (isManager ? rowsHtml :
-      `<div class="yard-img-acts">
-        <button type="button" onclick="toggleYardDriverList()">${asList ? '🖼️ הצג כתמונה' : '📋 הצג כרשימה'}</button>
-        ${asList ? '' : '<button type="button" onclick="saveYardImage()">💾 שמור תמונה</button>'}
-      </div>` +
-      (asList ? rowsHtml : `<div class="yard-img-wrap"><img id="yard-img" alt="סידור מגרש" onclick="this.parentNode.classList.toggle('zoom')"></div><div class="yard-img-hint">לחיצה על התמונה מגדילה / מקטינה</div>`));
+      `<div class="yard-img-wrap"><img id="yard-img" alt="סידור מגרש" onclick="this.parentNode.classList.toggle('zoom')"></div><div class="yard-img-hint">לחיצה על התמונה מגדילה / מקטינה</div>`);
   renderYardInputValues();
-  if (!isManager && !asList) _yardImage(yardData).then(url => {
+  if (!isManager) _yardImage(yardData).then(url => {
     const img = document.getElementById('yard-img'); if (img && url) img.src = url;
   }).catch(e => console.warn('yard image', e));
 }
-
-let _yardDriverList = false;
-function toggleYardDriverList() { _yardDriverList = !_yardDriverList; renderYardTable(); }
-window.toggleYardDriverList = toggleYardDriverList;
 
 /* תמונה אחת של כל סידור המגרש — לנהג במסך ובהודעת הטלגרם */
 async function _yardImage(data) {
@@ -591,20 +582,6 @@ async function _yardImage(data) {
   return c.toDataURL('image/jpeg', 0.9);
 }
 window._yardImage = _yardImage;
-
-async function saveYardImage() {
-  const url = document.getElementById('yard-img')?.src || await _yardImage(yardData);
-  if (!url) return;
-  const name = 'סידור-מגרש-' + new Date().toISOString().slice(0, 10) + '.jpg';
-  try {
-    const blob = await (await fetch(url)).blob();
-    const file = new File([blob], name, { type: 'image/jpeg' });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'סידור מגרש' }); return; }
-  } catch (e) { if (e && e.name === 'AbortError') return; }
-  const a = document.createElement('a'); a.href = url; a.download = name;
-  document.body.appendChild(a); a.click(); a.remove();
-}
-window.saveYardImage = saveYardImage;
 
 /* התמונה יוצאת בטלגרם לכל נהג שיש לו צ'אט — כשערוץ ההודעות כולל טלגרם */
 async function _sendYardImageToDrivers(data) {
