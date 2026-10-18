@@ -148,7 +148,7 @@
     const live = Object.values(definitions).map(d=>d[2]+':'+visible(d[2])+':'+count(d[3])).join('|');
     const morningSource = $('home-morning');
     const approvals = visible('task-req-pills') ? ($('task-req-pills')?.querySelector('span')?.textContent || '').trim() : '';
-    const stamp = approvals + ':' + key + ':' + view + ':' + live + ':' + morning() + ':' + (morningSource?.innerHTML || '') + ':' + count('stat-intake-driver-count') + ':' + count('stat-pits-driver-count');
+    const stamp = approvals + ':' + key + ':' + view + ':' + live + ':' + morning() + ':' + (morningSource?.innerHTML || '') + ':' + count('stat-intake-driver-count') + ':' + count('stat-pits-driver-count') + ':' + visible('stat-yard-driver-card') + ':' + visible('stat-pickup-driver-card') + ':' + count('stat-pickup-driver-count');
     if (stamp === signature) return;
     signature = stamp;
     if (view === 'more' && manager) {
@@ -165,13 +165,17 @@
     if (manager) cards = ['bodyshop','tasks','pits','intakes','battery','wash'].map(k=>tile(k)).join('');
     else {
       const priority = [];
+      // סידור מגרש שנשלח ורכבים לאיסוף שהוקצו לנהג — קופצים ראשונים ומודגשים
+      const pop = (id, label, k) => '<button type="button" class="u2m-tile u2m-priority" data-u2m-proxy="'+id+'"><span class="u2m-tile-top">'+art(definitions[k][1])+(($(id)?.querySelector('.num')?.textContent||'').trim() && k !== 'yard' ? '<span class="u2m-count">'+esc($(id).querySelector('.num').textContent.trim())+'</span>' : '')+'</span><b>'+label+'</b></button>';
+      if (visible('stat-yard-driver-card')) priority.push(pop('stat-yard-driver-card','סידור מגרש חדש','yard'));
+      if (visible('stat-pickup-driver-card')) priority.push(pop('stat-pickup-driver-card','רכבים לאיסוף','pickup'));
       if (visible('stat-pits-driver-card') && Number(count('stat-pits-driver-count')) > 0) priority.push(tile('pits',{count:count('stat-pits-driver-count'),priority:true}));
       if (visible('stat-inventory-driver-card') && Number(count('stat-inventory-driver-count')) > 0) priority.push(tile('inventory',{priority:true}));
       const n = count('stat-intake-driver-count');
       if (Number(n)>0) priority.push(tile('intakes',{count:n,priority:true}));
       cards = priority.join('')+tile('tasks')+(Number(n)>0?'':tile('intakes'))+tile('battery',{label:'מצברים',count:count('badge-driver-battery-install')})+tile('wash');
       // Other assigned work remains reachable, using the exact source action and visibility.
-      [['stat-battery-driver-card','בדיקת טעינה','charging'],['stat-pickup-driver-card','איסוף רכבים','pickup'],['stat-td-driver-card','נסיעות מבחן','testdrive'],['stat-yard-driver-card','סידור מגרש','yard']].forEach(([id,label,k])=>{
+      [['stat-battery-driver-card','בדיקת טעינה','charging'],['stat-td-driver-card','נסיעות מבחן','testdrive']].forEach(([id,label,k])=>{
         if (visible(id)) cards += '<button type="button" class="u2m-tile" data-u2m-proxy="'+id+'">'+art(definitions[k][1])+'<b>'+label+'</b><span class="u2m-count">'+esc($(id)?.querySelector('.num')?.textContent || '')+'</span></button>';
       });
       cards += '<button type="button" class="u2m-tile" data-u2m-action="push">'+art('settings')+'<b>התראות והגדרות</b></button>';
