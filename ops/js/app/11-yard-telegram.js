@@ -401,13 +401,15 @@ function renderYardTable() {
   document.getElementById('yard-manager-toolbar').style.display = isManager ? 'flex' : 'none';
   // מצב תצוגה: הלוח מוצג בלי שדות עריכה
   const editable = isManager && !_yardViewMode;
+  // תצוגה: כל הסידור בתמונה אחת — כמו אצל הנהגים — כדי לבצע אותו בשטח
+  const asImage = !isManager || _yardViewMode;
   document.querySelectorAll('#yard-mode-seg [data-mode]').forEach(b => b.classList.toggle('on', (b.dataset.mode === 'view') === _yardViewMode));
   document.querySelectorAll('#yard-manager-toolbar [data-edit-only]').forEach(b => { b.style.display = editable ? '' : 'none'; });
   // נהג: כפתור "בוצע" מופיע כל עוד יש סידור פעיל (קודם הציור מחדש הסתיר אותו מיד אחרי שהוצג)
   const hasYard = Object.values(yardData || {}).some(v => v && String(v).trim());
   document.getElementById('yard-driver-toolbar').style.display = !isManager && hasYard ? 'flex' : 'none';
-  document.getElementById('yard-to-place-panel').style.display = isManager ? 'block' : 'none';
-  if (isManager) renderToPlaceGrid(editable);
+  document.getElementById('yard-to-place-panel').style.display = editable ? 'block' : 'none';
+  if (editable) renderToPlaceGrid(true);
 
   const list = document.getElementById('yard-list');
   if (!list) return;
@@ -459,12 +461,12 @@ function renderYardTable() {
   // נהג: כל הסידור בתמונה אחת בלבד
   list.innerHTML =
     `<div class="yard-summary"><span>מולאו <b>${filled}</b> מתוך ${allKeys.length}</span>` +
-      (isManager ? `<button class="yard-flt ${flt ? 'on' : ''}" onclick="toggleYardFilter()">${flt ? '↩ הצג הכל' : '🔎 ריקים בלבד'}</button>` : '') +
+      (editable ? `<button class="yard-flt ${flt ? 'on' : ''}" onclick="toggleYardFilter()">${flt ? '↩ הצג הכל' : '🔎 ריקים בלבד'}</button>` : '') +
     `</div>` +
-    (isManager ? rowsHtml :
+    (!asImage ? rowsHtml :
       `<div class="yard-img-wrap"><img id="yard-img" alt="סידור מגרש" onclick="this.parentNode.classList.toggle('zoom')"></div><div class="yard-img-hint">לחיצה על התמונה מגדילה / מקטינה</div>`);
   renderYardInputValues();
-  if (!isManager) _yardImage(yardData).then(url => {
+  if (asImage) _yardImage(yardData).then(url => {
     const img = document.getElementById('yard-img'); if (img && url) img.src = url;
   }).catch(e => console.warn('yard image', e));
 }
