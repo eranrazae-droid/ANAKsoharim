@@ -399,11 +399,15 @@ function renderYardTable() {
   const isManager = currentUser.role === 'manager';
   // Show/hide manager controls
   document.getElementById('yard-manager-toolbar').style.display = isManager ? 'flex' : 'none';
+  // מצב תצוגה: הלוח מוצג בלי שדות עריכה
+  const editable = isManager && !_yardViewMode;
+  document.querySelectorAll('#yard-mode-seg [data-mode]').forEach(b => b.classList.toggle('on', (b.dataset.mode === 'view') === _yardViewMode));
+  document.querySelectorAll('#yard-manager-toolbar [data-edit-only]').forEach(b => { b.style.display = editable ? '' : 'none'; });
   // נהג: כפתור "בוצע" מופיע כל עוד יש סידור פעיל (קודם הציור מחדש הסתיר אותו מיד אחרי שהוצג)
   const hasYard = Object.values(yardData || {}).some(v => v && String(v).trim());
   document.getElementById('yard-driver-toolbar').style.display = !isManager && hasYard ? 'flex' : 'none';
   document.getElementById('yard-to-place-panel').style.display = isManager ? 'block' : 'none';
-  if (isManager) renderToPlaceGrid(true);
+  if (isManager) renderToPlaceGrid(editable);
 
   const list = document.getElementById('yard-list');
   if (!list) return;
@@ -416,11 +420,11 @@ function renderYardTable() {
     if (n >= 30 && n <= 34) {
       const keys = ['L_' + spot + '_כניסה', 'L_' + spot + '_כביש_1', 'L_' + spot + '_כביש_2'];
       if (flt && keys.every(isFilled)) return '';
-      return _yardSpotCard(spot, [[keys[0], 'חניה'], [keys[1], 'כביש 1'], [keys[2], 'כביש 2']], isManager);
+      return _yardSpotCard(spot, [[keys[0], 'חניה'], [keys[1], 'כביש 1'], [keys[2], 'כביש 2']], editable);
     }
     const keys = ['L_' + spot + '_כניסה', 'L_' + spot + '_כביש_1'];
     if (flt && keys.every(isFilled)) return '';
-    return _yardSpotCard(spot, [[keys[0], 'חניה'], [keys[1], 'כביש']], isManager);
+    return _yardSpotCard(spot, [[keys[0], 'חניה'], [keys[1], 'כביש']], editable);
   }).join('');
 
   // right spots: each row is a pair — even = בפנים, odd = בחוץ (same row)
@@ -430,7 +434,7 @@ function renderYardTable() {
       const keys = r.map(n => parseInt(n) % 2 === 0 ? 'R_' + n + '_בפנים' : 'R_' + n + '_בחוץ');
       if (keys.every(isFilled)) return '';
     }
-    return _yardRightRowCard(r, isManager);
+    return _yardRightRowCard(r, editable);
   }).join('');
   const rightHeader = `<div class="yard-card" style="background:var(--dark);border:none;padding:8px 10px">
     <div class="yard-num" style="visibility:hidden;min-width:44px;height:0"></div>
@@ -629,6 +633,18 @@ try { if (localStorage.getItem('anak_yard_top_hidden') === '1') setTimeout(() =>
 
 let _yardFilterEmpty = false;
 function toggleYardFilter() { _yardFilterEmpty = !_yardFilterEmpty; renderYardTable(); }
+
+/* מנהל: מצב עריכה או מצב תצוגה. בתצוגה אותו לוח, בלי שדות לעריכה.
+   הבחירה נשמרת במכשיר. */
+let _yardViewMode = (() => { try { return localStorage.getItem('anak_yard_view') === '1'; } catch (e) { return false; } })();
+function setYardMode(view) {
+  if (!view === !_yardViewMode) return;
+  if (view) { try { _collectYardInputs(); } catch (e) {} }   // מה שהוקלד ועוד לא נשמר נכנס לסידור
+  _yardViewMode = !!view;
+  try { localStorage.setItem('anak_yard_view', view ? '1' : '0'); } catch (e) {}
+  renderYardTable();
+}
+window.setYardMode = setYardMode;
 window.toggleYardFilter = toggleYardFilter;
 
 function _yardSection(title, rows) {
