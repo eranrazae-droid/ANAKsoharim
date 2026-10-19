@@ -713,7 +713,7 @@ async function bsmExportArchive(archiveId) {
   if (!a || !(a.cars || []).length) return showToast('אין מה לייצא');
   if (typeof html2pdf === 'undefined') return showToast('מנוע הקבצים לא נטען — נסה שוב בעוד רגע', 6000);
   const sum = Number(a.total || 0), vat = sum * _VAT_RATE;
-  const td = 'border:1px solid #bbb;padding:7px 9px;';
+  const td = 'border:1px solid #bbb;padding:7px 9px;break-inside:avoid;';
   const rows = a.cars.map(c => `<tr><td style="${td}">${esc(c.plate || '')}</td><td style="${td}">${esc(c.desc || '')}</td><td style="${td}white-space:nowrap">${Number(c.total || 0).toLocaleString('he-IL')} ₪</td></tr>`).join('');
   const el = document.createElement('div');
   el.innerHTML = `<div dir="rtl" style="width:700px;padding:20px;background:#fff;color:#111;font-family:Heebo,Arial,sans-serif;font-size:14px">
@@ -741,6 +741,7 @@ async function bsmExportArchive(archiveId) {
       image: { type: 'jpeg', quality: 0.95 },
       html2canvas: { scale: 2, useCORS: true },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak: { mode: ['css', 'legacy'], avoid: ['tr', 'table tr'] },   // שורה לא נחתכת בין עמודים
     }).from(el).save();
     showToast('📤 קובץ ה-PDF הורד');
   } catch (e) {
