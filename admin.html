@@ -3011,14 +3011,17 @@
     l.call_attempts=arr.length;
     const el=document.getElementById('calllog_'+id); if(el) el.innerHTML=_callLogHTML(l);
     const at=document.getElementById('at_'+id); if(at){ for(var i=0;i<at.options.length;i++){ if(Number(at.options[i].value)===Math.min(arr.length,3)){ at.selectedIndex=i; break; } } }
-    // "יחשוב" → קובע אוטומטית פולואפ לשבוע הבא (08:00)
+    // "יחשוב" → קובע אוטומטית פולואפ לשבוע הבא (08:00) - בלי להעלים/להזיז את הליד
     var setFu=false;
     if(out.indexOf('יחשוב')>=0){
       var d7=new Date(); d7.setDate(d7.getDate()+7);
       var iso=d7.getFullYear()+'-'+String(d7.getMonth()+1).padStart(2,'0')+'-'+String(d7.getDate()).padStart(2,'0')+'T08:00';
       l.status='פולואפ'; l.followup_at=iso; setFu=true;
       try{ const c=sbClient(); if(c){ const r=await c.from('leads').update({status:'פולואפ',followup_at:iso,call_log:l.call_log}).eq('id',id); if(r&&r.error) await _saveCallLog(l); } }catch(e){ await _saveCallLog(l); }
-      renderLeads();
+      // עדכון הכרטיס במקום (בלי renderLeads) כדי שהליד לא ירד/ייעלם
+      var stSel=document.getElementById('st_'+id); if(stSel){ for(var k=0;k<stSel.options.length;k++){ if(stSel.options[k].value==='פולואפ'){ stSel.selectedIndex=k; break; } } }
+      var fuEl=document.getElementById('fu_'+id); if(fuEl){ fuEl.value=iso.slice(0,10); fuEl.style.display='inline-block'; }
+      var fulbl=document.getElementById('fulbl_'+id); if(fulbl) fulbl.textContent='📅 לחזור: '+fmtFollowup(iso);
     } else {
       await _saveCallLog(l);
     }
