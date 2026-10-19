@@ -1,4 +1,4 @@
-# Manager bodywork — v631
+# Manager bodywork — v632
 
 Approved direction: original team photo and gold/ivory cards on desktop;
 five columns, two fully visible rows (10 cars), additional cars scroll inside
