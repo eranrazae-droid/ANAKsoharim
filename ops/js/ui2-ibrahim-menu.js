@@ -7,7 +7,7 @@
   css.rel = 'stylesheet';
   css.href = new URL('../css/ui2-ibrahim-menu.css' + new URL(source.src).search, source.src).href;
   document.head.appendChild(css);
-  const photoURL = new URL('../img/ibrahim-menu/team-original.jpg', source.src).href;
+  const photoURL = new URL('../img/ibrahim-menu/team-centered.jpg', source.src).href;
   let pending = false, banner, originalButton, originalText, name;
   const originalMenuText = new Map();
   function sync() {
@@ -15,6 +15,8 @@
     const screen = document.getElementById('screen-bodyshop');
     if (!screen) return;
     const allowed = typeof currentUser !== 'undefined' && currentUser && currentUser.role === 'bodyshop';
+    const fill = document.getElementById('modal-bshop-fill');
+    if (fill && fill.classList.contains('u2iw-dialog') !== !!allowed) fill.classList.toggle('u2iw-dialog', !!allowed);
     if (screen.classList.contains('u2iw-enabled') !== !!allowed) screen.classList.toggle('u2iw-enabled', !!allowed);
     if (!allowed) {
       if (banner) banner.hidden = true;
@@ -34,9 +36,9 @@
       name = document.createElement('div'); name.className = 'u2iw-name'; name.textContent = 'איברהים';
       title.after(name);
     }
-    // Remove only the old decorative emoji; retain the actual menu buttons/actions.
+    // Presentation labels only; retain all original menu buttons/actions.
     menu.querySelectorAll('.bshop-menu-item').forEach((item, index) => {
-      const labels = ['רכבים שבעבודה', 'מכוניות שסיימנו', 'תשלומים שקיבלת'];
+      const labels = ['🔨 רכבים שבעבודה', '✅ מכוניות שסיימנו', '💳 תשלומים שקיבלת'];
       if (!labels[index]) return;
       if (!originalMenuText.has(item)) originalMenuText.set(item, item.textContent);
       if (item.textContent !== labels[index]) item.textContent = labels[index];
@@ -46,7 +48,7 @@
       banner.setAttribute('aria-label', 'צוות התפעול');
       const photo = document.createElement('img'); photo.src = photoURL;
       photo.alt = 'תמונת הצוות המשותפת'; photo.decoding = 'async';
-      const caption = document.createElement('div'); caption.className = 'u2iw-caption'; caption.textContent = 'עובדים יחד';
+      const caption = document.createElement('div'); caption.className = 'u2iw-caption'; caption.textContent = 'עובדים יחד 🤝';
       banner.append(photo, caption);
     }
     if (header.nextElementSibling !== banner) header.after(banner);
