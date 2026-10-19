@@ -2189,6 +2189,10 @@ exports.pushSend = onRequest({ cors: true, region: "europe-west1" }, async (req,
    בסיכום של 08:07. (השם נשאר dailyOwnershipCheck כדי לא ליצור עבודה
    מתוזמנת כפולה.) */
 const _OWN_DIGEST_HOUR = 8;
+/* התראות הבעלויות בטלגרם כבויות לבקשת המנהל. הסריקה עצמה ממשיכה לרוץ
+   והנתונים במסך בדיקת הבעלויות מתעדכנים כרגיל — רק ההודעות לא נשלחות.
+   להחזרה: true. */
+const _OWN_ALERTS = false;
 exports.dailyOwnershipCheck = onSchedule(
   { schedule: "7 * * * *", region: "europe-west1", timeZone: "Asia/Jerusalem", timeoutSeconds: 300, memory: "256MiB" },
   async () => {
@@ -2240,6 +2244,11 @@ exports.dailyOwnershipCheck = onSchedule(
       }, { merge: true });
       console.log("ownership: first scan on the CRM source — alerts skipped once",
         { moved: moved.length, newNot: newNot.length, newUnk: newUnk.length, gone: (r.goneFromStock || []).length });
+      return;
+    }
+
+    if (!_OWN_ALERTS) {
+      await metaRef.set({ registryModified: modified || meta.registryModified || "", pendingGone: [], at: new Date() }, { merge: true });
       return;
     }
 
@@ -2544,7 +2553,7 @@ exports.retryBlockedScans = onSchedule(
       const r = await _runOwnershipScan().catch(() => ({ ok: false }));
       if (r.ok) {
         await _setScanBlocked("own", false);
-        await _notifyManager("✅ בדיקת הבעלויות עברה בהצלחה — משרד התחבורה חזר להגיב.");
+        if (_OWN_ALERTS) await _notifyManager("✅ בדיקת הבעלויות עברה בהצלחה — משרד התחבורה חזר להגיב.");
       }
     }
   }
