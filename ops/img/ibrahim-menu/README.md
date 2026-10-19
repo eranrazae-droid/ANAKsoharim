@@ -6,7 +6,7 @@ This patch adds the worker-screen header, a full-width team photo banner and cap
 
 No changes to card markup, grid rules, counts, dimensions, order, status filters, scroll containers, financial totals, payment data, notes or business functions. The only change inside existing boxes is the inherited palette. In particular, the stacked cards from the mockup are NOT implemented. This preserves whatever card geometry the current app already has at each viewport.
 
-Original photo copied unchanged as team-original.jpg; CSS crops empty space while retaining all four faces. No generated preview image or generated faces are used.
+The original photo remains as team-original.jpg. The current follow-up uses team-centered.jpg: the user's requested imagegen panorama edit with extended event background and the four-person group centered. It renders full width at native ratio. See CENTER-AND-ACTIONS.md for centered headings, caption/menu emoji and worker-dialog button colors.
 
 ## Claude integration before release
 
