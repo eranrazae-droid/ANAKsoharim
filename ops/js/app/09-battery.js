@@ -707,62 +707,46 @@ async function bsmOpenArchiveCar(archiveId, idx) {
 }
 window.bsmOpenArchiveCar = bsmOpenArchiveCar;
 
-/* קובץ וורד אמיתי (.docx) בלי ספרייה: מסמך נבנה כ-XML ונארז בארכיון zip
-   ללא דחיסה. מספיק לטבלה קטנה ופותח ישר בוורד, בגוגל דוקס ובטלפון. */
-function _zipStore(files) {
-  const enc = new TextEncoder();
-  const crcT = (() => { const t = []; for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
-  const crc = d => { let c = 0xFFFFFFFF; for (let i = 0; i < d.length; i++) c = crcT[(c ^ d[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
-  const parts = [], central = []; let offset = 0;
-  const u16 = n => [n & 255, (n >>> 8) & 255], u32 = n => [n & 255, (n >>> 8) & 255, (n >>> 16) & 255, (n >>> 24) & 255];
-  for (const [name, text] of files) {
-    const nm = enc.encode(name), data = enc.encode(text), c = crc(data);
-    const head = new Uint8Array([0x50, 0x4B, 3, 4, ...u16(20), ...u16(0x0800), ...u16(0), ...u16(0), ...u16(0x21), ...u32(c), ...u32(data.length), ...u32(data.length), ...u16(nm.length), ...u16(0)]);
-    parts.push(head, nm, data);
-    central.push(new Uint8Array([0x50, 0x4B, 1, 2, ...u16(20), ...u16(20), ...u16(0x0800), ...u16(0), ...u16(0), ...u16(0x21), ...u32(c), ...u32(data.length), ...u32(data.length), ...u16(nm.length), ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...u32(0), ...u32(offset)]), nm);
-    offset += head.length + nm.length + data.length;
-  }
-  const csize = central.reduce((t, x) => t + x.length, 0);
-  const end = new Uint8Array([0x50, 0x4B, 5, 6, ...u16(0), ...u16(0), ...u16(files.length), ...u16(files.length), ...u32(csize), ...u32(offset), ...u16(0)]);
-  return new Blob([...parts, ...central, end], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
-}
-function _docxBlob(title, headers, rows, totals) {
-  const x = v => String(v ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const run = (t, o = {}) => `<w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>${o.b ? '<w:b/><w:bCs/>' : ''}<w:sz w:val="${o.sz || 22}"/><w:szCs w:val="${o.sz || 22}"/><w:rtl/></w:rPr><w:t xml:space="preserve">${x(t)}</w:t></w:r>`;
-  const para = (t, o = {}) => `<w:p><w:pPr><w:bidi/>${o.after ? `<w:spacing w:after="${o.after}"/>` : ''}</w:pPr>${run(t, o)}</w:p>`;
-  const W = [2400, 4600, 2000];
-  const cell = (t, i, head) => `<w:tc><w:tcPr><w:tcW w:w="${W[i]}" w:type="dxa"/>${head ? '<w:shd w:val="clear" w:color="auto" w:fill="E7EEE3"/>' : ''}</w:tcPr>${para(t, { b: head })}</w:tc>`;
-  const tr = (cells, head) => `<w:tr>${cells.map((t, i) => cell(t, i, head)).join('')}</w:tr>`;
-  const border = ['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map(s => `<w:${s} w:val="single" w:sz="4" w:space="0" w:color="BBBBBB"/>`).join('');
-  const table = `<w:tbl><w:tblPr><w:bidiVisual/><w:tblW w:w="${W.reduce((a, b) => a + b, 0)}" w:type="dxa"/><w:tblBorders>${border}</w:tblBorders><w:tblCellMar><w:top w:w="60" w:type="dxa"/><w:left w:w="100" w:type="dxa"/><w:bottom w:w="60" w:type="dxa"/><w:right w:w="100" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${W.map(w => `<w:gridCol w:w="${w}"/>`).join('')}</w:tblGrid>${tr(headers, true)}${rows.map(r => tr(r)).join('')}</w:tbl>`;
-  const body = para(title, { b: true, sz: 32, after: 200 }) + table + para('', { after: 120 }) + totals.map(t => para(t, { b: true })).join('');
-  const ns = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
-  return _zipStore([
-    ['[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>'],
-    ['_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>'],
-    ['word/document.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document ${ns}><w:body>${body}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="708" w:footer="708" w:gutter="0"/><w:bidi/></w:sectPr></w:body></w:document>`],
-  ]);
-}
-
-// תיקיית ארכיון אחת כקובץ וורד: שורה לכל רכב, וסיכום עם מע״מ בסוף
-function bsmExportArchive(archiveId) {
+// תיקיית ארכיון אחת כקובץ PDF: שורה לכל רכב, וסיכום עם מע״מ בסוף
+async function bsmExportArchive(archiveId) {
   const a = _bshopArchive.find(x => x.id === archiveId);
   if (!a || !(a.cars || []).length) return showToast('אין מה לייצא');
+  if (typeof html2pdf === 'undefined') return showToast('מנוע הקבצים לא נטען — נסה שוב בעוד רגע', 6000);
   const sum = Number(a.total || 0), vat = sum * _VAT_RATE;
-  const rows = a.cars.map(c => [c.plate || '', c.desc || '', Number(c.total || 0).toLocaleString('he-IL') + ' ₪']);
-  const title = `פחחות — ${a.title || 'חשבון'}`;
-  const blob = _docxBlob(title, ['מספר רישוי', 'רכב', 'סכום'], rows, [
-    `סה״כ ששולם לפני מע״מ: ${_fmtIls(sum)}`,
-    `מע״מ ${Math.round(_VAT_RATE * 100)}%: ${_fmtIls(vat)}`,
-    `סה״כ ששולם כולל מע״מ: ${_fmtIls(sum + vat)}`,
-  ]);
-  const url = URL.createObjectURL(blob);
-  const el = document.createElement('a');
-  el.href = url;
-  el.download = `פחחות-${String(a.title || 'חשבון').replace(/[\\/:*?"<>|]/g, '-')}.docx`;
-  document.body.appendChild(el); el.click(); el.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-  showToast('📤 קובץ הוורד הורד');
+  const td = 'border:1px solid #bbb;padding:7px 9px;';
+  const rows = a.cars.map(c => `<tr><td style="${td}">${esc(c.plate || '')}</td><td style="${td}">${esc(c.desc || '')}</td><td style="${td}white-space:nowrap">${Number(c.total || 0).toLocaleString('he-IL')} ₪</td></tr>`).join('');
+  const el = document.createElement('div');
+  el.innerHTML = `<div dir="rtl" style="width:700px;padding:20px;background:#fff;color:#111;font-family:Heebo,Arial,sans-serif;font-size:14px">
+    <div style="font-size:22px;font-weight:800;margin-bottom:14px">פחחות — ${esc(a.title || 'חשבון')}</div>
+    <table style="width:100%;border-collapse:collapse;text-align:right">
+      <tr style="background:#e7eee3;font-weight:800"><th style="${td}text-align:right">מספר רישוי</th><th style="${td}text-align:right">רכב</th><th style="${td}text-align:right">סכום</th></tr>${rows}
+    </table>
+    <table style="margin-top:18px;border-collapse:collapse;font-weight:800;text-align:right">
+      <tr><td style="padding:4px 0 4px 28px">סה״כ ששולם לפני מע״מ</td><td style="padding:4px 0;white-space:nowrap">${_fmtIls(sum)}</td></tr>
+      <tr><td style="padding:4px 0 4px 28px">מע״מ ${Math.round(_VAT_RATE * 100)}%</td><td style="padding:4px 0;white-space:nowrap">${_fmtIls(vat)}</td></tr>
+      <tr><td style="padding:4px 0 4px 28px">סה״כ ששולם כולל מע״מ</td><td style="padding:4px 0;white-space:nowrap">${_fmtIls(sum + vat)}</td></tr>
+    </table></div>`;
+  /* מנוע ההמרה מאבד רווחים רגילים בטקסט עברי — רווח קשיח שורד (כמו בפתק הפחחות) */
+  (function nbsp(node) {
+    for (const n of node.childNodes) {
+      if (n.nodeType === 3) n.nodeValue = n.nodeValue.replace(/ /g, ' ');
+      else nbsp(n);
+    }
+  })(el);
+  showToast('מכין קובץ…');
+  try {
+    const name = `פחחות-${String(a.title || 'חשבון').replace(/[\\/:*?"<>|]/g, '-')}.pdf`;
+    await html2pdf().set({
+      margin: 10, filename: name,
+      image: { type: 'jpeg', quality: 0.95 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+    }).from(el).save();
+    showToast('📤 קובץ ה-PDF הורד');
+  } catch (e) {
+    console.error('bsmExportArchive', e);
+    showToast('הכנת הקובץ נכשלה', 6000);
+  }
 }
 window.bsmExportArchive = bsmExportArchive;
 
