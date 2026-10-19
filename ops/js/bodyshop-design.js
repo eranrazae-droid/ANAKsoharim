@@ -48,6 +48,7 @@
     const card = document.createElement('article');
     card.className = 'bsd-card';
     card.dataset.job = job.id;
+    if (job.status === 'at_shop' && job.mgrDone) card.classList.add('bsd-mgrdone');   // סימנתי "סיימנו" — כחול בהיר
     const header = original.firstElementChild;
     header.classList.add('bsd-card-head');
     card.append(header);
@@ -88,13 +89,13 @@
     jobs.forEach(job => {
       const row = document.createElement('button');
       row.type = 'button';
-      row.className = 'bsd-row';
+      row.className = 'bsd-row' + (job.status === 'at_shop' && job.mgrDone ? ' bsd-mgrdone' : '');
       row.dataset.job = job.id;
       row.addEventListener('click', () => window.bsmMOpen(job.id));
       const photo = _bsmMPhoto(job);
       const price = _bsmMPrice(job);
       const days = job.status === 'draft' ? Math.max(0, Math.floor((Date.now() - (millis(job.createdAt) || Date.now())) / 86400000)) : _bshopDays(job);
-      const status = job.status === 'returned' ? 'סיימנו' : days == null ? '' : `${days} ימים`;
+      const status = job.status === 'returned' || (job.status === 'at_shop' && job.mgrDone) ? 'סיימנו' : days == null ? '' : `${days} ימים`;
       const warn = job.photoFailed || job.reportFailed || (job.status === 'returned' && (job.items || []).some(item => item.price == null || item.price === ''));
       row.innerHTML = (photo ? `<img src="${escape(photo)}" alt="" style="object-position:${escape(_bshopFocusCss(job))}" loading="lazy">` : '<span class="bsd-row-car">🚘</span>') +
         `<span class="bsd-row-info"><b dir="ltr">${escape(job.plate)}</b><span>${escape(job.desc)}</span><small>${(job.items || []).length} חלקים${warn ? ' · ⚠️ דורש בדיקה' : ''}</small></span>` +

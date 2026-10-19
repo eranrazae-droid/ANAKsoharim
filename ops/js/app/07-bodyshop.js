@@ -506,8 +506,10 @@ function _bshopJobCard(j, forWorker, held) {
   const est = showEst ? _bshopEstimate(j) : null;
   const manual = showEst && Number(j.estManual) > 0 ? Number(j.estManual) : null;
   const estVal = manual != null ? manual : (est ? est.sum : 0);
-  return `<div class="${forWorker ? 'bshop-card-sm' : ''}" onclick="${forWorker ? `bshopOpenFill('${j.id}')` : `bsmOpenJob('${j.id}')`}"
-      style="border:2px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px;background:var(--card);cursor:pointer">
+  // סימון המנהל "סיימנו עם הרכב": רק צבע ומקום ברשימה אצל המנהל. הרכב עדיין אצל הפחח, ואצלו שום דבר לא משתנה
+  const mgrDone = !forWorker && j.status === 'at_shop' && !!j.mgrDone;
+  return `<div class="${forWorker ? 'bshop-card-sm' : ''}${mgrDone ? ' bs-mgrdone' : ''}" onclick="${forWorker ? `bshopOpenFill('${j.id}')` : `bsmOpenJob('${j.id}')`}"
+      style="border:2px solid ${mgrDone ? '#7dd3fc' : 'var(--border)'};border-radius:14px;padding:14px;margin-bottom:10px;background:${mgrDone ? '#e0f2fe' : 'var(--card)'};cursor:pointer">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
       <div style="flex:1;min-width:0">
         <div class="bs-plate" style="font-weight:900;font-size:17px">${_brandIcon(j.maker)} ${
@@ -557,8 +559,11 @@ function _bshopJobCard(j, forWorker, held) {
           style="margin-top:10px;width:100%;background:var(--success);color:#fff;border:none;border-radius:10px;padding:10px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:900;cursor:pointer">✅ עודכן בתוכנה</button>`
       : `<button onclick="event.stopPropagation();bsmSetSwUpdated('${j.id}',true)"
           style="margin-top:10px;width:100%;background:#b45309;color:#fff;border:none;border-radius:10px;padding:10px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:900;cursor:pointer">💳 עדכנתי בתוכנה</button>`) : ''}
-    ${!held && !forWorker && j.status === 'at_shop' ? `<button onclick="event.stopPropagation();bsmMarkReturned('${j.id}')"
-      style="margin-top:10px;width:100%;background:var(--dark);color:#fff;border:none;border-radius:10px;padding:10px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:900;cursor:pointer">✅ סיימנו עם הרכב</button>` : ''}
+    ${!held && !forWorker && j.status === 'at_shop' ? (mgrDone
+      ? `<button onclick="event.stopPropagation();bsmSetMgrDone('${j.id}',false)"
+      style="margin-top:10px;width:100%;background:#0369a1;color:#fff;border:none;border-radius:10px;padding:10px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:900;cursor:pointer">↩ החזר רכב לפחח</button>`
+      : `<button onclick="event.stopPropagation();bsmSetMgrDone('${j.id}',true)"
+      style="margin-top:10px;width:100%;background:var(--dark);color:#fff;border:none;border-radius:10px;padding:10px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:900;cursor:pointer">✅ סיימנו עם הרכב</button>`) : ''}
     ${!held && !forWorker && j.status === 'draft' ? `<div style="display:flex;gap:8px;margin-top:10px">
       <button onclick="event.stopPropagation();bsmSendToShop('${j.id}')"
         style="flex:1;min-width:0;background:var(--success);color:#fff;border:2px solid var(--success);border-radius:10px;padding:8px 4px;font-family:'Heebo',sans-serif;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap"><span class="bs-wide">📤 שלח לאיברהים</span><span class="bs-narrow">📤 שלח</span></button>
@@ -1268,7 +1273,7 @@ function _bshopRenderMgr() {
   // ולכן הוא חוזר בדיוק לאותו מקום שממנו יצא
   const live = _bshopJobs.filter(j => !j.onHold);
   const draft = live.filter(j => j.status === 'draft');
-  const open = live.filter(j => j.status === 'at_shop');
+  const open = live.filter(j => j.status === 'at_shop').sort((a, b) => !!a.mgrDone - !!b.mgrDone);   // מה שסימנתי כסיימנו — בסוף
   const ret  = live.filter(j => j.status === 'returned');
   const sum  = ret.reduce((s, j) => s + _bshopTotal(j), 0);
   const openSum = open.reduce((s, j) => s + _bshopTotal(j), 0);
@@ -1478,18 +1483,26 @@ async function openBsmTrips() {
 }
 window.openBsmTrips = openBsmTrips;
 
-// the yard can close a car too — same effect as the beater pressing finish,
-// and it is what stops the day counter
-async function bsmMarkReturned(id) {
+/* "סיימנו עם הרכב" אצל המנהל הוא סימון מצב בלבד: הקובייה נצבעת בכחול בהיר
+   ויורדת לסוף הרשימה, והכפתור הופך ל"החזר רכב לפחח". הסטטוס נשאר אצל הפחח
+   ואצל איברהים לא משתנה כלום. הרכב עובר ל"מכוניות שסיימנו" רק כשאיברהים
+   עצמו לוחץ סיימנו וממלא מחיר (אז הסטטוס הופך ל-returned, כמו תמיד). */
+async function bsmSetMgrDone(id, val) {
   const j = _bshopJobs.find(x => x.id === id);
   if (!j || j.status !== 'at_shop') return;
-  if (!confirm(`לסמן שסיימנו עם הרכב ${j.plate}?`)) return;
+  j.mgrDone = !!val;                       // תגובה מיידית על המסך
+  _bshopRenderMgr();
+  try { if (typeof _bsmMRender === 'function') _bsmMRender(); } catch (e) {}
   try {
-    await _updateDoc(_docRef('bodyshop_jobs', id), { status: 'returned', returnedAt: new Date().toISOString() });
-    showToast('✅ הרכב סומן כמוכן');
-  } catch (e) { showToast('שגיאה — נסה שוב'); }
+    await _updateDoc(_docRef('bodyshop_jobs', id), { mgrDone: !!val, mgrDoneAt: val ? new Date().toISOString() : null });
+    showToast(val ? '🔵 סומן — הרכב עדיין אצל הפחח' : '↩ הרכב הוחזר לפחח');
+  } catch (e) {
+    j.mgrDone = !val; _bshopRenderMgr();
+    try { if (typeof _bsmMRender === 'function') _bsmMRender(); } catch (x) {}
+    showToast('שגיאה — נסה שוב');
+  }
 }
-window.bsmMarkReturned = bsmMarkReturned;
+window.bsmSetMgrDone = bsmSetMgrDone;
 
 // סימון "עדכנתי את העלות בתוכנה השנייה". המונה בקוביית הבית יורד מיד
 // כי הוא מאזין לאותו שדה במסמך.
@@ -2580,7 +2593,7 @@ function _bsmMLists() {
   const draft = live.filter(j => j.status === 'draft').reverse();   // מי שמחכה הכי הרבה קודם
   // אצל הפחח: מי שעומד שם הכי הרבה זמן ראשון — שם הדחיפות
   const open = live.filter(j => j.status === 'at_shop')
-    .sort((a, b) => (_bshopDays(b) ?? -1) - (_bshopDays(a) ?? -1));
+    .sort((a, b) => (!!a.mgrDone - !!b.mgrDone) || ((_bshopDays(b) ?? -1) - (_bshopDays(a) ?? -1)));   // מה שסימנתי כסיימנו — בסוף
   const ret = live.filter(j => j.status === 'returned');
   return { draft, open, ret };
 }
@@ -2609,6 +2622,7 @@ function _bsmMTile(j) {
     sub = `<div class="bsmm-sub">חלקים ${items.length}${_bsmMoney() ? ` · מולאו ${filled}` : ''}</div>`;
   } else if (j.status === 'at_shop') {
     pill = d == null ? '' : `<span class="bsmm-pill ${_bsmMDaysClass(d)}">⏱ ${_bsmMDaysTxt(d)}</span>`;
+    if (j.mgrDone) corner = `<span class="bsmm-corner blu">🔵 סיימנו</span>`;
   } else {
     pill = `<span class="bsmm-pill grn">✅ סיימנו</span>`;
     const missing = items.some(it => it.price == null || it.price === '');
@@ -2623,9 +2637,10 @@ function _bsmMTile(j) {
   const showDays = j.status === 'at_shop' && d != null;
   const showCnt = j.status === 'draft' && items.length;
   const foot = (showPr || showDays || showCnt) ? `<div class="bsmm-ft">${showDays ? `<span class="bsmm-pill ${_bsmMDaysClass(d)}">⏱ ${_bsmMDaysTxt(d)}</span>` : showCnt ? `<span class="bsmm-pill ind">🔧 ${items.length === 1 ? 'חלק אחד' : items.length + ' חלקים'}</span>` : '<span></span>'}${showPr ? `<b class="${pr.est ? 'est' : ''}">${esc(pr.txt)}</b>` : ''}</div>` : '';
-  if (src) return `<div class="bsmm-tile has-ph${foot ? ' has-ft' : ''}" onclick="bsmMOpen('${j.id}')">${photo}${foot}</div>`;
-  return `<div class="bsmm-tile${foot ? ' has-ft' : ''}" style="--g:${_bsmMGrad(j.plate)}" onclick="bsmMOpen('${j.id}')">
-    ${photo}
+  const md = j.status === 'at_shop' && j.mgrDone ? ' mgr-done' : '';
+  if (src) return `<div class="bsmm-tile has-ph${foot ? ' has-ft' : ''}${md}" onclick="bsmMOpen('${j.id}')">${photo}${md ? corner : ''}${foot}</div>`;
+  return `<div class="bsmm-tile${foot ? ' has-ft' : ''}${md}" style="--g:${_bsmMGrad(j.plate)}" onclick="bsmMOpen('${j.id}')">
+    ${photo}${md ? corner : ''}
     <div class="bsmm-top"><span class="bsmm-plate">${esc(j.plate || '')}</span></div>
     <div class="bsmm-pl"><div class="bsmm-m"><span>${esc(j.desc || '')}</span></div></div>${foot}
   </div>`;
@@ -2767,7 +2782,9 @@ function _bsmMRenderSheet() {
     primary = `<div class="bsmm-cta"><button class="g" onclick="bsmSendToShop('${id}')">📤 שלח לאיברהים</button>
       <button class="d" style="flex:.8" onclick="(window.innerWidth <= 900 ? bsmShareNote : bsmPrint)('${id}')">📄 קובץ</button></div>`;
   } else if (j.status === 'at_shop') {
-    primary = `<div class="bsmm-cta"><button class="d" onclick="bsmMarkReturned('${id}')">✅ סיימנו עם הרכב</button></div>`;
+    primary = j.mgrDone
+      ? `<div class="bsmm-cta"><button class="b" onclick="bsmSetMgrDone('${id}',false)">↩ החזר רכב לפחח</button></div>`
+      : `<div class="bsmm-cta"><button class="d" onclick="bsmSetMgrDone('${id}',true)">✅ סיימנו עם הרכב</button></div>`;
   } else if (j.status === 'returned') {
     primary = j.swUpdated
       ? `<div class="bsmm-cta"><button class="g" onclick="bsmSetSwUpdated('${id}',false)">✅ עודכן בתוכנה — ביטול סימון</button></div>`
