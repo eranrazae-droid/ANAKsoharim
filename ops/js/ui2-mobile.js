@@ -104,10 +104,8 @@
   let returnFocus = null, locked = [], conversation = [], request = null, generation = 0, lastContext = '';
   function user() { return typeof currentUser !== 'undefined' ? currentUser : null; }
   function pickupRole() { return ['pickup_agent','pickup_driver'].includes(user()?.role); }
+  // במחשב לאנשי האיסוף כבר יש עיצוב משלהם (ui2-staff.js), ולכן הבית החדש כאן הוא לטלפון בלבד
   function eligible() {
-    if (pickupRole() && window.innerWidth > 900) {
-      try { return localStorage.getItem('anak_ui2') !== '0'; } catch (_) { return true; }
-    }
     return window.innerWidth <= 900 && document.body.classList.contains('ui2m') && ['manager','driver','pickup_agent','pickup_driver'].includes(user()?.role);
   }
   function invoke(name) { if (typeof window[name] === 'function') window[name](); }
@@ -149,16 +147,8 @@
   function render() {
     pending = false;
     const active = eligible();
-    const desktopPickup = active && pickupRole() && window.innerWidth > 900;
-    document.body.classList.toggle('ui2m-app',active && !desktopPickup);
-    document.body.classList.toggle('u2pickup-desktop',desktopPickup);
+    document.body.classList.toggle('ui2m-app',active);
     document.body.classList.toggle('u2pickup',active && pickupRole());
-    if (desktopPickup && !$('ui2-pickup-css')) {
-      const link = document.createElement('link'); link.id = 'ui2-pickup-css'; link.rel = 'stylesheet';
-      const script = Array.from(document.scripts).find(s => s.src.includes('/ui2-mobile.js'));
-      const version = (script?.src.match(/[?&]v=(\d+)/) || [])[1] || '621';
-      link.href = 'css/ui2-pickup.css?v=' + version; document.head.appendChild(link);
-    }
     if (!active) { closeChat(); return; }
     ensure();
     const u = user(), key = u.role + ':' + u.name;
