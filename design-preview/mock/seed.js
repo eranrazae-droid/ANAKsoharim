@@ -122,6 +122,16 @@ export function SEED(TS) {
   for (let i = 0; i < 5; i++) mkLog('tl-i' + i, 'intake', 'איתי', car(i + 9).plate, i * 18 * H + 3 * H, norm(22), 8, i % 2 ? 600 : 0);
   for (let i = 0; i < 4; i++) DRV.forEach((d, j) => mkLog(`tl-inv${i}${j}`, 'inventory', d, '', (i * 30 + j) * H, Array.from({ length: 30 + j * 10 }, () => 4 + j * 3)));
   for (let i = 0; i < 3; i++) DRV.forEach((d, j) => mkLog(`tl-td${i}${j}`, 'testdrive', d, car(i + j).plate, (i * 25 + j) * H, norm(12 + j * 2)));
+  /* דפוסים חריגים: שלוש קליטות צמודות וחופפות, עיכוב בשליחה, פתיחה מוקדמת וקצב אחיד */
+  const mkLog2 = (id, driver, plate, agoMs, durSec, over) => {
+    const end = now - agoMs, start = end - durSec * 1000, n = 14, marks = {}, acts = [];
+    for (let i = 0; i < n; i++) { const t = start + i * (durSec * 1000 / n); marks['k' + i] = t; acts.push(t); }
+    put('timing_logs', id, Object.assign({ kind: 'intake', refId: id, driver, plate, openedAt: start, submittedAt: end, sessions: [{ o: start, c: end }], acts, marks, changes: 0 }, over || {}));
+  };
+  mkLog2('tl-x1', 'עופר', car(1).plate, 30 * H, 150);
+  mkLog2('tl-x2', 'עופר', car(2).plate, 30 * H - 60e3, 160);
+  mkLog2('tl-x3', 'עופר', car(3).plate, 30 * H - 120e3, 140, { readyAt: now - 30 * H - 120e3 - 95e3 });
+  mkLog2('tl-x4', 'גיל', car(4).plate, 26 * H, 170, { openedAt: now - 26 * H - 20 * 60e3 });
   put('pro_payments', 'pp0', { who: 'חביב', amount: 850, date: ymd(12 * D), note: 'חלונות — 3 רכבים', createdBy: 'ליאל', createdAt: ago(12 * D) });
   put('pro_payments', 'pp1', { who: 'חביב', amount: 400, date: ymd(2 * D), note: '', createdBy: 'ליאל', createdAt: ago(2 * D) });
   put('battery_orders', 'bo0', { lines: [], units: 6, total: 2980, at: iso(9 * D), createdBy: 'ליאל', createdAt: ago(9 * D) });

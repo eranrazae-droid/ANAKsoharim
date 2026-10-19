@@ -20,6 +20,47 @@
   const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
   const drop = k => { try { localStorage.removeItem(k); } catch (e) {} };
   const live = {};   // kind -> { id, key, st }
+  const SEND_WAIT = 60e3;   // סיים למלא ולא שלח תוך כך — המנהל מקבל התראה
+  const watchers = {};      // kind -> interval
+
+  /* "סיים למלא": כל סעיפי הרשימה מסומנים, ויש קילומטראז׳, קוד ותמונת מצבר —
+     כלומר כל מה שהשליחה דורשת מלבד הלחיצה עצמה. */
+  function intakeReady() {
+    const m = document.getElementById('modal-driver-intake');
+    if (!m || typeof _ciLabels === 'undefined') return false;
+    for (const key of Object.keys(_ciLabels)) {
+      if (key === 'c-safety') continue;
+      if (!m.querySelector(`.ci-box[data-key="${key}"].v-active,.ci-box[data-key="${key}"].x-active`)) return false;
+    }
+    if (!document.getElementById('di-km')?.value.trim() || !document.getElementById('di-code')?.value.trim()) return false;
+    const photo = (typeof _batteryPhotoFiles !== 'undefined' && _batteryPhotoFiles && _batteryPhotoFiles.length) ||
+      (typeof ciPhotoFiles !== 'undefined' && ciPhotoFiles['c-battery-original'] && ciPhotoFiles['c-battery-original'].length);
+    return !!(photo || document.getElementById('battery-no-date-cb')?.checked);
+  }
+  const waitWords = ms => { const v = Math.round(ms / 1000), mn = Math.floor(v / 60), sc = v % 60; return mn ? `${mn === 1 ? 'דקה' : mn + ' דקות'}${sc ? ` ו-${sc} שניות` : ''}` : `${sc} שניות`; };
+  async function alertLate(L, waited) {
+    try {
+      const snap = await window._getDoc(window._docRef('intake_assignments', L.id));
+      const plate = snap.exists() ? (snap.data().plate || '') : '';
+      const who = (typeof currentUser !== 'undefined' && currentUser?.name) || 'נהג';
+      if (typeof _notifyDriver === 'function')
+        await _notifyDriver('ליאל', `⏳ ${who} סיים למלא את הקליטה${plate ? ' של ' + plate : ''} לפני ${waitWords(waited)} ועדיין לא שלח אותה.`);
+    } catch (e) { console.warn('timing alert', e); }
+  }
+  function tick(f) {
+    const L = live[f.kind]; if (!L) return;
+    const st = L.st;
+    if (typeof currentUser !== 'undefined' && currentUser?.role === 'manager') return;
+    if (typeof _intakeSubmitting !== 'undefined' && _intakeSubmitting) return;
+    let ready = false;
+    try { ready = intakeReady(); } catch (e) {}
+    if (ready && !st.readyAt) { st.readyAt = Date.now(); save(L.key, st); }
+    else if (!ready && st.readyAt) { st.readyAt = 0; st.alerted = false; save(L.key, st); }
+    if (ready && st.readyAt && !st.alerted && Date.now() - st.readyAt >= SEND_WAIT) {
+      st.alerted = true; save(L.key, st);
+      alertLate(L, Date.now() - st.readyAt);
+    }
+  }
 
   function onOpen(f) {
     const id = f.id(); if (!id) return;
@@ -28,10 +69,12 @@
     st.sessions.push({ o: Date.now(), c: null });
     live[f.kind] = { id, key: k, st };
     save(k, st);
+    if (f.kind === 'intake') { clearInterval(watchers.intake); watchers.intake = setInterval(() => tick(f), 2000); }
   }
   function onClose(f) {
     const L = live[f.kind]; if (!L) return;
     delete live[f.kind];
+    clearInterval(watchers[f.kind]);
     const s = L.st.sessions[L.st.sessions.length - 1]; if (s && !s.c) s.c = Date.now();
     save(L.key, L.st);
     // אחרי השליחה הסטטוס מתעדכן — בודקים בשקט אם הטופס באמת נשלח
@@ -52,7 +95,7 @@
         openedAt: st.openedAt, submittedAt: done,
         sessions: st.sessions.slice(-20),
         acts: st.acts.slice(-600),
-        marks: st.marks, changes: st.changes || 0,
+        marks: st.marks, changes: st.changes || 0, readyAt: st.readyAt || 0,
         createdAt: window._serverTs(),
       });
       drop(k);

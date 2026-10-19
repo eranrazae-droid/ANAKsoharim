@@ -9,6 +9,7 @@
   const FROM_FIRST_MARK = ['intake', 'testdrive'];   // הספירה מתחילה מהסימון הראשון של הנהג, לא מפתיחת הטופס
   const IDLE = 90e3;            // הפסקה ארוכה מזה לא נספרת כזמן עבודה
   const LONG_IDLE = 3 * 60e3;   // הפסקה ארוכה מזה מסומנת בדוח
+  const SEND_WAIT = 60e3;       // סיים למלא ולא שלח מעבר לזה — דפוס חריג
   const FAST_GAP = 2000, FAST_RUN = 6;   // 6 סעיפים ברצף, פחות מ-2 שניות בין אחד לשני
   const D = { logs: [], jobs: [], shopArch: [], washNotes: [], washPays: [], installs: [], orders: [], pro: [] };
   let tab = 'pay', kind = 'intake', started = false;
@@ -16,7 +17,7 @@
   const ms = t => t?.toMillis ? t.toMillis() : (typeof t === 'number' ? t : (t ? +new Date(t) : 0));
   const fmt = v => { v = Math.max(0, Math.round(v / 1000)); const m = Math.floor(v / 60), s = v % 60; return m >= 60 ? `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')} ש׳` : `${m}:${String(s).padStart(2, '0')}`; };
   const range = ex => `<bdi dir="ltr">${Math.round(ex[0] / 60e3)}–${Math.round(ex[1] / 60e3)}</bdi> דקות`;
-  const words = v => { v = Math.round(v / 1000); const m = Math.floor(v / 60), s = v % 60; return m ? `${m} דקות${s ? ` ו-${s} שניות` : ''}` : `${s} שניות`; };
+  const words = v => { v = Math.round(v / 1000); const m = Math.floor(v / 60), s = v % 60; return m ? `${m === 1 ? 'דקה' : m + ' דקות'}${s ? ` ו-${s} שניות` : ''}` : `${s} שניות`; };
   const gapTxt = v => { const t = Math.round(v / 100) / 10; return t < 60 ? `${t} שנ׳` : words(v); };
   const nis = n => '₪' + Math.round(n || 0).toLocaleString('he-IL');
   const day = t => t ? new Date(t).toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' }) : '';
@@ -42,13 +43,69 @@
     const ex = EXPECT[L.kind];
     if (ex && active < ex[0]) flags.push(['short', `קצר מהמצופה (${range(ex)})`]);
     if (ex && active > ex[1]) flags.push(['long', `ארוך מהמצופה (${range(ex)})`]);
+    /* ── דפוסים חריגים (פר קליטה) ── */
+    const codes = [];
+    if (best + 1 >= FAST_RUN) codes.push('fast');
+    if (gaps.length >= 8) {                                     // קצב אחיד מדי
+      const mean = gaps.reduce((t, g) => t + g, 0) / gaps.length;
+      const sd = Math.sqrt(gaps.reduce((t, g) => t + (g - mean) ** 2, 0) / gaps.length);
+      if (mean <= 8000 && sd / (mean || 1) < 0.3) { codes.push('rhythm'); flags.push(['rhythm', `קצב אחיד מדי: ${gaps.length + 1} סימונים במרווחים של כ-${Math.round(mean / 1000)} שניות בכל אחד`]); }
+    }
+    if (L.kind === 'intake' && typeof _ciLabels !== 'undefined' && L.changes === 0) {   // כל הסעיפים בסדר הטופס, בלי תיקון
+      const order = Object.keys(_ciLabels), byTime = Object.entries(L.marks || {}).filter(([k]) => order.includes(k)).sort((a, b) => a[1] - b[1]).map(e => e[0]);
+      const inForm = byTime.slice().sort((a, b) => order.indexOf(a) - order.indexOf(b));
+      if (byTime.length >= 10 && byTime.every((k, i) => k === inForm[i])) { codes.push('order'); flags.push(['order', `סימן ${byTime.length} סעיפים בסדר מושלם מלמעלה למטה, בלי תיקון אחד`]); }
+    }
+    for (let i = 0, j = 0; i < marks.length; i++) {              // סימון בבת אחת
+      while (marks[i] - marks[j] > 20e3) j++;
+      if (i - j + 1 >= 8) { codes.push('burst'); flags.push(['burst', `${i - j + 1} סעיפים סומנו תוך ${Math.max(1, Math.round((marks[i] - marks[j]) / 1000))} שניות`]); break; }
+    }
+    if (marks.length && L.openedAt && marks[0] - L.openedAt > 10 * 60e3 && end - marks[0] < 4 * 60e3) {   // נפתח מוקדם, מולא בדקות האחרונות
+      codes.push('early'); flags.push(['early', `הטופס נפתח ${words(marks[0] - L.openedAt)} לפני הסימון הראשון, והסימון כולו ארך ${words(end - marks[0])}`]);
+    }
+    if (L.readyAt && end - L.readyAt > SEND_WAIT) {              // סיים למלא ולא שלח
+      codes.push('late'); flags.push(['late', `סיים למלא ${words(end - L.readyAt)} לפני ששלח`]);
+    }
     let opinion = '';
     if (gaps.length >= 3) {
       const s = Math.round(median / 1000);
       opinion = `בממוצע ${s} שניות בין סעיף לסעיף — ` + (median < 3000 ? 'מהיר מאוד, כנראה סימון בלי בדיקה בפועל'
         : median < 8000 ? 'מהיר, כדאי לבדוק מדגמית' : median <= 45000 ? 'קצב סביר של בדיקה אמיתית' : 'איטי, עם הפסקות בין הסעיפים');
     }
-    return { total: end - open, active, idleMax, marks, median, meanGap, gaps: work.length, flags, opinion, suspicious: flags.some(f => f[0] === 'fast' || f[0] === 'short'), open, end };
+    return { codes, start: marks[0] || open, total: end - open, active, idleMax, marks, median, meanGap, gaps: work.length, flags, opinion, suspicious: flags.some(f => f[0] === 'fast' || f[0] === 'short'), open, end };
+  }
+
+  /* ── דפוסים שנראים רק בין כמה קליטות של אותו נהג ── */
+  const PATTERNS = [
+    ['fast', '⚡', 'רצף מהיר'], ['rhythm', '🎼', 'קצב אחיד'], ['order', '📑', 'סדר מושלם'], ['burst', '💥', 'סימון בבת אחת'],
+    ['overlap', '🔀', 'חפיפה בזמן'], ['batch', '🗂', 'קליטות צמודות'], ['early', '🌅', 'פתיחה מוקדמת'], ['base', '🏃', 'מהיר מהרגיל'], ['late', '⏳', 'עיכוב בשליחה'],
+  ];
+  const ICON = Object.fromEntries(PATTERNS.map(p => [p[0], p[1]]).concat([['idle', '⏸'], ['short', '⏱'], ['long', '🐢']]));
+  function analyzeAll(driver, k) {
+    const rows = D.logs.filter(l => l.kind === k && l.driver === driver).map(l => ({ l, a: analyze(l) })).sort((x, y) => x.a.end - y.a.end);
+    const add = (r, code, text) => { if (!r.a.codes.includes(code)) { r.a.codes.push(code); r.a.flags.push([code, text]); } };
+    rows.forEach(r => {
+      rows.forEach(o => {                                      // שתי קליטות שונות בו־זמנית
+        if (o === r || (o.l.refId || o.l.plate) === (r.l.refId || r.l.plate)) return;
+        if (Math.min(r.a.end, o.a.end) - Math.max(r.a.start, o.a.start) > 30e3) add(r, 'overlap', `חפיפה בזמן עם קליטה של ${o.l.plate || 'רכב אחר'}`);
+      });
+      const near = rows.filter(o => Math.abs(o.a.end - r.a.end) <= 5 * 60e3).length;   // כמה קליטות נשלחו כמעט יחד
+      if (near >= 3) add(r, 'batch', `${near} קליטות נשלחו בתוך 5 דקות`);
+      const others = rows.filter(o => o !== r).map(o => o.a.active).sort((x, y) => x - y);   // מהיר בהרבה מהרגיל שלו
+      if (others.length >= 5) {
+        const med = others[Math.floor(others.length / 2)];
+        if (med > 0 && r.a.active < med * 0.5) add(r, 'base', `מהיר פי ${(med / Math.max(r.a.active, 1000)).toFixed(1).replace('.0', '')} מהרגיל שלו (בדרך כלל ${words(med)})`);
+      }
+    });
+    return rows;
+  }
+  function patternSummary(k) {
+    const since = Date.now() - 30 * 864e5;
+    return DRIVERS.map(name => {
+      const rows = analyzeAll(name, k).filter(r => (r.l.submittedAt || 0) >= since), counts = {};
+      rows.forEach(r => r.a.codes.forEach(c => { counts[c] = (counts[c] || 0) + 1; }));
+      return { name, n: rows.length, counts, flagged: rows.filter(r => r.a.codes.length).length };
+    });
   }
 
   /* ── נתונים ── */
@@ -127,22 +184,26 @@
     }).join('');
     return `<div class="u2r-kinds">${KINDS.map(([k, t]) => `<button type="button" data-kind="${k}" class="${k === kind ? 'on' : ''}">${t}</button>`).join('')}</div>
       <div class="u2r-chart">${band}${bars}</div>
+      <div class="u2r-pats"><div class="u2r-pats-h">🔎 דפוסים חריגים · 30 ימים</div>${patternSummary(kind).map(s => {
+        const chips = PATTERNS.filter(p => s.counts[p[0]]).map(p => `<span class="u2r-chip" title="${p[2]}">${p[1]} ${p[2]} <b>${s.counts[p[0]]}</b></span>`).join('');
+        return `<button type="button" class="u2r-prow" data-driver="${esc2(s.name)}" ${s.n ? '' : 'disabled'}><b>${esc2(s.name)}</b>
+          <span>${!s.n ? 'אין פעולות' : chips || '<em>אין דפוסים חריגים</em>'}</span><small>${s.n ? s.flagged + ' מתוך ' + s.n : ''}</small></button>`;
+      }).join('')}</div>
       <div class="u2r-note">${kind === 'inventory'
         ? 'ממוצע הזמן בין סימון לסימון ב-30 הימים האחרונים. הפסקה של יותר מדקה וחצי לא נספרת. לחיצה על נהג — פירוט.'
         : 'ממוצע זמן עבודה בפועל ב-30 הימים האחרונים, מהסימון הראשון של הנהג ועד השליחה. זמן שהטופס עמד פתוח בלי פעולה לא נספר. לחיצה על נהג — פירוט.'}</div>`;
   }
   function driverReport(name) {
-    const logs = D.logs.filter(l => l.kind === kind && l.driver === name).sort((a, b) => b.submittedAt - a.submittedAt).slice(0, 15);
+    const logs = analyzeAll(name, kind).sort((x, y) => y.l.submittedAt - x.l.submittedAt).slice(0, 15);
     const title = KINDS.find(k => k[0] === kind)[1];
-    const items = logs.map(l => {
-      const a = analyze(l);
+    const items = logs.map(({ l, a }) => {
       const dots = a.marks.map(t => `<i style="right:${a.total ? (t - a.open) / a.total * 100 : 0}%"></i>`).join('');
       return `<div class="u2r-act${a.suspicious ? ' sus' : ''}">
         <div class="u2r-act-h"><b>${esc2(l.plate || title)}</b><span>${new Date(l.submittedAt).toLocaleString('he-IL', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })}</span></div>
         ${kind === 'inventory' && a.gaps ? `<div class="u2r-act-t">ממוצע ${gapTxt(a.meanGap)} בין סימון לסימון</div>` : ''}
         <div class="u2r-act-t">ארכה ${words(a.active)}${a.total - a.active > 30e3 ? ` <small>(פתוח ${words(a.total)} בסך הכל)</small>` : ''}</div>
         <div class="u2r-tl" title="כל נקודה = סעיף שסומן">${dots}</div>
-        ${a.flags.map(f => `<div class="u2r-flag ${f[0]}">${f[0] === 'idle' ? '⏸' : f[0] === 'fast' ? '⚡' : f[0] === 'short' ? '⏱' : '🐢'} ${f[1]}</div>`).join('')}
+        ${a.flags.map(f => `<div class="u2r-flag ${f[0]}">${ICON[f[0]] || '•'} ${f[1]}</div>`).join('')}
         ${a.opinion ? `<div class="u2r-op">💬 ${esc2(a.opinion)}</div>` : ''}
       </div>`;
     }).join('') || '<div class="u2r-empty">אין עדיין פעולות מתועדות</div>';
@@ -223,7 +284,7 @@
     s.addEventListener('click', e => {
       const t = e.target.closest('[data-tab]'); if (t) { tab = t.dataset.tab; render(); return; }
       const k = e.target.closest('[data-kind]'); if (k) { kind = k.dataset.kind; render(); return; }
-      const b = e.target.closest('.u2r-bar[data-driver]'); if (b) { driverReport(b.dataset.driver); return; }
+      const b = e.target.closest('.u2r-bar[data-driver],.u2r-prow[data-driver]'); if (b) { driverReport(b.dataset.driver); return; }
       const a = e.target.closest('[data-act]'); if (!a) return;
       e.stopPropagation();
       const act = a.dataset.act;
