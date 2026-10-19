@@ -103,7 +103,13 @@
   let home, nav, chat, content, signature = '', identity = '', view = 'home', pending = false;
   let returnFocus = null, locked = [], conversation = [], request = null, generation = 0, lastContext = '';
   function user() { return typeof currentUser !== 'undefined' ? currentUser : null; }
-  function eligible() { return document.body.classList.contains('ui2m') && ['manager','driver'].includes(user()?.role); }
+  function pickupRole() { return ['pickup_agent','pickup_driver'].includes(user()?.role); }
+  function eligible() {
+    if (pickupRole() && window.innerWidth > 900) {
+      try { return localStorage.getItem('anak_ui2') !== '0'; } catch (_) { return true; }
+    }
+    return window.innerWidth <= 900 && document.body.classList.contains('ui2m') && ['manager','driver','pickup_agent','pickup_driver'].includes(user()?.role);
+  }
   function invoke(name) { if (typeof window[name] === 'function') window[name](); }
   function proxy(id) { const node = $(id); if (node) node.click(); }
   function count(id) { const e = $(id); return e && e.style.display !== 'none' ? (e.textContent || '').trim() : ''; }
@@ -124,10 +130,35 @@
     if (!chat) buildChat();
   }
   function morning() { return user()?.role === 'driver' && Number(new Intl.DateTimeFormat('en-GB',{hour:'2-digit',hourCycle:'h23',timeZone:'Asia/Jerusalem'}).format(new Date())) >= 8 && Number(new Intl.DateTimeFormat('en-GB',{hour:'2-digit',hourCycle:'h23',timeZone:'Asia/Jerusalem'}).format(new Date())) < 10; }
+  function renderPickup() {
+    const agent = user()?.role === 'pickup_agent';
+    const definitions = agent
+      ? [['menu-card-pickup','איסוף רכבים','pickup','badge-pickup'],['menu-card-bodyshop-mgr','פחחות','bodyshop','badge-bodyshop-mgr'],['menu-card-wash','שטיפה','wash',''],['menu-card-request-task','הצעת משימה','tasks','']]
+      : [['menu-card-pickup-hila','הרכבים שלי לאיסוף','pickup','badge-pickup-hila']];
+    const cards = definitions.filter(d => visible(d[0])).map(([id,title,icon,badge]) =>
+      '<button type="button" class="u2m-tile" data-u2m-proxy="'+id+'"><span class="u2m-tile-top">'+art(icon)+(badge && Number(count(badge))>0?'<span class="u2m-count">'+esc(count(badge))+'</span>':'')+'</span><b>'+title+'</b></button>').join('');
+    const cars = agent ? '' : Array.from($('agh-list')?.querySelectorAll('.agh-car') || []).map(car => {
+      const plate = car.querySelector('.agh-plate')?.textContent || '';
+      const title = car.querySelector('b')?.textContent || '';
+      const city = car.querySelector('small')?.textContent || '';
+      return '<button type="button" class="u2p-car" data-u2m-proxy="menu-card-pickup-hila"><bdi>'+esc(plate)+'</bdi><span><b>'+esc(title)+'</b><small>'+esc(city)+'</small></span><span aria-hidden="true">←</span></button>';
+    }).join('');
+    const html = '<div class="u2p-welcome"><h2>שלום, '+esc(user()?.name || '')+'</h2><p>'+(agent?'ניהול איסופים ועבודות שטח':'הרכבים שהוקצו לך, במקום אחד')+'</p></div><div class="u2m-grid u2p-grid">'+cards+'</div>'+(!agent?'<section class="u2p-assigned"><h2>האיסופים שלך</h2>'+(cars || '<div class="u2p-empty">אין כרגע רכבים שהוקצו לך לאיסוף</div>')+'</section>':'')+'<button type="button" class="u2p-exit" data-u2m-action="logout">יציאה מהמשתמש</button>';
+    if (signature !== html) { content.innerHTML = html; signature = html; }
+  }
   function render() {
     pending = false;
     const active = eligible();
-    document.body.classList.toggle('ui2m-app',active);
+    const desktopPickup = active && pickupRole() && window.innerWidth > 900;
+    document.body.classList.toggle('ui2m-app',active && !desktopPickup);
+    document.body.classList.toggle('u2pickup-desktop',desktopPickup);
+    document.body.classList.toggle('u2pickup',active && pickupRole());
+    if (desktopPickup && !$('ui2-pickup-css')) {
+      const link = document.createElement('link'); link.id = 'ui2-pickup-css'; link.rel = 'stylesheet';
+      const script = Array.from(document.scripts).find(s => s.src.includes('/ui2-mobile.js'));
+      const version = (script?.src.match(/[?&]v=(\d+)/) || [])[1] || '621';
+      link.href = 'css/ui2-pickup.css?v=' + version; document.head.appendChild(link);
+    }
     if (!active) { closeChat(); return; }
     ensure();
     const u = user(), key = u.role + ':' + u.name;
@@ -137,13 +168,16 @@
     home.querySelector('.u2m-avatar').textContent = (u.name || '').charAt(0);
     const manager = u.role === 'manager', onHome = $('screen-home')?.classList.contains('active');
     document.body.classList.toggle('ui2m-more',view === 'more');
-    const navKey = manager + ':' + (onHome && view === 'home');
+    const navKey = u.role + ':' + (onHome && view === 'home');
     if (nav.dataset.state !== navKey) {
       nav.dataset.state = navKey;
-      nav.innerHTML = manager
+      nav.innerHTML = pickupRole()
+        ? '<button type="button" data-u2m-action="home">'+art('home')+'בית</button><button type="button" data-u2m-action="push">'+art('calendar')+'התראות</button><button type="button" data-u2m-action="whatsapp"><span aria-hidden="true">💬</span>וואטסאפ למנהל</button>'
+        : manager
         ? '<button type="button" data-u2m-action="calendar">'+art('calendar')+'יומן</button><button type="button" data-u2m-action="chat">'+art('chat')+'צ׳אט AI</button><button type="button" data-u2m-action="toggle">'+art(onHome && view === 'home'?'all':'home')+(onHome && view === 'home'?'הכל':'בית')+'</button>'
         : '<button type="button" data-u2m-action="home">'+art('home')+'בית</button><button type="button" data-u2m-action="chat">'+art('chat')+'צ׳אט AI</button><button type="button" data-u2m-action="whatsapp"><span aria-hidden="true">💬</span>וואטסאפ למנהל</button>';
     }
+    if (pickupRole()) { renderPickup(); return; }
     // Preserve source nodes, their IDs, listeners and live counters; render only this new home.
     const live = Object.values(definitions).map(d=>d[2]+':'+visible(d[2])+':'+count(d[3])).join('|');
     const morningSource = $('home-morning');
@@ -204,6 +238,7 @@
     if (name === 'calendar') return invoke('openHomeCal');
     if (name === 'toggle') return goHomeView($('screen-home')?.classList.contains('active') && view === 'home'?'more':'home');
     if (name === 'home') return goHomeView('home');
+    if (name === 'logout' && pickupRole()) return invoke('goToLoginScreen');
     if (name === 'whatsapp') return invoke('driverWhatsAppManager');
     if (name === 'push') return invoke('openPushSettings');
     if (name === 'quick') return invoke(user()?.role === 'manager'?'openNewTaskModal':'openRequestTaskModal');
