@@ -3000,8 +3000,27 @@
       '</div>';
     }).join('');
   }
+  // המרת יומן השיחות לטקסט קריא - לשמירה בתוך הסיכום כגיבוי אם אין עמודת call_log
+  function _callLogText(l){
+    var arr=_callLogArr(l); if(!arr.length) return '';
+    return 'יומן שיחות: '+arr.map(function(it){ var ts=(it&&typeof it==='object')?it.t:it; var o=(it&&typeof it==='object')?(it.o||''):''; var d=new Date(ts); var t=isNaN(d)?ts:d.toLocaleString('he-IL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}); return t+(o?(' ('+o+')'):''); }).join(' ; ');
+  }
   async function _saveCallLog(l){
-    try{ const c=sbClient(); if(c){ const res=await c.from('leads').update({call_log:l.call_log}).eq('id',l.id); if(res&&res.error) console.warn('call_log save (add column?)', res.error.message); } }catch(e){ console.warn('call_log', e); }
+    try{ const c=sbClient(); if(c){
+      let res=await c.from('leads').update({call_log:l.call_log}).eq('id',l.id);
+      if(res&&res.error){
+        // אין עמודת call_log - שומרים את היומן כטקסט בתוך הסיכום כדי שלא יאבד
+        console.warn('call_log save fallback (add column call_log)', res.error.message);
+        var base=(l.summary||'').replace(/\s*\|\s*יומן שיחות:.*$/,'').trim();
+        var logTxt=_callLogText(l);
+        l.summary=(base+(logTxt?('  |  '+logTxt):'')).trim();
+        const sumEl=document.getElementById('sum_'+l.id); if(sumEl) sumEl.value=l.summary;
+        res=await c.from('leads').update({summary:l.summary,call_attempts:l.call_attempts}).eq('id',l.id);
+        if(res&&res.error){ res=await c.from('leads').update({summary:l.summary}).eq('id',l.id); }
+      }
+      return !(res&&res.error);
+    } }catch(e){ console.warn('call_log', e); }
+    return false;
   }
   async function logCall(id){
     const l=leads.find(x=>String(x.id)===String(id)); if(!l) return;
@@ -3012,20 +3031,21 @@
     const el=document.getElementById('calllog_'+id); if(el) el.innerHTML=_callLogHTML(l);
     const at=document.getElementById('at_'+id); if(at){ for(var i=0;i<at.options.length;i++){ if(Number(at.options[i].value)===Math.min(arr.length,3)){ at.selectedIndex=i; break; } } }
     // "יחשוב" → קובע אוטומטית פולואפ לשבוע הבא (08:00) - בלי להעלים/להזיז את הליד
-    var setFu=false;
+    var setFu=false, ok=false;
     if(out.indexOf('יחשוב')>=0){
       var d7=new Date(); d7.setDate(d7.getDate()+7);
       var iso=d7.getFullYear()+'-'+String(d7.getMonth()+1).padStart(2,'0')+'-'+String(d7.getDate()).padStart(2,'0')+'T08:00';
       l.status='פולואפ'; l.followup_at=iso; setFu=true;
-      try{ const c=sbClient(); if(c){ const r=await c.from('leads').update({status:'פולואפ',followup_at:iso,call_log:l.call_log}).eq('id',id); if(r&&r.error) await _saveCallLog(l); } }catch(e){ await _saveCallLog(l); }
+      try{ const c=sbClient(); if(c){ const r=await c.from('leads').update({status:'פולואפ',followup_at:iso,call_log:l.call_log}).eq('id',id); if(r&&r.error){ ok=await _saveCallLog(l); try{ await c.from('leads').update({status:'פולואפ',followup_at:iso}).eq('id',id); }catch(e){} } else { ok=true; } } }catch(e){ ok=await _saveCallLog(l); }
       // עדכון הכרטיס במקום (בלי renderLeads) כדי שהליד לא ירד/ייעלם
       var stSel=document.getElementById('st_'+id); if(stSel){ for(var k=0;k<stSel.options.length;k++){ if(stSel.options[k].value==='פולואפ'){ stSel.selectedIndex=k; break; } } }
       var fuEl=document.getElementById('fu_'+id); if(fuEl){ fuEl.value=iso.slice(0,10); fuEl.style.display='inline-block'; }
       var fulbl=document.getElementById('fulbl_'+id); if(fulbl) fulbl.textContent='📅 לחזור: '+fmtFollowup(iso);
     } else {
-      await _saveCallLog(l);
+      ok=await _saveCallLog(l);
     }
-    toast&&toast(setFu?('שיחה תועדה ✓ פולואפ נקבע לשבוע הבא 📅'):('שיחה תועדה: '+(out||'')+' ✓'));
+    if(ok) toast&&toast(setFu?('שיחה תועדה ✓ פולואפ נקבע לשבוע הבא 📅'):('שיחה תועדה: '+(out||'')+' ✓'));
+    else toast&&toast('⚠️ השיחה לא נשמרה לענן - בדוק חיבור / הרץ SQL להוספת call_log');
   }
   async function removeCallLog(id, idx){
     const l=leads.find(x=>String(x.id)===String(id)); if(!l) return;
