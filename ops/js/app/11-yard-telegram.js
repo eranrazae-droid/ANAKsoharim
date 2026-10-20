@@ -173,16 +173,20 @@ function filterPitsArchive() {
 window.filterPitsArchive = filterPitsArchive;
 
 async function archivePit(id) {
-  const { updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-  await updateDoc(doc(window._db, 'pit_checks', id), { status: 'archived', archivedAt: _serverTs() });
-  showToast('📁 הועבר לארכיון');
+  try {
+    const { updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    await updateDoc(doc(window._db, 'pit_checks', id), { status: 'archived', archivedAt: _serverTs() });
+    showToast('📁 הועבר לארכיון');
+  } catch (e) { console.error('archivePit', e); showToast('❌ לא עבר לארכיון — נסה שוב', 6000); }
 }
 window.archivePit = archivePit;
 
 async function markPitSent(id) {
-  const { updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-  await updateDoc(doc(window._db, 'pit_checks', id), { status: 'sent', sentAt: _serverTs() });
-  showToast('✅ סומן כנשלח');
+  try {
+    const { updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    await updateDoc(doc(window._db, 'pit_checks', id), { status: 'sent', sentAt: _serverTs() });
+    showToast('✅ סומן כנשלח');
+  } catch (e) { console.error('markPitSent', e); showToast('❌ הסימון לא נשמר — נסה שוב', 6000); }
 }
 window.markPitSent = markPitSent;
 
@@ -193,12 +197,17 @@ async function resendPitNotify(plate, checkType, brand, model, color, year) {
 }
 window.resendPitNotify = resendPitNotify;
 
+// קודם המצב משתנה, ורק אז יוצאת ההודעה לנהגים — ברקע. קודם חיכינו
+// שכל הנהגים יקבלו, ונהג אחד שההודעה אליו נתקעה השאיר את הבור בלי שינוי.
 async function managerPitSent(id, plate, checkType, brand, model, color, year) {
   const vDesc = [brand, model, color, year].filter(Boolean).join(' ');
-  await _notifyAllDrivers(`🕳️ בור/בדיקה חדשה נוספה — ${plate}${vDesc ? ' · '+vDesc : ''} (${checkType}). כנס לאפליקציה ענק הרכבים.`);
-  const { updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-  await updateDoc(doc(window._db, 'pit_checks', id), { status: 'sent', sentAt: _serverTs() });
+  try {
+    const { updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    await updateDoc(doc(window._db, 'pit_checks', id), { status: 'sent', sentAt: _serverTs() });
+  } catch (e) { console.error('managerPitSent', e); showToast('❌ הסימון לא נשמר — נסה שוב', 6000); return; }
   showToast('✅ נשלח לנהגים');
+  _notifyAllDrivers(`🕳️ בור/בדיקה חדשה נוספה — ${plate}${vDesc ? ' · '+vDesc : ''} (${checkType}). כנס לאפליקציה ענק הרכבים.`)
+    .catch(e => console.warn('pit notify', e));
 }
 window.managerPitSent = managerPitSent;
 

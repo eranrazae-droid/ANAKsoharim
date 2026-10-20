@@ -695,6 +695,7 @@ const _ONCE_GUARDED = [
   'convertSelectedBatteryToTask', 'submitBatteryAssignment', 'bsMarkOrdered',
   'bsmSettle', 'restorePickupCar', 'driverWhatsAppManager', 'submitCalEvent',
   'submitRefreshAssign', 'submitRefreshForm',
+  'managerPitSent', 'markPitSent', 'archivePit',
 ];
 window.addEventListener('load', () => _ONCE_GUARDED.forEach(_wrapOnce));
 
