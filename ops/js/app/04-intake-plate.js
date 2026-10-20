@@ -2188,9 +2188,9 @@ function _renderViewIntakeModal(v) {
   const tiles = [
     tile('ק״מ', v.km ? esc(Number(v.km) ? Number(v.km).toLocaleString('he-IL') : v.km) : '', true),
     tile('קוד', v.code ? esc(v.code) : '', true),
-    tile('צבע', esc(v.color || '')),
+    tile('נהג קולט', who, true),
     tile('חניה', esc(v.spot || '')),
-    tile('נהג קולט', who),
+    tile('צבע', esc(v.color || '')),
     tile('רכב חשמלי', evVal),
   ].join('');
 
