@@ -12,7 +12,7 @@
   const SEND_WAIT = 60e3;       // סיים למלא ולא שלח מעבר לזה — דפוס חריג
   const FAST_GAP = 2000, FAST_RUN = 6;   // 6 סעיפים ברצף, פחות מ-2 שניות בין אחד לשני
   const D = { logs: [], jobs: [], shopArch: [], washNotes: [], washPays: [], installs: [], orders: [], pro: [] };
-  let tab = 'pay', kind = 'intake', started = false;
+  let tab = 'time', kind = 'intake', started = false;
   const esc2 = s => (typeof esc === 'function' ? esc(String(s ?? '')) : String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])));
   const ms = t => t?.toMillis ? t.toMillis() : (typeof t === 'number' ? t : (t ? +new Date(t) : 0));
   const fmt = v => { v = Math.max(0, Math.round(v / 1000)); const m = Math.floor(v / 60), s = v % 60; return m >= 60 ? `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')} ש׳` : `${m}:${String(s).padStart(2, '0')}`; };
@@ -279,7 +279,7 @@
     const s = document.createElement('section');
     s.id = 'ui2-reports';
     s.innerHTML = `<div class="u2r-head"><h2>דוחות</h2><div class="u2r-tabs">
-        <button type="button" data-tab="pay">תשלומים</button><button type="button" data-tab="time">זמני ביצוע</button></div></div>
+        <button type="button" data-tab="time">זמני ביצוע</button><button type="button" data-tab="pay">תשלומים</button></div></div>
       <div class="u2r-body"></div>`;
     s.addEventListener('click', e => {
       const t = e.target.closest('[data-tab]'); if (t) { tab = t.dataset.tab; render(); return; }
