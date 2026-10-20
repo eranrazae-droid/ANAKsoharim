@@ -92,6 +92,7 @@
         kind: f.kind, refId: id,
         driver: d.completedBy || d.assignedTo || (typeof currentUser !== 'undefined' && currentUser?.name) || '',
         plate: d.plate || '',
+        ...(d.fromTestDrive ? { fromTestDrive: d.fromTestDrive } : {}),
         openedAt: st.openedAt, submittedAt: done,
         sessions: st.sessions.slice(-20),
         acts: st.acts.slice(-600),

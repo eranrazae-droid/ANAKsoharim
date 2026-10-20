@@ -11,7 +11,7 @@
   const LONG_IDLE = 3 * 60e3;   // הפסקה ארוכה מזה מסומנת בדוח
   const SEND_WAIT = 60e3;       // סיים למלא ולא שלח מעבר לזה — דפוס חריג
   const FAST_GAP = 2000, FAST_RUN = 6;   // 6 סעיפים ברצף, פחות מ-2 שניות בין אחד לשני
-  const D = { logs: [], jobs: [], shopArch: [], washNotes: [], washPays: [], installs: [], orders: [], pro: [] };
+  const D = { logs: [], tdIntakes: [], tdArch: [], jobs: [], shopArch: [], washNotes: [], washPays: [], installs: [], orders: [], pro: [] };
   let tab = 'time', kind = 'intake', started = false;
   const esc2 = s => (typeof esc === 'function' ? esc(String(s ?? '')) : String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])));
   const ms = t => t?.toMillis ? t.toMillis() : (typeof t === 'number' ? t : (t ? +new Date(t) : 0));
@@ -81,8 +81,15 @@
     ['overlap', '🔀', 'חפיפה בזמן'], ['batch', '🗂', 'קליטות צמודות'], ['early', '🌅', 'פתיחה מוקדמת'], ['base', '🏃', 'מהיר מהרגיל'], ['late', '⏳', 'עיכוב בשליחה'],
   ];
   const ICON = Object.fromEntries(PATTERNS.map(p => [p[0], p[1]]).concat([['idle', '⏸'], ['short', '⏱'], ['long', '🐢']]));
+  /* קליטה שנפתחה מהעברת נסיעת מבחן אינה קליטה של הנהג — לא נספרת בדוח.
+     רשומות חדשות נושאות את הסימון בעצמן; לישנות — לפי הקליטות עצמן. */
+  function logsOf(k) {
+    if (k !== 'intake') return D.logs.filter(l => l.kind === k);
+    const td = new Set([...D.tdIntakes.map(x => x.id), ...D.tdArch.map(x => x.originalId)]);
+    return D.logs.filter(l => l.kind === k && !l.fromTestDrive && !td.has(l.refId));
+  }
   function analyzeAll(driver, k) {
-    const rows = D.logs.filter(l => l.kind === k && l.driver === driver).map(l => ({ l, a: analyze(l) })).sort((x, y) => x.a.end - y.a.end);
+    const rows = logsOf(k).filter(l => l.driver === driver).map(l => ({ l, a: analyze(l) })).sort((x, y) => x.a.end - y.a.end);
     const add = (r, code, text) => { if (!r.a.codes.includes(code)) { r.a.codes.push(code); r.a.flags.push([code, text]); } };
     rows.forEach(r => {
       rows.forEach(o => {                                      // שתי קליטות שונות בו־זמנית
@@ -115,6 +122,8 @@
     const on = (ref, key, map) => { try { window._onSnap(ref, s => { D[key] = s.docs.map(d => ({ id: d.id, ...d.data() })); if (map) D[key] = map(D[key]); render(); }, () => {}); } catch (e) { console.warn('reports', key, e); } };
     const since = Date.now() - 60 * 864e5;
     on(window._query(window._colRef('timing_logs'), window._where('submittedAt', '>=', since)), 'logs');
+    on(window._query(window._colRef('intake_assignments'), window._where('fromTestDrive', '>', '')), 'tdIntakes');
+    on(window._query(window._colRef('intake_archive'), window._where('fromTestDrive', '>', '')), 'tdArch', a => a.map(x => ({ id: x.id, originalId: x.originalId })));
     on(window._query(window._colRef('bodyshop_jobs'), window._where('paidAt', '==', null)), 'jobs');
     on(window._colRef('bodyshop_archive'), 'shopArch');
     on(window._colRef('wash_notes'), 'washNotes');
@@ -161,7 +170,7 @@
   function timeStats(k) {
     const since = Date.now() - 30 * 864e5;
     return DRIVERS.map(name => {
-      const logs = D.logs.filter(l => l.kind === k && l.driver === name && (l.submittedAt || 0) >= since).map(l => ({ l, a: analyze(l) }));
+      const logs = logsOf(k).filter(l => l.driver === name && (l.submittedAt || 0) >= since).map(l => ({ l, a: analyze(l) }));
       // בבדיקת מלאי: ממוצע הזמן בין סימון לסימון; בשאר: זמן העבודה בפועל
       const val = x => k === 'inventory' ? x.a.meanGap : x.a.active;
       const counted = k === 'inventory' ? logs.filter(x => x.a.gaps) : logs;
