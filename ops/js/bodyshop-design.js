@@ -7,7 +7,7 @@
   const wrap = screen.querySelector('.bshop-wrap');
   const hero = document.createElement('section');
   hero.className = 'bsd-hero';
-  hero.innerHTML = '<div><h2>פחחות</h2><p>כל פתק במקום. כל רכב במעקב.</p></div>' +
+  hero.innerHTML = '<div><button type="button" class="bsd-back" aria-label="חזרה" onclick="goHome()">→</button><h2>פחחות</h2><p>כל רכב יוצא מכאן במיטבו — מראה מושלם עד הפרט האחרון.</p></div>' +
     '<img src="img/bodyshop-team.jpg" alt="תמונת הצוות" width="1536" height="1152">' +
     '<button type="button" class="bsd-more" onclick="bsmMMore()">⋯<span>פעולות</span></button>';
   wrap.prepend(hero);
