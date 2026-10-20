@@ -473,6 +473,8 @@ async function importTrelloTasks() {
 async function submitTask() {
   const title = document.getElementById('task-title').value.trim();
   if (!title) return showToast('נא להזין כותרת למשימה');
+  const taskLink = _tkNormLink(document.getElementById('task-link').value);
+  if (taskLink === null) return showToast('⚠️ הקישור אינו תקין');
   if (!window._CONFIG_DONE) return showToast('Firebase לא מחובר');
   const btn = document.querySelector('#modal-task .btn-submit');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ שומר...'; }
@@ -486,6 +488,7 @@ async function submitTask() {
       status:     'open',
       regionCity: taskCity,
       region:     _regionOfCity(taskCity),
+      ...(taskLink ? { link: taskLink } : {}),
       createdBy:  currentUser.name,
       createdAt:  _serverTs()
     });

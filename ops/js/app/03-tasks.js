@@ -300,6 +300,20 @@ function _tkAge(t) {
   if (!ms || isNaN(ms)) return null;
   return Math.max(0, Math.floor((Date.now() - ms) / 86400000));
 }
+/* קישור במשימה: לא חובה. נשמר בשדה link, ומוצג כסימן 🔗 ליד מלל המשימה — לחיצה פותחת אותו בלשונית חדשה */
+function _tkNormLink(v) {
+  v = String(v || '').trim();
+  if (!v) return '';
+  if (/\s/.test(v)) return null;
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(v)) v = 'https://' + v;
+  try { const u = new URL(v); return ((u.protocol === 'http:' || u.protocol === 'https:') && /\./.test(u.hostname)) ? u.href : null; } catch (e) { return null; }
+}
+function _tkLinkHtml(t) {
+  const u = _tkNormLink(t && t.link);
+  return u ? ` <a class="tk-link" href="${esc(u)}" target="_blank" rel="noopener noreferrer" title="פתח קישור" aria-label="פתח קישור" onclick="event.stopPropagation()">🔗</a>` : '';
+}
+window._tkNormLink = _tkNormLink;
+
 function _tkRow(t, readOnly, mgr) {
   const pt = _tkParseTitle(t.title);
   const age = _tkAge(t);
@@ -316,7 +330,7 @@ function _tkRow(t, readOnly, mgr) {
   el.dataset.id = t.id;
   el.innerHTML = `${mgr ? `<button type="button" class="tkr-del" onclick="tkSwipeDelete('${t.id}')">🗑<span>מחק</span></button><div class="tkr-fg">` : ''}<div class="tkr-main">
       <button type="button" class="tkr-ck" onclick="event.stopPropagation();${fn}" aria-label="בוצע"></button>
-      <div class="tkr-tx"><h3>${esc(pt.text)}</h3>${sub ? `<small>${esc(sub)}</small>` : ''}</div>
+      <div class="tkr-tx"><h3>${esc(pt.text)}${_tkLinkHtml(t)}</h3>${sub ? `<small>${esc(sub)}</small>` : ''}</div>
       ${ageTxt ? `<span class="tkr-lb" style="background:${t.color ? '#ef4444' : ageBg}">${ageTxt}</span>` : ''}
       ${readOnly ? '' : '<span class="tkr-h" title="גרור להחלפת מקום">⠿</span>'}
     </div>${more}${mgr ? '</div>' : ''}`;
@@ -501,7 +515,7 @@ function renderTasksFromCache() {
     card.innerHTML = `
       <div class="task-strip"${colColor && !t.color ? ` style="background:${colColor}"` : ''}></div>
       <div class="task-top">
-        <div class="task-title">${esc(t.title)}</div>
+        <div class="task-title">${esc(t.title)}${_tkLinkHtml(t)}</div>
       </div>
       ${t.notes ? `<div class="task-notes" style="font-size:12.5px;color:var(--muted);margin:0 0 7px">${esc(t.notes)}</div>` : ''}
       ${Array.isArray(t.photos) && t.photos.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:7px">${t.photos.map(p => `<img src="${p}" onclick="event.stopPropagation();openLightbox(this.src)" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:2px solid var(--border);cursor:pointer">`).join('')}</div>` : ''}
@@ -673,6 +687,7 @@ async function openEditTask(id) {
   document.getElementById('et-id').value = id;
   document.getElementById('et-title').value = t.title || '';
   document.getElementById('et-city').value = t.regionCity || '';
+  document.getElementById('et-link').value = t.link || '';
   document.getElementById('et-label').value = t.label || 'משימות כלליות';
   const existingColor = t.color || '';
   document.getElementById('et-color').value = existingColor;
@@ -735,6 +750,8 @@ async function saveEditTask() {
   if (!id) return;
   const title = document.getElementById('et-title').value.trim();
   if (!title) return showToast('נא להזין כותרת');
+  const etLink = _tkNormLink(document.getElementById('et-link').value);
+  if (etLink === null) return showToast('⚠️ הקישור אינו תקין');
   if (!_requireNet('שמירת המשימה')) return;
   // תמונות שנשמרות בתוך הרשומה חייבות להיכנס לתקציב הגודל
   const inRecord = _etPhotos.filter(p => String(p).startsWith('data:'));
@@ -750,6 +767,7 @@ async function saveEditTask() {
       regionCity: etCity,
       region: _regionOfCity(etCity),
       photos: _etPhotos,
+      link: etLink,
     });
     closeModal('modal-edit-task');
     showToast('✅ המשימה עודכנה!');
@@ -895,6 +913,7 @@ function toggleTaskDone(id, currentStatus) {
 function openNewTaskModal() {
   document.getElementById('task-title').value = '';
   document.getElementById('task-city').value = '';
+  document.getElementById('task-link').value = '';
   document.getElementById('task-label').value = 'משימות כלליות';
   document.getElementById('task-color').value = '';
   document.querySelectorAll('#task-color-picker .color-swatch').forEach((s,i) => s.classList.toggle('selected', i===0));
