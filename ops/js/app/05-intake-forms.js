@@ -676,6 +676,28 @@ async function _runOnce(key, btn, busyText, fn) {
 }
 window._runOnce = _runOnce;
 
+/* אותו מגן לפעולות שנקראות ישירות מהכפתור (בלי _runOnce ב-onclick):
+   לחיצה נוספת בזמן שהפעולה רצה נבלעת, והכפתור שנלחץ מראה ⏳.
+   המפתח כולל את הפרמטרים — כך פתקים שונים לא חוסמים זה את זה. */
+function _wrapOnce(name) {
+  const fn = window[name];
+  if (typeof fn !== 'function' || fn._onceWrapped) return;
+  const w = function (...args) {
+    const key = 'once:' + name + '|' + args.filter(a => a == null || typeof a !== 'object').join('|');
+    const btn = window.event?.target?.closest?.('button') || null;
+    return _runOnce(key, btn, null, () => fn.apply(this, args));
+  };
+  w._onceWrapped = true;
+  window[name] = w;
+}
+const _ONCE_GUARDED = [
+  'completeTdLivePanel', 'tdResultConvertToIntake', 'tdSendToIntake',
+  'convertSelectedBatteryToTask', 'submitBatteryAssignment', 'bsMarkOrdered',
+  'bsmSettle', 'restorePickupCar', 'driverWhatsAppManager', 'submitCalEvent',
+  'submitRefreshAssign', 'submitRefreshForm',
+];
+window.addEventListener('load', () => _ONCE_GUARDED.forEach(_wrapOnce));
+
 async function submitVehicle() {
   return _runOnce('submitVehicle', '#modal-vehicle .btn-submit', '⏳ שולח...', _submitVehicleInner);
 }

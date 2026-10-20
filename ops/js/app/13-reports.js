@@ -1763,15 +1763,18 @@ function _renderTdLivePanel(data) {
   const footer = document.getElementById('td-live-footer');
   if (footer) {
     const parkBtn = `<button onclick="parkTdLivePanel()" style="flex:1;background:#eab308;color:#fff;border:none;border-radius:12px;padding:14px 8px;font-family:Heebo,sans-serif;font-weight:800;font-size:14px;cursor:pointer">⏳ מצב המתנה</button>`;
+    let fHtml;
     if (isDone) {
-      footer.innerHTML = `<div style="display:flex;gap:8px">
+      fHtml = `<div style="display:flex;gap:8px">
         <button onclick="completeTdLivePanel()" style="flex:1;background:#16a34a;color:#fff;border:none;border-radius:12px;padding:14px 8px;font-family:Heebo,sans-serif;font-weight:800;font-size:14px;cursor:pointer">✅ סיום — העבר לקליטה</button>
         ${parkBtn}
       </div>`;
     } else {
-      footer.innerHTML = `<div style="font-size:12px;color:var(--muted);text-align:center;margin-bottom:10px">הנהג ממלא את הטופס • הנתונים מתעדכנים בלייב</div>
+      fHtml = `<div style="font-size:12px;color:var(--muted);text-align:center;margin-bottom:10px">הנהג ממלא את הטופס • הנתונים מתעדכנים בלייב</div>
         <div style="display:flex">${parkBtn}</div>`;
     }
+    // בונים מחדש רק כשהכפתורים השתנו — עדכון חי באמצע לחיצה לא יבלע אותה
+    if (footer._html !== fHtml) { footer.innerHTML = fHtml; footer._html = fHtml; }
   }
 }
 
@@ -1803,7 +1806,15 @@ window._tdLiveCiClick = _tdLiveCiClick;
 
 // shared by the live-panel "סיים" button AND the results-popup button (used
 // when the manager wasn't watching that specific test drive live)
+// נסיעה שכבר בתהליך העברה לא תועבר פעם שנייה במקביל (פאנל חי + חלון תוצאות)
+const _tdConverting = new Set();
 async function _tdConvertToIntake(tdId, data) {
+  if (_tdConverting.has(tdId)) return false;
+  _tdConverting.add(tdId);
+  try { return await _tdConvertToIntakeInner(tdId, data); }
+  finally { _tdConverting.delete(tdId); }
+}
+async function _tdConvertToIntakeInner(tdId, data) {
   data = data || {};
   console.log('[TD→INTAKE] data:', JSON.stringify(data).slice(0,500));
   if (!data.checks && !data.draft?.checks) {
@@ -1889,7 +1900,11 @@ async function _tdConvertToIntake(tdId, data) {
     await updateDoc(doc(window._db, 'test_drives', tdId), { status: 'transferred' });
     console.log('[TD→INTAKE] done ✅');
     return true;
-  } catch(e) { console.error('[TD→INTAKE] ERROR:', e); return false; }
+  } catch(e) {
+    console.error('[TD→INTAKE] ERROR:', e);
+    showToast('❌ ההעברה לקליטה נכשלה — אפשר לנסות שוב', 6000);
+    return false;
+  }
 }
 
 async function tdResultConvertToIntake() {
@@ -1906,7 +1921,8 @@ window.tdResultConvertToIntake = tdResultConvertToIntake;
 
 async function completeTdLivePanel() {
   if (!_tdLivePanelId) return;
-  await _tdConvertToIntake(_tdLivePanelId, _tdLivePanelData);
+  const ok = await _tdConvertToIntake(_tdLivePanelId, _tdLivePanelData);
+  if (!ok) return;                      // הפאנל נשאר פתוח — ההודעה כבר הוצגה
   if (_tdLivePanelUnsub) { _tdLivePanelUnsub(); _tdLivePanelUnsub = null; }
   _tdLivePanelId = null;
   _tdLivePanelData = null;
