@@ -791,7 +791,14 @@ async function publishYard() {
   if (!window._CONFIG_DONE) return showToast('Firebase לא מחובר');
   await _yardUpdate({ data: yardData, updatedAt: _serverTs(), publishedAt: _serverTs(), status: 'pending' });
   showToast('📤 הטבלה נשלחה לנהגים!');
-  _notifyAllDrivers('🅿️ סידור מגרש חדש נשלח. כנס לאפליקציה ענק הרכבים לצפייה בטבלה.');
+  // אחרי השליחה — מי קיבל ומי לא, כדי שנהג שלא הגיעה אליו הודעה לא ייעלם בשקט
+  _notifyAllDrivers('🅿️ סידור מגרש חדש נשלח. כנס לאפליקציה ענק הרכבים לצפייה בטבלה.')
+    .then(r => {
+      if (!r) return;
+      if (r.fail.length) showToast(`⚠️ ההודעה לא הגיעה ל: ${r.fail.join(', ')} — לא מופעלות אצלם התראות (פוש בטלפון / טלגרם)${r.ok.length ? ` · קיבלו: ${r.ok.join(', ')}` : ''}`, 9000);
+      else if (r.ok.length) showToast(`📲 ההודעה הגיעה ל: ${r.ok.join(', ')}`, 4000);
+    })
+    .catch(e => console.warn('yard notify', e));
   _sendYardImageToDrivers({ ...yardData }).catch(e => console.warn('yard photo', e));
   const btn = document.getElementById('yard-publish-btn');
   if (btn) {
@@ -1060,7 +1067,11 @@ async function _notifyAllDrivers(message) {
   const contacts = await _loadDriverContacts();
   const names = new Set(_ALL_USERS.filter(u => u.role === 'driver').map(u => u.name));
   Object.keys(contacts).forEach(k => { if (!k.startsWith('_') && k !== 'ליאל') names.add(k); });
-  await Promise.all([...names].map(n => _notifyDriver(n, message).catch(e => console.warn('notify', n, e))));
+  const ok = [], fail = [];
+  await Promise.all([...names].map(n => _notifyDriver(n, message)
+    .then(r => (r ? ok : fail).push(n))
+    .catch(e => { console.warn('notify', n, e); fail.push(n); })));
+  return { ok, fail };
 }
 
 // ─── Settings screen ───────────────────────────────────
