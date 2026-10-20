@@ -102,6 +102,25 @@
       }
     });
   }
+  /* מידות הלוח לפי המקום והעמודות שמוצגות: הרוחב מתחלק שווה בין העמודות (בין 110 ל-340 פיקסלים)
+     והעמודות נשארות במרכז; הגובה הוא של העמודה הארוכה ביותר, עד סוף המסך — כולן באותו גובה */
+  function fitBoard() {
+    if (!board || !board.isConnected) return;
+    const vis = columns().filter(col => !col.hidden), n = vis.length;
+    if (!n) return;
+    const cs = getComputedStyle(board), gap = 14;
+    const avail = board.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    board.style.setProperty('--u2-colw', Math.max(110, Math.min(340, Math.floor((avail - gap * (n - 1)) / n))) + 'px');
+    board.style.setProperty('--u2-rowh', 'minmax(0,1fr)');       // מדידה: הלוח ממלא את המסך, וה-scrollHeight הוא התוכן
+    board.style.height = '';
+    let need = 0;
+    vis.forEach(col => {
+      const head = col.querySelector('.task-col-header'), cards = col.querySelector('.task-col-cards');
+      need = Math.max(need, (head ? head.offsetHeight : 0) + (cards ? cards.scrollHeight : 0));
+    });
+    const room = window.innerHeight - board.getBoundingClientRect().top - parseFloat(cs.paddingBottom) - 4;
+    board.style.setProperty('--u2-rowh', Math.floor(Math.max(Math.min(240, room), Math.min(need + 4, room))) + 'px');
+  }
   function updateColumns() {
     if (!board || !picker) return;
     const all = columns(), available = [];
@@ -131,8 +150,7 @@
     });
     picker.classList.toggle('u2-high', mode === 'high');
     board.classList.toggle('u2-high', mode === 'high');
-    // רוחב עמודה קבוע — כאילו כל העמודות מוצגות ויש מקום לכולן
-    board.style.setProperty('--u2-ncols', Math.max(1, all.filter(col => !originals.get(col)?.hidden).length));
+    fitBoard();
     const count = all.filter(col => !col.hidden).length;
     const userHidden = all.filter(col => hidden.has(col.dataset.u2ColumnKey || '')).length;
     picker.querySelector('.u2-column-status').textContent = count + ' עמודות עם משימות' +
