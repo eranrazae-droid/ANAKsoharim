@@ -2888,6 +2888,14 @@
     const car=[g('nl_brand'),g('nl_model')].filter(Boolean).join(' ');
     if(!name){ alert('נא למלא שם מלא'); return; }
     if(!/^0\d{1,2}-?\d{7}$/.test(phone)){ alert('נא להזין מספר טלפון נייד תקין'); return; }
+    // חסימת כפילות - אם כבר קיים ליד עם אותו מספר טלפון
+    const _digits=s=>(s==null?'':String(s)).replace(/[^0-9]/g,'');
+    const dup=(Array.isArray(leads)?leads:[]).find(l=>l && _digits(l.phone)===_digits(phone));
+    if(dup){
+      alert('⚠️ הלקוח כבר קיים במערכת!\n\n'+(dup.name||'ללא שם')+' · '+(dup.phone||'')+(dup.status?('\nסטטוס: '+dup.status):'')+'\n\nחפש אותו ברשימת הלידים במקום להקים חדש.');
+      const srch=document.getElementById('leadSearch'); if(srch){ srch.value=phone; window._leadSearch=phone; try{ renderLeads(); }catch(e){} srch.scrollIntoView({behavior:'smooth',block:'center'}); }
+      return;
+    }
     const row={ name:name, phone:phone, city:city, car:car, action:'ליד ידני', source:source, status:'פתוח', created_at:new Date().toISOString() };
     let ok=false;
     try{ const c=sbClient(); if(c){ const {error}=await c.from('leads').insert(row); ok=!error; if(error) console.warn('addLead', error.message); } }catch(e){ console.warn('addLead ex', e); }
