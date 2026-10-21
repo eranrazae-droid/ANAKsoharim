@@ -57,6 +57,38 @@
     box.insertBefore(footer, submit);
     footer.append(selection, submit); // Retain the same button, onclick and busy state.
 
+    // One live form: desktop splits it into details on the right and choices on the left.
+    // On phones these wrappers use display:contents, retaining the existing CSS order.
+    const body = document.createElement('div'); body.className = 'u2td-body';
+    const details = document.createElement('div'); details.className = 'u2td-details';
+    const columns = document.createElement('div'); columns.className = 'u2td-columns';
+    box.insertBefore(body, footer);
+    details.append(title.closest('.form-group'), city.closest('.form-group'),
+      color.closest('.form-group'), toggle, linkGroup);
+    columns.appendChild(selectGroup);
+    body.append(details, columns);
+
+    // The desktop writing area mirrors the original field read by submitTask().
+    const editor = document.createElement('textarea');
+    editor.className = 'form-input u2td-title-editor';
+    editor.setAttribute('aria-label', 'כותרת המשימה');
+    editor.rows = 4; editor.placeholder = title.placeholder;
+    editor.value = title.value;
+    title.closest('.form-group').appendChild(editor);
+    let writingFromEditor = false;
+    editor.addEventListener('input', function () {
+      // Task titles are stored through a single-line input; retain word boundaries.
+      title.value = editor.value.replace(/[\r\n]+/g, ' ');
+      writingFromEditor = true;
+      try { title.dispatchEvent(new Event('input', { bubbles: true })); }
+      finally { writingFromEditor = false; }
+    });
+    function syncEditor() {
+      if (!writingFromEditor && editor.value !== title.value) editor.value = title.value;
+    }
+    title.addEventListener('input', syncEditor);
+    title.addEventListener('change', syncEditor);
+
     function setLinkOpen(open) {
       linkGroup.classList.toggle('u2td-collapsed', !open);
       toggle.setAttribute('aria-expanded', String(open));
@@ -134,6 +166,7 @@
         // openNewTaskModal resets .value silently before it opens the modal.
         renderOptions();
         setLinkOpen(Boolean(link.value.trim()));
+        syncEditor();
       }
       wasOpen = open;
     }
