@@ -80,7 +80,7 @@
     card.append(actions);
     return card;
   }
-  let completedCompact = false;
+  let completedCollapsed = false;   // הקבוצה הכחולה סגורה / פתוחה (נשמר בזמן השימוש)
   function completionHeading(text, count, completed) {
     const heading = document.createElement('h3');
     heading.className = 'bsd-status-heading' + (completed ? ' bsd-status-complete' : '');
@@ -94,13 +94,13 @@
       toggle.type = 'button'; toggle.className = 'bsd-size-toggle';
       toggle.setAttribute('aria-controls', 'bsd-open-cards');
       function syncToggle() {
-        toggle.textContent = completedCompact ? '⤢ הרחב כרטיסים' : '⤡ הקטן כרטיסים';
-        toggle.setAttribute('aria-expanded', String(!completedCompact));
+        toggle.textContent = completedCollapsed ? '▾ פתח' : '▴ סגור';
+        toggle.setAttribute('aria-expanded', String(!completedCollapsed));
       }
       syncToggle();
       toggle.addEventListener('click', () => {
-        completedCompact = !completedCompact;
-        hosts.open.classList.toggle('bsd-completed-compact', completedCompact);
+        completedCollapsed = !completedCollapsed;
+        hosts.open.classList.toggle('bsd-completed-collapsed', completedCollapsed);
         syncToggle(); fit();
       });
       heading.append(toggle);
@@ -177,7 +177,7 @@
           if (key !== _bsmView) continue;
           const scroll = host.scrollTop;
           host.classList.toggle('bsd-separated', key === 'open' && data[key].length > 0);
-          host.classList.toggle('bsd-completed-compact', key === 'open' && completedCompact);
+          host.classList.toggle('bsd-completed-collapsed', key === 'open' && completedCollapsed);
           if (key === 'open') host.id = 'bsd-open-cards';
           host.replaceChildren(...desktopNodes(key, data[key]));
           if (!data[key].length) host.innerHTML = '<p class="bsd-empty">אין רכבים בשלב זה</p>';
@@ -206,20 +206,15 @@
     const headingHeight = headings.reduce((sum, heading) => sum + heading.getBoundingClientRect().height, 0);
     let extraHeight = headingHeight + gap * headings.length;
     // הרכבים שעוד לא סיימנו קודמים: כשיש מהם יותר מחמישה (שתי שורות) הם ממלאים את כל השטח, והכחולים מתחתיהם בגלילה
-    if (headings.length && list.querySelectorAll(':scope > .bsd-card:not(.bsd-mgrdone)').length > 5) {
-      extraHeight = headings[0].getBoundingClientRect().height + gap;
-    }
-    const row = Math.max(mobile ? (innerHeight <= 650 ? 52 : 60) : 172, Math.floor((space - extraHeight - gap * (count - 1)) / count));
+    const working = list.querySelectorAll(':scope > .bsd-card:not(.bsd-mgrdone)').length;
+    const collapsed = list.classList.contains('bsd-completed-collapsed');
+    let rows = count;
+    if (headings.length && collapsed) rows = Math.max(1, Math.min(2, Math.ceil(working / 5)));   // הקבוצה הכחולה סגורה — רק שורות הרכבים שבעבודה
+    else if (headings.length && working > 5) extraHeight = headings[0].getBoundingClientRect().height + gap;
+    let row = Math.max(mobile ? (innerHeight <= 650 ? 52 : 60) : 172, Math.floor((space - extraHeight - gap * (rows - 1)) / rows));
+    if (collapsed && rows === 1) row = Math.min(row, 260);
     list.style.setProperty('--bsd-row', row + 'px');
-    if (!mobile && list.classList.contains('bsd-completed-compact')) {
-      // Start small, then grow every blue card to the tallest card's actual content.
-      // A shared measured height keeps all rows symmetric without clipping actions.
-      list.style.setProperty('--bsd-compact-row', '128px');
-      const cards = [...list.querySelectorAll(':scope > .bsd-card.bsd-mgrdone')];
-      const compactHeight = Math.max(128, ...cards.map(card => card.scrollHeight + 2));
-      list.style.setProperty('--bsd-compact-row', compactHeight + 'px');
-    }
-    list.style.height = (row * count + gap * (count - 1) + extraHeight) + 'px';
+    list.style.height = (row * rows + gap * (rows - 1) + extraHeight) + 'px';
   }
   observe();
   addEventListener('resize', schedule);
