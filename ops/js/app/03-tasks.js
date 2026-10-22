@@ -308,9 +308,9 @@ function _tkNormLink(v) {
   if (!/^[a-z][a-z0-9+.-]*:/i.test(v)) v = 'https://' + v;
   try { const u = new URL(v); return ((u.protocol === 'http:' || u.protocol === 'https:') && /\./.test(u.hostname)) ? u.href : null; } catch (e) { return null; }
 }
-function _tkLinkHtml(t) {
+function _tkLinkHtml(t, before) {
   const u = _tkNormLink(t && t.link);
-  return u ? ` <a class="tk-link" href="${esc(u)}" target="_blank" rel="noopener noreferrer" title="פתח קישור" aria-label="פתח קישור" onclick="event.stopPropagation()">🔗</a>` : '';
+  return u ? `${before ? '' : ' '}<a class="tk-link${before ? ' tk-pre' : ''}" href="${esc(u)}" target="_blank" rel="noopener noreferrer" title="פתח קישור" aria-label="פתח קישור" onclick="event.stopPropagation()">🔗</a>${before ? ' ' : ''}` : '';
 }
 window._tkNormLink = _tkNormLink;
 
@@ -515,7 +515,7 @@ function renderTasksFromCache() {
     card.innerHTML = `
       <div class="task-strip"${colColor && !t.color ? ` style="background:${colColor}"` : ''}></div>
       <div class="task-top">
-        <div class="task-title">${esc(t.title)}${_tkLinkHtml(t)}</div>
+        <div class="task-title">${_tkLinkHtml(t, true)}${esc(t.title)}</div>
       </div>
       ${t.notes ? `<div class="task-notes" style="font-size:12.5px;color:var(--muted);margin:0 0 7px">${esc(t.notes)}</div>` : ''}
       ${Array.isArray(t.photos) && t.photos.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:7px">${t.photos.map(p => `<img src="${p}" onclick="event.stopPropagation();openLightbox(this.src)" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:2px solid var(--border);cursor:pointer">`).join('')}</div>` : ''}
