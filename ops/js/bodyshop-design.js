@@ -80,6 +80,7 @@
     card.append(actions);
     return card;
   }
+  let completedCompact = false;
   function completionHeading(text, count, completed) {
     const heading = document.createElement('h3');
     heading.className = 'bsd-status-heading' + (completed ? ' bsd-status-complete' : '');
@@ -88,6 +89,22 @@
     const total = document.createElement('span');
     total.className = 'bsd-status-count'; total.textContent = String(count);
     heading.append(label, total);
+    if (completed) {
+      const toggle = document.createElement('button');
+      toggle.type = 'button'; toggle.className = 'bsd-size-toggle';
+      toggle.setAttribute('aria-controls', 'bsd-open-cards');
+      function syncToggle() {
+        toggle.textContent = completedCompact ? '⤢ הרחב כרטיסים' : '⤡ הקטן כרטיסים';
+        toggle.setAttribute('aria-expanded', String(!completedCompact));
+      }
+      syncToggle();
+      toggle.addEventListener('click', () => {
+        completedCompact = !completedCompact;
+        hosts.open.classList.toggle('bsd-completed-compact', completedCompact);
+        syncToggle(); fit();
+      });
+      heading.append(toggle);
+    }
     return heading;
   }
   function desktopNodes(key, jobs) {
@@ -160,6 +177,8 @@
           if (key !== _bsmView) continue;
           const scroll = host.scrollTop;
           host.classList.toggle('bsd-separated', key === 'open' && data[key].length > 0);
+          host.classList.toggle('bsd-completed-compact', key === 'open' && completedCompact);
+          if (key === 'open') host.id = 'bsd-open-cards';
           host.replaceChildren(...desktopNodes(key, data[key]));
           if (!data[key].length) host.innerHTML = '<p class="bsd-empty">אין רכבים בשלב זה</p>';
           host.scrollTop = scroll;
@@ -188,6 +207,14 @@
     const extraHeight = headingHeight + gap * headings.length;
     const row = Math.max(mobile ? (innerHeight <= 650 ? 52 : 60) : 172, Math.floor((space - extraHeight - gap * (count - 1)) / count));
     list.style.setProperty('--bsd-row', row + 'px');
+    if (!mobile && list.classList.contains('bsd-completed-compact')) {
+      // Start small, then grow every blue card to the tallest card's actual content.
+      // A shared measured height keeps all rows symmetric without clipping actions.
+      list.style.setProperty('--bsd-compact-row', '128px');
+      const cards = [...list.querySelectorAll(':scope > .bsd-card.bsd-mgrdone')];
+      const compactHeight = Math.max(128, ...cards.map(card => card.scrollHeight + 2));
+      list.style.setProperty('--bsd-compact-row', compactHeight + 'px');
+    }
     list.style.height = (row * count + gap * (count - 1) + extraHeight) + 'px';
   }
   observe();
