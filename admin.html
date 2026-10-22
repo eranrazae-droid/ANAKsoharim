@@ -448,6 +448,21 @@
         </div>
         <p style="color:var(--muted);font-size:13px;margin-bottom:14px">5 כרטיסי סטורי מוכנים (מתחלפים כל יום). הורד את כולם בלחיצה, או צלם מסך 📸</p>
         <div style="text-align:center;margin-bottom:18px"><button onclick="downloadAllStories(this)" style="background:linear-gradient(90deg,#2563eb,#D4A017);color:#fff;border:none;border-radius:12px;padding:13px 30px;font-size:15px;font-weight:900;cursor:pointer;box-shadow:0 4px 14px rgba(37,99,235,.35)">⬇️ הורד את כל התמונות</button></div>
+        <div class="card panel" style="margin-bottom:18px;background:linear-gradient(135deg,#fff7ed,#fff)">
+          <div style="font-weight:900;margin-bottom:8px">✍️ טקסט לטיקטוק לפי מספר רישוי</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+            <input id="ttPlate" type="text" placeholder="הקלד מספר רכב..." onkeydown="if(event.key==='Enter'){event.preventDefault();tiktokByPlate();}" style="flex:1;min-width:160px;padding:10px 12px;font-size:14px;border:1px solid var(--line);border-radius:10px"/>
+            <button class="btn btn-black" onclick="tiktokByPlate()" style="white-space:nowrap">✍️ צור פוסט</button>
+            <span id="ttPlateStatus" style="font-size:12px;color:#64748b"></span>
+          </div>
+          <div id="ttPlateOut" style="display:none">
+            <textarea id="ttPlateText" style="width:100%;min-height:150px;padding:10px 12px;font-size:14px;border-radius:10px;border:1px solid var(--line);line-height:1.6"></textarea>
+            <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+              <button onclick="copyTTPlate()" style="background:#16a34a;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:14px;font-weight:800;cursor:pointer">📋 העתק</button>
+              <button onclick="tiktokByPlate(true)" style="background:#7c3aed;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:14px;font-weight:800;cursor:pointer">🔄 נוסח אחר</button>
+            </div>
+          </div>
+        </div>
         <div id="storyCards" style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center"></div>
       </div>
 
@@ -2160,6 +2175,68 @@
       if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(post).then(ok, function(){ _copyFallback(post,ok); }); }
       else { _copyFallback(post,ok); }
     }catch(e){ _copyFallback(post,ok); }
+  }
+  // ===== טקסט טיקטוק לפי מספר רישוי =====
+  var _ttLastCar=null;
+  async function tiktokByPlate(variantOnly){
+    const inp=document.getElementById('ttPlate'), st=document.getElementById('ttPlateStatus');
+    var car=_ttLastCar;
+    if(!variantOnly || !car){
+      const plate=((inp||{}).value||'').replace(/[^0-9]/g,'').trim();
+      if(!plate){ if(st){st.textContent='הקלד מספר רכב';st.style.color='#dc2626';} return; }
+      if(st){ st.textContent='מחפש…'; st.style.color='#64748b'; }
+      car=null;
+      const resources=['053cea08-09bc-40ec-8f7a-156f0677aff3','cd3acc5c-03c3-4c89-9c54-d40f93c0d790','bf9df4e2-d90d-4c0a-a400-19e15af8e95f'];
+      try{
+        for(const rid of resources){
+          const url='https://data.gov.il/api/3/action/datastore_search?resource_id='+rid+'&q='+plate;
+          let r; try{ r=await fetch(url); }catch(e){ continue; }
+          if(!r.ok) continue;
+          const j=await r.json();
+          const rec=(j&&j.result&&j.result.records||[]).find(x=>String(x.mispar_rechev)===plate);
+          if(rec){
+            car={ brand:(rec.tozeret_nm?String(rec.tozeret_nm).replace(/\s+/g,' ').trim():''), model:((rec.kinuy_mishari||rec.degem_nm)?String(rec.kinuy_mishari||rec.degem_nm).replace(/\s+/g,' ').trim():''), year:(rec.shnat_yitzur?String(rec.shnat_yitzur).trim():'') };
+            break;
+          }
+        }
+      }catch(e){}
+      if(!car){ if(st){st.textContent='לא נמצא במאגר';st.style.color='#dc2626';} return; }
+      // אם הרכב קיים במלאי - נשלוף ממנו מחיר והחזר חודשי
+      var _n=s=>(s==null?'':String(s)).replace(/\s+/g,' ').trim().toLowerCase();
+      var inv=(typeof cars!=='undefined'&&Array.isArray(cars))?cars:[];
+      var match=inv.find(x=>_n(x.brand)===_n(car.brand)&&_n(x.model)===_n(car.model)) || inv.find(x=>car.model&&_n(x.model).indexOf(_n(car.model))>=0);
+      if(match){ car.price=Number(match.autodealerPriceNumber)||0; car.lic=Number(match.licenseFee)||0; }
+      _ttLastCar=car;
+      if(st){ st.textContent='✓ '+(car.brand+' '+car.model).trim(); st.style.color='#15803d'; }
+    }
+    const post=_buildTikTokPost(car);
+    const out=document.getElementById('ttPlateOut'), ta=document.getElementById('ttPlateText');
+    if(out) out.style.display='block';
+    if(ta) ta.value=post;
+  }
+  function _buildTikTokPost(car){
+    var name=((car.brand||'')+' '+(car.model||'')).replace(/\s+/g,' ').trim();
+    var yr=car.year?(' '+car.year):'';
+    var monthly=(car.price&&car.price>1)?_voMonthly(car.price+(Number(car.lic)||0)):0;
+    var brandTag=(car.brand||'').replace(/[^0-9A-Za-z֐-׿]/g,'');
+    var hooks=['עצרו הכל! 🛑','מצאתי לכם דיל 🔥','זה הרכב שכולם מחפשים 👀','בלי לבזבז זמן —','שווה לכם לראות את זה 👇'];
+    var deals=monthly>0?['החל מ-'+monthly.toLocaleString('en-US')+'₪ לחודש, בלי מקדמה','רק '+monthly.toLocaleString('en-US')+'₪ בחודש · מימון עד 100%','מ-'+monthly.toLocaleString('en-US')+'₪ לחודש וזה שלכם']:['במחיר הכי טוב בארץ, בלי מקדמה','מחיר דיל מהיבואן · מימון עד 100%'];
+    var ctas=['רוצה גם? שלח לי הודעה 📩','מעוניין? דבר איתי בפרטי 💬','לפרטים – הקליקו על הלינק בביו 🔗','תכתבו לי "מעוניין" ואחזור אליכם 📲'];
+    var pick=a=>a[Math.floor(Math.random()*a.length)];
+    var tags=['#רכבחדש','#0קמ',(brandTag?('#'+brandTag):''),'#אוטודילר','#מבצערכב','#רילס','#טרייד_אין'].filter(Boolean);
+    // בחירה אקראית של 5 האשטגים
+    tags=tags.sort(()=>Math.random()-0.5).slice(0,5);
+    return pick(hooks)+' '+name+yr+' חדש 0 ק״מ 🚗\n'+
+      pick(deals)+' 💰\n'+
+      'יבואן רשמי · טרייד-אין לרכב הישן · ליווי אישי עד הסוף\n'+
+      pick(ctas)+'\n\n'+
+      tags.join(' ');
+  }
+  function copyTTPlate(){
+    var ta=document.getElementById('ttPlateText'); if(!ta) return;
+    var txt=ta.value;
+    function ok(){ toast&&toast('הפוסט הועתק ✓'); }
+    try{ if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(ok,function(){_copyFallback(txt,ok);}); } else { _copyFallback(txt,ok); } }catch(e){ _copyFallback(txt,ok); }
   }
   // המשימה הבאה האישית - הרכב הבא שצריך פרסום בערוצים של האדם הנבחר
   // דילוג על רכב (לא במלאי) - נשמר כדי שלא יחזור כמשימה
