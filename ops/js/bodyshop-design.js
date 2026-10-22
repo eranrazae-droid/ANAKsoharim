@@ -80,6 +80,26 @@
     card.append(actions);
     return card;
   }
+  function completionHeading(text, count, completed) {
+    const heading = document.createElement('h3');
+    heading.className = 'bsd-status-heading' + (completed ? ' bsd-status-complete' : '');
+    const label = document.createElement('span');
+    label.textContent = text;
+    const total = document.createElement('span');
+    total.className = 'bsd-status-count'; total.textContent = String(count);
+    heading.append(label, total);
+    return heading;
+  }
+  function desktopNodes(key, jobs) {
+    if (key !== 'open' || !jobs.length) return jobs.map(desktopCard);
+    // mgrDone is a manager's visual marker, not a returned/paid job status.
+    const working = jobs.filter(job => !job.mgrDone);
+    const completed = jobs.filter(job => !!job.mgrDone);
+    const nodes = [];
+    if (working.length) nodes.push(completionHeading('עדיין בעבודה', working.length, false), ...working.map(desktopCard));
+    if (completed.length) nodes.push(completionHeading('סיימנו — עדיין אצל הפחח', completed.length, true), ...completed.map(desktopCard));
+    return nodes;
+  }
   function mobileRows(jobs) {
     const rows = document.createElement('div');
     rows.className = 'bsd-rows';
@@ -139,7 +159,8 @@
         for (const [key, host] of Object.entries(hosts)) {
           if (key !== _bsmView) continue;
           const scroll = host.scrollTop;
-          host.replaceChildren(...data[key].map(desktopCard));
+          host.classList.toggle('bsd-separated', key === 'open' && data[key].length > 0);
+          host.replaceChildren(...desktopNodes(key, data[key]));
           if (!data[key].length) host.innerHTML = '<p class="bsd-empty">אין רכבים בשלב זה</p>';
           host.scrollTop = scroll;
         }
@@ -162,9 +183,12 @@
     const gap = mobile ? 6 : 10;
     const count = mobile ? 5 : 2;
     // Short/zoomed viewports retain readable touch targets and page scrolling.
-    const row = Math.max(mobile ? (innerHeight <= 650 ? 52 : 60) : 172, Math.floor((space - gap * (count - 1)) / count));
+    const headings = mobile ? [] : [...list.querySelectorAll(':scope > .bsd-status-heading')];
+    const headingHeight = headings.reduce((sum, heading) => sum + heading.getBoundingClientRect().height, 0);
+    const extraHeight = headingHeight + gap * headings.length;
+    const row = Math.max(mobile ? (innerHeight <= 650 ? 52 : 60) : 172, Math.floor((space - extraHeight - gap * (count - 1)) / count));
     list.style.setProperty('--bsd-row', row + 'px');
-    list.style.height = (row * count + gap * (count - 1)) + 'px';
+    list.style.height = (row * count + gap * (count - 1) + extraHeight) + 'px';
   }
   observe();
   addEventListener('resize', schedule);
