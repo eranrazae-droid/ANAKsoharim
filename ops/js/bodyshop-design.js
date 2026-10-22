@@ -204,7 +204,11 @@
     // Short/zoomed viewports retain readable touch targets and page scrolling.
     const headings = mobile ? [] : [...list.querySelectorAll(':scope > .bsd-status-heading')];
     const headingHeight = headings.reduce((sum, heading) => sum + heading.getBoundingClientRect().height, 0);
-    const extraHeight = headingHeight + gap * headings.length;
+    let extraHeight = headingHeight + gap * headings.length;
+    // הרכבים שעוד לא סיימנו קודמים: כשיש מהם יותר מחמישה (שתי שורות) הם ממלאים את כל השטח, והכחולים מתחתיהם בגלילה
+    if (headings.length && list.querySelectorAll(':scope > .bsd-card:not(.bsd-mgrdone)').length > 5) {
+      extraHeight = headings[0].getBoundingClientRect().height + gap;
+    }
     const row = Math.max(mobile ? (innerHeight <= 650 ? 52 : 60) : 172, Math.floor((space - extraHeight - gap * (count - 1)) / count));
     list.style.setProperty('--bsd-row', row + 'px');
     if (!mobile && list.classList.contains('bsd-completed-compact')) {
