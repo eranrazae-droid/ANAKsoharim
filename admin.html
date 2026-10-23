@@ -456,9 +456,13 @@
             <span id="ttPlateStatus" style="font-size:12px;color:#64748b"></span>
           </div>
           <div id="ttPlateOut" style="display:none">
+            <div style="font-size:12px;font-weight:800;color:#a16207;margin-bottom:4px">🎬 כותרת לתמונה/וידאו (טקסט על המסך):</div>
+            <textarea id="ttPlateTitle" style="width:100%;min-height:50px;padding:10px 12px;font-size:15px;font-weight:800;border-radius:10px;border:1px solid var(--line);line-height:1.5"></textarea>
+            <div style="margin:6px 0 12px"><button onclick="copyTTField('ttPlateTitle')" style="background:#0891b2;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:800;cursor:pointer">📋 העתק כותרת</button></div>
+            <div style="font-size:12px;font-weight:800;color:#a16207;margin-bottom:4px">📝 פוסט לטיקטוק/אינסטגרם:</div>
             <textarea id="ttPlateText" style="width:100%;min-height:150px;padding:10px 12px;font-size:14px;border-radius:10px;border:1px solid var(--line);line-height:1.6"></textarea>
             <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-              <button onclick="copyTTPlate()" style="background:#16a34a;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:14px;font-weight:800;cursor:pointer">📋 העתק</button>
+              <button onclick="copyTTField('ttPlateText')" style="background:#16a34a;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:14px;font-weight:800;cursor:pointer">📋 העתק פוסט</button>
               <button onclick="tiktokByPlate(true)" style="background:#7c3aed;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:14px;font-weight:800;cursor:pointer">🔄 נוסח אחר</button>
             </div>
           </div>
@@ -2210,9 +2214,27 @@
       if(st){ st.textContent='✓ '+(car.brand+' '+car.model).trim(); st.style.color='#15803d'; }
     }
     const post=_buildTikTokPost(car);
-    const out=document.getElementById('ttPlateOut'), ta=document.getElementById('ttPlateText');
+    const title=_buildTikTokTitle(car);
+    const out=document.getElementById('ttPlateOut'), ta=document.getElementById('ttPlateText'), tt=document.getElementById('ttPlateTitle');
     if(out) out.style.display='block';
+    if(tt) tt.value=title;
     if(ta) ta.value=post;
+  }
+  // כותרת קצרה לטקסט על התמונה/וידאו
+  function _buildTikTokTitle(car){
+    var name=((car.brand||'')+' '+(car.model||'')).replace(/\s+/g,' ').trim();
+    var monthly=(car.price&&car.price>1)?_voMonthly(car.price+(Number(car.lic)||0)):0;
+    var opts=[];
+    if(monthly>0){
+      opts.push(name+'\nרק '+monthly.toLocaleString('en-US')+'₪ לחודש 🔥');
+      opts.push(name+' חדש 0 ק״מ\nמ-'+monthly.toLocaleString('en-US')+'₪ בחודש · בלי מקדמה');
+      opts.push('תעצרו! '+name+'\n'+monthly.toLocaleString('en-US')+'₪ לחודש בלבד 😱');
+    } else {
+      opts.push(name+' חדש 0 ק״מ\nבמחיר שלא תאמינו 🔥');
+      opts.push('הדיל של '+name+'\nמחיר יבואן · בלי מקדמה');
+    }
+    opts.push(name+'\n0 ק״מ · מימון 100% 🚗');
+    return opts[Math.floor(Math.random()*opts.length)];
   }
   function _buildTikTokPost(car){
     var name=((car.brand||'')+' '+(car.model||'')).replace(/\s+/g,' ').trim();
@@ -2232,10 +2254,10 @@
       pick(ctas)+'\n\n'+
       tags.join(' ');
   }
-  function copyTTPlate(){
-    var ta=document.getElementById('ttPlateText'); if(!ta) return;
+  function copyTTField(fieldId){
+    var ta=document.getElementById(fieldId); if(!ta) return;
     var txt=ta.value;
-    function ok(){ toast&&toast('הפוסט הועתק ✓'); }
+    function ok(){ toast&&toast('הועתק ✓'); }
     try{ if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(ok,function(){_copyFallback(txt,ok);}); } else { _copyFallback(txt,ok); } }catch(e){ _copyFallback(txt,ok); }
   }
   // המשימה הבאה האישית - הרכב הבא שצריך פרסום בערוצים של האדם הנבחר
