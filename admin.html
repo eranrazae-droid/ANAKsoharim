@@ -458,7 +458,11 @@
           <div id="ttPlateOut" style="display:none">
             <div style="font-size:12px;font-weight:800;color:#a16207;margin-bottom:4px">🎬 כותרת לתמונה/וידאו (טקסט על המסך):</div>
             <textarea id="ttPlateTitle" style="width:100%;min-height:50px;padding:10px 12px;font-size:15px;font-weight:800;border-radius:10px;border:1px solid var(--line);line-height:1.5"></textarea>
-            <div style="margin:6px 0 12px"><button onclick="copyTTField('ttPlateTitle')" style="background:#0891b2;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:800;cursor:pointer">📋 העתק כותרת</button></div>
+            <div style="margin:6px 0 12px;display:flex;gap:8px;flex-wrap:wrap">
+              <button onclick="copyTTField('ttPlateTitle')" style="background:#0891b2;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:800;cursor:pointer">📋 העתק כותרת</button>
+              <button onclick="ttTitlePrev()" style="background:#64748b;color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:13px;font-weight:800;cursor:pointer">⬅️ קודם</button>
+              <button onclick="ttTitleNext()" style="background:#0e7490;color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:13px;font-weight:800;cursor:pointer">כותרת אחרת ➡️</button>
+            </div>
             <div style="font-size:12px;font-weight:800;color:#a16207;margin-bottom:4px">📝 פוסט לטיקטוק/אינסטגרם:</div>
             <textarea id="ttPlateText" style="width:100%;min-height:150px;padding:10px 12px;font-size:14px;border-radius:10px;border:1px solid var(--line);line-height:1.6"></textarea>
             <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
@@ -2214,26 +2218,31 @@
       _ttLastCar=car;
       if(st){ st.textContent='✓ '+(car.brand+' '+car.model).trim(); st.style.color='#15803d'; }
     }
-    _ttHistory=[{title:_buildTikTokTitle(car), post:_buildTikTokPost(car)}]; _ttIdx=0;
+    _ttTitleHist=[_buildTikTokTitle(car)]; _ttTitleIdx=0;
+    _ttPostHist=[_buildTikTokPost(car)]; _ttPostIdx=0;
     const out=document.getElementById('ttPlateOut');
     if(out) out.style.display='block';
     _ttShow();
   }
-  var _ttHistory=[], _ttIdx=0;
+  var _ttTitleHist=[], _ttTitleIdx=0, _ttPostHist=[], _ttPostIdx=0;
   function _ttShow(){
-    var it=_ttHistory[_ttIdx]; if(!it) return;
     var tt=document.getElementById('ttPlateTitle'), ta=document.getElementById('ttPlateText');
-    if(tt) tt.value=it.title; if(ta) ta.value=it.post;
-    var lbl=document.getElementById('ttPlateStatus'); if(lbl && _ttLastCar) lbl.textContent='✓ '+(_ttLastCar.brand+' '+_ttLastCar.model).trim()+'  ('+(_ttIdx+1)+'/'+_ttHistory.length+')';
+    if(tt && _ttTitleHist[_ttTitleIdx]!=null) tt.value=_ttTitleHist[_ttTitleIdx];
+    if(ta && _ttPostHist[_ttPostIdx]!=null) ta.value=_ttPostHist[_ttPostIdx];
+    var lbl=document.getElementById('ttPlateStatus'); if(lbl && _ttLastCar) lbl.textContent='✓ '+(_ttLastCar.brand+' '+_ttLastCar.model).trim();
   }
-  function ttNext(){
+  function ttNext(){ // פוסט
     if(!_ttLastCar) return;
-    if(_ttIdx<_ttHistory.length-1){ _ttIdx++; _ttShow(); return; } // קדימה בהיסטוריה
-    _ttHistory.push({title:_buildTikTokTitle(_ttLastCar), post:_buildTikTokPost(_ttLastCar)}); _ttIdx=_ttHistory.length-1; _ttShow();
+    if(_ttPostIdx<_ttPostHist.length-1){ _ttPostIdx++; } else { _ttPostHist.push(_buildTikTokPost(_ttLastCar)); _ttPostIdx=_ttPostHist.length-1; }
+    _ttShow();
   }
-  function ttPrev(){
-    if(_ttIdx>0){ _ttIdx--; _ttShow(); } else { toast&&toast('זה הנוסח הראשון'); }
+  function ttPrev(){ if(_ttPostIdx>0){ _ttPostIdx--; _ttShow(); } else { toast&&toast('זה הנוסח הראשון'); } }
+  function ttTitleNext(){ // כותרת
+    if(!_ttLastCar) return;
+    if(_ttTitleIdx<_ttTitleHist.length-1){ _ttTitleIdx++; } else { _ttTitleHist.push(_buildTikTokTitle(_ttLastCar)); _ttTitleIdx=_ttTitleHist.length-1; }
+    _ttShow();
   }
+  function ttTitlePrev(){ if(_ttTitleIdx>0){ _ttTitleIdx--; _ttShow(); } else { toast&&toast('זו הכותרת הראשונה'); } }
   // כותרת קצרה (hook) לטקסט על התמונה/וידאו - שורה אחת שעוצרת גלילה
   function _buildTikTokTitle(car){
     var name=((car.brand||'')+' '+(car.model||'')).replace(/\s+/g,' ').trim();
