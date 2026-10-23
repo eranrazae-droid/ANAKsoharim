@@ -462,6 +462,7 @@
               <button onclick="copyTTField('ttPlateTitle')" style="background:#0891b2;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:800;cursor:pointer">📋 העתק כותרת</button>
               <button onclick="ttTitlePrev()" style="background:#64748b;color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:13px;font-weight:800;cursor:pointer">⬅️ קודם</button>
               <button onclick="ttTitleNext()" style="background:#0e7490;color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:13px;font-weight:800;cursor:pointer">כותרת אחרת ➡️</button>
+              <button onclick="ttAddMonthly('ttPlateTitle')" style="background:#D4A017;color:#000;border:none;border-radius:8px;padding:7px 12px;font-size:13px;font-weight:800;cursor:pointer">➕ החזר חודשי</button>
             </div>
             <div style="font-size:12px;font-weight:800;color:#a16207;margin-bottom:4px">📝 פוסט לטיקטוק/אינסטגרם:</div>
             <textarea id="ttPlateText" style="width:100%;min-height:150px;padding:10px 12px;font-size:14px;border-radius:10px;border:1px solid var(--line);line-height:1.6"></textarea>
@@ -469,6 +470,7 @@
               <button onclick="copyTTField('ttPlateText')" style="background:#16a34a;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:14px;font-weight:800;cursor:pointer">📋 העתק פוסט</button>
               <button onclick="ttPrev()" style="background:#64748b;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:14px;font-weight:800;cursor:pointer">⬅️ נוסח קודם</button>
               <button onclick="ttNext()" style="background:#7c3aed;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:14px;font-weight:800;cursor:pointer">נוסח אחר ➡️</button>
+              <button onclick="ttAddMonthly('ttPlateText')" style="background:#D4A017;color:#000;border:none;border-radius:10px;padding:9px 16px;font-size:14px;font-weight:800;cursor:pointer">➕ החל מ-₪/חודש</button>
             </div>
           </div>
         </div>
@@ -2243,6 +2245,17 @@
     _ttShow();
   }
   function ttTitlePrev(){ if(_ttTitleIdx>0){ _ttTitleIdx--; _ttShow(); } else { toast&&toast('זו הכותרת הראשונה'); } }
+  // הוספת שורת "החל מ-X ₪ לחודש" לשדה
+  function ttAddMonthly(fieldId){
+    var car=_ttLastCar; if(!car){ return; }
+    var monthly=(car.price&&car.price>1)?_voMonthly(car.price+(Number(car.lic)||0)):0;
+    if(!monthly){ alert('לרכב הזה אין מחיר במלאי - אי אפשר לחשב החזר חודשי.\nעדכן מחיר ב"מלאי רכבים" או הזן רכב שקיים במלאי.'); return; }
+    var ta=document.getElementById(fieldId); if(!ta) return;
+    var line='החל מ-'+monthly.toLocaleString('en-US')+'₪ לחודש';
+    if(ta.value.indexOf(line)>=0){ toast&&toast('כבר קיים'); return; }
+    ta.value=(ta.value.trim()+'\n'+line+' 🔥').trim();
+    toast&&toast('נוסף: '+line+' ✓');
+  }
   // כותרת קצרה (hook) לטקסט על התמונה/וידאו - שורה אחת שעוצרת גלילה
   function _buildTikTokTitle(car){
     var name=((car.brand||'')+' '+(car.model||'')).replace(/\s+/g,' ').trim();
