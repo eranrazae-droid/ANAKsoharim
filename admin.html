@@ -463,7 +463,8 @@
             <textarea id="ttPlateText" style="width:100%;min-height:150px;padding:10px 12px;font-size:14px;border-radius:10px;border:1px solid var(--line);line-height:1.6"></textarea>
             <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
               <button onclick="copyTTField('ttPlateText')" style="background:#16a34a;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:14px;font-weight:800;cursor:pointer">📋 העתק פוסט</button>
-              <button onclick="tiktokByPlate(true)" style="background:#7c3aed;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:14px;font-weight:800;cursor:pointer">🔄 נוסח אחר</button>
+              <button onclick="ttPrev()" style="background:#64748b;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:14px;font-weight:800;cursor:pointer">⬅️ נוסח קודם</button>
+              <button onclick="ttNext()" style="background:#7c3aed;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:14px;font-weight:800;cursor:pointer">נוסח אחר ➡️</button>
             </div>
           </div>
         </div>
@@ -2213,12 +2214,25 @@
       _ttLastCar=car;
       if(st){ st.textContent='✓ '+(car.brand+' '+car.model).trim(); st.style.color='#15803d'; }
     }
-    const post=_buildTikTokPost(car);
-    const title=_buildTikTokTitle(car);
-    const out=document.getElementById('ttPlateOut'), ta=document.getElementById('ttPlateText'), tt=document.getElementById('ttPlateTitle');
+    _ttHistory=[{title:_buildTikTokTitle(car), post:_buildTikTokPost(car)}]; _ttIdx=0;
+    const out=document.getElementById('ttPlateOut');
     if(out) out.style.display='block';
-    if(tt) tt.value=title;
-    if(ta) ta.value=post;
+    _ttShow();
+  }
+  var _ttHistory=[], _ttIdx=0;
+  function _ttShow(){
+    var it=_ttHistory[_ttIdx]; if(!it) return;
+    var tt=document.getElementById('ttPlateTitle'), ta=document.getElementById('ttPlateText');
+    if(tt) tt.value=it.title; if(ta) ta.value=it.post;
+    var lbl=document.getElementById('ttPlateStatus'); if(lbl && _ttLastCar) lbl.textContent='✓ '+(_ttLastCar.brand+' '+_ttLastCar.model).trim()+'  ('+(_ttIdx+1)+'/'+_ttHistory.length+')';
+  }
+  function ttNext(){
+    if(!_ttLastCar) return;
+    if(_ttIdx<_ttHistory.length-1){ _ttIdx++; _ttShow(); return; } // קדימה בהיסטוריה
+    _ttHistory.push({title:_buildTikTokTitle(_ttLastCar), post:_buildTikTokPost(_ttLastCar)}); _ttIdx=_ttHistory.length-1; _ttShow();
+  }
+  function ttPrev(){
+    if(_ttIdx>0){ _ttIdx--; _ttShow(); } else { toast&&toast('זה הנוסח הראשון'); }
   }
   // כותרת קצרה (hook) לטקסט על התמונה/וידאו - שורה אחת שעוצרת גלילה
   function _buildTikTokTitle(car){
