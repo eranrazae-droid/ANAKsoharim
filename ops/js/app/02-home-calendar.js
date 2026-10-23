@@ -1006,6 +1006,7 @@ function openAddCalEvent() {
   document.getElementById('cal-ev-notes').value = '';
   document.getElementById('cal-ev-repeat').value = 'none';
   document.getElementById('cal-ev-reminder').value = '';
+  _syncCalReminder2(true);
   _calEvRecipients = [];
   _renderCalRecipients();
   document.getElementById('cal-ev-heading').textContent = 'משימה חדשה';
@@ -1013,6 +1014,18 @@ function openAddCalEvent() {
   openModal('modal-cal-event');
 }
 window.openAddCalEvent = openAddCalEvent;
+
+/* תזכורת שנייה: נפתחת מתחת לראשונה ברגע שנבחרה תזכורת ראשונה, ונסגרת (ומתאפסת) כשהראשונה מבוטלת */
+function _syncCalReminder2(reset) {
+  const first = document.getElementById('cal-ev-reminder').value;
+  const grp = document.getElementById('cal-ev-reminder2-group');
+  const sel = document.getElementById('cal-ev-reminder2');
+  if (!grp || !sel) return;
+  if (reset) sel.value = '';
+  if (first === '') sel.value = '';
+  grp.style.display = first === '' ? 'none' : '';
+}
+window._syncCalReminder2 = _syncCalReminder2;
 
 function openEditCalEvent(id) {
   const e = _calEvents.find(x => x.id === id);
@@ -1025,6 +1038,8 @@ function openEditCalEvent(id) {
   document.getElementById('cal-ev-notes').value = e.notes || '';
   document.getElementById('cal-ev-repeat').value = e.repeat || 'none';
   document.getElementById('cal-ev-reminder').value = (e.reminderMinutes === null || e.reminderMinutes === undefined) ? '' : String(e.reminderMinutes);
+  document.getElementById('cal-ev-reminder2').value = (e.reminderMinutes2 === null || e.reminderMinutes2 === undefined) ? '' : String(e.reminderMinutes2);
+  _syncCalReminder2();
   _calEvRecipients = [...(e.reminderTo || [])];
   _renderCalRecipients();
   document.getElementById('cal-ev-heading').textContent = 'עריכת משימה';
@@ -1042,16 +1057,19 @@ async function submitCalEvent() {
   const repeat = document.getElementById('cal-ev-repeat').value || 'none';
   const reminderRaw = document.getElementById('cal-ev-reminder').value;
   const reminderMinutes = reminderRaw === '' ? null : parseInt(reminderRaw, 10);
+  const reminder2Raw = reminderRaw === '' ? '' : document.getElementById('cal-ev-reminder2').value;
+  const reminderMinutes2 = reminder2Raw === '' ? null : parseInt(reminder2Raw, 10);
   const reminderTo = [..._calEvRecipients];
+  if (reminderMinutes2 !== null && reminderMinutes2 === reminderMinutes) return showToast('התזכורת השנייה זהה לראשונה');
   if (!title) return showToast('נא להזין כותרת');
   if (!date) return showToast('נא לבחור תאריך');
   if (reminderMinutes !== null && !reminderTo.length) return showToast('נא לבחור למי לשלוח את התזכורת');
   const { addDoc, updateDoc, doc, collection, serverTimestamp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
   try {
     if (id) {
-      await updateDoc(doc(window._db,'calendar_events',id), { title, date, startTime, endTime: '', notes, repeat, reminderMinutes, reminderTo, reminderSent: false });
+      await updateDoc(doc(window._db,'calendar_events',id), { title, date, startTime, endTime: '', notes, repeat, reminderMinutes, reminderMinutes2, reminderTo, reminderSent: false });
     } else {
-      await addDoc(collection(window._db,'calendar_events'), { title, date, startTime, endTime: '', notes, repeat, reminderMinutes, reminderTo, reminderSent: false, createdAt: serverTimestamp() });
+      await addDoc(collection(window._db,'calendar_events'), { title, date, startTime, endTime: '', notes, repeat, reminderMinutes, reminderMinutes2, reminderTo, reminderSent: false, createdAt: serverTimestamp() });
     }
     _calSelected = date;
     const [yy,mm] = date.split('-'); _calMonth = new Date(+yy, +mm-1, 1);

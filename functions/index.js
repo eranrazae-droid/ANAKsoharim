@@ -49,32 +49,65 @@ exports.checkReminders = onSchedule(
       const [hh, mm] = (e.startTime || "00:00").split(":").map(Number);
       const repeat = e.repeat || "none";
 
-      // A repeating task occurs on many dates, so the reminder must be anchored
-      // to a specific occurrence — not to the document. Scan the nearby days for
-      // an occurrence whose reminder window is open now.
-      let dueDateStr = null; // YYYY-MM-DD of the occurrence to remind about
-      let dueEventTime = null;
-      for (let off = -1; off <= 2 && !dueDateStr; off++) {
-        const day = new Date(now.getTime() + off * 24 * 60 * 60 * 1000);
-        const ds = `${day.getUTCFullYear()}-${String(day.getUTCMonth() + 1).padStart(2, "0")}-${String(day.getUTCDate()).padStart(2, "0")}`;
-        if (ds < e.date) continue; // occurrence can't precede the task's start date
-        let occurs = false;
-        if (repeat === "none") occurs = ds === e.date;
-        else if (repeat === "daily") occurs = true;
-        else if (repeat === "weekly") occurs = day.getUTCDay() === new Date(Date.UTC(y, m - 1, d)).getUTCDay();
-        else if (repeat === "monthly") occurs = day.getUTCDate() === d;
-        if (!occurs) continue;
+      // עד שתי תזכורות לכל משימה: הראשונה (reminderMinutes) והשנייה (reminderMinutes2, לא חובה).
+      // לכל אחת מתעד המופע האחרון שעליו כבר נשלחה (lastRemindedOccurrence / lastRemindedOccurrence2).
+      const slots = [{ min: e.reminderMinutes, key: "lastRemindedOccurrence" }];
+      if (e.reminderMinutes2 !== null && e.reminderMinutes2 !== undefined) {
+        slots.push({ min: e.reminderMinutes2, key: "lastRemindedOccurrence2" });
+      }
+      const update = {};
+      let anyDue = false;
 
-        const eventTime = new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), hh || 0, mm || 0));
-        const reminderTime = new Date(eventTime.getTime() - e.reminderMinutes * 60000);
-        // Grace for a missed window: a one-off is worth sending late (up to a day),
-        // but a repeating task recurs anyway — a stale occurrence shouldn't fire
-        // hours after the fact, so its grace is short.
-        const floor = repeat === "none" ? dayAgo : new Date(now.getTime() - 2 * 60 * 60 * 1000);
-        if (now >= reminderTime && eventTime >= floor) { dueDateStr = ds; dueEventTime = eventTime; }
+      for (const slot of slots) {
+        // A repeating task occurs on many dates, so the reminder must be anchored
+        // to a specific occurrence — not to the document. Scan the nearby days for
+        // an occurrence whose reminder window is open now.
+        let dueDateStr = null; // YYYY-MM-DD of the occurrence to remind about
+        for (let off = -1; off <= 2 && !dueDateStr; off++) {
+          const day = new Date(now.getTime() + off * 24 * 60 * 60 * 1000);
+          const ds = `${day.getUTCFullYear()}-${String(day.getUTCMonth() + 1).padStart(2, "0")}-${String(day.getUTCDate()).padStart(2, "0")}`;
+          if (ds < e.date) continue; // occurrence can't precede the task's start date
+          let occurs = false;
+          if (repeat === "none") occurs = ds === e.date;
+          else if (repeat === "daily") occurs = true;
+          else if (repeat === "weekly") occurs = day.getUTCDay() === new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+          else if (repeat === "monthly") occurs = day.getUTCDate() === d;
+          if (!occurs) continue;
+
+          const eventTime = new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), hh || 0, mm || 0));
+          const reminderTime = new Date(eventTime.getTime() - slot.min * 60000);
+          // Grace for a missed window: a one-off is worth sending late (up to a day),
+          // but a repeating task recurs anyway — a stale occurrence shouldn't fire
+          // hours after the fact, so its grace is short.
+          const floor = repeat === "none" ? dayAgo : new Date(now.getTime() - 2 * 60 * 60 * 1000);
+          if (now >= reminderTime && eventTime >= floor) dueDateStr = ds;
+        }
+        if (!dueDateStr) continue;
+        // this occurrence was already reminded about — wait for the next one
+        if (e[slot.key] === dueDateStr) continue;
+
+        if (tgToken) {
+          const text =
+            `🔔 תזכורת: ${e.title || ""}` +
+            (e.startTime ? ` — ${e.startTime}` : "") +
+            (e.notes ? `\n${e.notes}` : "");
+          for (const name of e.reminderTo) {
+            const chatId = contacts[name]?.telegramId;
+            if (!chatId) { console.warn("reminder: no telegramId for", name); continue; }
+            try {
+              await fetch(`https://api.telegram.org/bot${tgToken}/sendMessage`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ chat_id: chatId, text }),
+              });
+            } catch (err) { console.error("reminder send failed for", name, err); }
+          }
+        }
+        update[slot.key] = dueDateStr;
+        anyDue = true;
       }
 
-      if (!dueDateStr) {
+      if (!anyDue) {
         // one-off event whose date is long past — close it so we stop scanning it
         if (repeat === "none") {
           const eventTime = new Date(Date.UTC(y, m - 1, d, hh || 0, mm || 0));
@@ -82,32 +115,13 @@ exports.checkReminders = onSchedule(
         }
         continue;
       }
-      // this occurrence was already reminded about — wait for the next one
-      if (e.lastRemindedOccurrence === dueDateStr) continue;
-
-      if (tgToken) {
-        const text =
-          `🔔 תזכורת: ${e.title || ""}` +
-          (e.startTime ? ` — ${e.startTime}` : "") +
-          (e.notes ? `\n${e.notes}` : "");
-        for (const name of e.reminderTo) {
-          const chatId = contacts[name]?.telegramId;
-          if (!chatId) { console.warn("reminder: no telegramId for", name); continue; }
-          try {
-            await fetch(`https://api.telegram.org/bot${tgToken}/sendMessage`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ chat_id: chatId, text }),
-            });
-          } catch (err) { console.error("reminder send failed for", name, err); }
-        }
-      }
+      // a one-off is closed only once every reminder it has was sent;
       // repeating tasks stay open (reminderSent=false) so future occurrences fire too
-      await docSnap.ref.update(
-        repeat === "none"
-          ? { reminderSent: true, lastRemindedOccurrence: dueDateStr }
-          : { lastRemindedOccurrence: dueDateStr },
-      );
+      if (repeat === "none") {
+        const done = slots.every((sl) => (update[sl.key] || e[sl.key]) === e.date);
+        if (done) update.reminderSent = true;
+      }
+      await docSnap.ref.update(update);
     }
   }
 );
