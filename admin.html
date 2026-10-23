@@ -2220,20 +2220,25 @@
     if(tt) tt.value=title;
     if(ta) ta.value=post;
   }
-  // כותרת קצרה לטקסט על התמונה/וידאו
+  // כותרת קצרה (hook) לטקסט על התמונה/וידאו - שורה אחת שעוצרת גלילה
   function _buildTikTokTitle(car){
     var name=((car.brand||'')+' '+(car.model||'')).replace(/\s+/g,' ').trim();
+    var brand=(car.brand||'').trim();
     var monthly=(car.price&&car.price>1)?_voMonthly(car.price+(Number(car.lic)||0)):0;
-    var opts=[];
+    var opts=[
+      'אל תקנו רכב לפני שתראו את זה 👀',
+      'הרכב שכולם רצים אליו החודש 🔥',
+      'חדש 0 ק״מ בלי מקדמה?! 😳',
+      'ככה קונים '+(brand||'רכב')+' חדש נכון 🚗',
+      'המחיר הזה כמעט לא הגיוני 🤯',
+      'רגע לפני שאתם קונים יד שנייה...',
+      'בלי מקדמה · מימון 100% · 0 ק״מ ✅',
+      (name?('ה'+name+' החדש כבר כאן 🚀'):'הרכב החדש כבר כאן 🚀')
+    ];
     if(monthly>0){
-      opts.push(name+'\nרק '+monthly.toLocaleString('en-US')+'₪ לחודש 🔥');
-      opts.push(name+' חדש 0 ק״מ\nמ-'+monthly.toLocaleString('en-US')+'₪ בחודש · בלי מקדמה');
-      opts.push('תעצרו! '+name+'\n'+monthly.toLocaleString('en-US')+'₪ לחודש בלבד 😱');
-    } else {
-      opts.push(name+' חדש 0 ק״מ\nבמחיר שלא תאמינו 🔥');
-      opts.push('הדיל של '+name+'\nמחיר יבואן · בלי מקדמה');
+      opts.unshift('רכב חדש 0 ק״מ ב-'+monthly.toLocaleString('en-US')+'₪ לחודש?! 🔥');
+      opts.push('פחות מ-'+(Math.ceil(monthly/100)*100).toLocaleString('en-US')+'₪ בחודש לרכב חדש 😮');
     }
-    opts.push(name+'\n0 ק״מ · מימון 100% 🚗');
     return opts[Math.floor(Math.random()*opts.length)];
   }
   function _buildTikTokPost(car){
