@@ -1977,13 +1977,19 @@ async function _bsPendingClose(pend, arrivedLines, arrivedUnits) {
     note: pend.note || '',
     ...(pend.file ? { fileName: pend.fileName, file: pend.file } : {}),
     ...(pend.fileUrl ? { fileName: pend.fileName, fileUrl: pend.fileUrl } : {}),
+    ...((pend.arrivalFiles || []).length ? { arrivalFiles: pend.arrivalFiles } : {}),
+    ...(pend.arrivalNoInvoice && !(pend.arrivalFiles || []).length ? { arrivalNoInvoice: true } : {}),
     createdBy: currentUser.name, createdAt: _serverTs()
   });
   await deleteDoc(doc(window._db, 'battery_pending', pend.id));
 }
 
-// שורה אחת מתוך הזמנה, או ההזמנה כולה כש-sku אינו מועבר
-async function bsPendingArrive(id, sku) {
+/* הגיעה הזמנה (או שורה ממנה): נפתח חלון שמבקש לצרף חשבונית. אפשר לצרף
+   כמה קבצים, ואפשר לוותר ולהמשיך בלי. חשבונית שצורפה נשמרת על ההזמנה, כך
+   שמשלוח שמגיע בחלקים לא מבקש אותה שוב, והיא מופיעה בהיסטוריית ההזמנות. */
+let _bsArr = null;   // { id, sku, take, units, what, files: [{ file, name, size }], existing: [] }
+
+function bsPendingArrive(id, sku) {
   if (_bsArriving) return;
   const pend = _bsPending.find(p => p.id === id);
   if (!pend) return;
@@ -1991,29 +1997,122 @@ async function bsPendingArrive(id, sku) {
   const take = sku == null ? all : all.filter(l => String(l.sku) === String(sku));
   if (!take.length) return;
   const units = take.reduce((t, l) => t + (l.qty || 0), 0);
-  const what = sku == null
-    ? `כל ההזמנה${pend.invoice ? ' של חשבונית ' + pend.invoice : ''} (${units} יחידות)`
-    : `${take[0].model || take[0].sku} · ${units} יחידות`;
-  if (!confirm(`להעביר לארון את ${what}?`)) return;
+  _bsArr = { id, sku, take, units, files: [], existing: [...(pend.arrivalFiles || [])] };
+  _bsArrRender();
+  openModal('modal-bs-arrive');
+}
+window.bsPendingArrive = bsPendingArrive;
+
+function _bsArrRender() {
+  const a = _bsArr; if (!a) return;
+  const pend = _bsPending.find(p => p.id === a.id);
+  document.getElementById('bsa-title').textContent = a.sku == null ? '📦 ההזמנה הגיעה' : '📦 השורה הגיעה';
+  document.getElementById('bsa-what').innerHTML =
+    `<div style="font-size:12px;color:var(--muted);margin-bottom:4px">נכנס לארון${pend?.invoice ? ' · חשבונית ' + esc(pend.invoice) : ''}</div>` +
+    a.take.map(l => `<div style="font-weight:800;font-size:15px">${esc(l.model || l.sku)} · ${l.qty || 0} ${l.qty === 1 ? 'יחידה' : 'יחידות'}</div>`).join('');
+  const total = a.existing.length + a.files.length;
+  const row = (name, sub, rmIdx) => `<div style="display:flex;align-items:center;gap:10px;border:2px solid #86c79d;border-radius:12px;background:#effaf2;padding:10px 12px;margin-bottom:6px">
+      <div style="font-size:22px">${/\.pdf$/i.test(name) ? '📄' : '🖼️'}</div>
+      <div style="flex:1;min-width:0"><div style="font-weight:800;color:#1f4d38;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(name)}</div><div style="font-size:12px;color:#5b7a66">${esc(sub)}</div></div>
+      ${rmIdx != null ? `<button type="button" onclick="bsArrRemove(${rmIdx})" style="background:none;border:none;color:#b43e3e;font:800 13px Heebo,sans-serif;cursor:pointer">הסר</button>` : ''}
+    </div>`;
+  const filesHtml = a.existing.map(f => row(f.name || 'חשבונית', 'צורפה קודם', null)).join('') +
+    a.files.map((f, i) => row(f.name, Math.max(1, Math.round(f.size / 1024)) + 'KB · נבחרה', i)).join('');
+  const zone = total ? '' : `<div style="border:2px dashed #c4a463;border-radius:14px;background:#fffaf0;padding:18px;text-align:center">
+      <div style="font-size:28px">📎</div><div style="font-weight:800;color:#7b622c;margin-top:4px">צרף חשבונית</div>
+      <div style="font-size:12px;color:#8a7a52;margin-top:2px">תמונה או PDF</div>
+      <div style="display:flex;gap:8px;justify-content:center;margin-top:12px">
+        <button type="button" onclick="bsArrPick(false)" style="background:#c4a463;color:#18221b;border:none;border-radius:10px;padding:9px 16px;font:800 13px Heebo,sans-serif;cursor:pointer">📁 בחירת קובץ</button>
+        <button type="button" onclick="bsArrPick(true)" style="background:#fff;border:1px solid #c4a463;color:#7b622c;border-radius:10px;padding:9px 16px;font:800 13px Heebo,sans-serif;cursor:pointer">📷 צילום</button>
+      </div></div>`;
+  document.getElementById('bsa-files').innerHTML = filesHtml + zone;
+  const primary = document.getElementById('bsa-go'), second = document.getElementById('bsa-second');
+  primary.disabled = !total;
+  primary.style.opacity = total ? '1' : '.5';
+  primary.textContent = total ? '✅ הכנס לארון עם החשבונית' : '✅ הכנס לארון';
+  second.textContent = total ? '➕ העלה חשבונית נוספת' : 'להמשיך בלי חשבונית';
+  second.onclick = () => total ? bsArrPick(false) : bsArrGo(true);
+}
+
+function bsArrPick(camera) {
+  const inp = document.getElementById(camera ? 'bsa-cam' : 'bsa-file');
+  inp.value = ''; inp.click();
+}
+window.bsArrPick = bsArrPick;
+
+function bsArrAdd(input) {
+  if (!_bsArr) return;
+  for (const f of [...input.files]) {
+    if (f.size > 25 * 1024 * 1024) { showToast('הקובץ גדול מדי (מעל 25MB)'); continue; }
+    _bsArr.files.push({ file: f, name: f.name || 'חשבונית.jpg', size: f.size });
+  }
+  input.value = '';
+  _bsArrRender();
+}
+window.bsArrAdd = bsArrAdd;
+
+function bsArrRemove(i) { if (_bsArr) { _bsArr.files.splice(i, 1); _bsArrRender(); } }
+window.bsArrRemove = bsArrRemove;
+
+// תמונה נדחסת, PDF עולה כמו שהוא. כל קובץ נשמר באחסון; אם האחסון לא זמין וקובץ קטן — נשמר ברשומה
+async function _bsArrUpload(f) {
+  let blob = f.file, name = f.name;
+  if (/^image\//.test(f.file.type)) {
+    try { const b64 = await compressToBase64(f.file, 1600, 0.8); blob = await (await fetch(b64)).blob(); name = name.replace(/\.\w+$/, '') + '.jpg'; } catch (e) { /* ממשיכים עם המקור */ }
+  }
+  if (window._uploadBytes && window._storageRef) {
+    const ref = window._storageRef(window._storage, `battery_invoices/arrival_${Date.now()}_${name.replace(/[^\w.\-א-ת]/g, '_')}`);
+    await window._uploadBytes(ref, blob);
+    return { name, url: await window._getDownloadURL(ref) };
+  }
+  if (blob.size < 600 * 1024) {
+    const data = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = e => res(e.target.result); fr.onerror = rej; fr.readAsDataURL(blob); });
+    return { name, data };
+  }
+  throw new Error('storage-unavailable');
+}
+
+async function bsArrGo(skip) {
+  const a = _bsArr;
+  if (!a || _bsArriving) return;
+  const pend = _bsPending.find(p => p.id === a.id);
+  if (!pend) { closeModal('modal-bs-arrive'); return; }
   if (!_requireNet('העברה לארון')) return;
   _bsArriving = true;
+  const goBtn = document.getElementById('bsa-go'), secBtn = document.getElementById('bsa-second');
+  goBtn.disabled = secBtn.disabled = true;
   try {
+    // קודם הקבצים: אם ההעלאה נכשלת, שום דבר לא נכנס לארון והחלון נשאר פתוח
+    const uploaded = [];
+    if (a.files.length) goBtn.textContent = '⏳ מעלה חשבונית...';
+    for (const f of a.files) uploaded.push(await _bsArrUpload(f));
+    const arrivalFiles = [...a.existing, ...uploaded];
+    const all = pend.lines || [];
+    const take = a.take;
+    const units = a.units;
     for (const ln of take) await _bsStockAdd(ln, pend.invoice || '', pend.note || '');
     const left = all.filter(l => !take.includes(l));
     if (left.length) {
-      await _updateDoc(_docRef('battery_pending', id), {
-        lines: left, units: left.reduce((t, l) => t + (l.qty || 0), 0), updatedAt: _serverTs()
+      await _updateDoc(_docRef('battery_pending', a.id), {
+        lines: left, units: left.reduce((t, l) => t + (l.qty || 0), 0), updatedAt: _serverTs(),
+        ...(arrivalFiles.length ? { arrivalFiles } : {}), ...(skip && !arrivalFiles.length ? { arrivalNoInvoice: true } : {}),
       });
-      // שורת ההיסטוריה נרשמת רק כשההזמנה נסגרת, כדי שלא תיכתב פעמיים
       showToast(`✅ ${units} נכנסו לארון · נשארו ${left.length} סוגים בדרך`);
     } else {
-      await _bsPendingClose(pend, all, pend.units || units);
+      await _bsPendingClose({ ...pend, arrivalFiles, ...(skip && !arrivalFiles.length ? { arrivalNoInvoice: true } : {}) }, all, pend.units || units);
       showToast(`✅ ההזמנה נכנסה לארון · ${units} יחידות`);
     }
-  } catch (e) { showToast('שגיאה: ' + (e.code || e.message)); }
-  finally { _bsArriving = false; }
+    closeModal('modal-bs-arrive');
+    _bsArr = null;
+  } catch (e) {
+    showToast(e && e.message === 'storage-unavailable' ? 'לא הצלחנו להעלות את החשבונית — נסה שוב או המשך בלי' : 'שגיאה: ' + (e.code || e.message), 6000);
+  } finally {
+    _bsArriving = false;
+    goBtn.disabled = secBtn.disabled = false;
+    if (_bsArr) _bsArrRender();
+  }
 }
-window.bsPendingArrive = bsPendingArrive;
+window.bsArrGo = bsArrGo;
 
 async function bsPendingCancel(id) {
   const pend = _bsPending.find(p => p.id === id);
@@ -2423,6 +2522,7 @@ function _bsRenderDeliveries() {
         ${kinds ? `<div style="font-size:12px;color:var(--muted);margin-top:3px">${kinds}</div>` : ''}
         ${(d.addedUnits != null && d.addedUnits !== d.units) ? `<div style="font-size:12px;color:#b45309;font-weight:800;margin-top:3px">נכנסו לארון ${d.addedUnits} מתוך ${d.units}</div>` : ''}
       </div>
+      ${(d.arrivalFiles || []).length ? `<div style="display:flex;flex-direction:column;gap:6px">${d.arrivalFiles.map((f, i) => `<button onclick="bsOpenArrivalFile('${d.id}',${i})" style="background:#1f4d38;color:#fff;border:none;border-radius:10px;padding:8px 12px;font-family:'Heebo',sans-serif;font-weight:800;font-size:12.5px;cursor:pointer;white-space:nowrap">📎 חשבונית ${d.arrivalFiles.length > 1 ? i + 1 : ''}</button>`).join('')}</div>` : (d.arrivalNoInvoice ? `<span style="font-size:11.5px;color:var(--muted);font-weight:700;white-space:nowrap">בלי חשבונית</span>` : '')}
       ${(d.file || d.fileUrl)
         ? `<button onclick="bsOpenInvoiceFile('${d.id}')" style="background:#0369a1;color:#fff;border:none;border-radius:10px;padding:9px 14px;font-family:'Heebo',sans-serif;font-weight:800;font-size:13px;cursor:pointer;white-space:nowrap">📄 הקובץ</button>`
         : `<span style="font-size:12px;color:var(--muted);font-weight:700;white-space:nowrap">הוזן ידנית</span>`}
@@ -2449,6 +2549,22 @@ function bsOpenInvoiceFile(id) {
   } catch (e) { showToast('לא הצלחנו לפתוח את הקובץ'); }
 }
 window.bsOpenInvoiceFile = bsOpenInvoiceFile;
+
+// חשבונית שצורפה בהגעת ההזמנה
+function bsOpenArrivalFile(id, i) {
+  const f = (_bsDeliveries.find(x => x.id === id)?.arrivalFiles || [])[i];
+  if (!f) return;
+  if (f.url) return void window.open(f.url, '_blank');
+  if (!f.data) return;
+  try {
+    const mime = (f.data.match(/^data:([^;]+)/) || [])[1] || 'application/octet-stream';
+    const bin = atob(f.data.split(',')[1] || ''), arr = new Uint8Array(bin.length);
+    for (let k = 0; k < bin.length; k++) arr[k] = bin.charCodeAt(k);
+    const url = URL.createObjectURL(new Blob([arr], { type: mime }));
+    window.open(url, '_blank'); setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch (e) { showToast('לא הצלחנו לפתוח את הקובץ'); }
+}
+window.bsOpenArrivalFile = bsOpenArrivalFile;
 
 function _bsRenderTypes() {
   const c = document.getElementById('bs-types-table');
