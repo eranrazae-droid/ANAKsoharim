@@ -1509,7 +1509,10 @@ function _bsPendingHtml() {
 function _bsRenderStock() {
   const c = document.getElementById('bs-stock');
   if (!c) return;
-  const pendHtml = _bsPendingHtml();
+  // ההזמנות שבדרך יושבות בעמודה השמאלית מתחת ל"צריך להזמין", ומוצגות רק כשיש הזמנה
+  const pendPanel = document.getElementById('bs-pending-panel');
+  if (pendPanel) { const ph = _bsPendingHtml(); pendPanel.innerHTML = ph; pendPanel.style.display = ph ? '' : 'none'; }
+  const pendHtml = '';
   const pendUnits = _bsPending.reduce((t, p) => t + (p.lines || []).reduce((s, l) => s + (l.qty || 0), 0), 0);
   const _cntTxt = n => String(n) + (pendUnits ? ` <span style="color:#f59e0b">+${pendUnits}</span>` : '');
   // a battery that was fitted to a car is no longer in the cabinet — its row
