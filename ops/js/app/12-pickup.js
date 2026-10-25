@@ -3453,7 +3453,7 @@ async function extractTextFromImage(input) {
     setSpan('⏳ מעבד תמונה...');
     const { canvas, rows } = await prepAndSlice(src, photo);
 
-    let digitsOnly = '', fullText = '', _rowTexts = null;
+    let digitsOnly = '', fullText = '', _rowTexts = null, _rowCells = null;
     if (rows.length >= 2) {
       // OCR each detected row separately (single line) — reliable for uniform tables
       let _ocrRow = 0;
@@ -3473,6 +3473,36 @@ async function extractTextFromImage(input) {
         fullText += text + '\n';
       }
       await worker.terminate();
+      // בצילום, שורה שלמה מתערבבת (עברית מול ספרות) והלוחית נשברת. לכן חותכים כל שורה לתאים
+      // לפי קווי הטבלה, וקוראים כל תא צר לבד, ספרות בלבד. תא בודד לא מתערבב עם השכנים
+      if (photo) {
+        const w2 = await Tesseract.createWorker('eng', 1);
+        await w2.setParameters({ tessedit_pageseg_mode: '7', tessedit_char_whitelist: '0123456789.,' });
+        _rowCells = [];
+        for (let r = 0; r < rows.length; r++) {
+          const strip = cropStrip(canvas, rows[r][0], rows[r][1]);
+          const W = strip.width, h = strip.height;
+          const d = strip.getContext('2d').getImageData(0, 0, W, h).data;
+          const xs = [];
+          // קו טבלה חוצה את כל גובה השורה (גם כשהוא מעט נטוי); קו אנכי של ספרה כמו 1 או 4 קצר ממנו
+          for (let x = 2; x < W - 2; x++) { let n = 0; for (let y = 0; y < h; y++) { const o = y * W + x; if (d[(o - 2) * 4] < 128 || d[(o - 1) * 4] < 128 || d[o * 4] < 128 || d[(o + 1) * 4] < 128 || d[(o + 2) * 4] < 128) n++; } if (n >= h * 0.9) xs.push(x); }
+          const lines = [];
+          for (const x of xs) { const l = lines[lines.length - 1]; if (l && x - l.e <= 8) l.e = x; else lines.push({ s: x, e: x }); }
+          const edges = [-1, ...lines.map(l => (l.s + l.e) >> 1), W];
+          const cells = [];
+          for (let i = 0; i + 1 < edges.length; i++) {
+            const cx0 = edges[i] + 5, cx1 = edges[i + 1] - 4, cw = cx1 - cx0;
+            if (cw < 28 || cw > 450) continue;
+            const cc = document.createElement('canvas'); cc.width = cw + 24; cc.height = h + 24;
+            const cx = cc.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, cc.width, cc.height);
+            cx.drawImage(strip, cx0, 0, cw, h, 12, 12, cw, h);
+            const { data: { text: ct } } = await w2.recognize(await toBlob(cc));
+            cells.push({ x: cx0, t: ct.trim() });
+          }
+          _rowCells.push(cells);
+        }
+        await w2.terminate();
+      }
       digitsOnly = fullText;
     } else {
       // fallback: whole-image OCR
@@ -3485,9 +3515,23 @@ async function extractTextFromImage(input) {
       fullText = text; digitsOnly = text;
     }
 
-    return { digitsOnly, fullText, _rowTexts };
+    return { digitsOnly, fullText, _rowTexts, _rowCells };
     };
-    const scoreRows = r => r._rowTexts ? r._rowTexts.map(_parseRowText).filter(c => _pkRowOk(c)).length : 0;
+    const rowCars = r => r._rowTexts ? r._rowTexts.map((t, i) => {
+      const c = _parseRowText(t);
+      const cells = (r._rowCells && r._rowCells[i]) || [];
+      const num = x => x.t.replace(/[^\d.,]/g, '');
+      const plate = cells.filter(x => /^\d{7,8}$/.test(num(x))).sort((a, b) => b.x - a.x)[0];
+      if (plate) c.plate = num(plate);
+      // שנה: תא של 4 ספרות שאינו נפח מנוע (נפח מופיע גם בשם הדגם, ולכן חוזר בשורה)
+      const cnt = {}; for (const m of String(t).matchAll(/(?<!\d)\d{4}(?!\d)/g)) cnt[m[0]] = (cnt[m[0]] || 0) + 1;
+      const yr = cells.map(num).find(v => /^(19[89]\d|20[0-3]\d)$/.test(v) && !(cnt[v] > 1));
+      if (yr) c.year = yr;
+      const km = cells.map(num).find(v => /^\d{1,3}[.,]\d{3}$/.test(v));
+      if (km) c.km = _fmtKm(km);
+      return c;
+    }).filter(c => _pkRowOk(c)) : null;
+    const scoreRows = r => r._rowTexts ? rowCars(r).length : 0;
     let res = null;
     if (await needsTurn(file)) {
       let best = null;
@@ -3516,7 +3560,7 @@ async function extractTextFromImage(input) {
     if (digitsOnly.trim() || fullText.trim()) {
       // when sliced by rows, parse each row into one car (avoids cross-row mixing & false plates)
       const parsed = _rowTexts
-        ? _rowTexts.map(_parseRowText).filter(c => _pkRowOk(c))
+        ? rowCars(res)
         : _parsePlatesFromOcr(fullText || '', digitsOnly || '');
       if (parsed.length) {
         document.getElementById('freetext-pickup-input').value = (fullText || '').trim();
