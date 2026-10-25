@@ -3256,7 +3256,7 @@ async function _fetchGovDataForAll(onProgress) {
         car.color = String(rec.color || car.color || '');
         car.test  = _plateTestDate(rec) || car.test;
         car._fetched = true;
-      }
+      } else if (!window._plateRegistryEmpty) car._notFound = true;   // לוחית שלא קיימת במאגר — כנראה נקראה לא נכון
     } catch(e) {}
     done++;
     if (onProgress) onProgress(Math.round(done / cars.length * 100));
@@ -3521,6 +3521,9 @@ async function extractTextFromImage(input) {
       if (parsed.length) {
         document.getElementById('freetext-pickup-input').value = (fullText || '').trim();
         _freetextParsed = parsed;
+        // הכותרת של הדף מציינת כמה רכבים יש בו — אם נקראו פחות או יותר, מזהירים
+        const _cnt = (fullText.match(/(\d{1,3})\s*מצבת\s*רכב/) || [])[1];
+        if (_cnt && Number(_cnt) !== parsed.length) showToast(`⚠️ בדף כתוב ${_cnt} רכבים, נקראו ${parsed.length} — בדוק שלא חסר רכב`, 9000);
         // keep the loader running while pulling vehicle data — so when it ends, everything is ready
         setSpan('⏳ מושך נתוני רכבים... 0%');
         await _fetchGovDataForAll(pct => setSpan(`⏳ מושך נתוני רכבים... ${pct}%`));

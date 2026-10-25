@@ -498,10 +498,11 @@ function _renderFreetextPreview() {
         ].map(([label,key]) => `
           <div>
             <div style="font-size:10px;color:var(--muted)">${label}</div>
-            <input type="text" value="${(c[key]||'').replace(/"/g,'&quot;')}" oninput="_freetextParsed[${i}].${key}=this.value"
+            <input type="text" value="${(c[key]||'').replace(/"/g,'&quot;')}" oninput="_freetextParsed[${i}].${key}=this.value${key==='plate'?';_freetextParsed[${i}]._notFound=false':''}"
               style="width:100%;padding:5px 7px;border-radius:7px;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:Heebo,sans-serif;font-size:13px;box-sizing:border-box">
           </div>`).join('')}
       </div>
+      ${c._notFound ? `<div style="margin-top:6px;font-size:12.5px;font-weight:800;color:#b91c1c">⚠️ הלוחית ${esc(c.plate)} לא נמצאה במאגר — כנראה נקראה לא נכון, בדוק מול הדף</div>` : ''}
       ${c._unknownYard ? `<div style="margin-top:6px;font-size:12.5px;font-weight:800;color:#92400e">⚠️ "${esc(c._unknownYard)}" — מגרש שאיני מזהה, השלם כתובת ואיש קשר</div>` : ''}
       ${c._knownContacts ? `<div style="margin-top:6px;font-size:12px;font-weight:800;color:#1d4ed8">👤 מולא לפי הכתובת: ${esc(c._knownContacts)}</div>` : ''}
       ${c.note ? `<div style="margin-top:8px;background:#fef08a;color:#000;border-right:5px solid #eab308;border-radius:8px;padding:8px 10px;font-size:13px;font-weight:800">📝 ${esc(c.note)}</div>
