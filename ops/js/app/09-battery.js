@@ -2014,13 +2014,14 @@ function _bsArrRender() {
     `<div style="font-size:12px;color:var(--muted);margin-bottom:4px">נכנס לארון${pend?.invoice ? ' · חשבונית ' + esc(pend.invoice) : ''}</div>` +
     a.take.map(l => `<div style="font-weight:800;font-size:15px">${esc(l.model || l.sku)} · ${l.qty || 0} ${l.qty === 1 ? 'יחידה' : 'יחידות'}</div>`).join('');
   const total = a.existing.length + a.files.length;
-  const row = (name, sub, rmIdx) => `<div style="display:flex;align-items:center;gap:10px;border:2px solid #86c79d;border-radius:12px;background:#effaf2;padding:10px 12px;margin-bottom:6px">
+  const row = (name, sub, rmIdx, chk) => `<div style="display:flex;align-items:center;gap:10px;border:2px solid ${chk && chk.status === 'diff' ? '#e0a33a' : '#86c79d'};border-radius:12px;background:${chk && chk.status === 'diff' ? '#fff7e6' : '#effaf2'};padding:10px 12px;margin-bottom:6px;flex-wrap:wrap">
       <div style="font-size:22px">${/\.pdf$/i.test(name) ? '📄' : '🖼️'}</div>
       <div style="flex:1;min-width:0"><div style="font-weight:800;color:#1f4d38;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(name)}</div><div style="font-size:12px;color:#5b7a66">${esc(sub)}</div></div>
+      ${chk ? `<div style="flex:1 0 100%;font-size:12.5px;font-weight:800;color:${chk.status === 'ok' ? '#166534' : chk.status === 'diff' ? '#92400e' : '#64748b'}">${chk.status === 'ok' ? '✅ ' : chk.status === 'diff' ? '⚠️ ' : ''}${chk.msgs.map(esc).join('<br>')}</div>` : ''}
       ${rmIdx != null ? `<button type="button" onclick="bsArrRemove(${rmIdx})" style="background:none;border:none;color:#b43e3e;font:800 13px Heebo,sans-serif;cursor:pointer">הסר</button>` : ''}
     </div>`;
   const filesHtml = a.existing.map(f => row(f.name || 'חשבונית', 'צורפה קודם', null)).join('') +
-    a.files.map((f, i) => row(f.name, Math.max(1, Math.round(f.size / 1024)) + 'KB · נבחרה', i)).join('');
+    a.files.map((f, i) => row(f.name, Math.max(1, Math.round(f.size / 1024)) + 'KB · נבחרה', i, f.check)).join('');
   const zone = total ? '' : `<div style="border:2px dashed #c4a463;border-radius:14px;background:#fffaf0;padding:18px;text-align:center">
       <div style="font-size:28px">📎</div><div style="font-weight:800;color:#7b622c;margin-top:4px">צרף חשבונית</div>
       <div style="font-size:12px;color:#8a7a52;margin-top:2px">תמונה או PDF</div>
@@ -2047,12 +2048,47 @@ function bsArrAdd(input) {
   if (!_bsArr) return;
   for (const f of [...input.files]) {
     if (f.size > 25 * 1024 * 1024) { showToast('הקובץ גדול מדי (מעל 25MB)'); continue; }
-    _bsArr.files.push({ file: f, name: f.name || 'חשבונית.jpg', size: f.size });
+    const ent = { file: f, name: f.name || 'חשבונית.jpg', size: f.size, check: { status: 'wait', msgs: ['בודק מול ההזמנה...'] } };
+    _bsArr.files.push(ent);
+    _bsArrVerify(ent);
   }
   input.value = '';
   _bsArrRender();
 }
 window.bsArrAdd = bsArrAdd;
+
+// הבדיקה היא קריאה בלבד: היא מציגה אזהרה ולא חוסמת. רק PDF נקרא; תמונה נשמרת בלי בדיקה
+async function _bsArrVerify(ent) {
+  const arr = _bsArr;
+  const done = (status, msgs) => { ent.check = { status, msgs }; if (_bsArr === arr) _bsArrRender(); };
+  if (!/\.pdf$/i.test(ent.name) && ent.file.type !== 'application/pdf') return done('skip', ['תמונה — לא ניתן לבדוק אוטומטית מול ההזמנה']);
+  try {
+    const r = _bsParseInvoice(await _bsPdfCells(await ent.file.arrayBuffer()));
+    if (r.error || !r.items?.length) return done('skip', ['לא הצלחנו לקרוא את החשבונית לבדיקה']);
+    const pend = _bsPending.find(p => p.id === arr.id);
+    const msgs = _bsArrCompare(r, arr, pend);
+    done(msgs.length ? 'diff' : 'ok', msgs.length ? msgs : ['החשבונית תואמת להזמנה']);
+  } catch (e) { console.error('arrival verify', e); done('skip', ['לא הצלחנו לקרוא את החשבונית לבדיקה']); }
+}
+
+function _bsArrCompare(r, arr, pend) {
+  const msgs = [];
+  const sameNum = (a, b) => Math.abs(Number(a) - Number(b)) < 0.02;
+  const items = r.items.filter(it => !/אריזה|אריזות/.test(it.desc || '') && !/אריזה/.test(it.sku || ''));
+  if (!r.checks.lines || !r.checks.total) msgs.push('סכומי החשבונית לא מסתדרים');
+  if (pend && pend.invoice && r.invoice && String(pend.invoice) !== String(r.invoice)) msgs.push(`מספר החשבונית ${r.invoice} שונה מההזמנה (${pend.invoice})`);
+  for (const l of arr.take) {
+    const it = items.find(x => String(x.sku) === String(l.sku));
+    const name = l.model || l.sku;
+    if (!it) { msgs.push(`${name} — לא מופיע בחשבונית`); continue; }
+    if (!sameNum(it.qty, l.qty)) msgs.push(`${name} — כמות בחשבונית ${it.qty}, בהזמנה ${l.qty}`);
+    if (l.price && !sameNum(it.unit, l.price)) msgs.push(`${name} — מחיר בחשבונית ${it.unit} ₪, בהזמנה ${l.price} ₪`);
+  }
+  // פריט שלא בהזמנה נבדק רק כשכל ההזמנה מגיעה בבת אחת
+  if (arr.sku == null && pend && arr.take.length === (pend.lines || []).length)
+    for (const it of items) if (!arr.take.some(l => String(l.sku) === String(it.sku))) msgs.push(`בחשבונית יש ${it.desc || it.sku} שלא בהזמנה`);
+  return msgs;
+}
 
 function bsArrRemove(i) { if (_bsArr) { _bsArr.files.splice(i, 1); _bsArrRender(); } }
 window.bsArrRemove = bsArrRemove;
@@ -2081,6 +2117,8 @@ async function bsArrGo(skip) {
   const pend = _bsPending.find(p => p.id === a.id);
   if (!pend) { closeModal('modal-bs-arrive'); return; }
   if (!_requireNet('העברה לארון')) return;
+  const bad = a.files.filter(f => f.check && f.check.status === 'diff');
+  if (bad.length && !confirm('החשבונית לא תואמת להזמנה:\n\n' + bad.flatMap(f => f.check.msgs).join('\n') + '\n\nלהכניס לארון בכל זאת?')) return;
   _bsArriving = true;
   const goBtn = document.getElementById('bsa-go'), secBtn = document.getElementById('bsa-second');
   goBtn.disabled = secBtn.disabled = true;
