@@ -3264,6 +3264,47 @@ async function _fetchGovDataForAll(onProgress) {
   _renderFreetextPreview();
 }
 
+// ── עזרים לתמונה מצולמת של דף (צל, הטיה): סף מקומי במקום סף אחד לכל התמונה ──
+function _pkAdaptiveMask(g, W, H, win, ratio) {
+  const w1 = W + 1, I = new Uint32Array(w1 * (H + 1));
+  for (let y = 0; y < H; y++) {
+    let row = 0;
+    for (let x = 0; x < W; x++) { row += g[y * W + x]; I[(y + 1) * w1 + x + 1] = I[y * w1 + x + 1] + row; }
+  }
+  const m = new Uint8Array(W * H), h = win >> 1;
+  for (let y = 0; y < H; y++) {
+    const y0 = Math.max(0, y - h), y1 = Math.min(H, y + h + 1);
+    for (let x = 0; x < W; x++) {
+      const x0 = Math.max(0, x - h), x1 = Math.min(W, x + h + 1);
+      const mean = (I[y1 * w1 + x1] - I[y0 * w1 + x1] - I[y1 * w1 + x0] + I[y0 * w1 + x0]) / ((x1 - x0) * (y1 - y0));
+      if (g[y * W + x] < mean * ratio) m[y * W + x] = 1;
+    }
+  }
+  return m;
+}
+// זווית ההטיה (במעלות): הזווית שבה שורות הטקסט הכי חדות בהיטל אנכי
+function _pkSkewAngle(img) {
+  const sc = Math.min(1, 800 / Math.max(img.width, img.height));
+  const W = Math.max(1, Math.round(img.width * sc)), H = Math.max(1, Math.round(img.height * sc));
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const x = c.getContext('2d'); x.drawImage(img, 0, 0, W, H);
+  const d = x.getImageData(0, 0, W, H).data, g = new Uint8Array(W * H);
+  for (let i = 0; i < W * H; i++) g[i] = (d[i*4] * 0.299 + d[i*4+1] * 0.587 + d[i*4+2] * 0.114) | 0;
+  const m = _pkAdaptiveMask(g, W, H, Math.max(15, W >> 4), 0.8);
+  const pts = []; for (let i = 0; i < W * H; i++) if (m[i]) pts.push(i % W, (i / W) | 0);
+  const score = deg => {
+    const a = deg * Math.PI / 180, cs = Math.cos(a), sn = Math.sin(a), off = W * Math.abs(sn) + 2;
+    const bins = new Float64Array(Math.ceil(H * cs + off + 4));
+    for (let i = 0; i < pts.length; i += 2) bins[Math.max(0, Math.round(pts[i+1] * cs - pts[i] * sn + off))]++;
+    let t = 0, t2 = 0; for (const v of bins) { t += v; t2 += v * v; }
+    return t2 / bins.length - (t / bins.length) ** 2;
+  };
+  let best = 0, bs = -1;
+  for (let a = -6; a <= 6; a += 0.5) { const sc2 = score(a); if (sc2 > bs) { bs = sc2; best = a; } }
+  for (let a = best - 0.5; a <= best + 0.5; a += 0.1) { const sc2 = score(a); if (sc2 > bs) { bs = sc2; best = a; } }
+  return best;
+}
+
 async function extractTextFromImage(input) {
   const file = input.files[0];
   if (!file) return;
@@ -3284,15 +3325,20 @@ async function extractTextFromImage(input) {
     const setSpan = t => { const s = document.getElementById('freetext-img-loading').querySelector('span'); if (s) s.textContent = t; };
 
     // Prepare canvas: upscale + grayscale + Otsu binarize, and detect row bands to slice by
-    const prepAndSlice = file => new Promise(res => {
+    const prepAndSlice = (file, photo) => new Promise(res => {
       const img = new Image();
       img.onload = () => {
-        const sc = 3, W = img.width * sc, H = img.height * sc;
+        const sc = photo ? Math.min(3, 3000 / Math.max(img.width, img.height)) : 3, W = Math.round(img.width * sc), H = Math.round(img.height * sc);
         const c = document.createElement('canvas');
         c.width = W; c.height = H;
         const ctx = c.getContext('2d');
         ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(img, 0, 0, W, H);
+        if (photo) {
+          ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+          ctx.translate(W / 2, H / 2); ctx.rotate(-_pkSkewAngle(img) * Math.PI / 180);
+          ctx.drawImage(img, -W / 2, -H / 2, W, H);
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+        } else ctx.drawImage(img, 0, 0, W, H);
         const id = ctx.getImageData(0, 0, W, H); const d = id.data;
         const N = W * H;
         const hist = new Array(256).fill(0);
@@ -3310,13 +3356,15 @@ async function extractTextFromImage(input) {
           const between = wB * wF * (mB - mF) * (mB - mF);
           if (between > maxVar) { maxVar = between; thr = t; }
         }
-        const dark = (sumAll / N) < 128;
+        const dark = !photo && (sumAll / N) < 128;
+        let pmask = null;
+        if (photo) { const g = new Uint8Array(N); for (let i = 0; i < N; i++) g[i] = d[i*4]; pmask = _pkAdaptiveMask(g, W, H, Math.max(31, Math.round(W / 16)), 0.82); }
         const darkCount = new Int32Array(H);
         for (let y = 0; y < H; y++) {
           let cnt = 0; const off = y * W * 4;
           for (let x = 0; x < W; x++) {
             const i = off + x*4;
-            const on = dark ? (d[i] > thr) : (d[i] < thr);
+            const on = pmask ? pmask[y * W + x] === 1 : (dark ? (d[i] > thr) : (d[i] < thr));
             const px = on ? 0 : 255;
             d[i]=d[i+1]=d[i+2]=px;
             if (on) cnt++;
@@ -3328,7 +3376,7 @@ async function extractTextFromImage(input) {
         for (let x = 0; x < W; x++) {
           let cd = 0;
           for (let yy = 0; yy < H; yy++) if (d[(yy*W + x)*4] === 0) cd++;
-          if (cd > H * 0.5) for (let yy = 0; yy < H; yy++) { const i = (yy*W + x)*4; d[i]=d[i+1]=d[i+2]=255; }
+          if (cd > H * (photo ? 0.25 : 0.5)) for (let yy = 0; yy < H; yy++) { const i = (yy*W + x)*4; d[i]=d[i+1]=d[i+2]=255; }
         }
         for (let yy = 0; yy < H; yy++) {
           if (darkCount[yy] > W * 0.5) { const off = yy*W*4; for (let x = 0; x < W; x++) { const i = off + x*4; d[i]=d[i+1]=d[i+2]=255; } }
@@ -3362,8 +3410,48 @@ async function extractTextFromImage(input) {
       return s;
     };
 
+    // תמונה מצולמת של דף מודפס מגיעה לפעמים מסובבת. מזהים לפי כיוון שורות הטקסט,
+    // ואם היא שכובה מנסים את שני הכיוונים ובוחרים את זה שנקראו בו הכי הרבה רכבים
+    const rotateBlob = (src, deg) => new Promise(res => {
+      const img = new Image();
+      img.onload = () => {
+        const c = document.createElement('canvas');
+        const sw = deg === 180;
+        c.width = sw ? img.width : img.height; c.height = sw ? img.height : img.width;
+        const x = c.getContext('2d');
+        x.translate(c.width / 2, c.height / 2); x.rotate(deg * Math.PI / 180);
+        x.drawImage(img, -img.width / 2, -img.height / 2);
+        c.toBlob(res, 'image/jpeg', 0.92);
+      };
+      img.src = URL.createObjectURL(src);
+    });
+    // האם שורות הטקסט אופקיות (0) או אנכיות (90): בכיוון הנכון יש פסים כהים ובהירים לסירוגין
+    const needsTurn = src => new Promise(res => {
+      const img = new Image();
+      img.onload = () => {
+        const sc = Math.min(1, 900 / Math.max(img.width, img.height));
+        const W = Math.max(1, Math.round(img.width * sc)), H = Math.max(1, Math.round(img.height * sc));
+        const c = document.createElement('canvas'); c.width = W; c.height = H;
+        const x = c.getContext('2d'); x.drawImage(img, 0, 0, W, H);
+        const d = x.getImageData(0, 0, W, H).data;
+        const g = new Uint8Array(W * H); let sum = 0;
+        for (let i = 0; i < W * H; i++) { g[i] = (d[i*4] * 0.299 + d[i*4+1] * 0.587 + d[i*4+2] * 0.114) | 0; sum += g[i]; }
+        const thr = (sum / (W * H)) * 0.7;
+        const rowP = new Float64Array(H), colP = new Float64Array(W);
+        for (let y = 0; y < H; y++) for (let xx = 0; xx < W; xx++) if (g[y * W + xx] < thr) { rowP[y]++; colP[xx]++; }
+        // קווי טבלה ארוכים לא נספרים, רק הטקסט
+        const clip = (arr, len) => arr.map(v => v > len * 0.6 ? 0 : v);
+        const varOf = a => { const m = a.reduce((t, v) => t + v, 0) / a.length; return a.reduce((t, v) => t + (v - m) * (v - m), 0) / a.length; };
+        const vr = varOf(clip(rowP, W)), vc = varOf(clip(colP, H));
+        console.log('[ROT] row/col variance', Math.round(vr), Math.round(vc));
+        res(vc > vr * 1.3);
+      };
+      img.src = URL.createObjectURL(src);
+    });
+
+    const ocrOne = async (src, photo) => {
     setSpan('⏳ מעבד תמונה...');
-    const { canvas, rows } = await prepAndSlice(file);
+    const { canvas, rows } = await prepAndSlice(src, photo);
 
     let digitsOnly = '', fullText = '', _rowTexts = null;
     if (rows.length >= 2) {
@@ -3397,13 +3485,38 @@ async function extractTextFromImage(input) {
       fullText = text; digitsOnly = text;
     }
 
+    return { digitsOnly, fullText, _rowTexts };
+    };
+    const scoreRows = r => r._rowTexts ? r._rowTexts.map(_parseRowText).filter(c => _pkRowOk(c)).length : 0;
+    let res = null;
+    if (await needsTurn(file)) {
+      let best = null;
+      for (const deg of [90, 270]) {
+        const r = await ocrOne(await rotateBlob(file, deg), true); r.score = scoreRows(r);
+        console.log('[ROT]', deg, 'cars', r.score);
+        if (!best || r.score > best.score) best = r;
+      }
+      res = best;
+    } else {
+      res = await ocrOne(file); res.score = scoreRows(res);
+      if (!res.score) {   // צילום עם צל או הטיה, או הפוך
+        for (const [deg, ph] of [[0, true], [180, true]]) {
+          const r = await ocrOne(deg ? await rotateBlob(file, deg) : file, ph); r.score = scoreRows(r);
+          console.log('[ROT] photo', deg, 'cars', r.score);
+          if (r.score > res.score) res = r;
+          if (res.score) break;
+        }
+      }
+    }
+    const { digitsOnly, fullText, _rowTexts } = res;
+
     console.log('[OCR] digits:', digitsOnly);
     console.log('[OCR] full:', fullText);
 
     if (digitsOnly.trim() || fullText.trim()) {
       // when sliced by rows, parse each row into one car (avoids cross-row mixing & false plates)
       const parsed = _rowTexts
-        ? _rowTexts.map(_parseRowText).filter(c => /^\d{7,8}$/.test(c.plate) && !/^00/.test(c.plate) && (c.year || c.km))
+        ? _rowTexts.map(_parseRowText).filter(c => _pkRowOk(c))
         : _parsePlatesFromOcr(fullText || '', digitsOnly || '');
       if (parsed.length) {
         document.getElementById('freetext-pickup-input').value = (fullText || '').trim();
@@ -3558,11 +3671,17 @@ function _expandCityAbbr(s) {
 }
 
 // Parse a single OCR'd table row into one car (plate + year + km from that row)
+// שורה תקפה: לוחית של 7-8 ספרות ועוד נתון אחד לפחות (שנה או ק״מ); לוחית של 8 ספרות מספיקה לבדה
+function _pkRowOk(c) { return /^\d{7,8}$/.test(c.plate) && !/^00/.test(c.plate) && (c.year || c.km || c.plate.length === 8); }
+
 function _parseRowText(text) {
   const t = ' ' + String(text).replace(/[|/\\]/g, ' ').replace(/\s+/g, ' ') + ' ';
   const plateM = t.match(/(?<!\d)(\d{7,8})(?!\d)/);
   const plate = plateM ? plateM[1] : '';
-  const yearM = t.match(/\b(19[89]\d|20[0-3]\d)\b/) || t.match(/(19[89]\d|20[0-3]\d)/);
+  // מספר בן 4 ספרות שחוזר בשורה הוא נפח מנוע (מופיע גם בשם הדגם וגם בעמודת הנפח), לא שנה ולא ק״מ
+  const _c4 = {}; for (const m of t.matchAll(/(?<!\d)\d{4}(?!\d)/g)) _c4[m[0]] = (_c4[m[0]] || 0) + 1;
+  const _eng = n => _c4[n] > 1;
+  const yearM = [...t.matchAll(/\b(19[89]\d|20[0-3]\d)\b/g)].find(m => !_eng(m[1])) || [...t.matchAll(/(19[89]\d|20[0-3]\d)/g)].find(m => !_eng(m[1]));
   const year = yearM ? yearM[1] : '';
   // km: prefer a number with a thousands separator (20,682 / 143.724); else a 4-5 digit
   // standalone that isn't the plate or the year (handles 82400 / 47000 / 6046)
@@ -3571,7 +3690,7 @@ function _parseRowText(text) {
   if (kmSep) km = _fmtKm(kmSep[1]);
   else {
     const nums = [...t.matchAll(/(?<!\d)(\d{4,6})(?!\d)/g)].map(m => m[1])
-      .filter(n => n !== plate && !/^(19[89]\d|20[0-3]\d)$/.test(n));
+      .filter(n => n !== plate && !/^(19[89]\d|20[0-3]\d)$/.test(n) && !_eng(n));
     // a 6-digit km with a leading 1 usually comes from a "|" separator read as "1"
     let n = nums[0];
     if (n && n.length === 6 && n[0] === '1') n = n.slice(1);
