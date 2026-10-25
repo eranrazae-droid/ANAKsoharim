@@ -58,6 +58,8 @@ function _dailyNote(id) {
     const marked = _dailyInvMark && _dailyInvMark.day === today;
     const waiting = _dailyInv && _dailyInv.day === today;
     if (waiting) return { txt: '🔎 הנהג סיים · לבדיקתך', ok: false, review: true };
+    // נשלחה לנהג וממתינה לביצוע — אותו צבע כמו "לבדיקתך", כך שהקובייה נשארת באותו צבע עד האישור
+    if (_dailyInv && _dailyInv.open) return { txt: '📤 נשלח לנהג · ממתין לביצוע', ok: false, review: true, sent: true };
     if (!marked) return { txt: '⏳ טרם בוצעה היום', ok: false };
     if (_dailyInv && _dailyInv.open) return { txt: `⚠️ נבדק הבוקר · ${_dailyInv.open} ממתינות`, ok: false };
     if (_dailyInvMark.missing) return { txt: `⚠️ נבדק הבוקר · ${_dailyInvMark.missing} חסרים`, ok: false };
@@ -91,7 +93,7 @@ function _renderHomeChecks() {
     // הנהג סיים והמנהל עדיין לא אישר — מצב משלו, לא "טרם" ולא "נבדק"
     if (d.review) {
       el.classList.add('rev');
-      if (sub) sub.textContent = narrow ? 'לבדיקתך' : 'הנהג סיים · לבדיקתך';
+      if (sub) sub.textContent = d.sent ? (narrow ? 'אצל הנהג' : 'נשלח לנהג') : (narrow ? 'לבדיקתך' : 'הנהג סיים · לבדיקתך');
       continue;
     }
     // הנוסח המלא ארוך לכפתור צר — נשארת רק המילה שאומרת את המצב
