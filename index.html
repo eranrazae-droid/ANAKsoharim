@@ -892,12 +892,19 @@ display:none !important;
                   <div id="carYear" class="muted" style="font-size:14px;font-weight:500;margin-top:4px;letter-spacing:.04em"></div>
                   <div id="carEngine" class="small muted" style="margin-top:4px;font-size:14px;font-weight:500"></div>
                   <div style="position:relative;margin-top:14px;border-radius:14px;overflow:hidden;background:#f8f8f8">
-                    <img id="carImage" src="" alt="תמונת הרכב" referrerpolicy="no-referrer" style="width:100%;max-width:100%;min-height:300px;max-height:420px;object-fit:contain;display:block">
+                    <img id="carImage" src="" alt="תמונת הרכב" referrerpolicy="no-referrer" onclick="openImgLightbox()" title="לחץ להגדלה" style="width:100%;max-width:100%;min-height:300px;max-height:420px;object-fit:contain;display:block;cursor:zoom-in">
                     <button id="galleryPrev" onclick="changeGalleryImg(-1)" style="display:none;position:absolute;top:50%;right:12px;transform:translateY(-50%);background:rgba(0,0,0,.55);color:#fff;border:none;border-radius:50%;width:40px;height:40px;font-size:20px;cursor:pointer">‹</button>
                     <button id="galleryNext" onclick="changeGalleryImg(1)" style="display:none;position:absolute;top:50%;left:12px;transform:translateY(-50%);background:rgba(0,0,0,.55);color:#fff;border:none;border-radius:50%;width:40px;height:40px;font-size:20px;cursor:pointer">›</button>
                     <div id="galleryCounter" style="display:none;direction:ltr;position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.55);color:#fff;padding:4px 12px;border-radius:999px;font-size:15px;font-weight:700"></div>
                   </div>
                   <div id="galleryThumbs" style="display:flex;gap:8px;margin-top:10px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none"></div>
+                  <div id="imgLightbox" onclick="if(event.target===this||event.target.id==='lbClose')closeImgLightbox()" style="display:none;position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.92);align-items:center;justify-content:center">
+                    <button id="lbClose" onclick="closeImgLightbox()" style="position:absolute;top:14px;left:14px;background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:50%;width:44px;height:44px;font-size:24px;cursor:pointer;line-height:1">✕</button>
+                    <button onclick="lightboxNav(-1)" style="position:absolute;top:50%;right:10px;transform:translateY(-50%);background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:50%;width:46px;height:46px;font-size:26px;cursor:pointer">‹</button>
+                    <button onclick="lightboxNav(1)" style="position:absolute;top:50%;left:10px;transform:translateY(-50%);background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:50%;width:46px;height:46px;font-size:26px;cursor:pointer">›</button>
+                    <img id="lbImage" src="" referrerpolicy="no-referrer" style="max-width:96vw;max-height:92vh;object-fit:contain;border-radius:8px">
+                    <div id="lbCounter" style="position:absolute;bottom:16px;left:50%;transform:translateX(-50%);direction:ltr;background:rgba(255,255,255,.15);color:#fff;padding:5px 14px;border-radius:999px;font-size:15px;font-weight:700"></div>
+                  </div>
                   <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:16px">
                     <div class="soft-box" style="text-align:center;padding:12px 10px"><div class="small muted" style="font-size:12px;font-weight:600">מחירון יבואן</div><div id="carCatalog" style="margin-top:6px;font-size:21px;font-weight:900;text-decoration:line-through"></div></div>
                     <div class="gold-box" style="text-align:center;padding:12px 10px"><div class="small" style="color:#a16207;font-size:12px;font-weight:600">מחיר אוטודילר</div><div id="carPrice" style="margin-top:6px;font-size:21px;font-weight:900;color:#a16207"></div></div>
@@ -2094,6 +2101,37 @@ display:none !important;
       const newIdx = ((window._galleryIdx||0)+dir+imgs.length)%imgs.length;
       selectGalleryImg(newIdx);
     }
+    // תצוגת תמונה במסך מלא (גם בנייד) - לחיצה על תמונת הרכב
+    function openImgLightbox(){
+      const imgs=window._galleryImgs||[]; const src=document.getElementById('carImage').src;
+      if(!src) return;
+      const lb=document.getElementById('imgLightbox'), im=document.getElementById('lbImage');
+      if(im) im.src=src;
+      if(lb) lb.style.display='flex';
+      document.body.style.overflow='hidden';
+      _lbUpdateCounter();
+    }
+    function closeImgLightbox(){
+      const lb=document.getElementById('imgLightbox'); if(lb) lb.style.display='none';
+      document.body.style.overflow='';
+    }
+    function lightboxNav(dir){
+      const imgs=window._galleryImgs||[]; if(imgs.length<2){ return; }
+      changeGalleryImg(dir); // מזיז גם את התמונה הראשית
+      const im=document.getElementById('lbImage'); if(im) im.src=document.getElementById('carImage').src;
+      _lbUpdateCounter();
+    }
+    function _lbUpdateCounter(){
+      const imgs=window._galleryImgs||[]; const c=document.getElementById('lbCounter');
+      if(c){ if(imgs.length>1){ c.style.display='block'; c.textContent=((window._galleryIdx||0)+1)+' / '+imgs.length; } else { c.style.display='none'; } }
+    }
+    document.addEventListener('keydown',function(e){
+      if((document.getElementById('imgLightbox')||{}).style && document.getElementById('imgLightbox').style.display==='flex'){
+        if(e.key==='Escape') closeImgLightbox();
+        else if(e.key==='ArrowLeft') lightboxNav(1);
+        else if(e.key==='ArrowRight') lightboxNav(-1);
+      }
+    });
 
     function shuffleArr(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
     function scrollHomeCarousel(dir){
