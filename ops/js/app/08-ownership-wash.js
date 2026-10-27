@@ -1705,6 +1705,7 @@ function openBsmSendModal() {
   _bsmVideoInfo = null;
   _bsmUpl = null;
   _bsmRenderVideo();
+  _bsmSyncVideoLabel();
   _bsmRenderPhoto();
   _bsmRenderPicker();
   _bsmVladiSyncForm();
@@ -1845,6 +1846,7 @@ async function _bsmLookupPlate(manual) {
     _bsmMaker = maker;
     const parts = [maker, model, rec['shnat_yitzur'] || '', rec['tzeva_rechev'] || ''].filter(Boolean);
     descEl.value = parts.join(' ');
+    _bsmSyncVideoLabel();
     // echo what came back so a wrong plate is obvious at a glance
     say('✅ נמצא: ' + parts.join(' · '));
   } catch (e) {

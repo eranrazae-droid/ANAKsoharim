@@ -13,6 +13,21 @@ window.bsmAddPhotoPicked = bsmAddPhotoPicked;
    הקובץ נשלח לקבוצה כ-document — בייט-בבייט, טלגרם לא נוגע בו.       */
 let _bsmVideoFile = null, _bsmVideoInfo = null;
 
+/* רכב משנת 2019 ומטה לא חייב סרטון תיעוד. השנה נקראת מתיאור הרכב (שנמשך מהמאגר, וניתן לעריכה);
+   אם אין בו שנה — הסרטון נשאר חובה. */
+function _bsmVideoOptional() {
+  const m = String(document.getElementById('bsm-desc')?.value || '').match(/(?<!\d)(19[5-9]\d|20[0-3]\d)(?!\d)/);
+  return !!m && Number(m[1]) <= 2019;
+}
+function _bsmSyncVideoLabel() {
+  const el = document.getElementById('bsm-video-label');
+  if (!el) return;
+  el.innerHTML = _bsmVideoOptional()
+    ? '🎥 סרטון תיעוד <span style="font-weight:600;color:var(--muted)">(לא חובה — רכב משנת 2019 ומטה)</span>'
+    : '🎥 סרטון תיעוד <span style="color:#ef4444">*</span> <span style="font-weight:600;color:var(--muted)">(חובה — יישלח לקבוצת הפחחות)</span>';
+}
+window._bsmSyncVideoLabel = _bsmSyncVideoLabel;
+
 function _bsmRenderVideo() {
   const w = document.getElementById('bsm-video-wrap');
   if (!w) return;
@@ -396,14 +411,16 @@ async function submitBsmSend() {
   const note = document.getElementById('bsm-note').value.trim();
   if (!plate) return showToast('נא להזין מספר רישוי');
   if (!_bsmPicked.length) return showToast('נא לבחור לפחות חלק אחד');
-  if (!_bsmVideoFile) return showToast('חובה לצרף סרטון תיעוד לפני יצירת הפתק');
+  if (!_bsmVideoFile && !_bsmVideoOptional()) return showToast('חובה לצרף סרטון תיעוד לפני יצירת הפתק');
 
   // הסרטון חייב להגיע לקבוצה לפני שהפתק נוצר. אם ההעלאה שהתחילה ברקע
   // הסתיימה — אין המתנה בכלל; אם נכשלה — ניסיון שני כאן.
   const btn = document.getElementById('bsm-submit-btn');
-  if (btn) { btn.disabled = true; btn.textContent = '🎥 שולח סרטון…'; }
+  if (btn) { btn.disabled = true; btn.textContent = _bsmVideoFile ? '🎥 שולח סרטון…' : '📝 יוצר פתק…'; }
   try {
-    if (_bsmUpl) {
+    if (!_bsmVideoFile) {
+      // רכב משנת 2019 ומטה בלי סרטון — אין מה לשלוח לקבוצה
+    } else if (_bsmUpl) {
       try { await _bsmUpl.promise; } catch (e) { await _bsmSendVideoToGroup(_bsmVideoFile, plate, desc); _bsmUpl.key = plate + '|' + desc; }
       if (_bsmUpl.key !== plate + '|' + desc) {
         // הפרטים שונו אחרי שהסרטון כבר עלה — הודעת שיוך במקום העלאה כפולה
@@ -421,6 +438,7 @@ async function submitBsmSend() {
     if (btn) { btn.disabled = false; btn.textContent = '📝 צור פתק'; }
     return showToast('⚠️ הפתק לא נוצר — הסרטון לא נשלח: ' + e.message, 9000);
   }
+  const hadVideo = !!_bsmVideoFile;
   _bsmUpl = null;
   _bsmVideoFile = null; _bsmVideoInfo = null;
   if (btn) { btn.disabled = false; btn.textContent = '📝 צור פתק'; }
@@ -435,7 +453,7 @@ async function submitBsmSend() {
   };
   _bsmVladi = [];
   closeModal('modal-bsm-send');
-  showToast('✅ הסרטון נשלח והפתק נוצר');
+  showToast(hadVideo ? '✅ הסרטון נשלח והפתק נוצר' : '✅ הפתק נוצר');
 
   // כתיבת הפתק ברקע
   try {
