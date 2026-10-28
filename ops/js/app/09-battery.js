@@ -2111,22 +2111,19 @@ function _bsArrCompare(r, arr, pend) {
 function bsArrRemove(i) { if (_bsArr) { _bsArr.files.splice(i, 1); _bsArrRender(); } }
 window.bsArrRemove = bsArrRemove;
 
-// תמונה נדחסת, PDF עולה כמו שהוא. כל קובץ נשמר באחסון; אם האחסון לא זמין וקובץ קטן — נשמר ברשומה
+// האחסון סגור באפליקציה (storage.rules) — כל הקבצים נשמרים כ-base64 בתוך מסמך Firestore, כמו תמונות המצבר.
+// תמונה נדחסת עד שהיא קטנה מספיק; PDF נשמר כמו שהוא. מסמך מוגבל ל-1MB, ולכן יש תקרה לכל קובץ ולסך הקבצים.
+const _BS_ARR_FILE_MAX = 380 * 1024;
 async function _bsArrUpload(f) {
+  const toData = blob => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = e => res(e.target.result); fr.onerror = rej; fr.readAsDataURL(blob); });
   let blob = f.file, name = f.name;
   if (/^image\//.test(f.file.type)) {
-    try { const b64 = await compressToBase64(f.file, 1600, 0.8); blob = await (await fetch(b64)).blob(); name = name.replace(/\.\w+$/, '') + '.jpg'; } catch (e) { /* ממשיכים עם המקור */ }
+    for (const [px, q] of [[1600, 0.8], [1400, 0.65], [1200, 0.5], [1000, 0.45]]) {
+      try { const b = await (await fetch(await compressToBase64(f.file, px, q))).blob(); blob = b; name = f.name.replace(/\.\w+$/, '') + '.jpg'; if (b.size <= _BS_ARR_FILE_MAX) break; } catch (e) { break; }
+    }
   }
-  if (window._uploadBytes && window._storageRef) {
-    const ref = window._storageRef(window._storage, `battery_invoices/arrival_${Date.now()}_${name.replace(/[^\w.\-א-ת]/g, '_')}`);
-    await window._uploadBytes(ref, blob);
-    return { name, url: await window._getDownloadURL(ref) };
-  }
-  if (blob.size < 600 * 1024) {
-    const data = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = e => res(e.target.result); fr.onerror = rej; fr.readAsDataURL(blob); });
-    return { name, data };
-  }
-  throw new Error('storage-unavailable');
+  if (blob.size > _BS_ARR_FILE_MAX) throw new Error('file-too-big');
+  return { name, data: await toData(blob), size: blob.size };
 }
 
 async function bsArrGo(skip) {
@@ -2145,6 +2142,9 @@ async function bsArrGo(skip) {
     const uploaded = [];
     if (a.files.length) goBtn.textContent = '⏳ מעלה חשבונית...';
     for (const f of a.files) uploaded.push(await _bsArrUpload(f));
+    // מסמך הוא עד 1MB, וגם קובץ החשבונית שנקלט עם ההזמנה יושב באותו מסמך בהיסטוריה
+    const chars = [...a.existing, ...uploaded].reduce((t, f) => t + (f.data ? f.data.length : 0), 0) + ((pend.file || '').length);
+    if (chars > 800000) throw new Error('file-too-big');
     const arrivalFiles = [...a.existing, ...uploaded];
     const all = pend.lines || [];
     const take = a.take;
@@ -2164,7 +2164,7 @@ async function bsArrGo(skip) {
     closeModal('modal-bs-arrive');
     _bsArr = null;
   } catch (e) {
-    showToast(e && e.message === 'storage-unavailable' ? 'לא הצלחנו להעלות את החשבונית — נסה שוב או המשך בלי' : 'שגיאה: ' + (e.code || e.message), 6000);
+    showToast(e && e.message === 'file-too-big' ? 'הקבצים גדולים מדי לשמירה — צרף קובץ קטן יותר (עד כ-380KB), או המשך בלי חשבונית' : 'שגיאה: ' + (e.code || e.message), 7000);
   } finally {
     _bsArriving = false;
     goBtn.disabled = secBtn.disabled = false;
