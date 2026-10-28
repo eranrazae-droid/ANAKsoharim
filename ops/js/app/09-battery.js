@@ -2019,6 +2019,8 @@ function bsPendingArrive(id, sku) {
   if (!take.length) return;
   const units = take.reduce((t, l) => t + (l.qty || 0), 0);
   _bsArr = { id, sku, take, units, files: [], existing: [...(pend.arrivalFiles || [])] };
+  // הזמנה שנפתחה מקובץ חשבונית כבר מחזיקה אותו — לא מבקשים חשבונית שוב, ההגעה נרשמת ישר
+  if (pend.file || pend.fileUrl) { bsArrGo(false); return; }
   _bsArrRender();
   openModal('modal-bs-arrive');
 }
