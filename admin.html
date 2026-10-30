@@ -2412,11 +2412,11 @@
       '<thead><tr style="text-align:right;border-bottom:2px solid var(--line);color:var(--muted);font-size:12px">'+
       '<th style="padding:8px 10px">רכב</th>'+
       PUB_CHANNELS.map(ch=>'<th style="padding:8px 10px;text-align:center">'+ch.icon+'<br>'+_esc(ch.label)+(ch.owner?'<br><span style="font-size:10px;color:#a16207;font-weight:700">👤 '+_esc(ch.owner)+'</span>':'')+'</th>').join('')+
-      '<th style="padding:8px 10px;text-align:center">התקדמות</th></tr></thead><tbody>';
+      '<th style="padding:8px 10px;text-align:center">התקדמות</th><th style="padding:8px 10px;text-align:center">פעולות</th></tr></thead><tbody>';
     let curBrand=null;
     rows.forEach(c=>{
       if(c.brand!==curBrand){ curBrand=c.brand;
-        html+='<tr style="background:#faf7ef"><td colspan="'+(PUB_CHANNELS.length+2)+'" style="padding:6px 10px;font-weight:900">'+_esc(c.brand||'—')+'</td></tr>';
+        html+='<tr style="background:#faf7ef"><td colspan="'+(PUB_CHANNELS.length+3)+'" style="padding:6px 10px;font-weight:900">'+_esc(c.brand||'—')+'</td></tr>';
       }
       const doneN=PUB_CHANNELS.filter(ch=>(c.pub||{})[ch.key]).length;
       var dp=Number(c.autodealerPriceNumber)||0, dlic=Number(c.licenseFee)||0, dtot=dp+dlic, dmo=_voMonthly(dtot);
@@ -2429,6 +2429,7 @@
           return '<td style="padding:6px 8px;text-align:center"><button onclick="togglePub(\''+c.id+'\',\''+ch.key+'\')" style="border:none;border-radius:999px;padding:5px 12px;font-weight:800;font-size:12px;cursor:pointer;color:#fff;background:'+(on?'#16a34a':'#cbd5e1')+'">'+(on?('✔ '+ptShort(iso)):'סמן')+'</button></td>';
         }).join('')+
         '<td style="padding:8px 10px;text-align:center;font-weight:800;color:'+(doneN===PUB_CHANNELS.length?'#15803d':'#a16207')+'">'+doneN+'/'+PUB_CHANNELS.length+'</td>'+
+        '<td style="padding:8px 10px;text-align:center;white-space:nowrap"><button onclick="downloadPubImages(this,\''+c.id+'\')" title="הורד תמונות" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:800;cursor:pointer">⬇️</button> <button onclick="openAds('+c.id+')" title="תוכן לפרסום" style="background:#0d0d0d;color:#fff;border:none;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:800;cursor:pointer">📋</button></td>'+
         '</tr>';
     });
     html+='</tbody></table>';
@@ -2454,7 +2455,12 @@
           const iso=(c.pub||{})[ch.key]; const on=!!iso;
           return '<button onclick="togglePub(\''+c.id+'\',\''+ch.key+'\')" class="pt-chan-btn" style="background:'+(on?'#16a34a':'#f1f5f9')+';color:'+(on?'#fff':'#475569')+'"><span>'+ch.icon+' '+_esc(ch.label)+(ch.owner?' · '+_esc(ch.owner):'')+'</span><b>'+(on?('✔ '+ptShort(iso)):'סמן')+'</b></button>';
         }).join('')+
-        '</div></div>';
+        '</div>'+
+        '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'+
+          '<button onclick="downloadPubImages(this,\''+c.id+'\')" style="flex:1;min-width:120px;background:#16a34a;color:#fff;border:none;border-radius:10px;padding:10px;font-size:13px;font-weight:800;cursor:pointer">⬇️ הורד תמונות</button>'+
+          '<button onclick="openAds('+c.id+')" style="flex:1;min-width:120px;background:#0d0d0d;color:#fff;border:none;border-radius:10px;padding:10px;font-size:13px;font-weight:800;cursor:pointer">📋 תוכן לפרסום</button>'+
+        '</div>'+
+        '</div>';
     });
 
     wrap.innerHTML='<div class="pt-table">'+html+'</div><div class="pt-cards">'+cards+'</div>';
