@@ -3222,14 +3222,17 @@
     pairs.forEach(function(pr){
       var c=_findCar(pr[0],pr[1]); if(!c) return;
       var price=Number(c.autodealerPriceNumber)||0; if(price<=1) return;
-      var lic=Number(c.licenseFee)||0, total=price+lic, mo=_voMonthly(total);
-      var balloonMo=monthlyFV(total, 4.2, 60, total*0.5); // בלון: מימון מלא ב-4.2% ל-60 תש', 50% תשלום סופי
+      var lic=Number(c.licenseFee)||0, total=price+lic;
+      // אופציה 1 = ההחזר החודשי הנמוך מבין המסלולים ללא בלון (100 תשלומים, בלי תשלום סופי)
+      var _tr=finTracks(total); var _nb=[_tr[0],_tr[2],_tr[3],_tr[4]].filter(function(x){return x>0;});
+      var mo=_nb.length?Math.round(Math.min.apply(null,_nb)):0;
+      var balloonMo=monthlyFV(total, 4.2, 60, total*0.5); // אופציה 2 = בלון: ריבית 4.2%, 60 תש', 50% תשלום סופי
       var balloonEnd=Math.round(total*0.5);
       var name=((c.brand||'')+' '+(c.model||'')).replace(/\s+/g,' ').trim()+(c.year?(' '+c.year):'');
       var lines='🚗 *'+name+'* (0 ק״מ)\n';
       lines+= lic>0 ? ('💰 מחיר: '+fmtN(total)+' ₪ (כולל אגרת רישוי)\n') : ('💰 מחיר: '+fmtN(price)+' ₪\n');
       lines+='\nניתן לשלם כך:\n';
-      if(mo>0) lines+='▫️ אופציה ראשונה: מימון מ-'+fmtN(mo)+' ₪ לחודש (עד 100% מימון, בלי מקדמה)\n';
+      if(mo>0) lines+='▫️ אופציה ראשונה: מ-'+fmtN(mo)+' ₪ לחודש (100 תשלומים, בלי תשלום סופי · עד 100% מימון, בלי מקדמה)\n';
       if(balloonMo>0) lines+='▫️ אופציה שנייה (בלון, ריבית 4.2%): '+fmtN(Math.round(balloonMo))+' ₪ לחודש ל-60 תשלומים + תשלום סופי '+fmtN(balloonEnd)+' ₪\n';
       lines+='🔗 לרכב באתר: https://autodealer.co.il/?car='+encodeURIComponent(c.id)+'\n';
       blocks.push(lines);
