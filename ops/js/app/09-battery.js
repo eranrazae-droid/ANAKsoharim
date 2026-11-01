@@ -2346,7 +2346,7 @@ function _bsParseInvoice(cells) {
     lines: items.length > 0 && items.every(it => Math.abs(it.unit * it.qty - it.total) < 0.02),
     total: tail.some(v => Math.abs(v - sum) < 0.02),
   };
-  return { invoice, date, items, checks, sum };
+  return { invoice, date, items, checks, sum, tail };
 }
 
 /* The amperage is taken from the words around it — the figure next to "אמפר",
@@ -2410,7 +2410,12 @@ async function bsImportInvoice(input) {
   if (r.error || !r.items?.length) return showToast('⚠️ לא זוהו שורות מוצר בקובץ — אפשר להוסיף ידנית', 6000);
   if (!r.checks.lines || !r.checks.total) {
     // the numbers do not add up, so they are not offered at all
-    return showToast('⚠️ הסכומים בקובץ לא הסתדרו בבדיקה — נא להוסיף ידנית', 7000);
+    // כותבים מה בדיוק לא הסתדר, כדי שאפשר יהיה להבין אם זו חשבונית עם הנחה/שורה מיוחדת או קריאה שגויה
+    const bad = r.items.find(it => Math.abs(it.unit * it.qty - it.total) >= 0.02);
+    const why = !r.checks.lines && bad
+      ? `שורה ${bad.sku}: ${bad.unit} × ${bad.qty} ≠ ${bad.total}`
+      : `סכום השורות ${Math.round(r.sum * 100) / 100}, ובחשבונית ${[...new Set(r.tail || [])].slice(0, 4).join(' / ') || 'לא זוהה סכום'}`;
+    return showToast(`⚠️ הסכומים בקובץ לא הסתדרו בבדיקה (${why}) — נא להוסיף ידנית`, 12000);
   }
   // fill the manual form instead of writing anything, so every line is seen
   // and confirmed before it touches the cabinet
