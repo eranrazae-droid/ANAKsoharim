@@ -2313,7 +2313,8 @@ function _bsParseInvoice(cells) {
     .filter(([, x]) => x !== undefined);
   const colOf = x => numCols.reduce((best, c) => Math.abs(x - c[1]) < Math.abs(x - best[1]) ? c : best)[0];
 
-  const endY = ys.find(y => y < headY && rows.get(y).some(c => c.t.includes('תומכ כ"הס')));
+  // שורת הסיכום: "סה"כ כמות" בחשבונית הישנה, "סה"כ כללי" בחשבונית עם עמודת תאריך משלוח והנחה כללית
+  const endY = ys.find(y => y < headY && rows.get(y).some(c => c.t.includes('תומכ כ"הס') || c.t.includes('יללכ כ"הס')));
   const items = [];
   for (const y of ys) {
     if (y >= headY || (endY !== undefined && y <= endY)) continue;
@@ -2325,15 +2326,24 @@ function _bsParseInvoice(cells) {
     if (nums.length < 3) continue;
     const f = {};
     for (const c of nums) { const k = colOf(c.x); if (f[k] === undefined) f[k] = _bsNum(c.t); }
+    // מספרים מיושרים לימין, אז ערך קצר יושב רחוק יותר מראש העמודה, ועלול ליפול על העמודה השכנה.
+    // אם בכל זאת יש בשורה כל המספרים — ממפים אותם לפי הסדר, משמאל לימין של הכותרות
+    if ((f.unit === undefined || f.qty === undefined) && nums.length >= numCols.length) {
+      const byX = [...nums].sort((a, b) => b.x - a.x);
+      const g = {};
+      numCols.forEach(([k], i) => { g[k] = _bsNum(byX[i].t); });
+      if (g.unit !== undefined && g.qty !== undefined) Object.assign(f, g);
+    }
     if (f.unit === undefined || f.qty === undefined) continue;
-    // the SKU column is the right-hand edge of the table
-    const skuCell = row[0];
+    // the SKU is the cell printed under the מק"ט heading — in some invoices a delivery-date
+    // column sits to its right, so the right-hand edge of the table is not always the SKU
+    const skuCell = row.filter(c => Math.abs(c.x - cols.sku) <= 45).sort((a, b) => Math.abs(a.x - cols.sku) - Math.abs(b.x - cols.sku))[0] || row[0];
     const sku = skuCell ? skuCell.t : '';
     // the description occupies the space between the SKU column and the first
     // price printed on the row — including any bare number inside it, which is
     // usually the amperage
     const priceEdge = Math.max(...nums.map(c => c.x));
-    const descCells = row.filter(c => c !== skuCell && c.x > priceEdge + 20);
+    const descCells = row.filter(c => c !== skuCell && c.x > priceEdge + 20 && c.x < skuCell.x - 4);
     items.push({
       sku,
       descCells: descCells.map(c => c.t),
