@@ -575,6 +575,8 @@ function _bshopJobCard(j, forWorker, held) {
         style="flex:1;min-width:0;background:transparent;color:#ef4444;border:2px solid #fecaca;border-radius:10px;padding:8px 4px;font-family:'Heebo',sans-serif;font-size:12.5px;font-weight:800;cursor:pointer">🗑 מחיקה</button>
       <button onclick="event.stopPropagation();bsmSetHold('${j.id}',true)" title="הוצא מהמסך עד שתחזיר אותו"
         style="flex:1;min-width:0;background:#e0f2fe;color:#0369a1;border:2px solid #7dd3fc;border-radius:10px;padding:8px 4px;font-family:'Heebo',sans-serif;font-size:12.5px;font-weight:800;cursor:pointer">❄️ הקפאה</button>
+      ${j.status === 'at_shop' ? `<button onclick="event.stopPropagation();bsmReturnToDraft('${j.id}')" title="החזר את הפתק לממתינים לשליחה"
+        style="flex:1;min-width:0;background:#fef3c7;color:#92400e;border:2px solid #fcd34d;border-radius:10px;padding:8px 4px;font-family:'Heebo',sans-serif;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap">↩ לשליחה</button>` : ''}
     </div>` : ''}
   </div>`;
 }
@@ -1487,6 +1489,30 @@ window.openBsmTrips = openBsmTrips;
    ויורדת לסוף הרשימה, והכפתור הופך ל"החזר רכב לפחח". הסטטוס נשאר אצל הפחח
    ואצל איברהים לא משתנה כלום. הרכב עובר ל"מכוניות שסיימנו" רק כשאיברהים
    עצמו לוחץ סיימנו וממלא מחיר (אז הסטטוס הופך ל-returned, כמו תמיד). */
+/* החזרת רכב מ"אצל הפחח" אל "ממתינים לשליחה" — למי שנשלח בטעות או שהפחח עוד לא קיבל.
+   הפתק חוזר למצב טיוטה כמו שהיה לפני השליחה; רישום הנסיעה ביומן נשאר כמות שהוא. */
+async function bsmReturnToDraft(id) {
+  const j = _bshopJobs.find(x => x.id === id);
+  if (!j || j.status !== 'at_shop') return;
+  if (!confirm(`להחזיר את ${j.plate || 'הרכב'} לממתינים לשליחה?\n\nהפתק יצא ממסך הפחח, תיעוד הנסיעה יימחק, והוא ימתין לשליחה מחדש.`)) return;
+  if (!_requireNet('החזרת הפתק')) return;
+  try {
+    // תיעוד מי נסע עם הרכב לפחח מתבטל יחד עם השליחה: נמחקת הנסיעה של השליחה הזאת (אותו זמן שליחה),
+    // ואם לא נמצאה כזאת — הנסיעה האחרונה של הפתק
+    try {
+      const { getDocs, query, collection, where, deleteDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+      const snap = await getDocs(query(collection(window._db, 'bodyshop_trips'), where('jobId', '==', id)));
+      const trips = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((x, y) => String(y.at || '').localeCompare(String(x.at || '')));
+      const mine = trips.filter(t => j.sentAt && t.at === j.sentAt);
+      for (const t of (mine.length ? mine : trips.slice(0, 1))) await deleteDoc(doc(window._db, 'bodyshop_trips', t.id));
+    } catch (e) { console.error('trip cancel', e); showToast('⚠️ תיעוד הנסיעה לא נמחק — אפשר למחוק אותו ידנית ביומן הנסיעות', 6000); }
+    await _updateDoc(_docRef('bodyshop_jobs', id), { status: 'draft', sentAt: null, takenBy: '', mgrDone: false, mgrDoneAt: null, updatedAt: _serverTs() });
+    try { if (typeof bsmMClose === 'function') bsmMClose(); } catch (e) {}
+    showToast('↩ הרכב הוחזר לממתינים לשליחה');
+  } catch (e) { showToast('שגיאה — נסה שוב: ' + (e.code || e.message), 6000); }
+}
+window.bsmReturnToDraft = bsmReturnToDraft;
+
 async function bsmSetMgrDone(id, val) {
   const j = _bshopJobs.find(x => x.id === id);
   if (!j || j.status !== 'at_shop') return;
@@ -2793,6 +2819,7 @@ function _bsmMRenderSheet() {
   }
   const sec = `<div class="bsmm-mini">
       <div onclick="bsmAddPhoto('${id}')">📷 ${src ? 'החלף תמונה' : 'הוסף תמונה'}</div>
+      ${j.status === 'at_shop' ? `<div onclick="bsmReturnToDraft('${id}')">↩ החזר לממתינים לשליחה</div>` : ''}
       ${j.status !== 'returned' ? `<div onclick="bsmSetHold('${id}',true)">❄️ הקפאה</div><div class="rm" onclick="bsmDeleteOne('job:${id}')">🗑 מחיקה</div>` : ''}
     </div>`;
 
