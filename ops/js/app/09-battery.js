@@ -1777,7 +1777,7 @@ function _bsRenderHistory() {
         // המחיר מגיע מהקטלוג לפי המק״ט, ואם אין שם — מהמחיר שנשמר על ההרכבה.
         // המשוואה היא בדיוק זו שבארכיון הפחחות — אותה פונקציה, אותו מראה.
         const pr = Number(_bsPriceOf(r));
-        const sku = r.sku ? `<span style="font-size:12px;font-weight:800;color:var(--muted);white-space:nowrap;flex-shrink:0">מק״ט ${esc(r.sku)}</span>` : '';
+        const sku = r.sku ? `<span style="font-size:13px;font-weight:900;color:#000;background:#fde047;border-radius:6px;padding:2px 8px;white-space:nowrap;flex-shrink:0">מק״ט ${esc(r.sku)}</span>` : '';
         return `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">${sku}${pr ? _bsmVatEquation(pr)
         : `<div style="font-size:12px;font-weight:800;color:var(--muted);white-space:nowrap;flex-shrink:0">אין מחיר</div>`}</div>`;
       })()}
