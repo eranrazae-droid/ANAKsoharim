@@ -1572,6 +1572,7 @@ function _bshopNoteForm(id) {
   <table style="border-collapse:collapse;width:100%">
     <tr><td colspan="2" style="${TD}padding:10px;text-align:center;font-size:15px">תיאור העבודה הדרושה :</td></tr>
     ${rows}
+    ${j.note ? `<tr><td colspan="2" style="${TD}padding:10px 12px;font-size:14px;line-height:1.5"><b>הערה לפחח :</b> ${esc(j.note)}</td></tr>` : ''}
   </table>
 </div>`;
   return { html, plate: j.plate };
