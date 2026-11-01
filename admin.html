@@ -3529,8 +3529,19 @@
     </div>`;
   }
   // מחיר + החזר חודשי לרכב שהלקוח מתעניין בו
-  function _icPriceHTML(b,m){
-    if(!b||!m) return '';
+  // מחיר/החזר חודשי לרכב שהוזן כטקסט חופשי (ליד מהאתר) - אם קיים במלאי
+  function _carPriceFromText(txt){
+    if(!txt) return '';
+    var _n=s=>(s==null?'':String(s)).replace(/\s+/g,' ').trim().toLowerCase();
+    var list=(typeof cars!=='undefined'&&Array.isArray(cars))?cars:[];
+    var t=_n(txt);
+    var c=list.find(x=>_n(x.brand+' '+x.model)===t)
+        || list.find(x=>_n(x.model)&&t.indexOf(_n(x.model))>=0)
+        || list.find(x=>_n(x.model)&&_n(x.model).indexOf(t)>=0);
+    if(!c) return '';
+    return _icPriceHTML(c.brand, c.model);
+  }
+  function _icPriceHTML(b,m){    if(!b||!m) return '';
     var _n=s=>(s==null?'':String(s)).replace(/\s+/g,' ').trim().toLowerCase();
     var list=(typeof cars!=='undefined'&&Array.isArray(cars))?cars:[];
     var c=list.find(x=>x.brand===b&&x.model===m)
@@ -3664,7 +3675,7 @@
             ${when?`<div style="margin-top:6px;font-size:12px;color:var(--muted)">🕐 ${when}</div>`:''}
             <div style="margin-top:10px">
               <div style="font-size:12px;color:var(--muted);margin-bottom:4px">🚗 רכבים שהתעניין בהם (עד 3):</div>
-              ${(l.car||'').trim()?`<div style="background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;border-radius:8px;padding:6px 10px;font-size:13px;font-weight:800;margin-bottom:6px">📩 ביקש מהאתר: ${_esc(l.car.trim())}</div>`:''}
+              ${(l.car||'').trim()?`<div style="background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;border-radius:8px;padding:6px 10px;font-size:13px;font-weight:800;margin-bottom:6px">📩 ביקש מהאתר: ${_esc(l.car.trim())}${(function(){var ph=_carPriceFromText(l.car);return ph?('<div style="font-size:12.5px;color:#15803d;font-weight:800;margin-top:3px">'+ph+'</div>'):'';})()}</div>`:''}
               ${interestSlotHTML(l.id,1,ics[0]||'',true)}
               ${interestSlotHTML(l.id,2,ics[1]||'',!!(ics[1]||'').trim())}
               ${interestSlotHTML(l.id,3,ics[2]||'',!!(ics[2]||'').trim())}
