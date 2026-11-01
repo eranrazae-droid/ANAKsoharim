@@ -236,35 +236,44 @@
     if (me.n < 3) { showModal(title, `<div class="u2r-sum"><p>יש רק ${me.n} קליטות ב-30 הימים האחרונים — אין מספיק נתונים כדי להסיק מסקנות על ${esc2(name)}.</p></div>`); return; }
     const pct = Math.round(me.pct), oPct = avg(o => o.pct), oAct = avg(o => o.active), oAllV = avg(o => o.allV / o.n * 100);
     const lines = [], signals = [];
-    lines.push(`<p><b>היקף:</b> ${me.n} קליטות ב-30 הימים האחרונים, ${me.v + me.x} סעיפים שסומנו (${me.v} ✓, ${me.x} ✕).</p>`);
+    const who = esc2(name);
+    lines.push(`<p><b>היקף:</b> ${me.n} קליטות ב-30 הימים האחרונים, ${me.v + me.x} סעיפים שסומנו (${me.v} ✓, ${me.x} ✕). ההשוואה היא לממוצע של שאר הנהגים יחד.</p>`);
     // אחוז ✓ ביחס לאחרים
-    let c = `<p><b>אחוז ✓:</b> ${pct}%`;
     if (oPct !== null) {
       const d = Math.round(pct - oPct);
-      c += Math.abs(d) <= 4 ? ` — דומה לשאר הנהגים (ממוצע ${Math.round(oPct)}%).` : d > 0 ? ` — גבוה מהשאר ב-${d} נקודות (ממוצע ${Math.round(oPct)}%).` : ` — נמוך מהשאר ב-${-d} נקודות (ממוצע ${Math.round(oPct)}%). מצביע על בדיקה קפדנית יותר, או על רכבים במצב גרוע יותר.`;
-      if (pct >= 92 && d >= 8) signals.push(`אחוז ✓ גבוה (${pct}%) ובולט מעל השאר`);
-    } else if (pct >= 95) signals.push(`אחוז ✓ גבוה מאוד (${pct}%)`);
-    lines.push(c + '</p>');
+      if (Math.abs(d) <= 4) lines.push(`<p><b>אחוז ✓:</b> ${pct}% — דומה לשאר הנהגים. אין חריגה.</p>`);
+      else if (d > 0) {
+        lines.push(`<p><b>אחוז ✓:</b> ${pct}% — גבוה ב-${d} נקודות מהממוצע של שאר הנהגים. ${who} מוצא פחות תקלות מהאחרים: או שהרכבים שהוא קולט במצב טוב יותר, או שהבדיקה שלו פחות קפדנית.</p>`);
+        if (pct >= 92 && d >= 8) signals.push(`אחוז ה-✓ שלו (${pct}%) גבוה בבירור מהשאר`);
+      } else lines.push(`<p><b>אחוז ✓:</b> ${pct}% — נמוך ב-${-d} נקודות מהממוצע של שאר הנהגים. ${who} מסמן תקלות יותר מהאחרים: בדיקה קפדנית יותר, או רכבים במצב גרוע יותר.</p>`);
+    } else {
+      lines.push(`<p><b>אחוז ✓:</b> ${pct}%.</p>`);
+      if (pct >= 95) signals.push(`אחוז ה-✓ שלו גבוה מאוד (${pct}%)`);
+    }
     // קליטות בלי אף ✕
     const allVp = Math.round(me.allV / me.n * 100);
-    let c2 = `<p><b>קליטות בלי אף ✕:</b> ${me.allV} מתוך ${me.n} (${allVp}%)`;
-    if (oAllV !== null) c2 += ` — אצל השאר בממוצע ${Math.round(oAllV)}%`;
-    lines.push(c2 + '.</p>');
-    if (allVp >= 60 && (oAllV === null || allVp - oAllV >= 25)) signals.push(`${allVp}% מהקליטות שלו הוגשו בלי תקלה אחת`);
+    if (oAllV !== null) {
+      const d = Math.round(allVp - oAllV);
+      lines.push(`<p><b>קליטות שהוגשו בלי תקלה אחת:</b> ${allVp}% מהקליטות שלו — ${Math.abs(d) <= 10 ? 'בדומה לשאר הנהגים' : d > 0 ? 'יותר מהשאר' : 'פחות מהשאר'}.</p>`);
+      if (allVp >= 60 && d >= 25) signals.push(`${allVp}% מהקליטות שלו הוגשו בלי תקלה אחת, הרבה יותר מהשאר`);
+    } else lines.push(`<p><b>קליטות שהוגשו בלי תקלה אחת:</b> ${allVp}%.</p>`);
     // זמן עבודה
     if (me.timed) {
-      let t = `<p><b>זמן עבודה בפועל לקליטה:</b> ${words(me.active)}`;
-      if (oAct !== null && oAct > 0) { const r = me.active / oAct; t += r < 0.75 ? ` — מהיר מהשאר פי ${(oAct / Math.max(me.active, 1000)).toFixed(1).replace('.0', '')} (ממוצע ${words(oAct)})` : r > 1.35 ? ` — איטי מהשאר (ממוצע ${words(oAct)})` : ` — דומה לשאר (ממוצע ${words(oAct)})`; }
       const ex = EXPECT.intake;
-      if (me.active < ex[0]) { t += `, קצר מהטווח התקין (${range(ex)})`; signals.push(`זמן העבודה (${words(me.active)}) קצר מהטווח התקין`); }
-      lines.push(t + '.</p>');
+      if (oAct !== null && oAct > 0) {
+        const r = me.active / oAct, pc = Math.round(Math.abs(1 - r) * 100);
+        if (r < 0.75) lines.push(`<p><b>זמן עבודה:</b> הזמן הממוצע שבו ${who} מסיים קליטה (${words(me.active)}) נמוך ב-${pc}% מהממוצע של שאר הנהגים. הוא מסיים מהר מהאחרים — כדאי לוודא שהבדיקה נעשית לעומק.</p>`);
+        else if (r > 1.35) lines.push(`<p><b>זמן עבודה:</b> הזמן הממוצע שבו ${who} מסיים קליטה (${words(me.active)}) גבוה ב-${pc}% מהממוצע של שאר הנהגים. הוא לוקח יותר זמן מהאחרים — ייתכן בדיקה יסודית, או קושי בעבודה עם הטופס.</p>`);
+        else lines.push(`<p><b>זמן עבודה:</b> הזמן הממוצע שבו ${who} מסיים קליטה (${words(me.active)}) דומה לשאר הנהגים.</p>`);
+      } else lines.push(`<p><b>זמן עבודה:</b> ${words(me.active)} בממוצע לקליטה.</p>`);
+      if (me.active < ex[0]) { lines.push(`<p>הזמן הזה קצר גם מהטווח התקין לקליטה (${range(ex)}).</p>`); signals.push(`זמן העבודה הממוצע (${words(me.active)}) קצר מהטווח התקין`); }
     }
     // דפוסים חריגים
     const chips = PATTERNS.filter(p => me.counts[p[0]]).map(p => `${p[1]} ${p[2]} ×${me.counts[p[0]]}`);
     if (me.timed) {
       if (me.flagged) lines.push(`<p><b>דפוסים חריגים:</b> ${me.flagged} מתוך ${me.timed} קליטות — ${chips.join(' · ')}.</p>`);
       else lines.push('<p><b>דפוסים חריגים:</b> לא נמצאו.</p>');
-      if (me.flagged / me.timed >= 0.3) signals.push(`${me.flagged} מתוך ${me.timed} קליטות עם דפוס חריג`);
+      if (me.flagged / me.timed >= 0.3) signals.push(`${me.flagged} מתוך ${me.timed} הקליטות שלו עם דפוס חריג`);
     }
     // סעיפים: מה הוא לא מסמן כתקול בכלל, ומה הוא מסמן הרבה יותר מהשאר
     const pool = {}; DRIVERS.filter(d => d !== name).forEach(d => { const p = profile(d); Object.entries(p.items).forEach(([k, o]) => { (pool[k] = pool[k] || { v: 0, x: 0 }); pool[k].v += o.v; pool[k].x += o.x; }); });
@@ -273,11 +282,11 @@
       const m = me.items[k], o = pool[k]; if (!m || !o) return;
       const mt = m.v + m.x, ot = o.v + o.x; if (mt < 5 || ot < 8) return;
       const mr = m.x / mt, or = o.x / ot;
-      if (m.x === 0 && or >= 0.1) never.push(`${labels[k]} (אצל השאר ${Math.round(or * 100)}% ✕)`);
-      else if (mr - or >= 0.2) more.push(`${labels[k]} (${Math.round(mr * 100)}% ✕ לעומת ${Math.round(or * 100)}%)`);
+      if (m.x === 0 && or >= 0.1) never.push(labels[k]);
+      else if (mr - or >= 0.2) more.push(labels[k]);
     });
-    if (never.length) { lines.push(`<p><b>סעיפים שלא סימן אף פעם כתקולים, אף שאצל השאר הם כן:</b> ${never.slice(0, 5).join(' · ')}.</p>`); if (never.length >= 3) signals.push(`${never.length} סעיפים שמעולם לא סומנו כתקולים בעוד שאצל השאר כן`); }
-    if (more.length) lines.push(`<p><b>סעיפים שהוא מסמן כתקולים הרבה יותר מהשאר:</b> ${more.slice(0, 5).join(' · ')}.</p>`);
+    if (never.length) { lines.push(`<p><b>סעיפים שלא סימן אף פעם כתקולים, אף שהנהגים האחרים כן מסמנים אותם:</b> ${never.slice(0, 5).join(' · ')}.</p>`); if (never.length >= 3) signals.push(`${never.length} סעיפים שמעולם לא סומנו אצלו כתקולים, בעוד שהאחרים מסמנים אותם`); }
+    if (more.length) lines.push(`<p><b>סעיפים שהוא מסמן כתקולים הרבה יותר מהאחרים:</b> ${more.slice(0, 5).join(' · ')}.</p>`);
     // מסקנה
     const level = signals.length >= 2 ? ['red', '🔴', 'מומלץ לשוחח עם הנהג ולעבור על כמה קליטות שלו מול הרכבים עצמם'] : signals.length ? ['amber', '🟡', 'שווה מעקב — כדאי לבדוק קליטה אחת או שתיים מול הרכב'] : ['green', '🟢', 'לא נמצאו סימנים חריגים ביחס לשאר הנהגים'];
     const verdict = `<div class="u2r-verdict ${level[0]}"><b>${level[1]} ${level[2]}.</b>${signals.length ? `<ul>${signals.map(x => `<li>${esc2(x)}</li>`).join('')}</ul>` : ''}</div>`;
