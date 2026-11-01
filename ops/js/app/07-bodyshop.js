@@ -570,13 +570,13 @@ function _bshopJobCard(j, forWorker, held) {
       <button onclick="event.stopPropagation();(window.innerWidth <= 900 ? bsmShareNote : bsmPrint)('${j.id}')"
         style="flex:1;min-width:0;background:var(--dark);color:#fff;border:2px solid var(--dark);border-radius:10px;padding:8px 4px;font-family:'Heebo',sans-serif;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap"><span class="bs-wide">🖨️ הדפס פתק</span><span class="bs-narrow">📤 שלח קובץ</span></button>
     </div>` : ''}
-    ${!held && !forWorker && j.status !== 'returned' ? `<div style="display:flex;gap:8px;margin-top:8px">
+    ${!held && !forWorker && j.status !== 'returned' ? `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">
       <button onclick="event.stopPropagation();bsmDeleteOne('job:${j.id}')" title="מחיקה לתמיד"
         style="flex:1;min-width:0;background:transparent;color:#ef4444;border:2px solid #fecaca;border-radius:10px;padding:8px 4px;font-family:'Heebo',sans-serif;font-size:12.5px;font-weight:800;cursor:pointer">🗑 מחיקה</button>
       <button onclick="event.stopPropagation();bsmSetHold('${j.id}',true)" title="הוצא מהמסך עד שתחזיר אותו"
         style="flex:1;min-width:0;background:#e0f2fe;color:#0369a1;border:2px solid #7dd3fc;border-radius:10px;padding:8px 4px;font-family:'Heebo',sans-serif;font-size:12.5px;font-weight:800;cursor:pointer">❄️ הקפאה</button>
-      ${j.status === 'at_shop' ? `<button onclick="event.stopPropagation();bsmReturnToDraft('${j.id}')" title="החזר את הפתק לממתינים לשליחה"
-        style="flex:1;min-width:0;background:#fef3c7;color:#92400e;border:2px solid #fcd34d;border-radius:10px;padding:8px 4px;font-family:'Heebo',sans-serif;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap">↩ לשליחה</button>` : ''}
+      ${j.status === 'at_shop' ? `<button class="bsm-ret" onclick="event.stopPropagation();bsmReturnToDraft('${j.id}')" title="החזר את הפתק לממתינים לשליחה"
+        style="flex:1 1 100%;min-width:0;background:#fef3c7;color:#92400e;border:2px solid #fcd34d;border-radius:10px;padding:8px 4px;font-family:'Heebo',sans-serif;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap">↩ החזר לממתין לשליחה</button>` : ''}
     </div>` : ''}
   </div>`;
 }
@@ -2819,7 +2819,7 @@ function _bsmMRenderSheet() {
   }
   const sec = `<div class="bsmm-mini">
       <div onclick="bsmAddPhoto('${id}')">📷 ${src ? 'החלף תמונה' : 'הוסף תמונה'}</div>
-      ${j.status === 'at_shop' ? `<div onclick="bsmReturnToDraft('${id}')">↩ החזר לממתינים לשליחה</div>` : ''}
+      ${j.status === 'at_shop' ? `<div onclick="bsmReturnToDraft('${id}')">↩ החזר לממתין לשליחה</div>` : ''}
       ${j.status !== 'returned' ? `<div onclick="bsmSetHold('${id}',true)">❄️ הקפאה</div><div class="rm" onclick="bsmDeleteOne('job:${id}')">🗑 מחיקה</div>` : ''}
     </div>`;
 
