@@ -11,7 +11,7 @@
   const LONG_IDLE = 3 * 60e3;   // הפסקה ארוכה מזה מסומנת בדוח
   const SEND_WAIT = 60e3;       // סיים למלא ולא שלח מעבר לזה — דפוס חריג
   const FAST_GAP = 2000, FAST_RUN = 6;   // 6 סעיפים ברצף, פחות מ-2 שניות בין אחד לשני
-  const D = { logs: [], tdIntakes: [], tdArch: [], jobs: [], shopArch: [], washNotes: [], washPays: [], installs: [], orders: [], pro: [] };
+  const D = { logs: [], idone: [], iarch: [], tdIntakes: [], tdArch: [], jobs: [], shopArch: [], washNotes: [], washPays: [], installs: [], orders: [], pro: [] };
   let tab = 'time', kind = 'intake', started = false;
   const esc2 = s => (typeof esc === 'function' ? esc(String(s ?? '')) : String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])));
   const ms = t => t?.toMillis ? t.toMillis() : (typeof t === 'number' ? t : (t ? +new Date(t) : 0));
@@ -122,6 +122,10 @@
     const on = (ref, key, map) => { try { window._onSnap(ref, s => { D[key] = s.docs.map(d => ({ id: d.id, ...d.data() })); if (map) D[key] = map(D[key]); render(); }, () => {}); } catch (e) { console.warn('reports', key, e); } };
     const since = Date.now() - 60 * 864e5;
     on(window._query(window._colRef('timing_logs'), window._where('submittedAt', '>=', since)), 'logs');
+    // אחוזי סימון ✓: קליטות שהנהג סיים (ממתינות לבדיקה) וקליטות מהארכיון מ-30 הימים האחרונים. נשמר רק מה שצריך לחישוב
+    const slim = a => a.map(x => ({ who: x.completedBy || x.assignedTo || '', at: ms(x.completedAt) || ms(x.checkedAt), cl: x.checklist || {} }));
+    on(window._query(window._colRef('intake_assignments'), window._where('status', '==', 'done')), 'idone', slim);
+    on(window._query(window._colRef('intake_archive'), window._where('completedAt', '>=', new Date(Date.now() - 31 * 864e5))), 'iarch', slim);
     on(window._query(window._colRef('intake_assignments'), window._where('fromTestDrive', '>', '')), 'tdIntakes');
     on(window._query(window._colRef('intake_archive'), window._where('fromTestDrive', '>', '')), 'tdArch', a => a.map(x => ({ id: x.id, originalId: x.originalId })));
     on(window._query(window._colRef('bodyshop_jobs'), window._where('paidAt', '==', null)), 'jobs');
@@ -178,6 +182,31 @@
       return { name, n: logs.length, avg, sus: logs.filter(x => x.a.suspicious).length };
     });
   }
+  /* ── אחוזי סימון ✓ בקליטות: כמה מהסעיפים שהנהג סימן יצאו תקינים (✓) מול תקולים (✕), 30 ימים ── */
+  function vxStats() {
+    const since = Date.now() - 30 * 864e5;
+    const keys = typeof _ciLabels !== 'undefined' ? Object.keys(_ciLabels) : null;
+    return DRIVERS.map(name => {
+      let v = 0, x = 0, n = 0;
+      [...D.idone, ...D.iarch].filter(i => i.who === name && i.at >= since).forEach(i => {
+        let any = false;
+        Object.entries(i.cl).forEach(([k, st]) => {
+          if (k.endsWith('_note') || (keys && !keys.includes(k))) return;
+          if (st === 'v') { v++; any = true; } else if (st === 'x') { x++; any = true; }
+        });
+        if (any) n++;
+      });
+      return { name, v, x, n, pct: v + x ? Math.round(v / (v + x) * 100) : 0 };
+    });
+  }
+  function vxHtml() {
+    const rows = vxStats().map(s => `<div class="u2r-vx-row${s.n ? '' : ' none'}"><b>${esc2(s.name)}</b>
+        <span class="u2r-vx-track" title="${s.v} ✓ · ${s.x} ✕"><i style="width:${s.n ? s.pct : 0}%"></i></span>
+        <strong>${s.n ? s.pct + '%' : '—'}</strong>
+        <small>${s.n ? `${s.v} ✓ מתוך ${s.v + s.x} סעיפים · ${s.n} קליטות` : 'אין קליטות'}</small></div>`).join('');
+    return `<div class="u2r-vx"><div class="u2r-pats-h">✅ אחוזי סימון ✓ בקליטות · 30 ימים</div>${rows}
+      <div class="u2r-note" style="margin-top:6px">כמה מהסעיפים בקליטה סומנו תקינים (✓) מתוך כל הסעיפים שסומנו ✓ או ✕. אחוז גבוה מאוד קבוע אצל נהג יכול להעיד על סימון בלי בדיקה.</div></div>`;
+  }
   function timeHtml() {
     const st = timeStats(kind), ex = EXPECT[kind];
     const top = Math.max(ex ? ex[1] * 1.3 : 0, ...st.map(s => s.avg * 1.15), kind === 'inventory' ? 5e3 : 60e3);
@@ -198,6 +227,7 @@
         return `<button type="button" class="u2r-prow" data-driver="${esc2(s.name)}" ${s.n ? '' : 'disabled'}><b>${esc2(s.name)}</b>
           <span>${!s.n ? 'אין פעולות' : chips || '<em>אין דפוסים חריגים</em>'}</span><small>${s.n ? s.flagged + ' מתוך ' + s.n : ''}</small></button>`;
       }).join('')}</div>
+      ${kind === 'intake' ? vxHtml() : ''}
       <div class="u2r-note">${kind === 'inventory'
         ? 'ממוצע הזמן בין סימון לסימון ב-30 הימים האחרונים. הפסקה של יותר מדקה וחצי לא נספרת. לחיצה על נהג — פירוט.'
         : 'ממוצע זמן עבודה בפועל ב-30 הימים האחרונים, מהסימון הראשון של הנהג ועד השליחה. זמן שהטופס עמד פתוח בלי פעולה לא נספר. לחיצה על נהג — פירוט.'}</div>`;
