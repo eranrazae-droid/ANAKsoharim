@@ -1687,6 +1687,13 @@ function _renderTdLivePanel(data) {
   const checks = src.checks || (isDone ? data.checks || {} : {});
   const notes = src.notes || (isDone ? data.notes || {} : {});
 
+  // הנהג סיים: אם הפאנל מוקטן, הוא נפתח — כפתור "העבר לקליטה" נמצא בתחתית הפאנל המלא ולא נראה במצב מוקטן
+  const lp = document.getElementById('td-live-panel');
+  if (isDone && lp && lp.classList.contains('td-min') && lp.dataset.doneFor !== String(data.id)) {
+    lp.dataset.doneFor = String(data.id);
+    toggleTdLivePanelMin(false);
+  }
+
   const badge = document.getElementById('td-live-status-badge');
   if (badge) badge.innerHTML = isDone
     ? '<span style="background:#16a34a;border-radius:6px;padding:2px 8px">✅ הושלם</span>'
