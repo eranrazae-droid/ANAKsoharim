@@ -209,6 +209,32 @@
   }
   /* ── סיכום וביקורת על נהג, ביחס לשאר הנהגים ולבדיקות של הדוח (זמן עבודה, דפוסים חריגים) ──
      הטקסט נבנה מהנתונים בלבד, בלי הערכה סובייקטיבית: כל משפט נשען על מספר שמוצג לידו. */
+  const PAT_WHY = {
+    fast: 'סימון של 6 סעיפים ומעלה ברצף, כשבין סעיף לסעיף עוברות פחות מ-2 שניות. בקצב כזה אי אפשר להסתכל על הרכב בין הסימונים.',
+    burst: '8 סעיפים ומעלה סומנו בתוך 20 שניות — כמעט בבת אחת, כאילו הטופס מולא בלי לעבור על הרכב.',
+    rhythm: 'מרווחים אחידים מדי בין הסימונים (פחות מ-8 שניות בממוצע, כמעט בלי שינוי). בדיקה אמיתית לא מתנהלת במקצב קבוע.',
+    order: 'כל הסעיפים סומנו בסדר מושלם מלמעלה למטה ובלי תיקון אחד. בדרך כלל בדיקה אמיתית קופצת בין סעיפים וחוזרת לתקן.',
+    overlap: 'שתי קליטות של רכבים שונים מולאו באותו זמן. אי אפשר לבדוק שני רכבים בו־זמנית.',
+    batch: 'שלוש קליטות ומעלה נשלחו בתוך 5 דקות, כלומר כנראה מולאו יחד ולא בזמן הבדיקה של כל רכב.',
+    early: 'הטופס נפתח זמן רב לפני הסימון הראשון, והסימון כולו נעשה בדקות האחרונות לפני השליחה.',
+    base: 'הקליטה הושלמה מהר בהרבה מהקצב הרגיל של הנהג עצמו.',
+    late: 'הנהג סיים למלא את הטופס ולא שלח אותו זמן ארוך.',
+  };
+  /* פירוט כל דפוס: מה הוא אומר, כמה פעמים, והדוגמאות — הקיצוניות ביותר ברצף מהיר ובסימון בבת אחת, אחרת האחרונות */
+  function patternDetail(me) {
+    const dt = t => t ? new Date(t).toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' }) : '';
+    const blocks = PATTERNS.filter(p => me.counts[p[0]]).sort((a, b) => me.counts[b[0]] - me.counts[a[0]]).map(p => {
+      const code = p[0];
+      let ex = me.rows.filter(r => r.a.codes.includes(code)).map(r => ({ plate: r.l.plate || '', at: r.l.submittedAt || 0, txt: (r.a.flags.find(f => f[0] === code) || [])[1] || '' }));
+      if (code === 'fast' || code === 'burst') ex.sort((a, b) => (Number((b.txt.match(/\d+/) || [0])[0]) - Number((a.txt.match(/\d+/) || [0])[0])) || b.at - a.at);
+      else ex.sort((a, b) => b.at - a.at);
+      const shown = ex.slice(0, 3);
+      return `<div class="u2r-pd"><b>${p[1]} ${p[2]} · ${me.counts[code]} מתוך ${me.timed} קליטות</b>
+        <span>${esc2(PAT_WHY[code] || '')}</span>
+        <ul>${shown.map(e => `<li>${esc2(e.plate)}${e.plate ? ' · ' : ''}${esc2(dt(e.at))}${e.txt ? ' — ' + esc2(e.txt) : ''}</li>`).join('')}${ex.length > shown.length ? `<li class="more">ועוד ${ex.length - shown.length}</li>` : ''}</ul></div>`;
+    });
+    return `<div class="u2r-pds">${blocks.join('')}</div>`;
+  }
   function vxReport(name) {
     const since = Date.now() - 30 * 864e5;
     const keys = typeof _ciLabels !== 'undefined' ? Object.keys(_ciLabels) : [];
@@ -228,7 +254,7 @@
       const rows = analyzeAll(d, 'intake').filter(r => (r.l.submittedAt || 0) >= since);
       const active = rows.length ? rows.reduce((t, r) => t + r.a.active, 0) / rows.length : 0;
       const counts = {}; rows.forEach(r => r.a.codes.forEach(c => { counts[c] = (counts[c] || 0) + 1; }));
-      return { name: d, items, v, x, n, allV, pct: v + x ? v / (v + x) * 100 : 0, active, timed: rows.length, flagged: rows.filter(r => r.a.codes.length).length, counts };
+      return { name: d, rows, items, v, x, n, allV, pct: v + x ? v / (v + x) * 100 : 0, active, timed: rows.length, flagged: rows.filter(r => r.a.codes.length).length, counts };
     };
     const me = profile(name), others = DRIVERS.filter(d => d !== name).map(profile).filter(o => o.n);
     const avg = f => others.length ? others.reduce((t, o) => t + f(o), 0) / others.length : null;
@@ -269,10 +295,10 @@
       if (me.active < ex[0]) { lines.push(`<p>הזמן הזה קצר גם מהטווח התקין לקליטה (${range(ex)}).</p>`); signals.push(`זמן העבודה הממוצע (${words(me.active)}) קצר מהטווח התקין`); }
     }
     // דפוסים חריגים
-    const chips = PATTERNS.filter(p => me.counts[p[0]]).map(p => `${p[1]} ${p[2]} ×${me.counts[p[0]]}`);
     if (me.timed) {
-      if (me.flagged) lines.push(`<p><b>דפוסים חריגים:</b> ${me.flagged} מתוך ${me.timed} קליטות — ${chips.join(' · ')}.</p>`);
-      else lines.push('<p><b>דפוסים חריגים:</b> לא נמצאו.</p>');
+      if (me.flagged) {
+        lines.push(`<p><b>דפוסים חריגים:</b> ${me.flagged} מתוך ${me.timed} קליטות סומנו בדפוס חריג אחד לפחות. הפירוט:</p>${patternDetail(me)}`);
+      } else lines.push('<p><b>דפוסים חריגים:</b> לא נמצאו.</p>');
       if (me.flagged / me.timed >= 0.3) signals.push(`${me.flagged} מתוך ${me.timed} הקליטות שלו עם דפוס חריג`);
     }
     // סעיפים: מה הוא לא מסמן כתקול בכלל, ומה הוא מסמן הרבה יותר מהשאר
