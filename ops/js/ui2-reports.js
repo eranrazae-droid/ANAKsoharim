@@ -200,12 +200,88 @@
     });
   }
   function vxHtml() {
-    const rows = vxStats().map(s => `<div class="u2r-vx-row${s.n ? '' : ' none'}"><b>${esc2(s.name)}</b>
+    const rows = vxStats().map(s => `<div class="u2r-vx-row${s.n ? '' : ' none'}" data-vx="${esc2(s.name)}" role="button" tabindex="0" title="לחיצה — סיכום וביקורת"><b>${esc2(s.name)}</b>
         <span class="u2r-vx-track" title="${s.v} ✓ · ${s.x} ✕"><i style="width:${s.n ? s.pct : 0}%"></i></span>
         <strong>${s.n ? s.pct + '%' : '—'}</strong>
         <small>${s.n ? `${s.v} ✓ מתוך ${s.v + s.x} סעיפים · ${s.n} קליטות` : 'אין קליטות'}</small></div>`).join('');
     return `<div class="u2r-vx"><div class="u2r-pats-h">✅ אחוזי סימון ✓ בקליטות · 30 ימים</div>${rows}
-      <div class="u2r-note" style="margin-top:6px">כמה מהסעיפים בקליטה סומנו תקינים (✓) מתוך כל הסעיפים שסומנו ✓ או ✕. אחוז גבוה מאוד קבוע אצל נהג יכול להעיד על סימון בלי בדיקה.</div></div>`;
+      <div class="u2r-note" style="margin-top:6px">לחיצה על נהג — סיכום וביקורת. כמה מהסעיפים בקליטה סומנו תקינים (✓) מתוך כל הסעיפים שסומנו ✓ או ✕. אחוז גבוה מאוד קבוע אצל נהג יכול להעיד על סימון בלי בדיקה.</div></div>`;
+  }
+  /* ── סיכום וביקורת על נהג, ביחס לשאר הנהגים ולבדיקות של הדוח (זמן עבודה, דפוסים חריגים) ──
+     הטקסט נבנה מהנתונים בלבד, בלי הערכה סובייקטיבית: כל משפט נשען על מספר שמוצג לידו. */
+  function vxReport(name) {
+    const since = Date.now() - 30 * 864e5;
+    const keys = typeof _ciLabels !== 'undefined' ? Object.keys(_ciLabels) : [];
+    const labels = typeof _ciLabels !== 'undefined' ? _ciLabels : {};
+    const all = [...D.idone, ...D.iarch].filter(i => i.at >= since);
+    const profile = d => {
+      const items = {}; let v = 0, x = 0, n = 0, allV = 0;
+      all.filter(i => i.who === d).forEach(i => {
+        let iv = 0, ix = 0;
+        Object.entries(i.cl).forEach(([k, st]) => {
+          if (k.endsWith('_note') || !keys.includes(k) || (st !== 'v' && st !== 'x')) return;
+          (items[k] = items[k] || { v: 0, x: 0 })[st]++;
+          if (st === 'v') iv++; else ix++;
+        });
+        if (iv + ix) { n++; v += iv; x += ix; if (!ix) allV++; }
+      });
+      const rows = analyzeAll(d, 'intake').filter(r => (r.l.submittedAt || 0) >= since);
+      const active = rows.length ? rows.reduce((t, r) => t + r.a.active, 0) / rows.length : 0;
+      const counts = {}; rows.forEach(r => r.a.codes.forEach(c => { counts[c] = (counts[c] || 0) + 1; }));
+      return { name: d, items, v, x, n, allV, pct: v + x ? v / (v + x) * 100 : 0, active, timed: rows.length, flagged: rows.filter(r => r.a.codes.length).length, counts };
+    };
+    const me = profile(name), others = DRIVERS.filter(d => d !== name).map(profile).filter(o => o.n);
+    const avg = f => others.length ? others.reduce((t, o) => t + f(o), 0) / others.length : null;
+    const title = `🧾 ${esc2(name)} · סיכום וביקורת`;
+    if (me.n < 3) { showModal(title, `<div class="u2r-sum"><p>יש רק ${me.n} קליטות ב-30 הימים האחרונים — אין מספיק נתונים כדי להסיק מסקנות על ${esc2(name)}.</p></div>`); return; }
+    const pct = Math.round(me.pct), oPct = avg(o => o.pct), oAct = avg(o => o.active), oAllV = avg(o => o.allV / o.n * 100);
+    const lines = [], signals = [];
+    lines.push(`<p><b>היקף:</b> ${me.n} קליטות ב-30 הימים האחרונים, ${me.v + me.x} סעיפים שסומנו (${me.v} ✓, ${me.x} ✕).</p>`);
+    // אחוז ✓ ביחס לאחרים
+    let c = `<p><b>אחוז ✓:</b> ${pct}%`;
+    if (oPct !== null) {
+      const d = Math.round(pct - oPct);
+      c += Math.abs(d) <= 4 ? ` — דומה לשאר הנהגים (ממוצע ${Math.round(oPct)}%).` : d > 0 ? ` — גבוה מהשאר ב-${d} נקודות (ממוצע ${Math.round(oPct)}%).` : ` — נמוך מהשאר ב-${-d} נקודות (ממוצע ${Math.round(oPct)}%). מצביע על בדיקה קפדנית יותר, או על רכבים במצב גרוע יותר.`;
+      if (pct >= 92 && d >= 8) signals.push(`אחוז ✓ גבוה (${pct}%) ובולט מעל השאר`);
+    } else if (pct >= 95) signals.push(`אחוז ✓ גבוה מאוד (${pct}%)`);
+    lines.push(c + '</p>');
+    // קליטות בלי אף ✕
+    const allVp = Math.round(me.allV / me.n * 100);
+    let c2 = `<p><b>קליטות בלי אף ✕:</b> ${me.allV} מתוך ${me.n} (${allVp}%)`;
+    if (oAllV !== null) c2 += ` — אצל השאר בממוצע ${Math.round(oAllV)}%`;
+    lines.push(c2 + '.</p>');
+    if (allVp >= 60 && (oAllV === null || allVp - oAllV >= 25)) signals.push(`${allVp}% מהקליטות שלו הוגשו בלי תקלה אחת`);
+    // זמן עבודה
+    if (me.timed) {
+      let t = `<p><b>זמן עבודה בפועל לקליטה:</b> ${words(me.active)}`;
+      if (oAct !== null && oAct > 0) { const r = me.active / oAct; t += r < 0.75 ? ` — מהיר מהשאר פי ${(oAct / Math.max(me.active, 1000)).toFixed(1).replace('.0', '')} (ממוצע ${words(oAct)})` : r > 1.35 ? ` — איטי מהשאר (ממוצע ${words(oAct)})` : ` — דומה לשאר (ממוצע ${words(oAct)})`; }
+      const ex = EXPECT.intake;
+      if (me.active < ex[0]) { t += `, קצר מהטווח התקין (${range(ex)})`; signals.push(`זמן העבודה (${words(me.active)}) קצר מהטווח התקין`); }
+      lines.push(t + '.</p>');
+    }
+    // דפוסים חריגים
+    const chips = PATTERNS.filter(p => me.counts[p[0]]).map(p => `${p[1]} ${p[2]} ×${me.counts[p[0]]}`);
+    if (me.timed) {
+      if (me.flagged) lines.push(`<p><b>דפוסים חריגים:</b> ${me.flagged} מתוך ${me.timed} קליטות — ${chips.join(' · ')}.</p>`);
+      else lines.push('<p><b>דפוסים חריגים:</b> לא נמצאו.</p>');
+      if (me.flagged / me.timed >= 0.3) signals.push(`${me.flagged} מתוך ${me.timed} קליטות עם דפוס חריג`);
+    }
+    // סעיפים: מה הוא לא מסמן כתקול בכלל, ומה הוא מסמן הרבה יותר מהשאר
+    const pool = {}; DRIVERS.filter(d => d !== name).forEach(d => { const p = profile(d); Object.entries(p.items).forEach(([k, o]) => { (pool[k] = pool[k] || { v: 0, x: 0 }); pool[k].v += o.v; pool[k].x += o.x; }); });
+    const never = [], more = [];
+    keys.forEach(k => {
+      const m = me.items[k], o = pool[k]; if (!m || !o) return;
+      const mt = m.v + m.x, ot = o.v + o.x; if (mt < 5 || ot < 8) return;
+      const mr = m.x / mt, or = o.x / ot;
+      if (m.x === 0 && or >= 0.1) never.push(`${labels[k]} (אצל השאר ${Math.round(or * 100)}% ✕)`);
+      else if (mr - or >= 0.2) more.push(`${labels[k]} (${Math.round(mr * 100)}% ✕ לעומת ${Math.round(or * 100)}%)`);
+    });
+    if (never.length) { lines.push(`<p><b>סעיפים שלא סימן אף פעם כתקולים, אף שאצל השאר הם כן:</b> ${never.slice(0, 5).join(' · ')}.</p>`); if (never.length >= 3) signals.push(`${never.length} סעיפים שמעולם לא סומנו כתקולים בעוד שאצל השאר כן`); }
+    if (more.length) lines.push(`<p><b>סעיפים שהוא מסמן כתקולים הרבה יותר מהשאר:</b> ${more.slice(0, 5).join(' · ')}.</p>`);
+    // מסקנה
+    const level = signals.length >= 2 ? ['red', '🔴', 'מומלץ לשוחח עם הנהג ולעבור על כמה קליטות שלו מול הרכבים עצמם'] : signals.length ? ['amber', '🟡', 'שווה מעקב — כדאי לבדוק קליטה אחת או שתיים מול הרכב'] : ['green', '🟢', 'לא נמצאו סימנים חריגים ביחס לשאר הנהגים'];
+    const verdict = `<div class="u2r-verdict ${level[0]}"><b>${level[1]} ${level[2]}.</b>${signals.length ? `<ul>${signals.map(x => `<li>${esc2(x)}</li>`).join('')}</ul>` : ''}</div>`;
+    showModal(title, `<div class="u2r-sum">${verdict}${lines.join('')}<div class="u2r-note" style="margin-top:10px">הסיכום נבנה אוטומטית מהנתונים של 30 הימים האחרונים. הוא מצביע על מקומות שכדאי לבדוק, ואינו מוכיח סימון בלי בדיקה.</div></div>`);
   }
   function timeHtml() {
     const st = timeStats(kind), ex = EXPECT[kind];
@@ -323,6 +399,7 @@
     s.addEventListener('click', e => {
       const t = e.target.closest('[data-tab]'); if (t) { tab = t.dataset.tab; render(); return; }
       const k = e.target.closest('[data-kind]'); if (k) { kind = k.dataset.kind; render(); return; }
+      const vx = e.target.closest('[data-vx]'); if (vx) { vxReport(vx.dataset.vx); return; }
       const b = e.target.closest('.u2r-bar[data-driver],.u2r-prow[data-driver]'); if (b) { driverReport(b.dataset.driver); return; }
       const a = e.target.closest('[data-act]'); if (!a) return;
       e.stopPropagation();
