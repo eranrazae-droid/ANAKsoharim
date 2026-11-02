@@ -1326,6 +1326,15 @@ exports.adminUsers = onCall({ region: USERS_REGION }, async (req) => {
     return { ok: true };
   }
 
+  // ניתוק מכל המכשירים: האסימונים מבוטלים בשרת, והחותמת במסמך המשתמש גורמת למכשיר שפתוח
+  // להתנתק מיד (גם מכשיר שנכנס לפי מה שהוא זוכר), בלי לשנות סיסמה
+  if (action === "signOutUser") {
+    if (!uid) throw new HttpsError("invalid-argument", "חסר משתמש");
+    await auth.revokeRefreshTokens(uid);
+    await db.collection("users").doc(uid).set({ forceLogoutAt: Date.now() }, { merge: true });
+    return { ok: true };
+  }
+
   if (action === "setPhone") {
     if (!uid || !phone) throw new HttpsError("invalid-argument", "חסר משתמש או טלפון");
     await auth.updateUser(uid, { email: phoneToEmail(phone) });

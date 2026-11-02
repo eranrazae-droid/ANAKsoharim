@@ -351,6 +351,7 @@ function _bshopLogoHold(down) {
 window._bshopLogoHold = _bshopLogoHold;
 
 function openBodyShopScreen() {
+  try { _watchForceLogout(_realUser?.uid); } catch (e) {}
   showScreen('bodyshop');
   // the manager may be looking at this screen — he gets a way back
   const back = document.getElementById('bshop-back-mgr');

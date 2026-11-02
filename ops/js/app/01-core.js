@@ -312,6 +312,7 @@ async function doPhoneLogin() {
       }
     }
     if (!cred) throw lastErr;
+    try { localStorage.setItem('anak_login_at', String(Date.now())); } catch (e) {}
     await _enterAsAuthUser(cred.user);
     say('');
   } catch (e) {
@@ -394,7 +395,33 @@ async function _refreshProfileLater(user, role, name) {
 
 // the way back to the sign-in screen, for a device that entered before there
 // were accounts at all
+/* ניתוק מרחוק: המנהל לוחץ "נתק" ליד משתמש, והשרת כותב forceLogoutAt על מסמך המשתמש.
+   מכשיר שנכנס לפני אותו רגע מתנתק מיד. כניסה חדשה אחרי הניתוק לא מתנתקת שוב. */
+let _flUnsub = null, _flUid = null;
+function _watchForceLogout(uid) {
+  if (!uid || _flUid === uid || typeof window._onSnap !== 'function' || !window._CONFIG_DONE) return;
+  if (_flUnsub) { try { _flUnsub(); } catch (e) {} }
+  _flUid = uid;
+  let loginAt = 0; try { loginAt = Number(localStorage.getItem('anak_login_at') || 0); } catch (e) {}
+  if (!loginAt) { loginAt = Date.now(); try { localStorage.setItem('anak_login_at', String(loginAt)); } catch (e) {} }
+  try {
+    _flUnsub = window._onSnap(_docRef('users', uid), snap => {
+      const at = Number((snap.data() || {}).forceLogoutAt || 0);
+      if (!at) return;
+      let handled = 0; try { handled = Number(localStorage.getItem('anak_logout_handled') || 0); } catch (e) {}
+      if (at <= handled || at <= loginAt) return;
+      try { localStorage.setItem('anak_logout_handled', String(at)); } catch (e) {}
+      showToast('🚪 נותקת מהמערכת על ידי המנהל', 7000);
+      goToLoginScreen();
+    }, () => {});
+  } catch (e) { _flUid = null; }
+}
+window._watchForceLogout = _watchForceLogout;
+
 async function goToLoginScreen() {
+  if (_flUnsub) { try { _flUnsub(); } catch (e) {} _flUnsub = null; }
+  _flUid = null;
+  try { localStorage.removeItem('anak_login_at'); } catch (e) {}
   closeModal('modal-switch-user');
   localStorage.removeItem('anak_user');
   localStorage.removeItem('anak_real_user');
@@ -592,6 +619,7 @@ function _renderUsers() {
           <div style="font-size:13px;color:var(--muted);font-weight:700;direction:ltr;text-align:right">${esc(u.phone || '')}</div>
           ${_userSecrets[u.uid] ? `<div style="font-size:13px;font-weight:800;direction:ltr;text-align:right;color:var(--gold)">${esc(_userSecrets[u.uid])}</div>` : ''}
         </div>
+        ${u.uid !== _realUser?.uid ? `<button onclick="signOutAppUser('${u.uid}')" title="נתק מכל המכשירים" style="background:#fef3c7;color:#92400e;border:2px solid #fcd34d;border-radius:8px;height:32px;padding:0 8px;font-family:Heebo,sans-serif;font-weight:800;font-size:12px;cursor:pointer;white-space:nowrap">🚪 נתק</button>` : ''}
         <button onclick="editAppUser('${u.uid}')" style="background:var(--surface2);border:none;border-radius:8px;width:32px;height:32px;cursor:pointer">✏️</button>
         <button onclick="removeAppUser('${u.uid}')" style="background:#ef4444;color:#fff;border:none;border-radius:8px;width:32px;height:32px;cursor:pointer">🗑</button>
       </div>
@@ -643,6 +671,19 @@ async function saveAppUser() {
   }
 }
 window.saveAppUser = saveAppUser;
+
+async function signOutAppUser(uid) {
+  const u = _appUsers.find(x => x.uid === uid);
+  if (!u || !confirm(`לנתק את ${u.name} מכל המכשירים?\n\nהוא ייזרק מהאפליקציה מיד, והסיסמה שלו נשארת כמו שהיא — הוא יוכל להיכנס שוב.`)) return;
+  try {
+    await _callAdminUsers({ action: 'signOutUser', uid });
+    showToast(`🚪 ${u.name} נותק מכל המכשירים`);
+  } catch (e) {
+    console.error('signOutAppUser', e);
+    showToast('הניתוק נכשל: ' + (e.message || ''), 6000);
+  }
+}
+window.signOutAppUser = signOutAppUser;
 
 async function removeAppUser(uid) {
   const u = _appUsers.find(x => x.uid === uid);
@@ -798,6 +839,7 @@ function _canBodyshop() {
 window._canBodyshop = _canBodyshop;
 
 function enterApp() {
+  try { _watchForceLogout(_realUser?.uid); } catch (e) {}
   _applyUserBg();
   // הבורר קובע דרך מי נשלחות ההתראות, ולכן הוא נקרא לכל משתמש
   try { _notifChannelListen(); } catch (e) {}
