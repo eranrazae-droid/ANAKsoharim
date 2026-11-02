@@ -425,6 +425,7 @@ function renderYardTable() {
 
   const list = document.getElementById('yard-list');
   if (!list) return;
+  const _pw = list.querySelector('.yard-img-wrap'), prevScroll = _pw ? { l: _pw.scrollLeft, t: _pw.scrollTop } : null;
   const flt = _yardFilterEmpty;
   const isFilled = k => (yardData[k] || '').trim() !== '';
 
@@ -476,12 +477,50 @@ function renderYardTable() {
       (editable ? `<button class="yard-flt ${flt ? 'on' : ''}" onclick="toggleYardFilter()">${flt ? '↩ הצג הכל' : '🔎 ריקים בלבד'}</button>` : '') +
     `</div>` +
     (phoneMap ? _yardMapHtml() : !asImage ? rowsHtml :
-      `<div class="yard-img-wrap"><img id="yard-img" alt="סידור מגרש" onclick="this.parentNode.classList.toggle('zoom')"></div><div class="yard-img-hint">לחיצה על התמונה מגדילה / מקטינה</div>`);
+      `<div class="yard-img-wrap"><img id="yard-img" alt="סידור מגרש" onclick="if(!_yardIsTouch())this.parentNode.classList.toggle('zoom')"></div><div class="yard-img-hint">${_yardIsTouch() ? 'צביטה בשתי אצבעות מגדילה / מקטינה' : 'לחיצה על התמונה מגדילה / מקטינה'}</div>`);
   renderYardInputValues();
-  if (asImage) _yardImage(yardData).then(url => {
-    const img = document.getElementById('yard-img'); if (img && url) img.src = url;
-  }).catch(e => console.warn('yard image', e));
+  if (asImage) {
+    _yardPinchInit(prevScroll);
+    _yardImage(yardData).then(url => {
+      const img = document.getElementById('yard-img');
+      if (img && url) { img.onload = () => _yardPinchInit(prevScroll, true); img.src = url; }
+    }).catch(e => console.warn('yard image', e));
+  }
 }
+
+/* הגדלה בצביטה בשתי אצבעות (טלפון): התמונה גדלה סביב מקום האצבעות, ואצבע אחת גוללת בתוכה.
+   הגודל נשמר בין ציורים מחדש של הלוח, כדי שעדכון חי לא יאפס את מה שהמנהל הגדיל. */
+let _yardImgScale = 1;
+const _yardIsTouch = () => ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+function _yardPinchInit(prev, afterLoad) {
+  const wrap = document.querySelector('#yard-list .yard-img-wrap'), img = document.getElementById('yard-img');
+  if (!wrap || !img || !_yardIsTouch()) return;
+  const apply = () => { img.style.width = _yardImgScale > 1.001 ? (_yardImgScale * 100) + '%' : ''; img.style.maxWidth = _yardImgScale > 1.001 ? 'none' : ''; wrap.style.maxHeight = _yardImgScale > 1.001 ? '75vh' : ''; };
+  apply();
+  if (prev && afterLoad) { wrap.scrollLeft = prev.l; wrap.scrollTop = prev.t; }
+  if (wrap._pinch) return;
+  wrap._pinch = true;
+  wrap.style.direction = 'ltr';
+  wrap.style.touchAction = 'pan-x pan-y';
+  let st = null;
+  const pt = e => ({ d: Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY), x: (e.touches[0].clientX + e.touches[1].clientX) / 2, y: (e.touches[0].clientY + e.touches[1].clientY) / 2 });
+  wrap.addEventListener('touchstart', e => {
+    if (e.touches.length !== 2) { st = null; return; }
+    const p = pt(e), r = wrap.getBoundingClientRect();
+    st = { d: p.d, s: _yardImgScale, fx: (wrap.scrollLeft + p.x - r.left) / img.offsetWidth, fy: (wrap.scrollTop + p.y - r.top) / img.offsetHeight };
+  }, { passive: true });
+  wrap.addEventListener('touchmove', e => {
+    if (!st || e.touches.length !== 2) return;
+    e.preventDefault();
+    const p = pt(e), r = wrap.getBoundingClientRect();
+    _yardImgScale = Math.min(5, Math.max(1, st.s * p.d / st.d));
+    apply();
+    wrap.scrollLeft = st.fx * img.offsetWidth - (p.x - r.left);
+    wrap.scrollTop = st.fy * img.offsetHeight - (p.y - r.top);
+  }, { passive: false });
+  wrap.addEventListener('touchend', e => { if (e.touches.length < 2) st = null; }, { passive: true });
+}
+window._yardIsTouch = _yardIsTouch;
 
 /* מפת המגרש לעריכה בטלפון: אותו סידור כמו בתמונת התצוגה (חניות 1–34 מימין, חניות המגרש משמאל),
    אבל כל משבצת ניתנת להקשה. הקשה פותחת חלון קטן למילוי; "הבא" עובר למשבצת הבאה. */
