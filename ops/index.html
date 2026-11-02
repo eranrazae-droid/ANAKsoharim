@@ -23,8 +23,8 @@
   (function () {
     var pahach = /\/pahach\/?$/.test(location.pathname) || /[?&]pahach\b/.test(location.search);
     document.write('<link rel="manifest" href="' + (pahach ? '/ops/manifest-pahach.json' : '/ops/manifest.json') + '">');
-    document.write('<link rel="apple-touch-icon" href="' + (pahach ? '/ops/icon-pahach-180.png' : '/ops/apple-touch-icon.png?v=682') + '">');
-    document.write('<link rel="icon" href="' + (pahach ? '/ops/favicon.png' : '/ops/favicon-operations.png?v=682') + '">');
+    document.write('<link rel="apple-touch-icon" href="' + (pahach ? '/ops/icon-pahach-180.png' : '/ops/apple-touch-icon.png?v=683') + '">');
+    document.write('<link rel="icon" href="' + (pahach ? '/ops/favicon.png' : '/ops/favicon-operations.png?v=683') + '">');
     if (pahach) document.title = 'ענק הרכבים פחחות';
   })();
 </script>
@@ -554,6 +554,23 @@ body.has-crest .cal-day.barca.selected .cal-num{box-shadow:0 0 0 2px var(--dark)
 .yard-img-wrap img{display:block;width:100%;height:auto;cursor:zoom-in}
 .yard-img-wrap.zoom img{width:230%;max-width:none;cursor:zoom-out}
 .yard-img-hint{text-align:center;color:var(--muted);font-size:11px;margin-top:6px}
+/* מפת המגרש לעריכה בטלפון */
+.ym{max-width:760px;margin:0 auto}
+.ym-band{display:flex;align-items:center;gap:6px;margin-bottom:6px;padding:4px 6px;border-radius:8px}
+.ym-band.in{background:#f0fdf4}.ym-band.sold{background:#fefce8}
+.ym-band>b{flex:0 0 auto;font-size:11px;font-weight:800;color:var(--dark)}
+.ym-chips{flex:1;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:3px}
+.ym-cols{display:grid;grid-template-columns:1fr 1fr;gap:6px;align-items:start}
+.ym-h{background:var(--dark);color:#fff;font-weight:800;font-size:11px;text-align:center;padding:5px 2px;border-radius:7px}
+.ym-sub{display:flex;font-size:9.5px;font-weight:700;color:var(--muted);padding:2px 0 2px 0}
+.ym-sub span{flex:1;text-align:center}.ym-sub::before{content:"";flex:0 0 28px}
+.ym-row{display:flex;gap:2px;margin-bottom:2px;align-items:stretch}
+.ym-num{flex:0 0 28px;display:flex;align-items:center;justify-content:center;background:#e9ece6;color:#5b6b5f;border-radius:5px;font-size:10px;font-weight:900}
+.ym-cell{flex:1;min-width:0;min-height:26px;display:flex;align-items:center;justify-content:center;border:1px solid #e2e7de;background:#f4f6f2;color:#b8c0b5;border-radius:5px;font-size:10px;font-weight:600;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding:0 2px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.ym-cell.has{background:#dcfce7;border-color:#16a34a;color:#14532d;font-weight:800}
+.ym-cell:active{outline:2px solid var(--gold)}
+.ym-band.in .ym-cell{min-height:28px}.ym-band.in .ym-cell.has{background:#bbf7d0}.ym-band.sold .ym-cell.has{background:#fef08a;border-color:#ca8a04;color:#854d0e}
+.ym-gap{height:10px}
 .yard-sec-h{position:sticky;top:0;z-index:5;background:var(--dark);color:#fff;font-weight:800;font-size:14px;padding:9px 12px;border-radius:8px;margin:14px 0 8px}
 .yard-card{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--border);border-radius:12px;padding:8px 10px;margin-bottom:7px}
 .yard-num{flex-shrink:0;min-width:44px;height:44px;border-radius:10px;background:var(--dark);color:var(--gold);font-weight:900;font-size:16px;display:flex;align-items:center;justify-content:center;padding:0 6px}
@@ -2061,9 +2078,9 @@ if ('serviceWorker' in navigator) {
   });
 }
 </script>
-<link rel="stylesheet" href="css/ui2m.css?v=682">
-<link rel="stylesheet" href="css/entry-design.css?v=682">
-<link rel="stylesheet" href="css/bodyshop-design.css?v=682">
+<link rel="stylesheet" href="css/ui2m.css?v=683">
+<link rel="stylesheet" href="css/entry-design.css?v=683">
+<link rel="stylesheet" href="css/bodyshop-design.css?v=683">
 </head>
 <body>
 
@@ -4873,6 +4890,20 @@ if ('serviceWorker' in navigator) {
 </div>
 
 <!-- ====== MODAL: YARD CONTINUE ====== -->
+<!-- ====== MODAL: עריכת משבצת במפת המגרש (טלפון) ====== -->
+<div class="modal-overlay" id="modal-yard-cell">
+  <div class="modal-box" style="max-width:360px">
+    <div class="modal-title"><span id="ym-title">חניה</span> <button class="modal-close" onclick="closeModal('modal-yard-cell')">✕</button></div>
+    <input class="form-input" id="ym-input" placeholder="מספר רכב / תיאור" autocomplete="off"
+      onkeydown="if(event.key==='Enter'){event.preventDefault();yardMapSave(true)}" style="font-size:17px;font-weight:800;text-align:center">
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button onclick="yardMapSave(true)" style="flex:1;background:var(--dark);color:#fff;border:none;border-radius:10px;padding:12px;font-family:Heebo,sans-serif;font-weight:800;font-size:14px;cursor:pointer">הבא ◀</button>
+      <button onclick="yardMapSave(false)" style="flex:1;background:#22c55e;color:#fff;border:none;border-radius:10px;padding:12px;font-family:Heebo,sans-serif;font-weight:800;font-size:14px;cursor:pointer">✅ שמור</button>
+      <button onclick="yardMapClear()" style="flex:0 0 auto;background:#fee2e2;color:#b91c1c;border:2px solid #fca5a5;border-radius:10px;padding:12px;font-family:Heebo,sans-serif;font-weight:800;font-size:14px;cursor:pointer">🗑 נקה</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-yard-start">
   <div class="modal-box" style="text-align:center">
     <div style="font-size:40px;margin-bottom:12px">🅿️</div>
@@ -5141,35 +5172,35 @@ window._storageRef    = CONFIG_DONE ? storageRef    : null;
 window.dispatchEvent(new Event('firebase-ready'));
 </script>
 
-<script src="js/utils.js?v=682"></script>
-<script src="js/app/01-core.js?v=682"></script>
-<script src="js/app/02-home-calendar.js?v=682"></script>
-<script src="js/app/03-tasks.js?v=682"></script>
-<script src="js/app/04-intake-plate.js?v=682"></script>
-<script src="js/app/05-intake-forms.js?v=682"></script>
-<script src="js/app/06-recall-inventory.js?v=682"></script>
-<script src="js/app/07-bodyshop.js?v=682"></script>
-<script src="js/app/08-ownership-wash.js?v=682"></script>
-<script src="js/app/09-battery.js?v=682"></script>
-<script src="js/app/10-battery-plate.js?v=682"></script>
-<script src="js/app/11-yard-telegram.js?v=682"></script>
-<script src="js/app/12-pickup.js?v=682"></script>
-<script src="js/app/13-reports.js?v=682"></script>
-<script src="js/app/14-tow-invoice.js?v=682"></script>
-<script src="js/ui2-dashboard.js?v=682"></script>
-<script src="js/ui2-mobile.js?v=682"></script>
-<script src="js/ui2-gil-avatar.js?v=682"></script>
-<script src="js/ui2m-tasks.js?v=682"></script>
-<script src="js/ui2-mobile-ai.js?v=682"></script>
-<script src="js/ui2-yard.js?v=682"></script>
-<script src="js/ui2-reports.js?v=682"></script>
-<script src="js/timing.js?v=682"></script>
-<script src="js/ui2-system.js?v=682"></script>
-<script src="js/ui2-operations.js?v=682"></script>
-<script src="js/ui2-staff.js?v=682"></script>
-<script src="js/bodyshop-design.js?v=682"></script>
-<script src="js/ui2-ibrahim-menu.js?v=682"></script>
-<script src="js/ui2-task-dialog.js?v=682"></script>
+<script src="js/utils.js?v=683"></script>
+<script src="js/app/01-core.js?v=683"></script>
+<script src="js/app/02-home-calendar.js?v=683"></script>
+<script src="js/app/03-tasks.js?v=683"></script>
+<script src="js/app/04-intake-plate.js?v=683"></script>
+<script src="js/app/05-intake-forms.js?v=683"></script>
+<script src="js/app/06-recall-inventory.js?v=683"></script>
+<script src="js/app/07-bodyshop.js?v=683"></script>
+<script src="js/app/08-ownership-wash.js?v=683"></script>
+<script src="js/app/09-battery.js?v=683"></script>
+<script src="js/app/10-battery-plate.js?v=683"></script>
+<script src="js/app/11-yard-telegram.js?v=683"></script>
+<script src="js/app/12-pickup.js?v=683"></script>
+<script src="js/app/13-reports.js?v=683"></script>
+<script src="js/app/14-tow-invoice.js?v=683"></script>
+<script src="js/ui2-dashboard.js?v=683"></script>
+<script src="js/ui2-mobile.js?v=683"></script>
+<script src="js/ui2-gil-avatar.js?v=683"></script>
+<script src="js/ui2m-tasks.js?v=683"></script>
+<script src="js/ui2-mobile-ai.js?v=683"></script>
+<script src="js/ui2-yard.js?v=683"></script>
+<script src="js/ui2-reports.js?v=683"></script>
+<script src="js/timing.js?v=683"></script>
+<script src="js/ui2-system.js?v=683"></script>
+<script src="js/ui2-operations.js?v=683"></script>
+<script src="js/ui2-staff.js?v=683"></script>
+<script src="js/bodyshop-design.js?v=683"></script>
+<script src="js/ui2-ibrahim-menu.js?v=683"></script>
+<script src="js/ui2-task-dialog.js?v=683"></script>
 
 <!-- ═══ רענון רכב modals ═══ -->
 <div class="modal-overlay" id="modal-refresh-edit">

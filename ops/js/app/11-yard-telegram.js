@@ -417,8 +417,11 @@ function renderYardTable() {
   // נהג: כפתור "בוצע" מופיע כל עוד יש סידור פעיל (קודם הציור מחדש הסתיר אותו מיד אחרי שהוצג)
   const hasYard = Object.values(yardData || {}).some(v => v && String(v).trim());
   document.getElementById('yard-driver-toolbar').style.display = !isManager && hasYard ? 'flex' : 'none';
-  document.getElementById('yard-to-place-panel').style.display = editable ? 'block' : 'none';
-  if (editable) renderToPlaceGrid(true);
+  // בטלפון, מנהל בעריכה רואה את כל המגרש במפה אחת (כמו בתצוגה) ומקיש על חניה כדי למלא אותה
+  const phoneMap = editable && window.innerWidth <= 900;
+  document.getElementById('yard-to-place-panel').style.display = editable && !phoneMap ? 'block' : 'none';
+  if (editable && !phoneMap) renderToPlaceGrid(true);
+  else { const g1 = document.getElementById('yard-to-place-grid'), g2 = document.getElementById('yard-sold-grid'); if (g1) g1.innerHTML = ''; if (g2) g2.innerHTML = ''; }
 
   const list = document.getElementById('yard-list');
   if (!list) return;
@@ -472,13 +475,69 @@ function renderYardTable() {
     `<div class="yard-summary"><span>מולאו <b>${filled}</b> מתוך ${allKeys.length}</span>` +
       (editable ? `<button class="yard-flt ${flt ? 'on' : ''}" onclick="toggleYardFilter()">${flt ? '↩ הצג הכל' : '🔎 ריקים בלבד'}</button>` : '') +
     `</div>` +
-    (!asImage ? rowsHtml :
+    (phoneMap ? _yardMapHtml() : !asImage ? rowsHtml :
       `<div class="yard-img-wrap"><img id="yard-img" alt="סידור מגרש" onclick="this.parentNode.classList.toggle('zoom')"></div><div class="yard-img-hint">לחיצה על התמונה מגדילה / מקטינה</div>`);
   renderYardInputValues();
   if (asImage) _yardImage(yardData).then(url => {
     const img = document.getElementById('yard-img'); if (img && url) img.src = url;
   }).catch(e => console.warn('yard image', e));
 }
+
+/* מפת המגרש לעריכה בטלפון: אותו סידור כמו בתמונת התצוגה (חניות 1–34 מימין, חניות המגרש משמאל),
+   אבל כל משבצת ניתנת להקשה. הקשה פותחת חלון קטן למילוי; "הבא" עובר למשבצת הבאה. */
+let _ymKey = null, _ymOrder = [], _ymLabels = {};
+function _yardMapHtml() {
+  _ymOrder = []; _ymLabels = {};
+  const val = k => String(yardData[k] || '').trim();
+  const cell = (k, label) => { _ymOrder.push(k); _ymLabels[k] = label; const v = val(k); return `<div class="ym-cell${v ? ' has' : ''}" data-ymk="${esc(k)}" onclick="yardMapEdit(this.dataset.ymk)">${v ? esc(v) : '—'}</div>`; };
+  const band = (title, prefix, cls, lbl) => `<div class="ym-band ${cls}"><b>${title}</b><div class="ym-chips">${[1, 2, 3, 4, 5, 6].map(i => cell(prefix + i, `${lbl} ${i}`)).join('')}</div></div>`;
+  const left = LEFT_SPOTS.map(spot => {
+    const three = +spot >= 30 && +spot <= 34;
+    const cells = [cell('L_' + spot + '_כניסה', `חניה ${spot} · חניה`), cell('L_' + spot + '_כביש_1', `חניה ${spot} · ${three ? 'כביש 1' : 'כביש'}`)];
+    if (three) cells.push(cell('L_' + spot + '_כביש_2', `חניה ${spot} · כביש 2`));
+    return `<div class="ym-row"><div class="ym-num">${esc(spot)}</div>${cells.join('')}</div>`;
+  }).join('');
+  const blocks = []; RIGHT_ROWS.forEach(r => { if (r) blocks.push(r); else if (blocks.length && blocks[blocks.length - 1]) blocks.push(null); });
+  const right = blocks.map(r => {
+    if (!r) return '<div class="ym-gap"></div>';
+    let even = '', odd = ''; r.forEach(n => { if (parseInt(n) % 2 === 0) even = n; else odd = n; });
+    const cells = [];
+    if (even) cells.push(cell('R_' + even + '_בפנים', `חניית מגרש ${even} · בפנים`));
+    if (odd) cells.push(cell('R_' + odd + '_בחוץ', `חניית מגרש ${odd} · בחוץ`));
+    return `<div class="ym-row"><div class="ym-num">${[even, odd].filter(Boolean).join('/')}</div>${cells.join('')}</div>`;
+  }).join('');
+  // הסדר להקשות "הבא": רצועות, אחר כך חניות 1–34, אחר כך חניות המגרש — כמו שמופיע במפה
+  return `<div class="ym">
+    ${band('🚗 להכניס', 'TO_PLACE_', 'in', 'להכניס')}
+    ${band('🏷️ מכורות', 'SOLD_', 'sold', 'מכורה')}
+    <div class="ym-cols">
+      <div class="ym-col"><div class="ym-h">חניות צד שמאל (1–34)</div><div class="ym-sub"><span>חניה</span><span>כביש</span></div>${left}</div>
+      <div class="ym-col"><div class="ym-h">חניות מגרש</div><div class="ym-sub"><span>בפנים</span><span>בחוץ</span></div>${right}</div>
+    </div>
+    <div class="yard-img-hint">הקש על משבצת כדי למלא או לשנות</div></div>`;
+}
+function yardMapEdit(key) {
+  _ymKey = key;
+  const t = document.getElementById('ym-title'), inp = document.getElementById('ym-input');
+  if (!t || !inp) return;
+  t.textContent = _ymLabels[key] || key;
+  inp.value = yardData[key] || '';
+  openModal('modal-yard-cell');
+  setTimeout(() => { inp.focus(); inp.select(); }, 120);
+}
+function yardMapSave(next) {
+  const key = _ymKey; if (!key) return;
+  const v = document.getElementById('ym-input').value.trim();
+  yardData[key] = v;
+  const el = document.querySelector(`#yard-list [data-ymk="${CSS.escape(key)}"]`);
+  if (el) { el.textContent = v || '—'; el.classList.toggle('has', !!v); }
+  _autoSaveYard();
+  const i = _ymOrder.indexOf(key);
+  if (next && i >= 0 && i < _ymOrder.length - 1) yardMapEdit(_ymOrder[i + 1]);
+  else { _ymKey = null; closeModal('modal-yard-cell'); }
+}
+function yardMapClear() { const inp = document.getElementById('ym-input'); if (inp) inp.value = ''; yardMapSave(false); }
+window.yardMapEdit = yardMapEdit; window.yardMapSave = yardMapSave; window.yardMapClear = yardMapClear;
 
 /* תמונה אחת של כל סידור המגרש — לנהג במסך ובהודעת הטלגרם */
 async function _yardImage(data) {
