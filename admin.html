@@ -3324,7 +3324,14 @@
       }
     } }
     catch(e){ console.warn('lead save', e); }
-    toast&&toast(saved?(usedFallback?'הליד נשמר ✓ (מומלץ להריץ את ה-SQL ב-Supabase לשמירה מלאה)':'הליד נשמר ✓'):'שגיאה בשמירה - יש להריץ את ה-SQL ב-Supabase'); renderLeads();
+    toast&&toast(saved?(usedFallback?'הליד נשמר ✓ (מומלץ להריץ את ה-SQL ב-Supabase לשמירה מלאה)':'הליד נשמר ✓'):'שגיאה בשמירה - יש להריץ את ה-SQL ב-Supabase');
+    // עדכון הכרטיס במקום בלי renderLeads - כדי שהליד לא ירד למטה/ייעלם בזמן עבודה
+    try{
+      const sc=LEAD_STATUS_STYLE[l.status]||LEAD_STATUS_STYLE['פתוח'];
+      const stEl=document.getElementById('st_'+id); if(stEl){ stEl.style.background=sc[0]; stEl.style.color=sc[1]; stEl.style.borderColor=sc[1]+'33'; }
+      const fuEl=document.getElementById('fu_'+id); if(fuEl) fuEl.style.display=(l.status==='פולואפ')?'inline-block':'none';
+      const fulbl=document.getElementById('fulbl_'+id); if(fulbl) fulbl.textContent=(l.status==='פולואפ'&&l.followup_at)?('📅 לחזור: '+fmtFollowup(l.followup_at)):'';
+    }catch(e){}
   }
   // אישור תשלום ידני → שולח Purchase לפייסבוק מצד השרת (rewrite ל-/.netlify/functions/mark-paid)
   async function markPaid(id){
