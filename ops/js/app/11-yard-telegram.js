@@ -836,6 +836,12 @@ function tdStyle(align) {
 }
 
 function renderYardInputValues() {
+  // מפת העריכה בטלפון: כל פעם שהנתונים מתחלפים מבחוץ (טעינה, "טבלה חדשה", נהג שסימן בוצע) המשבצות מתעדכנות
+  document.querySelectorAll('#yard-list [data-ymk]').forEach(el => {
+    const v = String((yardData || {})[el.dataset.ymk] || '').trim();
+    el.textContent = v || '—';
+    el.classList.toggle('has', !!v);
+  });
   document.querySelectorAll('#yard-list input[data-key], #yard-to-place-grid input[data-key], #yard-sold-grid input[data-key]').forEach(inp => {
     inp.value = yardData[inp.dataset.key] || '';
     if (inp.classList.contains('yard-inp')) inp.classList.toggle('has', !!inp.value.trim());
