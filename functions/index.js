@@ -1326,13 +1326,46 @@ exports.adminUsers = onCall({ region: USERS_REGION }, async (req) => {
     return { ok: true };
   }
 
-  // ניתוק מכל המכשירים: האסימונים מבוטלים בשרת, והחותמת במסמך המשתמש גורמת למכשיר שפתוח
-  // להתנתק מיד (גם מכשיר שנכנס לפי מה שהוא זוכר), בלי לשנות סיסמה
-  if (action === "signOutUser") {
+  /* ניתוק מלא של משתמש משני הצדדים:
+     • גישה: החשבון נחסם (לא יכול להיכנס), האסימונים מבוטלים, והחותמת forceLogoutAt גורמת למכשיר
+       פתוח להתנתק מיד.
+     • הודעות: פרטי הקשר שלו (טלגרם / טלפון ל-SMS) נשמרים בצד ומרוקנים, כך שכל שולח — בשרת ובאפליקציה —
+       לא מוצא לאן לשלוח; ההתראות לדפדפן (push) נמחקות.
+     חיבור מחדש מחזיר את הכול, חוץ מהתראות הדפדפן: המשתמש מפעיל אותן שוב במכשיר. */
+  if (action === "disconnectUser" || action === "reconnectUser") {
     if (!uid) throw new HttpsError("invalid-argument", "חסר משתמש");
-    await auth.revokeRefreshTokens(uid);
-    await db.collection("users").doc(uid).set({ forceLogoutAt: Date.now() }, { merge: true });
-    return { ok: true };
+    const off = action === "disconnectUser";
+    const uref = db.collection("users").doc(uid);
+    const usnap = await uref.get();
+    const uname = String((usnap.data() || {}).name || "");
+    await auth.updateUser(uid, { disabled: off });
+    if (off) await auth.revokeRefreshTokens(uid);
+    await uref.set(off
+      ? { disabled: true, forceLogoutAt: Date.now(), disconnectedAt: new Date().toISOString() }
+      : { disabled: false, reconnectedAt: new Date().toISOString() }, { merge: true });
+    if (uname) {
+      const cref = db.collection("config").doc("driver_contacts");
+      const csnap = await cref.get();
+      const e = (csnap.exists ? csnap.data() : {})[uname];
+      if (e && typeof e === "object") {
+        if (off) {
+          if (e.telegramId || e.phone) {
+            await cref.set({ [uname]: { paused: { telegramId: e.telegramId || "", phone: e.phone || "" }, telegramId: "", phone: "" } }, { merge: true });
+          }
+        } else if (e.paused) {
+          await cref.set({ [uname]: { telegramId: e.telegramId || e.paused.telegramId || "", phone: e.phone || e.paused.phone || "", paused: FieldValue.delete() } }, { merge: true });
+        }
+      }
+    }
+    let pushRemoved = 0;
+    if (off) {
+      const subs = await db.collection("push_subs").where("uid", "==", uid).get();
+      const byName = uname ? await db.collection("push_subs").where("name", "==", uname).get() : { docs: [] };
+      const ids = new Set([...subs.docs, ...byName.docs].map((d) => d.id));
+      await Promise.all([...ids].map((id) => db.collection("push_subs").doc(id).delete().catch(() => {})));
+      pushRemoved = ids.size;
+    }
+    return { ok: true, pushRemoved };
   }
 
   if (action === "setPhone") {

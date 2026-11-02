@@ -321,6 +321,7 @@ async function doPhoneLogin() {
     say(c === 'auth/invalid-credential' || c === 'auth/wrong-password' || c === 'auth/user-not-found' || c === 'auth/invalid-email'
         ? 'טלפון או סיסמה שגויים'
       : c === 'auth/too-many-requests' ? 'יותר מדי ניסיונות — נסה שוב בעוד כמה דקות'
+      : c === 'auth/user-disabled' ? 'המשתמש מנותק מהמערכת — פנה למנהל'
       : _isNetErr(e) ? 'אין חיבור יציב לשרת — הפרטים נשארו, לחץ שוב כשהחיבור משתפר'
       : 'שגיאה בהתחברות' + (c ? ` (${c})` : ''));
   } finally {
@@ -615,11 +616,13 @@ function _renderUsers() {
     <div style="border:2px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px;background:var(--card)">
       <div style="display:flex;align-items:center;gap:8px">
         <div style="flex:1;min-width:0">
-          <div style="font-weight:900;font-size:15px">${esc(u.name || '')} <span style="font-size:12px;font-weight:600;color:var(--muted)">· ${roleName(u.role)}</span></div>
+          <div style="font-weight:900;font-size:15px">${esc(u.name || '')} <span style="font-size:12px;font-weight:600;color:var(--muted)">· ${roleName(u.role)}</span>${u.disabled ? ' <span style="font-size:11.5px;font-weight:800;color:#b91c1c;background:#fee2e2;border-radius:999px;padding:1px 8px">מנותק</span>' : ''}</div>
           <div style="font-size:13px;color:var(--muted);font-weight:700;direction:ltr;text-align:right">${esc(u.phone || '')}</div>
           ${_userSecrets[u.uid] ? `<div style="font-size:13px;font-weight:800;direction:ltr;text-align:right;color:var(--gold)">${esc(_userSecrets[u.uid])}</div>` : ''}
         </div>
-        ${u.uid !== _realUser?.uid ? `<button onclick="signOutAppUser('${u.uid}')" title="נתק מכל המכשירים" style="background:#fef3c7;color:#92400e;border:2px solid #fcd34d;border-radius:8px;height:32px;padding:0 8px;font-family:Heebo,sans-serif;font-weight:800;font-size:12px;cursor:pointer;white-space:nowrap">🚪 נתק</button>` : ''}
+        ${u.uid !== _realUser?.uid ? (u.disabled
+          ? `<button onclick="signOutAppUser('${u.uid}',false)" title="החזר את המשתמש לפעילות" style="background:#dcfce7;color:#166534;border:2px solid #86efac;border-radius:8px;height:32px;padding:0 8px;font-family:Heebo,sans-serif;font-weight:800;font-size:12px;cursor:pointer;white-space:nowrap">🔌 חבר מחדש</button>`
+          : `<button onclick="signOutAppUser('${u.uid}',true)" title="ניתוק מלא: גישה והודעות" style="background:#fef3c7;color:#92400e;border:2px solid #fcd34d;border-radius:8px;height:32px;padding:0 8px;font-family:Heebo,sans-serif;font-weight:800;font-size:12px;cursor:pointer;white-space:nowrap">🚪 נתק</button>`) : ''}
         <button onclick="editAppUser('${u.uid}')" style="background:var(--surface2);border:none;border-radius:8px;width:32px;height:32px;cursor:pointer">✏️</button>
         <button onclick="removeAppUser('${u.uid}')" style="background:#ef4444;color:#fff;border:none;border-radius:8px;width:32px;height:32px;cursor:pointer">🗑</button>
       </div>
@@ -672,15 +675,19 @@ async function saveAppUser() {
 }
 window.saveAppUser = saveAppUser;
 
-async function signOutAppUser(uid) {
+async function signOutAppUser(uid, off) {
   const u = _appUsers.find(x => x.uid === uid);
-  if (!u || !confirm(`לנתק את ${u.name} מכל המכשירים?\n\nהוא ייזרק מהאפליקציה מיד, והסיסמה שלו נשארת כמו שהיא — הוא יוכל להיכנס שוב.`)) return;
+  if (!u) return;
+  const msg = off
+    ? `לנתק את ${u.name} לגמרי?\n\n• הוא ייזרק מהאפליקציה מיד, בכל המכשירים, ולא יוכל להיכנס.\n• הוא לא יקבל יותר הודעות: טלגרם, SMS והתראות.\n\nאפשר לחבר אותו מחדש בכל רגע, והפרטים שלו נשמרים.`
+    : `לחבר מחדש את ${u.name}?\n\nהוא יוכל להיכנס שוב, וההודעות בטלגרם וב-SMS יחזרו. ההתראות בדפדפן הוא יפעיל שוב במכשיר.`;
+  if (!confirm(msg)) return;
   try {
-    await _callAdminUsers({ action: 'signOutUser', uid });
-    showToast(`🚪 ${u.name} נותק מכל המכשירים`);
+    const r = await _callAdminUsers({ action: off ? 'disconnectUser' : 'reconnectUser', uid });
+    showToast(off ? `🚪 ${u.name} נותק לגמרי${r?.pushRemoved ? ` · ${r.pushRemoved} מכשירי התראות נמחקו` : ''}` : `🔌 ${u.name} חובר מחדש`, 6000);
   } catch (e) {
     console.error('signOutAppUser', e);
-    showToast('הניתוק נכשל: ' + (e.message || ''), 6000);
+    showToast('הפעולה נכשלה: ' + (e.message || ''), 6000);
   }
 }
 window.signOutAppUser = signOutAppUser;
