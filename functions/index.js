@@ -1375,11 +1375,31 @@ exports.adminUsers = onCall({ region: USERS_REGION }, async (req) => {
     return { ok: true };
   }
 
+  /* מחיקה = ניתוק מוחלט מכל המערכות: החשבון נמחק (לא יכול להיכנס בשום מכשיר), פרטי הקשר שלו
+     (טלגרם, טלפון) נמחקים מההגדרות, ההתראות לדפדפן נמחקות, הסיסמה השמורה והודעות פנימיות שנותרו
+     לו נמחקות. היסטוריה (קליטות, משימות שביצע) נשארת כמו שהיא. */
   if (action === "remove") {
     if (!uid) throw new HttpsError("invalid-argument", "חסר משתמש");
+    if (uid === req.auth?.uid) throw new HttpsError("failed-precondition", "אי אפשר למחוק את המשתמש שאיתו אתה מחובר");
+    const uref = db.collection("users").doc(uid);
+    const uname = String(((await uref.get()).data() || {}).name || "");
+    await auth.revokeRefreshTokens(uid).catch(() => {});
     await auth.deleteUser(uid).catch(() => {});
-    await db.collection("users").doc(uid).delete().catch(() => {});
-    return { ok: true };
+    await uref.delete().catch(() => {});
+    const cleaned = { contacts: false, push: 0, notes: 0 };
+    if (uname) {
+      await db.collection("config").doc("driver_contacts").set({ [uname]: FieldValue.delete() }, { merge: true }).then(() => { cleaned.contacts = true; }).catch(() => {});
+      const subs = await db.collection("push_subs").where("name", "==", uname).get().catch(() => ({ docs: [] }));
+      const bySub = await db.collection("push_subs").where("uid", "==", uid).get().catch(() => ({ docs: [] }));
+      const ids = new Set([...subs.docs, ...bySub.docs].map((d) => d.id));
+      await Promise.all([...ids].map((id) => db.collection("push_subs").doc(id).delete().catch(() => {})));
+      cleaned.push = ids.size;
+      const notes = await db.collection("driver_notifications").where("to", "==", uname).get().catch(() => ({ docs: [] }));
+      await Promise.all(notes.docs.map((d) => d.ref.delete().catch(() => {})));
+      cleaned.notes = notes.docs.length;
+    }
+    await db.collection("config").doc("user_secrets").set({ [uid]: FieldValue.delete() }, { merge: true }).catch(() => {});
+    return { ok: true, cleaned };
   }
 
   throw new HttpsError("invalid-argument", "פעולה לא מוכרת");

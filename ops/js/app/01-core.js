@@ -407,6 +407,17 @@ function _watchForceLogout(uid) {
   if (!loginAt) { loginAt = Date.now(); try { localStorage.setItem('anak_login_at', String(loginAt)); } catch (e) {} }
   try {
     _flUnsub = window._onSnap(_docRef('users', uid), snap => {
+      // החשבון נמחק: אישור מהשרת שהמסמך לא קיים (ולא רק מטמון ריק) — נזרקים מיד
+      // (רק למי שהפרופיל שלו היה ידוע במכשיר, כדי שחשבון ישן בלי מסמך לא ייזרק בטעות)
+      if (!snap.exists() && snap.metadata && !snap.metadata.fromCache) {
+        let had = false; try { had = !!localStorage.getItem('anak_profile_' + uid); } catch (e) {}
+        if (had) {
+          try { localStorage.removeItem('anak_profile_' + uid); } catch (e) {}
+          showToast('🚪 המשתמש הוסר מהמערכת', 7000);
+          goToLoginScreen();
+        }
+        return;
+      }
       const at = Number((snap.data() || {}).forceLogoutAt || 0);
       if (!at) return;
       let handled = 0; try { handled = Number(localStorage.getItem('anak_logout_handled') || 0); } catch (e) {}
@@ -694,11 +705,11 @@ window.signOutAppUser = signOutAppUser;
 
 async function removeAppUser(uid) {
   const u = _appUsers.find(x => x.uid === uid);
-  if (!u || !confirm(`למחוק את ${u.name}? הוא לא יוכל להיכנס יותר.`)) return;
+  if (!u || !confirm(`למחוק את ${u.name} ולנתק אותו לגמרי מכל המערכות?\n\n• החשבון נמחק, והוא נזרק מכל המכשירים ולא יוכל להיכנס.\n• פרטי הקשר שלו (טלגרם, טלפון) וההתראות שלו נמחקים, והוא לא יקבל יותר הודעות.\n• ההיסטוריה שלו (קליטות, משימות) נשארת.\n\nהפעולה אינה הפיכה — כדי להחזיר אותו צריך ליצור אותו מחדש.`)) return;
   try {
-    await _callAdminUsers({ action: 'remove', uid });
-    showToast('🗑 נמחק');
-  } catch (e) { showToast('שגיאה במחיקה'); }
+    const r = await _callAdminUsers({ action: 'remove', uid });
+    showToast(`🗑 ${u.name} נמחק וננותק מכל המערכות${r?.cleaned?.push ? ` · ${r.cleaned.push} מכשירי התראות נמחקו` : ''}`, 6000);
+  } catch (e) { showToast('שגיאה במחיקה: ' + (e.message || ''), 6000); }
 }
 window.removeAppUser = removeAppUser;
 
