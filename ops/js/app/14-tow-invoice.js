@@ -18,6 +18,7 @@ let _towInv = null;   // { rows:[{plate,cands,raw,found,src,desc}], label, note 
    הרכבים של אותה חשבונית. זה גם המקור של התג "כבר חויב" בהצלבה. */
 let _towSaved = [];
 let _towSavedOpen = '';
+let _towSavedFullId = '';
 
 function _towListenSaved() {
   _reSnapReset('towInv');
@@ -32,6 +33,8 @@ function towSavedToggle(id) {
   _towRenderSaved();
 }
 window.towSavedToggle = towSavedToggle;
+function towSavedFull(id) { _towSavedFullId = (_towSavedFullId === id) ? '' : id; _towRenderSaved(); }
+window.towSavedFull = towSavedFull;
 
 async function towSavedDelete(id) {
   const inv = _towSaved.find(x => x.id === id);
@@ -66,9 +69,43 @@ function _towRenderSaved() {
     const miss = (inv.missing || []).length;
     const plates = inv.plates || [];
     const missSet = new Set(inv.missing || []);
-    const body = open ? `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:5px">${
-      plates.map(p => `<span style="background:${missSet.has(p) ? '#fef2f2' : 'var(--surface2)'};color:${missSet.has(p) ? '#dc2626' : 'var(--text)'};border:1px solid ${missSet.has(p) ? '#fecaca' : 'var(--border)'};border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:800;direction:ltr">${_towFmt(p)}</span>`).join('')
-      || '<span style="font-size:12px;color:var(--muted)">אין רכבים</span>'}</div>` : '';
+    const det = new Map((inv.details || []).map(d => [d.p, d]));
+    const apprSet = new Set(inv.approved || []);
+    // אושר / לא אושר / אושר ידנית — לכל לוחית
+    const stOf = p => {
+      const d = det.get(p);
+      if (d && d.st) return d.st;
+      if (missSet.has(p)) return apprSet.has(p) ? 'manual' : 'no';
+      return 'ok';
+    };
+    const ST = {
+      ok:     { ic: '✓', t: 'אושר',       c: '#16a34a', bg: 'var(--surface2)', bd: 'var(--border)' },
+      manual: { ic: '✔', t: 'אושר ידנית', c: '#0f766e', bg: '#ecfeff',         bd: '#67e8f9' },
+      no:     { ic: '✗', t: 'לא אושר',    c: '#dc2626', bg: '#fef2f2',         bd: '#fecaca' }
+    };
+    const full = _towSavedFullId === inv.id;
+    let body = '';
+    if (open) {
+      const chips = plates.map(p => { const x = ST[stOf(p)] || ST.ok;
+        return `<span title="${x.t}" style="background:${x.bg};color:${stOf(p) === 'no' ? '#dc2626' : 'var(--text)'};border:1px solid ${x.bd};border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:800;direction:ltr"><b style="color:${x.c}">${x.ic}</b> ${_towFmt(p)}</span>`; }).join('')
+        || '<span style="font-size:12px;color:var(--muted)">אין רכבים</span>';
+      const rowsHtml = plates.map(p => { const x = ST[stOf(p)] || ST.ok, d = det.get(p) || {};
+        return `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1.5px solid ${x.bd};background:${x.bg};border-radius:10px;padding:6px 9px">
+          <span style="font-weight:900;font-size:14px;direction:ltr">${_towFmt(p)}</span>
+          <span style="background:${x.c};color:#fff;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:900">${x.ic} ${x.t}</span>
+          ${d.src ? `<span style="font-size:11.5px;font-weight:800;color:var(--muted)">${esc(d.src)}</span>` : ''}
+          ${d.by ? `<span style="font-size:11.5px;font-weight:800;color:#b45309">🚩 נאסף ע״י ${esc(d.by)}</span>` : ''}
+          ${d.desc ? `<span style="font-size:11.5px;color:var(--muted)">${esc(d.desc)}</span>` : ''}
+        </div>`; }).join('');
+      const nOk = plates.filter(p => stOf(p) === 'ok').length, nMan = plates.filter(p => stOf(p) === 'manual').length, nNo = plates.filter(p => stOf(p) === 'no').length;
+      body = `<div style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;font-weight:800">
+          <span style="color:#16a34a">✓ ${nOk} אושרו</span>
+          <span style="color:#0f766e">✔ ${nMan} אושרו ידנית</span>
+          <span style="color:#dc2626">✗ ${nNo} לא אושרו</span>
+          <button type="button" onclick="towSavedFull('${esc(inv.id)}')" style="margin-inline-start:auto;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:3px 10px;font-family:Heebo,sans-serif;font-size:12px;font-weight:900;cursor:pointer">${full ? '▲ תצוגה מקוצרת' : '📋 פירוט מלא'}</button>
+        </div>
+        <div style="margin-top:8px;${full ? 'display:flex;flex-direction:column;gap:5px' : 'display:flex;flex-wrap:wrap;gap:5px'}">${full ? rowsHtml : chips}</div>`;
+    }
     return `<div style="border:1.5px solid var(--border);border-radius:12px;padding:9px 11px;background:var(--surface2)">
       <div onclick="towSavedToggle('${esc(inv.id)}')" style="display:flex;align-items:center;gap:8px;cursor:pointer">
         <span style="font-weight:900;font-size:14px;flex-shrink:0">${esc(inv.label || 'ללא חודש')}</span>
@@ -887,8 +924,8 @@ async function _towReplace(i, plate) {
 
 async function towInvSave() {
   if (!_towInv || !_towInv.rows.length) return;
+  const dups = await _towPastDuplicates(_towInv.rows.map(r => r.plate));
   {
-    const dups = await _towPastDuplicates(_towInv.rows.map(r => r.plate));
     if (_towInv.rows.some(r => !_towOk(r, dups))) { showToast('נשארו שורות שלא סומנו כתקינות', 5000); return; }
   }
   const label = (document.getElementById('tow-inv-label')?.value || '').trim() || _towDefaultLabel();
@@ -900,6 +937,11 @@ async function towInvSave() {
       plates: _towInv.rows.map(r => r.plate),
       missing: _towInv.rows.filter(r => !r.found).map(r => r.plate),
       approved: _towInv.rows.filter(r => r.ok === true).map(r => r.plate),
+      details: _towInv.rows.map(r => ({
+        p: r.plate,
+        st: (r.ok === true && _towNeeds(r, dups)) ? 'manual' : (!r.found ? 'no' : 'ok'),
+        src: r.src || '', by: (r.found && r.byTow === false) ? (r.by || 'נהג שלנו') : '', desc: r.desc || ''
+      })),
       count: _towInv.rows.length,
       createdAt: _serverTs(),
       createdBy: currentUser?.name || '',
