@@ -177,12 +177,20 @@ function _towItemPlates(text) {
   return out;
 }
 
-async function _towReadFull(imgs, worker, setStatus) {
+// חיווי התקדמות עם אחוזים: פס וטקסט. 0–80% קריאת העמודים, 80–99% בדיקה חוזרת של פריטים, 100% סיום
+function _towProgHtml(label, pct) {
+  const v = Math.max(0, Math.min(100, Math.round(pct)));
+  return `<div style="margin-bottom:4px">⏳ ${label} <b style="color:#0f766e">${v}%</b></div>
+    <div style="height:10px;background:var(--surface2);border:1px solid var(--border);border-radius:999px;overflow:hidden">
+      <div style="height:100%;width:${v}%;background:linear-gradient(90deg,#0f766e,#34d399);transition:width .25s"></div></div>`;
+}
+
+async function _towReadFull(imgs, worker, setStatus, prog) {
   let engWorker = null;
   const items = [];
   try {
     for (let pi = 0; pi < imgs.length; pi++) {
-      setStatus(`⏳ קורא עמוד ${pi + 1} מתוך ${imgs.length}...`);
+      prog.page = pi; prog.set(prog.base(pi, 0), `קורא עמוד ${pi + 1} מתוך ${imgs.length}`);
       const im = await _loadImg(imgs[pi]);
       const { data } = await worker.recognize(imgs[pi]);
       const lines = (data.lines || []).map(l => ({ t: String(l.text || '').replace(/\s+/g, ' ').trim(), b: l.bbox })).filter(l => l.t);
@@ -233,12 +241,13 @@ async function _towReadFull(imgs, worker, setStatus) {
       return txt;
     };
 
+    prog.reread = true;
     const failed = [];
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
       let runs = _towItemPlates(it.text);
       if (!(await good(runs, it.expect))) {
-        setStatus(`⏳ בודק שוב פריט ${i + 1} מתוך ${items.length}...`);
+        prog.set(80 + (i / items.length) * 19, `בודק שוב פריט ${i + 1} מתוך ${items.length}`);
         for (const [kind, scale] of attempts) {
           const alt = _towItemPlates(await reread(it, kind, scale));
           if (await good(alt, it.expect)) { runs = alt; break; }
@@ -251,6 +260,7 @@ async function _towReadFull(imgs, worker, setStatus) {
           bad: runs.filter((_, k) => !oks[k]).map(r => r.raw) });
       }
     }
+    prog.set(99, 'מסיים');
     return { items, failed };
   } finally {
     if (engWorker) { try { await engWorker.terminate(); } catch (e) {} }
@@ -282,9 +292,18 @@ async function towInvoiceFile(input) {
       : [await _fileToDataUrl(file)];
 
     const setStatus = t => _towSet('tow-inv-status', t);
-    worker = await Tesseract.createWorker('heb+eng', 1);
+    const prog = {
+      page: 0, last: 0, label: '',
+      base: (pi, frac) => (pi + frac) / imgs.length * 80,
+      set(pct, label) { this.last = Math.max(this.last, pct); this.label = label || this.label; _towSet('tow-inv-status', _towProgHtml(this.label, this.last)); },
+    };
+    worker = await Tesseract.createWorker('heb+eng', 1, { logger: m => {
+      // אחוזי הקריאה של העמוד הנוכחי, בזמן שהמנוע עובד
+      if (m && m.status === 'recognizing text' && typeof m.progress === 'number' && !prog.reread) prog.set(prog.base(prog.page, m.progress), prog.label);
+    } });
     await worker.setParameters({ tessedit_pageseg_mode: '6' });
-    const res = await _towReadFull(imgs, worker, setStatus);
+    prog.set(1, 'פותח את הקובץ');
+    const res = await _towReadFull(imgs, worker, setStatus, prog);
 
     let runs;
     let expectedTotal = null;
@@ -294,7 +313,7 @@ async function towInvoiceFile(input) {
       await worker.setParameters({ tessedit_pageseg_mode: '4', tessedit_char_whitelist: '0123456789-/' });
       let text = '';
       for (let i = 0; i < imgs.length; i++) {
-        setStatus(`⏳ קורא עמוד ${i + 1} מתוך ${imgs.length}...`);
+        prog.set((i / imgs.length) * 95, `קורא עמוד ${i + 1} מתוך ${imgs.length}`);
         text += '\n' + (await worker.recognize(await _prepRegion(imgs[i], null, 2))).data.text;
       }
       runs = _towPlateCandidates(text);
@@ -311,7 +330,7 @@ async function towInvoiceFile(input) {
       }
       runs = res.items.flatMap(it => it.runs);
     }
-    setStatus('⏳ מצליב מול המערכת...');
+    prog.set(99, 'מצליב מול המערכת');
     _towInv = { label: (document.getElementById('tow-inv-label')?.value || '').trim(), rows: [], expectedTotal };
     for (const r of runs) _towInv.rows.push(await _towResolve(r));
     await _towRender();
