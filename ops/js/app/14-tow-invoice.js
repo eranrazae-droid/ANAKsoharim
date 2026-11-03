@@ -74,6 +74,25 @@ async function towSavedFile(id) {
 }
 window.towSavedFile = towSavedFile;
 
+// חשבונית שנשמרה בלי קובץ: מצרפים אותה עכשיו
+function towSavedAttach(id) {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'application/pdf,image/*';
+  inp.onchange = async () => {
+    const file = inp.files && inp.files[0]; if (!file) return;
+    showToast('⏳ שומר את הקובץ...', 4000);
+    try {
+      const imgs = /pdf/i.test(file.type) || /\.pdf$/i.test(file.name) ? await _pdfFileToImages(file) : [await _fileToDataUrl(file)];
+      await _towSaveFiles(id, imgs);
+      const { updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+      await updateDoc(doc(window._db, _TOW_INV_COL, id), { pages: imgs.length });
+      showToast('✅ החשבונית צורפה', 4000);
+    } catch (e) { console.error('tow attach', e); showToast('הצירוף נכשל: ' + (e.code || e.message), 6000); }
+  };
+  inp.click();
+}
+window.towSavedAttach = towSavedAttach;
+
 function towSavedToggle(id) {
   _towSavedOpen = (_towSavedOpen === id) ? '' : id;
   _towRenderSaved();
@@ -131,6 +150,9 @@ function _towRenderSaved() {
       no:     { ic: '✗', t: 'לא אושר',    c: '#dc2626', bg: '#fef2f2',         bd: '#fecaca' }
     };
     const full = _towSavedFullId === inv.id;
+    const fileBtn = inv.pages
+      ? `<button type="button" onclick="towSavedFile('${esc(inv.id)}')" title="פתיחת החשבונית" style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:2px 8px;font-size:12px;font-weight:900;cursor:pointer">📄 חשבונית</button>`
+      : `<button type="button" onclick="towSavedAttach('${esc(inv.id)}')" title="לחשבונית הזאת לא נשמר קובץ — צרף אותו" style="background:#fffbeb;color:#92400e;border:1px solid #fcd34d;border-radius:8px;padding:2px 8px;font-size:12px;font-weight:900;cursor:pointer">📎 צרף קובץ חשבונית</button>`;
     let body = '';
     if (open) {
       const chips = plates.map(p => { const x = ST[stOf(p)] || ST.ok;
@@ -141,7 +163,7 @@ function _towRenderSaved() {
         return `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1.5px solid ${x.bd};background:${x.bg};border-radius:10px;padding:6px 9px">
           <span style="font-weight:900;font-size:14px;direction:ltr">${_towFmt(p)}</span>
           <span style="background:${x.c};color:#fff;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:900">${x.ic} ${x.t}</span>
-          <button type="button" onclick="towSavedFile('${esc(inv.id)}')" title="פתיחת החשבונית" style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:2px 8px;font-size:12px;font-weight:900;cursor:pointer">📄 חשבונית</button>
+          ${fileBtn}
           ${d.src ? `<span style="font-size:11.5px;font-weight:800;color:var(--muted)">${esc(d.src)}</span>` : ''}
           ${d.by ? `<span style="font-size:11.5px;font-weight:800;color:#b45309">🚩 נאסף ע״י ${esc(d.by)}</span>` : ''}
           ${(() => { const c = (ours.get(_towKey(p)) || {}).car || {};
@@ -155,6 +177,7 @@ function _towRenderSaved() {
           <span style="color:#16a34a">✓ ${nOk} אושרו</span>
           <span style="color:#0f766e">✔ ${nMan} אושרו ידנית</span>
           <span style="color:#dc2626">✗ ${nNo} לא אושרו</span>
+          ${fileBtn}
           <button type="button" onclick="towSavedFull('${esc(inv.id)}')" style="margin-inline-start:auto;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:3px 10px;font-family:Heebo,sans-serif;font-size:12px;font-weight:900;cursor:pointer">${full ? '▲ תצוגה מקוצרת' : '📋 פירוט מלא'}</button>
         </div>
         <div style="margin-top:8px;${full ? 'display:flex;flex-direction:column;gap:5px' : 'display:flex;flex-wrap:wrap;gap:5px'}">${full ? rowsHtml : chips}</div>`;
