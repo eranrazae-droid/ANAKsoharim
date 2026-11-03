@@ -105,8 +105,7 @@ function openTowInvoice() {
   closeModal('modal-pickup-actions');
   _towPanel(true);
   _towListenSaved();
-  // הארכיון נפתח לידה, כי הוא המקום שבו בודקים את הרכבים החסרים
-  if (typeof _pickupArchiveOpen !== 'undefined' && !_pickupArchiveOpen) togglePickupArchive();
+  // הארכיון לא נפתח מעצמו: ההצלבה היא מה שהמנהל ביקש לראות. את הארכיון אפשר לפתוח בנפרד, וההצלבה נשארת פתוחה
   const el = document.getElementById('pickup-col-tow');
   if (el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
 }
