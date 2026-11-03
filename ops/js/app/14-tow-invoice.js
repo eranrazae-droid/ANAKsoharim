@@ -102,8 +102,62 @@ function _towClear() {
   if (save) save.style.display = 'none';
 }
 
+/* הצלבה שהסריקה שלה הסתיימה נשמרת במכשיר (גם אחרי רענון), כדי שחזרה אליה לא תאבד את העבודה.
+   בכל כניסה לעמוד ההצלבה עם הצלבה פתוחה — שואלים: להמשיך מאותה נקודה או להתחיל מחדש. */
+const _TOW_DRAFT_KEY = 'anak_tow_draft';
+function _towDraftSave() {
+  try {
+    if (!_towInv || !_towInv.rows || !_towInv.rows.length) { localStorage.removeItem(_TOW_DRAFT_KEY); return; }
+    localStorage.setItem(_TOW_DRAFT_KEY, JSON.stringify({
+      label: _towInv.label || (document.getElementById('tow-inv-label')?.value || ''),
+      rows: _towInv.rows, expectedTotal: _towInv.expectedTotal || null, sumInfo: _towInv.sumInfo || null, savedAt: Date.now(),
+    }));
+  } catch (e) { /* אחסון מלא או חסום — ההצלבה ממשיכה לעבוד בזיכרון */ }
+}
+function _towDraftLoad() {
+  try { const d = JSON.parse(localStorage.getItem(_TOW_DRAFT_KEY) || 'null'); return d && d.rows && d.rows.length ? d : null; } catch (e) { return null; }
+}
+function _towDraftClear() { try { localStorage.removeItem(_TOW_DRAFT_KEY); } catch (e) {} }
+
+function _towAskResume(d) {
+  const okN = d.rows.filter(r => _towOk(r, null)).length;
+  const t = document.getElementById('tow-resume-text');
+  if (t) t.innerHTML = `נשארה הצלבה פתוחה${d.label ? ` של חשבונית <b>${esc(d.label)}</b>` : ''}: <b>${d.rows.length}</b> רכבים, מהם <b>${okN}</b> תקינים ו-<b>${d.rows.length - okN}</b> שעדיין לבדיקה.<br>להמשיך מאותה נקודה או להתחיל מחדש?`;
+  openModal('modal-tow-resume');
+}
+
+async function towResume() {
+  closeModal('modal-tow-resume');
+  if (!_towInv) {
+    const d = _towDraftLoad(); if (!d) return;
+    _towInv = { label: d.label, rows: d.rows, expectedTotal: d.expectedTotal, sumInfo: d.sumInfo };
+    const lbl = document.getElementById('tow-inv-label'); if (lbl && d.label) lbl.value = d.label;
+    // מצליבים מחדש מול הנתונים העדכניים (האיסוף והארכיון יכלו להשתנות), ושומרים אישורים ידניים
+    _towSet('tow-inv-status', '⏳ מעדכן את ההצלבה...');
+    try {
+      for (let i = 0; i < _towInv.rows.length; i++) {
+        const old = _towInv.rows[i];
+        const nr = await _towResolve({ raw: old.raw, cands: [old.plate] });
+        if (old.ok !== undefined) nr.ok = old.ok;
+        _towInv.rows[i] = nr;
+      }
+    } catch (e) { console.warn('tow resume', e); }
+  }
+  await _towRender();
+}
+window.towResume = towResume;
+
+function towRestart() {
+  closeModal('modal-tow-resume');
+  _towInv = null; _towEditing = null;
+  _towClear();
+  _towDraftClear();
+}
+window.towRestart = towRestart;
+
 function openTowInvoice() {
-  if (!_towInv) _towClear();            // הצלבה שכבר רצה — ממשיכים אותה, לא מאפסים
+  const draft = (_towInv && _towInv.rows && _towInv.rows.length) ? { label: _towInv.label, rows: _towInv.rows } : _towDraftLoad();
+  if (!draft && !_towInv) _towClear();
   closeModal('modal-pickup-actions');
   const badge = document.getElementById('tow-user-badge');
   if (badge) badge.textContent = currentUser?.name || '';
@@ -113,6 +167,7 @@ function openTowInvoice() {
   try { if (!_pickupArchiveLoaded) loadPickupArchiveCount(); } catch (e) {}
   try { if (typeof _pickupAllCars === 'undefined' || !_pickupAllCars.length) loadPickupCars(); } catch (e) {}
   try { _renderPickupArchive(_pickupArchiveCars || []); } catch (e) {}
+  if (draft) _towAskResume(draft);          // שאלה: להמשיך או להתחיל מחדש
   window.scrollTo(0, 0);
 }
 window.openTowInvoice = openTowInvoice;
@@ -120,6 +175,7 @@ window.openTowInvoice = openTowInvoice;
 function closeTowInvoice() {
   if (_towInv && _towInv.rows && _towInv.rows.length
       && !confirm('לסגור את ההצלבה? מה שנקרא מהחשבונית יימחק.')) return;
+  _towDraftClear();
   _towClear();
   _reSnapReset('towInv');
   _towLeave();
@@ -746,6 +802,7 @@ async function _towRender() {
   `<button onclick="towInvAdd()" style="width:100%;margin-top:4px;background:var(--surface2);border:1.5px dashed var(--border);border-radius:10px;padding:9px;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;color:var(--muted);cursor:pointer">➕ הוסף רכב שהקריאה פספסה</button>`);
 
   _towSet('tow-inv-status', '');
+  _towDraftSave();                      // מצב ההצלבה נשמר בכל שינוי
   // שלב הבא (שמירה) נפתח רק כשכל שורה תקינה
   const save = document.getElementById('tow-inv-save');
   if (save) {
@@ -848,6 +905,7 @@ async function towInvSave() {
       createdBy: currentUser?.name || '',
     });
     showToast(`✅ חשבונית ${label} נשמרה — ${_towInv.rows.length} רכבים`, 5000);
+    _towDraftClear();
     _towClear();
     _reSnapReset('towInv');
     _towLeave();
