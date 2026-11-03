@@ -28,6 +28,52 @@ function _towListenSaved() {
   }, err => console.error('tow invoices listen', err));
 }
 
+
+/* קובץ החשבונית עצמו: כל עמוד נשמר כתמונה דחוסה במסמך נפרד (אחסון הקבצים סגור, ולכן Firestore).
+   הכפתור 📄 בכל שורה בארכיון פותח את העמודים. חשבוניות שנשמרו לפני זה — בלי קובץ. */
+const _TOW_FILE_COL = 'tow_invoice_files';
+async function _towCompress(src) {
+  const im = await _loadImg(src);
+  const k = Math.min(1, 1400 / Math.max(im.width, 1));
+  const c = document.createElement('canvas');
+  c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
+  c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+  for (const q of [0.72, 0.6, 0.48, 0.36]) {
+    const d = c.toDataURL('image/jpeg', q);
+    if (d.length < 900000) return d;
+  }
+  return c.toDataURL('image/jpeg', 0.3);
+}
+async function _towSaveFiles(invId, imgs) {
+  const { setDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  for (let i = 0; i < imgs.length; i++) {
+    await setDoc(doc(window._db, _TOW_FILE_COL, `${invId}_${i}`), { invId, page: i, data: await _towCompress(imgs[i]) });
+  }
+}
+async function towSavedFile(id) {
+  const inv = _towSaved.find(x => x.id === id);
+  const n = inv && inv.pages || 0;
+  if (!n) { showToast('לחשבונית הזאת לא נשמר קובץ (נשמרה לפני שהתווסף)', 4500); return; }
+  const body = document.getElementById('tow-file-body');
+  const ttl = document.getElementById('tow-file-title');
+  if (ttl) ttl.textContent = `📄 חשבונית ${inv.label || ''}`;
+  if (body) body.innerHTML = '<div style="text-align:center;padding:20px;font-weight:800">⏳ טוען את החשבונית...</div>';
+  openModal('modal-tow-file');
+  try {
+    const { getDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const parts = [];
+    for (let i = 0; i < n; i++) {
+      const sn = await getDoc(doc(window._db, _TOW_FILE_COL, `${id}_${i}`));
+      if (sn.exists()) parts.push(`<img src="${sn.data().data}" style="width:100%;display:block;border:1px solid var(--border);border-radius:8px;margin-bottom:8px">`);
+    }
+    if (body) body.innerHTML = parts.join('') || '<div style="text-align:center;padding:20px">הקובץ לא נמצא</div>';
+  } catch (e) {
+    console.error('tow file', e);
+    if (body) body.innerHTML = '<div style="text-align:center;padding:20px;color:#dc2626;font-weight:800">הטעינה נכשלה</div>';
+  }
+}
+window.towSavedFile = towSavedFile;
+
 function towSavedToggle(id) {
   _towSavedOpen = (_towSavedOpen === id) ? '' : id;
   _towRenderSaved();
@@ -44,6 +90,7 @@ async function towSavedDelete(id) {
   try {
     const { deleteDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
     await deleteDoc(doc(window._db, _TOW_INV_COL, id));
+    for (let i = 0; i < (inv.pages || 0); i++) { try { await deleteDoc(doc(window._db, _TOW_FILE_COL, `${id}_${i}`)); } catch (e) {} }
     showToast('החשבונית נמחקה');
   } catch (e) {
     console.error('tow invoice delete', e);
@@ -94,6 +141,7 @@ function _towRenderSaved() {
         return `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1.5px solid ${x.bd};background:${x.bg};border-radius:10px;padding:6px 9px">
           <span style="font-weight:900;font-size:14px;direction:ltr">${_towFmt(p)}</span>
           <span style="background:${x.c};color:#fff;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:900">${x.ic} ${x.t}</span>
+          <button type="button" onclick="towSavedFile('${esc(inv.id)}')" title="פתיחת החשבונית" style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:2px 8px;font-size:12px;font-weight:900;cursor:pointer">📄 חשבונית</button>
           ${d.src ? `<span style="font-size:11.5px;font-weight:800;color:var(--muted)">${esc(d.src)}</span>` : ''}
           ${d.by ? `<span style="font-size:11.5px;font-weight:800;color:#b45309">🚩 נאסף ע״י ${esc(d.by)}</span>` : ''}
           ${(() => { const c = (ours.get(_towKey(p)) || {}).car || {};
@@ -655,7 +703,7 @@ async function towInvoiceFile(input) {
       }
     }
     prog.set(99, 'מצליב מול המערכת');
-    _towInv = { label: (document.getElementById('tow-inv-label')?.value || '').trim(), rows: [], expectedTotal, sumInfo };
+    _towInv = { label: (document.getElementById('tow-inv-label')?.value || '').trim(), rows: [], expectedTotal, sumInfo, imgs };
     for (const r of runs) _towInv.rows.push(await _towResolve(r));
     await _towRender();
   } catch (e) {
@@ -938,7 +986,9 @@ async function towInvSave() {
   const btn = document.getElementById('tow-inv-save');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ שומר...'; }
   try {
-    await _addDoc(_colRef(_TOW_INV_COL), {
+    const hasFile = !!(_towInv.imgs && _towInv.imgs.length);
+    const ref = await _addDoc(_colRef(_TOW_INV_COL), {
+      pages: hasFile ? _towInv.imgs.length : 0,
       label,
       plates: _towInv.rows.map(r => r.plate),
       missing: _towInv.rows.filter(r => !r.found).map(r => r.plate),
@@ -952,7 +1002,12 @@ async function towInvSave() {
       createdAt: _serverTs(),
       createdBy: currentUser?.name || '',
     });
-    showToast(`✅ חשבונית ${label} נשמרה — ${_towInv.rows.length} רכבים`, 5000);
+    let fileMsg = '';
+    if (hasFile) {
+      try { await _towSaveFiles(ref.id, _towInv.imgs); }
+      catch (e) { console.error('tow files', e); fileMsg = ' (קובץ החשבונית לא נשמר)'; try { const { updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js"); await updateDoc(doc(window._db, _TOW_INV_COL, ref.id), { pages: 0 }); } catch (e2) {} }
+    } else fileMsg = ' (בלי קובץ — ההצלבה נמשכה אחרי רענון)';
+    showToast(`✅ חשבונית ${label} נשמרה — ${_towInv.rows.length} רכבים${fileMsg}`, 5000);
     _towDraftClear();
     _towClear();
     _reSnapReset('towInv');
