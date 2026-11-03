@@ -161,12 +161,61 @@ window._towPlateCandidates = _towPlateCandidates;
 
 // כותרת של פריט: מופיעה בה המילה "רכב/ים" ואחת ממילות ההובלה, ולא שורת "רכב: 08..." של העסקה
 function _towIsItemHeader(t) {
-  if (/ד?רכב\s*:/.test(t) || /עיסקה|פתיחה|שרותי|גרירה|חשבונית|לכבוד/.test(t)) return false;
-  return /רכב/.test(t) && /הובל|הלת|הוגל|הובלוג|עבור|ראשל|מפ.ת|מגלילות|מירושלים/.test(t);
+  if (/ר[כנ][בר]\s*[:.]/.test(t) || /עיסק|פתיחה|שרותי|גרירה|חשבונית|לכבוד/.test(t)) return false;
+  return /ר[כנ][בר]/.test(t) && /הובל|הלת|הוגל|הוכל|עבור|ראשל|מפ.ת|מגל|מירוש|מרענ|מעכו/.test(t);
 }
+/* בדיקת שלמות לפי כסף: סכום המחירים של כל הפריטים שנקראו חייב להיות שווה לסכום העבודות שכתוב בתחתית החשבונית.
+   פריט שנשמט בשקט (כותרת שלא זוהתה, שורת עסקה שנקראה לא נכון) משנה את הסכום, ולכן נתפס כאן. */
+function _towAmounts(t) {
+  const out = [];
+  for (const m of String(t || '').matchAll(/(\d{1,3}(?:,\d{3})+|\d+)[.,](\d{2})(?!\d)/g)) out.push(Number(m[1].replace(/,/g, '') + '.' + m[2]));
+  return out;
+}
+function _towItemPriceFrom(text) {
+  const a = _towAmounts(text).filter(v => v > 0);
+  if (!a.length) return null;
+  const cnt = {}; a.forEach(v => { cnt[v] = (cnt[v] || 0) + 1; });
+  const twice = Object.keys(cnt).filter(v => cnt[v] >= 2).map(Number);
+  return twice.length ? Math.max(...twice) : Math.max(...a);
+}
+const _TOW_CONF = { '5': ['9'], '9': ['5'], '6': ['8'], '8': ['6'] };   // הבלבולים שנצפו בפועל; מצומצם בכוונה, כדי שפריט חסר לא יוסתר בטעות
+function _towPriceVariants(v) {
+  const out = new Set(), str = String(Math.round(v));
+  for (let i = 0; i < str.length; i++) for (const r of (_TOW_CONF[str[i]] || [])) {
+    const n = Number(str.slice(0, i) + r + str.slice(i + 1));
+    if (n >= 100 && n <= 6000 && n % 50 === 0) out.add(n);
+  }
+  return [...out];
+}
+// האם אפשר להגיע לסכום הכולל אם מתקנים מחיר אחד בספרה אחת (פריט בלי מחיר נקרא "חופשי": כל מחיר סביר)
+function _towSumExplained(prices, total) {
+  let states = new Map([[0, new Set([0])]]);      // מספר תיקונים → סכומים אפשריים
+  for (const v of prices) {
+    const cands = v == null ? Array.from({ length: 119 }, (_, i) => 100 + i * 50).map(c => [c, 1]) : [[v, 0], ..._towPriceVariants(v).map(c => [c, 1])];
+    const next = new Map();
+    for (const [k, set] of states) for (const [c, cost] of cands) {
+      const nk = k + cost; if (nk > 1) continue;
+      if (!next.has(nk)) next.set(nk, new Set());
+      for (const sm of set) next.get(nk).add(sm + c);
+    }
+    states = next;
+  }
+  for (const set of states.values()) if (set.has(Math.round(total))) return true;
+  return false;
+}
+function _towInvoiceTotal(lines) {
+  let best = null;
+  for (const t of lines) if (/עבוד|לפני מע|לפני\s*מ/.test(t)) for (const v of _towAmounts(t)) if (v > 0 && (best == null || v > best)) best = v;
+  return best;
+}
+
+// כמה רכבים בפריט: "N רכבים" → N, "רכב" → 1; "רכבים" בלי מספר, או בלי המילה בכלל → לא ידוע (null), ולא ניחוש
 function _towExpected(t) {
-  const m = t.match(/(\d+)\s*רכבים/);
-  return m ? Number(m[1]) : 1;
+  // OCR מבלבל ב↔ר ו-כ↔נ, ולכן מילת "רכב/ים" נבדקת בתבנית סלחנית
+  const m = t.match(/(\d+)\s*ר[כנ][בר]י[םמ]/);
+  if (m) return Number(m[1]);
+  if (/ר[כנ][בר]י[םמ]/.test(t)) return null;
+  return /ר[כנ][בר]/.test(t) ? 1 : null;
 }
 // מועמדי מספר מתוך טקסט של פריט: דבוק לפי מקפים, או רצף ספרות של 7–8; רצף ארוך יותר נבדק לפי הסיומת (7 או 8 ספרות)
 function _towItemPlates(text) {
@@ -189,21 +238,38 @@ function _towProgHtml(label, pct) {
       <div style="height:100%;width:${v}%;background:linear-gradient(90deg,#0f766e,#34d399);transition:width .25s"></div></div>`;
 }
 
-async function _towReadFull(imgs, worker, setStatus, prog) {
+async function _towPass(imgs, worker, setStatus, prog, ctx, range) {
   let engWorker = null;
   const items = [];
   try {
     for (let pi = 0; pi < imgs.length; pi++) {
-      prog.page = pi; prog.set(prog.base(pi, 0), `קורא עמוד ${pi + 1} מתוך ${imgs.length}`);
+      prog.page = pi; prog.range = range; prog.set(prog.base(pi, 0), `קורא עמוד ${pi + 1} מתוך ${imgs.length}`);
       const im = await _loadImg(imgs[pi]);
       const { data } = await worker.recognize(imgs[pi]);
       const lines = (data.lines || []).map(l => ({ t: String(l.text || '').replace(/\s+/g, ' ').trim(), b: l.bbox })).filter(l => l.t);
+      (ctx.lines = ctx.lines || []).push(...lines.map(l => l.t));
+      // סימוני פריט עצמאיים: שורות "עיסקה" ושורות "תא.פתיחה". כל פריט מוביל לשניהם, ולכן הגבוה מביניהם הוא החסם התחתון למספר הפריטים בעמוד
+      const firstTx = lines.findIndex(l => /עיסק/.test(l.t));   // שורת "תא.פתיחה" שלפני העיסקה הראשונה בעמוד שייכת לפריט שהתחיל בעמוד הקודם
+      (ctx.markers = ctx.markers || {})[pi] = Math.max(ctx.markers[pi] || 0, lines.filter(l => /עיסק/.test(l.t)).length, lines.filter((l, k) => k > (firstTx < 0 ? -1 : firstTx) && /פתיחה/.test(l.t) && /\d{2}\/\d{2}\/\d{2}/.test(l.t)).length);
       let cur = null;
       const close = () => { if (cur) { items.push(cur); cur = null; } };
+      // כל פריט נפתח בשורת "עיסקה : <מספר>" ונסגר בשורת "תא.פתיחה". זו חלוקה שלא תלויה בשורת הכותרת,
+      // כדי שפריט שכותרתו נקראה לא נכון לא ייעלם בשקט. אם אין שורות עיסקה בכלל — חלוקה לפי שורות הכותרת (חשבוניות אחרות)
+      const hasTx = lines.some(l => /עיסק/.test(l.t));
       for (const l of lines) {
-        if (_towIsItemHeader(l.t)) {
+        if (hasTx) {
+          if (/עיסק/.test(l.t)) {
+            close();
+            cur = { page: pi, img: im, src: imgs[pi], tx: (l.t.match(/5\d{4}/) || [''])[0], expect: null, text: '', lines: [], y0: l.b.y1, y1: l.b.y1, W: im.width, H: im.height };
+          } else if (cur && /פתיחה/.test(l.t)) {
+            close();
+          } else if (cur) {
+            if (_towIsItemHeader(l.t) && cur.expect == null) cur.expect = _towExpected(l.t);
+            cur.text += (cur.text ? ' \n' : '') + l.t; cur.lines.push(l); cur.y1 = Math.max(cur.y1, l.b.y1);
+          }
+        } else if (_towIsItemHeader(l.t)) {
           close();
-          cur = { page: pi, img: im, src: imgs[pi], expect: _towExpected(l.t), text: l.t, lines: [l], y0: l.b.y0, y1: l.b.y1, W: im.width, H: im.height };
+          cur = { page: pi, img: im, src: imgs[pi], tx: '', expect: _towExpected(l.t), text: l.t, lines: [l], y0: l.b.y0, y1: l.b.y1, W: im.width, H: im.height };
         } else if (cur && /פתיחה|עיסקה|סה.כ|ילכ/.test(l.t)) {
           close();
         } else if (cur) {
@@ -213,11 +279,20 @@ async function _towReadFull(imgs, worker, setStatus, prog) {
       close();
     }
     if (!items.length) return { legacy: true };
+    // מיקום הפריט בתוך העמוד, כדי למזג ניסיונות לפי סדר גם כשמספר העסקה נקרא לא נכון
+    const perPage = {};
+    for (const it of items) { it.ord = perPage[it.page] = (perPage[it.page] === undefined ? 0 : perPage[it.page] + 1); }
+    for (const it of items) it.pcount = perPage[it.page] + 1;
+    const alreadyDone = it => {
+      const sl = ctx.slots && ctx.slots[it.page] && ctx.slots[it.page][it.ord];
+      if (sl && sl.runs && it.pcount === ctx.n0[it.page]) return true;
+      return !!(it.tx && ctx.byTx.get(it.tx) && ctx.byTx.get(it.tx).runs);
+    };
 
     // מספר תקף: קיים אצלנו, או קיים במרשם הרכב. בלי רשת אי אפשר לאמת — לא פוסלים
     const validRun = async run => {
       const ours = _towOurPlates();
-      for (const p of run.cands) if (ours.has(p)) return true;
+      for (const p of run.cands) if (ours.has(_towKey(p))) return true;
       let unknown = !!window._plateRegistryEmpty;
       for (const p of run.cands) {
         try { if (await _plateLookup(p)) return true; } catch (e) { unknown = true; }
@@ -227,7 +302,7 @@ async function _towReadFull(imgs, worker, setStatus, prog) {
     const good = async (rs, expect) => rs.length === expect && (await Promise.all(rs.map(validRun))).every(Boolean);
 
     // ניסיונות קריאה חוזרים של פריט, כל שורה לחוד: ספרות בלבד, ואחר כך עברית+ספרות, ברזולוציות שונות
-    const attempts = [['dig', 2], ['heb', 2], ['dig', 3], ['heb', 3]];
+    const attempts = [['dig', 2], ['heb', 2], ['dig', 3], ['heb', 3], ['heb', 4]];
     const reread = async (it, kind, scale) => {
       let w = worker;
       if (kind === 'dig') {
@@ -249,26 +324,140 @@ async function _towReadFull(imgs, worker, setStatus, prog) {
     const failed = [];
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
-      let runs = _towItemPlates(it.text);
-      if (!(await good(runs, it.expect))) {
-        prog.set(80 + (i / items.length) * 19, `בודק שוב פריט ${i + 1} מתוך ${items.length}`);
-        for (const [kind, scale] of attempts) {
-          const alt = _towItemPlates(await reread(it, kind, scale));
+      if (alreadyDone(it)) { it.done = true; continue; }   // פריט שכבר נקרא בניסיון קודם
+      let runs = it.expect == null ? [] : _towItemPlates(it.text);
+      if (it.expect == null || !(await good(runs, it.expect))) {
+        prog.set(range.lo + (range.hi - range.lo) * (0.7 + 0.3 * i / items.length), `בודק שוב פריט ${i + 1} מתוך ${items.length}`);
+        const tries = it.expect == null ? [['heb', 2], ['heb', 3], ['dig', 2], ['dig', 3]] : attempts;
+        for (const [kind, scale] of tries) {
+          const txt = await reread(it, kind, scale);
+          if (it.expect == null) {
+            // כותרת שלא זוהתה בקריאה הראשונה: מחפשים אותה בקריאה החוזרת
+            const hl = txt.split('\n').find(x => /ר[כנ][בר]/.test(x) && !/ר[כנ][בר]\s*[:.]/.test(x));
+            const ex = hl ? _towExpected(hl) : null;
+            if (ex == null) continue;
+            it.expect = ex;
+          }
+          const alt = _towItemPlates(txt);
           if (await good(alt, it.expect)) { runs = alt; break; }
         }
       }
-      if (await good(runs, it.expect)) it.runs = runs;
+      if (it.expect == null) {
+        it.fail = { expect: '?', got: 0, head: `עסקה ${it.tx || ''} — לא זוהה כמה רכבים יש בפריט`.trim(), bad: [], unknown: true };
+      } else if (await good(runs, it.expect)) it.runs = runs;
       else {
         const oks = await Promise.all(runs.map(validRun));
-        failed.push({ n: i + 1, expect: it.expect, got: runs.length, head: it.text.split('\n')[0].slice(0, 60),
-          bad: runs.filter((_, k) => !oks[k]).map(r => r.raw) });
+        it.fail = { expect: it.expect, got: runs.length, head: (it.tx ? `עסקה ${it.tx}: ` : '') + it.text.split('\n')[0].slice(0, 50),
+          bad: runs.filter((_, k) => !oks[k]).map(r => r.raw) };
       }
+      if (it.fail) failed.push({ n: i + 1, ...it.fail });
     }
-    prog.set(99, 'מסיים');
     return { items, failed };
   } finally {
     if (engWorker) { try { await engWorker.terminate(); } catch (e) {} }
   }
+}
+
+// הגדלת תמונה לפני קריאה חוזרת של העמוד: לפעמים עמוד שנקרא לא טוב ברזולוציה אחת נקרא טוב באחרת
+async function _towScaleImg(dataUrl, f) {
+  const im = await _loadImg(dataUrl);
+  const c = document.createElement('canvas');
+  c.width = Math.round(im.width * f); c.height = Math.round(im.height * f);
+  const x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(im, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', 0.92);
+}
+
+/* קריאה מלאה: עד שלושה ניסיונות על העמודים (ברזולוציות שונות). פריט שנקרא ונבדק בניסיון כלשהו נשמר לפי מספר העסקה שלו,
+   והניסיונות הבאים מטפלים רק במה שנשאר. אם בסוף נשאר פריט שלא נקרא — עוצרים. */
+async function _towReadFull(imgs, worker, setStatus, prog) {
+  const passes = [[1, 0, 70], [1.5, 70, 85], [2.2, 85, 98]];
+  const ctx = { slots: null, n0: {}, byTx: new Map() };
+  let last = null;
+  for (let k = 0; k < passes.length; k++) {
+    const [f, lo, hi] = passes[k];
+    const use = k === 0 ? imgs : await Promise.all(imgs.map(im => _towScaleImg(im, f)));
+    if (k > 0) prog.set(lo, `ניסיון קריאה נוסף ${k + 1} מתוך ${passes.length}`);
+    prog.reread = false;
+    last = await _towPass(use, worker, setStatus, prog, ctx, { lo, hi });
+    if (last.legacy) return last;
+    if (!ctx.slots) {
+      // ניסיון ראשון: קובע את מבנה הפריטים בכל עמוד
+      ctx.slots = {};
+      for (const it of last.items) { (ctx.slots[it.page] = ctx.slots[it.page] || [])[it.ord] = it; ctx.n0[it.page] = it.pcount; }
+    } else {
+      // ניסיון מאוחר זיהה בעמוד יותר פריטים מהראשון: בונים את מבנה העמוד מחדש, ושומרים מה שכבר נקרא (לפי מספר עסקה)
+      const byPage = {};
+      for (const it of last.items) (byPage[it.page] = byPage[it.page] || []).push(it);
+      for (const pg of Object.keys(byPage)) {
+        if (byPage[pg].length > (ctx.n0[pg] || 0)) {
+          const old = new Map((ctx.slots[pg] || []).filter(t => t && t.tx && t.runs).map(t => [t.tx, t]));
+          ctx.slots[pg] = byPage[pg].map(t => (!t.runs && t.tx && old.has(t.tx)) ? old.get(t.tx) : t);
+          ctx.n0[pg] = byPage[pg].length;
+        }
+      }
+      for (const it of last.items) {
+        if (it.done || !it.runs) continue;
+        const sl = ctx.slots[it.page] && ctx.slots[it.page][it.ord];
+        if (sl && !sl.runs && it.pcount === ctx.n0[it.page]) { ctx.slots[it.page][it.ord] = it; continue; }   // אותו מקום בעמוד
+        // מספר הפריטים בעמוד שונה: ממזגים לפי מספר העסקה
+        for (const pg of Object.keys(ctx.slots)) for (let j = 0; j < ctx.slots[pg].length; j++) {
+          const t = ctx.slots[pg][j];
+          if (t && !t.runs && t.tx && t.tx === it.tx) ctx.slots[pg][j] = it;
+        }
+      }
+    }
+    ctx.byTx = new Map(); for (const pg of Object.keys(ctx.slots)) for (const t of ctx.slots[pg]) if (t && t.tx && t.runs) ctx.byTx.set(t.tx, t);
+    const open = Object.keys(ctx.slots).flatMap(pg => ctx.slots[pg]).filter(t => t && !t.runs);
+    if (!open.length) break;
+    if (k === passes.length - 1) break;
+  }
+  const all = Object.keys(ctx.slots).sort((a, b) => a - b).flatMap(pg => ctx.slots[pg]).filter(Boolean);
+  const items = all.filter(t => t.runs);
+  // שלמות לפי סימוני הפריטים: אם בעמוד יש יותר סימוני פריט ("עיסקה"/"תא.פתיחה") ממספר הפריטים שנקראו — פריט נשמט
+  const shortPages = [];
+  const perPageCount = {}; for (const pg of Object.keys(ctx.slots)) perPageCount[pg] = ctx.slots[pg].filter(Boolean).length;
+  for (const pg of Object.keys(ctx.markers || {})) if ((ctx.markers[pg] || 0) > (perPageCount[pg] || 0)) shortPages.push({ page: Number(pg) + 1, markers: ctx.markers[pg], read: perPageCount[pg] || 0 });
+  // שלמות לפי כסף — בדיקה רכה: ה-OCR מבלבל בין ספרות דומות (5/9), ולכן אי-התאמה בסכום מוצגת כהערה ולא עוצרת
+  let sumCheck = null;
+  const total = _towInvoiceTotal(ctx.lines || []);
+  if (total != null && all.length) {
+    prog.set(98, 'בודק סכומים');
+    const prices = [];
+    for (const t of all) {
+      let pr = _towItemPriceFrom(t.text);
+      if (pr == null) {
+        // מחיר שלא נקרא: כמה קריאות חוזרות של שורת הכותרת, והמחיר שחוזר לפחות פעמיים נבחר (הצבעה)
+        const votes = {};
+        const eng = await Tesseract.createWorker('eng', 1);
+        try {
+          for (const [kind, sc] of [['dig', 2], ['dig', 3], ['heb', 2], ['heb', 3], ['heb', 4]]) {
+            let w = worker;
+            if (kind === 'dig') { w = eng; await w.setParameters({ tessedit_pageseg_mode: '7', tessedit_char_whitelist: '0123456789,.-' }); }
+            else await w.setParameters({ tessedit_pageseg_mode: '7', tessedit_char_whitelist: '' });
+            let txt = '';
+            for (const l of t.lines.slice(0, 2)) txt += ' ' + (await w.recognize(await _prepRegion(t.src, { x0: 0, x1: 1, y0: Math.max(0, (l.b.y0 - 8) / t.H), y1: Math.min(1, (l.b.y1 + 8) / t.H) }, sc))).data.text;
+            for (const v of new Set(_towAmounts(txt).filter(x => x > 0))) votes[v] = (votes[v] || 0) + 1;
+          }
+        } catch (e) { /* ממשיכים עם מה שנאסף */ } finally {
+          try { await eng.terminate(); } catch (e) {}
+          await worker.setParameters({ tessedit_pageseg_mode: '6', tessedit_char_whitelist: '' });
+        }
+        const top = Object.entries(votes).sort((x, y) => y[1] - x[1] || Number(y[0]) - Number(x[0]))[0];
+        pr = top && top[1] >= 2 ? Number(top[0]) : null;
+      }
+      prices.push(pr);
+    }
+    const unknownPrice = prices.filter(v => v == null).length;
+    const sum = prices.reduce((t, v) => t + (v || 0), 0);
+    const exact = !unknownPrice && Math.abs(sum - total) < 0.01;
+    // ה-OCR מבלבל בין ספרות דומות (5↔9, 6↔8...). הסכום נחשב מתיישב אם אפשר להגיע אליו בתיקון של מחיר אחד בספרה אחת
+    const explained = exact || (unknownPrice <= 1 && _towSumExplained(prices, total));
+    sumCheck = { total, sum: Math.round(sum * 100) / 100, unknownPrice, ok: exact, explained };
+  }
+  const failed = all.map((t, i) => ({ t, i })).filter(x => !x.t.runs).map(x => ({ n: x.i + 1, ...(x.t.fail || { expect: '?', got: 0, head: `עסקה ${x.t.tx || ''} — לא נקרא`, bad: [], unknown: true }) }));
+  if (shortPages.length) failed.push(...shortPages.map(sp => ({ n: 0, expect: '?', got: sp.read, head: `בעמוד ${sp.page} זוהו ${sp.markers} פריטים בסימוני החשבונית ונקראו רק ${sp.read}`, bad: [], unknown: true, pageShort: true })));
+  prog.set(99, 'מסיים');
+  return { items, failed, sumCheck };
 }
 
 function _towFail(html) {
@@ -298,7 +487,8 @@ async function towInvoiceFile(input) {
     const setStatus = t => _towSet('tow-inv-status', t);
     const prog = {
       page: 0, last: 0, label: '',
-      base: (pi, frac) => (pi + frac) / imgs.length * 80,
+      range: { lo: 0, hi: 70 },
+      base(pi, frac) { return this.range.lo + (pi + frac) / imgs.length * (this.range.hi - this.range.lo) * 0.7; },
       set(pct, label) { this.last = Math.max(this.last, pct); this.label = label || this.label; _towSet('tow-inv-status', _towProgHtml(this.label, this.last)); },
     };
     worker = await Tesseract.createWorker('heb+eng', 1, { logger: m => {
@@ -311,6 +501,7 @@ async function towInvoiceFile(input) {
 
     let runs;
     let expectedTotal = null;
+    let sumInfo = null;
     if (res.legacy) {
       // פורמט ישן: אין שורות "הובלת רכב" — קוראים מספרים עם מקפים, כמו שהיה. אין לנו ספירה לאימות
       await worker.terminate(); worker = await Tesseract.createWorker('eng', 1);
@@ -323,19 +514,35 @@ async function towInvoiceFile(input) {
       runs = _towPlateCandidates(text);
       if (!runs.length) { _towFail('<div>לא נמצאו מספרי רכב בקובץ. ודא שזו חשבונית הגרר ושהסריקה ברורה.</div>'); return; }
     } else {
-      expectedTotal = res.items.reduce((t, it) => t + it.expect, 0);
+      expectedTotal = res.items.reduce((t, it) => t + (it.expect || 0), 0);
       if (res.failed.length) {
         const got = res.items.reduce((t, it) => t + (it.runs ? it.runs.length : 0), 0);
         _towFail(`<div>נקראו ${got} מתוך ${expectedTotal} רכבים שכתובים בחשבונית.</div><ul style="margin:6px 18px 0;padding:0;font-weight:700;font-size:12.5px">${
-          res.failed.map(f => `<li>פריט ${f.n}: ${f.got === f.expect && f.bad.length
+          res.failed.map(f => `<li>${f.n ? `פריט ${f.n}: ` : ''}${f.unknown ? '' : f.got === f.expect && f.bad.length
             ? `נקרא מספר שלא קיים במרשם הרכב (${f.bad.map(x => esc(x)).join(', ')}) — כנראה ספרה שנקראה לא נכון`
             : `צפויים ${f.expect} ${f.expect === 1 ? 'רכב' : 'רכבים'}, נקראו ${f.got}`} — ${esc(f.head)}</li>`).join('')}</ul>`);
         return;
       }
+      if (res.sumCheck && !res.sumCheck.explained) {
+        const sc = res.sumCheck, fmt = n => Number(n).toLocaleString('he-IL');
+        _towFail(`<div>סכום המחירים של הפריטים שנקראו (${fmt(sc.sum)} ₪) שונה מסכום העבודות שכתוב בחשבונית (${fmt(sc.total)} ₪), והפער גדול מכדי להיות טעות קריאה של ספרה.</div>
+          <div style="margin-top:4px;font-weight:700;font-size:12.5px">נקראו ${res.items.length} פריטים (${expectedTotal} רכבים) — כנראה פריט אחד או יותר חסר.</div>`);
+        return;
+      }
+      sumInfo = res.sumCheck;
       runs = res.items.flatMap(it => it.runs);
     }
+    // בלי נתוני האיסוף אי אפשר להצליב כלום ("לא נמצא" לכולם) — מחכים שייטענו, ואם לא, עוצרים
+    if (!_towOurPlates().size) {
+      prog.set(99, 'טוען את נתוני האיסוף');
+      for (let k = 0; k < 24 && !_towOurPlates().size; k++) await new Promise(r => setTimeout(r, 500));
+      if (!_towOurPlates().size) {
+        _towFail('<div>נתוני האיסוף (הרשימה והארכיון) לא נטענו, ולכן אי אפשר להצליב. חזור למסך האיסוף, חכה שהרשימה תיטען ונסה שוב.</div>');
+        return;
+      }
+    }
     prog.set(99, 'מצליב מול המערכת');
-    _towInv = { label: (document.getElementById('tow-inv-label')?.value || '').trim(), rows: [], expectedTotal };
+    _towInv = { label: (document.getElementById('tow-inv-label')?.value || '').trim(), rows: [], expectedTotal, sumInfo };
     for (const r of runs) _towInv.rows.push(await _towResolve(r));
     await _towRender();
   } catch (e) {
@@ -348,10 +555,12 @@ async function towInvoiceFile(input) {
 window.towInvoiceFile = towInvoiceFile;
 
 // מפת כל הרכבים שעברו אצלנו באיסוף — הפתוחים והארכיון גם יחד
+// מפתח השוואה: ספרות בלבד, בלי אפסים מובילים — כך "07662911" ו-"7662911" הם אותו רכב, וגם 76-629-11
+const _towKey = p => String(p || '').replace(/\D/g, '').replace(/^0+/, '');
 function _towOurPlates() {
   const map = new Map();
-  for (const c of (typeof _pickupAllCars !== 'undefined' ? _pickupAllCars : []))     map.set(_normPlate(c.plate), { where: 'ברשימת האיסוף', car: c });
-  for (const c of (typeof _pickupArchiveCars !== 'undefined' ? _pickupArchiveCars : [])) if (!map.has(_normPlate(c.plate))) map.set(_normPlate(c.plate), { where: 'בארכיון האיסוף', car: c });
+  for (const c of (typeof _pickupAllCars !== 'undefined' ? _pickupAllCars : []))     map.set(_towKey(c.plate), { where: 'ברשימת האיסוף', car: c });
+  for (const c of (typeof _pickupArchiveCars !== 'undefined' ? _pickupArchiveCars : [])) if (!map.has(_towKey(c.plate))) map.set(_towKey(c.plate), { where: 'בארכיון האיסוף', car: c });
   return map;
 }
 
@@ -360,7 +569,7 @@ function _towOurPlates() {
 async function _towResolve(run) {
   const ours = _towOurPlates();
   for (const p of run.cands) {
-    const hit = ours.get(p);
+    const hit = ours.get(_towKey(p));
     if (hit) {
       const c = hit.car;
       return { plate: p, raw: run.raw, found: true, src: hit.where,
@@ -419,6 +628,11 @@ async function _towRender() {
       ${notTow0.length ? stat(notTow0.length, 'נאספו ע״י נהג שלנו', '#b45309') : ''}
       ${dups.size ? stat(dups.size, 'כבר חויבו בעבר', '#b45309') : ''}
     </div>`;
+  const nAll = (typeof _pickupAllCars !== 'undefined' ? _pickupAllCars : []).length, nArc = (typeof _pickupArchiveCars !== 'undefined' ? _pickupArchiveCars : []).length;
+  sum += `<div style="font-size:12px;color:var(--muted);font-weight:700;margin:-4px 0 8px">ההצלבה בוצעה מול ${nAll} רכבים ברשימת האיסוף ו-${nArc} רכבים בארכיון.</div>`;
+  if (_towInv.sumInfo) sum += _towInv.sumInfo.ok
+    ? `<div style="font-size:12.5px;font-weight:800;color:#0f766e;margin:-4px 0 8px">✔ סכום הפריטים (${Number(_towInv.sumInfo.sum).toLocaleString('he-IL')} ₪) תואם לסכום העבודות שבחשבונית — לא נשמט אף פריט.</div>`
+    : `<div style="font-size:12px;font-weight:700;color:#92400e;margin:-4px 0 8px">ℹ️ סכום המחירים שנקרא (${Number(_towInv.sumInfo.sum).toLocaleString('he-IL')} ₪) שונה מסכום העבודות בחשבונית (${Number(_towInv.sumInfo.total).toLocaleString('he-IL')} ₪) — הפער מתיישב עם טעות קריאה של ספרה במחיר אחד (למשל 9 שנקרא כ-5). כל הרכבים נקראו ואומתו.</div>`;
   if (_towInv.expectedTotal) sum += `<div style="font-size:12.5px;font-weight:800;color:#0f766e;margin:-4px 0 10px">✔ נקראו כל הרכבים שכתובים בחשבונית: ${rows.length} מתוך ${_towInv.expectedTotal}</div>`;
   // קריאה שפספסה: מעט מאוד רכבים לעומת חשבוניות קודמות
   if (few) {
