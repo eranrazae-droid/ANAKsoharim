@@ -89,13 +89,18 @@ function _towRenderSaved() {
       const chips = plates.map(p => { const x = ST[stOf(p)] || ST.ok;
         return `<span title="${x.t}" style="background:${x.bg};color:${stOf(p) === 'no' ? '#dc2626' : 'var(--text)'};border:1px solid ${x.bd};border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:800;direction:ltr"><b style="color:${x.c}">${x.ic}</b> ${_towFmt(p)}</span>`; }).join('')
         || '<span style="font-size:12px;color:var(--muted)">אין רכבים</span>';
+      const ours = _towOurPlates();
       const rowsHtml = plates.map(p => { const x = ST[stOf(p)] || ST.ok, d = det.get(p) || {};
         return `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1.5px solid ${x.bd};background:${x.bg};border-radius:10px;padding:6px 9px">
           <span style="font-weight:900;font-size:14px;direction:ltr">${_towFmt(p)}</span>
           <span style="background:${x.c};color:#fff;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:900">${x.ic} ${x.t}</span>
           ${d.src ? `<span style="font-size:11.5px;font-weight:800;color:var(--muted)">${esc(d.src)}</span>` : ''}
           ${d.by ? `<span style="font-size:11.5px;font-weight:800;color:#b45309">🚩 נאסף ע״י ${esc(d.by)}</span>` : ''}
-          ${d.desc ? `<span style="font-size:11.5px;color:var(--muted)">${esc(d.desc)}</span>` : ''}
+          ${(() => { const c = (ours.get(_towKey(p)) || {}).car || {};
+            const ty = d.type || c.type || '', yr = d.year || c.year || '';
+            return (ty || yr)
+              ? `<span style="font-size:12px;font-weight:800">${ty ? `סוג: ${esc(ty)}` : ''}${ty && yr ? ' · ' : ''}${yr ? `שנה: ${esc(yr)}` : ''}</span>`
+              : (d.desc ? `<span style="font-size:11.5px;color:var(--muted)">${esc(d.desc)}</span>` : ''); })()}
         </div>`; }).join('');
       const nOk = plates.filter(p => stOf(p) === 'ok').length, nMan = plates.filter(p => stOf(p) === 'manual').length, nNo = plates.filter(p => stOf(p) === 'no').length;
       body = `<div style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;font-weight:800">
@@ -681,6 +686,7 @@ async function _towResolve(run) {
     if (hit) {
       const c = hit.car;
       return { plate: p, raw: run.raw, found: true, src: hit.where,
+               type: c.type || '', year: c.year || '',
                ..._towWhoCollected(c),
                desc: [c.type, c.year, c.color].filter(Boolean).join(' · ') };
     }
@@ -940,7 +946,7 @@ async function towInvSave() {
       details: _towInv.rows.map(r => ({
         p: r.plate,
         st: (r.ok === true && _towNeeds(r, dups)) ? 'manual' : (!r.found ? 'no' : 'ok'),
-        src: r.src || '', by: (r.found && r.byTow === false) ? (r.by || 'נהג שלנו') : '', desc: r.desc || ''
+        type: r.type || '', year: r.year || '', src: r.src || '', by: (r.found && r.byTow === false) ? (r.by || 'נהג שלנו') : '', desc: r.desc || ''
       })),
       count: _towInv.rows.length,
       createdAt: _serverTs(),
