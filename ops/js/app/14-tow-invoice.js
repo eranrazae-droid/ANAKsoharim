@@ -149,6 +149,124 @@ function _towPlateCandidates(text) {
 }
 window._towPlateCandidates = _towPlateCandidates;
 
+/* ── קריאה מלאה: או שכל הרכבים נקראו, או שהתהליך נעצר ────────────────
+   בחשבונית הגרר כל פריט נפתח בשורה "הובלת רכב …" או "הובלת N רכבים …", ומתחתיו
+   (או באותה שורה) מספרי הרכבים. מזהים כל פריט, קוראים כמה רכבים הוא אמור להכיל,
+   וסופרים כמה מספרים נקראו בפועל. פריט שהספירה בו לא מתאימה נקרא שוב מקרוב, ספרות בלבד.
+   אם גם אז הספירה לא מתאימה — לא מציגים תוצאה חלקית, אלא הודעת שגיאה ועוצרים. */
+
+// כותרת של פריט: מופיעה בה המילה "רכב/ים" ואחת ממילות ההובלה, ולא שורת "רכב: 08..." של העסקה
+function _towIsItemHeader(t) {
+  if (/ד?רכב\s*:/.test(t) || /עיסקה|פתיחה|שרותי|גרירה|חשבונית|לכבוד/.test(t)) return false;
+  return /רכב/.test(t) && /הובל|הלת|הוגל|הובלוג|עבור|ראשל|מפ.ת|מגלילות|מירושלים/.test(t);
+}
+function _towExpected(t) {
+  const m = t.match(/(\d+)\s*רכבים/);
+  return m ? Number(m[1]) : 1;
+}
+// מועמדי מספר מתוך טקסט של פריט: דבוק לפי מקפים, או רצף ספרות של 7–8; רצף ארוך יותר נבדק לפי הסיומת (7 או 8 ספרות)
+function _towItemPlates(text) {
+  const out = [];
+  const dashed = [...String(text).matchAll(/\d+-\d+-\d+/g)];
+  for (const m of dashed) out.push(..._towPlateCandidates(m[0]));
+  const rest = String(text).replace(/\d+-\d+-\d+/g, ' ');
+  for (const tok of rest.split(/[^\d]+/)) {
+    if (tok.length === 7 || tok.length === 8) out.push({ raw: tok, cands: [tok] });
+    else if (tok.length > 8 && tok.length <= 12) out.push({ raw: tok, cands: [...new Set([tok.slice(-8), tok.slice(-7)])] });
+  }
+  return out;
+}
+
+async function _towReadFull(imgs, worker, setStatus) {
+  let engWorker = null;
+  const items = [];
+  try {
+    for (let pi = 0; pi < imgs.length; pi++) {
+      setStatus(`⏳ קורא עמוד ${pi + 1} מתוך ${imgs.length}...`);
+      const im = await _loadImg(imgs[pi]);
+      const { data } = await worker.recognize(imgs[pi]);
+      const lines = (data.lines || []).map(l => ({ t: String(l.text || '').replace(/\s+/g, ' ').trim(), b: l.bbox })).filter(l => l.t);
+      let cur = null;
+      const close = () => { if (cur) { items.push(cur); cur = null; } };
+      for (const l of lines) {
+        if (_towIsItemHeader(l.t)) {
+          close();
+          cur = { page: pi, img: im, src: imgs[pi], expect: _towExpected(l.t), text: l.t, lines: [l], y0: l.b.y0, y1: l.b.y1, W: im.width, H: im.height };
+        } else if (cur && /פתיחה|עיסקה|סה.כ|ילכ/.test(l.t)) {
+          close();
+        } else if (cur) {
+          cur.text += ' \n' + l.t; cur.lines.push(l); cur.y1 = Math.max(cur.y1, l.b.y1);
+        }
+      }
+      close();
+    }
+    if (!items.length) return { legacy: true };
+
+    // מספר תקף: קיים אצלנו, או קיים במרשם הרכב. בלי רשת אי אפשר לאמת — לא פוסלים
+    const validRun = async run => {
+      const ours = _towOurPlates();
+      for (const p of run.cands) if (ours.has(p)) return true;
+      let unknown = !!window._plateRegistryEmpty;
+      for (const p of run.cands) {
+        try { if (await _plateLookup(p)) return true; } catch (e) { unknown = true; }
+      }
+      return unknown;
+    };
+    const good = async (rs, expect) => rs.length === expect && (await Promise.all(rs.map(validRun))).every(Boolean);
+
+    // ניסיונות קריאה חוזרים של פריט, כל שורה לחוד: ספרות בלבד, ואחר כך עברית+ספרות, ברזולוציות שונות
+    const attempts = [['dig', 2], ['heb', 2], ['dig', 3], ['heb', 3]];
+    const reread = async (it, kind, scale) => {
+      let w = worker;
+      if (kind === 'dig') {
+        if (!engWorker) engWorker = await Tesseract.createWorker('eng', 1);
+        w = engWorker;
+        await w.setParameters({ tessedit_pageseg_mode: '7', tessedit_char_whitelist: '0123456789,-' });
+      } else await w.setParameters({ tessedit_pageseg_mode: '7', tessedit_char_whitelist: '' });
+      let txt = '';
+      for (const l of it.lines) {
+        const pad = 8;
+        const box = { x0: 0, x1: 1, y0: Math.max(0, (l.b.y0 - pad) / it.H), y1: Math.min(1, (l.b.y1 + pad) / it.H) };
+        txt += ' \n' + (await w.recognize(await _prepRegion(it.src, box, scale))).data.text;
+      }
+      await worker.setParameters({ tessedit_pageseg_mode: '6', tessedit_char_whitelist: '' });
+      return txt;
+    };
+
+    const failed = [];
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      let runs = _towItemPlates(it.text);
+      if (!(await good(runs, it.expect))) {
+        setStatus(`⏳ בודק שוב פריט ${i + 1} מתוך ${items.length}...`);
+        for (const [kind, scale] of attempts) {
+          const alt = _towItemPlates(await reread(it, kind, scale));
+          if (await good(alt, it.expect)) { runs = alt; break; }
+        }
+      }
+      if (await good(runs, it.expect)) it.runs = runs;
+      else {
+        const oks = await Promise.all(runs.map(validRun));
+        failed.push({ n: i + 1, expect: it.expect, got: runs.length, head: it.text.split('\n')[0].slice(0, 60),
+          bad: runs.filter((_, k) => !oks[k]).map(r => r.raw) });
+      }
+    }
+    return { items, failed };
+  } finally {
+    if (engWorker) { try { await engWorker.terminate(); } catch (e) {} }
+  }
+}
+
+function _towFail(html) {
+  _towInv = null;
+  const save = document.getElementById('tow-inv-save'); if (save) save.style.display = 'none';
+  _towSet('tow-inv-summary', ''); _towSet('tow-inv-rows', '');
+  _towSet('tow-inv-status', `<div style="border:2px solid #dc2626;background:#fef2f2;border-radius:12px;padding:12px 14px;color:#7f1d1d;font-weight:800;line-height:1.6">
+      <div style="font-size:15px;font-weight:900;color:#dc2626;margin-bottom:4px">⛔ ההצלבה נעצרה — לא כל הרכבים נקראו</div>${html}
+      <div style="margin-top:8px;font-weight:700;font-size:12.5px">לא מוצגת תוצאה חלקית, כדי לא להסתמך על הצלבה שחסרים בה רכבים. סרוק שוב בקובץ ברור יותר, או בדוק את הקובץ ונסה שוב.</div></div>`);
+  try { showToast('⛔ לא כל הרכבים נקראו — ההצלבה נעצרה', 8000); } catch (e) {}
+}
+
 async function towInvoiceFile(input) {
   const file = input.files && input.files[0];
   if (!file) return;
@@ -163,28 +281,43 @@ async function towInvoiceFile(input) {
       ? await _pdfFileToImages(file)
       : [await _fileToDataUrl(file)];
 
-    worker = await Tesseract.createWorker('eng', 1);
-    await worker.setParameters({ tessedit_pageseg_mode: '4', tessedit_char_whitelist: '0123456789-/' });
+    const setStatus = t => _towSet('tow-inv-status', t);
+    worker = await Tesseract.createWorker('heb+eng', 1);
+    await worker.setParameters({ tessedit_pageseg_mode: '6' });
+    const res = await _towReadFull(imgs, worker, setStatus);
 
-    let text = '';
-    for (let i = 0; i < imgs.length; i++) {
-      _towSet('tow-inv-status', `⏳ קורא עמוד ${i + 1} מתוך ${imgs.length}...`);
-      const prep = await _prepRegion(imgs[i], null, 2);
-      text += '\n' + (await worker.recognize(prep)).data.text;
+    let runs;
+    let expectedTotal = null;
+    if (res.legacy) {
+      // פורמט ישן: אין שורות "הובלת רכב" — קוראים מספרים עם מקפים, כמו שהיה. אין לנו ספירה לאימות
+      await worker.terminate(); worker = await Tesseract.createWorker('eng', 1);
+      await worker.setParameters({ tessedit_pageseg_mode: '4', tessedit_char_whitelist: '0123456789-/' });
+      let text = '';
+      for (let i = 0; i < imgs.length; i++) {
+        setStatus(`⏳ קורא עמוד ${i + 1} מתוך ${imgs.length}...`);
+        text += '\n' + (await worker.recognize(await _prepRegion(imgs[i], null, 2))).data.text;
+      }
+      runs = _towPlateCandidates(text);
+      if (!runs.length) { _towFail('<div>לא נמצאו מספרי רכב בקובץ. ודא שזו חשבונית הגרר ושהסריקה ברורה.</div>'); return; }
+    } else {
+      expectedTotal = res.items.reduce((t, it) => t + it.expect, 0);
+      if (res.failed.length) {
+        const got = res.items.reduce((t, it) => t + (it.runs ? it.runs.length : 0), 0);
+        _towFail(`<div>נקראו ${got} מתוך ${expectedTotal} רכבים שכתובים בחשבונית.</div><ul style="margin:6px 18px 0;padding:0;font-weight:700;font-size:12.5px">${
+          res.failed.map(f => `<li>פריט ${f.n}: ${f.got === f.expect && f.bad.length
+            ? `נקרא מספר שלא קיים במרשם הרכב (${f.bad.map(x => esc(x)).join(', ')}) — כנראה ספרה שנקראה לא נכון`
+            : `צפויים ${f.expect} ${f.expect === 1 ? 'רכב' : 'רכבים'}, נקראו ${f.got}`} — ${esc(f.head)}</li>`).join('')}</ul>`);
+        return;
+      }
+      runs = res.items.flatMap(it => it.runs);
     }
-
-    _towSet('tow-inv-status', '⏳ מצליב מול המערכת...');
-    const runs = _towPlateCandidates(text);
-    if (!runs.length) {
-      _towSet('tow-inv-status', '<span style="color:#dc2626">לא נמצאו מספרי רכב בקובץ. ודא שזו החשבונית ושהסריקה ברורה.</span>');
-      return;
-    }
-    _towInv = { label: (document.getElementById('tow-inv-label')?.value || '').trim(), rows: [] };
+    setStatus('⏳ מצליב מול המערכת...');
+    _towInv = { label: (document.getElementById('tow-inv-label')?.value || '').trim(), rows: [], expectedTotal };
     for (const r of runs) _towInv.rows.push(await _towResolve(r));
     await _towRender();
   } catch (e) {
     console.error('tow invoice', e);
-    _towSet('tow-inv-status', `<span style="color:#dc2626">קריאת הקובץ נכשלה: ${esc(e.message || e)}</span>`);
+    _towFail(`<div>קריאת הקובץ נכשלה: ${esc(e.message || e)}</div>`);
   } finally {
     if (worker) { try { await worker.terminate(); } catch (e) {} }
   }
@@ -263,6 +396,7 @@ async function _towRender() {
       ${notTow0.length ? stat(notTow0.length, 'נאספו ע״י נהג שלנו', '#b45309') : ''}
       ${dups.size ? stat(dups.size, 'כבר חויבו בעבר', '#b45309') : ''}
     </div>`;
+  if (_towInv.expectedTotal) sum += `<div style="font-size:12.5px;font-weight:800;color:#0f766e;margin:-4px 0 10px">✔ נקראו כל הרכבים שכתובים בחשבונית: ${rows.length} מתוך ${_towInv.expectedTotal}</div>`;
   // קריאה שפספסה: מעט מאוד רכבים לעומת חשבוניות קודמות
   if (few) {
     sum += box('#b45309', '#fffbeb', `⚠️ נקראו רק ${rows.length} רכבים — כנראה הקריאה פספסה`,
