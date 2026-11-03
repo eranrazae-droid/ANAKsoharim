@@ -1276,11 +1276,6 @@ function openPickupScreen() {
   loadPickupCars();
   loadPickupArchiveCount();
   loadPickupRegionTasks();
-  // הצלבת חשבונית שנשארה פתוחה — הארכיון נפתח איתה כמו שהיה
-  if (document.getElementById('pickup-bottom')?.classList.contains('tow-open')) {
-    togglePickupArchive();
-    _towListenSaved();                            // רשימת החשבוניות חוזרת להיות חיה
-  }
 }
 window.openPickupScreen = openPickupScreen;
 

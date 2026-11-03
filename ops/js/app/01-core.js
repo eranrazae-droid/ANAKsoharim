@@ -864,7 +864,7 @@ function enterApp() {
   renderHome();
   const savedScreen = sessionStorage.getItem('anak_screen');
   if (savedScreen && savedScreen !== 'home' && savedScreen !== 'login') {
-    const screenFns = { vehicles: openVehiclesScreen, tasks: openTasksScreen, parts: openPartsScreen, inventory: openInventoryScreen, pits: openPitsScreen, yard: openYardScreen, 'driver-inventory': openDriverInventoryScreen, battery: openBatteryScreen, 'driver-battery': openDriverBatteryScreen, 'driver-charging': openDriverChargingScreen, 'battery-stats': openBatteryStatsScreen, refresh: openVehiclesScreen, recall: openRecallScreen, wash: openWashScreen, 'plate-search': openPlateSearch };
+    const screenFns = { vehicles: openVehiclesScreen, tasks: openTasksScreen, parts: openPartsScreen, inventory: openInventoryScreen, pits: openPitsScreen, yard: openYardScreen, 'driver-inventory': openDriverInventoryScreen, battery: openBatteryScreen, 'driver-battery': openDriverBatteryScreen, 'driver-charging': openDriverChargingScreen, 'battery-stats': openBatteryStatsScreen, refresh: openVehiclesScreen, recall: openRecallScreen, wash: openWashScreen, 'plate-search': openPlateSearch, tow: () => (currentUser?.role === 'manager' ? openTowInvoice() : showScreen('home')) };
     // מסך שנפתח כחלונית לא משוחזר אחרי רענון — חוזרים למסך הבית
     if (_SCREEN_MODALS.includes(savedScreen)) { showScreen('home'); }
     else if (screenFns[savedScreen]) { screenFns[savedScreen](); }

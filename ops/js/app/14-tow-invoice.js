@@ -83,10 +83,12 @@ function _towRenderSaved() {
   }).join('');
 }
 
-function _towPanel(open) {
-  const wrap = document.getElementById('pickup-bottom');
-  if (wrap) wrap.classList.toggle('tow-open', !!open);
+// עמוד נפרד: חוזרים למסך האיסוף. ההצלבה עצמה נשארת בזיכרון עד ✕ או שמירה
+function _towLeave() {
+  if (typeof openPickupScreen === 'function') openPickupScreen(); else showScreen('pickup');
 }
+function backFromTow() { _towLeave(); }
+window.backFromTow = backFromTow;
 
 function _towClear() {
   _towInv = null;
@@ -103,11 +105,11 @@ function _towClear() {
 function openTowInvoice() {
   if (!_towInv) _towClear();            // הצלבה שכבר רצה — ממשיכים אותה, לא מאפסים
   closeModal('modal-pickup-actions');
-  _towPanel(true);
+  const badge = document.getElementById('tow-user-badge');
+  if (badge) badge.textContent = currentUser?.name || '';
+  showScreen('tow');                    // עמוד נפרד, רק להצלבה
   _towListenSaved();
-  // הארכיון לא נפתח מעצמו: ההצלבה היא מה שהמנהל ביקש לראות. את הארכיון אפשר לפתוח בנפרד, וההצלבה נשארת פתוחה
-  const el = document.getElementById('pickup-col-tow');
-  if (el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+  window.scrollTo(0, 0);
 }
 window.openTowInvoice = openTowInvoice;
 
@@ -115,8 +117,8 @@ function closeTowInvoice() {
   if (_towInv && _towInv.rows && _towInv.rows.length
       && !confirm('לסגור את ההצלבה? מה שנקרא מהחשבונית יימחק.')) return;
   _towClear();
-  _towPanel(false);
   _reSnapReset('towInv');
+  _towLeave();
 }
 window.closeTowInvoice = closeTowInvoice;
 
@@ -363,8 +365,8 @@ async function towInvSave() {
     });
     showToast(`✅ חשבונית ${label} נשמרה — ${_towInv.rows.length} רכבים`, 5000);
     _towClear();
-    _towPanel(false);
     _reSnapReset('towInv');
+    _towLeave();
   } catch (e) {
     console.error('tow invoice save', e);
     showToast('השמירה נכשלה: ' + (e.code || e.message), 6000);
