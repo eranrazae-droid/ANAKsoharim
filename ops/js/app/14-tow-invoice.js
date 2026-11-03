@@ -248,13 +248,38 @@ async function _towRender() {
     `<div style="border:2px solid ${color};background:${bg};border-radius:12px;padding:10px 12px;margin-bottom:10px">
        <div style="font-weight:900;font-size:14px;color:${color};margin-bottom:4px">${title}</div>${body}</div>`;
 
-  let sum = box('#0f766e', 'var(--surface2)', `📄 נקראו ${rows.length} רכבים מהחשבונית`,
-    `<div style="font-size:12.5px;color:var(--muted)">השווה את המספר הזה לסך הרכבים שכתוב בחשבונית. אם הוא נמוך — הוסף למטה את מה שחסר.</div>`);
+  const notTow0 = rows.filter(r => r.found && r.byTow === false);
+  const ok = rows.length - missing.length;
+  const prevCounts = _towSaved.map(x => x.count || (x.plates || []).length).filter(Boolean);
+  const avgPrev = prevCounts.length ? prevCounts.reduce((t, n) => t + n, 0) / prevCounts.length : 0;
+  const few = avgPrev >= 5 && rows.length < avgPrev * 0.6;
+  const stat = (n, label, color) => `<div style="flex:1;min-width:92px;text-align:center;border:1.5px solid ${color};border-radius:10px;padding:7px 4px">
+      <div style="font-size:22px;font-weight:900;color:${color};line-height:1.1">${n}</div>
+      <div style="font-size:11.5px;font-weight:800;color:var(--muted)">${label}</div></div>`;
+  let sum = `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+      ${stat(rows.length, 'נקראו מהחשבונית', '#0f766e')}
+      ${stat(ok, 'נמצאו אצלנו באיסוף', '#16a34a')}
+      ${stat(missing.length, 'לא נמצאו אצלנו', missing.length ? '#dc2626' : '#9ca3af')}
+      ${notTow0.length ? stat(notTow0.length, 'נאספו ע״י נהג שלנו', '#b45309') : ''}
+      ${dups.size ? stat(dups.size, 'כבר חויבו בעבר', '#b45309') : ''}
+    </div>`;
+  // קריאה שפספסה: מעט מאוד רכבים לעומת חשבוניות קודמות
+  if (few) {
+    sum += box('#b45309', '#fffbeb', `⚠️ נקראו רק ${rows.length} רכבים — כנראה הקריאה פספסה`,
+      `<div style="font-size:12.5px;color:#78350f">בחשבוניות קודמות היו בממוצע כ-${Math.round(avgPrev)} רכבים. סרוק שוב בקובץ ברור יותר, או הוסף ידנית עם ➕ למטה.</div>`);
+  }
+  sum += `<div style="font-size:12.5px;color:var(--muted);line-height:1.6;margin-bottom:10px;padding:8px 10px;background:var(--surface2);border-radius:10px">
+      <b>איך לקרוא:</b> כל שורה למטה היא רכב שכתוב בחשבונית הגרר.
+      <span style="color:#16a34a;font-weight:800">ירוק</span> — הרכב נמצא אצלנו באיסוף (ברשימה או בארכיון), כלומר החיוב מוצדק.
+      <span style="color:#dc2626;font-weight:800">אדום</span> — אין לנו תיעוד שאספנו אותו: בדוק מול הגרר לפני תשלום.
+      <span style="color:#b45309;font-weight:800">כתום</span> — נאסף על ידי נהג שלנו, או שכבר חויב בחשבונית קודמת.
+      השווה את "נקראו מהחשבונית" למספר הרכבים שכתוב בחשבונית עצמה; אם הוא נמוך — הוסף את החסרים עם ➕.
+    </div>`;
 
   sum += missing.length
     ? box('#dc2626', '#fef2f2', `🔴 ${missing.length} רכבים בחשבונית שלא נמצאו אצלנו באיסוף`,
         `<div style="font-size:12.5px;color:#7f1d1d">אלה הרכבים לבדיקה מול הגרר — לא מצאנו שהם עברו אצלנו.</div>`)
-    : box('#16a34a', '#f0fdf4', '✅ כל הרכבים בחשבונית נמצאו אצלנו באיסוף', '');
+    : box('#16a34a', '#f0fdf4', '✅ כל הרכבים שנקראו נמצאו אצלנו באיסוף', '');
 
   const notTow = rows.filter(r => r.found && r.byTow === false);
   if (notTow.length) {
