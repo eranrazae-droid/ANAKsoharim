@@ -263,6 +263,10 @@ async function _towPass(imgs, worker, setStatus, prog, ctx, range) {
             cur = { page: pi, img: im, src: imgs[pi], tx: (l.t.match(/5\d{4}/) || [''])[0], expect: null, text: '', lines: [], y0: l.b.y1, y1: l.b.y1, W: im.width, H: im.height };
           } else if (cur && /פתיחה/.test(l.t)) {
             close();
+          } else if (_towIsItemHeader(l.t) && (!cur || cur.expect != null)) {
+            // שורת כותרת בלי שורת "עיסקה" לפניה (השורה לא נקראה): זה פריט חדש. כך פריט שנשמטה לו שורת העסקה לא נעלם
+            close();
+            cur = { page: pi, img: im, src: imgs[pi], tx: '', expect: _towExpected(l.t), text: l.t, lines: [l], y0: l.b.y0, y1: l.b.y1, W: im.width, H: im.height };
           } else if (cur) {
             if (_towIsItemHeader(l.t) && cur.expect == null) cur.expect = _towExpected(l.t);
             cur.text += (cur.text ? ' \n' : '') + l.t; cur.lines.push(l); cur.y1 = Math.max(cur.y1, l.b.y1);
@@ -369,6 +373,48 @@ async function _towScaleImg(dataUrl, f) {
 
 /* קריאה מלאה: עד שלושה ניסיונות על העמודים (ברזולוציות שונות). פריט שנקרא ונבדק בניסיון כלשהו נשמר לפי מספר העסקה שלו,
    והניסיונות הבאים מטפלים רק במה שנשאר. אם בסוף נשאר פריט שלא נקרא — עוצרים. */
+// בדיקת שלמות לפי כסף: סכום מחירי הפריטים מול "סה״כ עבודות". מחזיר null כשאין סכום סופי לבדיקה
+async function _towSumCheck(all, ctx, worker, prog) {
+  if (!all.length) return null;
+  let sumCheck = null;
+  const total = _towInvoiceTotal(ctx.lines || []);
+  if (total != null && all.length) {
+    prog.set(98, 'בודק סכומים');
+    const prices = [];
+    for (const t of all) {
+      let pr = _towItemPriceFrom(t.text);
+      if (pr == null) {
+        // מחיר שלא נקרא: כמה קריאות חוזרות של שורת הכותרת, והמחיר שחוזר לפחות פעמיים נבחר (הצבעה)
+        const votes = {};
+        const eng = await Tesseract.createWorker('eng', 1);
+        try {
+          for (const [kind, sc] of [['dig', 2], ['dig', 3], ['heb', 2], ['heb', 3], ['heb', 4]]) {
+            let w = worker;
+            if (kind === 'dig') { w = eng; await w.setParameters({ tessedit_pageseg_mode: '7', tessedit_char_whitelist: '0123456789,.-' }); }
+            else await w.setParameters({ tessedit_pageseg_mode: '7', tessedit_char_whitelist: '' });
+            let txt = '';
+            for (const l of t.lines.slice(0, 2)) txt += ' ' + (await w.recognize(await _prepRegion(t.src, { x0: 0, x1: 1, y0: Math.max(0, (l.b.y0 - 8) / t.H), y1: Math.min(1, (l.b.y1 + 8) / t.H) }, sc))).data.text;
+            for (const v of new Set(_towAmounts(txt).filter(x => x > 0))) votes[v] = (votes[v] || 0) + 1;
+          }
+        } catch (e) { /* ממשיכים עם מה שנאסף */ } finally {
+          try { await eng.terminate(); } catch (e) {}
+          await worker.setParameters({ tessedit_pageseg_mode: '6', tessedit_char_whitelist: '' });
+        }
+        const top = Object.entries(votes).sort((x, y) => y[1] - x[1] || Number(y[0]) - Number(x[0]))[0];
+        pr = top && top[1] >= 2 ? Number(top[0]) : null;
+      }
+      prices.push(pr);
+    }
+    const unknownPrice = prices.filter(v => v == null).length;
+    const sum = prices.reduce((t, v) => t + (v || 0), 0);
+    const exact = !unknownPrice && Math.abs(sum - total) < 0.01;
+    // ה-OCR מבלבל בין ספרות דומות (5↔9, 6↔8...). הסכום נחשב מתיישב אם אפשר להגיע אליו בתיקון של מחיר אחד בספרה אחת
+    const explained = exact || (unknownPrice <= 1 && _towSumExplained(prices, total));
+    sumCheck = { total, sum: Math.round(sum * 100) / 100, unknownPrice, ok: exact, explained };
+  }
+  return sumCheck;
+}
+
 async function _towReadFull(imgs, worker, setStatus, prog) {
   const passes = [[1, 0, 70], [1.5, 70, 85], [2.2, 85, 98]];
   const ctx = { slots: null, n0: {}, byTx: new Map() };
@@ -408,8 +454,13 @@ async function _towReadFull(imgs, worker, setStatus, prog) {
     }
     ctx.byTx = new Map(); for (const pg of Object.keys(ctx.slots)) for (const t of ctx.slots[pg]) if (t && t.tx && t.runs) ctx.byTx.set(t.tx, t);
     const open = Object.keys(ctx.slots).flatMap(pg => ctx.slots[pg]).filter(t => t && !t.runs);
-    if (!open.length) break;
     if (k === passes.length - 1) break;
+    if (!open.length) {
+      // הכול נקרא — אבל אם הסכום לא מתיישב, כנראה פריט נשמט: ממשיכים לניסיון הבא
+      const allNow = Object.keys(ctx.slots).sort((a, b) => a - b).flatMap(pg => ctx.slots[pg]).filter(Boolean);
+      const sc = await _towSumCheck(allNow, ctx, worker, prog);
+      if (!sc || sc.explained) break;
+    }
   }
   const all = Object.keys(ctx.slots).sort((a, b) => a - b).flatMap(pg => ctx.slots[pg]).filter(Boolean);
   const items = all.filter(t => t.runs);
@@ -417,43 +468,7 @@ async function _towReadFull(imgs, worker, setStatus, prog) {
   const shortPages = [];
   const perPageCount = {}; for (const pg of Object.keys(ctx.slots)) perPageCount[pg] = ctx.slots[pg].filter(Boolean).length;
   for (const pg of Object.keys(ctx.markers || {})) if ((ctx.markers[pg] || 0) > (perPageCount[pg] || 0)) shortPages.push({ page: Number(pg) + 1, markers: ctx.markers[pg], read: perPageCount[pg] || 0 });
-  // שלמות לפי כסף — בדיקה רכה: ה-OCR מבלבל בין ספרות דומות (5/9), ולכן אי-התאמה בסכום מוצגת כהערה ולא עוצרת
-  let sumCheck = null;
-  const total = _towInvoiceTotal(ctx.lines || []);
-  if (total != null && all.length) {
-    prog.set(98, 'בודק סכומים');
-    const prices = [];
-    for (const t of all) {
-      let pr = _towItemPriceFrom(t.text);
-      if (pr == null) {
-        // מחיר שלא נקרא: כמה קריאות חוזרות של שורת הכותרת, והמחיר שחוזר לפחות פעמיים נבחר (הצבעה)
-        const votes = {};
-        const eng = await Tesseract.createWorker('eng', 1);
-        try {
-          for (const [kind, sc] of [['dig', 2], ['dig', 3], ['heb', 2], ['heb', 3], ['heb', 4]]) {
-            let w = worker;
-            if (kind === 'dig') { w = eng; await w.setParameters({ tessedit_pageseg_mode: '7', tessedit_char_whitelist: '0123456789,.-' }); }
-            else await w.setParameters({ tessedit_pageseg_mode: '7', tessedit_char_whitelist: '' });
-            let txt = '';
-            for (const l of t.lines.slice(0, 2)) txt += ' ' + (await w.recognize(await _prepRegion(t.src, { x0: 0, x1: 1, y0: Math.max(0, (l.b.y0 - 8) / t.H), y1: Math.min(1, (l.b.y1 + 8) / t.H) }, sc))).data.text;
-            for (const v of new Set(_towAmounts(txt).filter(x => x > 0))) votes[v] = (votes[v] || 0) + 1;
-          }
-        } catch (e) { /* ממשיכים עם מה שנאסף */ } finally {
-          try { await eng.terminate(); } catch (e) {}
-          await worker.setParameters({ tessedit_pageseg_mode: '6', tessedit_char_whitelist: '' });
-        }
-        const top = Object.entries(votes).sort((x, y) => y[1] - x[1] || Number(y[0]) - Number(x[0]))[0];
-        pr = top && top[1] >= 2 ? Number(top[0]) : null;
-      }
-      prices.push(pr);
-    }
-    const unknownPrice = prices.filter(v => v == null).length;
-    const sum = prices.reduce((t, v) => t + (v || 0), 0);
-    const exact = !unknownPrice && Math.abs(sum - total) < 0.01;
-    // ה-OCR מבלבל בין ספרות דומות (5↔9, 6↔8...). הסכום נחשב מתיישב אם אפשר להגיע אליו בתיקון של מחיר אחד בספרה אחת
-    const explained = exact || (unknownPrice <= 1 && _towSumExplained(prices, total));
-    sumCheck = { total, sum: Math.round(sum * 100) / 100, unknownPrice, ok: exact, explained };
-  }
+  const sumCheck = await _towSumCheck(all, ctx, worker, prog);
   const failed = all.map((t, i) => ({ t, i })).filter(x => !x.t.runs).map(x => ({ n: x.i + 1, ...(x.t.fail || { expect: '?', got: 0, head: `עסקה ${x.t.tx || ''} — לא נקרא`, bad: [], unknown: true }) }));
   if (shortPages.length) failed.push(...shortPages.map(sp => ({ n: 0, expect: '?', got: sp.read, head: `בעמוד ${sp.page} זוהו ${sp.markers} פריטים בסימוני החשבונית ונקראו רק ${sp.read}`, bad: [], unknown: true, pageShort: true })));
   prog.set(99, 'מסיים');
