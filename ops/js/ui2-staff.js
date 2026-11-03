@@ -9,7 +9,7 @@
   const ROLES = ['driver', 'pickup_agent', 'pickup_driver'];
   const SRC = (document.currentScript && document.currentScript.src) || '';
   const VER = (SRC.match(/[?&]v=(\d+)/) || [])[1] || '1';
-  const flag = () => { try { return localStorage.getItem(KEY) !== '0'; } catch (e) { return true; } };
+  const flag = () => true;      // העיצוב החדש הוא היחיד
 
   const P = {
     home: '<path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
@@ -86,7 +86,7 @@
       <nav><button type="button" class="u2s-item${homeOn ? ' on' : ''}" data-home="1">${svg('home')}<span>מסך הבית</span></button>
         ${list.map(x => `<button type="button" class="u2s-item${!homeOn && lastKey === x.id ? ' on' : ''}" data-card="${x.id}">${svg(x.icon)}<span>${x.label}</span>${x.n ? `<em>${x.n}</em>` : ''}</button>`).join('')}</nav>
       <div class="u2s-foot"><button type="button" class="u2s-item" data-act="push">${svg('bell')}<span>התראות</span></button>
-        <button type="button" class="u2s-old" data-act="old">↩ חזרה לעיצוב הישן</button></div>`;
+        </div>`;
     if (html !== last) { side.innerHTML = html; last = html; }
   }
 

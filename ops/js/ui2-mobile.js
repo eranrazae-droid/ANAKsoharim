@@ -5,19 +5,8 @@
   const phone = window.matchMedia('(max-width:900px)');
   const roles = new Set(['manager', 'driver', 'pickup_agent', 'pickup_driver']);
   let enabled = true, row = null, checkbox = null, pending = false;
-  // העיצוב החדש הוא ברירת המחדל לכולם (איברהים אינו ברשימת התפקידים). פעם אחת
-  // בכל מכשיר מתאפסת בחירה ישנה; המתג בהגדרות ממשיך להחזיר לעיצוב הישן.
-  try {
-    if (localStorage.getItem('anak_ui2m_default') !== '1') { localStorage.removeItem(KEY); localStorage.setItem('anak_ui2m_default', '1'); }
-    enabled = localStorage.getItem(KEY) !== '0';
-  } catch (e) {}
-  try {
-    const value = new URLSearchParams(location.search).get('ui2m');
-    if (value === '1' || value === '0') {
-      enabled = value === '1';
-      try { localStorage.setItem(KEY, value); } catch (e) {}
-    }
-  } catch (e) {}
+  // העיצוב החדש הוא היחיד: אין מתג בהגדרות, ובחירה ישנה במכשיר ("0") נמחקת ואינה נקראת יותר.
+  try { localStorage.removeItem(KEY); } catch (e) {}
 
   function allowed() {
     return phone.matches && typeof currentUser !== 'undefined' && currentUser && roles.has(currentUser.role);
@@ -27,8 +16,8 @@
     const eligible = allowed();
     document.body.classList.toggle('ui2m', !!(eligible && enabled));
     const box = document.querySelector('#modal-settings .modal-box');
-    if (!eligible || !box) {
-      if (row) row.remove();
+    document.getElementById('ui2m-toggle-row')?.remove();   // המתג הוסר; שאריות ממכשיר ישן נמחקות
+    if (true) {
       row = checkbox = null;
       return;
     }
