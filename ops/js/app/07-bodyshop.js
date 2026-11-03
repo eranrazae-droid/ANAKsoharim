@@ -552,9 +552,12 @@ function _bshopJobCard(j, forWorker, held) {
     })()}
     ${!forWorker ? '<div class="bs-fill"></div>' : ''}
     ${(j.photoThumb || j.photo) ? `<img id="bshop-card-img-${j.id}" src="${j.photo || j.photoThumb}" alt="" loading="lazy" style="margin-top:8px;width:100%;max-height:150px;object-fit:cover;object-position:${_bshopFocusCss(j)};border-radius:10px;display:block">`
+      : held ? `<div class="bs-noimg" style="margin-top:8px;border-radius:10px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:34px">🚘</div>`
       : (!held && !forWorker ? `<button onclick="event.stopPropagation();bsmAddPhoto('${j.id}')" style="margin-top:8px;width:100%;background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:9px;font-family:'Heebo',sans-serif;font-size:13px;font-weight:800;cursor:pointer">📷 הוסף תמונה</button>` : '')}
     ${held ? `<button onclick="event.stopPropagation();bsmSetHold('${j.id}',false)"
-      style="margin-top:10px;width:100%;background:var(--success);color:#fff;border:none;border-radius:10px;padding:11px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:900;cursor:pointer">▶️ החזר לפעילות</button>` : ''}
+      style="margin-top:10px;width:100%;background:var(--success);color:#fff;border:none;border-radius:10px;padding:11px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:900;cursor:pointer">▶️ החזר לפעילות</button>
+    <button onclick="event.stopPropagation();bsmDeleteOne('job:${j.id}')" title="מחיקה לתמיד"
+      style="margin-top:8px;width:100%;background:transparent;color:#ef4444;border:2px solid #fecaca;border-radius:10px;padding:10px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:900;cursor:pointer">🗑 מחיקה</button>` : ''}
     ${!held && !forWorker && j.status === 'returned' ? (j.swUpdated
       ? `<button onclick="event.stopPropagation();bsmSetSwUpdated('${j.id}',false)" title="בטל סימון"
           style="margin-top:10px;width:100%;background:var(--success);color:#fff;border:none;border-radius:10px;padding:10px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:900;cursor:pointer">✅ עודכן בתוכנה</button>`
