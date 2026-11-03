@@ -577,13 +577,15 @@ async function _towResolve(run) {
                desc: [c.type, c.year, c.color].filter(Boolean).join(' · ') };
     }
   }
+  let lookedUp = false;
   for (const p of run.cands) {
     let rec = null;
-    try { rec = await _plateLookup(p); } catch (e) { /* אין רשת — נמשיך בלי פרטי הרכב */ }
+    try { rec = await _plateLookup(p); lookedUp = true; } catch (e) { /* אין רשת — נמשיך בלי פרטי הרכב */ }
     if (rec) return { plate: p, raw: run.raw, found: false, src: '',
                       desc: [rec.maker, rec.model, rec.year, rec.color].filter(Boolean).join(' · ') };
   }
-  return { plate: run.cands[0], raw: run.raw, found: false, src: '', desc: '' };
+  // נבדק מול המרשם ולא נמצא — כנראה ספרה שנקראה לא נכון (או מספר שנכתב לא נכון בחשבונית)
+  return { plate: run.cands[0], raw: run.raw, found: false, src: '', desc: '', badPlate: lookedUp && !window._plateRegistryEmpty };
 }
 
 /* רכב שנמצא בארכיון לא בהכרח נאסף על ידי הגרר. לפעמים נהג שלנו
@@ -604,19 +606,37 @@ function _towFmt(p) {
        : d.length === 7 ? `${d.slice(0,2)}-${d.slice(2,5)}-${d.slice(5)}` : d;
 }
 
+// שורה "דורשת בדיקה": לא נמצאה אצלנו, נאספה ע״י נהג שלנו, או כבר חויבה. שורה נקייה נחשבת תקינה מעצמה, ואפשר לבטל את זה
+const _towNeeds = (r, dups) => !r.found || r.byTow === false || !!(dups && dups.get(r.plate));
+const _towOk = (r, dups) => r.ok === true || (!_towNeeds(r, dups) && r.ok !== false);
+
+// הצעות לתיקון מספר שנקרא לא נכון: רכבים באיסוף/בארכיון שנבדלים ממנו בספרה אחת
+function _towSuggest(plate) {
+  const a = _towKey(plate), out = [];
+  for (const [k, v] of _towOurPlates()) {
+    if (k.length !== a.length || k === a) continue;
+    let d = 0; for (let i = 0; i < k.length && d < 2; i++) if (k[i] !== a[i]) d++;
+    if (d === 1) out.push({ plate: k, where: v.where });
+    if (out.length >= 3) break;
+  }
+  return out;
+}
+let _towEditing = null;
+
 async function _towRender() {
   const rows = _towInv.rows;
-  const missing = rows.filter(r => !r.found && !r.ok);          // "סמן כתקין" מוציא רכב מהרשימה האדומה
   const dups0 = await _towPastDuplicates(rows.map(r => r.plate));
-  const dups = new Map([...dups0].filter(([p]) => !rows.some(r => r.plate === p && r.ok)));
+  const dups = new Map([...dups0].filter(([p]) => !rows.some(r => r.plate === p && r.ok === true)));
+  const missing = rows.filter(r => !r.found && r.ok !== true);   // "סמן כתקין" מוציא רכב מהרשימה האדומה
+  const remaining = rows.filter(r => !_towOk(r, dups));
 
   const box = (color, bg, title, body) =>
     `<div style="border:2px solid ${color};background:${bg};border-radius:12px;padding:10px 12px;margin-bottom:10px">
        <div style="font-weight:900;font-size:14px;color:${color};margin-bottom:4px">${title}</div>${body}</div>`;
 
-  const notTow0 = rows.filter(r => r.found && r.byTow === false && !r.ok);
+  const notTow0 = rows.filter(r => r.found && r.byTow === false && r.ok !== true);
   const ok = rows.filter(r => r.found).length;
-  const approved = rows.filter(r => r.ok).length;
+  const approved = rows.filter(r => r.ok === true && _towNeeds(r, dups0)).length;
   const prevCounts = _towSaved.map(x => x.count || (x.plates || []).length).filter(Boolean);
   const avgPrev = prevCounts.length ? prevCounts.reduce((t, n) => t + n, 0) / prevCounts.length : 0;
   const few = avgPrev >= 5 && rows.length < avgPrev * 0.6;
@@ -655,7 +675,7 @@ async function _towRender() {
         `<div style="font-size:12.5px;color:#7f1d1d">אלה הרכבים לבדיקה מול הגרר — לא מצאנו שהם עברו אצלנו.</div>`)
     : box('#16a34a', '#f0fdf4', '✅ כל הרכבים שנקראו נמצאו אצלנו באיסוף', '');
 
-  const notTow = rows.filter(r => r.found && r.byTow === false && !r.ok);
+  const notTow = rows.filter(r => r.found && r.byTow === false && r.ok !== true);
   if (notTow.length) {
     sum += box('#b45309', '#fffbeb', `🚩 ${notTow.length} רכבים נאספו על ידי נהג שלנו ולא על ידי הגרר`,
       `<div style="font-size:12.5px;color:#78350f">הם מסומנים למטה עם שם האוסף — בדוק למה הגרר מחייב עליהם.</div>`);
@@ -669,9 +689,9 @@ async function _towRender() {
 
   _towSet('tow-inv-rows', rows.map((r, i) => {
     const dup = dups.get(r.plate);
-    const needs = !r.found || !!dup || r.byTow === false;     // שורה שדורשת בדיקה — אפשר לסמן אותה כתקינה אחרי שבדקת
-    const border = r.ok ? '#16a34a' : !r.found ? '#dc2626' : (dup || r.byTow === false) ? '#b45309' : 'var(--border)';
-    const tag = r.ok
+    const okNow = _towOk(r, dups);
+    const border = okNow ? (_towNeeds(r, dups) ? '#16a34a' : 'var(--border)') : !r.found ? '#dc2626' : '#b45309';
+    const tag = r.ok === true && _towNeeds(r, dups0)
       ? '<span style="background:#0f766e;color:#fff;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:900">✔ אושר ידנית</span>'
       : !r.found
       ? '<span style="background:#dc2626;color:#fff;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:900">לא נמצא אצלנו</span>'
@@ -681,22 +701,45 @@ async function _towRender() {
     // נאסף אצלנו אבל לא על ידי הגרר — הערה עם שם מי שאסף בפועל
     const whoTag = (r.found && r.byTow === false)
       ? `<span style="background:#f59e0b;color:#fff;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:900;margin-right:5px">🚩 נאסף ע״י ${esc(r.by || 'נהג שלנו')}</span>` : '';
-    return `<div style="border:2px solid ${border};border-radius:12px;padding:9px 11px;margin-bottom:7px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    const badTag = r.badPlate && !r.found
+      ? '<span style="background:#7f1d1d;color:#fff;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:900;margin-right:5px">⚠️ מספר שלא קיים במרשם — כנראה נקרא לא נכון</span>' : '';
+    const btnBase = "border-radius:9px;padding:5px 11px;font-family:Heebo,sans-serif;font-size:12px;font-weight:900;cursor:pointer;white-space:nowrap";
+    const okBtn = okNow
+      ? `<button onclick="towInvOk(${i})" title="לחץ כדי לבטל את האישור" style="background:#f0fdf4;color:#166534;border:1.5px solid #86efac;${btnBase}">✔ תקין</button>`
+      : `<button onclick="towInvOk(${i})" title="בדקתי — הרכב תקין" style="background:#16a34a;color:#fff;border:none;${btnBase}">✔ סמן כתקין</button>`;
+    const editBtn = `<button onclick="towInvEdit(${i})" title="תיקון מספר הרכב" style="background:var(--surface2);border:1.5px solid var(--border);${btnBase}">✏️ ערוך מספר</button>`;
+    const sug = (_towEditing === i || (!r.found)) ? _towSuggest(r.plate) : [];
+    const sugHtml = sug.length && !okNow
+      ? `<div style="flex:1 1 100%;font-size:12px;font-weight:800;color:#0f766e">ייתכן שהכוונה ל: ${sug.map(x => `<button onclick="towInvPick(${i},'${x.plate}')" style="background:#ecfeff;border:1.5px solid #67e8f9;border-radius:999px;padding:2px 10px;margin:0 3px;font-family:Heebo,sans-serif;font-size:12px;font-weight:900;cursor:pointer;direction:ltr">${_towFmt(x.plate)} · ${esc(x.where)}</button>`).join('')}</div>` : '';
+    const editor = _towEditing === i
+      ? `<div style="flex:1 1 100%;display:flex;gap:6px;align-items:center;flex-wrap:wrap;background:var(--surface2);border-radius:10px;padding:8px">
+          <span style="font-size:12px;font-weight:800;color:var(--muted)">מספר הרכב כפי שמופיע בחשבונית:</span>
+          <input id="tow-edit-input" value="${esc(r.plate)}" inputmode="numeric" maxlength="8" dir="ltr" onkeydown="if(event.key==='Enter')towInvEditApply(${i})"
+            style="width:130px;padding:7px 9px;border-radius:8px;border:1.5px solid var(--border);font-family:Heebo,sans-serif;font-size:16px;font-weight:900;text-align:center">
+          <button onclick="towInvEditApply(${i})" style="background:var(--dark);color:#fff;border:none;${btnBase}">🔎 בדוק מול הארכיון</button>
+          <button onclick="towInvEdit(null)" style="background:var(--card);border:1.5px solid var(--border);${btnBase}">ביטול</button>
+        </div>` : '';
+    return `<div style="border:2px solid ${border};border-radius:12px;padding:9px 11px;margin-bottom:7px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       <span style="font-weight:900;font-size:16px;direction:ltr">${_towFmt(r.plate)}</span>
       <span style="flex:1;min-width:120px;font-size:12.5px;color:var(--muted)">${esc(r.desc || '—')}</span>
-      ${r.ok ? '' : whoTag + dupTag}${tag}
-      ${r.ok
-        ? `<button onclick="towInvOk(${i})" title="בטל את האישור" style="background:var(--surface2);border:1.5px solid var(--border);border-radius:9px;padding:4px 10px;font-family:Heebo,sans-serif;font-size:12px;font-weight:800;cursor:pointer">↩ בטל</button>`
-        : needs ? `<button onclick="towInvOk(${i})" title="בדקתי מול הגרר — הרכב תקין" style="background:#16a34a;color:#fff;border:none;border-radius:9px;padding:5px 11px;font-family:Heebo,sans-serif;font-size:12px;font-weight:900;cursor:pointer;white-space:nowrap">✔ סמן כתקין</button>` : ''}
-      <button onclick="towInvEdit(${i})" style="background:var(--surface2);border:1.5px solid var(--border);border-radius:9px;padding:4px 10px;font-family:Heebo,sans-serif;font-size:12px;font-weight:800;cursor:pointer">✏️</button>
-      <button onclick="towInvDrop(${i})" style="background:var(--surface2);border:1.5px solid var(--border);border-radius:9px;padding:4px 10px;font-family:Heebo,sans-serif;font-size:12px;font-weight:800;cursor:pointer">🗑️</button>
+      ${okNow && r.ok !== true ? '' : whoTag + dupTag}${badTag}${tag}
+      ${okBtn}${editBtn}
+      <button onclick="towInvDrop(${i})" title="הסר את השורה" style="background:var(--surface2);border:1.5px solid var(--border);${btnBase}">🗑️</button>
+      ${sugHtml}${editor}
     </div>`;
   }).join('') +
   `<button onclick="towInvAdd()" style="width:100%;margin-top:4px;background:var(--surface2);border:1.5px dashed var(--border);border-radius:10px;padding:9px;font-family:Heebo,sans-serif;font-size:13px;font-weight:800;color:var(--muted);cursor:pointer">➕ הוסף רכב שהקריאה פספסה</button>`);
 
   _towSet('tow-inv-status', '');
+  // שלב הבא (שמירה) נפתח רק כשכל שורה תקינה
   const save = document.getElementById('tow-inv-save');
-  if (save) save.style.display = '';
+  if (save) {
+    save.style.display = '';
+    save.disabled = remaining.length > 0;
+    save.style.opacity = remaining.length ? '.55' : '1';
+    save.style.cursor = remaining.length ? 'not-allowed' : 'pointer';
+    save.textContent = remaining.length ? `🔒 נשארו ${remaining.length} שורות לבדיקה — סמן כל שורה כתקינה כדי להמשיך` : '✅ הכול תקין — שמור את החשבונית';
+  }
 }
 
 // כל הרכבים ששמורים בחשבוניות קודמות, ומאיזו חשבונית הם
@@ -721,20 +764,28 @@ async function _towPastDuplicates(plates) {
   return hit;
 }
 
+// עריכת מספר רכב שנקרא לא נכון: פותח שדה בתוך השורה; "בדוק" מצליב את המספר החדש מול האיסוף והארכיון
 function towInvEdit(i) {
-  const r = _towInv?.rows[i]; if (!r) return;
-  const v = prompt(`מספר הרכב כפי שמופיע בחשבונית (ספרות בלבד):`, r.plate);
-  if (v === null) return;
-  const p = String(v).replace(/\D/g, '');
-  if (p.length !== 7 && p.length !== 8) { showToast('מספר רכב חייב להיות 7 או 8 ספרות', 4000); return; }
-  _towReplace(i, p);
+  _towEditing = (i == null || _towEditing === i) ? null : i;
+  _towRender().then(() => { const el = document.getElementById('tow-edit-input'); if (el) { el.focus(); el.select(); } });
 }
 window.towInvEdit = towInvEdit;
+function towInvEditApply(i) {
+  const v = document.getElementById('tow-edit-input')?.value || '';
+  const p = String(v).replace(/\D/g, '');
+  if (p.length !== 7 && p.length !== 8) { showToast('מספר רכב חייב להיות 7 או 8 ספרות', 4000); return; }
+  _towEditing = null;
+  _towReplace(i, p);
+}
+window.towInvEditApply = towInvEditApply;
+function towInvPick(i, plate) { _towEditing = null; _towReplace(i, plate); }
+window.towInvPick = towInvPick;
 
 // "סמן כתקין": המנהל בדק מול הגרר שהרכב באמת נגרר — הוא יוצא מהרשימה האדומה/הכתומה ולא נספר כ"לא נמצא"
-function towInvOk(i) {
+async function towInvOk(i) {
   const r = _towInv?.rows[i]; if (!r) return;
-  r.ok = !r.ok;
+  const dups = await _towPastDuplicates(_towInv.rows.map(x => x.plate));
+  r.ok = !_towOk(r, dups);               // מצב תקין → ביטול; מצב לא תקין → אישור
   _towRender();
 }
 window.towInvOk = towInvOk;
@@ -764,6 +815,10 @@ async function _towReplace(i, plate) {
 
 async function towInvSave() {
   if (!_towInv || !_towInv.rows.length) return;
+  {
+    const dups = await _towPastDuplicates(_towInv.rows.map(r => r.plate));
+    if (_towInv.rows.some(r => !_towOk(r, dups))) { showToast('נשארו שורות שלא סומנו כתקינות', 5000); return; }
+  }
   const label = (document.getElementById('tow-inv-label')?.value || '').trim() || _towDefaultLabel();
   const btn = document.getElementById('tow-inv-save');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ שומר...'; }
@@ -771,8 +826,8 @@ async function towInvSave() {
     await _addDoc(_colRef(_TOW_INV_COL), {
       label,
       plates: _towInv.rows.map(r => r.plate),
-      missing: _towInv.rows.filter(r => !r.found && !r.ok).map(r => r.plate),
-      approved: _towInv.rows.filter(r => r.ok).map(r => r.plate),
+      missing: _towInv.rows.filter(r => !r.found).map(r => r.plate),
+      approved: _towInv.rows.filter(r => r.ok === true).map(r => r.plate),
       count: _towInv.rows.length,
       createdAt: _serverTs(),
       createdBy: currentUser?.name || '',
