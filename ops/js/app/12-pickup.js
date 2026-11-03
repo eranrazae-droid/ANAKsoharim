@@ -1321,14 +1321,23 @@ function renderPickupArchiveFiltered() {
   _renderPickupArchive(_pickupArchiveCars);
 }
 window.renderPickupArchiveFiltered = renderPickupArchiveFiltered;
+function renderTowArchive() { _renderArchiveInto('tow-archive-body', 'tow-archive-search', _pickupArchiveCars || [], true); }
+window.renderTowArchive = renderTowArchive;
 
 function _renderPickupArchive(docs) {
-  const body = document.getElementById('pickup-archive-body');
-  if (!body || !_pickupArchiveOpen) return;
-  const term = (document.getElementById('pickup-archive-search')?.value || '').trim().toLowerCase();
-  let filtered = docs;
+  _renderArchiveInto('pickup-archive-body', 'pickup-archive-search', docs, false);
+  _renderArchiveInto('tow-archive-body', 'tow-archive-search', docs, true);
+  const tc = document.getElementById('tow-archive-count');
+  if (tc) tc.textContent = (docs || []).length ? `${docs.length} רכבים` : '';
+}
+// readOnly: בעמוד ההצלבה הארכיון הוא לבדיקה בלבד — בלי כפתור "החזרה לאיסוף"
+function _renderArchiveInto(bodyId, searchId, docs, readOnly) {
+  const body = document.getElementById(bodyId);
+  if (!body || (!readOnly && !_pickupArchiveOpen)) return;
+  const term = (document.getElementById(searchId)?.value || '').trim().toLowerCase();
+  let filtered = docs || [];
   if (term) {
-    filtered = docs.filter(c => [c.plate, c.type, c.brand, c.year, c.color, c.city, c.address, c.contact, c.collectedBy, c.collectedByText]
+    filtered = filtered.filter(c => [c.plate, c.type, c.brand, c.year, c.color, c.city, c.address, c.contact, c.collectedBy, c.collectedByText]
       .filter(Boolean).join(' ').toLowerCase().includes(term));
   }
   if (!filtered.length) {
@@ -1351,8 +1360,8 @@ function _renderPickupArchive(docs) {
         <div style="text-align:left;flex-shrink:0;font-size:12px;color:var(--muted)">
           ${dt ? `<div>🕐 ${e(dt)}</div>` : ''}
           ${c.collectedBy ? `<div style="font-weight:700;color:#16a34a;margin-top:3px">✅ ${e(c.collectedBy)}</div>` : ''}
-          <button type="button" onclick="restorePickupCar('${e(c.id)}')" title="מחזיר את הרכב לרשימת האיסוף"
-            style="margin-top:8px;background:var(--card);color:var(--muted);border:1px solid var(--border);border-radius:999px;padding:5px 11px;font-family:Heebo,sans-serif;font-size:11.5px;font-weight:800;cursor:pointer;white-space:nowrap">↩️ החזרה לאיסוף</button>
+          ${readOnly ? '' : `<button type="button" onclick="restorePickupCar('${e(c.id)}')" title="מחזיר את הרכב לרשימת האיסוף"
+            style="margin-top:8px;background:var(--card);color:var(--muted);border:1px solid var(--border);border-radius:999px;padding:5px 11px;font-family:Heebo,sans-serif;font-size:11.5px;font-weight:800;cursor:pointer;white-space:nowrap">↩️ החזרה לאיסוף</button>`}
         </div>
       </div>
       ${c.collectedByText ? `<div style="margin-top:8px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px">🧾 נאסף על ידי: <b>${e(c.collectedByText)}</b></div>` : ''}

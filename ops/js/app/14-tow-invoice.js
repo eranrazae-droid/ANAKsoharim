@@ -109,6 +109,10 @@ function openTowInvoice() {
   if (badge) badge.textContent = currentUser?.name || '';
   showScreen('tow');                    // עמוד נפרד, רק להצלבה
   _towListenSaved();
+  // הארכיון והרשימה צריכים להיות טעונים גם כשנכנסים ישר לעמוד (למשל אחרי רענון)
+  try { if (!_pickupArchiveLoaded) loadPickupArchiveCount(); } catch (e) {}
+  try { if (typeof _pickupAllCars === 'undefined' || !_pickupAllCars.length) loadPickupCars(); } catch (e) {}
+  try { _renderPickupArchive(_pickupArchiveCars || []); } catch (e) {}
   window.scrollTo(0, 0);
 }
 window.openTowInvoice = openTowInvoice;
