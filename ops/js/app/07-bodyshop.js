@@ -746,7 +746,7 @@ function bshopOpenFill(id) {
         ${it.addedByShop ? `<div style="font-size:12px;font-weight:800;color:#b45309">➕ איברהים הוסיף</div>` : ''}
       </div>
       ${!_bshopFillMgr
-        ? `<input type="text" inputmode="numeric" class="form-input bshop-price" data-i="${i}"
+        ? `<input type="text" inputmode="numeric" enterkeyhint="next" class="form-input bshop-price" data-i="${i}"
              value="${it.price != null && it.price !== '' ? it.price : ''}" placeholder="מחיר"
              onfocus="_bshopCaretEnd(this)" oninput="this.value=this.value.replace(/[^0-9]/g,'');_bshopRecalc();_bshopAutoSave()"
              onblur="_bshopAutoSave(true)" style="width:110px;text-align:center;font-size:17px;font-weight:800">`
@@ -811,6 +811,58 @@ function _bshopSyncPrices(j) {
     const i = Number(el.dataset.i);
     if (j.items?.[i]) j.items[i].price = el.value === '' ? null : Number(el.value);
   });
+}
+
+/* מקלדת המספרים באייפון אין בה אנטר. לכן כשהאצבע בשדה מחיר מופיע כפתור
+   "הבא ◀" צמוד למקלדת, ואנטר במקלדת רגילה עושה אותו דבר: עוברים ישר
+   לחלק הבא, והמקלדת נשארת פתוחה. בשדה האחרון הכפתור הופך ל"סיום". */
+let _bshopNextBtn = null;
+function _bshopPriceFields() { return [...document.querySelectorAll('#bshop-fill-items .bshop-price')]; }
+function _bshopGoNext(from) {
+  const all = _bshopPriceFields();
+  const i = all.indexOf(from);
+  const next = i >= 0 ? all[i + 1] : null;
+  if (next) { next.focus(); try { next.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) {} }
+  else if (from) from.blur();
+}
+function _bshopPlaceNext() {
+  const b = _bshopNextBtn; if (!b || b.style.display === 'none') return;
+  const vv = window.visualViewport;
+  const bottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
+  b.style.top = Math.max(8, bottom - b.offsetHeight - 10) + 'px';
+}
+function _bshopNextUpdate() {
+  const el = document.activeElement;
+  const on = !!(el && el.classList && el.classList.contains('bshop-price') && el.closest('#bshop-fill-items'));
+  if (!_bshopNextBtn) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.style.cssText = 'position:fixed;left:12px;z-index:2000;display:none;background:var(--gold,#d4af37);color:#000;border:none;border-radius:999px;padding:11px 22px;font-family:Heebo,sans-serif;font-size:16px;font-weight:900;box-shadow:0 3px 12px rgba(0,0,0,.3);cursor:pointer';
+    // לא לקחת את המיקוד מהשדה — אחרת המקלדת נסגרת
+    b.addEventListener('mousedown', e => e.preventDefault());
+    b.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
+    b.addEventListener('click', () => { const a = document.activeElement; if (a && a.classList.contains('bshop-price')) _bshopGoNext(a); });
+    document.body.appendChild(b);
+    _bshopNextBtn = b;
+  }
+  if (on) {
+    const all = _bshopPriceFields();
+    _bshopNextBtn.textContent = all.indexOf(el) < all.length - 1 ? 'הבא ◀' : '✓ סיום';
+    _bshopNextBtn.style.display = '';
+    _bshopPlaceNext();
+  } else _bshopNextBtn.style.display = 'none';
+}
+document.addEventListener('focusin', () => setTimeout(_bshopNextUpdate, 60));
+document.addEventListener('focusout', () => setTimeout(_bshopNextUpdate, 120));
+document.addEventListener('keydown', e => {
+  const t = e.target;
+  if (e.key === 'Enter' && t && t.classList && t.classList.contains('bshop-price') && t.closest('#bshop-fill-items')) {
+    e.preventDefault(); _bshopGoNext(t);
+  }
+});
+if (window.visualViewport) {
+  visualViewport.addEventListener('resize', () => setTimeout(_bshopPlaceNext, 30));
+  visualViewport.addEventListener('scroll', _bshopPlaceNext);
 }
 
 function openBshopAddPart() {
