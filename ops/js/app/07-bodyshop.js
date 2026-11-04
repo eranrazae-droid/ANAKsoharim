@@ -829,7 +829,7 @@ function _bshopPlaceNext() {
   const b = _bshopNextBtn; if (!b || b.style.display === 'none') return;
   const vv = window.visualViewport;
   const bottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
-  b.style.top = Math.max(8, bottom - b.offsetHeight - 10) + 'px';
+  b.style.top = Math.max(8, bottom - b.offsetHeight - 2) + 'px';
 }
 function _bshopNextUpdate() {
   const el = document.activeElement;
@@ -837,11 +837,14 @@ function _bshopNextUpdate() {
   if (!_bshopNextBtn) {
     const b = document.createElement('button');
     b.type = 'button';
-    b.style.cssText = 'position:fixed;left:12px;z-index:2000;display:none;background:var(--gold,#d4af37);color:#000;border:none;border-radius:999px;padding:11px 22px;font-family:Heebo,sans-serif;font-size:16px;font-weight:900;box-shadow:0 3px 12px rgba(0,0,0,.3);cursor:pointer';
-    // לא לקחת את המיקוד מהשדה — אחרת המקלדת נסגרת
+    b.style.cssText = 'position:fixed;left:8px;z-index:2000;min-width:104px;display:none;background:var(--gold,#d4af37);color:#000;border:none;border-radius:999px;padding:13px 22px;font-family:Heebo,sans-serif;font-size:18px;font-weight:900;box-shadow:0 3px 12px rgba(0,0,0,.3);cursor:pointer';
+    // לא לקחת את המיקוד מהשדה — אחרת המקלדת נסגרת. ב-iOS ביטול touchstart מבטל גם את ה-click,
+    // ולכן הפעולה רצה ב-touchend (ובלחיצת עכבר רגילה ב-click)
+    const run = () => { const a = document.activeElement; if (a && a.classList.contains('bshop-price')) _bshopGoNext(a); };
     b.addEventListener('mousedown', e => e.preventDefault());
     b.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
-    b.addEventListener('click', () => { const a = document.activeElement; if (a && a.classList.contains('bshop-price')) _bshopGoNext(a); });
+    b.addEventListener('touchend', e => { e.preventDefault(); run(); }, { passive: false });
+    b.addEventListener('click', run);
     document.body.appendChild(b);
     _bshopNextBtn = b;
   }
