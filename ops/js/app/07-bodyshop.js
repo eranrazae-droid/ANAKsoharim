@@ -2858,7 +2858,8 @@ function _bsmMRender() {
     : `<div class="bsmm-empty"><div>${empty[0]}</div><b>${empty[1]}</b><span>${empty[2]}</span></div>`;
   const pay = (money && _bsmView === 'done' && L.ret.length)
     ? `<div class="bsmm-pay"><button onclick="bsmSettle()" style="background:var(--success)">💰 שילמתי — סגור חשבון</button>
-        <button onclick="bsmExportPdf()" style="background:var(--dark)">📄 ייצוא ל-PDF</button></div>` : '';
+        <button onclick="bsmExportPdf()" style="background:var(--dark)">📄 ייצוא ל-PDF</button>
+        <button onclick="bsmPrintPlates()" style="background:var(--dark)">🖨️ הדפסת דף עם מספרי רישוי</button></div>` : '';
 
   box.innerHTML = mainView ? `
     <div class="bsmm-sub1">${sub}</div>

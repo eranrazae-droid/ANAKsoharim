@@ -557,6 +557,42 @@ function bsmExportPdf() {
 }
 window.bsmExportPdf = bsmExportPdf;
 
+/* דף אחד עם כל מספרי הרישוי של הרכבים שסיימנו — רשת סימטרית. הטבלה מחושבת לפי
+   מספר הרכבים כך שהכל נכנס בעמוד A4 אחד; השורה האחרונה (אם חלקית) ממורכזת. */
+function bsmPrintPlates() {
+  const ret = _bshopJobs.filter(j => j.status === 'returned' && j.plate);
+  if (!ret.length) return showToast('אין רכבים להדפסה');
+  const fmt = p => { const d = String(p).replace(/\D/g, ''); return d.length === 8 ? `${d.slice(0,3)}-${d.slice(3,5)}-${d.slice(5)}` : d.length === 7 ? `${d.slice(0,2)}-${d.slice(2,5)}-${d.slice(5)}` : String(p); };
+  const plates = ret.map(j => fmt(j.plate));
+  const n = plates.length;
+  const W = 180, H = 245;                       // שטח ההדפסה במ"מ (A4 פחות שוליים וכותרת)
+  const cols = Math.max(1, Math.min(n, Math.round(Math.sqrt(n * W / H * 1.35))));
+  const rows = Math.ceil(n / cols);
+  const cellW = W / cols, cellH = Math.min(H / rows, 32);
+  const fs = Math.min(cellW / 5.6, cellH * 0.5) * 2.835;   // pt
+  const lines = [];
+  for (let i = 0; i < n; i += cols) lines.push(plates.slice(i, i + cols));
+  const today = new Date().toLocaleDateString('he-IL');
+  const body = lines.map(l => `<div class="r">${l.map(p => `<div class="c">${esc(p)}</div>`).join('')}</div>`).join('');
+  _printHtml(`<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8">
+<title>מספרי רישוי ${today}</title>
+<style>
+  @page { size: A4 portrait; margin: 12mm; }
+  html, body { margin:0; font-family: Arial, "Segoe UI", sans-serif; color:#000; }
+  h1 { text-align:center; font-size:18pt; margin:0 0 2mm; }
+  .sub { text-align:center; font-size:11pt; color:#444; margin-bottom:5mm; }
+  .g { display:flex; flex-direction:column; gap:0; height:${(cellH * rows).toFixed(1)}mm; }
+  .r { display:flex; justify-content:center; height:${cellH.toFixed(2)}mm; }
+  .c { width:${cellW.toFixed(2)}mm; display:flex; align-items:center; justify-content:center; box-sizing:border-box;
+       border:0.3mm solid #000; margin:-0.15mm; font-size:${fs.toFixed(1)}pt; font-weight:bold; direction:ltr; font-variant-numeric:tabular-nums; }
+</style></head><body>
+  <h1>מספרי רישוי — מכוניות שסיימנו</h1>
+  <div class="sub">${esc(_BSHOP_SHOP)} · ${today} · ${n} רכבים</div>
+  <div class="g">${body}</div>
+</body></html>`, 'bodyshop plates', 'שגיאה בהדפסה');
+}
+window.bsmPrintPlates = bsmPrintPlates;
+
 async function bsmSettle() {
   const ret = _bshopJobs.filter(j => j.status === 'returned');
   if (!ret.length) return;
