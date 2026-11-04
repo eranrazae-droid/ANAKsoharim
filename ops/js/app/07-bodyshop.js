@@ -350,6 +350,44 @@ function _bshopLogoHold(down) {
 }
 window._bshopLogoHold = _bshopLogoHold;
 
+/* שמירה על מסך הפחח חי: אחרי שהטלפון ישן, מעבר בין רשת לרשת או רענון עצמי,
+   החיבור לשרת יכול להיתקע בשקט — והמסך נשאר ריק בלי שום הודעה.
+   לכן: כל עוד הרכבים לא הגיעו מציגים "טוען", אחרי כמה שניות פותחים את
+   החיבור מחדש, וחזרה לאפליקציה או חזרת רשת פותחות אותו מחדש גם כן. */
+let _bshopWatchT = null, _bshopWatchTries = 0, _bshopHiddenAt = 0;
+function _bshopScreenActive() {
+  const sc = document.getElementById('screen-bodyshop');
+  return !!(sc && sc.classList.contains('active'));
+}
+function _bshopRelisten() {
+  if (!_bshopScreenActive()) return;
+  _bshopWorkerSigLast = null;
+  _bshopListen(_bshopRenderWorker);
+}
+function _bshopStartWatch() {
+  _bshopWatchTries = 0;
+  clearInterval(_bshopWatchT);
+  const t0 = Date.now();
+  _bshopWatchT = setInterval(() => {
+    if (!_bshopScreenActive()) { clearInterval(_bshopWatchT); return; }
+    if (_bshopJobsLoaded) { clearInterval(_bshopWatchT); return; }
+    const c = document.getElementById('bshop-open');
+    const waited = Math.round((Date.now() - t0) / 1000);
+    if (c && !c.querySelector('[data-bshop-retry]') && !c.querySelector('.bshop-card, .bshop-job')) {
+      c.innerHTML = `<div class="bshop-span" data-bshop-retry style="padding:24px;text-align:center;color:var(--muted);font-weight:800">⏳ טוען את הרכבים… (${waited} שנ׳)<br><button onclick="_bshopRelisten()" style="margin-top:10px;padding:8px 18px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface2);font-family:Heebo,sans-serif;font-weight:900;cursor:pointer">🔄 נסה שוב</button></div>`;
+    }
+    // אחרי 8 שניות בלי תשובה — פותחים את החיבור מחדש (עד 5 פעמים)
+    if (waited >= 8 * (_bshopWatchTries + 1) && _bshopWatchTries < 5) { _bshopWatchTries++; _bshopRelisten(); }
+  }, 2000);
+}
+window._bshopRelisten = _bshopRelisten;
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') { _bshopHiddenAt = Date.now(); return; }
+  // חזרה אחרי יותר מדקה — החיבור כנראה ישן
+  if (_bshopScreenActive() && _bshopHiddenAt && Date.now() - _bshopHiddenAt > 60000) { _bshopRelisten(); _bshopStartWatch(); }
+});
+window.addEventListener('online', () => { if (_bshopScreenActive()) { _bshopRelisten(); _bshopStartWatch(); } });
+
 function openBodyShopScreen() {
   try { _watchForceLogout(_realUser?.uid); } catch (e) {}
   showScreen('bodyshop');
@@ -358,6 +396,7 @@ function openBodyShopScreen() {
   if (back) back.style.display = (_realUser?.role === 'manager') ? '' : 'none';
   bshopShowView('open');   // always opens on the cars in the shop
   _bshopListen(_bshopRenderWorker);
+  _bshopStartWatch();
 }
 window.openBodyShopScreen = openBodyShopScreen;
 
