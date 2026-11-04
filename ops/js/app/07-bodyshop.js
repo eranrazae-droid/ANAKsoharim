@@ -151,14 +151,16 @@ function _bshopListen(onChange) {
     const im = document.getElementById('modal-bsm-items');
     if (im && im.classList.contains('open')) _bsmRenderCatalog();
   });
-  // the archive is shown to the manager and to the panel beater alike — he
-  // needs to see what he was already paid for
-  _bshopUnsubArc = _onSnap(_colRef('bodyshop_archive'), snap => {
-    _bshopArchive = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-      .sort((a, b) => String(b.paidAt || '').localeCompare(String(a.paidAt || '')));
-    _bsmRenderArchive();
-    _bshopRenderWorkerArchive();
-  });
+  // הארכיון גדול ומתחרה על אותו חיבור — נפתח רק אחרי שהרכבים עצמם הגיעו
+  const _openArchive = () => {
+    if (_bshopUnsubArc) return;
+      _bshopUnsubArc = _onSnap(_colRef('bodyshop_archive'), snap => {
+      _bshopArchive = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => String(b.paidAt || '').localeCompare(String(a.paidAt || '')));
+      _bsmRenderArchive();
+      _bshopRenderWorkerArchive();
+    });
+  };
   // Only the open cycle is loaded. Paid jobs stay in the database untouched —
   // they are simply not fetched, so the screens stay fast however many notes
   // pile up over the years.
@@ -167,8 +169,11 @@ function _bshopListen(onChange) {
       // החדש למעלה בכל המסכים. פתק ישן בלי createdAt יורד לסוף במקום
       // לקפוץ לראש.
       .sort((a, b) => (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0));
+    if (!_bshopJobsLoaded) _bshopWorkerSigLast = null;   // העותק השמור היה בלי תמונות — מציירים מחדש מהנתונים החיים
     _bshopJobsLoaded = true;
+    _bshopCacheSave();
     onChange();
+    _openArchive();
   }, err => {
     console.error('bodyshop jobs listen error:', err);
     showToast('⚠️ בעיה בטעינת הרכבים — רענן את הדף');
@@ -350,10 +355,44 @@ function _bshopLogoHold(down) {
 }
 window._bshopLogoHold = _bshopLogoHold;
 
-/* שמירה על מסך הפחח חי: אחרי שהטלפון ישן, מעבר בין רשת לרשת או רענון עצמי,
-   החיבור לשרת יכול להיתקע בשקט — והמסך נשאר ריק בלי שום הודעה.
-   לכן: כל עוד הרכבים לא הגיעו מציגים "טוען", אחרי כמה שניות פותחים את
-   החיבור מחדש, וחזרה לאפליקציה או חזרת רשת פותחות אותו מחדש גם כן. */
+/* מסך הפחח נטען מהר גם בחיבור איטי: העותק האחרון של הרכבים (בלי התמונות הכבדות)
+   נשמר במכשיר ומוצג מיד, ובינתיים הנתונים העדכניים יורדים מהשרת ומחליפים אותו.
+   כך הוא לא מחכה למסך ריק בכל פתיחה, ואין "תקיעה" של הציור. */
+const _BSHOP_JOBS_CACHE = 'anak_bshop_jobs_v1';
+function _bshopCacheSave() {
+  if (currentUser?.role !== 'bodyshop') return;
+  try {
+    const slim = _bshopJobs.map(j => {
+      const o = { ...j };
+      for (const k of ['photo', 'photoThumb']) if (typeof o[k] === 'string' && o[k].length > 3000) o[k] = '';
+      return o;
+    });
+    localStorage.setItem(_BSHOP_JOBS_CACHE, JSON.stringify(slim));
+  } catch (e) { /* אחסון מלא — מדלגים */ }
+}
+function _bshopCacheLoad() {
+  try {
+    const arr = JSON.parse(localStorage.getItem(_BSHOP_JOBS_CACHE) || 'null');
+    if (!Array.isArray(arr) || !arr.length) return null;
+    // תאריכי Firestore חוזרים מהאחסון כאובייקט פשוט — מחזירים להם toMillis
+    const rev = v => {
+      if (Array.isArray(v)) return v.map(rev);
+      if (v && typeof v === 'object') {
+        if (typeof v.seconds === 'number' && typeof v.nanoseconds === 'number') {
+          const ms = v.seconds * 1000 + Math.floor(v.nanoseconds / 1e6);
+          return { ...v, toMillis: () => ms, toDate: () => new Date(ms) };
+        }
+        const o = {}; for (const k in v) o[k] = rev(v[k]); return o;
+      }
+      return v;
+    };
+    return arr.map(rev);
+  } catch (e) { return null; }
+}
+
+/* שמירה על מסך הפחח חי: אחרי שהטלפון ישן או בחיבור איטי, הרכבים יכולים להגיע
+   לאט מאוד. מציגים חיווי עם שניות שרצות, ופותחים חיבור מחדש רק אחרי זמן ארוך —
+   פתיחה מחדש בכל כמה שניות מבטלת את מה שכבר ירד ורק מאריכה את ההמתנה. */
 let _bshopWatchT = null, _bshopWatchTries = 0, _bshopHiddenAt = 0;
 function _bshopScreenActive() {
   const sc = document.getElementById('screen-bodyshop');
@@ -369,18 +408,25 @@ function _bshopStartWatch() {
   clearInterval(_bshopWatchT);
   const t0 = Date.now();
   _bshopWatchT = setInterval(() => {
-    if (!_bshopScreenActive()) { clearInterval(_bshopWatchT); return; }
-    if (_bshopJobsLoaded) { clearInterval(_bshopWatchT); return; }
-    const c = document.getElementById('bshop-open');
+    if (!_bshopScreenActive() || _bshopJobsLoaded) { clearInterval(_bshopWatchT); const n = document.getElementById('bshop-sync-note'); if (n) n.remove(); return; }
     const waited = Math.round((Date.now() - t0) / 1000);
-    if (c && !c.querySelector('[data-bshop-retry]') && !c.querySelector('.bshop-card, .bshop-job')) {
-      c.innerHTML = `<div class="bshop-span" data-bshop-retry style="padding:24px;text-align:center;color:var(--muted);font-weight:800">⏳ טוען את הרכבים… (${waited} שנ׳)<br><button onclick="_bshopRelisten()" style="margin-top:10px;padding:8px 18px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface2);font-family:Heebo,sans-serif;font-weight:900;cursor:pointer">🔄 נסה שוב</button></div>`;
+    const c = document.getElementById('bshop-open');
+    if (!c) return;
+    const msg = `⏳ ${_bshopJobs.length ? 'מעדכן' : 'טוען את הרכבים'}… ${waited} שנ׳${waited > 15 ? ' · החיבור איטי' : ''}`;
+    if (_bshopJobs.length) {
+      // יש עותק שמור על המסך — רק פס קטן, בלי להסתיר את הרכבים
+      let n = document.getElementById('bshop-sync-note');
+      if (!n) { n = document.createElement('div'); n.id = 'bshop-sync-note'; n.style.cssText = 'text-align:center;font-size:12px;font-weight:800;color:var(--muted);padding:4px'; c.parentNode.insertBefore(n, c); }
+      n.textContent = msg;
+    } else {
+      c.innerHTML = `<div class="bshop-span" style="padding:24px;text-align:center;color:var(--muted);font-weight:800">${msg}<br><button onclick="_bshopRelisten();_bshopStartWatch()" style="margin-top:10px;padding:8px 18px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface2);font-family:Heebo,sans-serif;font-weight:900;cursor:pointer">🔄 נסה שוב</button></div>`;
     }
-    // אחרי 8 שניות בלי תשובה — פותחים את החיבור מחדש (עד 5 פעמים)
-    if (waited >= 8 * (_bshopWatchTries + 1) && _bshopWatchTries < 5) { _bshopWatchTries++; _bshopRelisten(); }
-  }, 2000);
+    // רק אחרי 45 שניות בלי שום תשובה, ופעם אחת
+    if (waited >= 45 && _bshopWatchTries < 1) { _bshopWatchTries++; _bshopRelisten(); }
+  }, 1000);
 }
 window._bshopRelisten = _bshopRelisten;
+window._bshopStartWatch = _bshopStartWatch;
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') { _bshopHiddenAt = Date.now(); return; }
   // חזרה אחרי יותר מדקה — החיבור כנראה ישן
@@ -395,6 +441,10 @@ function openBodyShopScreen() {
   const back = document.getElementById('bshop-back-mgr');
   if (back) back.style.display = (_realUser?.role === 'manager') ? '' : 'none';
   bshopShowView('open');   // always opens on the cars in the shop
+  if (!_bshopJobsLoaded && !_bshopJobs.length && currentUser?.role === 'bodyshop') {
+    const cached = _bshopCacheLoad();
+    if (cached) { _bshopJobs = cached; _bshopWorkerSigLast = null; try { _bshopRenderWorker(true); } catch (e) {} }
+  }
   _bshopListen(_bshopRenderWorker);
   _bshopStartWatch();
 }
