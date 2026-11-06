@@ -2299,7 +2299,7 @@ async function pushEnable() {
   try { perm = await Notification.requestPermission(); }
   catch (e) { return showToast('לא ניתן לבקש הרשאה: ' + e.message, 7000); }
   if (perm === 'denied') {
-    return showToast('ההתראות חסומות. יש לאפשר אותן בהגדרות הטלפון עבור האתר הזה.', 10000);
+    return showToast('ההתראות חסומות בדפדפן. לחץ על סמל המנעול ליד כתובת האתר ← הרשאות ← התראות ← אפשר. אחר כך חזור ולחץ הפעל.', 14000);
   }
   if (perm !== 'granted') return showToast('ההרשאה לא ניתנה', 5000);
   try {
@@ -2430,7 +2430,7 @@ async function _pushRenderRow() {
     status.textContent =
       st === 'no' ? 'הדפדפן הזה אינו תומך בהתראות'
       : st === 'ios-home' ? 'באייפון: יש לפתוח את האפליקציה מהקיצור שבמסך הבית'
-      : perm === 'denied' ? 'ההתראות חסומות בהגדרות הטלפון'
+      : perm === 'denied' ? 'ההתראות חסומות בדפדפן — מנעול ליד כתובת האתר ← הרשאות ← התראות ← אפשר'
       : on ? '✅ פעיל במכשיר הזה' : 'לא פעיל במכשיר הזה';
     status.style.color = on ? '#16a34a' : 'var(--muted)';
   }
