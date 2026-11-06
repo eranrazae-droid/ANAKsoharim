@@ -2968,6 +2968,7 @@ function _bsmMRenderSheet() {
   }
   const sec = `<div class="bsmm-mini">
       <div onclick="bsmAddPhoto('${id}')">📷 ${src ? 'החלף תמונה' : 'הוסף תמונה'}</div>
+      <div onclick="bsmPrint('${id}')">🖨️ הדפס פתק</div>
       ${j.status === 'at_shop' ? `<div onclick="bsmReturnToDraft('${id}')">↩ החזר לממתין לשליחה</div>` : ''}
       ${j.status !== 'returned' ? `<div onclick="bsmSetHold('${id}',true)">❄️ הקפאה</div><div class="rm" onclick="bsmDeleteOne('job:${id}')">🗑 מחיקה</div>` : ''}
     </div>`;

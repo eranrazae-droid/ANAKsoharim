@@ -1703,6 +1703,7 @@ function openBsmSendModal() {
   _bsmThumb = null;
   _bsmVideoFile = null;
   _bsmVideoInfo = null;
+  _bsmNoVideo = false;
   _bsmUpl = null;
   _bsmRenderVideo();
   _bsmSyncVideoLabel();

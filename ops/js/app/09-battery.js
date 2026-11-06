@@ -12,17 +12,21 @@ window.bsmAddPhotoPicked = bsmAddPhotoPicked;
    2. בחירה מהגלריה (משני) — iOS ידחוס. הרזולוציה שמתקבלת מוצגת.
    הקובץ נשלח לקבוצה כ-document — בייט-בבייט, טלגרם לא נוגע בו.       */
 let _bsmVideoFile = null, _bsmVideoInfo = null;
+let _bsmNoVideo = false;   // סומן ידנית: לרכב הזה אין צורך בסרטון
 
 /* רכב משנת 2019 ומטה לא חייב סרטון תיעוד. השנה נקראת מתיאור הרכב (שנמשך מהמאגר, וניתן לעריכה);
    אם אין בו שנה — הסרטון נשאר חובה. */
 function _bsmVideoOptional() {
+  if (_bsmNoVideo) return true;
   const m = String(document.getElementById('bsm-desc')?.value || '').match(/(?<!\d)(19[5-9]\d|20[0-3]\d)(?!\d)/);
   return !!m && Number(m[1]) <= 2019;
 }
 function _bsmSyncVideoLabel() {
   const el = document.getElementById('bsm-video-label');
   if (!el) return;
-  el.innerHTML = _bsmVideoOptional()
+  el.innerHTML = _bsmNoVideo
+    ? '🎥 סרטון תיעוד <span style="font-weight:600;color:var(--muted)">(לא נדרש — סומן שאין צורך)</span>'
+    : _bsmVideoOptional()
     ? '🎥 סרטון תיעוד <span style="font-weight:600;color:var(--muted)">(לא חובה — רכב משנת 2019 ומטה)</span>'
     : '🎥 סרטון תיעוד <span style="color:#ef4444">*</span> <span style="font-weight:600;color:var(--muted)">(חובה — יישלח לקבוצת הפחחות)</span>';
 }
@@ -42,10 +46,16 @@ function _bsmRenderVideo() {
         </div>
         <button type="button" onclick="bsmClearVideo()" style="background:#ef4444;color:#fff;border:none;border-radius:8px;width:30px;height:30px;cursor:pointer;flex-shrink:0">🗑</button>
       </div>`;
+  } else if (_bsmNoVideo) {
+    w.innerHTML = `<div style="display:flex;align-items:center;gap:10px;border:2px solid #16a34a;border-radius:12px;padding:10px 12px;background:#f0fdf4">
+        <div style="flex:1;font-weight:800;font-size:13px">🚫 אין צורך בסרטון לרכב הזה</div>
+        <button type="button" onclick="bsmSetNoVideo(false)" style="background:var(--surface2);border:1.5px solid var(--border);border-radius:8px;padding:6px 12px;font-family:Heebo,sans-serif;font-weight:800;font-size:12px;cursor:pointer">↩ בטל</button>
+      </div>`;
   } else {
     w.innerHTML = `
       <button type="button" onclick="bsrOpen()" style="width:100%;background:#7c3aed;color:#fff;border:none;border-radius:10px;padding:12px;font-family:Heebo,sans-serif;font-weight:800;font-size:15px;cursor:pointer">🎥 צלם סרטון (איכות גבוהה)</button>
-      <button type="button" onclick="document.getElementById('bsm-video-file').click()" style="width:100%;margin-top:6px;background:var(--surface2);color:var(--muted);border:1.5px dashed var(--border);border-radius:10px;padding:8px;font-family:Heebo,sans-serif;font-weight:700;font-size:12px;cursor:pointer">🖼 או בחר מהגלריה (iOS מוריד איכות)</button>`;
+      <button type="button" onclick="document.getElementById('bsm-video-file').click()" style="width:100%;margin-top:6px;background:var(--surface2);color:var(--muted);border:1.5px dashed var(--border);border-radius:10px;padding:8px;font-family:Heebo,sans-serif;font-weight:700;font-size:12px;cursor:pointer">🖼 או בחר מהגלריה (iOS מוריד איכות)</button>
+      <button type="button" onclick="bsmSetNoVideo(true)" style="width:100%;margin-top:6px;background:#fff7ed;color:#9a3412;border:1.5px solid #fdba74;border-radius:10px;padding:10px;font-family:Heebo,sans-serif;font-weight:800;font-size:14px;cursor:pointer">🚫 אין צורך בסרטון לרכב הזה</button>`;
   }
 }
 
@@ -73,6 +83,8 @@ async function bsmPickVideo(input) {
   _bsmStartVideoUpload();
 }
 window.bsmPickVideo = bsmPickVideo;
+function bsmSetNoVideo(on) { _bsmNoVideo = !!on; if (on) { _bsmVideoFile = null; _bsmVideoInfo = null; _bsmUpl = null; } _bsmRenderVideo(); _bsmSyncVideoLabel(); }
+window.bsmSetNoVideo = bsmSetNoVideo;
 function bsmClearVideo() { _bsmVideoFile = null; _bsmVideoInfo = null; _bsmUpl = null; _bsmRenderVideo(); }
 window.bsmClearVideo = bsmClearVideo;
 
@@ -440,7 +452,7 @@ async function submitBsmSend() {
   }
   const hadVideo = !!_bsmVideoFile;
   _bsmUpl = null;
-  _bsmVideoFile = null; _bsmVideoInfo = null;
+  _bsmVideoFile = null; _bsmVideoInfo = null; _bsmNoVideo = false;
   if (btn) { btn.disabled = false; btn.textContent = '📝 צור פתק'; }
 
   // תמונת מצב של הטופס, סגירה מיידית, וכתיבה ברקע — בלי דיליי
