@@ -2260,7 +2260,9 @@ function bsPendingFile(id) {
   window.open(src, '_blank');
 }
 
-// הזמנה שנוצרה בלי קובץ: מצרפים חשבונית אחר כך. נשמרת על ההזמנה, ועוברת איתה לארכיון כשההזמנה מגיעה
+// הזמנה שנוצרה בלי קובץ: מצרפים חשבונית אחר כך. החשבונית נבדקת מול ההזמנה,
+// ואם יש הבדל — נפתח חלון עריכה שמציע לעדכן את ההזמנה לפי החשבונית.
+let _bsAttach = null;
 function bsPendingAttach(id) {
   const p = _bsPending.find(x => x.id === id);
   if (!p) return;
@@ -2268,19 +2270,63 @@ function bsPendingAttach(id) {
   inp.type = 'file'; inp.accept = 'application/pdf,image/*';
   inp.onchange = async () => {
     const f = inp.files && inp.files[0]; if (!f) return;
-    showToast('⏳ מצרף את החשבונית...', 3000);
-    try {
-      const up = await _bsArrUpload({ file: f, name: f.name || 'חשבונית' });
-      await _updateDoc(_docRef('battery_pending', id), { fileName: up.name, file: up.data, updatedAt: _serverTs() });
-      showToast('✅ החשבונית צורפה להזמנה', 4000);
-    } catch (e) {
+    showToast('⏳ בודק את החשבונית מול ההזמנה...', 4000);
+    let up;
+    try { up = await _bsArrUpload({ file: f, name: f.name || 'חשבונית' }); }
+    catch (e) {
       console.error('pending attach', e);
-      showToast(e && e.message === 'file-too-big' ? 'הקובץ גדול מדי לשמירה — צרף קובץ קטן יותר (עד כ-380KB)' : 'הצירוף נכשל: ' + (e.code || e.message), 7000);
+      return showToast(e && e.message === 'file-too-big' ? 'הקובץ גדול מדי לשמירה — צרף קובץ קטן יותר (עד כ-380KB)' : 'הצירוף נכשל: ' + (e.code || e.message), 7000);
     }
+    const save = async (extra, msg) => {
+      try {
+        await _updateDoc(_docRef('battery_pending', id), { fileName: up.name, file: up.data, updatedAt: _serverTs(), ...(extra || {}) });
+        showToast(msg || '✅ החשבונית צורפה להזמנה', 5000);
+      } catch (e) { console.error('pending attach save', e); showToast('הצירוף נכשל: ' + (e.code || e.message), 7000); }
+    };
+    // תמונה אי אפשר לקרוא אוטומטית — נשמרת בלי בדיקה
+    if (!/\.pdf$/i.test(f.name || '') && f.type !== 'application/pdf') return save(null, '✅ החשבונית צורפה (תמונה — לא נבדקה מול ההזמנה)');
+    let r;
+    try { r = _bsParseInvoice(await _bsPdfCells(await f.arrayBuffer())); } catch (e) { r = null; }
+    if (!r || r.error || !r.items?.length) return save(null, '✅ החשבונית צורפה, אבל לא הצלחנו לקרוא אותה לבדיקה מול ההזמנה');
+    const msgs = _bsArrCompare(r, { take: p.lines || [], sku: null }, p);
+    if (!msgs.length) return save(null, '✅ החשבונית צורפה והיא תואמת להזמנה');
+    // לא תואמת — חלון שבו מתקנים את ההזמנה (ההצעה: לפי החשבונית)
+    const goods = r.items.filter(it => !/אריזה|אריזות/.test(it.desc || '') && !/אריזה/.test(it.sku || ''));
+    _bsAttach = { id, save, r, msgs, rows: goods.map((it, i) => {
+      const known = _bsCatFind(it.sku);
+      return { k: i, sku: it.sku, model: known?.model || _bsCleanModel(it), price: String(it.unit), qty: String(it.qty) };
+    }) };
+    _bsAttachRender();
+    openModal('modal-bs-attach');
   };
   inp.click();
 }
 window.bsPendingAttach = bsPendingAttach;
+
+function _bsAttachRender() {
+  const a = _bsAttach; if (!a) return;
+  const m = document.getElementById('bsat-msgs'), l = document.getElementById('bsat-rows');
+  if (m) m.innerHTML = a.msgs.map(t => `<div style="padding:3px 0">• ${esc(t)}</div>`).join('');
+  if (l) l.innerHTML = a.rows.map(r => `<div style="display:flex;align-items:center;gap:6px;padding:8px 0;border-top:1px dashed #fcd34d">
+      <div style="flex:1;min-width:0"><div style="font-weight:800;font-size:13px">${esc(r.model)}</div><div style="font-size:11px;color:#92400e;font-weight:800">מק״ט ${esc(r.sku)}</div></div>
+      <input type="text" inputmode="numeric" value="${esc(r.qty)}" oninput="bsAttachSet(${r.k},'qty',this.value.replace(/\\D/g,''))" aria-label="כמות" style="width:52px;text-align:center;padding:7px 4px;border:1.5px solid var(--border);border-radius:8px;font-family:Heebo,sans-serif;font-weight:800;font-size:15px">
+      <input type="text" inputmode="decimal" value="${esc(r.price)}" oninput="bsAttachSet(${r.k},'price',this.value.replace(/[^0-9.]/g,''))" aria-label="מחיר" style="width:74px;text-align:center;padding:7px 4px;border:1.5px solid var(--border);border-radius:8px;font-family:Heebo,sans-serif;font-weight:800;font-size:15px">
+      <button type="button" onclick="bsAttachDel(${r.k})" title="הסר שורה" style="background:#fee2e2;border:1.5px solid #fca5a5;border-radius:8px;width:32px;height:34px;cursor:pointer">✕</button>
+    </div>`).join('') || '<div style="padding:10px;color:var(--muted);font-weight:700">אין שורות</div>';
+}
+function bsAttachSet(k, f, v) { const r = _bsAttach?.rows.find(x => x.k === k); if (r) r[f] = v; }
+function bsAttachDel(k) { if (!_bsAttach) return; _bsAttach.rows = _bsAttach.rows.filter(x => x.k !== k); _bsAttachRender(); }
+async function bsAttachApply() {
+  const a = _bsAttach; if (!a) return;
+  const lines = a.rows.map(r => ({ sku: r.sku, model: r.model, price: Number(r.price) || null, qty: Number(r.qty) || 0 })).filter(l => l.qty > 0);
+  if (!lines.length) return showToast('אין שורות בהזמנה — הוסף כמות לפחות לשורה אחת');
+  const units = lines.reduce((t, l) => t + l.qty, 0);
+  closeModal('modal-bs-attach'); _bsAttach = null;
+  await a.save({ lines, units, ...(a.r.invoice ? { invoice: a.r.invoice } : {}), ...(a.r.date ? { invoiceDate: a.r.date } : {}) }, '✅ ההזמנה עודכנה לפי החשבונית והחשבונית צורפה');
+}
+async function bsAttachKeep() { const a = _bsAttach; if (!a) return; closeModal('modal-bs-attach'); _bsAttach = null; await a.save(null, '✅ החשבונית צורפה (ההזמנה לא שונתה)'); }
+function bsAttachCancel() { _bsAttach = null; closeModal('modal-bs-attach'); }
+Object.assign(window, { bsAttachSet, bsAttachDel, bsAttachApply, bsAttachKeep, bsAttachCancel });
 window.bsPendingFile = bsPendingFile;
 
 /* ═══ reading a supplier invoice (PDF) ═══════════════════════════════
