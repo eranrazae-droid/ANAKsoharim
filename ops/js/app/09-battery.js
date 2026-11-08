@@ -1563,8 +1563,10 @@ function _bsPendingHtml() {
       <div style="padding:10px 12px;display:flex;gap:8px;border-top:1px dashed #fcd34d">
         <button onclick="bsPendingArrive('${esc(p.id)}')"
           style="flex:1;min-width:0;background:var(--dark);color:#fff;border:none;border-radius:10px;height:40px;font-family:Heebo,sans-serif;font-weight:800;font-size:13px;cursor:pointer;white-space:nowrap">✅ כל ההזמנה הגיעה</button>
-        ${(p.file || p.fileUrl) ? `<button onclick="bsPendingFile('${esc(p.id)}')" title="החשבונית"
-          style="flex:0 0 44px;background:var(--surface2);border:2px solid var(--border);border-radius:10px;height:40px;font-size:15px;cursor:pointer">📄</button>` : ''}
+        ${(p.file || p.fileUrl) ? `<button onclick="bsPendingFile('${esc(p.id)}')" title="פתיחת החשבונית"
+          style="flex:0 0 44px;background:var(--surface2);border:2px solid var(--border);border-radius:10px;height:40px;font-size:15px;cursor:pointer">📄</button>`
+          : `<button onclick="bsPendingAttach('${esc(p.id)}')" title="צרף חשבונית"
+          style="flex:0 0 44px;background:#fffbeb;border:2px solid #fcd34d;border-radius:10px;height:40px;font-size:17px;cursor:pointer">📎</button>`}
         <button onclick="bsPendingCancel('${esc(p.id)}')" title="ביטול ההזמנה"
           style="flex:0 0 44px;background:#fee2e2;border:2px solid #fca5a5;border-radius:10px;height:40px;font-size:15px;cursor:pointer">🗑</button>
       </div>
@@ -2242,8 +2244,43 @@ function bsPendingFile(id) {
   if (!p) return;
   const src = p.fileUrl || p.file;
   if (!src) return showToast('לא נשמר קובץ להזמנה הזאת');
+  // דפדפנים חוסמים פתיחה של data: בלשונית חדשה — ממירים לקובץ זמני
+  if (/^data:/.test(src)) {
+    try {
+      const [head, b64] = src.split(',');
+      const mime = (head.match(/data:([^;]+)/) || [])[1] || 'application/octet-stream';
+      const bin = atob(b64), arr = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      const url = URL.createObjectURL(new Blob([arr], { type: mime }));
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      return;
+    } catch (e) { /* ניסיון רגיל למטה */ }
+  }
   window.open(src, '_blank');
 }
+
+// הזמנה שנוצרה בלי קובץ: מצרפים חשבונית אחר כך. נשמרת על ההזמנה, ועוברת איתה לארכיון כשההזמנה מגיעה
+function bsPendingAttach(id) {
+  const p = _bsPending.find(x => x.id === id);
+  if (!p) return;
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'application/pdf,image/*';
+  inp.onchange = async () => {
+    const f = inp.files && inp.files[0]; if (!f) return;
+    showToast('⏳ מצרף את החשבונית...', 3000);
+    try {
+      const up = await _bsArrUpload({ file: f, name: f.name || 'חשבונית' });
+      await _updateDoc(_docRef('battery_pending', id), { fileName: up.name, file: up.data, updatedAt: _serverTs() });
+      showToast('✅ החשבונית צורפה להזמנה', 4000);
+    } catch (e) {
+      console.error('pending attach', e);
+      showToast(e && e.message === 'file-too-big' ? 'הקובץ גדול מדי לשמירה — צרף קובץ קטן יותר (עד כ-380KB)' : 'הצירוף נכשל: ' + (e.code || e.message), 7000);
+    }
+  };
+  inp.click();
+}
+window.bsPendingAttach = bsPendingAttach;
 window.bsPendingFile = bsPendingFile;
 
 /* ═══ reading a supplier invoice (PDF) ═══════════════════════════════
