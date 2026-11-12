@@ -3385,6 +3385,23 @@ async function extractTextFromImage(input) {
         for (let yy = 0; yy < H; yy++) {
           if (darkCount[yy] > W * 0.5) { const off = yy*W*4; for (let x = 0; x < W; x++) { const i = off + x*4; d[i]=d[i+1]=d[i+2]=255; } }
         }
+        /* בצילום, קווי הטבלה האופקיים לא תמיד שחורים לכל הרוחב, ולכן נשארים מהם שאריות שמחברות
+           כמה שורות לפס אחד (נקראו 2 רכבים מתוך 5). מוחקים כל רצף שחור אופקי ארוך —
+           ספרה או אות אינן יותר מכמה עשרות פיקסלים ברצף, ורק קו טבלה ארוך כל כך. */
+        if (photo) {
+          const maxRun = Math.max(60, Math.round(W * 0.04));
+          for (let yy = 0; yy < H; yy++) {
+            const off = yy * W * 4; let x = 0, cnt = 0;
+            while (x < W) {
+              if (d[off + x*4] !== 0) { x++; continue; }
+              let x1 = x; while (x1 < W && d[off + x1*4] === 0) x1++;
+              if (x1 - x > maxRun) { for (let k = x; k < x1; k++) { const i = off + k*4; d[i]=d[i+1]=d[i+2]=255; } }
+              else cnt += x1 - x;
+              x = x1;
+            }
+            darkCount[yy] = cnt;
+          }
+        }
         ctx.putImageData(id, 0, 0);
         // detect text row bands using a dynamic valley threshold that adapts to the image
         let sumDark = 0, cntRows = 0;
@@ -3400,6 +3417,12 @@ async function extractTextFromImage(input) {
           let y0 = y, y1 = y, gap = 0; y++;
           while (y < H && (isText[y] || gap < gapMax)) { if (isText[y]) { y1 = y; gap = 0; } else gap++; y++; }
           if (y1 - y0 >= minH) rows.push([Math.max(0, y0-6), Math.min(H, y1+6)]);
+        }
+        // בצילום, שורת הכותרת נדבקת לפעמים לשורה הראשונה ונהיית פס גבוה אחד — משאירים רק את חלקו התחתון
+        if (photo && rows.length >= 3) {
+          const hs = rows.slice(1).map(r => r[1] - r[0]).sort((a, b) => a - b);
+          const med = hs[hs.length >> 1];
+          if (rows[0][1] - rows[0][0] > med * 1.8) rows[0][0] = Math.max(rows[0][0], rows[0][1] - Math.round(med * 1.25));
         }
         res({ canvas: c, rows });
       };
@@ -3529,7 +3552,10 @@ async function extractTextFromImage(input) {
       if (plate) c.plate = num(plate);
       // שנה: תא של 4 ספרות שאינו נפח מנוע (נפח מופיע גם בשם הדגם, ולכן חוזר בשורה)
       const cnt = {}; for (const m of String(t).matchAll(/(?<!\d)\d{4}(?!\d)/g)) cnt[m[0]] = (cnt[m[0]] || 0) + 1;
-      const yr = cells.map(num).find(v => /^(19[89]\d|20[0-3]\d)$/.test(v) && !(cnt[v] > 1));
+      // שנת הרישוי שבתאריך הטסט (16/01/2027) אינה שנת הרכב — מעדיפים תא שנה שאינו חלק מתאריך
+      const dateYears = new Set([...String(t).matchAll(/\d{1,2}\s*[\/.]\s*\d{1,2}\s*[\/.]\s*(\d{4})/g)].map(m => m[1]));
+      const yrs = cells.map(num).filter(v => /^(19[89]\d|20[0-3]\d)$/.test(v) && !(cnt[v] > 1));
+      const yr = yrs.find(v => !dateYears.has(v));
       if (yr) c.year = yr;
       const km = cells.map(num).find(v => /^\d{1,3}[.,]\d{3}$/.test(v));
       if (km) c.km = _fmtKm(km);
@@ -3732,7 +3758,10 @@ function _parseRowText(text) {
   // מספר בן 4 ספרות שחוזר בשורה הוא נפח מנוע (מופיע גם בשם הדגם וגם בעמודת הנפח), לא שנה ולא ק״מ
   const _c4 = {}; for (const m of t.matchAll(/(?<!\d)\d{4}(?!\d)/g)) _c4[m[0]] = (_c4[m[0]] || 0) + 1;
   const _eng = n => _c4[n] > 1;
-  const yearM = [...t.matchAll(/\b(19[89]\d|20[0-3]\d)\b/g)].find(m => !_eng(m[1])) || [...t.matchAll(/(19[89]\d|20[0-3]\d)/g)].find(m => !_eng(m[1]));
+  // שנת הרישוי שבתאריך הטסט (16/01/2027) אינה שנת הרכב — מעדיפים שנה שאינה חלק מתאריך
+  const _dateYrs = new Set([...String(text).matchAll(/\d{1,2}\s*[\/.]\s*\d{1,2}\s*[\/.]\s*(\d{4})/g)].map(m => m[1]));
+  const _yearCands = [...t.matchAll(/\b(19[89]\d|20[0-3]\d)\b/g)].filter(m => !_eng(m[1]));
+  const yearM = _yearCands.find(m => !_dateYrs.has(m[1])) || _yearCands[0] || [...t.matchAll(/(19[89]\d|20[0-3]\d)/g)].find(m => !_eng(m[1]));
   const year = yearM ? yearM[1] : '';
   // km: prefer a number with a thousands separator (20,682 / 143.724); else a 4-5 digit
   // standalone that isn't the plate or the year (handles 82400 / 47000 / 6046)
