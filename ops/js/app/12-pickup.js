@@ -3309,6 +3309,28 @@ function _pkSkewAngle(img) {
   return best;
 }
 
+/* מספר רכב שנקרא בשתי דרכים שונות (או רק מחלון החילוץ) — בודקים מול מרשם הרכב ובוחרים את זה שקיים.
+   אין חיבור או שאין התאמה — נשאר המספר שנקרא מהשורה, ואם אין כזה, מחלון החילוץ. */
+async function _pkResolvePlates(parsed, setSpan) {
+  const need = parsed.filter(c => c._alts && c._alts.length && (c._fromAlt || c._alts[0] !== c.plate));
+  if (!need.length || typeof _plateLookup !== 'function') return;
+  setSpan('⏳ מאמת מספרי רכב...');
+  for (const c of need) {
+    const cands = [...new Set([c._fromAlt ? null : c.plate, ...c._alts].filter(Boolean))].slice(0, 6);
+    let recs;
+    try { recs = await Promise.all(cands.map(v => _plateLookup(v).catch(() => undefined))); } catch (e) { continue; }
+    if (recs.every(r => r === undefined)) continue;   // אין חיבור — לא משנים
+    // מספר שקיים במרשם; אם כמה קיימים — מעדיפים את זה ששנת הייצור שלו זהה לשנה שנקראה בשורה
+    let best = -1, bestScore = -1;
+    recs.forEach((r, i) => {
+      if (!r) return;
+      const sc = (c.year && String(r.year) === String(c.year) ? 2 : 0) + (i === 0 ? 1 : 0);
+      if (sc > bestScore) { bestScore = sc; best = i; }
+    });
+    if (best >= 0) c.plate = cands[best];
+  }
+}
+
 async function extractTextFromImage(input) {
   const file = input.files[0];
   if (!file) return;
@@ -3389,7 +3411,7 @@ async function extractTextFromImage(input) {
            כמה שורות לפס אחד (נקראו 2 רכבים מתוך 5). מוחקים כל רצף שחור אופקי ארוך —
            ספרה או אות אינן יותר מכמה עשרות פיקסלים ברצף, ורק קו טבלה ארוך כל כך. */
         if (photo) {
-          const maxRun = Math.max(60, Math.round(W * 0.04));
+          const maxRun = Math.max(45, Math.round(W * 0.017));
           for (let yy = 0; yy < H; yy++) {
             const off = yy * W * 4; let x = 0, cnt = 0;
             while (x < W) {
@@ -3423,6 +3445,19 @@ async function extractTextFromImage(input) {
           const hs = rows.slice(1).map(r => r[1] - r[0]).sort((a, b) => a - b);
           const med = hs[hs.length >> 1];
           if (rows[0][1] - rows[0][0] > med * 1.8) rows[0][0] = Math.max(rows[0][0], rows[0][1] - Math.round(med * 1.25));
+          /* כמה שורות שהתחברו לפס אחד (שאריות קו טבלה משופע) — מפצלים לפי גובה שורה רגיל.
+             הגובה נלקח משורות שלא התחברו, ורק פס שגבוה בבירור מהן מפוצל. */
+          const normal = rows.slice(1).filter(r => (r[1] - r[0]) <= med * 1.4);
+          if (normal.length >= 2) {
+            const pitch = (normal[normal.length - 1][0] - normal[0][0]) / (normal.length - 1 || 1) || med + 8;
+            const out = [];
+            for (const r of rows) {
+              const h = r[1] - r[0], n = Math.round((h + 8) / (pitch > 20 ? pitch : med + 8));
+              if (h > med * 1.8 && n >= 2 && n <= 6) { const step = (h + 8) / n; for (let k = 0; k < n; k++) out.push([Math.round(r[0] + k * step), Math.round(r[0] + (k + 1) * step - 8 + 6)]); }
+              else out.push(r);
+            }
+            rows.length = 0; rows.push(...out);
+          }
         }
         res({ canvas: c, rows });
       };
@@ -3480,7 +3515,7 @@ async function extractTextFromImage(input) {
     setSpan('⏳ מעבד תמונה...');
     const { canvas, rows } = await prepAndSlice(src, photo);
 
-    let digitsOnly = '', fullText = '', _rowTexts = null, _rowCells = null;
+    let digitsOnly = '', fullText = '', _rowTexts = null, _rowCells = null, _rowPlates = null;
     if (rows.length >= 2) {
       // OCR each detected row separately (single line) — reliable for uniform tables
       let _ocrRow = 0;
@@ -3505,7 +3540,7 @@ async function extractTextFromImage(input) {
       if (photo) {
         const w2 = await Tesseract.createWorker('eng', 1);
         await w2.setParameters({ tessedit_pageseg_mode: '7', tessedit_char_whitelist: '0123456789.,' });
-        _rowCells = [];
+        _rowCells = []; _rowPlates = [];
         for (let r = 0; r < rows.length; r++) {
           const strip = cropStrip(canvas, rows[r][0], rows[r][1]);
           const W = strip.width, h = strip.height;
@@ -3527,6 +3562,28 @@ async function extractTextFromImage(input) {
             cells.push({ x: cx0, t: ct.trim() });
           }
           _rowCells.push(cells);
+          /* מספר הרכב: התא שלו לא תמיד מבודד לפי קווי הטבלה (קו שבור או מנוקד), ואז נקרא רק חלק ממנו.
+             חותכים חלון צר לפי הקצה הימני של הטבלה — שם יושב המספר — וקוראים אותו לבד, בשני רוחבים. */
+          const rescue = [];
+          // מספר של 8 ספרות שכבר נקרא בשורה או בתא — מספיק; החילוץ רץ רק כשחסר מספר או שנקרא מספר קצר (ייתכן שנחתך)
+          const _cur = (cells.map(x => x.t.replace(/[^\d]/g, '')).find(v => /^\d{7,8}$/.test(v))) || ((_parseRowText(_rowTexts[r] || '') || {}).plate || '');
+          let xr = -1;
+          for (let x = W - 1; x >= 0; x--) { let n = 0; for (let y = 0; y < h; y++) if (d[(y * W + x) * 4] < 128) n++; if (n >= h * 0.4) { xr = x; break; } }
+          if (xr > 260 && _cur.length !== 8) {
+            // כמה חלונות סביב הקצה הימני של הטבלה, וקבלת המספר שחוזר הכי הרבה פעמים — כך הקצה המנוקד והקו השבור לא מכריעים
+            const votes = {};
+            for (const end of [-12, -6, 4, 14]) for (const wd of [195, 210, 225]) {
+              const x1 = Math.min(W, xr + end), x0 = Math.max(0, x1 - wd), cw = x1 - x0;
+              const cc = document.createElement('canvas'); cc.width = cw + 24; cc.height = h + 24;
+              const cx = cc.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, cc.width, cc.height);
+              cx.drawImage(strip, x0, 0, cw, h, 12, 12, cw, h);
+              const { data: { text: pt } } = await w2.recognize(await toBlob(cc));
+              const v = pt.replace(/\D/g, '');
+              if (/^\d{7,8}$/.test(v) && !/^00/.test(v)) votes[v] = (votes[v] || 0) + 1;
+            }
+            rescue.push(...Object.keys(votes).sort((a, b) => votes[b] - votes[a] || b.length - a.length));
+          }
+          _rowPlates.push(rescue);
         }
         await w2.terminate();
       }
@@ -3542,7 +3599,7 @@ async function extractTextFromImage(input) {
       fullText = text; digitsOnly = text;
     }
 
-    return { digitsOnly, fullText, _rowTexts, _rowCells };
+    return { digitsOnly, fullText, _rowTexts, _rowCells, _rowPlates };
     };
     const rowCars = r => r._rowTexts ? r._rowTexts.map((t, i) => {
       const c = _parseRowText(t);
@@ -3550,6 +3607,8 @@ async function extractTextFromImage(input) {
       const num = x => x.t.replace(/[^\d.,]/g, '');
       const plate = cells.filter(x => /^\d{7,8}$/.test(num(x))).sort((a, b) => b.x - a.x)[0];
       if (plate) c.plate = num(plate);
+      const alts = (r._rowPlates && r._rowPlates[i]) || [];
+      if (alts.length) { c._alts = alts; if (!c.plate) { c.plate = alts[0]; c._fromAlt = true; } }
       // שנה: תא של 4 ספרות שאינו נפח מנוע (נפח מופיע גם בשם הדגם, ולכן חוזר בשורה)
       const cnt = {}; for (const m of String(t).matchAll(/(?<!\d)\d{4}(?!\d)/g)) cnt[m[0]] = (cnt[m[0]] || 0) + 1;
       // שנת הרישוי שבתאריך הטסט (16/01/2027) אינה שנת הרכב — מעדיפים תא שנה שאינו חלק מתאריך
@@ -3593,6 +3652,7 @@ async function extractTextFromImage(input) {
         ? rowCars(res)
         : _parsePlatesFromOcr(fullText || '', digitsOnly || '');
       if (parsed.length) {
+        await _pkResolvePlates(parsed, setSpan);
         document.getElementById('freetext-pickup-input').value = (fullText || '').trim();
         _freetextParsed = parsed;
         // הכותרת של הדף מציינת כמה רכבים יש בו — אם נקראו פחות או יותר, מזהירים
