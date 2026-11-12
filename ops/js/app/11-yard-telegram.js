@@ -2242,7 +2242,7 @@ function _snapCityField(inputId) {
   if (exact) { if (exact !== raw) el.value = exact; return; }
   if (typeof _fuzzyMatchCity !== 'function') return;
   const m = _fuzzyMatchCity(raw);
-  if (m?.city && m.city !== raw) el.value = m.city;
+  if (m?.city && m.city !== raw && !(m.adj >= 0.5)) el.value = m.city;
 }
 
 /* ═══════════════════════════════════════════════════════════════════

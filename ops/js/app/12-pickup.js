@@ -159,7 +159,12 @@ function _pickupCity(c) {
   for (const a of (typeof _CITY_ALIASES !== 'undefined' ? _CITY_ALIASES : [])) {
     if (a.alias && n.includes(_normCityName(a.alias))) return a.city;
   }
+  // רכבים שנקלטו לפני התיקון: "בית לחם הגלילית" שנוצרה מהתאמה שגויה של טקסט לא ברור — לא מוצגת כעיר
+  if (c.city === 'בית לחם הגלילית' && !String(c.address || '').includes('בית לחם')) return _yardOnly(c);
   if (c.city) return c.city;
+  return _yardOnly(c);
+}
+function _yardOnly(c) {
   // רק כשאין עיר: הכתובת מכילה שם מגרש בלבד, ולכן ההשוואה בטוחה
   const addr = String(c.address || '');
   for (const [yard, city] of _YARD_CITY) if (addr.includes(yard)) return city;
@@ -3708,7 +3713,7 @@ const _IL_CITIES = [
 function _levenshtein(a, b) {
   const m = a.length, n = b.length;
   if (!m) return n; if (!n) return m;
-  const dp = Array.from({length:m+1},(_,i)=>Array.from({length:n+1},(_,j)=>i?j?0:j:i));
+  const dp = Array.from({length:m+1},(_,i)=>Array.from({length:n+1},(_,j)=>i?(j?0:i):j));   // שורה ועמודה ראשונות: מרחק מחרוזת ריקה (קודם היו אפס, והמרחק התעלם מתחילית)
   for (let i=1;i<=m;i++) for (let j=1;j<=n;j++)
     dp[i][j]=a[i-1]===b[j-1]?dp[i-1][j-1]:1+Math.min(dp[i-1][j],dp[i][j-1],dp[i-1][j-1]);
   return dp[m][n];
@@ -3772,6 +3777,19 @@ function _fuzzyMatchCity(raw) {
     }
   }
 
+  /* התאמה מטושטשת חייבת להיות בטוחה: מילה שלמה משותפת לקלט ולשם העיר, או דמיון גבוה מאוד.
+     בלי זה טקסט לא ברור (שם מגרש כמו "גלילות", או שורת הערה) נדבק בטעות לעיר דומה-למראה —
+     למשל "גלילות" ← "בית לחם הגלילית", "פחח" ← "אום אל פחם". */
+  if (best.adj < 0.5 && best.city) {
+    const _nw = w => w.replace(/^[בלמכוה]/, '');
+    const win = tWords.slice(best.start, best.start + best.wLen);
+    const cw = best.city.split(' '), cset = new Set([...cw, ...cw.map(_nw)]);
+    const shared = win.some(w => cset.has(w) || cset.has(_nw(w)));
+    const joined = win.map(_nw).join(' ');
+    const close = _levenshtein(joined, best.city) / Math.max(joined.length, best.city.length, 1) <= 0.2;
+    if (!shared && !close) best = { adj: Infinity, city: null, start: -1, wLen: 0 };
+  }
+
   if (best.adj < 0.5 && best.city) {
     const rest = [
       ...tWords.slice(0, best.start),
@@ -3781,7 +3799,7 @@ function _fuzzyMatchCity(raw) {
   }
 
   // fallback: last word
-  return { city: tWords[tWords.length - 1], rest: tWords.slice(0, -1).join(' ').trim(), adj: best.adj };
+  return { city: tWords[tWords.length - 1], rest: tWords.slice(0, -1).join(' ').trim(), adj: Math.max(best.adj, 1) };
 }
 
 function _fmtKm(raw) {
