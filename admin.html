@@ -486,6 +486,21 @@
         <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
           <input id="leadSearch" type="tel" placeholder="🔍 חיפוש ליד לפי טלפון או שם" oninput="window._leadSearch=this.value;renderLeads()" style="flex:1;min-width:220px;padding:11px 14px;font-size:14px;margin:0">
           <button onclick="toggleNewLead()" style="background:#15803d;color:#fff;border:none;border-radius:10px;padding:11px 18px;font-size:14px;font-weight:900;cursor:pointer;white-space:nowrap">➕ ליד חדש</button>
+          <button onclick="toggleCallReq()" style="background:#dc2626;color:#fff;border:none;border-radius:10px;padding:11px 18px;font-size:14px;font-weight:900;cursor:pointer;white-space:nowrap">📞 בקשת שיחה מערן</button>
+        </div>
+        <div id="callReqBox" style="display:none;background:#fef2f2;border:2px solid #fecaca;border-radius:14px;padding:16px;margin-bottom:16px">
+          <div style="font-weight:900;font-size:15px;margin-bottom:4px;color:#b91c1c">📞 בקשת שיחה מערן (למור / הילה)</div>
+          <div style="font-size:12px;color:#991b1b;margin-bottom:12px">הלקוח צריך שיחה מערן? מלאו פרטים → זה יקפוץ לערן בראש רשימת הלידים.</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
+            <input id="cr_name" placeholder="שם הלקוח *" style="padding:10px 12px;font-size:14px;border:1px solid var(--line);border-radius:10px">
+            <input id="cr_phone" type="tel" placeholder="טלפון * (05X-XXXXXXX)" style="padding:10px 12px;font-size:14px;border:1px solid var(--line);border-radius:10px">
+          </div>
+          <textarea id="cr_reason" placeholder="סיבת השיחה (למשל: מתלבט בין 2 רכבים, רוצה לשמוע על מימון, לחץ לסגירה...)" style="width:100%;margin-top:10px;min-height:60px;padding:10px 12px;font-size:14px;border:1px solid var(--line);border-radius:10px;resize:vertical"></textarea>
+          <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <select id="cr_by" style="padding:9px 12px;font-size:14px;border:1px solid var(--line);border-radius:10px;font-weight:700"><option value="מור">מור</option><option value="הילה">הילה</option></select>
+            <button onclick="addCallRequest()" style="background:#dc2626;color:#fff;border:none;border-radius:10px;padding:10px 22px;font-size:14px;font-weight:900;cursor:pointer">📞 שלח בקשת שיחה לערן</button>
+            <button onclick="toggleCallReq(false)" style="background:#e5e7eb;color:#374151;border:none;border-radius:10px;padding:10px 18px;font-size:14px;font-weight:800;cursor:pointer">ביטול</button>
+          </div>
         </div>
         <div id="newLeadBox" style="display:none;background:#f0fdf4;border:2px solid #86efac;border-radius:14px;padding:16px;margin-bottom:16px">
           <div style="font-weight:900;font-size:15px;margin-bottom:12px">➕ הוספת ליד חדש (שיחה נכנסת)</div>
@@ -3026,6 +3041,20 @@
   // הוספת ליד ידני (שיחה נכנסת)
   function onNewLeadBrand(){ const bs=document.getElementById('nl_brand'), ms=document.getElementById('nl_model'); if(!bs||!ms) return; const b=bs.value; ms.innerHTML='<option value="">דגם...</option>'+(b?_icModels(b):[]).map(x=>`<option>${x}</option>`).join(''); }
   function toggleNewLead(show){ const b=document.getElementById('newLeadBox'); if(!b) return; b.style.display=(show===undefined)?(b.style.display==='none'?'block':'none'):(show?'block':'none'); if(b.style.display==='block'){ const bs=document.getElementById('nl_brand'); if(bs&&bs.options.length<=1){ bs.innerHTML='<option value="">מתעניין ביצרן...</option>'+_icBrands().map(x=>`<option>${x}</option>`).join(''); } const n=document.getElementById('nl_name'); if(n) n.focus(); } }
+  function toggleCallReq(show){ const b=document.getElementById('callReqBox'); if(!b) return; b.style.display=(show===undefined)?(b.style.display==='none'?'block':'none'):(show?'block':'none'); if(b.style.display==='block'){ const n=document.getElementById('cr_name'); if(n) n.focus(); } }
+  async function addCallRequest(){
+    const g=id=>((document.getElementById(id)||{}).value||'').trim();
+    const name=g('cr_name'); const phone=g('cr_phone').replace(/\s/g,''); const reason=g('cr_reason'); const by=g('cr_by')||'מור';
+    if(!name){ alert('נא למלא שם לקוח'); return; }
+    if(!/^0\d{1,2}-?\d{7}$/.test(phone)){ alert('נא להזין מספר טלפון נייד תקין'); return; }
+    const row={ name:name, phone:phone, summary:(reason?('סיבת השיחה: '+reason):'')+' | בקשה מ-'+by, action:'📞 בקשת שיחה', source:by, status:'פתוח', created_at:new Date().toISOString() };
+    let ok=false;
+    try{ const c=sbClient(); if(c){ let res=await c.from('leads').insert(row); if(res&&res.error){ res=await c.from('leads').insert({name:name,phone:phone,action:'📞 בקשת שיחה',status:'פתוח',created_at:row.created_at}); } ok=!(res&&res.error); } }catch(e){ console.warn('callReq', e); }
+    if(ok){ await loadLeadsFromCloud(); } else { row.id='local_'+Date.now(); if(Array.isArray(leads)) leads.unshift(row); renderLeads(); }
+    ['cr_name','cr_phone','cr_reason'].forEach(id=>{const e=document.getElementById(id); if(e) e.value='';});
+    toggleCallReq(false);
+    toast&&toast(ok?'📞 בקשת שיחה נשלחה לערן ✓':'נוסף מקומית (בדוק חיבור)');
+  }
   async function addNewLead(){
     const g=id=>((document.getElementById(id)||{}).value||'').trim();
     const name=g('nl_name'); const phone=g('nl_phone').replace(/\s/g,''); const source=g('nl_source'); const city=g('nl_city');
@@ -3602,6 +3631,8 @@
   // 0 = פולואפ שעבר זמנו (הכי דחוף), 1 = ליד חדש/פתוח (החדש קודם), 2 = פולואפ עתידי (הקרוב קודם), 3 = סגור
   function leadRank(l,now){
     const s=l.status||'פתוח';
+    // בקשת שיחה ממור/הילה - הכי דחוף, למעלה
+    if(l.action && String(l.action).indexOf('בקשת שיחה')>=0 && s!=='סגור') return [-1, -(l.created_at?new Date(l.created_at).getTime():0)];
     if(s==='סגור') return [3,0];
     if(s==='פולואפ' && l.followup_at){
       const t=new Date(l.followup_at).getTime();
@@ -3676,7 +3707,9 @@
       // הודעת פולואפ מוכנה - עם השם והרכב של הלקוח
       const _fuCar=((l.interest_cars||l.car||'')+'').trim();
       const fuMsg=encodeURIComponent('היי '+(l.name||'')+', מדבר ערן מאוטודילר 🚗\n'+(_fuCar?('בדקתי לך על ה'+_fuCar+' שהתעניינת בו — יש לי הצעה ממש טובה.\n'):'יש לי בשבילך הצעה ממש טובה על הרכב שדיברנו עליו.\n')+'עדיין רלוונטי? אפשר לחזור אליי ונסגור 🙏');
-      return `<div class="lead-card" style="border-right:4px solid ${overdue?'#dc2626':sc[1]};${closed?'opacity:.55':''}">
+      const _isCallReq=l.action&&String(l.action).indexOf('בקשת שיחה')>=0&&!closed;
+      return `<div class="lead-card" style="border-right:6px solid ${_isCallReq?'#dc2626':(overdue?'#dc2626':sc[1])};${_isCallReq?'background:#fff5f5;box-shadow:0 0 0 2px #fecaca;':''}${closed?'opacity:.55':''}">
+        ${_isCallReq?'<div style="background:#dc2626;color:#fff;text-align:center;font-weight:900;font-size:13px;padding:5px;border-radius:8px;margin-bottom:8px">📞 בקשת שיחה דחופה — חייג ללקוח!</div>':''}
         <div class="lead-row">
           <div class="lead-score s-hot" style="font-size:20px">🚗</div>
           <div style="flex:1">
