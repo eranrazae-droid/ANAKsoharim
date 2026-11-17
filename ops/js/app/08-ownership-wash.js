@@ -1418,6 +1418,8 @@ function washSetSort(k) { _washSort = k; _washRenderSortBtns(); }
 window.washSetSort = washSetSort;
 
 function openWashSummary() {
+  // כניסה לסיכום נפתחת תמיד על החודש הנוכחי (ולא על החודש שנבחר בפעם הקודמת)
+  { const d = new Date(); _washSumMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; }
   _washRenderSortBtns();
   _washRenderSummary();
   openModal('modal-wash-summary');
@@ -1446,7 +1448,7 @@ function _washSummaryData(byMonth) {
   let rows = mine.filter(n => !n.paidId && n.createdAt?.toDate);
   if (byMonth) {
     const months = _washOpenMonths();
-    if (!months.some(m => m.key === _washSumMonth)) _washSumMonth = months.length ? months[0].key : '';
+    if (!months.some(m => m.key === _washSumMonth)) _washSumMonth = months.length ? months[months.length - 1].key : '';   // אין פתקים החודש — הכי עדכני שיש
     if (_washSumMonth) rows = rows.filter(n => _washMonthKey(n) === _washSumMonth);
   }
   const counts = {};
