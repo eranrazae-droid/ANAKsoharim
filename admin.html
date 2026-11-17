@@ -2714,8 +2714,23 @@
       '📞 לחיוג ישיר: 050-839-6030\n'+
       '📲 וואטסאפ: '+_adWa(name);
   }
-  function genMeta(c){
-    var name=_adName(c);
+  // פוסט לקבוצות פייסבוק - כולל קישור לאתר + קישור לוואטסאפ
+  function genGroups(c){
+    var name=_adName(c), hi=_adHi(c);
+    var price=Number(c.autodealerPriceNumber)||0, lic=Number(c.licenseFee)||0, total=price+lic;
+    var mo=(total>1 && typeof _voMonthly==='function')?_voMonthly(total):0;
+    var priceLine = total>1 ? ('💰 על הכביש כולל הכל: '+total.toLocaleString('en-US')+' ₪'+(mo>0?('\n📅 מימון מ-'+mo.toLocaleString('en-US')+' ₪ לחודש (עד 100%, בלי מקדמה)'):'')+'\n') : '';
+    return '🚗 '+name+' – חדש 0 ק"מ מהיבואן הרשמי!\n\n'+
+      (hi.length? ('🔹 '+hi.join(' · ')+'\n'):'')+
+      '🔹 במחיר הזול בשוק – רווח קטן, מחיר הוגן\n'+
+      '🔹 טרייד-אין לרכב הישן · מסירה מהירה בכל הארץ\n'+
+      '🔹 אחריות יצרן מלאה\n'+
+      priceLine+'\n'+
+      '📲 לפרטים ומחיר מיידי בוואטסאפ:\n'+_adWa(name)+'\n\n'+
+      '🌐 כל הפרטים והתמונות באתר:\n'+_adLink(c)+'\n\n'+
+      '📞 050-839-6030 · אוטודילר';
+  }
+  function genMeta(c){    var name=_adName(c);
     return name+' חדש 0 ק"מ במחיר דיל 🚗\nמימון ללא מקדמה · טרייד-אין · אחריות יבואן רשמי.\nהשאירו פרטים ונחזור אליכם עם ההצעה הכי טובה 👇\n'+_adLink(c);
   }
   function genTikTok(c){
@@ -2770,7 +2785,7 @@
   }
   function openAds(id){
     var c=cars.find(function(x){return x.id===id;}); if(!c) return;
-    window._adsTexts={ mp:genMarketplace(c), tt:genTikTok(c), reels:genReels(c), meta:genMeta(c) };
+    window._adsTexts={ mp:genMarketplace(c), groups:genGroups(c), tt:genTikTok(c), reels:genReels(c), meta:genMeta(c) };
     document.getElementById('adsModalTitle').textContent='פרסום - '+(c.brand+' '+c.model);
     var block=function(key,label){ return '<div style="margin-bottom:16px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><b>'+label+'</b><button onclick="copyAds(\''+key+'\',this)" style="background:#0d0d0d;color:#fff;border:none;border-radius:8px;padding:5px 14px;font-size:12px;font-weight:800;cursor:pointer">📋 העתק</button></div><textarea readonly style="width:100%;height:160px;font-size:12.5px;border:1px solid #e5e7eb;border-radius:10px;padding:10px;direction:rtl;font-family:inherit">'+_esc(window._adsTexts[key])+'</textarea></div>'; };
     var hasImg = !!((c.catalog_image&&c.catalog_image.trim())||(c.image&&!c.image.startsWith('data:')));
@@ -2782,7 +2797,7 @@
       '</div><div id="socialMsg" style="font-size:12px;color:#64748b;margin-top:8px"></div>'
       :'<div style="font-size:13px;color:#b45309">⚠️ אין תמונת קטלוג לרכב זה - הוסף תמונה כדי לפרסם אוטומטית.</div>')+
     '</div>';
-    document.getElementById('adsModalBody').innerHTML = autoBar + block('mp','🛒 מודעת Marketplace') + block('tt','🎬 סקריפט טיקטוק') + block('reels','🎥 תסריט רילס (Instagram)') + block('meta','📣 מודעת Meta');
+    document.getElementById('adsModalBody').innerHTML = autoBar + block('mp','🛒 מודעת Marketplace') + block('groups','👥 פוסט לקבוצות (אתר + וואטסאפ)') + block('tt','🎬 סקריפט טיקטוק') + block('reels','🎥 תסריט רילס (Instagram)') + block('meta','📣 מודעת Meta');
     document.getElementById('adsModal').classList.remove('hidden');
   }
   function copyAds(key,btn){ var t=(window._adsTexts||{})[key]||''; try{ if(navigator.clipboard){ navigator.clipboard.writeText(t).then(function(){ btn.textContent='✅ הועתק'; setTimeout(function(){btn.textContent='📋 העתק';},1500); }); } }catch(e){} }
