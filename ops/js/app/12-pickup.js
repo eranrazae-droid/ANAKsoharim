@@ -742,6 +742,7 @@ function _updatePickupBatchBar() {
   const cnt = document.getElementById('pickup-batch-count');
   const active = _pickupSelected.size > 0;
   if (bar) bar.style.display = active ? 'flex' : 'none';
+  document.getElementById('screen-pickup')?.classList.toggle('pk-batch-on', active);
   if (cnt) cnt.textContent = `נבחרו ${_pickupSelected.size}`;
   const cnt2 = document.getElementById('pickup-select-count');
   if (cnt2) cnt2.textContent = _pickupSelected.size ? `נבחרו ${_pickupSelected.size}` : '';
