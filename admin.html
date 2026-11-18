@@ -1900,6 +1900,20 @@
     toast('✅ מחיר המכירה עודכן: '+fmt(n));
   }
 
+  // עריכת "מחיר אוטודילר כולל רישוי" — מזינים את המחיר הסופי כולל אגרה, ונשמר מחיר המכירה (ללא אגרה)
+  function updateAutodealerInclLic(id, val){
+    const c = cars.find(x=>x.id===id); if(!c) return;
+    const total = Number(val);
+    if(!total || total<=0){ toast('⚠️ הזן מחיר תקין'); renderProfit(); return; }
+    const lic = Number(c.licenseFee)||0;
+    const sell = Math.max(0, total - lic);
+    c.autodealerPriceNumber = sell;
+    saveCars();
+    saveCarToDB(c);
+    renderAll();
+    toast('✅ מחיר אוטודילר כולל רישוי עודכן: '+fmt(total));
+  }
+
   function toggleSiteVisible(id){
     const c = cars.find(x=>x.id===id); if(!c) return;
     c.hidden = !c.hidden;
@@ -2033,7 +2047,7 @@
         <td style="padding:9px 8px;text-align:center"><button onclick="toggleReviewed(${c.id})" style="border:none;border-radius:999px;padding:5px 12px;font-weight:900;font-size:12px;cursor:pointer;color:#fff;background:${c.reviewed?'#16a34a':'#cbd5e1'}">${c.reviewed?'✔ נבדק':'סמן'}</button></td>
         <td style="padding:9px 8px;text-align:center"><button onclick="toggleSiteVisible(${c.id})" style="border:none;border-radius:999px;padding:5px 12px;font-weight:900;font-size:12px;cursor:pointer;color:#fff;background:${c.hidden?'#9ca3af':'#16a34a'}">${c.hidden?'OFF':'ON'}</button></td>
         <td style="padding:9px 8px"><input type="number" value="${cat>1?cat:''}" onchange="updateImporterPrice(${c.id}, this.value)" style="width:110px;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:8px;text-align:right" placeholder="מחיר יבואן"></td>
-        <td style="padding:9px 8px;font-weight:900;color:#a16207">${sell>1?fmt(sell+lic):'-'}</td>
+        <td style="padding:9px 8px"><input type="number" value="${sell>1?sell+lic:''}" onchange="updateAutodealerInclLic(${c.id}, this.value)" style="width:120px;padding:6px 8px;font-size:13px;font-weight:900;color:#a16207;border:1px solid var(--line);border-radius:8px;text-align:right" placeholder="כולל רישוי"></td>
         ${sell>1?finTracks(sell+lic).map((m,i)=>({m,l:FIN_LABELS[i]})).sort((a,b)=>a.m-b.m).map((o,idx)=>`<td style="padding:9px 8px;text-align:center;${idx===0?'background:#f0fdf4':''}"><div style="font-size:10px;color:#6b7280">${o.l}</div><div style="font-weight:800;color:${idx===0?'#15803d':'#374151'}">${fmt(o.m)}</div></td>`).join(''):'<td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>'}
       </tr>`;
     }).join('');
@@ -2062,7 +2076,7 @@
             '</div></div>'+
           '<div class="pc-fields">'+
             '<label>מחיר יבואן כולל רישוי<input type="number" value="'+(cat>1?cat:'')+'" onchange="updateImporterPrice('+c.id+',this.value)" placeholder="מחיר יבואן"></label>'+
-            '<div class="pc-total"><span>מחיר אוטודילר כולל רישוי</span><b>'+(sell>1?fmt(sell+lic):'-')+'</b></div>'+
+            '<label>מחיר אוטודילר כולל רישוי<input type="number" value="'+(sell>1?sell+lic:'')+'" onchange="updateAutodealerInclLic('+c.id+',this.value)" placeholder="כולל רישוי"></label>'+
           '</div>'+
           (low?'<div class="pc-fin"><div class="pc-fin-low"><span>החזר חודשי מ-</span><b>'+fmt(low.m)+'</b><small>'+_esc(low.l)+'</small></div>'+
             '<div class="pc-fin-rest">'+tracks.slice(1).map(o=>'<span>'+_esc(o.l)+': <b>'+fmt(o.m)+'</b></span>').join('')+'</div></div>':'')+
