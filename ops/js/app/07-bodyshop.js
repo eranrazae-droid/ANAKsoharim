@@ -505,7 +505,8 @@ async function bsmDeleteOne(key) {
     const { deleteDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
     if (kind === 'job') {
       const j = _bshopJobs.find(x => x.id === a1);
-      if (!j || !confirm(`למחוק לתמיד את הפתק של ${j.plate}?`)) return;
+      if (!j || !confirm(`למחוק את הפתק של ${j.plate}?\nהוא יישמר במסך "מוקפאים ונמחקו" ואפשר יהיה לשחזר אותו משם.`)) return;
+      if (!(await _bsmTrashSave('job', j))) return;   // בלי גיבוי — לא מוחקים
       await deleteDoc(_docRef('bodyshop_jobs', j.id));
       await deleteDoc(_docRef('bodyshop_photos', j.id)).catch(() => {});
     } else {
@@ -513,6 +514,7 @@ async function bsmDeleteOne(key) {
       const idx = Number(a2);
       const car = a?.cars?.[idx];
       if (!a || !car || !confirm(`למחוק את ${car.plate} מהתיקייה "${a.title || ''}"?\nסכום התיקייה יעודכן בהתאם.`)) return;
+      if (!(await _bsmTrashSave('arc', car, { archiveId: a.id, archiveTitle: a.title || '' }))) return;   // בלי גיבוי — לא מוחקים
       const cars = a.cars.filter((_, i) => i !== idx);
       const total = cars.reduce((t, c) => t + Number(c.total || 0), 0);
       await _updateDoc(_docRef('bodyshop_archive', a.id), { cars, total });
@@ -527,6 +529,125 @@ async function bsmDeleteOne(key) {
   } catch (e) { showToast('שגיאה במחיקה: ' + (e.code || e.message)); }
 }
 window.bsmDeleteOne = bsmDeleteOne;
+
+/* ═══ מוקפאים ונמחקו ═════════════════════════════════════════════════
+   פתק שנמחק לא נעלם: עותק שלו (וגם התמונה) נשמר באוסף bodyshop_deleted לפני המחיקה,
+   ומשם אפשר למצוא אותו ולשחזר. המסך מציג משני הצדדים: מוקפאים (פתקים פעילים שהוצאו מהמסך)
+   ונמחקו. מחיקות שבוצעו לפני שהמסך הזה נוסף לא נשמרו, ולכן אי אפשר לשחזר אותן. */
+let _bsmTrash = [], _bsmTrashUnsub = null;
+
+async function _bsmTrashSave(kind, data, extra) {
+  try {
+    const base = { ...data };
+    delete base._photoDoc;
+    const id = String(data.id || ('x' + Date.now()));
+    const rec = { ...base, _kind: kind, _id: id, deletedAt: _serverTs(), deletedBy: currentUser?.name || '', ...(extra || {}) };
+    await _setDoc(_docRef('bodyshop_deleted', id), rec);
+    // תמונת הפתק יושבת במסמך נפרד — מעתיקים גם אותה (אם יש)
+    try {
+      const ph = await window._getDoc(_docRef('bodyshop_photos', id));
+      if (ph && ph.exists()) await _setDoc(_docRef('bodyshop_deleted_photos', id), ph.data());
+    } catch (e) { console.warn('trash photo copy', e); }
+    return true;
+  } catch (e) {
+    console.error('trash save', e);
+    showToast('⚠️ לא הצלחתי לשמור גיבוי של הפתק — המחיקה בוטלה', 6000);
+    return false;
+  }
+}
+
+function openBsmTrash() {
+  const s = document.getElementById('bsm-trash-search'); if (s) s.value = '';
+  _bsmRenderTrash();
+  openModal('modal-bsm-trash');
+  if (_bsmTrashUnsub) { try { _bsmTrashUnsub(); } catch (e) {} }
+  if (window._onSnap) _bsmTrashUnsub = _onSnap(_colRef('bodyshop_deleted'), snap => {
+    _bsmTrash = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    _bsmRenderTrash();
+  }, e => console.warn('trash listen', e));
+}
+function closeBsmTrash() {
+  if (_bsmTrashUnsub) { try { _bsmTrashUnsub(); } catch (e) {} _bsmTrashUnsub = null; }
+  closeModal('modal-bsm-trash');
+}
+Object.assign(window, { openBsmTrash, closeBsmTrash });
+
+function _bsmTrashCard(r) {
+  const money = _bsmMoney();
+  const label = { draft: 'ממתין לשליחה', at_shop: 'אצל הפחח', returned: 'סיימנו' };
+  const when = r.deletedAt?.toDate ? r.deletedAt.toDate().toLocaleString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+  const total = r._kind === 'job' ? _bshopTotal(r) : Number(r.total || 0);
+  const items = (r.items || []).map(it => `<div style="display:flex;justify-content:space-between;gap:8px;font-size:12.5px"><span>${esc(it.name)}</span>${money && it.price != null && it.price !== '' ? `<b>${Number(it.price).toLocaleString('he-IL')} ₪</b>` : ''}</div>`).join('');
+  const where = r._kind === 'arc' ? `היה בתיקיית תשלום · ${esc(r.archiveTitle || '')}` : `היה: ${esc(label[r.status] || r.status || '')}`;
+  return `<div style="border:2px solid #fca5a5;background:#fff;border-radius:14px;padding:11px 13px">
+    <div style="display:flex;align-items:center;gap:8px;justify-content:space-between">
+      <span style="font-weight:900;font-size:17px">${esc(r.plate || '')}</span>
+      <span style="font-size:11.5px;font-weight:800;color:#b91c1c;background:#fee2e2;border-radius:999px;padding:2px 9px">נמחק</span></div>
+    <div style="font-size:13px;color:var(--muted);font-weight:700">${esc(r.desc || '')}</div>
+    <div style="font-size:12px;color:#92400e;font-weight:800;margin-top:2px">${where}${money && total ? ' · ' + total.toLocaleString('he-IL') + ' ₪' : ''}</div>
+    ${r.note ? `<div style="font-size:12.5px;background:#fffbeb;border-radius:8px;padding:5px 8px;margin-top:6px">📝 ${esc(r.note)}</div>` : ''}
+    ${items ? `<div style="margin-top:6px;display:flex;flex-direction:column;gap:2px;border-top:1px dashed var(--border);padding-top:6px">${items}</div>` : ''}
+    <div style="font-size:11.5px;color:var(--muted);font-weight:700;margin-top:7px">נמחק ע״י ${esc(r.deletedBy || '—')}${when ? ' · ' + when : ''}</div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button onclick="bsmTrashRestore('${esc(r.id)}')" style="flex:1;background:#16a34a;color:#fff;border:none;border-radius:10px;padding:9px;font-family:Heebo,sans-serif;font-weight:900;font-size:13px;cursor:pointer">↩️ שחזר</button>
+      <button onclick="bsmTrashPurge('${esc(r.id)}')" title="מחיקה סופית" style="flex:0 0 44px;background:#fee2e2;border:2px solid #fca5a5;border-radius:10px;font-size:15px;cursor:pointer">🗑</button>
+    </div></div>`;
+}
+
+function _bsmRenderTrash() {
+  const hb = document.getElementById('bsm-trash-held'), db = document.getElementById('bsm-trash-del');
+  if (!hb || !db) return;
+  const term = (document.getElementById('bsm-trash-search')?.value || '').replace(/\D/g, '');
+  const match = r => !term || String(r.plate || '').replace(/\D/g, '').includes(term);
+  const held = _bshopJobs.filter(j => j.onHold && match(j));
+  const del = [..._bsmTrash].filter(match).sort((a, b) => (b.deletedAt?.seconds || 0) - (a.deletedAt?.seconds || 0));
+  const hc = document.getElementById('bsm-trash-held-n'), dc = document.getElementById('bsm-trash-del-n');
+  if (hc) hc.textContent = held.length; if (dc) dc.textContent = del.length;
+  const empty = t => `<div style="padding:26px 12px;text-align:center;color:var(--muted);font-weight:700">${t}</div>`;
+  hb.innerHTML = held.length ? held.map(j => _bshopJobCard(j, false, true)).join('') : empty(term ? 'לא נמצא פתק מוקפא במספר הזה' : 'אין פתקים מוקפאים');
+  db.innerHTML = del.length ? del.map(_bsmTrashCard).join('') : empty(term ? 'לא נמצא פתק שנמחק במספר הזה' : 'אין פתקים שנמחקו');
+}
+window.bsmTrashFilter = () => _bsmRenderTrash();
+
+async function bsmTrashRestore(id) {
+  const r = _bsmTrash.find(x => x.id === id);
+  if (!r) return;
+  if (!_requireNet('שחזור הפתק')) return;
+  try {
+    const clean = { ...r };
+    ['id', '_kind', '_id', 'deletedAt', 'deletedBy', 'archiveId', 'archiveTitle'].forEach(k => delete clean[k]);
+    if (r._kind === 'arc') {
+      const a = _bshopArchive.find(x => x.id === r.archiveId);
+      if (!a) { showToast('התיקייה שממנה נמחק הרכב כבר לא קיימת — אי אפשר לשחזר אליה', 7000); return; }
+      if (!confirm(`להחזיר את ${r.plate} לתיקייה "${a.title || ''}"?`)) return;
+      const cars = [...(a.cars || []), clean];
+      const total = cars.reduce((t, c) => t + Number(c.total || 0), 0);
+      await _updateDoc(_docRef('bodyshop_archive', a.id), { cars, total });
+    } else {
+      if (!confirm(`לשחזר את הפתק של ${r.plate}?`)) return;
+      await _setDoc(_docRef('bodyshop_jobs', r._id || r.id), clean);
+      try {
+        const ph = await window._getDoc(_docRef('bodyshop_deleted_photos', r.id));
+        if (ph && ph.exists()) await _setDoc(_docRef('bodyshop_photos', r._id || r.id), ph.data());
+      } catch (e) { console.warn('restore photo', e); }
+    }
+    const { deleteDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    await deleteDoc(_docRef('bodyshop_deleted', r.id)).catch(() => {});
+    await deleteDoc(_docRef('bodyshop_deleted_photos', r.id)).catch(() => {});
+    showToast('↩️ הפתק שוחזר');
+  } catch (e) { console.error('trash restore', e); showToast('השחזור נכשל: ' + (e.code || e.message), 7000); }
+}
+async function bsmTrashPurge(id) {
+  const r = _bsmTrash.find(x => x.id === id);
+  if (!r || !confirm(`למחוק את הפתק של ${r.plate} סופית? אי אפשר יהיה לשחזר אותו.`)) return;
+  try {
+    const { deleteDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    await deleteDoc(_docRef('bodyshop_deleted', r.id));
+    await deleteDoc(_docRef('bodyshop_deleted_photos', r.id)).catch(() => {});
+    showToast('🗑 נמחק סופית');
+  } catch (e) { showToast('המחיקה נכשלה: ' + (e.code || e.message), 6000); }
+}
+Object.assign(window, { bsmTrashRestore, bsmTrashPurge });
 
 /* ── עדכון ידני של ההערכה ───────────────────────────────────────────
    נשמר על הפתק עצמו. ברגע שאיברהים ימלא מחירים — המחיר שלו מוצג
@@ -2897,6 +3018,7 @@ function bsmMMore() {
       ${it('⚙️', 'רשימת חלקים', 'עריכת הרשימה הקבועה', 'openBsmItemsModal()')}
       ${it('🚗', 'תיעוד נסיעות', 'מי לקח ומתי', 'openBsmTrips()')}
       ${it('❄️', 'מוקפאים', 'פתקים שהוצאו מהמסך', 'openBsmHold()')}
+      ${it('🗂️', 'מוקפאים ונמחקו', 'מוקפאים ונמחקים זה לצד זה, עם שחזור', 'openBsmTrash()')}
       ${it('🗑', 'מחיקת פתק', 'פעולה שלא ניתנת לביטול', 'openBsmDelete()', 'dng')}
     </div>`;
   wrap.classList.add('open');

@@ -23,8 +23,8 @@
   (function () {
     var pahach = /\/pahach\/?$/.test(location.pathname) || /[?&]pahach\b/.test(location.search);
     document.write('<link rel="manifest" href="' + (pahach ? '/ops/manifest-pahach.json' : '/ops/manifest.json') + '">');
-    document.write('<link rel="apple-touch-icon" href="' + (pahach ? '/ops/icon-pahach-180.png' : '/ops/apple-touch-icon.png?v=722') + '">');
-    document.write('<link rel="icon" href="' + (pahach ? '/ops/favicon.png' : '/ops/favicon-operations.png?v=722') + '">');
+    document.write('<link rel="apple-touch-icon" href="' + (pahach ? '/ops/icon-pahach-180.png' : '/ops/apple-touch-icon.png?v=723') + '">');
+    document.write('<link rel="icon" href="' + (pahach ? '/ops/favicon.png' : '/ops/favicon-operations.png?v=723') + '">');
     if (pahach) document.title = 'ענק הרכבים פחחות';
   })();
 </script>
@@ -1187,6 +1187,7 @@ body.td-panel-min .screen.active{margin-left:0 !important;width:auto !important}
 @media(min-width:1080px){.bshop-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 /* חלונית ההקפאה: שתי קוביות בשורה בטלפון, שלוש במסך רחב, וגובה
    שמראה כשלוש שורות לפני שמתחילים לגלול */
+#modal-bsm-trash#modal-bsm-trash#modal-bsm-trash#modal-bsm-trash#modal-bsm-trash#modal-bsm-trash#modal-bsm-trash > .modal-box{max-width:min(96vw,1100px) !important;width:100% !important}
 .bsm-hold-box{max-width:min(96vw,880px);width:100%;display:flex;flex-direction:column;max-height:88vh}
 .bsm-hold-grid{overflow-y:auto;max-height:72vh;padding:2px;align-content:start}
 @media(min-width:700px){.bsm-hold-grid{grid-template-columns:repeat(3,1fr)}}
@@ -2097,9 +2098,9 @@ if ('serviceWorker' in navigator) {
   });
 }
 </script>
-<link rel="stylesheet" href="css/ui2m.css?v=722">
-<link rel="stylesheet" href="css/entry-design.css?v=722">
-<link rel="stylesheet" href="css/bodyshop-design.css?v=722">
+<link rel="stylesheet" href="css/ui2m.css?v=723">
+<link rel="stylesheet" href="css/entry-design.css?v=723">
+<link rel="stylesheet" href="css/bodyshop-design.css?v=723">
 </head>
 <body>
 
@@ -3548,6 +3549,7 @@ if ('serviceWorker' in navigator) {
         <button class="bsm-fab bsm-fab-blue" onclick="bsmCopyLink()">🔗 קישור לפחח</button>
         <button class="bsm-fab bsm-fab-teal" onclick="openBsmTrips()">🚗 תיעוד נסיעות</button>
         <button class="bsm-fab bsm-fab-ice" onclick="openBsmHold()">❄️ מוקפאים <span id="bsm-hold-cnt" class="bsm-cnt"></span></button>
+        <button class="bsm-fab bsm-fab-ice" onclick="openBsmTrash()">🗂️ מוקפאים ונמחקו</button>
       </div>
       <button id="bsm-actions-toggle" class="bsm-fab bsm-fab-dark" onclick="bsmToggleActions()">⚡ פעולות</button>
       <input type="file" accept="image/*" capture="environment" id="bsm-addphoto-file" style="display:none" onchange="bsmAddPhotoPicked(this)">
@@ -4777,6 +4779,24 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
+<!-- מוקפאים ונמחקו — שני צדדים: מוקפאים מימין, נמחקו משמאל -->
+<div class="modal-overlay" id="modal-bsm-trash">
+  <div class="modal-box" style="max-width:min(96vw,1100px);max-height:92vh;display:flex;flex-direction:column">
+    <div class="modal-title">🗂️ פתקים שהוקפאו ונמחקו <button class="modal-close" onclick="closeBsmTrash()">✕</button></div>
+    <input id="bsm-trash-search" oninput="bsmTrashFilter()" inputmode="numeric" placeholder="🔍 חיפוש לפי מספר רישוי" style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:12px;border:2px solid var(--border);font-family:Heebo,sans-serif;font-size:15px;font-weight:700;margin-bottom:10px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:14px;overflow:auto;flex:1;min-height:0;align-items:start">
+      <div>
+        <div style="font-weight:900;font-size:15px;margin-bottom:8px;color:#0369a1">❄️ הוקפאו <span id="bsm-trash-held-n" style="color:var(--muted)"></span></div>
+        <div id="bsm-trash-held" style="display:flex;flex-direction:column;gap:10px"></div>
+      </div>
+      <div>
+        <div style="font-weight:900;font-size:15px;margin-bottom:8px;color:#b91c1c">🗑 נמחקו <span id="bsm-trash-del-n" style="color:var(--muted)"></span></div>
+        <div id="bsm-trash-del" style="display:flex;flex-direction:column;gap:10px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-bsm-trips">
   <div class="modal-box" style="max-width:620px;max-height:88vh;overflow-y:auto">
     <div class="modal-title">🚗 תיעוד נסיעות לאיברהים <button class="modal-close" onclick="closeModal('modal-bsm-trips')">✕</button></div>
@@ -5242,35 +5262,35 @@ window._storageRef    = CONFIG_DONE ? storageRef    : null;
 window.dispatchEvent(new Event('firebase-ready'));
 </script>
 
-<script src="js/utils.js?v=722"></script>
-<script src="js/app/01-core.js?v=722"></script>
-<script src="js/app/02-home-calendar.js?v=722"></script>
-<script src="js/app/03-tasks.js?v=722"></script>
-<script src="js/app/04-intake-plate.js?v=722"></script>
-<script src="js/app/05-intake-forms.js?v=722"></script>
-<script src="js/app/06-recall-inventory.js?v=722"></script>
-<script src="js/app/07-bodyshop.js?v=722"></script>
-<script src="js/app/08-ownership-wash.js?v=722"></script>
-<script src="js/app/09-battery.js?v=722"></script>
-<script src="js/app/10-battery-plate.js?v=722"></script>
-<script src="js/app/11-yard-telegram.js?v=722"></script>
-<script src="js/app/12-pickup.js?v=722"></script>
-<script src="js/app/13-reports.js?v=722"></script>
-<script src="js/app/14-tow-invoice.js?v=722"></script>
-<script src="js/ui2-dashboard.js?v=722"></script>
-<script src="js/ui2-mobile.js?v=722"></script>
-<script src="js/ui2-gil-avatar.js?v=722"></script>
-<script src="js/ui2m-tasks.js?v=722"></script>
-<script src="js/ui2-mobile-ai.js?v=722"></script>
-<script src="js/ui2-yard.js?v=722"></script>
-<script src="js/ui2-reports.js?v=722"></script>
-<script src="js/timing.js?v=722"></script>
-<script src="js/ui2-system.js?v=722"></script>
-<script src="js/ui2-operations.js?v=722"></script>
-<script src="js/ui2-staff.js?v=722"></script>
-<script src="js/bodyshop-design.js?v=722"></script>
-<script src="js/ui2-ibrahim-menu.js?v=722"></script>
-<script src="js/ui2-task-dialog.js?v=722"></script>
+<script src="js/utils.js?v=723"></script>
+<script src="js/app/01-core.js?v=723"></script>
+<script src="js/app/02-home-calendar.js?v=723"></script>
+<script src="js/app/03-tasks.js?v=723"></script>
+<script src="js/app/04-intake-plate.js?v=723"></script>
+<script src="js/app/05-intake-forms.js?v=723"></script>
+<script src="js/app/06-recall-inventory.js?v=723"></script>
+<script src="js/app/07-bodyshop.js?v=723"></script>
+<script src="js/app/08-ownership-wash.js?v=723"></script>
+<script src="js/app/09-battery.js?v=723"></script>
+<script src="js/app/10-battery-plate.js?v=723"></script>
+<script src="js/app/11-yard-telegram.js?v=723"></script>
+<script src="js/app/12-pickup.js?v=723"></script>
+<script src="js/app/13-reports.js?v=723"></script>
+<script src="js/app/14-tow-invoice.js?v=723"></script>
+<script src="js/ui2-dashboard.js?v=723"></script>
+<script src="js/ui2-mobile.js?v=723"></script>
+<script src="js/ui2-gil-avatar.js?v=723"></script>
+<script src="js/ui2m-tasks.js?v=723"></script>
+<script src="js/ui2-mobile-ai.js?v=723"></script>
+<script src="js/ui2-yard.js?v=723"></script>
+<script src="js/ui2-reports.js?v=723"></script>
+<script src="js/timing.js?v=723"></script>
+<script src="js/ui2-system.js?v=723"></script>
+<script src="js/ui2-operations.js?v=723"></script>
+<script src="js/ui2-staff.js?v=723"></script>
+<script src="js/bodyshop-design.js?v=723"></script>
+<script src="js/ui2-ibrahim-menu.js?v=723"></script>
+<script src="js/ui2-task-dialog.js?v=723"></script>
 
 <!-- ═══ רענון רכב modals ═══ -->
 <div class="modal-overlay" id="modal-refresh-edit">
