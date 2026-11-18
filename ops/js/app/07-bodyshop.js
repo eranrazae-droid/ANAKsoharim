@@ -589,6 +589,7 @@ function _bsmTrashCard(r) {
     ${items ? `<div style="margin-top:6px;display:flex;flex-direction:column;gap:2px;border-top:1px dashed var(--border);padding-top:6px">${items}</div>` : ''}
     <div style="font-size:11.5px;color:var(--muted);font-weight:700;margin-top:7px">נמחק ע״י ${esc(r.deletedBy || '—')}${when ? ' · ' + when : ''}</div>
     <div style="display:flex;gap:8px;margin-top:8px">
+      <button onclick="bsmTrashView('${esc(r.id)}')" style="flex:1;background:var(--dark);color:#fff;border:none;border-radius:10px;padding:9px;font-family:Heebo,sans-serif;font-weight:900;font-size:13px;cursor:pointer">📄 הפתק המלא</button>
       <button onclick="bsmTrashRestore('${esc(r.id)}')" style="flex:1;background:#16a34a;color:#fff;border:none;border-radius:10px;padding:9px;font-family:Heebo,sans-serif;font-weight:900;font-size:13px;cursor:pointer">↩️ שחזר</button>
       <button onclick="bsmTrashPurge('${esc(r.id)}')" title="מחיקה סופית" style="flex:0 0 44px;background:#fee2e2;border:2px solid #fca5a5;border-radius:10px;font-size:15px;cursor:pointer">🗑</button>
     </div></div>`;
@@ -608,6 +609,70 @@ function _bsmRenderTrash() {
   db.innerHTML = del.length ? del.map(_bsmTrashCard).join('') : empty(term ? 'לא נמצא פתק שנמחק במספר הזה' : 'אין פתקים שנמחקו');
 }
 window.bsmTrashFilter = () => _bsmRenderTrash();
+
+/* הפתק המלא של פתק שנמחק: כל מה ששמור עליו — תמונה, פרטים, חלקים ומחירים, הערה, מי שלח/לקח ומתי,
+   ויומן הנסיעות של הרכב. אפשר גם להדפיס אותו כטופס הזמנת תיקון. הסרטון שנשלח לקבוצת הפחחות לא נשמר באפליקציה. */
+const _fmtWhen = v => {
+  if (!v) return '';
+  const d = v.toDate ? v.toDate() : new Date(v);
+  return isNaN(d) ? '' : d.toLocaleString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+};
+async function bsmTrashView(id) {
+  const r = _bsmTrash.find(x => x.id === id);
+  if (!r) return;
+  const box = document.getElementById('bsm-trash-view-body');
+  if (!box) return;
+  const money = _bsmMoney();
+  const label = { draft: 'ממתין לשליחה', at_shop: 'אצל הפחח', returned: 'סיימנו' };
+  const total = r._kind === 'job' ? _bshopTotal(r) : Number(r.total || 0);
+  const row = (k, v) => v ? `<div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px dashed var(--border)"><span style="flex:0 0 120px;color:var(--muted);font-weight:800;font-size:13px">${k}</span><span style="font-weight:800;font-size:14px">${v}</span></div>` : '';
+  const items = (r.items || []).map(it => `<tr><td style="padding:6px 8px;border-bottom:1px solid var(--border)">${esc(it.name)}${it.addedByShop ? ' <small style="color:#92400e">(הוסיף איברהים)</small>' : ''}</td>${money ? `<td style="padding:6px 8px;border-bottom:1px solid var(--border);text-align:left;font-weight:900">${it.price != null && it.price !== '' ? Number(it.price).toLocaleString('he-IL') + ' ₪' : '—'}</td>` : ''}</tr>`).join('');
+  box.innerHTML = '<div style="padding:30px;text-align:center;font-weight:800">⏳ טוען...</div>';
+  document.getElementById('bsm-trash-view-title').textContent = '📄 ' + (r.plate || 'פתק שנמחק');
+  openModal('modal-bsm-trash-view');
+  // תמונה (מסמך נפרד) ויומן נסיעות — נטענים עכשיו
+  let photo = r.photo || r.photoThumb || '';
+  try {
+    const ph = await window._getDoc(_docRef('bodyshop_deleted_photos', r.id));
+    if (ph && ph.exists()) { const v = Object.values(ph.data()).find(x => typeof x === 'string' && /^(data:|http)/.test(x)); if (v) photo = v; }
+  } catch (e) {}
+  let trips = [];
+  try {
+    const { getDocs, query, collection, where } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const sn = await getDocs(query(collection(window._db, 'bodyshop_trips'), where('jobId', '==', r._id || r.id)));
+    trips = sn.docs.map(d => d.data()).sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
+  } catch (e) {}
+  const tripsHtml = trips.length ? trips.map(t => `<div style="padding:6px 0;border-bottom:1px dashed var(--border);font-size:13.5px;font-weight:700">🚗 ${esc(t.driver || t.takenBy || t.by || '')} · ${esc(_fmtWhen(t.at) || '')}${t.note ? ' · ' + esc(t.note) : ''}</div>`).join('') : '';
+  box.innerHTML = `
+    ${photo ? `<img src="${esc(photo)}" style="width:100%;max-height:340px;object-fit:contain;background:#000;border-radius:12px;margin-bottom:10px;display:block">` : ''}
+    <div style="font-size:15px;font-weight:900;margin-bottom:4px">${esc(r.plate || '')} <span style="color:var(--muted);font-weight:700">${esc(r.desc || '')}</span></div>
+    <div style="background:#fee2e2;color:#b91c1c;font-weight:900;font-size:13px;border-radius:10px;padding:6px 10px;margin-bottom:8px">נמחק ע״י ${esc(r.deletedBy || '—')} · ${esc(_fmtWhen(r.deletedAt))}</div>
+    ${row('היה בסטטוס', r._kind === 'arc' ? 'בתיקיית תשלום · ' + esc(r.archiveTitle || '') : esc(label[r.status] || r.status || ''))}
+    ${row('נוצר', [esc(r.createdBy || ''), esc(_fmtWhen(r.createdAt))].filter(Boolean).join(' · '))}
+    ${row('נשלח לפחח', [esc(_fmtWhen(r.sentAt)), r.takenBy ? 'לקח: ' + esc(r.takenBy) : ''].filter(Boolean).join(' · '))}
+    ${row('חזר מהפחח', esc(_fmtWhen(r.returnedAt)))}
+    ${row('שולם', esc(_fmtWhen(r.paidAt)))}
+    ${row('מוקפא', r.onHold ? 'כן' : '')}
+    ${row('סיימנו (מנהל)', r.mgrDone ? 'כן' : '')}
+    ${row('עודכן בתוכנה', r.swUpdated ? 'כן' : '')}
+    ${r.note ? `<div style="background:#fffbeb;border:1.5px solid #fcd34d;border-radius:10px;padding:8px 10px;margin:10px 0;font-weight:700">📝 הערה לפחח: ${esc(r.note)}</div>` : ''}
+    <div style="font-weight:900;margin:12px 0 4px">🔧 חלקים${money && total ? ` · סה״כ ${total.toLocaleString('he-IL')} ₪` : ''}</div>
+    ${items ? `<table style="width:100%;border-collapse:collapse;font-size:14px">${items}</table>` : '<div style="color:var(--muted);font-weight:700">לא נשמרו חלקים</div>'}
+    ${(r.vladiItems || []).length ? `<div style="margin-top:8px;font-weight:700;font-size:13px">ולאדי: ${(r.vladiItems || []).map(v => esc(v.name || v)).join(' · ')}</div>` : ''}
+    ${tripsHtml ? `<div style="font-weight:900;margin:12px 0 4px">🚗 תיעוד נסיעות</div>${tripsHtml}` : ''}
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button onclick="bsmTrashPrint('${esc(r.id)}')" style="flex:1;background:var(--dark);color:#fff;border:none;border-radius:12px;padding:12px;font-family:Heebo,sans-serif;font-weight:900;font-size:14px;cursor:pointer">🖨️ הדפס פתק</button>
+      <button onclick="closeModal('modal-bsm-trash-view');bsmTrashRestore('${esc(r.id)}')" style="flex:1;background:#16a34a;color:#fff;border:none;border-radius:12px;padding:12px;font-family:Heebo,sans-serif;font-weight:900;font-size:14px;cursor:pointer">↩️ שחזר</button>
+    </div>`;
+}
+function bsmTrashPrint(id) {
+  const r = _bsmTrash.find(x => x.id === id);
+  const f = r && _bshopNoteForm(id, r);
+  if (!f) return;
+  _printHtml(`<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8"><title>טופס הזמנת תיקון</title>
+<style>@page { size: A4; margin: 18mm 16mm; }</style></head><body style="margin:0">${f.html('')}</body></html>`, 'bodyshop print', 'שגיאה בהדפסה');
+}
+Object.assign(window, { bsmTrashView, bsmTrashPrint });
 
 async function bsmTrashRestore(id) {
   const r = _bsmTrash.find(x => x.id === id);
@@ -1833,8 +1898,8 @@ const _BSHOP_FORM_ROWS = 10; // the paper form has ten numbered lines
 const _BSHOP_SHOP = 'מוסך פחח איברהים';
 
 /* בונה את טופס הזמנת התיקון — עיצוב ותוכן. אינו מדפיס ואינו שולח. */
-function _bshopNoteForm(id) {
-  const j = _bshopJobs.find(x => x.id === id);
+function _bshopNoteForm(id, jobObj) {
+  const j = jobObj || _bshopJobs.find(x => x.id === id);
   if (!j) return null;
   const now = new Date();
   const dateStr = now.toLocaleDateString('he-IL');
