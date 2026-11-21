@@ -2838,7 +2838,17 @@
   }
   function _mpPosted(){ try{ return JSON.parse(localStorage.getItem('mpPosted')||'{}'); }catch(e){ return {}; } }
   function _mpSave(o){ try{ localStorage.setItem('mpPosted',JSON.stringify(o)); }catch(e){} }
-  function markMP(id){ var o=_mpPosted(); o[id]=Date.now(); _mpSave(o); renderMP(); toast('✅ סומן כפורסם במרקטפלייס'); }
+  // יומן פרסומים מצטבר (לספירה חודשית/יומית) — לא נמחק בסבב חדש
+  function _mpLog(){ try{ return JSON.parse(localStorage.getItem('mpLog')||'[]'); }catch(e){ return []; } }
+  function _mpLogAdd(ts){ try{ var a=_mpLog(); a.push(ts); if(a.length>500) a=a.slice(-500); localStorage.setItem('mpLog',JSON.stringify(a)); }catch(e){} }
+  function markMP(id){ var o=_mpPosted(); o[id]=Date.now(); _mpSave(o); _mpLogAdd(Date.now()); renderMP(); toast('✅ פורסם! יורד מהרשימה'); }
+  function mpUndoPosted(id){ var o=_mpPosted(); delete o[id]; _mpSave(o); renderMP(); toast('↩️ הוחזר לרשימת הפרסום'); }
+  function mpTogglePosted(){ window._mpShowPosted=!window._mpShowPosted; renderMP(); }
+  function mpNewRound(){
+    if(!confirm('להתחיל סבב פרסום חדש? כל הרכבים יחזרו לרשימה כדי לחדש אותם במרקטפלייס.\n(הספירה "פורסמו החודש" נשמרת.)')) return;
+    try{ localStorage.removeItem('mpPosted'); }catch(e){}
+    _mpShuffle(); window._mpShowPosted=false; renderMP(); toast('🔄 סבב חדש התחיל — כל הרכבים חזרו לרשימה');
+  }
   function copyMP(key,btn){ var t=(window._mpFields||{})[key]||''; try{ if(navigator.clipboard){ navigator.clipboard.writeText(t).then(function(){ btn.textContent='✅ הועתק'; setTimeout(function(){btn.textContent='📋 העתק';},1500); }); } }catch(e){} }
   function openMP(id){
     var c=cars.find(function(x){return x.id===id;}); if(!c) return;
@@ -2876,49 +2886,66 @@
     if(!order || order.length!==base.length){ order=_mpShuffle(); }
     var rank={}; order.forEach(function(id,i){ rank[id]=i; });
     var q=((document.getElementById('mpSearch')||{}).value||'').toLowerCase();
-    var showSkipped=!!window._mpShowSkipped;
+    var showSkipped=!!window._mpShowSkipped, showPosted=!!window._mpShowPosted;
     var skippedCount=base.filter(function(c){ return skip[c.id]; }).length;
+    var postedCount=base.filter(function(c){ return posted[c.id] && !skip[c.id]; }).length;
+    // רשימת העבודה: רק רכבים שעוד לא פורסמו ולא דולגו (פורסם = יורד מהרשימה)
+    var remaining=base.filter(function(c){ return !posted[c.id] && !skip[c.id]; }).length;
+    var mode = showSkipped ? 'skip' : (showPosted ? 'posted' : 'todo');
     var list=base.filter(function(c){
       if(((c.brand||'')+' '+(c.model||'')).toLowerCase().indexOf(q)<0) return false;
-      return showSkipped ? !!skip[c.id] : !skip[c.id];
+      if(mode==='skip') return !!skip[c.id];
+      if(mode==='posted') return posted[c.id] && !skip[c.id];
+      return !posted[c.id] && !skip[c.id]; // todo
     });
     list.sort(function(a,b){ return (rank[a.id]==null?9999:rank[a.id])-(rank[b.id]==null?9999:rank[b.id]); });
-    var cNot=base.filter(function(c){return !posted[c.id] && !skip[c.id];}).length;
-    var cStale=base.filter(function(c){return posted[c.id] && !skip[c.id] && (now-posted[c.id])/DAY>=4;}).length;
     var nowD=new Date();
-    var cMonth=Object.keys(posted).filter(function(k){ var d=new Date(posted[k]); return d.getMonth()===nowD.getMonth() && d.getFullYear()===nowD.getFullYear(); }).length;
+    var cMonth=_mpLog().filter(function(ts){ var d=new Date(ts); return d.getMonth()===nowD.getMonth() && d.getFullYear()===nowD.getFullYear(); }).length;
     var hdr='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">'+
       '<div style="flex:1;min-width:104px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:12px;text-align:center"><div style="font-size:22px;font-weight:900;color:#2563eb">'+cMonth+'</div><div style="font-size:12px;color:#1e40af">פורסמו החודש</div></div>'+
-      '<div style="flex:1;min-width:104px;background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:12px;text-align:center"><div style="font-size:22px;font-weight:900;color:#dc2626">'+cNot+'</div><div style="font-size:12px;color:#991b1b">לא פורסמו</div></div>'+
-      '<div style="flex:1;min-width:104px;background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:12px;text-align:center"><div style="font-size:22px;font-weight:900;color:#c2660c">'+cStale+'</div><div style="font-size:12px;color:#9a3412">צריכים חידוש</div></div>'+
-      '<div style="flex:1;min-width:104px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:12px;text-align:center"><div style="font-size:22px;font-weight:900;color:#15803d">'+base.length+'</div><div style="font-size:12px;color:#166534">רכבים במלאי</div></div>'+
+      '<div style="flex:1;min-width:104px;background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:12px;text-align:center"><div style="font-size:22px;font-weight:900;color:#dc2626">'+remaining+'</div><div style="font-size:12px;color:#991b1b">נשארו לפרסם</div></div>'+
+      '<div style="flex:1;min-width:104px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:12px;text-align:center"><div style="font-size:22px;font-weight:900;color:#15803d">'+postedCount+'</div><div style="font-size:12px;color:#166534">פורסמו בסבב</div></div>'+
+      '<div style="flex:1;min-width:104px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:12px;text-align:center"><div style="font-size:22px;font-weight:900;color:#334155">'+base.length+'</div><div style="font-size:12px;color:#475569">במלאי</div></div>'+
     '</div>';
-    if(skippedCount>0 || showSkipped){
-      hdr+='<div style="margin-bottom:10px"><a href="#" onclick="mpToggleSkipped();return false" style="font-size:13px;font-weight:700;color:#7c3aed;text-decoration:none">'+(showSkipped?'↩️ חזרה לרשימה הראשית':'⏭️ הצג רכבים שדולגו ('+skippedCount+')')+'</a></div>';
+    // סיום סבב — כל הרכבים הרלוונטיים פורסמו
+    if(mode==='todo' && remaining===0 && base.length>0){
+      hdr+='<div style="background:#f0fdf4;border:1.5px solid #16a34a;border-radius:14px;padding:16px;text-align:center;margin-bottom:12px">'+
+        '<div style="font-size:16px;font-weight:900;color:#15803d;margin-bottom:4px">🎉 סיימת את הסבב!</div>'+
+        '<div style="font-size:13px;color:#166534;margin-bottom:10px">כל הרכבים פורסמו במרקטפלייס. אפשר להתחיל סבב חדש (חידוש) מתי שתרצה.</div>'+
+        '<button onclick="mpNewRound()" style="border:none;background:#16a34a;color:#fff;border-radius:10px;padding:11px 22px;font-size:14px;font-weight:900;cursor:pointer">🔄 התחל סבב חדש</button>'+
+      '</div>';
     }
-    el.innerHTML = hdr + (list.map(function(c){ var s=st(c);
-      return '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid var(--line)'+(skip[c.id]?';opacity:.65':'')+'">'+
-        '<div style="font-weight:800;flex:1;min-width:150px">'+_esc(c.brand+' '+c.model)+' <span style="color:var(--muted);font-weight:400;font-size:13px">'+(c.year||'')+'</span><div><span style="font-size:11px;font-weight:800;color:'+(skip[c.id]?'#6b7280':s.col)+';background:'+(skip[c.id]?'#f1f5f9':s.bg)+';border-radius:999px;padding:2px 8px;display:inline-block;margin-top:3px">'+(skip[c.id]?'⏭️ לא במלאי (דולג)':s.txt)+'</span></div></div>'+
-        (skip[c.id]
-          ? '<button onclick="mpUnskip('+c.id+')" style="border:1.5px solid #16a34a;background:#f0fdf4;color:#15803d;border-radius:10px;padding:8px 14px;font-size:13px;font-weight:800;cursor:pointer">↩️ החזר</button>'
+    // קישורי תצוגה: שפורסמו בסבב / שדולגו
+    var toggles=[];
+    if(postedCount>0 || showPosted) toggles.push('<a href="#" onclick="mpTogglePosted();return false" style="font-size:13px;font-weight:700;color:#15803d;text-decoration:none">'+(showPosted?'↩️ חזרה לרשימת הפרסום':'✓ הצג שפורסמו בסבב ('+postedCount+')')+'</a>');
+    if(skippedCount>0 || showSkipped) toggles.push('<a href="#" onclick="mpToggleSkipped();return false" style="font-size:13px;font-weight:700;color:#7c3aed;text-decoration:none">'+(showSkipped?'↩️ חזרה לרשימת הפרסום':'⏭️ הצג שדולגו ('+skippedCount+')')+'</a>');
+    if(toggles.length) hdr+='<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:10px">'+toggles.join('')+'</div>';
+    el.innerHTML = hdr + (list.map(function(c){ var s=st(c); var dim=(mode!=='todo');
+      return '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid var(--line)'+(dim?';opacity:.7':'')+'">'+
+        '<div style="font-weight:800;flex:1;min-width:150px">'+_esc(c.brand+' '+c.model)+' <span style="color:var(--muted);font-weight:400;font-size:13px">'+(c.year||'')+'</span><div><span style="font-size:11px;font-weight:800;color:'+(mode==='skip'?'#6b7280':s.col)+';background:'+(mode==='skip'?'#f1f5f9':s.bg)+';border-radius:999px;padding:2px 8px;display:inline-block;margin-top:3px">'+(mode==='skip'?'⏭️ לא במלאי (דולג)':s.txt)+'</span></div></div>'+
+        (mode==='skip'
+          ? '<button onclick="mpUnskip('+c.id+')" style="border:1.5px solid #16a34a;background:#f0fdf4;color:#15803d;border-radius:10px;padding:8px 14px;font-size:13px;font-weight:800;cursor:pointer">↩️ החזר למלאי</button>'
+          : mode==='posted'
+          ? '<button onclick="openMP('+c.id+')" style="border:none;background:#D4A017;color:#000;border-radius:10px;padding:8px 14px;font-size:13px;font-weight:900;cursor:pointer">📋 ליסטינג</button>'+
+            '<button onclick="mpUndoPosted('+c.id+')" style="border:1.5px solid #cbd5e1;background:#f8fafc;color:#64748b;border-radius:10px;padding:8px 12px;font-size:13px;font-weight:800;cursor:pointer">↩️ בטל פרסום</button>'
           : '<button onclick="openMP('+c.id+')" style="border:none;background:#D4A017;color:#000;border-radius:10px;padding:8px 16px;font-size:13px;font-weight:900;cursor:pointer">📋 ליסטינג</button>'+
-            (posted[c.id]
-              ? '<button onclick="markMP('+c.id+')" style="border:1.5px solid #c2660c;background:#fff7ed;color:#c2660c;border-radius:10px;padding:8px 12px;font-size:13px;font-weight:800;cursor:pointer">🔄 חודש</button>'
-              : '<button onclick="markMP('+c.id+')" style="border:1.5px solid #16a34a;background:#f0fdf4;color:#15803d;border-radius:10px;padding:8px 12px;font-size:13px;font-weight:800;cursor:pointer">✓ פורסם</button>')+
+            '<button onclick="markMP('+c.id+')" style="border:1.5px solid #16a34a;background:#f0fdf4;color:#15803d;border-radius:10px;padding:8px 12px;font-size:13px;font-weight:800;cursor:pointer">✓ פורסם</button>'+
             '<button onclick="mpSkipCar('+c.id+')" title="הרכב לא במלאי - דלג עליו" style="border:1.5px solid #cbd5e1;background:#f8fafc;color:#64748b;border-radius:10px;padding:8px 12px;font-size:13px;font-weight:800;cursor:pointer">⏭️ דלג</button>')+
       '</div>';
-    }).join('') || '<div style="text-align:center;padding:30px;color:var(--muted)">'+(showSkipped?'אין רכבים שדולגו':'אין רכבים')+'</div>');
+    }).join('') || '<div style="text-align:center;padding:30px;color:var(--muted)">'+(mode==='skip'?'אין רכבים שדולגו':mode==='posted'?'עוד לא פורסמו רכבים בסבב':'🎉 כל הרכבים פורסמו!')+'</div>');
   }
 
   /* ===== סיכום יומי לקבוצת וואטסאפ ===== */
   function genDailySummary(){
     var posted=_mpPosted(), now=new Date(), DAY=86400000;
     var isToday=function(ts){ var d=new Date(ts); return d.getDate()===now.getDate() && d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear(); };
-    var carsToday=Object.keys(posted).filter(function(k){ return isToday(posted[k]); }).length;
-    var carsMonth=Object.keys(posted).filter(function(k){ var d=new Date(posted[k]); return d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear(); }).length;
+    var log=(typeof _mpLog==='function'?_mpLog():[]);
+    var carsToday=log.filter(function(ts){ return isToday(ts); }).length;
+    var carsMonth=log.filter(function(ts){ var d=new Date(ts); return d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear(); }).length;
     var base=cars.filter(function(c){ return c && !c.hidden; });
-    var stale=base.filter(function(c){ return posted[c.id] && (now.getTime()-posted[c.id])/DAY>=4; }).length;
-    var notPosted=base.filter(function(c){ return !posted[c.id]; }).length;
+    var skip=(typeof _mpSkip==='function'?_mpSkip():{});
+    var stale=0;
+    var notPosted=base.filter(function(c){ return !posted[c.id] && !skip[c.id]; }).length;
     var allLeads=(typeof leads!=='undefined'?leads:[]);
     var leadsToday=allLeads.filter(function(l){ if(!l || l.action===SRC_MARK) return false; var t=l.created_at?new Date(l.created_at).getTime():0; return t && isToday(t); }).length;
     var dstr=now.toLocaleDateString('he-IL',{weekday:'long',day:'numeric',month:'long'});
@@ -2926,8 +2953,8 @@
       '🏪 מרקטפלייס: *'+carsToday+'* רכבים פורסמו/חודשו היום\n'+
       '📅 סה"כ החודש: *'+carsMonth+'* רכבים\n'+
       '👥 לידים חדשים ל-CRM: *'+leadsToday+'*\n';
-    if(stale>0) txt+='\n🔄 ממתינים לחידוש: '+stale+' רכבים';
-    if(notPosted>0) txt+='\n🆕 עוד לא פורסמו: '+notPosted+' רכבים';
+    if(notPosted>0) txt+='\n🆕 נשארו לפרסם: '+notPosted+' רכבים';
+    else txt+='\n🎉 כל המלאי פורסם!';
     txt+='\n\n🚗 אוטודילר — הדיל הנכון';
     return txt;
   }
