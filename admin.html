@@ -2909,17 +2909,48 @@
     txt+='\n\n🚗 אוטודילר — הדיל הנכון';
     return txt;
   }
+  function _tgCfg(){ try{ return { token:localStorage.getItem('tg_token')||'', chat:localStorage.getItem('tg_chat')||'' }; }catch(e){ return {token:'',chat:''}; } }
+  function saveTgCfg(){
+    var t=(document.getElementById('tgToken')||{}).value||'', ch=(document.getElementById('tgChat')||{}).value||'';
+    try{ localStorage.setItem('tg_token',t.trim()); localStorage.setItem('tg_chat',ch.trim()); }catch(e){}
+    toast('✅ הגדרות טלגרם נשמרו'); openDailySummary();
+  }
+  async function sendTelegram(btn){
+    var cfg=_tgCfg(); var txt=window._dailyTxt||'';
+    if(!cfg.token||!cfg.chat){ toast('⚠️ חסרים טוקן / מזהה קבוצה'); return; }
+    var orig=btn?btn.textContent:''; if(btn){ btn.disabled=true; btn.textContent='⏳ שולח...'; }
+    try{
+      var res=await fetch('https://api.telegram.org/bot'+cfg.token+'/sendMessage',{
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({ chat_id:cfg.chat, text:txt, parse_mode:'Markdown' })
+      });
+      var j=await res.json();
+      if(j && j.ok){ if(btn){ btn.textContent='✅ נשלח לטלגרם'; } toast('📨 הסיכום נשלח לקבוצת הטלגרם'); }
+      else { if(btn){ btn.disabled=false; btn.textContent=orig; } toast('⚠️ שגיאת טלגרם: '+((j&&j.description)||'בדוק טוקן/מזהה')); }
+    }catch(e){ if(btn){ btn.disabled=false; btn.textContent=orig; } toast('⚠️ שגיאה בשליחה לטלגרם'); }
+  }
   async function openDailySummary(){
     try{ if(typeof loadLeadsFromCloud==='function') await loadLeadsFromCloud(); }catch(e){}
-    var txt=genDailySummary(); window._dailyTxt=txt;
+    var txt=genDailySummary(); window._dailyTxt=txt; var cfg=_tgCfg();
     document.getElementById('adsModalTitle').textContent='📊 סיכום יומי';
+    var tgBtn = (cfg.token && cfg.chat)
+      ? '<button onclick="sendTelegram(this)" style="flex:1;min-width:160px;background:#229ED9;color:#fff;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:900;cursor:pointer">📨 שלח לטלגרם</button>'
+      : '';
+    var tgSetup = (cfg.token && cfg.chat)
+      ? '<div style="font-size:12px;color:var(--muted);margin-top:10px;text-align:center">‏✅ טלגרם מחובר · <a href="#" onclick="try{localStorage.removeItem(\'tg_token\');localStorage.removeItem(\'tg_chat\')}catch(e){};openDailySummary();return false" style="color:#229ED9">החלף הגדרות</a></div>'
+      : '<div style="margin-top:14px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:12px;padding:12px">'+
+        '<div style="font-weight:800;margin-bottom:8px;font-size:13px">📨 חיבור לטלגרם (חד-פעמי) — שליחה אוטומטית לקבוצה</div>'+
+        '<input id="tgToken" placeholder="טוקן הבוט (מ-BotFather)" style="width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;font-size:13px;margin-bottom:8px;direction:ltr">'+
+        '<input id="tgChat" placeholder="מזהה הקבוצה chat_id (למשל ‎-1001234567890)" style="width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;font-size:13px;margin-bottom:8px;direction:ltr">'+
+        '<button onclick="saveTgCfg()" style="width:100%;background:#229ED9;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:800;cursor:pointer">שמור וחבר טלגרם</button>'+
+      '</div>';
     document.getElementById('adsModalBody').innerHTML=
-      '<textarea readonly style="width:100%;height:220px;font-size:14px;border:1px solid #e5e7eb;border-radius:12px;padding:12px;direction:rtl;font-family:inherit;line-height:1.7">'+_esc(txt)+'</textarea>'+
+      '<textarea readonly style="width:100%;height:200px;font-size:14px;border:1px solid #e5e7eb;border-radius:12px;padding:12px;direction:rtl;font-family:inherit;line-height:1.7">'+_esc(txt)+'</textarea>'+
       '<div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">'+
-        '<button onclick="window.open(\'https://wa.me/?text=\'+encodeURIComponent(window._dailyTxt||\'\'),\'_blank\')" style="flex:1;min-width:160px;background:#25D366;color:#fff;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:900;cursor:pointer">📲 שלח לוואטסאפ</button>'+
-        '<button onclick="copyDaily(this)" style="flex:1;min-width:120px;background:#0d0d0d;color:#fff;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:900;cursor:pointer">📋 העתק</button>'+
-      '</div>'+
-      '<div style="font-size:12px;color:var(--muted);margin-top:10px;text-align:center">‏בוואטסאפ ייפתח חלון לבחירת הקבוצה → בוחרים את הקבוצה → שולחים.</div>';
+        tgBtn+
+        '<button onclick="window.open(\'https://wa.me/?text=\'+encodeURIComponent(window._dailyTxt||\'\'),\'_blank\')" style="flex:1;min-width:140px;background:#25D366;color:#fff;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:900;cursor:pointer">📲 וואטסאפ</button>'+
+        '<button onclick="copyDaily(this)" style="flex:1;min-width:100px;background:#0d0d0d;color:#fff;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:900;cursor:pointer">📋 העתק</button>'+
+      '</div>'+ tgSetup;
     document.getElementById('adsModal').classList.remove('hidden');
   }
   function copyDaily(btn){ var t=window._dailyTxt||''; try{ if(navigator.clipboard){ navigator.clipboard.writeText(t).then(function(){ btn.textContent='✅ הועתק'; setTimeout(function(){btn.textContent='📋 העתק';},1500); }); } }catch(e){} }
