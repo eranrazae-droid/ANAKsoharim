@@ -649,6 +649,7 @@
           <div><div class="eyebrow">מקור #1 · 56% מהלקוחות</div><h2>🏪 מכונת מרקטפלייס</h2></div>
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
             <button onclick="openDailySummary()" style="border:none;background:#25D366;color:#fff;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:900;cursor:pointer">📊 סיכום יומי לווצאפ</button>
+            <button onclick="mpReshuffle()" style="border:none;background:#7c3aed;color:#fff;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:900;cursor:pointer">🎲 ערבב</button>
             <input id="mpSearch" oninput="renderMP()" placeholder="חיפוש רכב..." style="width:200px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;font-size:14px">
           </div>
         </div>
@@ -2852,33 +2853,61 @@
     document.getElementById('adsModalBody').innerHTML = steps + fld('title','כותרת (Title)',58) + fld('price','מחיר (₪)',44) + fld('desc','תיאור (Description)',260) + imgBtn + markBtn;
     document.getElementById('adsModal').classList.remove('hidden');
   }
+  // ערבוב רנדומלי — נשמר יציב עד לחיצה על "ערבב"
+  function _mpShuffle(){
+    var ids=cars.filter(function(c){return c && !c.hidden;}).map(function(c){return c.id;});
+    for(var i=ids.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=ids[i]; ids[i]=ids[j]; ids[j]=t; }
+    window._mpOrder=ids; return ids;
+  }
+  function mpReshuffle(){ _mpShuffle(); renderMP(); toast('🎲 הרשימה עורבבה'); }
+  // דילוג על רכב שאין במלאי
+  function _mpSkip(){ try{ return JSON.parse(localStorage.getItem('mpSkip')||'{}'); }catch(e){ return {}; } }
+  function _mpSkipSave(o){ try{ localStorage.setItem('mpSkip',JSON.stringify(o)); }catch(e){} }
+  function mpSkipCar(id){ var o=_mpSkip(); o[id]=Date.now(); _mpSkipSave(o); renderMP(); toast('⏭️ הרכב סומן כלא במלאי (דולג)'); }
+  function mpUnskip(id){ var o=_mpSkip(); delete o[id]; _mpSkipSave(o); renderMP(); toast('↩️ הרכב הוחזר לרשימה'); }
+  function mpToggleSkipped(){ window._mpShowSkipped=!window._mpShowSkipped; renderMP(); }
   function renderMP(){
     var el=document.getElementById('mpList'); if(!el) return;
-    var posted=_mpPosted(), now=Date.now(), DAY=86400000;
+    var posted=_mpPosted(), skip=_mpSkip(), now=Date.now(), DAY=86400000;
     var base=cars.filter(function(c){ return c && !c.hidden; });
     function st(c){ var t=posted[c.id]; if(!t) return {k:0,txt:'לא פורסם',col:'#dc2626',bg:'#fef2f2'}; var d=Math.floor((now-t)/DAY); if(d>=4) return {k:1,txt:'🔄 צריך חידוש ('+d+' ימים)',col:'#c2660c',bg:'#fff7ed'}; return {k:2,txt:'✓ פורסם '+(d===0?'היום':'לפני '+d+' ימים'),col:'#15803d',bg:'#f0fdf4'}; }
+    // סדר רנדומלי יציב — נבנה פעם אחת, מתרענן רק ב"ערבב" או כשמשתנה המלאי
+    var order=window._mpOrder;
+    if(!order || order.length!==base.length){ order=_mpShuffle(); }
+    var rank={}; order.forEach(function(id,i){ rank[id]=i; });
     var q=((document.getElementById('mpSearch')||{}).value||'').toLowerCase();
-    var list=base.filter(function(c){ return (((c.brand||'')+' '+(c.model||'')).toLowerCase().indexOf(q)>=0); });
-    list.sort(function(a,b){ var d=st(a).k-st(b).k; return d!==0?d:((a.brand||'')+(a.model||'')).localeCompare((b.brand||'')+(b.model||''),'he'); });
-    var cNot=base.filter(function(c){return !posted[c.id];}).length;
-    var cStale=base.filter(function(c){return posted[c.id] && (now-posted[c.id])/DAY>=4;}).length;
+    var showSkipped=!!window._mpShowSkipped;
+    var skippedCount=base.filter(function(c){ return skip[c.id]; }).length;
+    var list=base.filter(function(c){
+      if(((c.brand||'')+' '+(c.model||'')).toLowerCase().indexOf(q)<0) return false;
+      return showSkipped ? !!skip[c.id] : !skip[c.id];
+    });
+    list.sort(function(a,b){ return (rank[a.id]==null?9999:rank[a.id])-(rank[b.id]==null?9999:rank[b.id]); });
+    var cNot=base.filter(function(c){return !posted[c.id] && !skip[c.id];}).length;
+    var cStale=base.filter(function(c){return posted[c.id] && !skip[c.id] && (now-posted[c.id])/DAY>=4;}).length;
     var nowD=new Date();
     var cMonth=Object.keys(posted).filter(function(k){ var d=new Date(posted[k]); return d.getMonth()===nowD.getMonth() && d.getFullYear()===nowD.getFullYear(); }).length;
-    var hdr='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">'+
+    var hdr='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">'+
       '<div style="flex:1;min-width:104px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:12px;text-align:center"><div style="font-size:22px;font-weight:900;color:#2563eb">'+cMonth+'</div><div style="font-size:12px;color:#1e40af">פורסמו החודש</div></div>'+
       '<div style="flex:1;min-width:104px;background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:12px;text-align:center"><div style="font-size:22px;font-weight:900;color:#dc2626">'+cNot+'</div><div style="font-size:12px;color:#991b1b">לא פורסמו</div></div>'+
       '<div style="flex:1;min-width:104px;background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:12px;text-align:center"><div style="font-size:22px;font-weight:900;color:#c2660c">'+cStale+'</div><div style="font-size:12px;color:#9a3412">צריכים חידוש</div></div>'+
       '<div style="flex:1;min-width:104px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:12px;text-align:center"><div style="font-size:22px;font-weight:900;color:#15803d">'+base.length+'</div><div style="font-size:12px;color:#166534">רכבים במלאי</div></div>'+
     '</div>';
+    if(skippedCount>0 || showSkipped){
+      hdr+='<div style="margin-bottom:10px"><a href="#" onclick="mpToggleSkipped();return false" style="font-size:13px;font-weight:700;color:#7c3aed;text-decoration:none">'+(showSkipped?'↩️ חזרה לרשימה הראשית':'⏭️ הצג רכבים שדולגו ('+skippedCount+')')+'</a></div>';
+    }
     el.innerHTML = hdr + (list.map(function(c){ var s=st(c);
-      return '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid var(--line)">'+
-        '<div style="font-weight:800;flex:1;min-width:150px">'+_esc(c.brand+' '+c.model)+' <span style="color:var(--muted);font-weight:400;font-size:13px">'+(c.year||'')+'</span><div><span style="font-size:11px;font-weight:800;color:'+s.col+';background:'+s.bg+';border-radius:999px;padding:2px 8px;display:inline-block;margin-top:3px">'+s.txt+'</span></div></div>'+
-        '<button onclick="openMP('+c.id+')" style="border:none;background:#D4A017;color:#000;border-radius:10px;padding:8px 16px;font-size:13px;font-weight:900;cursor:pointer">📋 ליסטינג</button>'+
-        (posted[c.id]
-          ? '<button onclick="markMP('+c.id+')" style="border:1.5px solid #c2660c;background:#fff7ed;color:#c2660c;border-radius:10px;padding:8px 12px;font-size:13px;font-weight:800;cursor:pointer">🔄 חודש</button>'
-          : '<button onclick="markMP('+c.id+')" style="border:1.5px solid #16a34a;background:#f0fdf4;color:#15803d;border-radius:10px;padding:8px 12px;font-size:13px;font-weight:800;cursor:pointer">✓ פורסם</button>')+
+      return '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid var(--line)'+(skip[c.id]?';opacity:.65':'')+'">'+
+        '<div style="font-weight:800;flex:1;min-width:150px">'+_esc(c.brand+' '+c.model)+' <span style="color:var(--muted);font-weight:400;font-size:13px">'+(c.year||'')+'</span><div><span style="font-size:11px;font-weight:800;color:'+(skip[c.id]?'#6b7280':s.col)+';background:'+(skip[c.id]?'#f1f5f9':s.bg)+';border-radius:999px;padding:2px 8px;display:inline-block;margin-top:3px">'+(skip[c.id]?'⏭️ לא במלאי (דולג)':s.txt)+'</span></div></div>'+
+        (skip[c.id]
+          ? '<button onclick="mpUnskip('+c.id+')" style="border:1.5px solid #16a34a;background:#f0fdf4;color:#15803d;border-radius:10px;padding:8px 14px;font-size:13px;font-weight:800;cursor:pointer">↩️ החזר</button>'
+          : '<button onclick="openMP('+c.id+')" style="border:none;background:#D4A017;color:#000;border-radius:10px;padding:8px 16px;font-size:13px;font-weight:900;cursor:pointer">📋 ליסטינג</button>'+
+            (posted[c.id]
+              ? '<button onclick="markMP('+c.id+')" style="border:1.5px solid #c2660c;background:#fff7ed;color:#c2660c;border-radius:10px;padding:8px 12px;font-size:13px;font-weight:800;cursor:pointer">🔄 חודש</button>'
+              : '<button onclick="markMP('+c.id+')" style="border:1.5px solid #16a34a;background:#f0fdf4;color:#15803d;border-radius:10px;padding:8px 12px;font-size:13px;font-weight:800;cursor:pointer">✓ פורסם</button>')+
+            '<button onclick="mpSkipCar('+c.id+')" title="הרכב לא במלאי - דלג עליו" style="border:1.5px solid #cbd5e1;background:#f8fafc;color:#64748b;border-radius:10px;padding:8px 12px;font-size:13px;font-weight:800;cursor:pointer">⏭️ דלג</button>')+
       '</div>';
-    }).join('') || '<div style="text-align:center;padding:30px;color:var(--muted)">אין רכבים</div>');
+    }).join('') || '<div style="text-align:center;padding:30px;color:var(--muted)">'+(showSkipped?'אין רכבים שדולגו':'אין רכבים')+'</div>');
   }
 
   /* ===== סיכום יומי לקבוצת וואטסאפ ===== */
