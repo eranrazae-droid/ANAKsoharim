@@ -202,6 +202,7 @@
       <div class="nav-item" onclick="showTab('vouchers')"><span class="nav-icon">🎟</span><span>קופונים</span></div>
       <div class="nav-item" onclick="showTab('meta')"><span class="nav-icon">🔗</span><span>מזהי Meta</span></div>
       <div class="nav-item" onclick="showTab('ads')"><span class="nav-icon">📢</span><span>מרכז פרסום</span></div>
+      <div class="nav-item" onclick="showTab('mp')"><span class="nav-icon">🏪</span><span>מרקטפלייס</span></div>
       <div class="nav-item" onclick="showTab('pubtrack')"><span class="nav-icon">📣</span><span>מעקב פרסום</span></div>
       <div class="nav-item" onclick="showTab('story')"><span class="nav-icon">📱</span><span>סטורי יומי</span></div>
     </nav>
@@ -654,6 +655,19 @@
         <div id="adsList"></div>
       </div>
 
+      <div id="tab-mp" class="hidden">
+        <div class="section-hd" style="margin-bottom:12px">
+          <div><div class="eyebrow">מקור #1 · 56% מהלקוחות</div><h2>🏪 מכונת מרקטפלייס</h2></div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <input id="mpSearch" oninput="renderMP()" placeholder="חיפוש רכב..." style="width:200px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;font-size:14px">
+          </div>
+        </div>
+        <div class="card panel" style="margin-bottom:16px">
+          <p style="color:var(--muted);font-size:14px;line-height:1.7">מרקטפלייס הוא מקור הלידים מספר 1 שלכם. לכל רכב — לחיצה על <b>"📋 ליסטינג"</b> נותנת את 3 השדות המדויקים שמרקטפלייס מבקש (כותרת / מחיר / תיאור) מוכנים להעתקה, והורדת תמונות. סמנו <b>"✓ פורסם"</b> כדי לעקוב — רכב שפורסם לפני 4+ ימים יסומן <b>🔄 צריך חידוש</b> (Renew מחזיר אותו לראש).</p>
+        </div>
+        <div id="mpList"></div>
+      </div>
+
     </div>
   </div>
 </div>
@@ -1065,8 +1079,8 @@
   let leads = JSON.parse(localStorage.getItem('autodealer_leads')||'[]');
   let vouchers = JSON.parse(localStorage.getItem('autodealer_vouchers')||'[]');
 
-  const tabTitles={dashboard:'דשבורד',inventory:'מלאי רכבים',addcar:'הוספת רכב',leads:'לידים',tasks:'משימות',pay:'שכר',vouchers:'קופונים',meta:'מיגרציית מזהי Meta',ads:'מרכז פרסום',pubtrack:'מעקב פרסום',story:'סטורי יומי'};
-  const tabOrder=['dashboard','inventory','addcar','leads','tasks','pay','vouchers','meta','ads','pubtrack','story'];
+  const tabTitles={dashboard:'דשבורד',inventory:'מלאי רכבים',addcar:'הוספת רכב',leads:'לידים',tasks:'משימות',pay:'שכר',vouchers:'קופונים',meta:'מיגרציית מזהי Meta',ads:'מרכז פרסום',mp:'מכונת מרקטפלייס',pubtrack:'מעקב פרסום',story:'סטורי יומי'};
+  const tabOrder=['dashboard','inventory','addcar','leads','tasks','pay','vouchers','meta','ads','mp','pubtrack','story'];
 
   function login(){
     if(document.getElementById('pwInput').value===PASS){
@@ -1274,6 +1288,7 @@
     if(id==='pay') loadPay();
     if(id==='meta') renderMissingCatalogImages();
     if(id==='ads') renderAdsCenter();
+    if(id==='mp') renderMP();
     if(id==='pubtrack') renderPubTrack();
     if(id==='story') renderStory();
     document.querySelectorAll('[id^="tab-"]').forEach(el=>el.classList.add('hidden'));
@@ -2809,6 +2824,69 @@
     document.getElementById('adsModal').classList.remove('hidden');
   }
   function copyAds(key,btn){ var t=(window._adsTexts||{})[key]||''; try{ if(navigator.clipboard){ navigator.clipboard.writeText(t).then(function(){ btn.textContent='✅ הועתק'; setTimeout(function(){btn.textContent='📋 העתק';},1500); }); } }catch(e){} }
+
+  /* ===== מכונת מרקטפלייס ===== */
+  // 3 השדות שמרקטפלייס מבקש: כותרת, מחיר, תיאור
+  function genMPFields(c){
+    var name=_adName(c), hi=_adHi(c);
+    var price=Number(c.autodealerPriceNumber)||0, lic=Number(c.licenseFee)||0, total=price+lic;
+    var mo=(total>1 && typeof _voMonthly==='function')?_voMonthly(total):0;
+    var title=(((c.brand||'')+' '+(c.model||'')+' '+(c.year||'')).trim()+' · חדש 0 ק"מ מהיבואן').slice(0,100);
+    var desc = name+' — חדש 0 ק"מ מהיבואן הרשמי 🔥\n\n'+
+      (c.summary && c.summary.trim()? c.summary.trim()+'\n\n':'')+
+      (hi.length? '✔️ '+hi.join('\n✔️ ')+'\n':'')+
+      '✔️ 0 ק"מ מהיבואן הרשמי + אחריות יצרן מלאה\n'+
+      (total>1? '✔️ מחיר על הכביש כולל הכל: '+total.toLocaleString('en-US')+' ₪\n':'')+
+      (mo>0? '✔️ מימון מ-'+mo.toLocaleString('en-US')+' ₪ לחודש (עד 100%, בלי מקדמה)\n':'')+
+      '✔️ טרייד-אין לרכב הישן · מסירה מהירה בכל הארץ\n\n'+
+      '📞 לפרטים ומחיר מיידי: 050-839-6030\n'+
+      '📲 וואטסאפ: '+_adWa(name)+'\n'+
+      '🌐 '+_adLink(c)+'\n\n'+
+      '#רכב_חדש #0קמ #'+String(c.brand||'').replace(/\s/g,'')+' #'+String(c.model||'').replace(/\s/g,'').slice(0,20)+' #מהיבואן';
+    return { title:title, price:String(total>1?total:(price||'')), desc:desc };
+  }
+  function _mpPosted(){ try{ return JSON.parse(localStorage.getItem('mpPosted')||'{}'); }catch(e){ return {}; } }
+  function _mpSave(o){ try{ localStorage.setItem('mpPosted',JSON.stringify(o)); }catch(e){} }
+  function markMP(id){ var o=_mpPosted(); o[id]=Date.now(); _mpSave(o); renderMP(); toast('✅ סומן כפורסם במרקטפלייס'); }
+  function copyMP(key,btn){ var t=(window._mpFields||{})[key]||''; try{ if(navigator.clipboard){ navigator.clipboard.writeText(t).then(function(){ btn.textContent='✅ הועתק'; setTimeout(function(){btn.textContent='📋 העתק';},1500); }); } }catch(e){} }
+  function openMP(id){
+    var c=cars.find(function(x){return x.id===id;}); if(!c) return;
+    var f=genMPFields(c); window._mpFields=f;
+    document.getElementById('adsModalTitle').textContent='🏪 מרקטפלייס - '+(c.brand+' '+c.model);
+    var fld=function(key,label,h){ return '<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><b>'+label+'</b><button onclick="copyMP(\''+key+'\',this)" style="background:#0d0d0d;color:#fff;border:none;border-radius:8px;padding:5px 14px;font-size:12px;font-weight:800;cursor:pointer">📋 העתק</button></div><textarea readonly style="width:100%;height:'+h+'px;font-size:12.5px;border:1px solid #e5e7eb;border-radius:10px;padding:10px;direction:rtl;font-family:inherit">'+_esc(f[key])+'</textarea></div>'; };
+    var steps='<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:12px;padding:12px;margin-bottom:14px;font-size:13px;line-height:1.7">'+
+      '<b>איך מפרסמים (דקה):</b> 1️⃣ פתח מרקטפלייס → פריט חדש למכירה · 2️⃣ העתק כל שדה למקום שלו · 3️⃣ הורד והעלה תמונות · 4️⃣ פרסם → חזור וסמן "פורסם".'+
+      '<div style="margin-top:6px;color:#b45309;font-weight:700">💡 טיפ: בחר תמונה ראשית מרובעת (1:1) — בולטת יותר בפיד.</div></div>';
+    var imgBtn='<button onclick="downloadCarImages('+c.id+')" style="width:100%;background:#f0fdf4;color:#15803d;border:1.5px solid #bbf7d0;border-radius:10px;padding:11px;font-size:14px;font-weight:800;cursor:pointer;margin:4px 0 10px">⬇️ הורד את כל תמונות הרכב</button>';
+    var markBtn='<button onclick="markMP('+c.id+');document.getElementById(\'adsModal\').classList.add(\'hidden\')" style="width:100%;background:#D4A017;color:#000;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:900;cursor:pointer">✓ פורסם במרקטפלייס</button>';
+    document.getElementById('adsModalBody').innerHTML = steps + fld('title','כותרת (Title)',58) + fld('price','מחיר (₪)',44) + fld('desc','תיאור (Description)',260) + imgBtn + markBtn;
+    document.getElementById('adsModal').classList.remove('hidden');
+  }
+  function renderMP(){
+    var el=document.getElementById('mpList'); if(!el) return;
+    var posted=_mpPosted(), now=Date.now(), DAY=86400000;
+    var base=cars.filter(function(c){ return c && !c.hidden; });
+    function st(c){ var t=posted[c.id]; if(!t) return {k:0,txt:'לא פורסם',col:'#dc2626',bg:'#fef2f2'}; var d=Math.floor((now-t)/DAY); if(d>=4) return {k:1,txt:'🔄 צריך חידוש ('+d+' ימים)',col:'#c2660c',bg:'#fff7ed'}; return {k:2,txt:'✓ פורסם '+(d===0?'היום':'לפני '+d+' ימים'),col:'#15803d',bg:'#f0fdf4'}; }
+    var q=((document.getElementById('mpSearch')||{}).value||'').toLowerCase();
+    var list=base.filter(function(c){ return (((c.brand||'')+' '+(c.model||'')).toLowerCase().indexOf(q)>=0); });
+    list.sort(function(a,b){ var d=st(a).k-st(b).k; return d!==0?d:((a.brand||'')+(a.model||'')).localeCompare((b.brand||'')+(b.model||''),'he'); });
+    var cNot=base.filter(function(c){return !posted[c.id];}).length;
+    var cStale=base.filter(function(c){return posted[c.id] && (now-posted[c.id])/DAY>=4;}).length;
+    var hdr='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">'+
+      '<div style="flex:1;min-width:110px;background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:12px;text-align:center"><div style="font-size:22px;font-weight:900;color:#dc2626">'+cNot+'</div><div style="font-size:12px;color:#991b1b">לא פורסמו</div></div>'+
+      '<div style="flex:1;min-width:110px;background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:12px;text-align:center"><div style="font-size:22px;font-weight:900;color:#c2660c">'+cStale+'</div><div style="font-size:12px;color:#9a3412">צריכים חידוש</div></div>'+
+      '<div style="flex:1;min-width:110px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:12px;text-align:center"><div style="font-size:22px;font-weight:900;color:#15803d">'+base.length+'</div><div style="font-size:12px;color:#166534">רכבים במלאי</div></div>'+
+    '</div>';
+    el.innerHTML = hdr + (list.map(function(c){ var s=st(c);
+      return '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid var(--line)">'+
+        '<div style="font-weight:800;flex:1;min-width:150px">'+_esc(c.brand+' '+c.model)+' <span style="color:var(--muted);font-weight:400;font-size:13px">'+(c.year||'')+'</span><div><span style="font-size:11px;font-weight:800;color:'+s.col+';background:'+s.bg+';border-radius:999px;padding:2px 8px;display:inline-block;margin-top:3px">'+s.txt+'</span></div></div>'+
+        '<button onclick="openMP('+c.id+')" style="border:none;background:#D4A017;color:#000;border-radius:10px;padding:8px 16px;font-size:13px;font-weight:900;cursor:pointer">📋 ליסטינג</button>'+
+        (posted[c.id]
+          ? '<button onclick="markMP('+c.id+')" style="border:1.5px solid #c2660c;background:#fff7ed;color:#c2660c;border-radius:10px;padding:8px 12px;font-size:13px;font-weight:800;cursor:pointer">🔄 חודש</button>'
+          : '<button onclick="markMP('+c.id+')" style="border:1.5px solid #16a34a;background:#f0fdf4;color:#15803d;border-radius:10px;padding:8px 12px;font-size:13px;font-weight:800;cursor:pointer">✓ פורסם</button>')+
+      '</div>';
+    }).join('') || '<div style="text-align:center;padding:30px;color:var(--muted)">אין רכבים</div>');
+  }
   async function socialPublish(carId, type, targets, btn){
     let token=''; try{ token=sessionStorage.getItem('socialToken')||''; }catch(e){}
     if(!token){ token=prompt('הזן את סוד הפרסום (SOCIAL_PUBLISH_TOKEN שהוגדר ב-Netlify):')||''; if(!token) return; try{ sessionStorage.setItem('socialToken',token); }catch(e){} }
