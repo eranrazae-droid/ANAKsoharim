@@ -2817,6 +2817,22 @@
   function copyAds(key,btn){ var t=(window._adsTexts||{})[key]||''; try{ if(navigator.clipboard){ navigator.clipboard.writeText(t).then(function(){ btn.textContent='✅ הועתק'; setTimeout(function(){btn.textContent='📋 העתק';},1500); }); } }catch(e){} }
 
   /* ===== מכונת מרקטפלייס ===== */
+  // מיפוי יצרנים עברית/אנגלית [עברית, אנגלית]
+  var _BRANDMAP=[
+    ["צ'רי","Chery"],["אמ.ג'י","MG"],["טויוטה","Toyota"],["יונדאי","Hyundai"],["אומודה","Omoda"],
+    ["בי.ווי.די","BYD"],["בי.וי.די","BYD"],["קיה","Kia"],["סקודה","Skoda"],["מיצובישי","Mitsubishi"],
+    ["ג'ילי","Geely"],["גילי","Geely"],["ג'אקו","Jaecoo"],["פיג'ו","Peugeot"],["פיגו","Peugeot"],
+    ["פורד","Ford"],["סיאט","Seat"],["סובארו","Subaru"],["אקספנג","XPeng"],["ליפמוטור","Leapmotor"],
+    ["אווטאר","Avatr"],["סיטרואן","Citroen"],["אאודי","Audi"],["ניסאן","Nissan"],["הונדה","Honda"],
+    ["מאזדה","Mazda"],["רנו","Renault"],["וולוו","Volvo"],["טסלה","Tesla"],["למבורגיני","Lamborghini"]
+  ];
+  function _brandBi(c){
+    var b=String(c.brand||'').trim(); if(!b) return '';
+    for(var i=0;i<_BRANDMAP.length;i++){ var p=_BRANDMAP[i];
+      if(p[0]===b || p[1].toLowerCase()===b.toLowerCase()) return p[0]+' / '+p[1];
+    }
+    return b;
+  }
   // 3 השדות שמרקטפלייס מבקש: כותרת, מחיר, תיאור
   function genMPFields(c){
     var name=_adName(c), hi=_adHi(c);
@@ -2834,7 +2850,7 @@
       '📲 וואטסאפ: '+_adWa(name)+'\n'+
       '🌐 '+_adLink(c)+'\n\n'+
       '#רכב_חדש #0קמ #'+String(c.brand||'').replace(/\s/g,'')+' #'+String(c.model||'').replace(/\s/g,'').slice(0,20)+' #מהיבואן';
-    return { title:title, price:String(total>1?total:(price||'')), desc:desc };
+    return { make:_brandBi(c), title:title, price:String(total>1?total:(price||'')), desc:desc };
   }
   function _mpPosted(){ try{ return JSON.parse(localStorage.getItem('mpPosted')||'{}'); }catch(e){ return {}; } }
   function _mpSave(o){ try{ localStorage.setItem('mpPosted',JSON.stringify(o)); }catch(e){} }
@@ -2860,7 +2876,7 @@
       '<div style="margin-top:6px;color:#b45309;font-weight:700">💡 טיפ: בחר תמונה ראשית מרובעת (1:1) — בולטת יותר בפיד.</div></div>';
     var imgBtn='<button onclick="downloadCarImages('+c.id+')" style="width:100%;background:#f0fdf4;color:#15803d;border:1.5px solid #bbf7d0;border-radius:10px;padding:11px;font-size:14px;font-weight:800;cursor:pointer;margin:4px 0 10px">⬇️ הורד את כל תמונות הרכב</button>';
     var markBtn='<button onclick="markMP('+c.id+');document.getElementById(\'adsModal\').classList.add(\'hidden\')" style="width:100%;background:#D4A017;color:#000;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:900;cursor:pointer">✓ פורסם במרקטפלייס</button>';
-    document.getElementById('adsModalBody').innerHTML = steps + fld('title','כותרת (Title)',58) + fld('price','מחיר (₪)',44) + fld('desc','תיאור (Description)',260) + imgBtn + markBtn;
+    document.getElementById('adsModalBody').innerHTML = steps + fld('make','יצרן (Make)',44) + fld('title','כותרת (Title)',58) + fld('price','מחיר (₪)',44) + fld('desc','תיאור (Description)',260) + imgBtn + markBtn;
     document.getElementById('adsModal').classList.remove('hidden');
   }
   // ערבוב רנדומלי — נשמר יציב עד לחיצה על "ערבב"
