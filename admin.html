@@ -659,6 +659,7 @@
         <div class="section-hd" style="margin-bottom:12px">
           <div><div class="eyebrow">מקור #1 · 56% מהלקוחות</div><h2>🏪 מכונת מרקטפלייס</h2></div>
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <button onclick="openDailySummary()" style="border:none;background:#25D366;color:#fff;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:900;cursor:pointer">📊 סיכום יומי לווצאפ</button>
             <input id="mpSearch" oninput="renderMP()" placeholder="חיפוש רכב..." style="width:200px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;font-size:14px">
           </div>
         </div>
@@ -2888,6 +2889,40 @@
       '</div>';
     }).join('') || '<div style="text-align:center;padding:30px;color:var(--muted)">אין רכבים</div>');
   }
+
+  /* ===== סיכום יומי לקבוצת וואטסאפ ===== */
+  function genDailySummary(){
+    var posted=_mpPosted(), now=new Date(), DAY=86400000;
+    var isToday=function(ts){ var d=new Date(ts); return d.getDate()===now.getDate() && d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear(); };
+    var carsToday=Object.keys(posted).filter(function(k){ return isToday(posted[k]); }).length;
+    var base=cars.filter(function(c){ return c && !c.hidden; });
+    var stale=base.filter(function(c){ return posted[c.id] && (now.getTime()-posted[c.id])/DAY>=4; }).length;
+    var notPosted=base.filter(function(c){ return !posted[c.id]; }).length;
+    var allLeads=(typeof leads!=='undefined'?leads:[]);
+    var leadsToday=allLeads.filter(function(l){ if(!l || l.action===SRC_MARK) return false; var t=l.created_at?new Date(l.created_at).getTime():0; return t && isToday(t); }).length;
+    var dstr=now.toLocaleDateString('he-IL',{weekday:'long',day:'numeric',month:'long'});
+    var txt='📊 *סיכום יומי · אוטודילר*\n📅 '+dstr+'\n\n'+
+      '🏪 מרקטפלייס: *'+carsToday+'* רכבים פורסמו/חודשו היום\n'+
+      '👥 לידים חדשים ל-CRM: *'+leadsToday+'*\n';
+    if(stale>0) txt+='\n🔄 ממתינים לחידוש: '+stale+' רכבים';
+    if(notPosted>0) txt+='\n🆕 עוד לא פורסמו: '+notPosted+' רכבים';
+    txt+='\n\n🚗 אוטודילר — הדיל הנכון';
+    return txt;
+  }
+  async function openDailySummary(){
+    try{ if(typeof loadLeadsFromCloud==='function') await loadLeadsFromCloud(); }catch(e){}
+    var txt=genDailySummary(); window._dailyTxt=txt;
+    document.getElementById('adsModalTitle').textContent='📊 סיכום יומי';
+    document.getElementById('adsModalBody').innerHTML=
+      '<textarea readonly style="width:100%;height:220px;font-size:14px;border:1px solid #e5e7eb;border-radius:12px;padding:12px;direction:rtl;font-family:inherit;line-height:1.7">'+_esc(txt)+'</textarea>'+
+      '<div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">'+
+        '<button onclick="window.open(\'https://wa.me/?text=\'+encodeURIComponent(window._dailyTxt||\'\'),\'_blank\')" style="flex:1;min-width:160px;background:#25D366;color:#fff;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:900;cursor:pointer">📲 שלח לוואטסאפ</button>'+
+        '<button onclick="copyDaily(this)" style="flex:1;min-width:120px;background:#0d0d0d;color:#fff;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:900;cursor:pointer">📋 העתק</button>'+
+      '</div>'+
+      '<div style="font-size:12px;color:var(--muted);margin-top:10px;text-align:center">‏בוואטסאפ ייפתח חלון לבחירת הקבוצה → בוחרים את הקבוצה → שולחים.</div>';
+    document.getElementById('adsModal').classList.remove('hidden');
+  }
+  function copyDaily(btn){ var t=window._dailyTxt||''; try{ if(navigator.clipboard){ navigator.clipboard.writeText(t).then(function(){ btn.textContent='✅ הועתק'; setTimeout(function(){btn.textContent='📋 העתק';},1500); }); } }catch(e){} }
   async function socialPublish(carId, type, targets, btn){
     let token=''; try{ token=sessionStorage.getItem('socialToken')||''; }catch(e){}
     if(!token){ token=prompt('הזן את סוד הפרסום (SOCIAL_PUBLISH_TOKEN שהוגדר ב-Netlify):')||''; if(!token) return; try{ sessionStorage.setItem('socialToken',token); }catch(e){} }
