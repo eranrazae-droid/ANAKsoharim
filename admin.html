@@ -649,6 +649,7 @@
           <div><div class="eyebrow">מקור #1 · 56% מהלקוחות</div><h2>🏪 מכונת מרקטפלייס</h2></div>
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
             <button onclick="openDailySummary()" style="border:none;background:#25D366;color:#fff;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:900;cursor:pointer">📊 סיכום יומי לווצאפ</button>
+            <button onclick="openBatch10()" style="border:none;background:#2563eb;color:#fff;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:900;cursor:pointer">🚀 10 רכבים</button>
             <button onclick="mpReshuffle()" style="border:none;background:#7c3aed;color:#fff;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:900;cursor:pointer">🎲 ערבב</button>
             <input id="mpSearch" oninput="renderMP()" placeholder="חיפוש רכב..." style="width:200px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;font-size:14px">
           </div>
@@ -2883,6 +2884,50 @@
     _mpShuffle(); window._mpShowPosted=false; renderMP(); toast('🔄 סבב חדש התחיל — כל הרכבים חזרו לרשימה');
   }
   function copyMP(key,btn){ var t=(window._mpFields||{})[key]||''; try{ if(navigator.clipboard){ navigator.clipboard.writeText(t).then(function(){ btn.textContent='✅ הועתק'; setTimeout(function(){btn.textContent='📋 העתק';},1500); }); } }catch(e){} }
+  // כפתור "10 רכבים" — מכין משימת פרסום אוטומטית לתוסף הכרום
+  function openBatch10(){
+    var posted=_mpPosted(), skip=_mpSkip();
+    var base=cars.filter(function(c){return c && !c.hidden;});
+    var order=window._mpOrder; if(!order || order.length!==base.length){ order=_mpShuffle(); }
+    var byId={}; cars.forEach(function(c){ byId[c.id]=c; });
+    var pick=[];
+    for(var i=0;i<order.length && pick.length<10;i++){ var c=byId[order[i]]; if(c && !c.hidden && !posted[c.id] && !skip[c.id]) pick.push(c); }
+    if(!pick.length){ toast('🎉 אין רכבים שלא פורסמו - סיימת את הסבב!'); return; }
+    var intro='המשימה: לפרסם את '+pick.length+' הרכבים הבאים במרקטפלייס של פייסבוק, אחד אחרי השני.\n\n'+
+      'לכל רכב בצע לפי הסדר:\n'+
+      '1. פתח https://www.facebook.com/marketplace/create/vehicle\n'+
+      '2. בחר סוג רכב: מכונית/משאית\n'+
+      '3. פתח בטאב נפרד את "קישור הרכב באתר", שמור משם 5-8 תמונות של הרכב, והעלה אותן למודעה (שים תמונה נקייה של הרכב כראשונה)\n'+
+      '4. מלא את השדות: שנה, יצרן (Make), דגם, קילומטראז\' = 0, מחיר, מצב = חדש (New)\n'+
+      '5. הדבק את התיאור בשדה התיאור\n'+
+      '6. פרסם את המודעה\n'+
+      '7. המתן כ-60 שניות ועבור לרכב הבא\n\n'+
+      '⚠️ חשוב מאוד:\n'+
+      '- קילומטראז\' תמיד 0 (אלו רכבים חדשים 0 ק"מ)\n'+
+      '- אל תפרסם מהר מדי - המתן בין רכב לרכב כדי לא להיחסם ע"י פייסבוק\n'+
+      '- אם פייסבוק מבקש אישור/קוד/קאפצ\'ה - עצור ובקש ממני לאשר ידנית\n'+
+      '- דווח לי אחרי כל רכב שפורסם בהצלחה\n\n'+
+      '===== רשימת הרכבים =====\n';
+    var blocks=pick.map(function(c,idx){ var f=genMPFields(c);
+      return '\n----- רכב '+(idx+1)+' מתוך '+pick.length+' -----\n'+
+        'קישור הרכב באתר (לתמונות): '+_adLink(c)+'\n'+
+        'שנה: '+(c.year||'')+'\n'+
+        'יצרן (Make): '+f.make+'\n'+
+        'כותרת: '+f.title+'\n'+
+        'מחיר: '+f.price+'\n'+
+        'תיאור:\n'+f.desc+'\n';
+    }).join('');
+    window._batchTxt=intro+blocks; window._batchIds=pick.map(function(c){return c.id;});
+    document.getElementById('adsModalTitle').textContent='🚀 משימת פרסום - '+pick.length+' רכבים';
+    document.getElementById('adsModalBody').innerHTML=
+      '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:12px;margin-bottom:12px;font-size:13px;line-height:1.7"><b>איך משתמשים:</b><br>1️⃣ לחץ "העתק משימה לתוסף" · 2️⃣ פתח את תוסף הכרום של Claude · 3️⃣ הדבק → התוסף יפרסם את '+pick.length+' הרכבים לבד.<div style="margin-top:6px;color:#b45309;font-weight:700">⚠️ פקח על התהליך. אם פייסבוק מבקש אישור/קוד - אשר ידנית. אחרי שפורסמו, חזור וסמן אותם "✓ פורסם" (או לחץ הכפתור למטה).</div></div>'+
+      '<textarea readonly style="width:100%;height:280px;font-size:12px;border:1px solid #e5e7eb;border-radius:12px;padding:12px;direction:rtl;font-family:inherit">'+_esc(window._batchTxt)+'</textarea>'+
+      '<button onclick="copyBatch(this)" style="width:100%;margin-top:10px;background:#2563eb;color:#fff;border:none;border-radius:10px;padding:13px;font-size:15px;font-weight:900;cursor:pointer">📋 העתק משימה לתוסף</button>'+
+      '<button onclick="markBatchPosted()" style="width:100%;margin-top:8px;background:#16a34a;color:#fff;border:none;border-radius:10px;padding:11px;font-size:14px;font-weight:800;cursor:pointer">✓ סמן את כל ה-'+pick.length+' כפורסמו</button>';
+    document.getElementById('adsModal').classList.remove('hidden');
+  }
+  function copyBatch(btn){ var t=window._batchTxt||''; try{ if(navigator.clipboard){ navigator.clipboard.writeText(t).then(function(){ btn.textContent='✅ הועתק - הדבק בתוסף הכרום'; setTimeout(function(){btn.textContent='📋 העתק משימה לתוסף';},2000); }); } }catch(e){} }
+  function markBatchPosted(){ var ids=window._batchIds||[]; if(!ids.length) return; var s=_mpState(); var now=Date.now(); ids.forEach(function(id){ s.posted[id]=now; s.log.push(now); }); if(s.log.length>500) s.log=s.log.slice(-500); mpStateSave(); document.getElementById('adsModal').classList.add('hidden'); renderMP(); toast('✅ '+ids.length+' רכבים סומנו כפורסמו'); }
   function openMP(id){
     var c=cars.find(function(x){return x.id===id;}); if(!c) return;
     var f=genMPFields(c); window._mpFields=f;
