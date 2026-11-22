@@ -1937,19 +1937,42 @@
     renderProfit();
   }
 
-  async function downloadCarImages(id){
+  // המרת תמונה לריבוע 1:1 עם ריפוד לבן (שום דבר לא נחתך) — למרקטפלייס
+  function _blobToSquare(blob){
+    return new Promise(function(resolve){
+      try{
+        const url=URL.createObjectURL(blob);
+        const img=new Image();
+        img.onload=function(){
+          const scale=Math.min(1, 1600/Math.max(img.width,img.height));
+          const w=Math.round(img.width*scale), h=Math.round(img.height*scale);
+          const side=Math.max(w,h);
+          const cv=document.createElement('canvas'); cv.width=side; cv.height=side;
+          const ctx=cv.getContext('2d');
+          ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,side,side);
+          ctx.drawImage(img,(side-w)/2,(side-h)/2,w,h);
+          URL.revokeObjectURL(url);
+          cv.toBlob(function(b){ resolve(b||blob); },'image/jpeg',0.92);
+        };
+        img.onerror=function(){ URL.revokeObjectURL(url); resolve(blob); };
+        img.src=url;
+      }catch(e){ resolve(blob); }
+    });
+  }
+  async function downloadCarImages(id, square){
     const c=cars.find(x=>String(x.id)===String(id)); if(!c) return;
     const imgs=[];
     const add=u=>{ if(u && String(u).trim() && !String(u).startsWith('data:image/svg') && imgs.indexOf(u)<0) imgs.push(u); };
     add(c.image); (c.gallery||[]).forEach(add); add(c.catalog_image);
     if(!imgs.length){ toast('אין תמונות לרכב זה'); return; }
     const base=((c.brand||'')+'-'+(c.model||'')).replace(/[^\w֐-׿]+/g,'_');
-    toast('⬇️ מוריד '+imgs.length+' תמונות...');
+    toast('⬇️ מוריד '+imgs.length+' תמונות'+(square?' (מרובע)':'')+'...');
     for(let i=0;i<imgs.length;i++){
       try{
         const res=await fetch(imgs[i],{mode:'cors'});
-        const blob=await res.blob();
-        const ext=((blob.type.split('/')[1]||'jpg').split('+')[0])||'jpg';
+        let blob=await res.blob();
+        let ext=((blob.type.split('/')[1]||'jpg').split('+')[0])||'jpg';
+        if(square){ blob=await _blobToSquare(blob); ext='jpg'; }
         const a=document.createElement('a');
         a.href=URL.createObjectURL(blob);
         a.download=base+'_'+(i+1)+'.'+ext;
@@ -2936,7 +2959,8 @@
     var steps='<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:12px;padding:12px;margin-bottom:14px;font-size:13px;line-height:1.7">'+
       '<b>איך מפרסמים (דקה):</b> 1️⃣ פתח מרקטפלייס → פריט חדש למכירה · 2️⃣ העתק כל שדה למקום שלו · 3️⃣ הורד והעלה תמונות · 4️⃣ פרסם → חזור וסמן "פורסם".'+
       '<div style="margin-top:6px;color:#b45309;font-weight:700">💡 טיפ: בחר תמונה ראשית מרובעת (1:1) — בולטת יותר בפיד.</div></div>';
-    var imgBtn='<button onclick="downloadCarImages('+c.id+')" style="width:100%;background:#f0fdf4;color:#15803d;border:1.5px solid #bbf7d0;border-radius:10px;padding:11px;font-size:14px;font-weight:800;cursor:pointer;margin:4px 0 10px">⬇️ הורד את כל תמונות הרכב</button>';
+    var imgBtn='<button onclick="downloadCarImages('+c.id+',true)" style="width:100%;background:#f0fdf4;color:#15803d;border:1.5px solid #bbf7d0;border-radius:10px;padding:11px;font-size:14px;font-weight:800;cursor:pointer;margin:4px 0 6px">⬇️ הורד תמונות מרובעות (למרקטפלייס)</button>'+
+      '<button onclick="downloadCarImages('+c.id+')" style="width:100%;background:#f8fafc;color:#475569;border:1px solid #e2e8f0;border-radius:10px;padding:9px;font-size:13px;font-weight:700;cursor:pointer;margin:0 0 10px">⬇️ או הורד במקור (לרוחב)</button>';
     var markBtn='<button onclick="markMP('+c.id+');document.getElementById(\'adsModal\').classList.add(\'hidden\')" style="width:100%;background:#D4A017;color:#000;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:900;cursor:pointer">✓ פורסם במרקטפלייס</button>';
     document.getElementById('adsModalBody').innerHTML = steps + fld('make','יצרן (Make)',44) + fld('title','כותרת (Title)',58) + fld('price','מחיר (₪)',44) + fld('desc','תיאור (Description)',260) + imgBtn + markBtn;
     document.getElementById('adsModal').classList.remove('hidden');
