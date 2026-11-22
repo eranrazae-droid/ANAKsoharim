@@ -2877,7 +2877,7 @@
     return { make:_brandBi(c), title:title, price:String(total>1?total:(price||'')), desc:desc };
   }
   /* מצב מעקב מרקטפלייס — משותף בין כל המחשבים דרך Supabase (inventory id=2) */
-  function _mpState(){ var s=window._mpState; if(!s){ try{ s=JSON.parse(localStorage.getItem('mpState')||'null'); }catch(e){} s=window._mpState=(s||{posted:{},skipped:{},log:[]}); } s.posted=s.posted||{}; s.skipped=s.skipped||{}; s.log=s.log||[]; return s; }
+  function _mpState(){ var s=window.__mpData; if(!s){ try{ s=JSON.parse(localStorage.getItem('mpState')||'null'); }catch(e){} s=window.__mpData=(s||{posted:{},skipped:{},log:[]}); } s.posted=s.posted||{}; s.skipped=s.skipped||{}; s.log=s.log||[]; return s; }
   async function mpStateLoad(){
     var local=null; try{ local=JSON.parse(localStorage.getItem('mpState')||'null'); }catch(e){}
     var c=sbClient();
@@ -2885,11 +2885,11 @@
       try{
         var res=await c.from('inventory').select('data').eq('id',2).maybeSingle();
         var row=res&&res.data; var d=row&&row.data;
-        if(d){ window._mpState={posted:d.posted||{},skipped:d.skipped||{},log:d.log||[]}; }
-        else { window._mpState=local||{posted:{},skipped:{},log:[]}; }
-      }catch(e){ window._mpState=local||{posted:{},skipped:{},log:[]}; }
-    } else { window._mpState=local||{posted:{},skipped:{},log:[]}; }
-    try{ localStorage.setItem('mpState',JSON.stringify(window._mpState)); }catch(e){}
+        if(d){ window.__mpData={posted:d.posted||{},skipped:d.skipped||{},log:d.log||[]}; }
+        else { window.__mpData=local||{posted:{},skipped:{},log:[]}; }
+      }catch(e){ window.__mpData=local||{posted:{},skipped:{},log:[]}; }
+    } else { window.__mpData=local||{posted:{},skipped:{},log:[]}; }
+    try{ localStorage.setItem('mpState',JSON.stringify(window.__mpData)); }catch(e){}
   }
   async function mpStateSave(){
     try{ localStorage.setItem('mpState',JSON.stringify(_mpState())); }catch(e){}
