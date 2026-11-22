@@ -1279,7 +1279,7 @@
     if(id==='tasks') loadTasks();
     if(id==='pay') loadPay();
     if(id==='ads') renderAdsCenter();
-    if(id==='mp') mpStateLoad().then(renderMP);
+    if(id==='mp'){ renderMP(); mpStateLoad().then(renderMP); }
     if(id==='pubtrack') renderPubTrack();
     if(id==='story') renderStory();
     document.querySelectorAll('[id^="tab-"]').forEach(el=>el.classList.add('hidden'));
@@ -2854,7 +2854,7 @@
     return { make:_brandBi(c), title:title, price:String(total>1?total:(price||'')), desc:desc };
   }
   /* מצב מעקב מרקטפלייס — משותף בין כל המחשבים דרך Supabase (inventory id=2) */
-  function _mpState(){ var s=window._mpState; if(!s){ s=window._mpState={posted:{},skipped:{},log:[]}; } s.posted=s.posted||{}; s.skipped=s.skipped||{}; s.log=s.log||[]; return s; }
+  function _mpState(){ var s=window._mpState; if(!s){ try{ s=JSON.parse(localStorage.getItem('mpState')||'null'); }catch(e){} s=window._mpState=(s||{posted:{},skipped:{},log:[]}); } s.posted=s.posted||{}; s.skipped=s.skipped||{}; s.log=s.log||[]; return s; }
   async function mpStateLoad(){
     var local=null; try{ local=JSON.parse(localStorage.getItem('mpState')||'null'); }catch(e){}
     var c=sbClient();
