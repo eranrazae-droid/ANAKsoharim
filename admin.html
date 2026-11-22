@@ -1278,7 +1278,7 @@
     if(id==='tasks') loadTasks();
     if(id==='pay') loadPay();
     if(id==='ads') renderAdsCenter();
-    if(id==='mp') renderMP();
+    if(id==='mp') mpStateLoad().then(renderMP);
     if(id==='pubtrack') renderPubTrack();
     if(id==='story') renderStory();
     document.querySelectorAll('[id^="tab-"]').forEach(el=>el.classList.add('hidden'));
@@ -2852,17 +2852,34 @@
       '#רכב_חדש #0קמ #'+String(c.brand||'').replace(/\s/g,'')+' #'+String(c.model||'').replace(/\s/g,'').slice(0,20)+' #מהיבואן';
     return { make:_brandBi(c), title:title, price:String(total>1?total:(price||'')), desc:desc };
   }
-  function _mpPosted(){ try{ return JSON.parse(localStorage.getItem('mpPosted')||'{}'); }catch(e){ return {}; } }
-  function _mpSave(o){ try{ localStorage.setItem('mpPosted',JSON.stringify(o)); }catch(e){} }
-  // יומן פרסומים מצטבר (לספירה חודשית/יומית) — לא נמחק בסבב חדש
-  function _mpLog(){ try{ return JSON.parse(localStorage.getItem('mpLog')||'[]'); }catch(e){ return []; } }
-  function _mpLogAdd(ts){ try{ var a=_mpLog(); a.push(ts); if(a.length>500) a=a.slice(-500); localStorage.setItem('mpLog',JSON.stringify(a)); }catch(e){} }
-  function markMP(id){ var o=_mpPosted(); o[id]=Date.now(); _mpSave(o); _mpLogAdd(Date.now()); renderMP(); toast('✅ פורסם! יורד מהרשימה'); }
-  function mpUndoPosted(id){ var o=_mpPosted(); delete o[id]; _mpSave(o); renderMP(); toast('↩️ הוחזר לרשימת הפרסום'); }
+  /* מצב מעקב מרקטפלייס — משותף בין כל המחשבים דרך Supabase (inventory id=2) */
+  function _mpState(){ var s=window._mpState; if(!s){ s=window._mpState={posted:{},skipped:{},log:[]}; } s.posted=s.posted||{}; s.skipped=s.skipped||{}; s.log=s.log||[]; return s; }
+  async function mpStateLoad(){
+    var local=null; try{ local=JSON.parse(localStorage.getItem('mpState')||'null'); }catch(e){}
+    var c=sbClient();
+    if(c){
+      try{
+        var res=await c.from('inventory').select('data').eq('id',2).maybeSingle();
+        var row=res&&res.data; var d=row&&row.data;
+        if(d){ window._mpState={posted:d.posted||{},skipped:d.skipped||{},log:d.log||[]}; }
+        else { window._mpState=local||{posted:{},skipped:{},log:[]}; }
+      }catch(e){ window._mpState=local||{posted:{},skipped:{},log:[]}; }
+    } else { window._mpState=local||{posted:{},skipped:{},log:[]}; }
+    try{ localStorage.setItem('mpState',JSON.stringify(window._mpState)); }catch(e){}
+  }
+  async function mpStateSave(){
+    try{ localStorage.setItem('mpState',JSON.stringify(_mpState())); }catch(e){}
+    var c=sbClient(); if(!c) return;
+    try{ await c.from('inventory').upsert({ id:2, data:_mpState(), updated_at:new Date().toISOString() }); }catch(e){}
+  }
+  function _mpPosted(){ return _mpState().posted; }
+  function _mpLog(){ return _mpState().log; }
+  function markMP(id){ var s=_mpState(); s.posted[id]=Date.now(); s.log.push(Date.now()); if(s.log.length>500) s.log=s.log.slice(-500); mpStateSave(); renderMP(); toast('✅ פורסם! יורד מהרשימה'); }
+  function mpUndoPosted(id){ var s=_mpState(); delete s.posted[id]; mpStateSave(); renderMP(); toast('↩️ הוחזר לרשימת הפרסום'); }
   function mpTogglePosted(){ window._mpShowPosted=!window._mpShowPosted; renderMP(); }
   function mpNewRound(){
     if(!confirm('להתחיל סבב פרסום חדש? כל הרכבים יחזרו לרשימה כדי לחדש אותם במרקטפלייס.\n(הספירה "פורסמו החודש" נשמרת.)')) return;
-    try{ localStorage.removeItem('mpPosted'); }catch(e){}
+    var s=_mpState(); s.posted={}; mpStateSave();
     _mpShuffle(); window._mpShowPosted=false; renderMP(); toast('🔄 סבב חדש התחיל — כל הרכבים חזרו לרשימה');
   }
   function copyMP(key,btn){ var t=(window._mpFields||{})[key]||''; try{ if(navigator.clipboard){ navigator.clipboard.writeText(t).then(function(){ btn.textContent='✅ הועתק'; setTimeout(function(){btn.textContent='📋 העתק';},1500); }); } }catch(e){} }
@@ -2886,11 +2903,10 @@
     window._mpOrder=ids; return ids;
   }
   function mpReshuffle(){ _mpShuffle(); renderMP(); toast('🎲 הרשימה עורבבה'); }
-  // דילוג על רכב שאין במלאי
-  function _mpSkip(){ try{ return JSON.parse(localStorage.getItem('mpSkip')||'{}'); }catch(e){ return {}; } }
-  function _mpSkipSave(o){ try{ localStorage.setItem('mpSkip',JSON.stringify(o)); }catch(e){} }
-  function mpSkipCar(id){ var o=_mpSkip(); o[id]=Date.now(); _mpSkipSave(o); renderMP(); toast('⏭️ הרכב סומן כלא במלאי (דולג)'); }
-  function mpUnskip(id){ var o=_mpSkip(); delete o[id]; _mpSkipSave(o); renderMP(); toast('↩️ הרכב הוחזר לרשימה'); }
+  // דילוג על רכב שאין במלאי (משותף בענן)
+  function _mpSkip(){ return _mpState().skipped; }
+  function mpSkipCar(id){ var s=_mpState(); s.skipped[id]=Date.now(); mpStateSave(); renderMP(); toast('⏭️ הרכב סומן כלא במלאי (דולג)'); }
+  function mpUnskip(id){ var s=_mpState(); delete s.skipped[id]; mpStateSave(); renderMP(); toast('↩️ הרכב הוחזר לרשימה'); }
   function mpToggleSkipped(){ window._mpShowSkipped=!window._mpShowSkipped; renderMP(); }
   function renderMP(){
     var el=document.getElementById('mpList'); if(!el) return;
@@ -2998,6 +3014,7 @@
   }
   async function openDailySummary(){
     try{ if(typeof loadLeadsFromCloud==='function') await loadLeadsFromCloud(); }catch(e){}
+    try{ if(typeof mpStateLoad==='function') await mpStateLoad(); }catch(e){}
     var txt=genDailySummary(); window._dailyTxt=txt; var cfg=_tgCfg();
     document.getElementById('adsModalTitle').textContent='📊 סיכום יומי';
     var tgBtn = (cfg.token && cfg.chat)
