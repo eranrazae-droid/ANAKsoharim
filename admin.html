@@ -2907,6 +2907,19 @@
     _mpShuffle(); window._mpShowPosted=false; renderMP(); toast('🔄 סבב חדש התחיל — כל הרכבים חזרו לרשימה');
   }
   function copyMP(key,btn){ var t=(window._mpFields||{})[key]||''; try{ if(navigator.clipboard){ navigator.clipboard.writeText(t).then(function(){ btn.textContent='✅ הועתק'; setTimeout(function(){btn.textContent='📋 העתק';},1500); }); } }catch(e){} }
+  // המרת כתובת תמונה לריבוע 1:1 (Cloudinary) — לאוטומציה
+  function _squareImgUrl(u){
+    u=String(u||'');
+    if(u.indexOf('res.cloudinary.com')>=0 && u.indexOf('/upload/')>=0 && u.indexOf('/upload/c_')<0){
+      return u.replace('/upload/','/upload/c_pad,b_white,ar_1:1,w_1080/');
+    }
+    return u;
+  }
+  function _carImgs(c){
+    var imgs=[]; var add=function(x){ if(x && String(x).trim() && String(x).indexOf('data:image/svg')<0 && imgs.indexOf(x)<0) imgs.push(x); };
+    add(c.image); (c.gallery||[]).forEach(add); add(c.catalog_image);
+    return imgs;
+  }
   // כפתור "10 רכבים" — מכין משימת פרסום אוטומטית לתוסף הכרום
   function openBatch10(){
     var posted=_mpPosted(), skip=_mpSkip();
@@ -2916,28 +2929,31 @@
     var pick=[];
     for(var i=0;i<order.length && pick.length<10;i++){ var c=byId[order[i]]; if(c && !c.hidden && !posted[c.id] && !skip[c.id]) pick.push(c); }
     if(!pick.length){ toast('🎉 אין רכבים שלא פורסמו - סיימת את הסבב!'); return; }
-    var intro='המשימה: לפרסם את '+pick.length+' הרכבים הבאים במרקטפלייס של פייסבוק, אחד אחרי השני.\n\n'+
+    var intro='המשימה: לפרסם את '+pick.length+' הרכבים הבאים במרקטפלייס של פייסבוק, אחד אחרי השני, באופן אוטומטי.\n\n'+
       'לכל רכב בצע לפי הסדר:\n'+
       '1. פתח https://www.facebook.com/marketplace/create/vehicle\n'+
       '2. בחר סוג רכב: מכונית/משאית\n'+
-      '3. פתח בטאב נפרד את "קישור הרכב באתר", שמור משם 5-8 תמונות של הרכב, והעלה אותן למודעה (שים תמונה נקייה של הרכב כראשונה)\n'+
+      '3. הורד את כתובות התמונות המופיעות תחת "תמונות" (הן כבר מרובעות 1:1) והעלה אותן למודעה - התמונה הראשונה ראשונה\n'+
       '4. מלא את השדות: שנה, יצרן (Make), דגם, קילומטראז\' = 0, מחיר, מצב = חדש (New)\n'+
       '5. הדבק את התיאור בשדה התיאור\n'+
       '6. פרסם את המודעה\n'+
       '7. המתן כ-60 שניות ועבור לרכב הבא\n\n'+
       '⚠️ חשוב מאוד:\n'+
       '- קילומטראז\' תמיד 0 (אלו רכבים חדשים 0 ק"מ)\n'+
+      '- התמונות כבר מרובעות - אל תחתוך אותן\n'+
       '- אל תפרסם מהר מדי - המתן בין רכב לרכב כדי לא להיחסם ע"י פייסבוק\n'+
       '- אם פייסבוק מבקש אישור/קוד/קאפצ\'ה - עצור ובקש ממני לאשר ידנית\n'+
       '- דווח לי אחרי כל רכב שפורסם בהצלחה\n\n'+
       '===== רשימת הרכבים =====\n';
     var blocks=pick.map(function(c,idx){ var f=genMPFields(c);
+      var imgLines=_carImgs(c).slice(0,8).map(function(u,k){ return '  '+(k+1)+'. '+_squareImgUrl(u); }).join('\n') || '  (אין תמונות - פתח '+_adLink(c)+')';
       return '\n----- רכב '+(idx+1)+' מתוך '+pick.length+' -----\n'+
-        'קישור הרכב באתר (לתמונות): '+_adLink(c)+'\n'+
         'שנה: '+(c.year||'')+'\n'+
         'יצרן (Make): '+f.make+'\n'+
         'כותרת: '+f.title+'\n'+
         'מחיר: '+f.price+'\n'+
+        'תמונות (מרובעות 1:1 - הורד והעלה אותן):\n'+imgLines+'\n'+
+        'קישור הרכב באתר: '+_adLink(c)+'\n'+
         'תיאור:\n'+f.desc+'\n';
     }).join('');
     window._batchTxt=intro+blocks; window._batchIds=pick.map(function(c){return c.id;});
