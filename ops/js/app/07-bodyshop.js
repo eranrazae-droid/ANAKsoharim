@@ -572,27 +572,75 @@ function closeBsmTrash() {
 }
 Object.assign(window, { openBsmTrash, closeBsmTrash });
 
+/* כרטיסים ממוזערים לשני הצדדים (מוקפאים ונמחקו): שורה אחת — תמונה קטנה, מספר, תיאור, תג ותאריך.
+   לחיצה על הכרטיס פותחת אותו ומציגה פרטים וכפתורים. */
+let _bsmTrashOpen = new Set();
+function bsmTrashToggle(key) {
+  if (_bsmTrashOpen.has(key)) _bsmTrashOpen.delete(key); else _bsmTrashOpen.add(key);
+  _bsmRenderTrash();
+}
+window.bsmTrashToggle = bsmTrashToggle;
+
+function _bsmTrashShell(key, accent, thumb, plate, desc, badge, sub, body) {
+  const open = _bsmTrashOpen.has(key);
+  const th = thumb
+    ? `<img src="${esc(thumb)}" alt="" style="width:46px;height:46px;border-radius:10px;object-fit:cover;flex:0 0 46px;background:#e8ece4">`
+    : `<div style="width:46px;height:46px;border-radius:10px;flex:0 0 46px;background:#eef1ea;display:flex;align-items:center;justify-content:center;font-size:22px">🚗</div>`;
+  return `<div style="border:1px solid #dfe5da;border-right:5px solid ${accent};border-radius:14px;background:#fff;overflow:hidden;box-shadow:${open ? '0 4px 14px rgba(31,58,46,.10)' : 'none'}">
+    <div onclick="bsmTrashToggle('${esc(key)}')" style="display:flex;align-items:center;gap:11px;padding:8px 12px;cursor:pointer;min-height:62px;box-sizing:border-box">
+      ${th}
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:900;font-size:15.5px;letter-spacing:.02em;line-height:1.25">${esc(plate)}</div>
+        <div style="font-size:12.5px;color:var(--muted);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(desc)}</div>
+      </div>
+      <div style="flex:0 0 auto;text-align:left">
+        <div style="display:inline-block;font-size:11px;font-weight:900;color:${accent};background:${accent}1a;border-radius:999px;padding:2px 9px">${badge}</div>
+        <div style="font-size:11px;color:var(--muted);font-weight:700;margin-top:3px">${esc(sub)}</div>
+      </div>
+      <span style="flex:0 0 14px;color:var(--muted);font-size:13px">${open ? '▴' : '▾'}</span>
+    </div>
+    ${open ? `<div style="border-top:1px solid #eef1ea;background:#fafbf8;padding:11px 14px">${body}</div>` : ''}
+  </div>`;
+}
+const _bsmBtn = (bg, fg, txt, fn, extra) => `<button onclick="${fn}" style="flex:1;min-width:0;background:${bg};color:${fg};border:none;border-radius:10px;padding:9px 6px;font-family:Heebo,sans-serif;font-weight:900;font-size:13px;cursor:pointer;${extra || ''}">${txt}</button>`;
+function _bsmTrashParts(r, money) {
+  const rows = (r.items || []).map(it => `<div style="display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:3px 0"><span>${esc(it.name)}</span>${money && it.price != null && it.price !== '' ? `<b>${Number(it.price).toLocaleString('he-IL')} ₪</b>` : ''}</div>`).join('');
+  return rows ? `<div style="margin-top:8px;border-top:1px dashed #dfe5da;padding-top:6px">${rows}</div>` : '';
+}
+
 function _bsmTrashCard(r) {
   const money = _bsmMoney();
   const label = { draft: 'ממתין לשליחה', at_shop: 'אצל הפחח', returned: 'סיימנו' };
-  const when = r.deletedAt?.toDate ? r.deletedAt.toDate().toLocaleString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+  const when = _fmtWhen(r.deletedAt);
+  const short = r.deletedAt?.toDate ? r.deletedAt.toDate().toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' }) : '';
   const total = r._kind === 'job' ? _bshopTotal(r) : Number(r.total || 0);
-  const items = (r.items || []).map(it => `<div style="display:flex;justify-content:space-between;gap:8px;font-size:12.5px"><span>${esc(it.name)}</span>${money && it.price != null && it.price !== '' ? `<b>${Number(it.price).toLocaleString('he-IL')} ₪</b>` : ''}</div>`).join('');
-  const where = r._kind === 'arc' ? `היה בתיקיית תשלום · ${esc(r.archiveTitle || '')}` : `היה: ${esc(label[r.status] || r.status || '')}`;
-  return `<div style="border:2px solid #fca5a5;background:#fff;border-radius:14px;padding:11px 13px">
-    <div style="display:flex;align-items:center;gap:8px;justify-content:space-between">
-      <span style="font-weight:900;font-size:17px">${esc(r.plate || '')}</span>
-      <span style="font-size:11.5px;font-weight:800;color:#b91c1c;background:#fee2e2;border-radius:999px;padding:2px 9px">נמחק</span></div>
-    <div style="font-size:13px;color:var(--muted);font-weight:700">${esc(r.desc || '')}</div>
-    <div style="font-size:12px;color:#92400e;font-weight:800;margin-top:2px">${where}${money && total ? ' · ' + total.toLocaleString('he-IL') + ' ₪' : ''}</div>
-    ${r.note ? `<div style="font-size:12.5px;background:#fffbeb;border-radius:8px;padding:5px 8px;margin-top:6px">📝 ${esc(r.note)}</div>` : ''}
-    ${items ? `<div style="margin-top:6px;display:flex;flex-direction:column;gap:2px;border-top:1px dashed var(--border);padding-top:6px">${items}</div>` : ''}
-    <div style="font-size:11.5px;color:var(--muted);font-weight:700;margin-top:7px">נמחק ע״י ${esc(r.deletedBy || '—')}${when ? ' · ' + when : ''}</div>
-    <div style="display:flex;gap:8px;margin-top:8px">
-      <button onclick="bsmTrashView('${esc(r.id)}')" style="flex:1;background:var(--dark);color:#fff;border:none;border-radius:10px;padding:9px;font-family:Heebo,sans-serif;font-weight:900;font-size:13px;cursor:pointer">📄 הפתק המלא</button>
-      <button onclick="bsmTrashRestore('${esc(r.id)}')" style="flex:1;background:#16a34a;color:#fff;border:none;border-radius:10px;padding:9px;font-family:Heebo,sans-serif;font-weight:900;font-size:13px;cursor:pointer">↩️ שחזר</button>
-      <button onclick="bsmTrashPurge('${esc(r.id)}')" title="מחיקה סופית" style="flex:0 0 44px;background:#fee2e2;border:2px solid #fca5a5;border-radius:10px;font-size:15px;cursor:pointer">🗑</button>
-    </div></div>`;
+  const where = r._kind === 'arc' ? `בתיקיית תשלום · ${esc(r.archiveTitle || '')}` : esc(label[r.status] || r.status || '');
+  const body = `
+    <div style="font-size:13px;font-weight:800;color:#5b6b5c">היה: ${where}${money && total ? ' · ' + total.toLocaleString('he-IL') + ' ₪' : ''}</div>
+    ${r.note ? `<div style="font-size:12.5px;background:#fffbeb;border-radius:8px;padding:5px 9px;margin-top:6px">📝 ${esc(r.note)}</div>` : ''}
+    ${_bsmTrashParts(r, money)}
+    <div style="font-size:11.5px;color:var(--muted);font-weight:700;margin-top:8px">נמחק ע״י ${esc(r.deletedBy || '—')}${when ? ' · ' + esc(when) : ''}</div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      ${_bsmBtn('var(--dark)', '#fff', '📄 הפתק המלא', `bsmTrashView('${esc(r.id)}')`)}
+      ${_bsmBtn('#16a34a', '#fff', '↩️ שחזר', `bsmTrashRestore('${esc(r.id)}')`)}
+      ${_bsmBtn('#fff', '#b91c1c', '🗑', `bsmTrashPurge('${esc(r.id)}')`, 'flex:0 0 44px;border:1.5px solid #e5b4b4')}
+    </div>`;
+  return _bsmTrashShell('d:' + r.id, '#b94a48', r.photoThumb || r.photo || '', r.plate || '', r.desc || '', 'נמחק', short, body);
+}
+
+function _bsmHeldCard(j) {
+  const money = _bsmMoney();
+  const label = { draft: 'ממתין לשליחה', at_shop: 'אצל הפחח', returned: 'סיימנו' };
+  const total = _bshopTotal(j);
+  const body = `
+    <div style="font-size:13px;font-weight:800;color:#5b6b5c">סטטוס: ${esc(label[j.status] || j.status || '')}${money && total ? ' · ' + total.toLocaleString('he-IL') + ' ₪' : ''}</div>
+    ${j.note ? `<div style="font-size:12.5px;background:#fffbeb;border-radius:8px;padding:5px 9px;margin-top:6px">📝 ${esc(j.note)}</div>` : ''}
+    ${_bsmTrashParts(j, money)}
+    <div style="display:flex;gap:8px;margin-top:10px">
+      ${_bsmBtn('#16a34a', '#fff', '▶️ החזר לפעילות', `bsmSetHold('${esc(j.id)}',false)`)}
+      ${_bsmBtn('var(--dark)', '#fff', '📄 פתח פתק', `closeBsmTrash();bsmOpenJob('${esc(j.id)}')`)}
+    </div>`;
+  return _bsmTrashShell('h:' + j.id, '#3b7ea6', j.photoThumb || j.photo || '', j.plate || '', j.desc || '', 'מוקפא', label[j.status] || '', body);
 }
 
 function _bsmRenderTrash() {
@@ -603,9 +651,10 @@ function _bsmRenderTrash() {
   const held = _bshopJobs.filter(j => j.onHold && match(j));
   const del = [..._bsmTrash].filter(match).sort((a, b) => (b.deletedAt?.seconds || 0) - (a.deletedAt?.seconds || 0));
   const hc = document.getElementById('bsm-trash-held-n'), dc = document.getElementById('bsm-trash-del-n');
-  if (hc) hc.textContent = held.length; if (dc) dc.textContent = del.length;
-  const empty = t => `<div style="padding:26px 12px;text-align:center;color:var(--muted);font-weight:700">${t}</div>`;
-  hb.innerHTML = held.length ? held.map(j => _bshopJobCard(j, false, true)).join('') : empty(term ? 'לא נמצא פתק מוקפא במספר הזה' : 'אין פתקים מוקפאים');
+  if (hc) hc.textContent = held.length ? '(' + held.length + ')' : '';
+  if (dc) dc.textContent = del.length ? '(' + del.length + ')' : '';
+  const empty = t => `<div style="padding:26px 12px;text-align:center;color:var(--muted);font-weight:700;border:1.5px dashed #dfe5da;border-radius:14px">${t}</div>`;
+  hb.innerHTML = held.length ? held.map(_bsmHeldCard).join('') : empty(term ? 'לא נמצא פתק מוקפא במספר הזה' : 'אין פתקים מוקפאים');
   db.innerHTML = del.length ? del.map(_bsmTrashCard).join('') : empty(term ? 'לא נמצא פתק שנמחק במספר הזה' : 'אין פתקים שנמחקו');
 }
 window.bsmTrashFilter = () => _bsmRenderTrash();
@@ -3082,7 +3131,6 @@ function bsmMMore() {
       ${it('🔗', 'קישור לפחח', 'העתקה ושליחה של הקישור לאיברהים', 'bsmCopyLink()')}
       ${it('⚙️', 'רשימת חלקים', 'עריכת הרשימה הקבועה', 'openBsmItemsModal()')}
       ${it('🚗', 'תיעוד נסיעות', 'מי לקח ומתי', 'openBsmTrips()')}
-      ${it('❄️', 'מוקפאים', 'פתקים שהוצאו מהמסך', 'openBsmHold()')}
       ${it('🗂️', 'מוקפאים ונמחקו', 'מוקפאים ונמחקים זה לצד זה, עם שחזור', 'openBsmTrash()')}
       ${it('🗑', 'מחיקת פתק', 'פעולה שלא ניתנת לביטול', 'openBsmDelete()', 'dng')}
     </div>`;
