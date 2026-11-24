@@ -232,6 +232,39 @@ async function fetchPitVehicle() {
 }
 window.fetchPitVehicle = fetchPitVehicle;
 
+/* כפתור אחד: שולף את נתוני הרכב ופותח בור לנהגים (סוג "בור"). אם אין נתונים במרשם — שואלים אם לפתוח בכל זאת. */
+async function openPitNow() {
+  const raw = document.getElementById('pit-plate').value.trim().replace(/[^0-9]/g, '');
+  if (!raw) return showToast('נא להזין מספר לוחית');
+  const status = document.getElementById('pit-fetch-status');
+  const btn = document.getElementById('btn-open-pit');
+  const info = document.getElementById('pit-vehicle-info');
+  if (btn && btn.disabled) return;
+  status.style.color = 'var(--muted)'; status.textContent = '⏳ שולף נתונים...';
+  if (btn) btn.disabled = true; info.style.display = 'none';
+  try {
+    let rec = null, lookupFailed = false;
+    try { rec = await _plateLookup(raw); } catch (e) { lookupFailed = true; }
+    if (rec) {
+      window._pitVehicleData = { brand: rec.maker, model: rec.model, color: rec.color, year: rec.year };
+      status.style.color = 'var(--success)'; status.textContent = '✅ פרטים נטענו';
+      info.style.display = 'block';
+      info.textContent = [rec.maker, rec.model, rec.color, rec.year].filter(Boolean).join(' · ');
+    } else {
+      window._pitVehicleData = null;
+      status.style.color = 'var(--danger)';
+      status.textContent = lookupFailed ? '❌ שגיאה בחיבור לשרת' : (window._plateRegistryEmpty ? '⏳ מאגר משרד התחבורה בעדכון כרגע' : '⚠️ לא נמצאו נתונים למספר הזה');
+      if (!confirm('לא התקבלו נתוני רכב. לפתוח בור בכל זאת, בלי פרטי הרכב?')) return;
+    }
+    document.getElementById('pit-type').value = 'בור';
+    await addPitCheck();
+  } catch (e) {
+    console.error('openPitNow', e);
+    status.style.color = 'var(--danger)'; status.textContent = '❌ הפתיחה נכשלה — נסה שוב';
+  } finally { if (btn) btn.disabled = false; }
+}
+window.openPitNow = openPitNow;
+
 function selectPitType(el) {
   const active = el.dataset.selected === '1';
   el.dataset.selected = active ? '0' : '1';
