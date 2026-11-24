@@ -2616,7 +2616,7 @@
     if(welcomeShown) return;
     if(sessionStorage.getItem('ad_auth')!=='1') return;
     welcomeShown = true;
-    const openCount = tasksData.filter(t=>!t.done && !isTaskAutoDone(t)).length;
+    const openCount = tasksData.filter(t=>!t.done && !t.closed && !_taskSnoozed(t) && !isTaskAutoDone(t)).length;
     let lastSeen = 0; try{ lastSeen = Number(localStorage.getItem('leads_seen_at')||0); }catch(e){}
     const newLeads = (typeof leads!=='undefined'?leads:[]).filter(l=>{ const t=l.created_at?new Date(l.created_at).getTime():0; return t>lastSeen; }).length;
     try{ localStorage.setItem('leads_seen_at', String(Date.now())); }catch(e){}
@@ -2706,9 +2706,27 @@
     inp.click();
   }
   async function deleteTask(id){ if(!confirm('למחוק משימה?'))return; try{ const c=sbClient(); if(c) await c.from('tasks').delete().eq('id',id); }catch(e){} loadTasks(); }
+  // דחיית משימה למחר - נעלמת היום וחוזרת מחר
+  async function snoozeTask(id){
+    const d=new Date(); d.setHours(24,0,0,0); // חצות הקרובה (מחר)
+    const iso=d.toISOString();
+    const t=tasksData.find(x=>String(x.id)===String(id)); if(t){ t.snooze_until=iso; t.done=false; }
+    renderTasks();
+    try{ const c=sbClient(); if(c) await c.from('tasks').update({snooze_until:iso, done:false}).eq('id',id); }catch(e){}
+    toast('⏰ המשימה תחזור מחר');
+  }
+  // סגירת משימה לצמיתות
+  async function closeTask(id){
+    if(!confirm('לסגור את המשימה לצמיתות?')) return;
+    const t=tasksData.find(x=>String(x.id)===String(id)); if(t){ t.closed=true; }
+    renderTasks();
+    try{ const c=sbClient(); if(c) await c.from('tasks').update({closed:true}).eq('id',id); }catch(e){}
+    toast('✅ המשימה נסגרה');
+  }
+  function _taskSnoozed(t){ return t.snooze_until && new Date(t.snooze_until).getTime() > Date.now(); }
   function renderTasks(){
     const el=document.getElementById('tasksList'); if(!el) return;
-    const open=tasksData.filter(t=>!t.done && !isTaskAutoDone(t));
+    const open=tasksData.filter(t=>!t.done && !t.closed && !_taskSnoozed(t) && !isTaskAutoDone(t));
     if(!open.length){ el.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)">כל המשימות בוצעו! 🎉</div>'; return; }
     el.innerHTML=open.map(t=>{
       const _car=taskFindCar(t.title);
@@ -2719,6 +2737,8 @@
       ${siteBtn}
       <button onclick="taskEditSpec(${t.id})" title="פתח עריכת רכב להוספת מפרט טכני" style="border:1.5px solid #0d0d0d;background:#0d0d0d;color:#fff;border-radius:999px;padding:6px 14px;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap;flex-shrink:0">📋 מפרט טכני</button>
       <button onclick="taskUploadImage(${t.id})" title="העלה תמונת קטלוג לרכב" style="border:1.5px solid #D4A017;background:#fff8e1;color:#a16207;border-radius:999px;padding:6px 14px;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap;flex-shrink:0">🖼️ תמונה</button>
+      <button onclick="snoozeTask(${t.id})" title="בוצע להיום - תחזור מחר" style="border:1.5px solid #2563eb;background:#eff6ff;color:#2563eb;border-radius:999px;padding:6px 14px;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap;flex-shrink:0">⏰ מחר</button>
+      <button onclick="closeTask(${t.id})" title="סגור את המשימה לצמיתות" style="border:1.5px solid #16a34a;background:#f0fdf4;color:#15803d;border-radius:999px;padding:6px 14px;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap;flex-shrink:0">✅ סגור משימה</button>
       <button onclick="deleteTask(${t.id})" class="btn btn-red btn-sm">🗑</button>
     </div>`;
     }).join('');
