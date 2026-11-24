@@ -47,8 +47,8 @@
     ['vehicles','קליטות ורענון',   'car',     () => goToScreen('vehicles'),         ['screen-vehicles', 'screen-refresh']],
     ['shop',    'פחחות',           'wrench',  () => goToScreen('bodyshop-mgr'),     ['screen-bodyshop-mgr']],
     ['pickup',  'מכוניות לאיסוף',  'truck',   () => goToScreen('pickup'),           ['screen-pickup']],
-    ['battery', 'ארון מצברים',     'battery', () => goToScreen('battery-stock'),    ['screen-battery-stock', 'screen-battery-stats']],
     ['wash',    'פתק שטיפה',       'drop',    () => goToScreen('wash'),             ['screen-wash']],
+    ['battery', 'ארון מצברים',     'battery', () => goToScreen('battery-stock'),    ['screen-battery-stock', 'screen-battery-stats']],
     ['td',      'נסיעות מבחן',     'gauge',   () => goToScreen('test-drive'),       ['screen-test-drive']],
     ['yard',    'סידור מגרש',      'park',    () => goToScreen('yard'),             ['screen-yard']],
     ['charge',  'בדיקת טעינה',     'bolt',    () => goToScreen('battery'),          ['screen-battery']],
@@ -70,8 +70,8 @@
   }
 
   /* ── בניה ─────────────────────────────────────────────────────── */
-  // מ"פתק שטיפה" ועד "חיפוש רכב" — מוסתרים תחת "הצג עוד" עד שלוחצים
-  const MORE_AT = NAV.findIndex(n => n[0] === 'wash');
+  // מ"נסיעות מבחן" ועד "חיפוש רכב" — מוסתרים תחת "הצג עוד" עד שלוחצים
+  const MORE_AT = NAV.findIndex(n => n[0] === 'td');
   const item = n => `<button type="button" class="u2-item" data-k="${n[0]}">${svg(n[2])}<span>${n[1]}</span></button>`;
 
   function build() {
