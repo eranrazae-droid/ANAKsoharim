@@ -2724,16 +2724,36 @@
     toast('✅ המשימה נסגרה');
   }
   function _taskSnoozed(t){ return t.snooze_until && new Date(t.snooze_until).getTime() > Date.now(); }
+  async function updateTaskTitle(id, val){
+    val=String(val||'').trim(); if(!val) return;
+    const t=tasksData.find(x=>String(x.id)===String(id)); if(t) t.title=val;
+    try{ const c=sbClient(); if(c) await c.from('tasks').update({title:val}).eq('id',id); }catch(e){}
+    toast('✏️ המשימה עודכנה');
+  }
   function renderTasks(){
     const el=document.getElementById('tasksList'); if(!el) return;
+    const relevant=tasksData.filter(t=>!t.closed);
+    const handled=relevant.filter(t=>t.done || _taskSnoozed(t) || isTaskAutoDone(t));
+    const pct = relevant.length ? Math.round(handled.length/relevant.length*100) : 100;
     const open=tasksData.filter(t=>!t.done && !t.closed && !_taskSnoozed(t) && !isTaskAutoDone(t));
-    if(!open.length){ el.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)">כל המשימות בוצעו! 🎉</div>'; return; }
-    el.innerHTML=open.map(t=>{
+    const header = `<div class="card panel" style="margin-bottom:12px;padding:14px 16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <b style="font-size:15px">📊 אחוז ביצוע</b>
+        <b style="font-size:20px;color:${pct>=100?'#15803d':'#2563eb'}">${pct}%</b>
+      </div>
+      <div style="background:#e5e7eb;border-radius:999px;height:12px;overflow:hidden">
+        <div style="height:100%;width:${pct}%;background:${pct>=100?'#16a34a':'#2563eb'};border-radius:999px;transition:width .3s"></div>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-top:6px">${handled.length} מתוך ${relevant.length} טופלו · ${open.length} ממתינות</div>
+    </div>`;
+    if(!open.length){ el.innerHTML=header+'<div style="text-align:center;padding:30px;color:var(--muted)">כל המשימות בוצעו להיום! 🎉</div>'; return; }
+    el.innerHTML=header+open.map((t,idx)=>{
       const _car=taskFindCar(t.title);
       const siteBtn = _car ? `<a href="https://autodealer.co.il/?car=${_car.id}" target="_blank" rel="noreferrer" title="פתח את הרכב באתר" style="border:1.5px solid #16a34a;background:#f0fdf4;color:#15803d;border-radius:999px;padding:6px 14px;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap;flex-shrink:0;text-decoration:none">🔗 באתר</a>` : '';
       return `<div class="card panel" style="margin-bottom:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;${t.done?'opacity:.55':''}">
+      <div style="width:30px;height:30px;border-radius:8px;background:#eff6ff;color:#2563eb;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px">${idx+1}</div>
       <button onclick="toggleTask(${t.id},${t.done})" style="width:26px;height:26px;border-radius:8px;border:2px solid ${t.done?'#16a34a':'#cbd5e1'};background:${t.done?'#16a34a':'#fff'};color:#fff;font-weight:900;cursor:pointer;flex-shrink:0">${t.done?'✓':''}</button>
-      <div style="flex:1;min-width:140px;font-size:15px;font-weight:600;${t.done?'text-decoration:line-through':''}">${t.title}</div>
+      <input type="text" value="${_esc(t.title)}" onchange="updateTaskTitle(${t.id}, this.value)" title="לחצו לעריכת המשימה" style="flex:1;min-width:140px;font-size:15px;font-weight:600;border:1px solid transparent;background:transparent;border-radius:8px;padding:6px 8px;text-align:right;${t.done?'text-decoration:line-through':''}" onfocus="this.style.border='1px solid var(--line)';this.style.background='#fffef5'" onblur="this.style.border='1px solid transparent';this.style.background='transparent'">
       ${siteBtn}
       <button onclick="taskEditSpec(${t.id})" title="פתח עריכת רכב להוספת מפרט טכני" style="border:1.5px solid #0d0d0d;background:#0d0d0d;color:#fff;border-radius:999px;padding:6px 14px;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap;flex-shrink:0">📋 מפרט טכני</button>
       <button onclick="taskUploadImage(${t.id})" title="העלה תמונת קטלוג לרכב" style="border:1.5px solid #D4A017;background:#fff8e1;color:#a16207;border-radius:999px;padding:6px 14px;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap;flex-shrink:0">🖼️ תמונה</button>
