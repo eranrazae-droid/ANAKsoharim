@@ -719,21 +719,6 @@ async function towInvoiceFile(input) {
       if (!runs.length) { _towFail('<div>לא נמצאו מספרי רכב בקובץ. ודא שזו חשבונית הגרר ושהסריקה ברורה.</div>'); return; }
     } else {
       expectedTotal = res.items.reduce((t, it) => t + (it.expect || 0), 0);
-      if (res.failed.length) {
-        const got = res.items.reduce((t, it) => t + (it.runs ? it.runs.length : 0), 0);
-        const anyUnknown = res.failed.some(f => f.unknown);
-        _towFail(`<div>${anyUnknown ? `נקראו ${got} רכבים בפריטים שבהם זוהה מספר הרכבים (${expectedTotal}). בפריט שמופיע למטה לא זוהה כמה רכבים יש.` : `נקראו ${got} מתוך ${expectedTotal} רכבים שכתובים בחשבונית.`}</div><ul style="margin:6px 18px 0;padding:0;font-weight:700;font-size:12.5px">${
-          res.failed.map(f => `<li>${f.n ? `פריט ${f.n}: ` : ''}${f.unknown ? '' : f.got === f.expect && f.bad.length
-            ? `נקרא מספר שלא קיים במרשם הרכב (${f.bad.map(x => esc(x)).join(', ')}) — כנראה ספרה שנקראה לא נכון`
-            : `צפויים ${f.expect} ${f.expect === 1 ? 'רכב' : 'רכבים'}, נקראו ${f.got}`} — ${esc(f.head)}</li>`).join('')}</ul>`);
-        return;
-      }
-      if (res.sumCheck && !res.sumCheck.explained) {
-        const sc = res.sumCheck, fmt = n => Number(n).toLocaleString('he-IL');
-        _towFail(`<div>סכום המחירים של הפריטים שנקראו (${fmt(sc.sum)} ₪) שונה מסכום העבודות שכתוב בחשבונית (${fmt(sc.total)} ₪), והפער גדול מכדי להיות טעות קריאה של ספרה.</div>
-          <div style="margin-top:4px;font-weight:700;font-size:12.5px">נקראו ${res.items.length} פריטים (${expectedTotal} רכבים) — כנראה פריט אחד או יותר חסר.</div>`);
-        return;
-      }
       sumInfo = res.sumCheck;
       runs = res.items.flatMap(it => it.runs);
       const unv = res.items.filter(it => it.unverified).map(it => it.unverified);
@@ -751,38 +736,63 @@ async function towInvoiceFile(input) {
         const dw = await Tesseract.createWorker('eng', 1);
         try {
           await dw.setParameters({ tessedit_pageseg_mode: '11', tessedit_char_whitelist: '0123456789,-' });
-          for (let i = 0; i < imgs.length; i++) {
-            const src = await _prepRegion(imgs[i], null, 3);
-            const im = await _loadImg(src);
-            const { data } = await dw.recognize(src);
-            for (const w of (data.words || [])) {
-              if (!w.bbox || w.bbox.y0 < im.height * 0.3) continue;
-              for (const tok of String(w.text || '').split(/[^\d]+/)) {
-                if (tok.length < 7 || tok.length > 11) continue;
-                // מספר רכב שנדבק לו זבל משני הצדדים — בודקים את החלון בתחילה ובסוף
-                const cands = tok.length <= 8 ? [tok]
-                  : [...new Set([tok.slice(0, 8), tok.slice(0, 7), tok.slice(-8), tok.slice(-7)])];
-                if (cands.some(c => have.has(_towKey(c))) || found.has(tok)) continue;
-                found.set(tok, { raw: tok, cands });
+          /* מספרי הרישוי יושבים בעמודת התיאור (אמצע השורה). קוראים רק את הרצועה הזאת, ספרות בלבד,
+             בכמה הגדלות ומצבי קריאה — כל קריאה מוסיפה מה שהקודמות פספסו. */
+          const col = { x0: 0.36, x1: 0.73, y0: 0.26, y1: 0.97 };
+          let pass = 0;
+          for (let i = 0; i < imgs.length; i++) for (const [sc, psm] of [[3, '6'], [2, '6'], [3, '11'], [4, '6']]) {
+            pass++;
+            prog.set(96, `סריקה משלימה — עמוד ${i + 1} מתוך ${imgs.length}`);
+            await dw.setParameters({ tessedit_pageseg_mode: psm, tessedit_char_whitelist: '0123456789,-' });
+            const { data } = await dw.recognize(await _prepRegion(imgs[i], col, sc));
+            for (const line of String(data.text || '').split('\n')) {
+              // 192-13-303 → 19213303 : מקפים בתוך מספר נמחקים
+              const toks = line.split(/[\s,]+/).map(t => t.replace(/[^\d]/g, '')).filter(Boolean);
+              // שורת כותרת של פריט (כרטיס 5 ספרות, "רכב" 6 ספרות שמתחיל ב-0) — אין בה מספרי רישוי
+              if (toks.some(t => /^\d{5}$/.test(t) || /^0\d{5}$/.test(t))) continue;
+              for (const tok of toks) {
+                if (tok.length < 7) continue;
+                if (/^(0?[1-9]|[12]\d|3[01])[17](0[1-9]|1[0-2])[17]2\d/.test(tok)) continue;   // תאריך (26/10/26)
+                // מספר מדויק או קצה של רצף קצר — מועמד רגיל. אותיות עבריות שנקראו כספרות נדבקות למספר
+                // ("הובלת רכב 49055603 מפ״ת" → 707490556031511), לכן גם כל חלון של 7–8 ספרות ברצף — אבל רק מול הרכבים שלנו
+                const edge = tok.length <= 8 ? [tok] : tok.length <= 11 ? [tok.slice(0, 8), tok.slice(0, 7), tok.slice(-8), tok.slice(-7)] : [];
+                const slide = [];
+                if (tok.length > 8) for (const n of [8, 7]) for (let j = 0; j + n <= tok.length; j++) slide.push(tok.slice(j, j + n));
+                const cands = [...new Set([...edge, ...slide])].filter(c => c[0] !== '0');
+                if (!cands.length || (tok.length <= 11 && edge.some(c => have.has(_towKey(c))))) continue;
+                for (const c of cands) {
+                  if (have.has(_towKey(c))) continue;
+                  const f = found.get(c) || { raw: tok, passes: new Set(), edge: false };
+                  f.passes.add(pass); if (edge.includes(c)) f.edge = true; found.set(c, f);
+                }
               }
             }
           }
         } finally { try { await dw.terminate(); } catch (e) {} }
-        const added = [];
-        const addedKeys = new Set();
-        for (const r of found.values()) {
-          let hit = r.cands.filter(c => ours.has(_towKey(c)));
-          if (!hit.length) {
-            hit = [];
-            for (const c of r.cands) { try { if (await _plateLookup(c)) hit.push(c); } catch (e) {} }
-          }
-          // רק התאמה אחת חד-משמעית
-          if (hit.length !== 1 || addedKeys.has(_towKey(hit[0]))) continue;
-          addedKeys.add(_towKey(hit[0]));
-          runs.push({ raw: r.raw, cands: [hit[0]], sweep: true }); added.push(hit[0]);
+        /* מה מתקבל: מספר שקיים אצלנו באיסוף — תמיד (רכב אמיתי שנגרר).
+           מספר שלא אצלנו — רק אם יש לו 8 ספרות, נקרא זהה בשתי קריאות לפחות, וקיים במרשם; אחרת זו כנראה קריאה שגויה. */
+        const added = [], addedKeys = new Set();
+        const overlaps = c => [...have, ...addedKeys].some(k => k.includes(_towKey(c)) || _towKey(c).includes(k));
+        const order = [...found.entries()].sort((x, y) => (ours.has(_towKey(y[0])) - ours.has(_towKey(x[0]))) || (y[1].passes.size - x[1].passes.size) || (y[0].length - x[0].length));
+        for (const [c, f] of order) {
+          if (overlaps(c)) continue;
+          let ok = ours.has(_towKey(c));
+          if (!ok && f.edge && c.length === 8 && f.passes.size >= 2) { try { ok = !!(await _plateLookup(c)); } catch (e) { ok = false; } }
+          if (!ok) continue;
+          addedKeys.add(_towKey(c));
+          runs.push({ raw: f.raw, cands: [c], sweep: true }); added.push(c);
         }
         if (added.length) { expectedTotal = (expectedTotal || 0) + added.length; sumInfo = { ...(sumInfo || {}), sweepAdded: added }; }
       } catch (e) { console.warn('tow sweep', e); }
+      /* לא עוצרים: מציגים את ההצלבה עם כל מה שנקרא, ומעליה רשימה ברורה של מה שלא הסתדר — לבדיקה בחשבונית */
+      if (!runs.length) { _towFail('<div>לא נמצאו מספרי רכב בקובץ. ודא שזו חשבונית הגרר ושהסריקה ברורה.</div>'); return; }
+      const fmt = n => Number(n).toLocaleString('he-IL');
+      const problems = res.failed.map(f => `${f.n ? `פריט ${f.n}: ` : ''}${f.unknown ? '' : f.got === f.expect && f.bad.length
+        ? `נקרא מספר שלא קיים במרשם (${f.bad.map(x => esc(x)).join(', ')}) — `
+        : `צפויים ${f.expect} ${f.expect === 1 ? 'רכב' : 'רכבים'}, נקראו ${f.got} — `}${esc(f.head)}`);
+      const sc = res.sumCheck;
+      if (sc && !sc.ok) problems.push(`סכום המחירים שנקראו בפריטים: ${fmt(sc.sum)} ₪, ובחשבונית (סה״כ לפני מע״מ): ${fmt(sc.total)} ₪ — ${sc.sum < sc.total ? `פריטים בסך ${fmt(sc.total - sc.sum)} ₪ לא נקראו במלואם` : 'יש מחיר שנקרא לא נכון'}${(sumInfo && sumInfo.sweepAdded || []).length ? ' (הרכבים שנוספו בסריקה המשלימה כנראה שייכים להם)' : ''}`);
+      if (problems.length) sumInfo = { ...(sumInfo || {}), problems };
     }
     // בלי נתוני האיסוף אי אפשר להצליב כלום ("לא נמצא" לכולם) — מחכים שייטענו, ואם לא, עוצרים
     if (!_towOurPlates().size) {
@@ -908,10 +918,12 @@ async function _towRender() {
   sum += `<div style="font-size:12px;color:var(--muted);font-weight:700;margin:-4px 0 8px">ההצלבה בוצעה מול ${nAll} רכבים ברשימת האיסוף ו-${nArc} רכבים בארכיון.</div>`;
   if (_towInv.sumInfo) sum += _towInv.sumInfo.ok
     ? `<div style="font-size:12.5px;font-weight:800;color:#0f766e;margin:-4px 0 8px">✔ סכום הפריטים (${Number(_towInv.sumInfo.sum).toLocaleString('he-IL')} ₪) תואם לסכום העבודות שבחשבונית — לא נשמט אף פריט.</div>`
-    : `<div style="font-size:12px;font-weight:700;color:#92400e;margin:-4px 0 8px">ℹ️ סכום המחירים שנקרא (${Number(_towInv.sumInfo.sum).toLocaleString('he-IL')} ₪) שונה מסכום העבודות בחשבונית (${Number(_towInv.sumInfo.total).toLocaleString('he-IL')} ₪) — הפער מתיישב עם טעות קריאה של ספרה במחיר אחד (למשל 9 שנקרא כ-5).${(_towInv.sumInfo.unverified || []).length ? '' : ' כל הרכבים נקראו ואומתו.'}</div>`;
+    : '';
+  const probs = (_towInv.sumInfo && _towInv.sumInfo.problems) || [];
+  if (probs.length) sum += `<div style="border:2px solid #f59e0b;background:#fffbeb;border-radius:12px;padding:10px 12px;margin:0 0 10px;color:#78350f"><div style="font-size:14px;font-weight:900;margin-bottom:4px">⚠️ ייתכן שחסרים רכבים — בדוק בחשבונית</div><ul style="margin:0 18px;padding:0;font-size:12.5px;font-weight:700;line-height:1.6">${probs.map(x => `<li>${x}</li>`).join('')}</ul></div>`;
   if (_towInv.sumInfo && (_towInv.sumInfo.unverified || []).length) sum += `<div style="font-size:12.5px;font-weight:800;color:#b45309;margin:-4px 0 8px">⚠️ לבדיקה ידנית: ${_towInv.sumInfo.unverified.map(u => `בעסקה ${esc(u.tx)} ${u.missing === 1 ? 'ייתכן שחסר רכב אחד' : 'ייתכן שחסרים ' + u.missing + ' רכבים'} (נקרא: ${u.raws.map(x => esc(x)).join(', ')} — לא נמצא במרשם)`).join(' · ')}. בדוק בחשבונית.</div>`;
   if (_towInv.sumInfo && (_towInv.sumInfo.sweepAdded || []).length) sum += `<div style="font-size:12.5px;font-weight:800;color:#b45309;margin:-4px 0 8px">⚠️ ${_towInv.sumInfo.sweepAdded.length === 1 ? 'רכב אחד נמצא' : _towInv.sumInfo.sweepAdded.length + ' רכבים נמצאו'} רק בסריקה המשלימה (פריט שלא זוהה בקריאה הראשונה): ${_towInv.sumInfo.sweepAdded.map(_towFmt).join(', ')} — נוספו להצלבה.</div>`;
-  if (_towInv.expectedTotal && !(_towInv.sumInfo && (_towInv.sumInfo.unverified || []).length)) sum += `<div style="font-size:12.5px;font-weight:800;color:#0f766e;margin:-4px 0 10px">✔ נקראו כל הרכבים שכתובים בחשבונית: ${rows.length} מתוך ${_towInv.expectedTotal}</div>`;
+  if (_towInv.expectedTotal && !probs.length && !(_towInv.sumInfo && (_towInv.sumInfo.unverified || []).length)) sum += `<div style="font-size:12.5px;font-weight:800;color:#0f766e;margin:-4px 0 10px">✔ נקראו כל הרכבים שכתובים בחשבונית: ${rows.length} מתוך ${_towInv.expectedTotal}</div>`;
   // קריאה שפספסה: מעט מאוד רכבים לעומת חשבוניות קודמות
   if (few) {
     sum += box('#b45309', '#fffbeb', `⚠️ נקראו רק ${rows.length} רכבים — כנראה הקריאה פספסה`,
