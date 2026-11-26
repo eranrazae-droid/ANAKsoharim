@@ -3534,7 +3534,7 @@ async function extractTextFromImage(input) {
     setSpan('⏳ מעבד תמונה...');
     const { canvas, rows } = await prepAndSlice(src, photo);
 
-    let digitsOnly = '', fullText = '', _rowTexts = null, _rowCells = null, _rowPlates = null;
+    let digitsOnly = '', fullText = '', _rowTexts = null, _rowCells = null, _rowPlates = null, _sweepAll = [];
     if (rows.length >= 2) {
       // OCR each detected row separately (single line) — reliable for uniform tables
       let _ocrRow = 0;
@@ -3628,6 +3628,24 @@ async function extractTextFromImage(input) {
           }
           _rowPlates.push(rescue);
         }
+        /* סריקה שנייה ובלתי תלויה: כל העמוד, ספרות בלבד. כל מספר בן 7–8 ספרות משויך לשורה שבגובה שלו,
+           ומצטרף למועמדים של אותה שורה — כך מספר שנפל בקריאת השורה (עברית מעורבבת, גופן, סימון) נמצא בכל זאת.
+           בשורה שכבר יש לה מספר, מספר שונה מהסריקה הזאת נבדק מול המרשם לפני שמחליפים. */
+        try {
+          await w2.setParameters({ tessedit_pageseg_mode: '11' });
+          const { data: sw } = await w2.recognize(await toBlob(canvas));
+          const words = (sw.words || []).map(w => ({ t: String(w.text || '').replace(/\D/g, ''), b: w.bbox })).filter(w => /^\d{7,8}$/.test(w.t) && !/^00/.test(w.t));
+          for (const w of words) {
+            const yc = (w.b.y0 + w.b.y1) / 2;
+            let r = rows.findIndex(q => yc >= q[0] - 4 && yc <= q[1] + 4);
+            if (r < 0) continue;
+            const list = _rowPlates[r] || (_rowPlates[r] = []);
+            const at = list.indexOf(w.t);
+            if (at > 0) { list.splice(at, 1); list.unshift(w.t); }   // שתי הקריאות מסכימות — הוא הראשון
+            else if (at < 0) { if (!list.length) list.push(w.t); else list.push(w.t); }
+          }
+          _sweepAll = [...new Set(words.map(w => w.t))];
+        } catch (e) { console.warn('plate sweep', e); }
         await w2.terminate();
       }
       digitsOnly = fullText;
@@ -3642,7 +3660,7 @@ async function extractTextFromImage(input) {
       fullText = text; digitsOnly = text;
     }
 
-    return { digitsOnly, fullText, _rowTexts, _rowCells, _rowPlates };
+    return { digitsOnly, fullText, _rowTexts, _rowCells, _rowPlates, _sweepAll };
     };
     const rowCars = r => r._rowTexts ? r._rowTexts.map((t, i) => {
       const c = _parseRowText(t);
@@ -3696,6 +3714,16 @@ async function extractTextFromImage(input) {
         : _parsePlatesFromOcr(fullText || '', digitsOnly || '');
       if (parsed.length) {
         await _pkResolvePlates(parsed, setSpan);
+        /* לא מפספסים בשקט: מספרים שנמצאו בסריקת הספרות ולא נקלטו, ושורות רכב (שנה + ק״מ) שלא יצא מהן רכב — מתריעים */
+        try {
+          const got = new Set(parsed.map(c => c.plate));
+          const missed = (res._sweepAll || []).filter(t => !got.has(t) && !parsed.some(c => (c._alts || []).includes(t)));
+          const dataRows = (res._rowTexts || []).filter(t => /(19[89]\d|20[0-3]\d)/.test(t) && /\d{1,3}[.,]\d{3}/.test(t)).length;
+          const parts = [];
+          if (dataRows > parsed.length) parts.push(`בתמונה יש כנראה ${dataRows} שורות רכב ונקלטו ${parsed.length}`);
+          if (missed.length) parts.push(`מספרים שזוהו ולא נקלטו: ${missed.join(', ')}`);
+          if (parts.length) showToast('⚠️ ' + parts.join(' · ') + ' — בדוק והוסף ידנית אם חסר', 14000);
+        } catch (e) {}
         document.getElementById('freetext-pickup-input').value = (fullText || '').trim();
         _freetextParsed = parsed;
         // הכותרת של הדף מציינת כמה רכבים יש בו — אם נקראו פחות או יותר, מזהירים
