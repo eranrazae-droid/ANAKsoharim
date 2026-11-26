@@ -3373,6 +3373,19 @@ async function extractTextFromImage(input) {
         } else ctx.drawImage(img, 0, 0, W, H);
         const id = ctx.getImageData(0, 0, W, H); const d = id.data;
         const N = W * H;
+        /* טקסט מסומן בצילום מסך (לבן על כחול) — בלי טיפול הרקע הכהה נהיה כתם שחור והספרה הראשונה נבלעת.
+           בכל שורה שרוב הרצף שלה כחול־בחירה: הכחול הופך ללבן והטקסט לשחור. (לא חל על צילומי מצלמה.) */
+        if (!photo) {
+          const isSel = i => d[i + 2] > 150 && d[i] < 120 && d[i + 2] - d[i] > 60 && d[i + 1] < 150;
+          for (let y = 0; y < H; y++) {
+            let lo = -1, hi = -1, cnt = 0; const off = y * W * 4;
+            for (let x = 0; x < W; x++) if (isSel(off + x * 4)) { if (lo < 0) lo = x; hi = x; cnt++; }
+            // בשורה שעוברת דרך הספרות הכחול הוא רק כמחצית מהרצף — לכן סף נמוך, ולא חלק מרוב הרצף
+            if (cnt < 40 || cnt < (hi - lo + 1) * 0.2 || hi - lo > W * 0.6) continue;
+            // בתוך הבחירה: בהיר (הטקסט) ← שחור, כהה (הרקע הכחול) ← לבן. סף לפי בהירות ולא לפי "כחול", כדי שקצוות מרוככים לא יהפכו לכתם
+            for (let x = lo; x <= hi; x++) { const i = off + x * 4; const lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]; const v = lum > 175 ? 0 : 255; d[i] = d[i + 1] = d[i + 2] = v; }
+          }
+        }
         const hist = new Array(256).fill(0);
         let sumAll = 0;
         for (let i = 0; i < d.length; i += 4) {
@@ -3543,7 +3556,7 @@ async function extractTextFromImage(input) {
       await worker.terminate();
       // בצילום, שורה שלמה מתערבבת (עברית מול ספרות) והלוחית נשברת. לכן חותכים כל שורה לתאים
       // לפי קווי הטבלה, וקוראים כל תא צר לבד, ספרות בלבד. תא בודד לא מתערבב עם השכנים
-      if (photo) {
+      {
         const w2 = await Tesseract.createWorker('eng', 1);
         await w2.setParameters({ tessedit_pageseg_mode: '7', tessedit_char_whitelist: '0123456789.,' });
         _rowCells = []; _rowPlates = [];
@@ -3558,7 +3571,8 @@ async function extractTextFromImage(input) {
           for (const x of xs) { const l = lines[lines.length - 1]; if (l && x - l.e <= 8) l.e = x; else lines.push({ s: x, e: x }); }
           const edges = [-1, ...lines.map(l => (l.s + l.e) >> 1), W];
           const cells = [];
-          for (let i = 0; i + 1 < edges.length; i++) {
+          // קריאת תא-תא נעשית רק בצילום; בצילום מסך מספיק הטקסט של השורה (ואם המספר חסר — החילוץ שלמטה)
+          for (let i = 0; photo && i + 1 < edges.length; i++) {
             const cx0 = edges[i] + 5, cx1 = edges[i + 1] - 4, cw = cx1 - cx0;
             if (cw < 28 || cw > 450) continue;
             const cc = document.createElement('canvas'); cc.width = cw + 24; cc.height = h + 24;
@@ -3573,19 +3587,42 @@ async function extractTextFromImage(input) {
           const rescue = [];
           // מספר של 8 ספרות שכבר נקרא בשורה או בתא — מספיק; החילוץ רץ רק כשחסר מספר או שנקרא מספר קצר (ייתכן שנחתך)
           const _cur = (cells.map(x => x.t.replace(/[^\d]/g, '')).find(v => /^\d{7,8}$/.test(v))) || ((_parseRowText(_rowTexts[r] || '') || {}).plate || '');
+          // פס גבוה מהרגיל = שתי שורות שהתחברו (תא רב-שורתי): המספר יושב בשורה התחתונה, ולכן מחפשים רק בה
+          const _hsAll = rows.map(q => q[1] - q[0]).sort((a, b) => a - b), _medH = _hsAll[_hsAll.length >> 1] || h;
+          const yOff = (!photo && h > _medH * 1.5) ? h - Math.round(_medH * 1.1) : 0, hh = h - yOff;
           let xr = -1;
-          for (let x = W - 1; x >= 0; x--) { let n = 0; for (let y = 0; y < h; y++) if (d[(y * W + x) * 4] < 128) n++; if (n >= h * 0.4) { xr = x; break; } }
-          if (xr > 260 && _cur.length !== 8) {
+          for (let x = W - 1; x >= 0; x--) { let n = 0; for (let y = yOff; y < h; y++) if (d[(y * W + x) * 4] < 128) n++; if (n >= hh * 0.4) { xr = x; break; } }
+          // שורה ללא שנה או ק״מ היא שורת המשך של תא רב-שורתי (למשל שם הדגם), ולא רכב — לא מחפשים בה מספר
+          const _dataRow = /(19[89]\d|20[0-3]\d)|\d{1,3}[.,]\d{3}/.test(_rowTexts[r] || '');
+          if (xr > (photo ? 260 : 120) && _cur.length !== 8 && (photo || _dataRow)) {
             // כמה חלונות סביב הקצה הימני של הטבלה, וקבלת המספר שחוזר הכי הרבה פעמים — כך הקצה המנוקד והקו השבור לא מכריעים
             const votes = {};
-            for (const end of [-12, -6, 4, 14]) for (const wd of [195, 210, 225]) {
-              const x1 = Math.min(W, xr + end), x0 = Math.max(0, x1 - wd), cw = x1 - x0;
-              const cc = document.createElement('canvas'); cc.width = cw + 24; cc.height = h + 24;
+            // צילום (תמונה מהמצלמה): חלונות קבועים שנבדקו; צילום מסך: רוחב המספר תלוי בגופן, ולכן חלונות רחבים יותר וחלון לפי צביר הספרות
+            const kk = photo ? 1 : hh / 55;
+            // רוחב המספר תלוי בגופן: בנוסף לחלונות קבועים — חלון לפי הצביר הרציף של ספרות שמסתיים בקצה הימני
+            // (רווח גדול מבין ספרות מסמן את סוף המספר), והוא נספר פעמים רבות יותר בהצבעה
+            const colInk = new Uint8Array(W);
+            for (let x = 0; x < W; x++) { for (let y = yOff; y < h; y++) if (d[(y * W + x) * 4] < 128) { colInk[x] = 1; break; } }
+            let xl = xr, gap = 0; const gmax = Math.max(6, Math.round(hh * 0.24));
+            for (let x = xr; x >= 0; x--) { if (colInk[x]) { xl = x; gap = 0; } else if (++gap > gmax) break; }
+            const wins = [];
+            for (const end of [-12, -6, 4, 14]) for (const wd of (photo ? [195, 210, 225] : [195, 215, 235, 255, 275])) wins.push([xr + Math.round(end * kk) - Math.round(wd * kk), xr + Math.round(end * kk), 1]);
+            if (!photo) for (const end of [4, 14]) wins.push([xl - 4, xr + Math.round(end * kk), 4]);
+            for (const [a0, a1, wt] of wins) {
+              const x1 = Math.min(W, a1), x0 = Math.max(0, a0), cw = x1 - x0;
+              if (cw < 40) continue;
+              const cc = document.createElement('canvas'); cc.width = cw + 24; cc.height = hh + 24;
               const cx = cc.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, cc.width, cc.height);
-              cx.drawImage(strip, x0, 0, cw, h, 12, 12, cw, h);
+              cx.drawImage(strip, x0, yOff, cw, hh, 12, 12, cw, hh);
+              // טקסט שנבחר/מסומן (לבן על רקע כהה) — מהפכים לשחור על לבן כדי שייקרא
+              if (!photo) try {
+                const im = cx.getImageData(12, 12, cw, hh), px = im.data; let dk = 0;
+                for (let i = 0; i < px.length; i += 4) if (px[i] < 128) dk++;
+                if (dk > (px.length / 4) * 0.5) { for (let i = 0; i < px.length; i += 4) { px[i] = px[i + 1] = px[i + 2] = 255 - px[i]; } cx.putImageData(im, 12, 12); }
+              } catch (e) {}
               const { data: { text: pt } } = await w2.recognize(await toBlob(cc));
               const v = pt.replace(/\D/g, '');
-              if (/^\d{7,8}$/.test(v) && !/^00/.test(v)) votes[v] = (votes[v] || 0) + 1;
+              if (/^\d{7,8}$/.test(v) && !/^00/.test(v)) votes[v] = (votes[v] || 0) + wt;
             }
             rescue.push(...Object.keys(votes).sort((a, b) => votes[b] - votes[a] || b.length - a.length));
           }
