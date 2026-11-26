@@ -519,11 +519,24 @@ async function _towPass(imgs, worker, setStatus, prog, ctx, range) {
         /* אין "N רכבים" בכותרת הפריט. שתי אפשרויות:
            — אין בפריט שום מספר רכב: זה פריט שאינו הובלת רכב (המתנה, תוספת וכו׳) — לא שגיאה, ממשיכים בלעדיו.
            — יש בו מספרים: אם כולם תקפים (אצלנו או במרשם) — מקבלים אותם, והכמות היא מה שנקרא. אחרת עוצרים. */
-        let any = _towItemPlates(it.text);
-        if (!any.length) for (const [kind, scale] of [['dig', 2], ['heb', 2], ['dig', 3]]) { const a = _towItemPlates(await reread(it, kind, scale)); if (a.length) { any = a; break; } }
-        if (!any.length) { it.runs = []; it.noCars = true; }
-        else if ((await Promise.all(any.map(validRun))).every(Boolean)) { it.expect = any.length; it.runs = any; it.inferred = true; }
-        else it.fail = { expect: '?', got: any.length, head: `עסקה ${it.tx || ''} — לא זוהה כמה רכבים יש בפריט, ונקראו בו מספרים שלא אומתו`.trim(), bad: [], unknown: true };
+        /* כמה קריאות של הפריט; מספר שאומת (אצלנו או במרשם) בקריאה כלשהי — רכב אמיתי. */
+        const okMap = new Map(); let maxN = 0, bad = [];
+        for (const tr of [null, ['dig', 2], ['heb', 2], ['dig', 3], ['heb', 3]]) {
+          const a = _towItemPlates(tr ? await reread(it, tr[0], tr[1]) : it.text);
+          if (!a.length) continue;
+          const v = await Promise.all(a.map(validRun));
+          a.forEach((r, j) => { if (v[j]) { const k = _towKey(r.cands[0]); if (!okMap.has(k)) okMap.set(k, r); } });
+          if (a.length > maxN) { maxN = a.length; bad = a.filter((_, j) => !v[j]).map(r => r.raw); }
+          if (v.every(Boolean) && okMap.size >= maxN) break;
+        }
+        const any = [...okMap.values()];
+        if (!maxN) { it.runs = []; it.noCars = true; }
+        else if (any.length) {
+          it.expect = any.length; it.runs = any; it.inferred = true;
+          // נקראו בפריט יותר מספרים ממה שאומת — לא עוצרים, אבל מציגים אזהרה לבדיקה ידנית
+          if (any.length < maxN) it.unverified = { tx: it.tx || '', raws: bad, missing: maxN - any.length };
+        }
+        else it.fail = { expect: '?', got: maxN, head: `עסקה ${it.tx || ''} — לא זוהה כמה רכבים יש בפריט, ואף מספר שנקרא בו לא אומת`.trim(), bad: [], unknown: true };
       } else if (await good(runs, it.expect)) it.runs = runs;
       else {
         const oks = await Promise.all(runs.map(validRun));
@@ -723,6 +736,8 @@ async function towInvoiceFile(input) {
       }
       sumInfo = res.sumCheck;
       runs = res.items.flatMap(it => it.runs);
+      const unv = res.items.filter(it => it.unverified).map(it => it.unverified);
+      if (unv.length) sumInfo = { ...(sumInfo || {}), unverified: unv };
       /* סריקה משלימה ובלתי תלויה: כל עמוד נקרא שוב כולו, ומכל שורה של הובלת רכב או רשימת מספרים נאספים
          מספרים בני 7–8 ספרות. מספר תקף (אצלנו או במרשם) שלא נקרא בפריטים — פריט שהחלוקה פספסה (כך נעלם 86939904).
          הוא מתווסף ומסומן, כדי שלא יישאר רכב מחוץ להצלבה. */
@@ -893,9 +908,10 @@ async function _towRender() {
   sum += `<div style="font-size:12px;color:var(--muted);font-weight:700;margin:-4px 0 8px">ההצלבה בוצעה מול ${nAll} רכבים ברשימת האיסוף ו-${nArc} רכבים בארכיון.</div>`;
   if (_towInv.sumInfo) sum += _towInv.sumInfo.ok
     ? `<div style="font-size:12.5px;font-weight:800;color:#0f766e;margin:-4px 0 8px">✔ סכום הפריטים (${Number(_towInv.sumInfo.sum).toLocaleString('he-IL')} ₪) תואם לסכום העבודות שבחשבונית — לא נשמט אף פריט.</div>`
-    : `<div style="font-size:12px;font-weight:700;color:#92400e;margin:-4px 0 8px">ℹ️ סכום המחירים שנקרא (${Number(_towInv.sumInfo.sum).toLocaleString('he-IL')} ₪) שונה מסכום העבודות בחשבונית (${Number(_towInv.sumInfo.total).toLocaleString('he-IL')} ₪) — הפער מתיישב עם טעות קריאה של ספרה במחיר אחד (למשל 9 שנקרא כ-5). כל הרכבים נקראו ואומתו.</div>`;
+    : `<div style="font-size:12px;font-weight:700;color:#92400e;margin:-4px 0 8px">ℹ️ סכום המחירים שנקרא (${Number(_towInv.sumInfo.sum).toLocaleString('he-IL')} ₪) שונה מסכום העבודות בחשבונית (${Number(_towInv.sumInfo.total).toLocaleString('he-IL')} ₪) — הפער מתיישב עם טעות קריאה של ספרה במחיר אחד (למשל 9 שנקרא כ-5).${(_towInv.sumInfo.unverified || []).length ? '' : ' כל הרכבים נקראו ואומתו.'}</div>`;
+  if (_towInv.sumInfo && (_towInv.sumInfo.unverified || []).length) sum += `<div style="font-size:12.5px;font-weight:800;color:#b45309;margin:-4px 0 8px">⚠️ לבדיקה ידנית: ${_towInv.sumInfo.unverified.map(u => `בעסקה ${esc(u.tx)} ${u.missing === 1 ? 'ייתכן שחסר רכב אחד' : 'ייתכן שחסרים ' + u.missing + ' רכבים'} (נקרא: ${u.raws.map(x => esc(x)).join(', ')} — לא נמצא במרשם)`).join(' · ')}. בדוק בחשבונית.</div>`;
   if (_towInv.sumInfo && (_towInv.sumInfo.sweepAdded || []).length) sum += `<div style="font-size:12.5px;font-weight:800;color:#b45309;margin:-4px 0 8px">⚠️ ${_towInv.sumInfo.sweepAdded.length === 1 ? 'רכב אחד נמצא' : _towInv.sumInfo.sweepAdded.length + ' רכבים נמצאו'} רק בסריקה המשלימה (פריט שלא זוהה בקריאה הראשונה): ${_towInv.sumInfo.sweepAdded.map(_towFmt).join(', ')} — נוספו להצלבה.</div>`;
-  if (_towInv.expectedTotal) sum += `<div style="font-size:12.5px;font-weight:800;color:#0f766e;margin:-4px 0 10px">✔ נקראו כל הרכבים שכתובים בחשבונית: ${rows.length} מתוך ${_towInv.expectedTotal}</div>`;
+  if (_towInv.expectedTotal && !(_towInv.sumInfo && (_towInv.sumInfo.unverified || []).length)) sum += `<div style="font-size:12.5px;font-weight:800;color:#0f766e;margin:-4px 0 10px">✔ נקראו כל הרכבים שכתובים בחשבונית: ${rows.length} מתוך ${_towInv.expectedTotal}</div>`;
   // קריאה שפספסה: מעט מאוד רכבים לעומת חשבוניות קודמות
   if (few) {
     sum += box('#b45309', '#fffbeb', `⚠️ נקראו רק ${rows.length} רכבים — כנראה הקריאה פספסה`,
