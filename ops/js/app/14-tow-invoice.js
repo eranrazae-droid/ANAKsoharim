@@ -516,7 +516,14 @@ async function _towPass(imgs, worker, setStatus, prog, ctx, range) {
         }
       }
       if (it.expect == null) {
-        it.fail = { expect: '?', got: 0, head: `עסקה ${it.tx || ''} — לא זוהה כמה רכבים יש בפריט`.trim(), bad: [], unknown: true };
+        /* אין "N רכבים" בכותרת הפריט. שתי אפשרויות:
+           — אין בפריט שום מספר רכב: זה פריט שאינו הובלת רכב (המתנה, תוספת וכו׳) — לא שגיאה, ממשיכים בלעדיו.
+           — יש בו מספרים: אם כולם תקפים (אצלנו או במרשם) — מקבלים אותם, והכמות היא מה שנקרא. אחרת עוצרים. */
+        let any = _towItemPlates(it.text);
+        if (!any.length) for (const [kind, scale] of [['dig', 2], ['heb', 2], ['dig', 3]]) { const a = _towItemPlates(await reread(it, kind, scale)); if (a.length) { any = a; break; } }
+        if (!any.length) { it.runs = []; it.noCars = true; }
+        else if ((await Promise.all(any.map(validRun))).every(Boolean)) { it.expect = any.length; it.runs = any; it.inferred = true; }
+        else it.fail = { expect: '?', got: any.length, head: `עסקה ${it.tx || ''} — לא זוהה כמה רכבים יש בפריט, ונקראו בו מספרים שלא אומתו`.trim(), bad: [], unknown: true };
       } else if (await good(runs, it.expect)) it.runs = runs;
       else {
         const oks = await Promise.all(runs.map(validRun));
@@ -701,7 +708,8 @@ async function towInvoiceFile(input) {
       expectedTotal = res.items.reduce((t, it) => t + (it.expect || 0), 0);
       if (res.failed.length) {
         const got = res.items.reduce((t, it) => t + (it.runs ? it.runs.length : 0), 0);
-        _towFail(`<div>נקראו ${got} מתוך ${expectedTotal} רכבים שכתובים בחשבונית.</div><ul style="margin:6px 18px 0;padding:0;font-weight:700;font-size:12.5px">${
+        const anyUnknown = res.failed.some(f => f.unknown);
+        _towFail(`<div>${anyUnknown ? `נקראו ${got} רכבים בפריטים שבהם זוהה מספר הרכבים (${expectedTotal}). בפריט שמופיע למטה לא זוהה כמה רכבים יש.` : `נקראו ${got} מתוך ${expectedTotal} רכבים שכתובים בחשבונית.`}</div><ul style="margin:6px 18px 0;padding:0;font-weight:700;font-size:12.5px">${
           res.failed.map(f => `<li>${f.n ? `פריט ${f.n}: ` : ''}${f.unknown ? '' : f.got === f.expect && f.bad.length
             ? `נקרא מספר שלא קיים במרשם הרכב (${f.bad.map(x => esc(x)).join(', ')}) — כנראה ספרה שנקראה לא נכון`
             : `צפויים ${f.expect} ${f.expect === 1 ? 'רכב' : 'רכבים'}, נקראו ${f.got}`} — ${esc(f.head)}</li>`).join('')}</ul>`);
