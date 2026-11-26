@@ -3323,9 +3323,11 @@ async function _pkResolvePlates(parsed, setSpan) {
   setSpan('⏳ מאמת מספרי רכב...');
   for (const c of need) {
     const cands = [...new Set([c._fromAlt ? null : c.plate, ...c._alts].filter(Boolean))].slice(0, 6);
+    // מספר של 7 ספרות שהוא תחילתו או סופו של מועמד בן 8 — כמעט תמיד ספרה שנחתכה בקצה (58102303 נקרא 5810230)
+    const _ext = () => { const p = c.plate; return (p && p.length === 7) ? c._alts.find(a => a.length === 8 && (a.startsWith(p) || a.endsWith(p))) : null; };
     let recs;
-    try { recs = await Promise.all(cands.map(v => _plateLookup(v).catch(() => undefined))); } catch (e) { continue; }
-    if (recs.every(r => r === undefined)) continue;   // אין חיבור — לא משנים
+    try { recs = await Promise.all(cands.map(v => _plateLookup(v).catch(() => undefined))); } catch (e) { const x = _ext(); if (x) c.plate = x; continue; }
+    if (recs.every(r => r === undefined)) { const x = _ext(); if (x) c.plate = x; continue; }   // אין חיבור — רק השלמת ספרה שנחתכה
     // מספר שקיים במרשם; אם כמה קיימים — מעדיפים את זה ששנת הייצור שלו זהה לשנה שנקראה בשורה
     let best = -1, bestScore = -1;
     recs.forEach((r, i) => {
@@ -3334,6 +3336,7 @@ async function _pkResolvePlates(parsed, setSpan) {
       if (sc > bestScore) { bestScore = sc; best = i; }
     });
     if (best >= 0) c.plate = cands[best];
+    else { const x = _ext(); if (x) c.plate = x; }   // אף מועמד לא במרשם — לפחות לא משאירים מספר קטוע
   }
 }
 
@@ -3382,8 +3385,9 @@ async function extractTextFromImage(input) {
             for (let x = 0; x < W; x++) if (isSel(off + x * 4)) { if (lo < 0) lo = x; hi = x; cnt++; }
             // בשורה שעוברת דרך הספרות הכחול הוא רק כמחצית מהרצף — לכן סף נמוך, ולא חלק מרוב הרצף
             if (cnt < 40 || cnt < (hi - lo + 1) * 0.2 || hi - lo > W * 0.6) continue;
-            // בתוך הבחירה: בהיר (הטקסט) ← שחור, כהה (הרקע הכחול) ← לבן. סף לפי בהירות ולא לפי "כחול", כדי שקצוות מרוככים לא יהפכו לכתם
-            for (let x = lo; x <= hi; x++) { const i = off + x * 4; const lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]; const v = lum > 175 ? 0 : 255; d[i] = d[i + 1] = d[i + 2] = v; }
+            // בתוך הבחירה: לבן (הטקסט) ← שחור, כל השאר (הכחול וגם המעבר המרוכך כחול-לבן בקצוות) ← לבן.
+            // לפי "לבן אמיתי" ולא לפי בהירות — אחרת המעבר בקצה נהיה קו שחור צמוד לספרה הקיצונית (3 נקרא 7/2)
+            for (let x = lo; x <= hi; x++) { const i = off + x * 4; const v = (d[i] > 190 && d[i + 1] > 190 && d[i + 2] > 190) ? 0 : 255; d[i] = d[i + 1] = d[i + 2] = v; }
           }
         }
         const hist = new Array(256).fill(0);
@@ -3916,7 +3920,8 @@ function _parseRowText(text) {
     const nums = [...t.matchAll(/(?<!\d)(\d{4,6})(?!\d)/g)].map(m => m[1])
       .filter(n => n !== plate && !/^(19[89]\d|20[0-3]\d)$/.test(n) && !_eng(n));
     // a 6-digit km with a leading 1 usually comes from a "|" separator read as "1"
-    let n = nums[0];
+    // מספר ארוך (5–6 ספרות) עדיף על קצר: מספר בן 4 ספרות שאינו נפח הוא לרוב שארית של מספר רכב שנקרא חלקית
+    let n = nums.find(x => x.length >= 5) || nums[0];
     if (n && n.length === 6 && n[0] === '1') n = n.slice(1);
     if (n) km = _fmtKm(n);
   }
