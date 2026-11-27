@@ -1009,6 +1009,8 @@ function bshopOpenFill(id) {
   if (fp) fp.innerHTML = small
     ? `<img id="bshop-fill-img" src="${small}" alt="" onclick="openLightbox(this.src)" style="width:100%;max-height:220px;object-fit:cover;object-position:${_bshopFocusCss(j)};border-radius:12px;margin-bottom:12px;cursor:zoom-in;display:block">` : '';
   if (small) _bshopLoadFullPhoto(id).then(() => _bshopFixFocus(_bshopJobs.find(x => x.id === id)));
+  // גם מהפתק המלא אפשר להוסיף או להחליף תמונה (מהמצלמה או מהגלריה) — למשל כששכחו לצלם
+  if (fp && _bshopFillMgr) fp.insertAdjacentHTML('beforeend', `<button type="button" onclick="bsmAddPhoto('${id}')" style="width:100%;margin:0 0 12px;background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:10px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:800;cursor:pointer">📷 ${small ? 'החלף תמונה' : 'הוסף תמונה'}</button>`);
   // the manager's note is the first thing that must be read, so it sits above
   // the parts, in large type, marked in yellow
   const noteEl = document.getElementById('bshop-fill-note');

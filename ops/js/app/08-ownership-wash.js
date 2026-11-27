@@ -1954,6 +1954,13 @@ async function bsmAddPhotoPicked(input) {
       photoFailed: deleteField(),
     });
     showToast('✅ התמונה נוספה לפתק');
+    // הפתק המלא פתוח על אותו רכב — מציגים בו את התמונה החדשה מיד
+    try {
+      const j = _bshopJobs.find(x => x.id === id);
+      if (j) { j.photo = photo; j.photoThumb = thumb; if (focus) j.photoFocus = focus; }
+      const m = document.getElementById('modal-bshop-fill');
+      if (j && _bshopFillId === id && m && m.classList.contains('open')) bshopOpenFill(id);
+    } catch (e) {}
   } catch (e) { showToast('⚠️ שמירת התמונה נכשלה: ' + (e.code || e.message), 7000); }
 }
 
