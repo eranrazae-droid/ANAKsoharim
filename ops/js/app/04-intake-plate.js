@@ -1462,7 +1462,7 @@ function openDriverIntake(id) {
     if (r.id === 'battery-date-section') return;  // keep battery date row always visible
     r.style.display = 'none';
   });
-  document.querySelectorAll('#modal-driver-intake textarea, #modal-driver-intake input[type=number], #di-code').forEach(t => t.value = '');
+  document.querySelectorAll('#modal-driver-intake textarea, #modal-driver-intake input[type=number], #di-code, #di-km, #di-battery-month').forEach(t => t.value = '');   // di-km הוא type=tel — בלי שמו כאן הקמ של הרכב הקודם נשאר בטופס
   ['di-ev-v','di-ev-x'].forEach(id=>{const b=document.getElementById(id);if(b){b.classList.remove('v-active','x-active');b.style.color='transparent';}});const _evF=document.getElementById('di-ev-fields');if(_evF)_evF.style.display='none';
   // use the single source of truth — a duplicated list here once meant a new
   // photo section opened with no camera button at all
@@ -1498,7 +1498,7 @@ function openDriverIntake(id) {
     const localAt = localDraftStr ? (JSON.parse(localDraftStr)._savedAt || 0) : 0;
     import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(({ getDoc, doc }) => {
       getDoc(doc(window._db, 'intake_assignments', id)).then(snap => {
-        if (!snap.exists()) return;
+        if (!snap.exists() || _currentIntakeId !== id) return;   // נפתחה קליטה אחרת בינתיים — לא למלא אותה בנתוני הקודמת
         const v = snap.data();
         const remoteAt = v.liveUpdatedAt ? Date.parse(v.liveUpdatedAt) : 0;
         const localObj = localDraftStr ? (() => { try { return JSON.parse(localDraftStr); } catch (e) { return null; } })() : null;
